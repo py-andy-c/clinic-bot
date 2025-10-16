@@ -234,7 +234,7 @@ clinic-bot/
 This approach runs all services directly on the host machine for simplicity and speed.
 
 #### 9.1.1. Prerequisites
-*   Python 3.11+ and `venv` installed.
+*   Python 3.12+ and `venv` installed.
 *   Node.js and `npm` (or `yarn`) installed.
 *   A local PostgreSQL server instance installed and running.
 *   `ngrok` CLI installed.
