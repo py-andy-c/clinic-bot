@@ -145,9 +145,9 @@ To ensure accurate scheduling, the bot will confirm the type of appointment. The
 ## 5. Customer Acquisition & Onboarding for Clinics
 
 **Strategy: The Full Webhook Trial**
-1.  **Clear Value Proposition:** We will communicate that to enable the full conversational AI experience, our service must become the primary message handler. This will replace any existing keyword-based auto-replies.
+1.  **Clear Value Proposition:** We will communicate that to enable the full conversational AI experience, our service must become the primary message handler for appointment-related queries.
 2.  **Guided Setup:** The admin platform will provide a step-by-step wizard to guide the clinic administrator through configuring the LINE OA webhook, copying their unique URL and pasting it into the LINE Official Account Manager.
-3.  **Full Experience Trial:** Once the webhook is configured, the clinic gets the full functionality. The bot handles all appointment-related conversations and provides a standard reply for non-related queries, directing them to manual staff follow-up. This provides a true-to-life trial of the paid service.
+3.  **Full Experience Trial:** Once the webhook is configured, the clinic gets the full functionality. The bot handles all appointment-related conversations. For non-appointment queries, the bot does NOT respond, allowing LINE's existing auto-reply system or manual staff to handle them naturally. This provides a true-to-life trial of the paid service.
 
 ## 6. Monetization & Billing
 

@@ -134,15 +134,74 @@ CREATE TABLE appointments (
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ NOT NULL,
     status VARCHAR(50) NOT NULL, -- 'confirmed', 'canceled_by_patient', 'canceled_by_clinic'
-    gcal_event_id VARCHAR(255)
+    gcal_event_id VARCHAR(255) UNIQUE, -- ← CRITICAL: Sync key for bidirectional sync with Google Calendar
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Performance indexes
+    INDEX idx_patient_upcoming (patient_id, start_time),
+    INDEX idx_therapist_schedule (therapist_id, start_time),
+    INDEX idx_gcal_sync (gcal_event_id) -- Fast webhook lookups
 );
 ```
 
-## 6. LLM Interaction Design
+## 6. Data Consistency Strategy
+
+### 6.1. Conversation History
+
+**LINE API Research:** LINE Messaging API does NOT provide conversation history retrieval.
+
+**Decision:** Store all conversation history in PostgreSQL using OpenAI Agent SDK's `SQLAlchemySession`.
+- Session keyed by `line_user_id`
+- Automatic persistence across webhook requests
+- Full control over data retention policies
+- Fast local queries (no API calls needed)
+
+**Source:** [LINE Messaging API Documentation](https://developers.line.biz/en/reference/messaging-api/)
+
+### 6.2. Appointment Data
+
+**Google Calendar API Research:** Google Calendar provides full CRUD, webhooks, and sync capabilities.
+
+**Decision:** Hybrid architecture with bidirectional sync between PostgreSQL and Google Calendar.
+
+**Why Hybrid?**
+
+**Database as Primary for Queries:**
+- Fast queries (<10ms) for chatbot responses
+- Complex aggregations for admin dashboard (PRD Section 4.2)
+- Database transactions prevent double-booking (PRD Section 7)
+- Efficient joins with patients, therapists, appointment types
+
+**Google Calendar as Therapist's Working Calendar:**
+- Therapists manage their schedule in Google Calendar
+- Detect therapist-initiated changes via webhooks (PRD Section 3.4)
+- Native mobile/desktop access for therapists
+- Respect existing therapist workflow
+
+**Sync Strategy:**
+- **DB → GCal**: Patient books via LINE → Create in DB → Sync to GCal
+- **GCal → DB**: Therapist changes calendar → Webhook → Update DB → Notify patient
+- **Sync Key**: `gcal_event_id` field enables bidirectional mapping
+- **Latency**: ~1-5 seconds (webhook-driven)
+- **Reconciliation**: Nightly job catches any sync failures
+
+**Benefits:**
+- ✅ Performance: Fast database queries for chatbot
+- ✅ PRD Compliance: All requirements met
+- ✅ Therapist Workflow: Native Google Calendar usage
+- ✅ Reliability: Survives Google API outages
+- ✅ Data Consistency: Webhooks + periodic reconciliation
+
+**Source:** [Google Calendar API v3 Documentation](https://developers.google.com/calendar/api/v3/reference)
+
+**Detailed implementation in `milestone2_agent_design.md` Section 10.**
+
+## 7. LLM Interaction Design
 
 *(Details on System Prompt, Context Injection, and Tools remain as specified in the previous version)*
 
-## 7. Implementation Milestones
+## 8. Implementation Milestones
 
 ### Milestone 1: Foundational Setup & Core Backend
 *   **Goal:** Establish the project structure, database, and core service connections.
@@ -155,22 +214,25 @@ CREATE TABLE appointments (
     *   Implement the Google OAuth2 flow for *therapists* to grant calendar access.
 
 ### Milestone 2: Core Patient-Facing Functionality (Chatbot MVP)
-*   **Goal:** Enable a patient to successfully book a new appointment via conversation.
+*   **Goal:** Enable a patient to successfully book, reschedule, and cancel appointments via conversation.
 *   **Tasks:**
-    *   Integrate the LLM service wrapper (e.g., for Gemini API).
-    *   Implement the system prompt construction logic.
-    *   Implement the first LLM tools: `get_therapist_availability` and `create_appointment`.
-    *   Implement the patient identification and phone number linking flow.
-    *   End-to-end testing: A user can start a conversation, link their account, and book an appointment which appears on the therapist's calendar.
+    *   Integrate OpenAI Agent SDK with multi-agent workflow orchestration.
+    *   Implement Triage Agent for intent classification.
+    *   Implement Account Linking Agent for phone number verification.
+    *   Implement Appointment Agent with 6 tools: `get_therapist_availability`, `create_appointment`, `get_existing_appointments`, `cancel_appointment`, `reschedule_appointment`, `get_last_appointment_therapist`.
+    *   Implement conversation history persistence using SDK Sessions.
+    *   Implement LINE webhook with signature verification.
+    *   End-to-end testing: A user can start a conversation, link their account, book/reschedule/cancel appointments which sync with therapist's Google Calendar.
 
-### Milestone 3: Full Chatbot Functionality & Admin Platform Scaffolding
-*   **Goal:** Complete the chatbot's conversational capabilities and begin the admin interface.
+### Milestone 3: Admin Platform & Advanced Features
+*   **Goal:** Complete the administration platform and advanced chatbot features.
 *   **Tasks:**
-    *   Implement remaining LLM tools: `get_existing_appointments`, `cancel_appointment`, `get_last_appointment_therapist`.
-    *   Implement the therapist-initiated cancellation flow (`/webhook/gcal`).
+    *   Implement the therapist-initiated cancellation flow (Google Calendar webhook).
     *   Set up the React frontend project in `frontend/`.
     *   Implement Admin Authentication using Google OAuth.
     *   Build the Admin API endpoints and frontend UI for Therapist Management (viewing, inviting, checking sync status).
+    *   Implement appointment reminder system.
+    *   Add guardrails for conversation quality and safety.
 
 ### Milestone 4: Full Admin Feature Set & Pre-Launch Polish
 *   **Goal:** Complete the administration platform and harden the system for production.
@@ -189,7 +251,7 @@ CREATE TABLE appointments (
     *   Monitor system performance, error rates, and user feedback.
     *   Begin planning and implementation of post-launch features, starting with the Stripe integration for billing.
 
-## 8. Code/Folder Structure
+## 9. Code/Folder Structure
 
 The project will be structured as a monorepo to simplify development and dependency management between the frontend and backend.
 
@@ -227,19 +289,19 @@ clinic-bot/
 └── .gitignore                    # Root gitignore for both projects
 ```
 
-## 9. Development and Deployment Strategy
+## 10. Development and Deployment Strategy
 
-### 9.1. Local Development (Script-Based)
+### 10.1. Local Development (Script-Based)
 
 This approach runs all services directly on the host machine for simplicity and speed.
 
-#### 9.1.1. Prerequisites
+#### 10.1.1. Prerequisites
 *   Python 3.12+ and `venv` installed.
 *   Node.js and `npm` (or `yarn`) installed.
 *   A local PostgreSQL server instance installed and running.
 *   `ngrok` CLI installed.
 
-#### 9.1.2. Backend Setup (`backend/` directory)
+#### 10.1.2. Backend Setup (`backend/` directory)
 1.  **Navigate to Backend Directory:** `cd backend`
 2.  **Create Virtual Environment & Install Dependencies:**
     ```bash
@@ -254,7 +316,7 @@ This approach runs all services directly on the host machine for simplicity and 
     uvicorn src.main:app --host 127.0.0.1 --port 8000 --reload
     ```
 
-#### 9.1.3. Frontend Setup (`frontend/` directory)
+#### 10.1.3. Frontend Setup (`frontend/` directory)
 1.  **Navigate to Frontend Directory:** `cd frontend`
 2.  **Install Dependencies:** `npm install`
 3.  **Configure Environment:** Copy `frontend/.env.example` to `frontend/.env` to set the backend API URL for development.
@@ -263,7 +325,7 @@ This approach runs all services directly on the host machine for simplicity and 
     npm run dev
     ```
 
-### 9.2. Testing with LINE and `ngrok`
+### 10.2. Testing with LINE and `ngrok`
 
 `ngrok` is used to expose the local backend to the public internet for webhook testing.
 
@@ -274,11 +336,11 @@ This approach runs all services directly on the host machine for simplicity and 
     ```3.  **Configure LINE Webhook:** Take the public HTTPS URL provided by `ngrok` (e.g., `https://random.ngrok-free.app`) and set it in your LINE Developers Console as `https://random.ngrok-free.app/webhook/line`.
 4.  **Test:** Send messages to your LINE Official Account. The requests will be tunneled to your local FastAPI application.
 
-### 9.3. Production Deployment (Vercel + Railway)
+### 10.3. Production Deployment (Vercel + Railway)
 
 This strategy leverages specialized platforms for an optimal developer experience and rapid deployment.
 
-#### 9.3.1. Frontend Deployment (Vercel)
+#### 10.3.1. Frontend Deployment (Vercel)
 1.  **Connect Repository:** Connect the monorepo Git repository (e.g., on GitHub) to your Vercel account.
 2.  **Configure Project:**
     *   Vercel will automatically detect the React/Vite project.
@@ -287,7 +349,7 @@ This strategy leverages specialized platforms for an optimal developer experienc
 3.  **Set Environment Variables:** In the Vercel project settings, add the production backend URL (e.g., `VITE_API_BASE_URL=https://your-backend.up.railway.app`).
 4.  **Deploy:** Pushing to the `main` branch will automatically trigger a deployment. Vercel will also create preview deployments for every pull request.
 
-#### 9.3.2. Backend & Database Deployment (Railway)
+#### 10.3.2. Backend & Database Deployment (Railway)
 1.  **Connect Repository:** Connect the same monorepo Git repository to your Railway account.
 2.  **Create Project:** Create a new project from the repository.
 3.  **Add Services:**
