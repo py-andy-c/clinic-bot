@@ -7,6 +7,7 @@ python-dotenv==1.0.0
 httpx==0.25.2
 pydantic==2.5.0
 pydantic-settings==2.1.0
+google-generativeai==0.5.4
 pyright==1.1.368
 pytest==7.4.3
 pytest-asyncio==0.21.1

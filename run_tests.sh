@@ -78,7 +78,7 @@ fi
 # Run tests with coverage
 echo ""
 print_status "Running backend test suite with coverage..."
-if PYTHONWARNINGS="ignore::DeprecationWarning:pydantic._internal._config" python3 -m pytest tests/ -v --tb=short --cov=src --cov-report=term-missing --cov-report=html:htmlcov --cov-fail-under=70; then
+if GEMINI_API_KEY=test PYTHONWARNINGS="ignore::DeprecationWarning:pydantic._internal._config" python3 -m pytest tests/ -v --tb=short --cov=src --cov-report=term-missing --cov-report=html:htmlcov --cov-fail-under=70; then
     print_success "All backend tests passed!"
 else
     print_error "Some backend tests failed!"

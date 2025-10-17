@@ -69,6 +69,23 @@ class Settings(BaseSettings):
     Keep this secret and never expose it in client-side code.
     """
 
+    # Gemini LLM Configuration
+    gemini_api_key: str = ""
+    """
+    Google Gemini API key for LLM-powered conversations.
+
+    Required for the chatbot functionality. Obtain from Google AI Studio.
+    Used to power the conversational appointment booking system.
+    """
+
+    gemini_model: str = "gemini-2.5-flash-lite"
+    """
+    Gemini model to use for conversations.
+
+    Default is gemini-2.5-flash-lite for fast, efficient responses.
+    Optimized for conversational AI and function calling.
+    """
+
     # JWT Configuration (for future use)
     jwt_secret_key: str = "your-secret-key-here"
     """
