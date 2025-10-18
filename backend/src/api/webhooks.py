@@ -2,44 +2,29 @@
 Webhook endpoints for external service integrations.
 
 This module handles incoming webhooks from LINE messaging platform
-and Google Calendar push notifications.
+and Google Calendar push notifications for the chatbot system.
 """
 
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Request, HTTPException, status
+from fastapi import APIRouter, Request, HTTPException, status, Depends
 from fastapi.responses import PlainTextResponse
+from sqlalchemy.orm import Session
+
+from src.agents.orchestrator import handle_line_message
+from src.services.line_service import LINEService
+from src.agents.helpers import get_clinic_from_request
+from src.core.database import get_db
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def verify_line_signature(request: Request, body: bytes) -> bool:
-    """
-    Verify LINE webhook signature for security.
-
-    Args:
-        request: The incoming HTTP request
-        body: Raw request body bytes
-
-    Returns:
-        bool: True if signature is valid, False otherwise
-
-    Note:
-        This is a placeholder implementation. In production, this should
-        use HMAC-SHA256 to verify the X-Line-Signature header.
-    """
-    # TODO: Implement proper LINE signature verification using channel secret
-    # The signature is computed as: BASE64(HMAC-SHA256(channel_secret, body))
-    # and compared against the X-Line-Signature header
-    return True
-
-
-@router.post(
+@router.post(  # type: ignore[reportUntypedFunctionDecorator]
     "/line",
     summary="LINE Webhook",
-    description="Receive messages and events from LINE messaging platform",
+    description="Receive messages and events from LINE messaging platform for chatbot processing",
     responses={
         200: {"description": "Webhook processed successfully"},
         400: {"description": "Invalid request format"},
@@ -47,15 +32,17 @@ def verify_line_signature(request: Request, body: bytes) -> bool:
         500: {"description": "Internal server error"},
     },
 )
-async def line_webhook(request: Request) -> PlainTextResponse:
+async def line_webhook(request: Request, db: Session = Depends(get_db)) -> PlainTextResponse:
     """
-    Process incoming LINE webhook events.
+    Process incoming LINE webhook events for chatbot conversations.
 
-    Handles message events, follows/unfollows, and other LINE platform events.
-    Currently logs events for debugging purposes.
+    Handles text messages by routing them through the multi-agent orchestrator.
+    Non-appointment queries are ignored (no response sent).
+    Appointment-related queries trigger the full agent workflow.
 
     Args:
         request: The incoming webhook request from LINE
+        db: Database session
 
     Returns:
         PlainTextResponse: "OK" to acknowledge receipt
@@ -64,53 +51,54 @@ async def line_webhook(request: Request) -> PlainTextResponse:
         HTTPException: If processing fails or signature is invalid
     """
     try:
-        # Get raw body for signature verification (placeholder for future implementation)
-        body = await request.body()  # type: ignore[unused-variable]
+        # 1. Get request body and signature
+        body = await request.body()
+        signature = request.headers.get('X-Line-Signature', '')
 
-        # TODO: Implement signature verification in production
-        # if not verify_line_signature(request, body):
-        #     logger.warning("Invalid LINE signature received")
-        #     raise HTTPException(
-        #         status_code=status.HTTP_401_UNAUTHORIZED,
-        #         detail="Invalid signature"
-        #     )
+        # 2. Get clinic from request (by header or URL path)
+        clinic = get_clinic_from_request(request, db)
 
-        # Parse the webhook payload
-        try:
-            payload: dict[str, Any] = await request.json()
-        except Exception as e:
-            logger.error(f"Failed to parse LINE webhook JSON: {e}")
+        # 3. Initialize LINE service for this clinic
+        line_service = LINEService(
+            channel_secret=clinic.line_channel_secret,
+            channel_access_token=clinic.line_channel_access_token
+        )
+
+        # 4. Verify LINE signature (security)
+        if not line_service.verify_signature(body.decode('utf-8'), signature):
+            logger.warning("Invalid LINE signature received")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid JSON payload"
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid LINE signature"
             )
 
-        logger.info(f"Received LINE webhook with {len(payload.get('events', []))} events")
+        # 5. Parse LINE message payload
+        payload: dict[str, Any] = await request.json()
+        message_data = line_service.extract_message_data(payload)
 
-        # Process each event in the webhook
-        for event in payload.get("events", []):
-            event_type = event.get("type")
-            logger.info(f"Processing LINE event: {event_type}")
+        if not message_data:
+            # Not a text message (could be image, sticker, etc.) - ignore
+            logger.info("Received non-text message, ignoring")
+            return PlainTextResponse("OK")
 
-            if event_type == "message":
-                message = event.get("message", {})
-                message_type = message.get("type")
-                text = message.get("text", "")
+        line_user_id, message_text = message_data
+        logger.info(f"Processing text message from {line_user_id}: {message_text}")
 
-                logger.info(f"Message type: {message_type}, Text: {text}")
+        # 6. Delegate to orchestrator (business logic)
+        response_text = await handle_line_message(
+            db=db,
+            clinic=clinic,
+            line_user_id=line_user_id,
+            message_text=message_text
+        )
 
-                # TODO: Implement message processing logic
-                # This will route messages to the LLM service for conversation handling
+        # 7. Send response via LINE API (only if not None)
+        if response_text is not None:
+            await line_service.send_text_message(line_user_id, response_text)
+            logger.info(f"Sent response to {line_user_id}")
+        else:
+            logger.info(f"No response sent to {line_user_id} (non-appointment query)")
 
-            elif event_type == "follow":
-                logger.info("User followed the LINE OA")
-                # TODO: Handle new user onboarding
-
-            elif event_type == "unfollow":
-                logger.info("User unfollowed the LINE OA")
-                # TODO: Handle user deactivation
-
-        # Return success response to LINE platform
         return PlainTextResponse("OK")
 
     except HTTPException:
@@ -124,7 +112,7 @@ async def line_webhook(request: Request) -> PlainTextResponse:
         )
 
 
-@router.post(
+@router.post(  # type: ignore[reportUntypedFunctionDecorator]
     "/gcal",
     summary="Google Calendar Webhook",
     description="Receive push notifications for Google Calendar changes",

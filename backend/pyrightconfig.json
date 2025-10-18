@@ -1,0 +1,22 @@
+{
+  "include": ["src"],
+  "exclude": ["venv", "__pycache__", "htmlcov"],
+  "typeCheckingMode": "strict",
+  "reportMissingImports": false,
+  "reportMissingTypeStubs": false,
+  "reportCallInDefaultInitializer": false,
+  "reportMissingSuperCall": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownMemberType": false,
+  "reportUnknownParameterType": false,
+  "reportUnknownArgumentType": false,
+  "pythonVersion": "3.12",
+  "pythonPlatform": "Darwin",
+  "executionEnvironments": [
+    {
+      "root": "src",
+      "pythonVersion": "3.12",
+      "pythonPath": ["."]
+    }
+  ]
+}

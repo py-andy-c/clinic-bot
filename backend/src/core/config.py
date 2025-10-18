@@ -5,10 +5,17 @@ This module defines all configuration variables for the Clinic Bot application,
 loaded from environment variables with fallback defaults.
 """
 
+import os
+import pathlib
 from pydantic_settings import BaseSettings
 
 
-class Settings(BaseSettings):
+# Determine if we're running in a test environment
+# Don't load .env file during testing to ensure predictable test behavior
+is_testing = os.getenv("PYTEST_VERSION") is not None or any("pytest" in str(frame) for frame in __import__('inspect').stack(0))
+
+
+class Settings(BaseSettings):  # type: ignore[reportUntypedBaseClass]
     """
     Application settings loaded from environment variables.
 
@@ -100,10 +107,9 @@ class Settings(BaseSettings):
     Affects logging levels, database echo settings, and other behaviors.
     """
 
-    class Config:
-        """Pydantic configuration for settings loading."""
-        env_file = ".env"
-        case_sensitive = False
+    model_config = {
+        "env_file": None if is_testing else pathlib.Path(__file__).parent.parent.parent / ".env",
+    }
 
 
 # Global settings instance

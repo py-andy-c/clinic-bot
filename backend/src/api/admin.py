@@ -17,7 +17,7 @@ from ..models.therapist import Therapist
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-@router.get(
+@router.get(  # type: ignore[reportUntypedFunctionDecorator]
     "/therapists/{therapist_id}/gcal/auth",
     summary="Initiate Google OAuth",
     description="Generate authorization URL for therapist Google Calendar access",
@@ -90,7 +90,7 @@ async def initiate_google_oauth(
         )
 
 
-@router.get(
+@router.get(  # type: ignore[reportUntypedFunctionDecorator]
     "/auth/google/callback",
     summary="Google OAuth Callback",
     description="Handle OAuth callback and complete therapist calendar authorization",

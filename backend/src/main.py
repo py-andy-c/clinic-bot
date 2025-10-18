@@ -82,7 +82,7 @@ app.include_router(
 )
 
 
-@app.get(
+@app.get(  # type: ignore[reportUntypedFunctionDecorator]
     "/",
     summary="Root endpoint",
     description="Returns basic API information",
@@ -96,7 +96,7 @@ async def root() -> dict[str, str]:
     }
 
 
-@app.get(
+@app.get(  # type: ignore[reportUntypedFunctionDecorator]
     "/health",
     summary="Health check",
     description="Returns the health status of the API",
@@ -107,7 +107,7 @@ async def health_check() -> dict[str, str]:
 
 
 # Global exception handlers
-@app.exception_handler(Exception)
+@app.exception_handler  # type: ignore[reportUntypedFunctionDecorator](Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Handle unexpected exceptions globally."""
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
@@ -117,7 +117,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-@app.exception_handler(ValueError)
+@app.exception_handler  # type: ignore[reportUntypedFunctionDecorator](ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
     """Handle ValueError exceptions."""
     logger.warning(f"ValueError: {exc}")
@@ -127,7 +127,7 @@ async def value_error_handler(request: Request, exc: ValueError):
     )
 
 
-@app.exception_handler(httpx.HTTPStatusError)
+@app.exception_handler  # type: ignore[reportUntypedFunctionDecorator](httpx.HTTPStatusError)
 async def http_status_error_handler(request: Request, exc: httpx.HTTPStatusError):
     """Handle HTTP status errors from external services."""
     logger.error(f"External service error: {exc}")

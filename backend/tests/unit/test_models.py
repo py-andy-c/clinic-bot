@@ -187,8 +187,9 @@ class TestAppointmentModel:
 
     def test_appointment_creation(self):
         """Test appointment model creation."""
+        from datetime import timedelta
         start_time = datetime.now(timezone.utc)
-        end_time = start_time.replace(hour=start_time.hour + 1)
+        end_time = start_time + timedelta(hours=1)
 
         appointment = Appointment(
             patient_id=1,

@@ -10,7 +10,7 @@ from sqlalchemy import Column, Integer, String, TIMESTAMP, func
 from sqlalchemy.orm import relationship
 
 from .base import Base
-from ..core.constants import MAX_STRING_LENGTH
+from core.constants import MAX_STRING_LENGTH
 
 
 class Clinic(Base):
@@ -46,6 +46,14 @@ class Clinic(Base):
 
     Used to verify that incoming webhooks are authentic and from LINE.
     Must be kept secure and never exposed to clients.
+    """
+
+    line_channel_access_token = Column(String(MAX_STRING_LENGTH), nullable=False)
+    """
+    LINE Channel Access Token for sending messages via LINE Messaging API.
+
+    Required to send push messages, reply messages, and other LINE API operations.
+    Obtained from LINE Developers Console. Must be kept secure.
     """
 
     subscription_status = Column(String(50), default="trial", nullable=False)
