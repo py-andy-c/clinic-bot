@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch, MagicMock, AsyncMock
 from sqlalchemy.orm import Session
 
-from src.agents.tools import (
+from src.clinic_agents.tools import (
     get_therapist_availability,
     create_appointment,
     get_existing_appointments,
@@ -19,7 +19,7 @@ from src.agents.tools import (
     get_last_appointment_therapist,
     verify_and_link_patient
 )
-from src.agents.context import ConversationContext
+from src.clinic_agents.context import ConversationContext
 from src.models import Clinic, Patient, Therapist, Appointment, AppointmentType, LineUser
 from src.services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
 
@@ -169,7 +169,7 @@ class TestCreateAppointment:
     """Test create_appointment tool."""
 
     @pytest.mark.asyncio
-    @patch('src.agents.tools.GoogleCalendarService')
+    @patch('src.clinic_agents.tools.GoogleCalendarService')
     async def test_create_appointment_success(self, mock_gcal_class, db_session):
         """Test successful appointment creation with Google Calendar sync."""
         # Setup mocks
@@ -203,7 +203,7 @@ class TestCreateAppointment:
                 return mock_apt_type_query
             return Mock()
 
-        with patch('src.agents.tools.GoogleCalendarService') as mock_gcal_class, \
+        with patch('src.clinic_agents.tools.GoogleCalendarService') as mock_gcal_class, \
              patch.object(db_session, 'query', side_effect=query_side_effect), \
              patch.object(db_session, 'add') as mock_add, \
              patch.object(db_session, 'commit') as mock_commit, \
@@ -287,7 +287,7 @@ class TestCreateAppointment:
             assert "找不到" in result["error"]
 
     @pytest.mark.asyncio
-    @patch('src.agents.tools.GoogleCalendarService')
+    @patch('src.clinic_agents.tools.GoogleCalendarService')
     async def test_create_appointment_gcal_failure(self, mock_gcal_class, db_session):
         """Test appointment creation when Google Calendar fails."""
         # Setup mock to raise exception
@@ -321,7 +321,7 @@ class TestCreateAppointment:
                 return mock_apt_type_query
             return Mock()
 
-        with patch('src.agents.tools.GoogleCalendarService') as mock_gcal_class, \
+        with patch('src.clinic_agents.tools.GoogleCalendarService') as mock_gcal_class, \
              patch.object(db_session, 'query', side_effect=query_side_effect), \
              patch.object(db_session, 'rollback') as mock_rollback:
 
@@ -418,7 +418,7 @@ class TestCancelAppointment:
     """Test cancel_appointment tool."""
 
     @pytest.mark.asyncio
-    @patch('src.agents.tools.GoogleCalendarService')
+    @patch('src.clinic_agents.tools.GoogleCalendarService')
     async def test_cancel_appointment_success(self, mock_gcal_class, db_session):
         """Test successful appointment cancellation."""
         # Setup Google Calendar mock
@@ -446,7 +446,7 @@ class TestCancelAppointment:
         mock_filter.first.return_value = mock_appointment
         mock_query.filter.return_value = mock_filter
 
-        with patch('src.agents.tools.GoogleCalendarService') as mock_gcal_class, \
+        with patch('src.clinic_agents.tools.GoogleCalendarService') as mock_gcal_class, \
              patch.object(db_session, 'query', return_value=mock_query), \
              patch.object(db_session, 'commit') as mock_commit:
 
@@ -537,9 +537,9 @@ class TestVerifyAndLinkPatient:
                 phone_number="0912345678"
             )
 
-            assert result["success"] is True
-            assert "帳號連結成功" in result["message"]
-            assert result["patient"]["name"] == "測試病人"
+            assert result.startswith("SUCCESS:")
+            assert "帳號連結成功" in result
+            assert "測試病人" in result
 
             # Verify database operations
             mock_add.assert_called_once()
@@ -566,8 +566,8 @@ class TestVerifyAndLinkPatient:
                 phone_number="0999999999"
             )
 
-            assert result["success"] is False
-            assert "找不到" in result["message"]
+            assert result.startswith("NEEDS_NAME:")
+            assert "尚未在系統中註冊" in result
 
     @pytest.mark.asyncio
     async def test_verify_and_link_already_linked_to_different_account(self, db_session):
@@ -604,6 +604,6 @@ class TestVerifyAndLinkPatient:
                 phone_number="0912345678"
             )
 
-            assert result["success"] is False
-            assert "已連結到其他" in result["message"]
+            assert result.startswith("ERROR:")
+            assert "已連結到其他" in result
 

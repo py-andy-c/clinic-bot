@@ -8,8 +8,8 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timezone
 
-from src.agents.orchestrator import handle_line_message, _is_linking_successful
-from src.agents.context import ConversationContext
+from src.clinic_agents.orchestrator import handle_line_message, _is_linking_successful
+from src.clinic_agents.context import ConversationContext
 from src.models import Clinic, Patient, Therapist, AppointmentType, LineUser
 
 

@@ -5,24 +5,26 @@ This module coordinates the flow between triage, account linking, and appointmen
 It handles conversation state management, agent routing, and response formatting.
 """
 
-import json
+import logging
 from typing import Optional, Any
 from sqlalchemy.orm import Session
 
 from agents import Runner, RunConfig, trace  # type: ignore[import]
-from agents.extensions.sqlalchemy_session import SQLAlchemySession  # type: ignore[import]
+# from agents.extensions.sqlalchemy_session import SQLAlchemySession  # Not available in current version
 
-from src.agents.context import ConversationContext
-from src.agents.triage_agent import triage_agent
-from src.agents.appointment_agent import appointment_agent
-from src.agents.account_linking_agent import account_linking_agent
-from src.agents.helpers import get_or_create_line_user, get_patient_from_line_user
+from src.clinic_agents.context import ConversationContext
+from src.clinic_agents.triage_agent import triage_agent
+from src.clinic_agents.appointment_agent import appointment_agent
+from src.clinic_agents.account_linking_agent import account_linking_agent
+from src.clinic_agents.helpers import get_or_create_line_user, get_patient_from_line_user
 from src.models import Clinic, LineUser
-from src.core.database import engine
+
+logger = logging.getLogger(__name__)
 
 
 # Initialize session storage for conversation history
-session_storage = SQLAlchemySession(engine)
+# session_storage = SQLAlchemySession(engine)  # Not available, using None for now
+session_storage = None
 
 
 async def handle_line_message(
@@ -63,14 +65,13 @@ async def handle_line_message(
         )
 
         # 3. Get session for this LINE user (auto-manages conversation history)
-        session = session_storage.get_session(session_id=line_user_id)
+        session = None  # session_storage.get_session(session_id=line_user_id) if session_storage else None
 
         # 4. Run triage agent with session and trace metadata
         triage_result = await Runner.run(
             triage_agent,
             input=message_text,
             context=context,
-            session=session,
             run_config=RunConfig(trace_metadata={
                 "__trace_source__": "line-webhook",
                 "clinic_id": clinic.id,
@@ -80,21 +81,84 @@ async def handle_line_message(
         )
 
         # 5. Route based on classification (WORKFLOW ORCHESTRATION)
-        if triage_result.final_output.intent == "appointment_related":
+        intent = triage_result.final_output.intent
+        logger.info(f"Triage result: {intent} (confidence: {triage_result.final_output.confidence})")
+        logger.info(f"Reasoning: {triage_result.final_output.reasoning}")
+        
+        if intent == "appointment_related":
+            # Handle appointment-related queries
             response_text = await _handle_appointment_flow(
                 db, context, session, is_linked, message_text, clinic, line_user_id
             )
+        elif intent == "account_linking":
+            # Handle account linking queries (e.g., providing phone number)
+            response_text = await _handle_account_linking_flow(
+                db, context, session, message_text, clinic, line_user_id
+            )
         else:
-            # Non-appointment query - DO NOT respond, let LINE auto-reply handle it
+            # Non-appointment/non-account-linking query - DO NOT respond
             response_text = None
 
         return response_text
 
 
+async def _handle_account_linking_flow(
+    db: Session,
+    context: ConversationContext,
+    session: Optional[Any],
+    message_text: str,
+    clinic: Clinic,
+    line_user_id: str
+) -> str:
+    """
+    Handle account linking workflow.
+    
+    This function is called when the triage agent classifies the message as account_linking,
+    which typically happens when a user provides information like phone number for account linking.
+    
+    Args:
+        db: Database session
+        context: Current conversation context
+        session: SDK session for conversation history
+        message_text: The original message text from the user
+        clinic: The clinic object
+        line_user_id: The LINE user ID
+        
+    Returns:
+        Response text for LINE
+    """
+    logger.info(f"🔗 Handling account linking flow for {line_user_id}")
+    
+    # Run account linking agent with trace metadata
+    linking_result = await Runner.run(
+        account_linking_agent,
+        input=message_text,
+        context=context,
+        run_config=RunConfig(trace_metadata={
+            "__trace_source__": "line-webhook",
+            "clinic_id": clinic.id,
+            "line_user_id": line_user_id,
+            "step": "account_linking"
+        })
+    )
+    
+    # Check if linking was successful
+    if _is_linking_successful(linking_result):
+        logger.info(f"✅ Account linking successful for {line_user_id}")
+        # Note: Patient context will be refreshed on next message
+        # No need to update context here as we're returning immediately
+        
+        # Return success message
+        return linking_result.final_output_as(str)
+    else:
+        # Linking failed or in progress, return linking agent's response
+        return linking_result.final_output_as(str)
+
+
 async def _handle_appointment_flow(
     db: Session,
     context: ConversationContext,
-    session: SQLAlchemySession,
+    session: Optional[Any],  # SQLAlchemySession when available
     is_linked: bool,
     message_text: str,
     clinic: Clinic,
@@ -122,7 +186,6 @@ async def _handle_appointment_flow(
             account_linking_agent,
             input=message_text,
             context=context,
-            session=session,
             run_config=RunConfig(trace_metadata={
                 "__trace_source__": "line-webhook",
                 "clinic_id": clinic.id,
@@ -151,7 +214,6 @@ async def _handle_appointment_flow(
                 appointment_agent,
                 input=message_text,
                 context=context,
-                session=session,
                 run_config=RunConfig(trace_metadata={
                     "__trace_source__": "line-webhook",
                     "clinic_id": clinic.id,
@@ -169,7 +231,6 @@ async def _handle_appointment_flow(
             appointment_agent,
             input=message_text,
             context=context,
-            session=session,
             run_config=RunConfig(trace_metadata={
                 "__trace_source__": "line-webhook",
                 "clinic_id": clinic.id,
@@ -197,17 +258,17 @@ def _is_linking_successful(linking_result: Any) -> bool:
     for item in linking_result.new_items:
         if hasattr(item, 'output'):
             try:
-                # Parse JSON output from tool
-                if isinstance(item.output, str):
-                    output = json.loads(item.output)
-                else:
-                    output = item.output
-
-                # Check for success indicator
+                output = item.output
+                
+                # Check if output is a string starting with "SUCCESS:"
+                if isinstance(output, str) and output.startswith("SUCCESS:"):
+                    return True
+                
+                # Also check for dict format (backward compatibility)
                 if isinstance(output, dict) and output.get("success") == True:
                     return True
 
-            except (json.JSONDecodeError, AttributeError):
+            except (AttributeError, TypeError):
                 # Not a valid tool result, continue checking
                 continue
 

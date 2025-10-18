@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import Mock, MagicMock, patch
 from sqlalchemy.orm import Session
 
-from src.agents.context import ConversationContext
+from src.clinic_agents.context import ConversationContext
 from src.models import Clinic, Patient, Therapist, AppointmentType
 
 

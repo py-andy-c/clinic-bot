@@ -20,7 +20,7 @@ from src.models import (
     LineUser
 )
 from src.services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
-from src.agents.context import ConversationContext
+from src.clinic_agents.context import ConversationContext
 
 
 @function_tool  # type: ignore[reportUntypedFunctionDecorator]
@@ -518,39 +518,68 @@ async def get_last_appointment_therapist(
         return {"error": f"查詢上次治療師時發生錯誤：{e}"}
 
 
+def sanitize_phone_number(phone_number: str) -> str:
+    """
+    Sanitize and standardize phone number.
+
+    Removes spaces, dashes, and ensures proper format.
+    Assumes Taiwanese phone numbers.
+
+    Args:
+        phone_number: Raw phone number string
+
+    Returns:
+        Sanitized phone number
+    """
+    # Remove all non-digit characters
+    digits_only = ''.join(filter(str.isdigit, phone_number))
+
+    # Handle Taiwanese phone numbers
+    if digits_only.startswith('886'):  # International format
+        digits_only = '0' + digits_only[3:]  # Convert to local format
+    elif digits_only.startswith('09') and len(digits_only) == 10:  # Mobile format
+        pass  # Already correct
+    elif len(digits_only) == 9 and digits_only.startswith('9'):  # Missing leading 0
+        digits_only = '0' + digits_only
+
+    return digits_only
+
+
 @function_tool  # type: ignore[reportUntypedFunctionDecorator]
 async def verify_and_link_patient(
     wrapper: RunContextWrapper[ConversationContext],
     phone_number: str
-) -> Dict[str, Any]:
+) -> str:
     """
     Verify phone number and link LINE account to patient record.
 
     This tool performs the actual linking operation, not just checking status.
+    For new patients, it will ask for additional information (name) to create a patient record.
 
     Args:
         wrapper: Context wrapper (auto-injected)
         phone_number: Phone number provided by user
 
     Returns:
-        Dict with success/failure and patient info
+        Success or error message as string, or request for more info
     """
     db = wrapper.context.db_session
     clinic = wrapper.context.clinic
     line_user_id = wrapper.context.line_user_id
 
     try:
+        # Sanitize phone number
+        sanitized_phone = sanitize_phone_number(phone_number)
+
         # Query patient by phone number in this clinic
         patient = db.query(Patient).filter(
             Patient.clinic_id == clinic.id,
-            Patient.phone_number == phone_number
+            Patient.phone_number == sanitized_phone
         ).first()
 
         if not patient:
-            return {
-                "success": False,
-                "message": "找不到此手機號碼的病患資料，請聯繫診所確認您的手機號碼。"
-            }
+            # For new patients, we need more information
+            return f"NEEDS_NAME: 您的手機號碼 {sanitized_phone} 尚未在系統中註冊。請提供您的全名，以便為您建立病患記錄。"
 
         # Check if already linked to another LINE account
         existing_link = db.query(LineUser).filter(
@@ -558,10 +587,7 @@ async def verify_and_link_patient(
         ).first()
 
         if existing_link and existing_link.line_user_id != line_user_id:
-            return {
-                "success": False,
-                "message": "此手機號碼已連結到其他 LINE 帳號。如有問題請聯繫診所。"
-            }
+            return "ERROR: 此手機號碼已連結到其他 LINE 帳號。如有問題請聯繫診所。"
 
         # Check if this LINE account is already linked
         existing_line_user = db.query(LineUser).filter(
@@ -570,20 +596,9 @@ async def verify_and_link_patient(
 
         if existing_line_user and existing_line_user.patient_id:
             if existing_line_user.patient_id == patient.id:
-                return {
-                    "success": True,
-                    "message": f"您的帳號已經連結到 {patient.full_name}，無需重複連結。",
-                    "patient": {
-                        "id": patient.id,
-                        "name": patient.full_name,
-                        "phone": patient.phone_number
-                    }
-                }
+                return f"SUCCESS: 您的帳號已經連結到 {patient.full_name}（{patient.phone_number}），無需重複連結。"
             else:
-                return {
-                    "success": False,
-                    "message": "此 LINE 帳號已連結到其他病患。如有問題請聯繫診所。"
-                }
+                return "ERROR: 此 LINE 帳號已連結到其他病患。如有問題請聯繫診所。"
 
         # Create or update LINE user link
         if existing_line_user:
@@ -597,20 +612,90 @@ async def verify_and_link_patient(
 
         db.commit()
 
-        return {
-            "success": True,
-            "message": f"帳號連結成功！歡迎 {patient.full_name}，您現在可以開始預約了。",
-            "patient": {
-                "id": patient.id,
-                "name": patient.full_name,
-                "phone": patient.phone_number
-            }
-        }
+        return f"SUCCESS: 帳號連結成功！歡迎 {patient.full_name}（{patient.phone_number}），您現在可以開始預約了。"
 
     except IntegrityError as e:
         db.rollback()
-        return {"success": False, "message": "資料庫錯誤，請稍後再試。"}
+        return "ERROR: 資料庫錯誤，請稍後再試。"
 
     except Exception as e:
         db.rollback()
-        return {"success": False, "message": f"連結帳號時發生錯誤：{e}"}
+        return f"ERROR: 連結帳號時發生錯誤：{e}"
+
+
+@function_tool  # type: ignore[reportUntypedFunctionDecorator]
+async def create_patient_and_link(
+    wrapper: RunContextWrapper[ConversationContext],
+    phone_number: str,
+    full_name: str
+) -> str:
+    """
+    Create a new patient record and link LINE account.
+
+    This tool creates a new patient record with the provided information
+    and links the LINE account to it.
+
+    Args:
+        wrapper: Context wrapper (auto-injected)
+        phone_number: Phone number for the new patient
+        full_name: Full name of the new patient
+
+    Returns:
+        Success or error message as string
+    """
+    db = wrapper.context.db_session
+    clinic = wrapper.context.clinic
+    line_user_id = wrapper.context.line_user_id
+
+    try:
+        # Sanitize phone number
+        sanitized_phone = sanitize_phone_number(phone_number)
+
+        # Check if phone number already exists
+        existing_patient = db.query(Patient).filter(
+            Patient.clinic_id == clinic.id,
+            Patient.phone_number == sanitized_phone
+        ).first()
+
+        if existing_patient:
+            return f"ERROR: 此手機號碼 {sanitized_phone} 已存在於系統中，姓名為 {existing_patient.full_name}。請使用正確的資訊，或聯繫診所協助。"
+
+        # Check if this LINE account is already linked
+        existing_line_user = db.query(LineUser).filter(
+            LineUser.line_user_id == line_user_id
+        ).first()
+
+        if existing_line_user and existing_line_user.patient_id:
+            existing_patient = db.query(Patient).filter(Patient.id == existing_line_user.patient_id).first()
+            return f"ERROR: 此 LINE 帳號已連結到 {existing_patient.full_name if existing_patient else '其他病患'}。"
+
+        # Create new patient
+        new_patient = Patient(
+            clinic_id=clinic.id,
+            full_name=full_name.strip(),
+            phone_number=sanitized_phone
+        )
+        db.add(new_patient)
+        db.flush()  # Get the patient ID
+
+        # Link LINE account to patient
+        if existing_line_user:
+            existing_line_user.patient_id = new_patient.id
+        else:
+            line_user = LineUser(
+                line_user_id=line_user_id,
+                patient_id=new_patient.id
+            )
+            db.add(line_user)
+
+        db.commit()
+
+        return f"SUCCESS: 歡迎 {new_patient.full_name}！您的病患記錄已建立，手機號碼 {new_patient.phone_number} 已連結到 LINE 帳號。您現在可以開始預約了。"
+
+    except IntegrityError as e:
+        db.rollback()
+        return "ERROR: 資料庫錯誤，可能是手機號碼或姓名重複。請聯繫診所協助。"
+
+    except Exception as e:
+        db.rollback()
+        return f"ERROR: 建立病患記錄時發生錯誤：{e}"

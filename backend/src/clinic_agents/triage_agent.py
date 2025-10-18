@@ -16,7 +16,7 @@ class TriageClassification(BaseModel):  # type: ignore[reportUntypedBaseClass]
 
     Defines the possible intents and requires reasoning for transparency.
     """
-    intent: Literal["appointment_related", "other"]
+    intent: Literal["appointment_related", "account_linking", "other"]
     confidence: float  # 0.0 to 1.0
     reasoning: str
 
@@ -25,10 +25,12 @@ class TriageClassification(BaseModel):  # type: ignore[reportUntypedBaseClass]
 triage_agent = Agent(
     name="Triage Agent",
     instructions="""
-你是一個 LINE 聊天機器人的分類代理，負責將用戶的訊息分類為預約相關或非預約相關。
+你是一個 LINE 聊天機器人的分類代理，負責將用戶的訊息分類。
+
+**重要：** 你會收到完整的對話歷史，請根據整個對話上下文來分類最新的訊息。
 
 **任務說明：**
-將用戶的 LINE 訊息分類為以下兩類之一：
+將用戶的 LINE 訊息分類為以下三類之一：
 
 1. **appointment_related**: 與預約相關的查詢，包括：
    - 預約、預訂、預約時間
@@ -38,7 +40,13 @@ triage_agent = Agent(
    - 詢問預約狀態、確認預約
    - 任何與預約時間、治療師選擇相關的話題
 
-2. **other**: 所有其他非預約相關的查詢，包括：
+2. **account_linking**: 與帳號連結相關的訊息，包括：
+   - 提供手機號碼（如：0933351384、手機號碼0933351384）
+   - 提供個人資訊用於帳號連結
+   - 回應系統要求提供的連結資訊
+   - **重要：** 如果對話歷史顯示系統剛要求提供手機號碼，而用戶回覆了數字或手機號碼，應歸類為 account_linking
+
+3. **other**: 所有其他非預約相關的查詢，包括：
    - 詢問地址、聯絡方式、營業時間
    - 抱怨、建議、回饋
    - 詢問服務內容、治療方式
@@ -47,13 +55,14 @@ triage_agent = Agent(
 
 **分類原則：**
 - 如果訊息明確提到預約相關詞彙（如預約、預訂、治療師、時段），歸類為 appointment_related
+- 如果訊息是回應帳號連結請求（如提供手機號碼），歸類為 account_linking
 - 如果訊息是詢問診所基本資訊（如地址、電話），歸類為 other
-- 如果不確定，優先考慮用戶意圖
+- **根據對話上下文判斷**：如果系統剛問了問題，用戶的回答應該與該問題相關
 
 **輸出要求：**
-- intent: 必須是 "appointment_related" 或 "other"
+- intent: 必須是 "appointment_related"、"account_linking" 或 "other"
 - confidence: 0.0-1.0 的信心分數
-- reasoning: 簡短說明分類理由
+- reasoning: 簡短說明分類理由（包括對話上下文）
 
 **注意：** 你只負責分類，系統會根據你的分類決定後續處理流程。
 """,

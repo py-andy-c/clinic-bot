@@ -41,6 +41,14 @@ class Settings(BaseSettings):  # type: ignore[reportUntypedBaseClass]
     Should be the publicly accessible URL in production.
     """
 
+    # OpenAI API Configuration
+    openai_api_key: str = ""
+    """
+    OpenAI API Key for LLM-powered agents.
+
+    Required for the LINE bot to function. Get from https://platform.openai.com/api-keys
+    """
+
     # LINE API Configuration
     line_channel_secret: str = ""
     """

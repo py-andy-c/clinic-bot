@@ -7,8 +7,8 @@ clinic-specific context for each conversation.
 """
 
 from agents import Agent, ModelSettings, RunContextWrapper  # type: ignore[import]
-from src.agents.context import ConversationContext
-from src.agents.tools import (
+from src.clinic_agents.context import ConversationContext
+from src.clinic_agents.tools import (
     get_therapist_availability,
     create_appointment,
     get_existing_appointments,

@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import Mock, patch
 from fastapi import HTTPException, Request
 
-from src.agents.helpers import (
+from src.clinic_agents.helpers import (
     get_clinic_from_request,
     get_or_create_line_user,
     get_patient_from_line_user,
@@ -168,7 +168,7 @@ class TestEnsurePatientLinked:
 
     def test_patient_linked(self):
         """Test when patient is properly linked."""
-        from src.agents.context import ConversationContext
+        from src.clinic_agents.context import ConversationContext
 
         patient = Patient(id=1, clinic_id=1, full_name="Test Patient", phone_number="0912345678")
 
@@ -185,7 +185,7 @@ class TestEnsurePatientLinked:
 
     def test_patient_not_linked(self):
         """Test when patient is not linked."""
-        from src.agents.context import ConversationContext
+        from src.clinic_agents.context import ConversationContext
 
         context = ConversationContext(
             db_session=Mock(),
@@ -200,7 +200,7 @@ class TestEnsurePatientLinked:
 
     def test_patient_none_but_is_linked_true(self):
         """Test inconsistent state: patient is None but is_linked is True."""
-        from src.agents.context import ConversationContext
+        from src.clinic_agents.context import ConversationContext
 
         context = ConversationContext(
             db_session=Mock(),
