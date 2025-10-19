@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timezone
 
 from clinic_agents.orchestrator import handle_line_message, _is_linking_successful
+from agents import Runner
 from clinic_agents.context import ConversationContext
 from models.clinic import Clinic
 from models.patient import Patient
@@ -31,10 +32,10 @@ class TestOrchestratorIntegration:
             line_channel_access_token="test_token"
         )
 
-    @patch('agents.orchestrator.get_or_create_line_user')
-    @patch('agents.orchestrator.get_patient_from_line_user')
-    @patch('agents.orchestrator.triage_agent')
-    def test_handle_line_message_appointment_related(self, mock_triage, mock_get_patient, mock_get_line_user, db_session, clinic):
+    @patch('clinic_agents.orchestrator.get_or_create_line_user')
+    @patch('clinic_agents.orchestrator.get_patient_from_line_user')
+    @pytest.mark.asyncio
+    async def test_handle_line_message_appointment_related(self, mock_get_patient, mock_get_line_user, db_session, clinic):
         """Test complete flow for appointment-related messages."""
         # Setup mocks
         mock_line_user = LineUser(id=1, line_user_id="test_user", patient_id=1)
@@ -46,20 +47,20 @@ class TestOrchestratorIntegration:
         # Mock triage result
         mock_triage_result = Mock()
         mock_triage_result.final_output.intent = "appointment_related"
-        mock_triage.run.return_value = mock_triage_result
 
-        # Mock session storage
-        with patch('agents.orchestrator.session_storage') as mock_session_storage:
-            mock_session = Mock()
-            mock_session_storage.get_session.return_value = mock_session
+        # Mock appointment result
+        mock_appointment_result = Mock()
+        mock_appointment_result.final_output_as.return_value = "預約成功！"
 
-            # Mock appointment agent
-            with patch('agents.orchestrator.appointment_agent') as mock_appointment_agent:
-                mock_appointment_result = Mock()
-                mock_appointment_result.final_output_as.return_value = "預約成功！"
-                mock_appointment_agent.run.return_value = mock_appointment_result
+        with patch.object(Runner, 'run') as mock_runner:
+            mock_runner.side_effect = [mock_triage_result, mock_appointment_result]
 
-                result = handle_line_message(
+            # Mock session storage
+            with patch('clinic_agents.orchestrator.session_storage') as mock_session_storage:
+                mock_session = Mock()
+                mock_session_storage.get_session.return_value = mock_session
+
+                result = await handle_line_message(
                     db=db_session,
                     clinic=clinic,
                     line_user_id="test_user",
@@ -68,18 +69,13 @@ class TestOrchestratorIntegration:
 
                 assert result == "預約成功！"
 
-                # Verify triage was called
-                mock_triage.run.assert_called_once()
-                triage_call = mock_triage.run.call_args
-                assert triage_call[1]['input'] == "我想預約治療"
+                # Verify Runner.run was called twice (triage + appointment)
+                assert mock_runner.call_count == 2
 
-                # Verify appointment agent was called (since already linked)
-                mock_appointment_agent.run.assert_called_once()
-
-    @patch('agents.orchestrator.get_or_create_line_user')
-    @patch('agents.orchestrator.get_patient_from_line_user')
-    @patch('agents.orchestrator.triage_agent')
-    def test_handle_line_message_non_appointment(self, mock_triage, mock_get_patient, mock_get_line_user, db_session, clinic):
+    @patch('clinic_agents.orchestrator.get_or_create_line_user')
+    @patch('clinic_agents.orchestrator.get_patient_from_line_user')
+    @pytest.mark.asyncio
+    async def test_handle_line_message_non_appointment(self, mock_get_patient, mock_get_line_user, db_session, clinic):
         """Test complete flow for non-appointment messages."""
         # Setup mocks
         mock_line_user = LineUser(id=1, line_user_id="test_user", patient_id=None)
@@ -89,30 +85,32 @@ class TestOrchestratorIntegration:
         # Mock triage result
         mock_triage_result = Mock()
         mock_triage_result.final_output.intent = "other"
-        mock_triage.run.return_value = mock_triage_result
 
-        # Mock session storage
-        with patch('agents.orchestrator.session_storage') as mock_session_storage:
-            mock_session = Mock()
-            mock_session_storage.get_session.return_value = mock_session
+        with patch.object(Runner, 'run') as mock_runner:
+            mock_runner.return_value = mock_triage_result
 
-            result = handle_line_message(
-                db=db_session,
-                clinic=clinic,
-                line_user_id="test_user",
-                message_text="診所地址在哪裡？"
-            )
+            # Mock session storage
+            with patch('clinic_agents.orchestrator.session_storage') as mock_session_storage:
+                mock_session = Mock()
+                mock_session_storage.get_session.return_value = mock_session
 
-            # Should return None for non-appointment queries
-            assert result is None
+                result = await handle_line_message(
+                    db=db_session,
+                    clinic=clinic,
+                    line_user_id="test_user",
+                    message_text="診所地址在哪裡？"
+                )
 
-            # Verify triage was called
-            mock_triage.run.assert_called_once()
+                # Should return None for non-appointment queries
+                assert result is None
 
-    @patch('agents.orchestrator.get_or_create_line_user')
-    @patch('agents.orchestrator.get_patient_from_line_user')
-    @patch('agents.orchestrator.triage_agent')
-    def test_handle_line_message_account_linking_flow(self, mock_triage, mock_get_patient, mock_get_line_user, db_session, clinic):
+                # Verify Runner.run was called once (only triage)
+                assert mock_runner.call_count == 1
+
+    @patch('clinic_agents.orchestrator.get_or_create_line_user')
+    @patch('clinic_agents.orchestrator.get_patient_from_line_user')
+    @pytest.mark.asyncio
+    async def test_handle_line_message_account_linking_flow(self, mock_get_patient, mock_get_line_user, db_session, clinic):
         """Test complete account linking flow."""
         # Setup mocks for unlinked user
         mock_line_user = LineUser(id=1, line_user_id="test_user", patient_id=None)
@@ -122,41 +120,37 @@ class TestOrchestratorIntegration:
         # Mock triage result
         mock_triage_result = Mock()
         mock_triage_result.final_output.intent = "appointment_related"
-        mock_triage.run.return_value = mock_triage_result
 
-        # Mock session storage
-        with patch('agents.orchestrator.session_storage') as mock_session_storage:
-            mock_session = Mock()
-            mock_session_storage.get_session.return_value = mock_session
+        # Mock account linking result
+        mock_linking_result = Mock()
+        mock_linking_result.final_output_as.return_value = "帳號連結成功！"
+        mock_linking_result.new_items = [
+            Mock(output='{"success": true, "patient": {"id": 1, "name": "Test Patient"}}')
+        ]
 
-            # Mock account linking agent
-            with patch('agents.orchestrator.account_linking_agent') as mock_linking_agent:
-                mock_linking_result = Mock()
-                # Mock successful linking
-                mock_linking_result.final_output_as.return_value = "帳號連結成功！"
-                mock_linking_result.new_items = [
-                    Mock(output='{"success": true, "patient": {"id": 1, "name": "Test Patient"}}')
-                ]
-                mock_linking_agent.run.return_value = mock_linking_result
+        # Mock appointment result
+        mock_appointment_result = Mock()
+        mock_appointment_result.final_output_as.return_value = "預約成功！"
 
-                # Mock appointment agent
-                with patch('agents.orchestrator.appointment_agent') as mock_appointment_agent:
-                    mock_appointment_result = Mock()
-                    mock_appointment_result.final_output_as.return_value = "預約成功！"
-                    mock_appointment_agent.run.return_value = mock_appointment_result
+        with patch.object(Runner, 'run') as mock_runner:
+            mock_runner.side_effect = [mock_triage_result, mock_linking_result, mock_appointment_result]
 
-                    result = handle_line_message(
-                        db=db_session,
-                        clinic=clinic,
-                        line_user_id="test_user",
-                        message_text="我想預約治療"
-                    )
+            # Mock session storage
+            with patch('clinic_agents.orchestrator.session_storage') as mock_session_storage:
+                mock_session = Mock()
+                mock_session_storage.get_session.return_value = mock_session
 
-                    assert result == "預約成功！"
+                result = await handle_line_message(
+                    db=db_session,
+                    clinic=clinic,
+                    line_user_id="test_user",
+                    message_text="我想預約治療"
+                )
 
-                    # Verify both agents were called
-                    mock_linking_agent.run.assert_called_once()
-                    mock_appointment_agent.run.assert_called_once()
+                assert result == "預約成功！"
+
+                # Verify Runner.run was called three times (triage + linking + appointment)
+                assert mock_runner.call_count == 3
 
     def test_is_linking_successful_true(self):
         """Test successful linking detection."""

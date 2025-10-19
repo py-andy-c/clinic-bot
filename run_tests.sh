@@ -59,22 +59,18 @@ else
     exit 1
 fi
 
-# Run unit tests (integration tests require agents package which may not be available)
-print_status "Running unit tests..."
-cd "$PROJECT_ROOT/backend"
-if PYTHONPATH=src python -m pytest tests/unit/ -v --tb=short; then
-    print_success "Unit tests passed!"
+# Run all tests (unit and integration)
+print_status "Running all tests..."
+if PYTHONPATH=src python -m pytest tests/unit/ tests/integration/ -v --tb=short; then
+    print_success "All tests passed!"
 else
-    print_error "Unit tests failed!"
+    print_error "Tests failed!"
     exit 1
 fi
 
-print_warning "Skipping integration tests (agents package import issues)"
-print_warning "Core functionality is fully validated by unit tests"
-
 # Generate coverage report
 print_status "Generating coverage report..."
-PYTHONPATH=src python -m pytest tests/unit/ --cov=src --cov-report=html:htmlcov --cov-report=term-missing
+PYTHONPATH=src python -m pytest tests/unit/ tests/integration/ --cov=src --cov-report=html:htmlcov --cov-report=term-missing
 print_success "Coverage report generated!"
 
 # Final success message

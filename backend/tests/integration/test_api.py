@@ -52,23 +52,58 @@ class TestAPIIntegration:
             assert data == {"status": "healthy"}
 
     @pytest.mark.asyncio
-    async def test_line_webhook_invalid_json(self):
+    async def test_line_webhook_invalid_json(self, db_session):
         """Test LINE webhook with invalid JSON."""
         from main import app
+
+        # Create test clinic in database
+        clinic_data = {
+            "name": "Test Clinic",
+            "line_channel_id": "test_channel_123",
+            "line_channel_secret": "test_secret_456",
+            "line_channel_access_token": "test_token_789",
+            "subscription_status": "trial"
+        }
+        clinic = Clinic(**clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Override database dependency for testing
+        app.dependency_overrides[get_db] = self.get_db_override(db_session)
+
         async with AsyncClient(app=app, base_url="http://testserver") as client:
             response = await client.post(
                 "/webhook/line",
                 content="invalid json",
-                headers={"Content-Type": "application/json"}
+                headers={"Content-Type": "application/json", "X-Clinic-ID": "1"}
             )
 
             assert response.status_code == 400
             assert "Invalid JSON payload" in response.json()["detail"]
 
+        # Clean up override
+        app.dependency_overrides = {}
+
     @pytest.mark.asyncio
-    async def test_line_webhook_valid_payload(self):
+    async def test_line_webhook_valid_payload(self, db_session):
         """Test LINE webhook with valid payload."""
         from main import app
+
+        # Create test clinic in database
+        clinic_data = {
+            "name": "Test Clinic",
+            "line_channel_id": "test_channel_123",
+            "line_channel_secret": "test_secret_456",
+            "line_channel_access_token": "test_token_789",
+            "subscription_status": "trial"
+        }
+        clinic = Clinic(**clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Override database dependency for testing
+        app.dependency_overrides[get_db] = self.get_db_override(db_session)
+
         async with AsyncClient(app=app, base_url="http://testserver") as client:
             payload = {
                 "events": [
@@ -85,11 +120,14 @@ class TestAPIIntegration:
             response = await client.post(
                 "/webhook/line",
                 json=payload,
-                headers={"Content-Type": "application/json"}
+                headers={"Content-Type": "application/json", "X-Clinic-ID": "1"}
             )
 
             assert response.status_code == 200
             assert response.text == 'OK'
+
+        # Clean up override
+        app.dependency_overrides = {}
 
     @pytest.mark.asyncio
     async def test_google_calendar_webhook(self):

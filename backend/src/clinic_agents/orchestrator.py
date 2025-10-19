@@ -7,7 +7,7 @@ It handles conversation state management, agent routing, and response formatting
 """
 
 import logging
-from typing import Optional, Any
+from typing import Optional, Any, Dict, cast
 from sqlalchemy.orm import Session
 
 from agents import Runner, RunConfig, trace
@@ -259,15 +259,26 @@ def _is_linking_successful(linking_result: Any) -> bool:
     Returns:
         True if linking was successful, False otherwise
     """
+    import json
+
     # Check for successful tool calls in new_items
     for item in linking_result.new_items:
         if hasattr(item, 'output'):
             try:
                 output = item.output
-                
-                # Check if output is a string starting with "SUCCESS:"
-                if isinstance(output, str) and output.startswith("SUCCESS:"):
-                    return True
+
+                # Try to parse as JSON first
+                if isinstance(output, str):
+                    try:
+                        parsed = json.loads(output)
+                        if isinstance(parsed, dict):
+                            parsed_dict = cast(Dict[str, Any], parsed)
+                            if parsed_dict.get("success") is True:
+                                return True
+                    except json.JSONDecodeError:
+                        # Not JSON, check for legacy string format
+                        if output.startswith("SUCCESS:"):
+                            return True
 
             except (AttributeError, TypeError):
                 # Not a valid tool result, continue checking
