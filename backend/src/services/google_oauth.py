@@ -138,12 +138,12 @@ class GoogleOAuthService:
             "user_name": user_info.get("name")
         }
 
-        therapist.gcal_credentials = credentials  # type: ignore[assignment]
+        therapist.gcal_credentials = credentials
         db.commit()
 
     def _enable_calendar_sync(self, db: Session, therapist: Therapist) -> None:
         """Enable Google Calendar synchronization for the therapist."""
-        therapist.gcal_sync_enabled = True  # type: ignore[assignment]
+        therapist.gcal_sync_enabled = True
         db.commit()
         db.refresh(therapist)
 

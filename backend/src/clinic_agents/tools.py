@@ -79,13 +79,13 @@ async def get_therapist_availability(
             Appointment.therapist_id == therapist.id,
             Appointment.start_time >= day_start,
             Appointment.end_time <= day_end,
-            Appointment.status.in_(['confirmed', 'pending'])  # type: ignore[reportGeneralTypeIssues]  # type: ignore[reportGeneralTypeIssues] # Include confirmed and pending
+            Appointment.status.in_(['confirmed', 'pending'])  # Include confirmed and pending
         ).all()
 
         # Calculate available slots (assuming clinic hours 9:00-17:00)
         clinic_start = datetime.combine(requested_date, datetime.strptime("09:00", "%H:%M").time())
         clinic_end = datetime.combine(requested_date, datetime.strptime("17:00", "%H:%M").time())
-        duration = timedelta(minutes=apt_type.duration_minutes)  # type: ignore[reportArgumentType]
+        duration = timedelta(minutes=apt_type.duration_minutes)
 
         available_slots: List[str] = []
         current_time = clinic_start
@@ -96,7 +96,7 @@ async def get_therapist_availability(
             # Check if this slot conflicts with existing appointments
             conflict = False
             for apt in existing_appointments:
-                if (current_time < apt.end_time and slot_end > apt.start_time):  # type: ignore[reportGeneralTypeIssues]
+                if (current_time < apt.end_time and slot_end > apt.start_time):
                     conflict = True
                     break
 
@@ -158,18 +158,18 @@ async def create_appointment(
             return {"error": "找不到指定的治療師、病人或預約類型"}
 
         # Calculate end time
-        end_time = start_time + timedelta(minutes=apt_type.duration_minutes)  # type: ignore[reportOptionalMemberAccess]
+        end_time = start_time + timedelta(minutes=apt_type.duration_minutes)
 
         # Create Google Calendar event FIRST
-        gcal_service = GoogleCalendarService(therapist.gcal_credentials)  # type: ignore[reportOptionalMemberAccess]
+        gcal_service = GoogleCalendarService(therapist.gcal_credentials)
         gcal_event = await gcal_service.create_event(
-            summary=f"{patient.full_name} - {apt_type.name}",  # type: ignore[reportOptionalMemberAccess]
+            summary=f"{patient.full_name} - {apt_type.name}",
             start=start_time,
             end=end_time,
             description=(
-                f"Patient: {patient.full_name}\n"  # type: ignore[reportOptionalMemberAccess]
-                f"Phone: {patient.phone_number}\n"  # type: ignore[reportOptionalMemberAccess]
-                f"Type: {apt_type.name}\n"  # type: ignore[reportOptionalMemberAccess]
+                f"Patient: {patient.full_name}\n"
+                f"Phone: {patient.phone_number}\n"
+                f"Type: {apt_type.name}\n"
                 f"Scheduled Via: LINE Bot"
             ),
             color_id="7",  # Blue color for appointments
@@ -211,12 +211,12 @@ async def create_appointment(
         return {
             "success": True,
             "appointment_id": appointment.id,
-            "therapist_name": therapist.name,  # type: ignore[reportOptionalMemberAccess]
-            "appointment_type": apt_type.name,  # type: ignore[reportOptionalMemberAccess]
+            "therapist_name": therapist.name,
+            "appointment_type": apt_type.name,
             "start_time": start_time.isoformat(),
             "end_time": end_time.isoformat(),
             "gcal_event_id": gcal_event['id'],
-            "message": f"預約成功！{start_time.strftime('%Y-%m-%d %H:%M')} 與 {therapist.name} 預約 {apt_type.name}"  # type: ignore[reportOptionalMemberAccess]
+            "message": f"預約成功！{start_time.strftime('%Y-%m-%d %H:%M')} 與 {therapist.name} 預約 {apt_type.name}"
         }
 
     except GoogleCalendarError as e:
@@ -254,7 +254,7 @@ async def get_existing_appointments(
         appointments = db.query(Appointment).filter(
             Appointment.patient_id == patient_id,
             Appointment.start_time >= datetime.now(),
-            Appointment.status.in_(['confirmed', 'pending'])  # type: ignore[reportGeneralTypeIssues]
+            Appointment.status.in_(['confirmed', 'pending'])
         ).join(Therapist).join(AppointmentType).order_by(Appointment.start_time).all()
 
         return [
@@ -299,7 +299,7 @@ async def cancel_appointment(
         appointment = db.query(Appointment).filter(
             Appointment.id == appointment_id,
             Appointment.patient_id == patient_id,
-            Appointment.status.in_(['confirmed', 'pending'])  # type: ignore[reportGeneralTypeIssues]
+            Appointment.status.in_(['confirmed', 'pending'])
         ).first()
 
         if not appointment:
@@ -309,11 +309,11 @@ async def cancel_appointment(
         therapist = appointment.therapist
         gcal_service = GoogleCalendarService(therapist.gcal_credentials)
 
-        if appointment.gcal_event_id:  # type: ignore[reportGeneralTypeIssues]
-            await gcal_service.delete_event(appointment.gcal_event_id)  # type: ignore[reportArgumentType]
+        if appointment.gcal_event_id:
+            await gcal_service.delete_event(appointment.gcal_event_id)
 
         # Update database
-        appointment.status = 'canceled_by_patient'  # type: ignore[reportAttributeAccessIssue]
+        appointment.status = 'canceled_by_patient'
         db.commit()
 
         return {
@@ -326,12 +326,12 @@ async def cancel_appointment(
 
     except GoogleCalendarError as e:
         # Still update database even if GCal fails
-        appointment.status = 'canceled_by_patient'  # type: ignore[reportOptionalMemberAccess]
+        appointment.status = 'canceled_by_patient'
         db.commit()
         return {
             "success": True,
             "warning": f"預約已取消，但日曆同步失敗：{e}",
-            "appointment_id": appointment.id  # type: ignore[reportOptionalMemberAccess]
+            "appointment_id": appointment.id
         }
 
     except Exception as e:
@@ -368,7 +368,7 @@ async def reschedule_appointment(
         appointment = db.query(Appointment).filter(
             Appointment.id == appointment_id,
             Appointment.patient_id == patient_id,
-            Appointment.status.in_(['confirmed', 'pending'])  # type: ignore[reportGeneralTypeIssues]
+            Appointment.status.in_(['confirmed', 'pending'])
         ).first()
 
         if not appointment:
@@ -398,11 +398,11 @@ async def reschedule_appointment(
         # Update Google Calendar event
         gcal_service = GoogleCalendarService(final_therapist.gcal_credentials)
 
-        if appointment.gcal_event_id:  # type: ignore[reportGeneralTypeIssues]
+        if appointment.gcal_event_id:
             # Delete old event if therapist changed
             if new_therapist and new_therapist.id != appointment.therapist_id:
                 old_gcal_service = GoogleCalendarService(appointment.therapist.gcal_credentials)
-                await old_gcal_service.delete_event(appointment.gcal_event_id)  # type: ignore[reportArgumentType]
+                await old_gcal_service.delete_event(appointment.gcal_event_id)
 
                 # Create new event with new therapist
                 gcal_event = await gcal_service.create_event(
@@ -422,7 +422,7 @@ async def reschedule_appointment(
             else:
                 # Update existing event
                 await gcal_service.update_event(
-                    event_id=appointment.gcal_event_id,  # type: ignore[reportArgumentType]
+                    event_id=appointment.gcal_event_id,
                     summary=f"{appointment.patient.full_name} - {final_apt_type.name}",
                     start=new_start_time,
                     end=new_end_time,
@@ -447,8 +447,8 @@ async def reschedule_appointment(
             new_gcal_event_id = gcal_event['id']
 
         # Update database
-        appointment.start_time = new_start_time  # type: ignore[reportAttributeAccessIssue]
-        appointment.end_time = new_end_time  # type: ignore[reportAttributeAccessIssue]
+        appointment.start_time = new_start_time
+        appointment.end_time = new_end_time
         if new_therapist:
             appointment.therapist_id = new_therapist.id
         if new_apt_type:
@@ -500,7 +500,7 @@ async def get_last_appointment_therapist(
         last_appointment = db.query(Appointment).filter(
             Appointment.patient_id == patient_id,
             Appointment.start_time < datetime.now(),  # Past appointments only
-            Appointment.status.in_(['confirmed', 'completed'])  # type: ignore[reportGeneralTypeIssues] # Successful appointments
+            Appointment.status.in_(['confirmed', 'completed'])  # Successful appointments
         ).join(Therapist).order_by(Appointment.start_time.desc()).first()
 
         if not last_appointment:
@@ -587,7 +587,7 @@ async def verify_and_link_patient(
             LineUser.patient_id == patient.id
         ).first()
 
-        if existing_link and existing_link.line_user_id != line_user_id:  # type: ignore[reportGeneralTypeIssues]
+        if existing_link and existing_link.line_user_id != line_user_id:
             return "ERROR: 此手機號碼已連結到其他 LINE 帳號。如有問題請聯繫診所。"
 
         # Check if this LINE account is already linked
@@ -595,14 +595,14 @@ async def verify_and_link_patient(
             LineUser.line_user_id == line_user_id
         ).first()
 
-        if existing_line_user and existing_line_user.patient_id:  # type: ignore[reportGeneralTypeIssues]
-            if existing_line_user.patient_id == patient.id:  # type: ignore[reportGeneralTypeIssues]
+        if existing_line_user and existing_line_user.patient_id:
+            if existing_line_user.patient_id == patient.id:
                 return f"SUCCESS: 您的帳號已經連結到 {patient.full_name}（{patient.phone_number}），無需重複連結。"
             else:
                 return "ERROR: 此 LINE 帳號已連結到其他病患。如有問題請聯繫診所。"
 
         # Create or update LINE user link
-        if existing_line_user:  # type: ignore[reportGeneralTypeIssues]
+        if existing_line_user:
             existing_line_user.patient_id = patient.id
         else:
             line_user = LineUser(
@@ -666,7 +666,7 @@ async def create_patient_and_link(
             LineUser.line_user_id == line_user_id
         ).first()
 
-        if existing_line_user and existing_line_user.patient_id:  # type: ignore[reportGeneralTypeIssues]
+        if existing_line_user and existing_line_user.patient_id:
             existing_patient = db.query(Patient).filter(Patient.id == existing_line_user.patient_id).first()
             return f"ERROR: 此 LINE 帳號已連結到 {existing_patient.full_name if existing_patient else '其他病患'}。"
 

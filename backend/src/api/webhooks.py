@@ -64,8 +64,8 @@ async def line_webhook(request: Request, db: Session = Depends(get_db)) -> Plain
 
         # 3. Initialize LINE service for this clinic
         line_service = LINEService(
-            channel_secret=clinic.line_channel_secret,  # type: ignore[reportArgumentType]
-            channel_access_token=clinic.line_channel_access_token  # type: ignore[reportArgumentType]
+            channel_secret=clinic.line_channel_secret,
+            channel_access_token=clinic.line_channel_access_token
         )
 
         # 4. Verify LINE signature (security)

@@ -111,7 +111,7 @@ def get_patient_from_line_user(db: Session, line_user: LineUser) -> Patient | No
     Returns:
         Patient object if linked, None if not linked
     """
-    if not line_user.patient_id:  # type: ignore[reportGeneralTypeIssues]
+    if not line_user.patient_id:
         return None
 
     return db.query(Patient).filter(Patient.id == line_user.patient_id).first()

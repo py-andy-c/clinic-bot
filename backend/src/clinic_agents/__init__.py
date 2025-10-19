@@ -26,8 +26,8 @@ def __getattr__(name: str):
     if name == "SQLAlchemySession":
         try:
             # Try to import it directly
-            from agents.extensions.sqlalchemy_session import SQLAlchemySession  # type: ignore[import]
-            return SQLAlchemySession  # type: ignore[reportUnknownVariableType]
+            from agents.extensions.sqlalchemy_session import SQLAlchemySession
+            return SQLAlchemySession
         except ImportError:
             return None
 

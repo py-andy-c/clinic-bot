@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from typing import Literal
 
 
-class TriageClassification(BaseModel):  # type: ignore[reportUntypedBaseClass]
+class TriageClassification(BaseModel):
     """
     Structured output for triage classification.
 
