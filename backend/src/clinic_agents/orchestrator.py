@@ -11,7 +11,7 @@ from typing import Optional, Any, Dict, cast
 from sqlalchemy.orm import Session
 
 from agents import Runner, RunConfig, trace
-# from agents.extensions.sqlalchemy_session import SQLAlchemySession  # Not available in current version
+from agents.extensions.memory import SQLAlchemySession
 
 from clinic_agents.context import ConversationContext
 from clinic_agents.triage_agent import triage_agent
@@ -20,13 +20,20 @@ from clinic_agents.account_linking_agent import account_linking_agent
 from clinic_agents.helpers import get_or_create_line_user, get_patient_from_line_user
 from models.clinic import Clinic
 from models.line_user import LineUser
+from core.config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
 
 
-# Initialize session storage for conversation history
-# session_storage = SQLAlchemySession(engine)  # Not available, using None for now
-session_storage = None
+# Session storage factory for conversation history
+# Creates SQLAlchemySession instances for individual users
+def get_session_storage(line_user_id: str) -> SQLAlchemySession:
+    """Get a SQLAlchemySession for the given LINE user."""
+    return SQLAlchemySession.from_url(
+        session_id=line_user_id,
+        url=DATABASE_URL,
+        create_tables=True
+    )
 
 
 async def handle_line_message(
@@ -67,13 +74,14 @@ async def handle_line_message(
         )
 
         # 3. Get session for this LINE user (auto-manages conversation history)
-        session = None  # session_storage.get_session(session_id=line_user_id) if session_storage else None
+        session = get_session_storage(line_user_id)
 
         # 4. Run triage agent with session and trace metadata
         triage_result = await Runner.run(
             triage_agent,
             input=message_text,
             context=context,
+            session=session,
             run_config=RunConfig(trace_metadata={
                 "__trace_source__": "line-webhook",
                 "clinic_id": clinic.id,
@@ -136,6 +144,7 @@ async def _handle_account_linking_flow(
         account_linking_agent,
         input=message_text,
         context=context,
+        session=session,
         run_config=RunConfig(trace_metadata={
             "__trace_source__": "line-webhook",
             "clinic_id": clinic.id,
@@ -188,6 +197,7 @@ async def _handle_appointment_flow(
             account_linking_agent,
             input=message_text,
             context=context,
+            session=session,
             run_config=RunConfig(trace_metadata={
                 "__trace_source__": "line-webhook",
                 "clinic_id": clinic.id,
@@ -219,6 +229,7 @@ async def _handle_appointment_flow(
                 appointment_agent,
                 input=message_text,
                 context=context,
+                session=session,
                 run_config=RunConfig(trace_metadata={
                     "__trace_source__": "line-webhook",
                     "clinic_id": clinic.id,
@@ -236,6 +247,7 @@ async def _handle_appointment_flow(
             appointment_agent,
             input=message_text,
             context=context,
+            session=session,
             run_config=RunConfig(trace_metadata={
                 "__trace_source__": "line-webhook",
                 "clinic_id": clinic.id,

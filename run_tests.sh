@@ -59,7 +59,7 @@ else
     exit 1
 fi
 
-# Run all tests (unit and integration)
+# Run all tests
 print_status "Running all tests..."
 if PYTHONPATH=src python -m pytest tests/unit/ tests/integration/ -v --tb=short; then
     print_success "All tests passed!"
