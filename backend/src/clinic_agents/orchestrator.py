@@ -267,10 +267,6 @@ def _is_linking_successful(linking_result: Any) -> bool:
                 # Check if output is a string starting with "SUCCESS:"
                 if isinstance(output, str) and output.startswith("SUCCESS:"):
                     return True
-                
-                # Also check for dict format (backward compatibility)
-                if isinstance(output, dict) and output.get("success") == True:
-                    return True
 
             except (AttributeError, TypeError):
                 # Not a valid tool result, continue checking
