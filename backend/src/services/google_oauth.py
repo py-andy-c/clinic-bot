@@ -3,7 +3,7 @@ import urllib.parse
 import httpx
 from sqlalchemy.orm import Session
 
-from ..core.config import settings
+from ..core.config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, API_BASE_URL
 from ..core.constants import GOOGLE_OAUTH_SCOPES
 from ..models.therapist import Therapist
 
@@ -20,9 +20,9 @@ class GoogleOAuthService:
 
     def __init__(self) -> None:
         super().__init__()
-        self.client_id = settings.google_client_id
-        self.client_secret = settings.google_client_secret
-        self.redirect_uri = f"{settings.api_base_url}/api/admin/auth/google/callback"
+        self.client_id = GOOGLE_CLIENT_ID
+        self.client_secret = GOOGLE_CLIENT_SECRET
+        self.redirect_uri = f"{API_BASE_URL}/api/admin/auth/google/callback"
 
     def get_authorization_url(self, therapist_id: int, clinic_id: int) -> str:
         """Generate Google OAuth2 authorization URL"""

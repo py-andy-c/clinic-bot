@@ -14,9 +14,6 @@ sleep 2
 # Activate virtual environment
 source venv/bin/activate
 
-# Export OpenAI API key
-export OPENAI_API_KEY="$(grep OPENAI_API_KEY .env | cut -d'=' -f2-)"
-
 # Launch ngrok in background first
 echo "🌐 Starting ngrok tunnel..."
 ngrok http 8000 &

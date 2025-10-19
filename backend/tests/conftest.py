@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src.core.database import Base, get_db
-from src.core.config import Settings
+from src.core.config import DATABASE_URL
 
 
 # Test database URL using SQLite in-memory
@@ -29,16 +29,16 @@ def event_loop():
 
 
 @pytest.fixture(scope="session")
-def test_settings() -> Settings:
-    """Test settings with SQLite database."""
-    return Settings(database_url=TEST_DATABASE_URL)
+def test_database_url() -> str:
+    """Test database URL using SQLite in-memory."""
+    return TEST_DATABASE_URL
 
 
 @pytest.fixture(scope="session")
-def test_engine():
+def test_engine(test_database_url):
     """Create test database engine."""
     engine = create_engine(
-        TEST_DATABASE_URL,
+        test_database_url,
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )

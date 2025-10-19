@@ -14,10 +14,9 @@ class TestGoogleOAuthService:
     @pytest.fixture
     def oauth_service(self):
         """Create a GoogleOAuthService instance for testing."""
-        with patch('src.services.google_oauth.settings') as mock_settings:
-            mock_settings.google_client_id = "test_client_id"
-            mock_settings.google_client_secret = "test_client_secret"
-            mock_settings.api_base_url = "http://localhost:8000"
+        with patch('src.services.google_oauth.GOOGLE_CLIENT_ID', "test_client_id"), \
+             patch('src.services.google_oauth.GOOGLE_CLIENT_SECRET', "test_client_secret"), \
+             patch('src.services.google_oauth.API_BASE_URL', "http://localhost:8000"):
 
             service = GoogleOAuthService()
             return service
