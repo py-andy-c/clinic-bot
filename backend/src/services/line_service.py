@@ -1,3 +1,4 @@
+# pyright: reportUnknownMemberType=false, reportMissingTypeStubs=false
 """
 LINE Messaging API service.
 

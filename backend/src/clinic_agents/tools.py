@@ -87,7 +87,7 @@ async def get_therapist_availability(
         clinic_end = datetime.combine(requested_date, datetime.strptime("17:00", "%H:%M").time())
         duration = timedelta(minutes=apt_type.duration_minutes)  # type: ignore[reportArgumentType]
 
-        available_slots = []
+        available_slots: List[str] = []
         current_time = clinic_start
 
         while current_time + duration <= clinic_end:

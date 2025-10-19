@@ -266,7 +266,7 @@ def _is_linking_successful(linking_result: Any) -> bool:
                     return True
                 
                 # Also check for dict format (backward compatibility)
-                if isinstance(output, dict) and output.get("success") == True:
+                if isinstance(output, dict) and output.get("success") == True:  # type: ignore[reportUnknownMemberType]
                     return True
 
             except (AttributeError, TypeError):

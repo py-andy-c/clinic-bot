@@ -27,7 +27,7 @@ def __getattr__(name: str):  # type: ignore[reportUnknownParameterType]
         try:
             # Try to import it directly
             from agents.extensions.sqlalchemy_session import SQLAlchemySession  # type: ignore[import]
-            return SQLAlchemySession
+            return SQLAlchemySession  # type: ignore[reportUnknownVariableType]
         except ImportError:
             return None
 

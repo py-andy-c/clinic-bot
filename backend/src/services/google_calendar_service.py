@@ -1,3 +1,4 @@
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportMissingTypeStubs=false
 """
 Google Calendar service for appointment synchronization.
 
@@ -59,7 +60,7 @@ class GoogleCalendarService:
                 self.credentials.refresh(Request())
 
             # Build Calendar API service
-            self.service = build('calendar', 'v3', credentials=self.credentials)  # pyright: ignore[reportUnknownMemberType]
+            self.service = build('calendar', 'v3', credentials=self.credentials)
             self.calendar_id = calendar_id
 
         except json.JSONDecodeError as e:
@@ -122,15 +123,15 @@ class GoogleCalendarService:
                 event_body['extendedProperties'] = extended_properties
 
             # Create the event
-            event = self.service.events().insert(  # pyright: ignore[reportUnknownVariableType,reportUnknownMemberType]
+            event = self.service.events().insert(
                 calendarId=self.calendar_id,
                 body=event_body
             ).execute()
 
-            return event  # pyright: ignore[reportUnknownVariableType]
+            return event
 
         except HttpError as e:
-            error_details = json.loads(e.content) if e.content else {}  # pyright: ignore[reportUnknownVariableType]
+            error_details = json.loads(e.content) if e.content else {}
             raise GoogleCalendarError(f"Failed to create calendar event: {error_details.get('error', {}).get('message', str(e))}")
         except Exception as e:
             raise GoogleCalendarError(f"Unexpected error creating calendar event: {e}")
