@@ -6,8 +6,8 @@ such as "Initial Consultation", "Follow-up Treatment", "Physical Therapy Session
 Each type has a specific duration and belongs to a particular clinic.
 """
 
-from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import String, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
 
@@ -23,16 +23,16 @@ class AppointmentType(Base):
 
     __tablename__ = "appointment_types"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
     """Unique identifier for the appointment type."""
 
-    clinic_id = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"))
     """Reference to the clinic that offers this appointment type."""
 
-    name = Column(String(255), nullable=False)
+    name: Mapped[str] = mapped_column(String(255))
     """Human-readable name of the appointment type (e.g., 'Initial Consultation', 'Follow-up Treatment')."""
 
-    duration_minutes = Column(Integer, nullable=False)
+    duration_minutes: Mapped[int] = mapped_column()
     """Expected duration of appointments of this type in minutes (e.g., 30, 60, 90)."""
 
     # Relationships

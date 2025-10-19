@@ -7,8 +7,11 @@ time slot. Appointments can be synced with Google Calendar and have various
 status states throughout their lifecycle.
 """
 
-from sqlalchemy import Column, Integer, TIMESTAMP, String, ForeignKey
-from sqlalchemy.orm import relationship
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import TIMESTAMP, String, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
 
@@ -25,28 +28,28 @@ class Appointment(Base):
 
     __tablename__ = "appointments"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
     """Unique identifier for the appointment."""
 
-    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
     """Reference to the patient who has booked this appointment."""
 
-    therapist_id = Column(Integer, ForeignKey("therapists.id"), nullable=False)
+    therapist_id: Mapped[int] = mapped_column(ForeignKey("therapists.id"))
     """Reference to the therapist who will conduct this appointment."""
 
-    appointment_type_id = Column(Integer, ForeignKey("appointment_types.id"), nullable=False)
+    appointment_type_id: Mapped[int] = mapped_column(ForeignKey("appointment_types.id"))
     """Reference to the type of appointment (service/treatment being provided)."""
 
-    start_time = Column(TIMESTAMP(timezone=True), nullable=False)
+    start_time: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
     """Start time of the appointment (timezone-aware datetime)."""
 
-    end_time = Column(TIMESTAMP(timezone=True), nullable=False)
+    end_time: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
     """End time of the appointment (timezone-aware datetime)."""
 
-    status = Column(String(50), nullable=False)  # 'confirmed', 'canceled_by_patient', 'canceled_by_clinic'
+    status: Mapped[str] = mapped_column(String(50))  # 'confirmed', 'canceled_by_patient', 'canceled_by_clinic'
     """Current status of the appointment. Valid values: 'confirmed', 'canceled_by_patient', 'canceled_by_clinic'."""
 
-    gcal_event_id = Column(String(255))
+    gcal_event_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     """Google Calendar event ID for appointments that have been synced with Google Calendar."""
 
     # Relationships

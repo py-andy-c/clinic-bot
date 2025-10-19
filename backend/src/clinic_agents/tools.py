@@ -154,8 +154,12 @@ async def create_appointment(
         patient = db.query(Patient).get(patient_id)
         apt_type = db.query(AppointmentType).get(appointment_type_id)
 
-        if not all([therapist, patient, apt_type]):
-            return {"error": "找不到指定的治療師、病人或預約類型"}
+        if therapist is None:
+            return {"error": "找不到指定的治療師"}
+        if patient is None:
+            return {"error": "找不到指定的病人"}
+        if apt_type is None:
+            return {"error": "找不到指定的預約類型"}
 
         # Calculate end time
         end_time = start_time + timedelta(minutes=apt_type.duration_minutes)
@@ -309,11 +313,11 @@ async def cancel_appointment(
         therapist = appointment.therapist
         gcal_service = GoogleCalendarService(therapist.gcal_credentials)
 
-        if appointment.gcal_event_id:
+        if appointment.gcal_event_id is not None:
             await gcal_service.delete_event(appointment.gcal_event_id)
 
         # Update database
-        appointment.status = 'canceled_by_patient'
+        setattr(appointment, 'status', 'canceled_by_patient')
         db.commit()
 
         return {
@@ -326,13 +330,16 @@ async def cancel_appointment(
 
     except GoogleCalendarError as e:
         # Still update database even if GCal fails
-        appointment.status = 'canceled_by_patient'
-        db.commit()
-        return {
-            "success": True,
-            "warning": f"預約已取消，但日曆同步失敗：{e}",
-            "appointment_id": appointment.id
-        }
+        if appointment is not None:
+            setattr(appointment, 'status', 'canceled_by_patient')
+            db.commit()
+            return {
+                "success": True,
+                "warning": f"預約已取消，但日曆同步失敗：{e}",
+                "appointment_id": appointment.id
+            }
+        else:
+            return {"error": f"取消預約時發生錯誤：{e}"}
 
     except Exception as e:
         return {"error": f"取消預約時發生錯誤：{e}"}
@@ -398,7 +405,7 @@ async def reschedule_appointment(
         # Update Google Calendar event
         gcal_service = GoogleCalendarService(final_therapist.gcal_credentials)
 
-        if appointment.gcal_event_id:
+        if appointment.gcal_event_id is not None:
             # Delete old event if therapist changed
             if new_therapist and new_therapist.id != appointment.therapist_id:
                 old_gcal_service = GoogleCalendarService(appointment.therapist.gcal_credentials)
@@ -447,8 +454,8 @@ async def reschedule_appointment(
             new_gcal_event_id = gcal_event['id']
 
         # Update database
-        appointment.start_time = new_start_time
-        appointment.end_time = new_end_time
+        setattr(appointment, 'start_time', new_start_time)
+        setattr(appointment, 'end_time', new_end_time)
         if new_therapist:
             appointment.therapist_id = new_therapist.id
         if new_apt_type:
@@ -587,7 +594,7 @@ async def verify_and_link_patient(
             LineUser.patient_id == patient.id
         ).first()
 
-        if existing_link and existing_link.line_user_id != line_user_id:
+        if existing_link is not None and existing_link.line_user_id != line_user_id:
             return "ERROR: 此手機號碼已連結到其他 LINE 帳號。如有問題請聯繫診所。"
 
         # Check if this LINE account is already linked
@@ -595,7 +602,7 @@ async def verify_and_link_patient(
             LineUser.line_user_id == line_user_id
         ).first()
 
-        if existing_line_user and existing_line_user.patient_id:
+        if existing_line_user is not None and existing_line_user.patient_id is not None:
             if existing_line_user.patient_id == patient.id:
                 return f"SUCCESS: 您的帳號已經連結到 {patient.full_name}（{patient.phone_number}），無需重複連結。"
             else:
@@ -666,7 +673,7 @@ async def create_patient_and_link(
             LineUser.line_user_id == line_user_id
         ).first()
 
-        if existing_line_user and existing_line_user.patient_id:
+        if existing_line_user is not None and existing_line_user.patient_id is not None:
             existing_patient = db.query(Patient).filter(Patient.id == existing_line_user.patient_id).first()
             return f"ERROR: 此 LINE 帳號已連結到 {existing_patient.full_name if existing_patient else '其他病患'}。"
 

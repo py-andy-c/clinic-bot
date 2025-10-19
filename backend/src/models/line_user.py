@@ -6,8 +6,10 @@ platform. Each LINE user is linked to exactly one patient record, establishing t
 connection between LINE's user identification and the clinic's patient management system.
 """
 
-from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.orm import relationship
+from typing import Optional
+
+from sqlalchemy import String, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
 
@@ -24,13 +26,13 @@ class LineUser(Base):
 
     __tablename__ = "line_users"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
     """Unique identifier for the LINE user record."""
 
-    line_user_id = Column(String(255), unique=True, nullable=False)
+    line_user_id: Mapped[str] = mapped_column(String(255), unique=True)
     """Unique identifier for the user provided by LINE messaging platform."""
 
-    patient_id = Column(Integer, ForeignKey("patients.id"), unique=True)  # Enforces 1-to-1 mapping
+    patient_id: Mapped[Optional[int]] = mapped_column(ForeignKey("patients.id"), unique=True, nullable=True)  # Enforces 1-to-1 mapping
     """Reference to the patient record associated with this LINE user. Unique constraint ensures one LINE user per patient."""
 
     # Relationships
