@@ -201,7 +201,10 @@ async def _handle_appointment_flow(
             line_user = db.query(LineUser).filter_by(
                 line_user_id=context.line_user_id
             ).first()
-            patient = get_patient_from_line_user(db, line_user)
+            if line_user is not None:
+                patient = get_patient_from_line_user(db, line_user)
+            else:
+                patient = None
             context = ConversationContext(
                 db_session=db,
                 clinic=context.clinic,

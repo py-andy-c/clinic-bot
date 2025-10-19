@@ -6,8 +6,8 @@ book appointments and receive treatments. Each patient belongs to exactly one cl
 and can optionally have a LINE messaging account for communication.
 """
 
-from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import String, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
 
@@ -24,16 +24,16 @@ class Patient(Base):
 
     __tablename__ = "patients"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
     """Unique identifier for the patient."""
 
-    clinic_id = Column(Integer, ForeignKey("clinics.id"), nullable=False)
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"))
     """Reference to the clinic where this patient receives treatment."""
 
-    full_name = Column(String(255), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(255))
     """Full name of the patient (first and last name)."""
 
-    phone_number = Column(String(50), nullable=False)
+    phone_number: Mapped[str] = mapped_column(String(50))
     """Contact phone number for the patient, used for appointment confirmations and reminders."""
 
     # Relationships

@@ -6,8 +6,11 @@ appointment types, and administrators. Each clinic operates independently
 with its own LINE Official Account and Google Calendar integrations.
 """
 
-from sqlalchemy import Column, Integer, String, TIMESTAMP, func
-from sqlalchemy.orm import relationship
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import String, TIMESTAMP, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
 from core.constants import MAX_STRING_LENGTH
@@ -26,13 +29,13 @@ class Clinic(Base):
 
     __tablename__ = "clinics"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
     """Unique identifier for the clinic."""
 
-    name = Column(String(MAX_STRING_LENGTH), nullable=False)
+    name: Mapped[str] = mapped_column(String(MAX_STRING_LENGTH))
     """Human-readable name of the clinic."""
 
-    line_channel_id = Column(String(MAX_STRING_LENGTH), unique=True, nullable=False)
+    line_channel_id: Mapped[str] = mapped_column(String(MAX_STRING_LENGTH), unique=True)
     """
     LINE Channel ID for the clinic's Official Account.
 
@@ -40,7 +43,7 @@ class Clinic(Base):
     webhook messages belong to this clinic.
     """
 
-    line_channel_secret = Column(String(MAX_STRING_LENGTH), nullable=False)
+    line_channel_secret: Mapped[str] = mapped_column(String(MAX_STRING_LENGTH))
     """
     LINE Channel Secret for webhook signature verification.
 
@@ -48,7 +51,7 @@ class Clinic(Base):
     Must be kept secure and never exposed to clients.
     """
 
-    line_channel_access_token = Column(String(MAX_STRING_LENGTH), nullable=False)
+    line_channel_access_token: Mapped[str] = mapped_column(String(MAX_STRING_LENGTH))
     """
     LINE Channel Access Token for sending messages via LINE Messaging API.
 
@@ -56,7 +59,7 @@ class Clinic(Base):
     Obtained from LINE Developers Console. Must be kept secure.
     """
 
-    subscription_status = Column(String(50), default="trial", nullable=False)
+    subscription_status: Mapped[str] = mapped_column(String(50), default="trial")
     """
     Current subscription status of the clinic.
 
@@ -67,7 +70,7 @@ class Clinic(Base):
     - 'canceled': Subscription canceled
     """
 
-    trial_ends_at = Column(TIMESTAMP(timezone=True))
+    trial_ends_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     """
     End date/time of the free trial period.
 
@@ -75,7 +78,7 @@ class Clinic(Base):
     to continue using the service.
     """
 
-    stripe_customer_id = Column(String(MAX_STRING_LENGTH))
+    stripe_customer_id: Mapped[Optional[str]] = mapped_column(String(MAX_STRING_LENGTH), nullable=True)
     """
     Stripe customer ID for billing purposes.
 
@@ -83,10 +86,10 @@ class Clinic(Base):
     management and payment processing.
     """
 
-    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
     """Timestamp when the clinic was first created."""
 
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
     """Timestamp when the clinic was last updated."""
 
     # Relationships

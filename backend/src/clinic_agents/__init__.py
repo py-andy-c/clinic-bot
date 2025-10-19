@@ -24,11 +24,8 @@ def __getattr__(name: str):
 
     # Handle special case for SQLAlchemySession which might not exist
     if name == "SQLAlchemySession":
-        try:
-            # Try to import it directly
-            from agents.extensions.sqlalchemy_session import SQLAlchemySession
-            return SQLAlchemySession
-        except ImportError:
-            return None
+        # SQLAlchemySession is not available in current agents package version
+        # Return None to indicate it's not supported
+        return None
 
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
