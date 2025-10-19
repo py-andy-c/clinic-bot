@@ -6,13 +6,13 @@ import pytest
 from unittest.mock import patch, MagicMock
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.core.database import get_db, get_db_context, create_tables, drop_tables
+from core.database import get_db, get_db_context, create_tables, drop_tables
 
 
 class TestDatabaseFunctions:
     """Test cases for database utility functions."""
 
-    @patch('src.core.database.SessionLocal')
+    @patch('core.database.SessionLocal')
     def test_get_db_success(self, mock_session_local):
         """Test successful database session creation."""
         mock_session = MagicMock()
@@ -33,7 +33,7 @@ class TestDatabaseFunctions:
 
         mock_session.close.assert_called_once()
 
-    @patch('src.core.database.SessionLocal')
+    @patch('core.database.SessionLocal')
     def test_get_db_with_exception(self, mock_session_local):
         """Test database session cleanup on exception."""
         mock_session = MagicMock()
@@ -52,7 +52,7 @@ class TestDatabaseFunctions:
         # we need to manually close it
         mock_session.close.assert_not_called()
 
-    @patch('src.core.database.SessionLocal')
+    @patch('core.database.SessionLocal')
     def test_get_db_context_success(self, mock_session_local):
         """Test successful database context manager."""
         mock_session = MagicMock()
@@ -65,7 +65,7 @@ class TestDatabaseFunctions:
         mock_session.commit.assert_called_once()
         mock_session.close.assert_called_once()
 
-    @patch('src.core.database.SessionLocal')
+    @patch('core.database.SessionLocal')
     def test_get_db_context_with_exception(self, mock_session_local):
         """Test database context manager with exception."""
         mock_session = MagicMock()
@@ -80,8 +80,8 @@ class TestDatabaseFunctions:
         mock_session.close.assert_called_once()
         mock_session.commit.assert_not_called()
 
-    @patch('src.core.database.Base')
-    @patch('src.core.database.engine')
+    @patch('core.database.Base')
+    @patch('core.database.engine')
     def test_create_tables_success(self, mock_engine, mock_base):
         """Test successful table creation."""
         mock_metadata = MagicMock()
@@ -91,8 +91,8 @@ class TestDatabaseFunctions:
 
         mock_metadata.create_all.assert_called_once_with(bind=mock_engine)
 
-    @patch('src.core.database.Base')
-    @patch('src.core.database.engine')
+    @patch('core.database.Base')
+    @patch('core.database.engine')
     def test_create_tables_with_exception(self, mock_engine, mock_base):
         """Test table creation with SQLAlchemy error."""
         mock_metadata = MagicMock()
@@ -102,8 +102,8 @@ class TestDatabaseFunctions:
         with pytest.raises(SQLAlchemyError):
             create_tables()
 
-    @patch('src.core.database.Base')
-    @patch('src.core.database.engine')
+    @patch('core.database.Base')
+    @patch('core.database.engine')
     def test_drop_tables_success(self, mock_engine, mock_base):
         """Test successful table dropping."""
         mock_metadata = MagicMock()
@@ -113,8 +113,8 @@ class TestDatabaseFunctions:
 
         mock_metadata.drop_all.assert_called_once_with(bind=mock_engine)
 
-    @patch('src.core.database.Base')
-    @patch('src.core.database.engine')
+    @patch('core.database.Base')
+    @patch('core.database.engine')
     def test_drop_tables_with_exception(self, mock_engine, mock_base):
         """Test table dropping with SQLAlchemy error."""
         mock_metadata = MagicMock()

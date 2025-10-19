@@ -6,8 +6,8 @@ by collecting and verifying phone numbers.
 """
 
 from agents import Agent, ModelSettings  # type: ignore[import]
-from src.clinic_agents.context import ConversationContext
-from src.clinic_agents.tools import verify_and_link_patient
+from clinic_agents.context import ConversationContext
+from clinic_agents.tools import verify_and_link_patient
 
 
 # Account linking agent definition

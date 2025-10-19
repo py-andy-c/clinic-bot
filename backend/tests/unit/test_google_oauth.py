@@ -5,7 +5,7 @@ Unit tests for Google OAuth service.
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
-from src.services.google_oauth import GoogleOAuthService
+from services.google_oauth import GoogleOAuthService
 
 
 class TestGoogleOAuthService:
@@ -14,9 +14,9 @@ class TestGoogleOAuthService:
     @pytest.fixture
     def oauth_service(self):
         """Create a GoogleOAuthService instance for testing."""
-        with patch('src.services.google_oauth.GOOGLE_CLIENT_ID', "test_client_id"), \
-             patch('src.services.google_oauth.GOOGLE_CLIENT_SECRET', "test_client_secret"), \
-             patch('src.services.google_oauth.API_BASE_URL', "http://localhost:8000"):
+        with patch('services.google_oauth.GOOGLE_CLIENT_ID', "test_client_id"), \
+             patch('services.google_oauth.GOOGLE_CLIENT_SECRET', "test_client_secret"), \
+             patch('services.google_oauth.API_BASE_URL', "http://localhost:8000"):
 
             service = GoogleOAuthService()
             return service
@@ -54,7 +54,7 @@ class TestGoogleOAuthService:
         assert clinic_id == 456
 
     @pytest.mark.asyncio
-    @patch('src.services.google_oauth.httpx.AsyncClient')
+    @patch('services.google_oauth.httpx.AsyncClient')
     async def test_exchange_code_for_tokens_success(self, mock_client_class, oauth_service):
         """Test successful token exchange."""
         mock_response = MagicMock()
@@ -81,7 +81,7 @@ class TestGoogleOAuthService:
         assert call_args[0][0] == "https://oauth2.googleapis.com/token"
 
     @pytest.mark.asyncio
-    @patch('src.services.google_oauth.httpx.AsyncClient')
+    @patch('services.google_oauth.httpx.AsyncClient')
     async def test_exchange_code_for_tokens_failure(self, mock_client_class, oauth_service):
         """Test token exchange failure."""
         mock_response = MagicMock()
@@ -96,7 +96,7 @@ class TestGoogleOAuthService:
             await oauth_service.exchange_code_for_tokens("invalid_code")
 
     @pytest.mark.asyncio
-    @patch('src.services.google_oauth.httpx.AsyncClient')
+    @patch('services.google_oauth.httpx.AsyncClient')
     async def test_refresh_access_token(self, mock_client_class, oauth_service):
         """Test access token refresh."""
         mock_response = MagicMock()
@@ -117,7 +117,7 @@ class TestGoogleOAuthService:
         assert result["expires_in"] == 3600
 
     @pytest.mark.asyncio
-    @patch('src.services.google_oauth.httpx.AsyncClient')
+    @patch('services.google_oauth.httpx.AsyncClient')
     async def test_get_user_info(self, mock_client_class, oauth_service):
         """Test user info retrieval."""
         mock_response = MagicMock()

@@ -9,7 +9,7 @@ and can optionally have a LINE messaging account for communication.
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 
-from .base import Base
+from models.base import Base
 
 
 class Patient(Base):

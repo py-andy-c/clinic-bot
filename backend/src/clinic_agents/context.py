@@ -9,7 +9,10 @@ from dataclasses import dataclass
 from typing import Optional
 from sqlalchemy.orm import Session
 
-from src.models import Clinic, Patient, Therapist, AppointmentType
+from models.clinic import Clinic
+from models.patient import Patient
+from models.therapist import Therapist
+from models.appointment_type import AppointmentType
 
 
 @dataclass

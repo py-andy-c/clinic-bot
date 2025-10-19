@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch, MagicMock, AsyncMock
 from sqlalchemy.orm import Session
 
-from src.clinic_agents.tools import (
+from clinic_agents.tools import (
     get_therapist_availability,
     create_appointment,
     get_existing_appointments,
@@ -19,9 +19,14 @@ from src.clinic_agents.tools import (
     get_last_appointment_therapist,
     verify_and_link_patient
 )
-from src.clinic_agents.context import ConversationContext
-from src.models import Clinic, Patient, Therapist, Appointment, AppointmentType, LineUser
-from src.services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
+from clinic_agents.context import ConversationContext
+from models.clinic import Clinic
+from models.patient import Patient
+from models.therapist import Therapist
+from models.appointment import Appointment
+from models.appointment_type import AppointmentType
+from models.line_user import LineUser
+from services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
 
 
 def create_mock_query_chain(return_value, method='first'):
@@ -169,7 +174,7 @@ class TestCreateAppointment:
     """Test create_appointment tool."""
 
     @pytest.mark.asyncio
-    @patch('src.clinic_agents.tools.GoogleCalendarService')
+    @patch('clinic_agents.tools.GoogleCalendarService')
     async def test_create_appointment_success(self, mock_gcal_class, db_session):
         """Test successful appointment creation with Google Calendar sync."""
         # Setup mocks
@@ -203,7 +208,7 @@ class TestCreateAppointment:
                 return mock_apt_type_query
             return Mock()
 
-        with patch('src.clinic_agents.tools.GoogleCalendarService') as mock_gcal_class, \
+        with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_class, \
              patch.object(db_session, 'query', side_effect=query_side_effect), \
              patch.object(db_session, 'add') as mock_add, \
              patch.object(db_session, 'commit') as mock_commit, \
@@ -287,7 +292,7 @@ class TestCreateAppointment:
             assert "找不到" in result["error"]
 
     @pytest.mark.asyncio
-    @patch('src.clinic_agents.tools.GoogleCalendarService')
+    @patch('clinic_agents.tools.GoogleCalendarService')
     async def test_create_appointment_gcal_failure(self, mock_gcal_class, db_session):
         """Test appointment creation when Google Calendar fails."""
         # Setup mock to raise exception
@@ -321,7 +326,7 @@ class TestCreateAppointment:
                 return mock_apt_type_query
             return Mock()
 
-        with patch('src.clinic_agents.tools.GoogleCalendarService') as mock_gcal_class, \
+        with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_class, \
              patch.object(db_session, 'query', side_effect=query_side_effect), \
              patch.object(db_session, 'rollback') as mock_rollback:
 
@@ -418,7 +423,7 @@ class TestCancelAppointment:
     """Test cancel_appointment tool."""
 
     @pytest.mark.asyncio
-    @patch('src.clinic_agents.tools.GoogleCalendarService')
+    @patch('clinic_agents.tools.GoogleCalendarService')
     async def test_cancel_appointment_success(self, mock_gcal_class, db_session):
         """Test successful appointment cancellation."""
         # Setup Google Calendar mock
@@ -446,7 +451,7 @@ class TestCancelAppointment:
         mock_filter.first.return_value = mock_appointment
         mock_query.filter.return_value = mock_filter
 
-        with patch('src.clinic_agents.tools.GoogleCalendarService') as mock_gcal_class, \
+        with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_class, \
              patch.object(db_session, 'query', return_value=mock_query), \
              patch.object(db_session, 'commit') as mock_commit:
 

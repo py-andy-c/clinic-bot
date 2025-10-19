@@ -7,9 +7,9 @@ from unittest.mock import patch, AsyncMock
 from httpx import AsyncClient
 from sqlalchemy.orm import Session
 
-from src.models.clinic import Clinic
-from src.models.therapist import Therapist
-from src.core.database import get_db
+from models.clinic import Clinic
+from models.therapist import Therapist
+from core.database import get_db
 
 
 class TestAPIIntegration:
@@ -29,7 +29,7 @@ class TestAPIIntegration:
     @pytest.mark.asyncio
     async def test_root_endpoint(self):
         """Test the root API endpoint."""
-        from src.main import app
+        from main import app
         async with AsyncClient(app=app, base_url="http://testserver") as client:
             response = await client.get("/")
 
@@ -43,7 +43,7 @@ class TestAPIIntegration:
     @pytest.mark.asyncio
     async def test_health_endpoint(self):
         """Test the health check endpoint."""
-        from src.main import app
+        from main import app
         async with AsyncClient(app=app, base_url="http://testserver") as client:
             response = await client.get("/health")
 
@@ -54,7 +54,7 @@ class TestAPIIntegration:
     @pytest.mark.asyncio
     async def test_line_webhook_invalid_json(self):
         """Test LINE webhook with invalid JSON."""
-        from src.main import app
+        from main import app
         async with AsyncClient(app=app, base_url="http://testserver") as client:
             response = await client.post(
                 "/webhook/line",
@@ -68,7 +68,7 @@ class TestAPIIntegration:
     @pytest.mark.asyncio
     async def test_line_webhook_valid_payload(self):
         """Test LINE webhook with valid payload."""
-        from src.main import app
+        from main import app
         async with AsyncClient(app=app, base_url="http://testserver") as client:
             payload = {
                 "events": [
@@ -94,7 +94,7 @@ class TestAPIIntegration:
     @pytest.mark.asyncio
     async def test_google_calendar_webhook(self):
         """Test Google Calendar webhook endpoint."""
-        from src.main import app
+        from main import app
         async with AsyncClient(app=app, base_url="http://testserver") as client:
             headers = {
                 "X-Goog-Resource-State": "exists",
@@ -112,7 +112,7 @@ class TestAPIIntegration:
     @pytest.mark.asyncio
     async def test_oauth_initiate_therapist_not_found(self, db_session, tables):
         """Test OAuth initiation with non-existent therapist."""
-        from src.main import app
+        from main import app
 
         async with AsyncClient(app=app, base_url="http://testserver") as client:
             response = await client.get("/api/admin/therapists/999/gcal/auth?clinic_id=1")
@@ -136,11 +136,11 @@ class TestAPIIntegration:
         db_session.commit()
 
         # Override database dependency
-        from src.main import app
+        from main import app
         app.dependency_overrides[get_db] = self.get_db_override(db_session)
 
         # Mock the OAuth service
-        with patch('src.api.admin.google_oauth_service', mock_google_oauth):
+        with patch('api.admin.google_oauth_service', mock_google_oauth):
             async with AsyncClient(app=app, base_url="http://testserver") as client:
                 response = await client.get(f"/api/admin/therapists/{therapist.id}/gcal/auth?clinic_id={clinic.id}")
 
@@ -155,7 +155,7 @@ class TestAPIIntegration:
     @pytest.mark.asyncio
     async def test_oauth_callback_missing_code(self):
         """Test OAuth callback without authorization code."""
-        from src.main import app
+        from main import app
         async with AsyncClient(app=app, base_url="http://testserver") as client:
             response = await client.get("/api/admin/auth/google/callback?state=1:2")
 
@@ -168,7 +168,7 @@ class TestAPIIntegration:
     @pytest.mark.asyncio
     async def test_oauth_callback_missing_state(self):
         """Test OAuth callback without state parameter."""
-        from src.main import app
+        from main import app
         async with AsyncClient(app=app, base_url="http://testserver") as client:
             response = await client.get("/api/admin/auth/google/callback?code=test_code")
 
@@ -181,7 +181,7 @@ class TestAPIIntegration:
     @pytest.mark.asyncio
     async def test_oauth_callback_with_error(self):
         """Test OAuth callback with error parameter."""
-        from src.main import app
+        from main import app
         async with AsyncClient(app=app, base_url="http://testserver") as client:
             response = await client.get("/api/admin/auth/google/callback?error=access_denied&state=1:2")
 
@@ -204,8 +204,8 @@ class TestAPIIntegration:
         db_session.commit()
 
         # Mock the OAuth service
-        with patch('src.api.admin.google_oauth_service', mock_google_oauth):
-            from src.main import app
+        with patch('api.admin.google_oauth_service', mock_google_oauth):
+            from main import app
             async with AsyncClient(app=app, base_url="http://testserver") as client:
                 response = await client.get(f"/api/admin/auth/google/callback?code=test_code&state={therapist.id}:{clinic.id}")
 

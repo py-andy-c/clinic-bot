@@ -6,7 +6,7 @@ import json
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
-from src.services.line_service import LINEService
+from services.line_service import LINEService
 from linebot.exceptions import LineBotApiError
 
 
@@ -142,7 +142,7 @@ class TestLINEService:
         result = line_service.extract_message_data(payload)
         assert result is None
 
-    @patch('src.services.line_service.LineBotApi')
+    @patch('services.line_service.LineBotApi')
     @pytest.mark.asyncio
     async def test_send_text_message_success(self, mock_line_api_class, line_service):
         """Test successful text message sending."""
@@ -165,7 +165,7 @@ class TestLINEService:
         assert hasattr(message, 'text')
         assert message.text == "Hello world"
 
-    @patch('src.services.line_service.LineBotApi')
+    @patch('services.line_service.LineBotApi')
     @pytest.mark.asyncio
     async def test_send_text_message_api_error(self, mock_line_api_class, line_service):
         """Test text message sending with API error."""
@@ -184,7 +184,7 @@ class TestLINEService:
         with pytest.raises(LineBotApiError):
             await service.send_text_message("user123", "Hello world")
 
-    @patch('src.services.line_service.LineBotApi')
+    @patch('services.line_service.LineBotApi')
     @pytest.mark.asyncio
     async def test_send_text_message_unexpected_error(self, mock_line_api_class, line_service):
         """Test text message sending with unexpected error."""

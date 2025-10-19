@@ -8,8 +8,10 @@ including LINE user management, patient lookup, and clinic identification.
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, Request
 
-from src.models import Clinic, LineUser, Patient
-from src.clinic_agents.context import ConversationContext
+from models.clinic import Clinic
+from models.line_user import LineUser
+from models.patient import Patient
+from clinic_agents.context import ConversationContext
 
 
 def get_clinic_from_request(request: Request, db: Session) -> Clinic:

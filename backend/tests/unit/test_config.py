@@ -4,7 +4,7 @@ Unit tests for configuration constants.
 
 import pytest
 import os
-from src.core.config import (
+from core.config import (
     DATABASE_URL, API_BASE_URL, OPENAI_API_KEY, LINE_CHANNEL_SECRET,
     LINE_CHANNEL_ACCESS_TOKEN, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
     JWT_SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRATION_HOURS, ENVIRONMENT
@@ -39,12 +39,12 @@ class TestConfigConstants:
         try:
             # Re-import to get updated values
             from importlib import reload
-            import src.core.config
-            reload(src.core.config)
+            import core.config
+            reload(core.config)
 
-            assert src.core.config.DATABASE_URL == "postgresql://test:test@localhost/test_db"
-            assert src.core.config.API_BASE_URL == "https://api.example.com"
-            assert src.core.config.ENVIRONMENT == "production"
+            assert core.config.DATABASE_URL == "postgresql://test:test@localhost/test_db"
+            assert core.config.API_BASE_URL == "https://api.example.com"
+            assert core.config.ENVIRONMENT == "production"
         finally:
             # Clean up environment variables
             del os.environ["DATABASE_URL"]

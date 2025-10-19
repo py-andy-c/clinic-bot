@@ -8,9 +8,13 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timezone
 
-from src.clinic_agents.orchestrator import handle_line_message, _is_linking_successful
-from src.clinic_agents.context import ConversationContext
-from src.models import Clinic, Patient, Therapist, AppointmentType, LineUser
+from clinic_agents.orchestrator import handle_line_message, _is_linking_successful
+from clinic_agents.context import ConversationContext
+from models.clinic import Clinic
+from models.patient import Patient
+from models.therapist import Therapist
+from models.appointment_type import AppointmentType
+from models.line_user import LineUser
 
 
 class TestOrchestratorIntegration:
@@ -27,9 +31,9 @@ class TestOrchestratorIntegration:
             line_channel_access_token="test_token"
         )
 
-    @patch('src.agents.orchestrator.get_or_create_line_user')
-    @patch('src.agents.orchestrator.get_patient_from_line_user')
-    @patch('src.agents.orchestrator.triage_agent')
+    @patch('agents.orchestrator.get_or_create_line_user')
+    @patch('agents.orchestrator.get_patient_from_line_user')
+    @patch('agents.orchestrator.triage_agent')
     def test_handle_line_message_appointment_related(self, mock_triage, mock_get_patient, mock_get_line_user, db_session, clinic):
         """Test complete flow for appointment-related messages."""
         # Setup mocks
@@ -45,12 +49,12 @@ class TestOrchestratorIntegration:
         mock_triage.run.return_value = mock_triage_result
 
         # Mock session storage
-        with patch('src.agents.orchestrator.session_storage') as mock_session_storage:
+        with patch('agents.orchestrator.session_storage') as mock_session_storage:
             mock_session = Mock()
             mock_session_storage.get_session.return_value = mock_session
 
             # Mock appointment agent
-            with patch('src.agents.orchestrator.appointment_agent') as mock_appointment_agent:
+            with patch('agents.orchestrator.appointment_agent') as mock_appointment_agent:
                 mock_appointment_result = Mock()
                 mock_appointment_result.final_output_as.return_value = "預約成功！"
                 mock_appointment_agent.run.return_value = mock_appointment_result
@@ -72,9 +76,9 @@ class TestOrchestratorIntegration:
                 # Verify appointment agent was called (since already linked)
                 mock_appointment_agent.run.assert_called_once()
 
-    @patch('src.agents.orchestrator.get_or_create_line_user')
-    @patch('src.agents.orchestrator.get_patient_from_line_user')
-    @patch('src.agents.orchestrator.triage_agent')
+    @patch('agents.orchestrator.get_or_create_line_user')
+    @patch('agents.orchestrator.get_patient_from_line_user')
+    @patch('agents.orchestrator.triage_agent')
     def test_handle_line_message_non_appointment(self, mock_triage, mock_get_patient, mock_get_line_user, db_session, clinic):
         """Test complete flow for non-appointment messages."""
         # Setup mocks
@@ -88,7 +92,7 @@ class TestOrchestratorIntegration:
         mock_triage.run.return_value = mock_triage_result
 
         # Mock session storage
-        with patch('src.agents.orchestrator.session_storage') as mock_session_storage:
+        with patch('agents.orchestrator.session_storage') as mock_session_storage:
             mock_session = Mock()
             mock_session_storage.get_session.return_value = mock_session
 

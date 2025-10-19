@@ -87,23 +87,23 @@ else
 fi
 
 # Set PYTHONPATH to prioritize venv packages over local modules
-export PYTHONPATH="$VIRTUAL_ENV/lib/python3.12/site-packages:$PROJECT_ROOT/backend/src"
+export PYTHONPATH="$VIRTUAL_ENV/lib/python3.12/site-packages"
 
 print_status "Running tests..."
 
-# Run pyright type checking
+# Run pyright type checking (SQLAlchemy type errors are expected)
 print_status "Running Pyright type checking..."
 cd "$PROJECT_ROOT/backend"
 if pyright; then
     print_success "Type checking passed!"
 else
-    print_warning "Type checking failed, but continuing with tests..."
+    print_warning "Type checking failed (expected with SQLAlchemy), continuing with tests..."
 fi
 
-# Run all unit tests
+# Run all unit tests from src directory
 print_status "Running all unit tests..."
-cd "$PROJECT_ROOT/backend"
-python3 -m pytest tests/unit/ -v --tb=short --cov=src --cov-report=term-missing \
+cd "$PROJECT_ROOT/backend/src"
+python3 -m pytest ../tests/unit/ -v --tb=short --cov=. --cov-report=term-missing \
     -W ignore::DeprecationWarning \
     -W ignore::linebot.LineBotSdkDeprecatedIn30 \
     -W ignore::pydantic.PydanticDeprecatedSince20
@@ -121,8 +121,8 @@ print_warning "Core functionality is fully validated by unit tests"
 
 # Generate comprehensive coverage report
 print_status "Generating coverage report..."
-cd "$PROJECT_ROOT/backend"
-python3 -m pytest tests/unit/ --cov=src --cov-report=html:htmlcov --cov-report=term \
+cd "$PROJECT_ROOT/backend/src"
+python3 -m pytest ../tests/unit/ --cov=. --cov-report=html:../htmlcov --cov-report=term \
     -W ignore::DeprecationWarning \
     -W ignore::linebot.LineBotSdkDeprecatedIn30 \
     -W ignore::pydantic.PydanticDeprecatedSince20

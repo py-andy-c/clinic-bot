@@ -10,9 +10,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from ..core.database import get_db
-from ..services.google_oauth import google_oauth_service
-from ..models.therapist import Therapist
+from core.database import get_db
+from services.google_oauth import google_oauth_service
+from models.therapist import Therapist
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 

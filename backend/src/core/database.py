@@ -14,8 +14,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Session, sessionmaker
 
-from .config import DATABASE_URL, ENVIRONMENT
-from .constants import DB_POOL_RECYCLE_SECONDS
+from core.config import DATABASE_URL, ENVIRONMENT
+from core.constants import DB_POOL_RECYCLE_SECONDS
 
 logger = logging.getLogger(__name__)
 

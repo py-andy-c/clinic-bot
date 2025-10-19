@@ -15,12 +15,13 @@ from sqlalchemy.exc import IntegrityError
 
 from agents import function_tool, RunContextWrapper  # type: ignore[import]
 
-from src.models import (
-    Therapist, Patient, Appointment, AppointmentType,
-    LineUser
-)
-from src.services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
-from src.clinic_agents.context import ConversationContext
+from models.therapist import Therapist
+from models.patient import Patient
+from models.appointment import Appointment
+from models.appointment_type import AppointmentType
+from models.line_user import LineUser
+from services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
+from clinic_agents.context import ConversationContext
 
 
 @function_tool  # type: ignore[reportUntypedFunctionDecorator]

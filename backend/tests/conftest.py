@@ -12,8 +12,17 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from src.core.database import Base, get_db
-from src.core.config import DATABASE_URL
+from core.database import Base, get_db
+from core.config import DATABASE_URL
+
+# Import all models to ensure they're registered with SQLAlchemy before any relationships are resolved
+from models.clinic import Clinic
+from models.clinic_admin import ClinicAdmin
+from models.therapist import Therapist
+from models.patient import Patient
+from models.appointment_type import AppointmentType
+from models.appointment import Appointment
+from models.line_user import LineUser
 
 
 # Test database URL using SQLite in-memory

@@ -3,9 +3,9 @@ import urllib.parse
 import httpx
 from sqlalchemy.orm import Session
 
-from ..core.config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, API_BASE_URL
-from ..core.constants import GOOGLE_OAUTH_SCOPES
-from ..models.therapist import Therapist
+from core.config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, API_BASE_URL
+from core.constants import GOOGLE_OAUTH_SCOPES
+from models.therapist import Therapist
 
 
 class GoogleOAuthService:

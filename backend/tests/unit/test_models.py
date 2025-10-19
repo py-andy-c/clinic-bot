@@ -5,11 +5,11 @@ Unit tests for database models.
 import pytest
 from datetime import datetime, timezone
 
-from src.models.clinic import Clinic
-from src.models.therapist import Therapist
-from src.models.patient import Patient
-from src.models.appointment_type import AppointmentType
-from src.models.appointment import Appointment
+from models.clinic import Clinic
+from models.therapist import Therapist
+from models.patient import Patient
+from models.appointment_type import AppointmentType
+from models.appointment import Appointment
 
 
 class TestClinicModel:

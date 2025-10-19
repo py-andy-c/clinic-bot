@@ -18,8 +18,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .api import webhooks, admin
-from .core.constants import CORS_ORIGINS
+from api import webhooks, admin
+from core.constants import CORS_ORIGINS
 
 # Configure logging
 logging.basicConfig(

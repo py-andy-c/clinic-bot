@@ -10,7 +10,7 @@ status states throughout their lifecycle.
 from sqlalchemy import Column, Integer, TIMESTAMP, String, ForeignKey
 from sqlalchemy.orm import relationship
 
-from .base import Base
+from models.base import Base
 
 
 class Appointment(Base):

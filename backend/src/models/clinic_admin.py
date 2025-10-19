@@ -9,7 +9,7 @@ Google OAuth and have elevated permissions within their clinic's scope.
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 
-from .base import Base
+from models.base import Base
 
 
 class ClinicAdmin(Base):

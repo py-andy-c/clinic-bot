@@ -9,7 +9,7 @@ Google Calendar for appointment synchronization and availability management.
 from sqlalchemy import Column, Integer, String, Boolean, TIMESTAMP, ForeignKey, JSON, func
 from sqlalchemy.orm import relationship
 
-from .base import Base
+from models.base import Base
 
 
 class Therapist(Base):

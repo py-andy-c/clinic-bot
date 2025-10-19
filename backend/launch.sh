@@ -41,4 +41,4 @@ echo ""
 echo "🌟 Starting FastAPI server with hot reload (logs visible below)..."
 echo "🛑 Press Ctrl+C to stop both server and ngrok"
 echo ""
-PYTHONPATH="$PWD/src" uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+cd src && uvicorn main:app --host 0.0.0.0 --port 8000 --reload

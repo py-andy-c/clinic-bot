@@ -12,12 +12,13 @@ from sqlalchemy.orm import Session
 from agents import Runner, RunConfig, trace  # type: ignore[import]
 # from agents.extensions.sqlalchemy_session import SQLAlchemySession  # Not available in current version
 
-from src.clinic_agents.context import ConversationContext
-from src.clinic_agents.triage_agent import triage_agent
-from src.clinic_agents.appointment_agent import appointment_agent
-from src.clinic_agents.account_linking_agent import account_linking_agent
-from src.clinic_agents.helpers import get_or_create_line_user, get_patient_from_line_user
-from src.models import Clinic, LineUser
+from clinic_agents.context import ConversationContext
+from clinic_agents.triage_agent import triage_agent
+from clinic_agents.appointment_agent import appointment_agent
+from clinic_agents.account_linking_agent import account_linking_agent
+from clinic_agents.helpers import get_or_create_line_user, get_patient_from_line_user
+from models.clinic import Clinic
+from models.line_user import LineUser
 
 logger = logging.getLogger(__name__)
 

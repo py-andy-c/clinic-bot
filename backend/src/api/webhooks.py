@@ -12,10 +12,10 @@ from fastapi import APIRouter, Request, HTTPException, status, Depends
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
-from src.clinic_agents.orchestrator import handle_line_message
-from src.services.line_service import LINEService
-from src.clinic_agents.helpers import get_clinic_from_request
-from src.core.database import get_db
+from clinic_agents.orchestrator import handle_line_message
+from services.line_service import LINEService
+from clinic_agents.helpers import get_clinic_from_request
+from core.database import get_db
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

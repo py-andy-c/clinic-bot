@@ -7,7 +7,7 @@ import pytest
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch, MagicMock
 
-from src.services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
+from services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.errors import HttpError
@@ -27,8 +27,8 @@ class TestGoogleCalendarService:
     @pytest.fixture
     def calendar_service(self, mock_credentials):
         """Create a Google Calendar service instance for testing."""
-        with patch('src.services.google_calendar_service.build') as mock_build, \
-             patch('src.services.google_calendar_service.Credentials') as mock_creds_class:
+        with patch('services.google_calendar_service.build') as mock_build, \
+             patch('services.google_calendar_service.Credentials') as mock_creds_class:
             mock_service = Mock()
             mock_build.return_value = mock_service
             mock_creds_class.from_authorized_user_info.return_value = mock_credentials
@@ -42,8 +42,8 @@ class TestGoogleCalendarService:
 
     def test_init_valid_credentials(self):
         """Test service initialization with valid credentials."""
-        with patch('src.services.google_calendar_service.build') as mock_build, \
-             patch('src.services.google_calendar_service.Credentials') as mock_creds_class:
+        with patch('services.google_calendar_service.build') as mock_build, \
+             patch('services.google_calendar_service.Credentials') as mock_creds_class:
             mock_service = Mock()
             mock_build.return_value = mock_service
             mock_creds = Mock()
@@ -240,8 +240,8 @@ class TestGoogleCalendarService:
 
     def test_expired_credentials_refresh(self):
         """Test credential refresh for expired tokens."""
-        with patch('src.services.google_calendar_service.build') as mock_build, \
-             patch('src.services.google_calendar_service.Credentials') as mock_creds_class:
+        with patch('services.google_calendar_service.build') as mock_build, \
+             patch('services.google_calendar_service.Credentials') as mock_creds_class:
 
             # Mock expired credentials with refresh token
             mock_creds = Mock()
@@ -259,8 +259,8 @@ class TestGoogleCalendarService:
 
     def test_expired_credentials_no_refresh_token(self):
         """Test handling of expired credentials without refresh token."""
-        with patch('src.services.google_calendar_service.build') as mock_build, \
-             patch('src.services.google_calendar_service.Credentials') as mock_creds_class:
+        with patch('services.google_calendar_service.build') as mock_build, \
+             patch('services.google_calendar_service.Credentials') as mock_creds_class:
 
             # Mock expired credentials without refresh token
             mock_creds = Mock()
