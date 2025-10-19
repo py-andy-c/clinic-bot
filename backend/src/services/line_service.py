@@ -35,7 +35,7 @@ class LINEService:
         handler: LINE webhook handler for signature verification
     """
 
-    def __init__(self, channel_secret: str, channel_access_token: str) -> None:
+    def __init__(self, channel_secret: str, channel_access_token: str) -> None:  # pyright: ignore[reportMissingSuperCall]
         """
         Initialize LINE API clients.
 

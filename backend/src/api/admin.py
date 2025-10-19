@@ -38,8 +38,8 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 )
 async def initiate_google_oauth(
     therapist_id: int,
-    clinic_id: int = Query(..., description="ID of the clinic the therapist belongs to"),
-    db: Session = Depends(get_db)
+    clinic_id: int = Query(..., description="ID of the clinic the therapist belongs to"),  # pyright: ignore[reportCallInDefaultInitializer]
+    db: Session = Depends(get_db)  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> dict[str, str]:
     """
     Initiate Google OAuth 2.0 flow for a therapist.
@@ -155,7 +155,7 @@ async def google_oauth_callback(
     code: str | None = None,
     state: str | None = None,
     error: str | None = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db)  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> dict[str, Any]:
     """
     Handle Google OAuth 2.0 callback and complete therapist authorization.

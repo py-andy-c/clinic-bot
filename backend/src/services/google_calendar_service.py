@@ -38,7 +38,7 @@ class GoogleCalendarService:
     # Default calendar ID (primary calendar)
     DEFAULT_CALENDAR_ID = 'primary'
 
-    def __init__(self, credentials_json: str, calendar_id: str = DEFAULT_CALENDAR_ID) -> None:
+    def __init__(self, credentials_json: str, calendar_id: str = DEFAULT_CALENDAR_ID) -> None:  # pyright: ignore[reportMissingSuperCall]
         """
         Initialize Google Calendar service.
 
@@ -59,7 +59,7 @@ class GoogleCalendarService:
                 self.credentials.refresh(Request())
 
             # Build Calendar API service
-            self.service = build('calendar', 'v3', credentials=self.credentials)
+            self.service = build('calendar', 'v3', credentials=self.credentials)  # pyright: ignore[reportUnknownMemberType]
             self.calendar_id = calendar_id
 
         except json.JSONDecodeError as e:
@@ -122,15 +122,15 @@ class GoogleCalendarService:
                 event_body['extendedProperties'] = extended_properties
 
             # Create the event
-            event = self.service.events().insert(
+            event = self.service.events().insert(  # pyright: ignore[reportUnknownVariableType,reportUnknownMemberType]
                 calendarId=self.calendar_id,
                 body=event_body
             ).execute()
 
-            return event
+            return event  # pyright: ignore[reportUnknownVariableType]
 
         except HttpError as e:
-            error_details = json.loads(e.content) if e.content else {}
+            error_details = json.loads(e.content) if e.content else {}  # pyright: ignore[reportUnknownVariableType]
             raise GoogleCalendarError(f"Failed to create calendar event: {error_details.get('error', {}).get('message', str(e))}")
         except Exception as e:
             raise GoogleCalendarError(f"Unexpected error creating calendar event: {e}")

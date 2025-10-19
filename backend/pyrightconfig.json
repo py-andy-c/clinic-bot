@@ -2,21 +2,21 @@
   "include": ["src"],
   "exclude": ["venv", "__pycache__", "htmlcov"],
   "typeCheckingMode": "strict",
-  "reportMissingImports": false,
+  "reportMissingImports": true,
   "reportMissingTypeStubs": false,
-  "reportCallInDefaultInitializer": false,
-  "reportMissingSuperCall": false,
+  "reportCallInDefaultInitializer": true,
+  "reportMissingSuperCall": true,
   "reportUnknownVariableType": false,
   "reportUnknownMemberType": false,
-  "reportUnknownParameterType": false,
-  "reportUnknownArgumentType": false,
+  "reportUnknownParameterType": true,
+  "reportUnknownArgumentType": true,
   "pythonVersion": "3.12",
   "pythonPlatform": "Darwin",
   "executionEnvironments": [
     {
       "root": "src",
       "pythonVersion": "3.12",
-      "pythonPath": ["."]
+      "pythonPath": [".", "venv/lib/python3.12/site-packages"]
     }
   ]
 }

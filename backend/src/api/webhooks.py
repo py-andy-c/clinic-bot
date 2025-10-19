@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
         500: {"description": "Internal server error"},
     },
 )
-async def line_webhook(request: Request, db: Session = Depends(get_db)) -> PlainTextResponse:
+async def line_webhook(request: Request, db: Session = Depends(get_db)) -> PlainTextResponse:  # pyright: ignore[reportCallInDefaultInitializer]
     """
     Process incoming LINE webhook events for chatbot conversations.
 

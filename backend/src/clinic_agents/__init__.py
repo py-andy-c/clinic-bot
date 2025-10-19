@@ -8,7 +8,7 @@ including agent definitions, tools, context management, and workflow orchestrati
 __version__ = "1.0.0"
 
 # Lazy imports to avoid circular import issues
-def __getattr__(name: str):
+def __getattr__(name: str):  # type: ignore[reportUnknownParameterType]
     # Import from the openai-agents package directly by bypassing sys.modules
     import importlib.util
 
@@ -26,7 +26,7 @@ def __getattr__(name: str):
     if name == "SQLAlchemySession":
         try:
             # Try to import it directly
-            from agents.extensions.sqlalchemy_session import SQLAlchemySession
+            from agents.extensions.sqlalchemy_session import SQLAlchemySession  # type: ignore[import]
             return SQLAlchemySession
         except ImportError:
             return None
