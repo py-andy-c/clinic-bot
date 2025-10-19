@@ -52,6 +52,9 @@ class TestAPIIntegration:
     @pytest.mark.asyncio
     async def test_line_webhook_invalid_json(self, db_session):
         """Test LINE webhook with invalid JSON."""
+        import hmac
+        import hashlib
+        import base64
         from main import app
 
         # Create test clinic in database
@@ -70,10 +73,27 @@ class TestAPIIntegration:
         app.dependency_overrides[get_db] = self.get_db_override(db_session)
 
         client = TestClient(app)
+
+        # Invalid JSON content
+        invalid_json_content = "invalid json"
+
+        # Generate valid signature for the invalid JSON
+        signature = base64.b64encode(
+            hmac.new(
+                clinic_data["line_channel_secret"].encode('utf-8'),
+                invalid_json_content.encode('utf-8'),
+                hashlib.sha256
+            ).digest()
+        ).decode('utf-8')
+
         response = client.post(
             "/webhook/line",
-            content="invalid json",
-            headers={"Content-Type": "application/json", "X-Clinic-ID": "1"}
+            content=invalid_json_content,
+            headers={
+                "Content-Type": "application/json",
+                "X-Clinic-ID": "1",
+                "X-Line-Signature": signature
+            }
         )
 
         assert response.status_code == 400
@@ -85,6 +105,10 @@ class TestAPIIntegration:
     @pytest.mark.asyncio
     async def test_line_webhook_valid_payload(self, db_session):
         """Test LINE webhook with valid payload."""
+        import hmac
+        import hashlib
+        import base64
+        import json
         from main import app
 
         # Create test clinic in database
@@ -115,10 +139,24 @@ class TestAPIIntegration:
                 ]
             }
 
+        # Generate valid LINE signature for testing
+        body_str = json.dumps(payload, separators=(',', ':'))
+        signature = base64.b64encode(
+            hmac.new(
+                clinic_data["line_channel_secret"].encode('utf-8'),
+                body_str.encode('utf-8'),
+                hashlib.sha256
+            ).digest()
+        ).decode('utf-8')
+
         response = client.post(
                 "/webhook/line",
-                json=payload,
-                headers={"Content-Type": "application/json", "X-Clinic-ID": "1"}
+                content=body_str,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Clinic-ID": "1",
+                    "X-Line-Signature": signature
+                }
             )
 
         assert response.status_code == 200

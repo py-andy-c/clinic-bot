@@ -203,7 +203,7 @@ CREATE TABLE appointments (
 
 ## 8. Implementation Milestones
 
-### Milestone 1: Foundational Setup & Core Backend
+### Milestone 1: Foundational Setup & Core Backend ✅ COMPLETED
 *   **Goal:** Establish the project structure, database, and core service connections.
 *   **Tasks:**
     *   Initialize Git repository with the monorepo structure.
@@ -213,7 +213,7 @@ CREATE TABLE appointments (
     *   Implement a basic LINE webhook endpoint that can receive and log messages.
     *   Implement the Google OAuth2 flow for *therapists* to grant calendar access.
 
-### Milestone 2: Core Patient-Facing Functionality (Chatbot MVP)
+### Milestone 2: Core Patient-Facing Functionality (Chatbot MVP) ✅ COMPLETED
 *   **Goal:** Enable a patient to successfully book, reschedule, and cancel appointments via conversation.
 *   **Tasks:**
     *   Integrate OpenAI Agent SDK with multi-agent workflow orchestration.

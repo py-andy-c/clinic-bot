@@ -69,15 +69,12 @@ async def line_webhook(request: Request, db: Session = Depends(get_db)) -> Plain
         )
 
         # 4. Verify LINE signature (security)
-        # TEMPORARY: Skip signature verification for testing
-        # TODO: Re-enable in production
-        logger.info("Skipping LINE signature verification (testing mode - TODO: re-enable for production)")
-        # if not line_service.verify_signature(body.decode('utf-8'), signature):
-        #     logger.warning("Invalid LINE signature received")
-        #     raise HTTPException(
-        #         status_code=status.HTTP_401_UNAUTHORIZED,
-        #         detail="Invalid LINE signature"
-        #     )
+        if not line_service.verify_signature(body.decode('utf-8'), signature):
+            logger.warning("Invalid LINE signature received")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid LINE signature"
+            )
 
         # 5. Parse LINE message payload
         try:
