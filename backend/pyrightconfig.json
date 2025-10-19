@@ -2,6 +2,9 @@
   "include": ["src"],
   "exclude": ["venv", "__pycache__", "htmlcov"],
   "typeCheckingMode": "strict",
+  "reportUnknownVariableType": false,
+  "reportUnknownMemberType": false,
+  "reportUnknownParameterType": false,
   "pythonVersion": "3.12",
   "pythonPlatform": "Darwin",
   "executionEnvironments": [

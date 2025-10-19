@@ -9,7 +9,7 @@ Each type has a specific duration and belongs to a particular clinic.
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 
-from models.base import Base
+from core.database import Base
 
 
 class AppointmentType(Base):

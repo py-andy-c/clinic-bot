@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from sqlalchemy.exc import IntegrityError
 
-from agents import function_tool, RunContextWrapper  # type: ignore[import]
+from agents import function_tool, RunContextWrapper
 
 from models.therapist import Therapist
 from models.patient import Patient
@@ -24,7 +24,7 @@ from services.google_calendar_service import GoogleCalendarService, GoogleCalend
 from clinic_agents.context import ConversationContext
 
 
-@function_tool  # type: ignore[reportUntypedFunctionDecorator]
+@function_tool
 async def get_therapist_availability(
     wrapper: RunContextWrapper[ConversationContext],
     therapist_name: str,
@@ -121,7 +121,7 @@ async def get_therapist_availability(
         return {"error": f"查詢可用時段時發生錯誤：{e}"}
 
 
-@function_tool  # type: ignore[reportUntypedFunctionDecorator]
+@function_tool
 async def create_appointment(
     wrapper: RunContextWrapper[ConversationContext],
     therapist_id: int,
@@ -232,7 +232,7 @@ async def create_appointment(
         return {"error": f"建立預約時發生錯誤：{e}"}
 
 
-@function_tool  # type: ignore[reportUntypedFunctionDecorator]
+@function_tool
 async def get_existing_appointments(
     wrapper: RunContextWrapper[ConversationContext],
     patient_id: int
@@ -274,7 +274,7 @@ async def get_existing_appointments(
         return [{"error": f"查詢預約時發生錯誤：{e}"}]
 
 
-@function_tool  # type: ignore[reportUntypedFunctionDecorator]
+@function_tool
 async def cancel_appointment(
     wrapper: RunContextWrapper[ConversationContext],
     appointment_id: int,
@@ -338,7 +338,7 @@ async def cancel_appointment(
         return {"error": f"取消預約時發生錯誤：{e}"}
 
 
-@function_tool  # type: ignore[reportUntypedFunctionDecorator]
+@function_tool
 async def reschedule_appointment(
     wrapper: RunContextWrapper[ConversationContext],
     appointment_id: int,
@@ -476,7 +476,7 @@ async def reschedule_appointment(
         return {"error": f"更改預約時發生錯誤：{e}"}
 
 
-@function_tool  # type: ignore[reportUntypedFunctionDecorator]
+@function_tool
 async def get_last_appointment_therapist(
     wrapper: RunContextWrapper[ConversationContext],
     patient_id: int
@@ -546,7 +546,7 @@ def sanitize_phone_number(phone_number: str) -> str:
     return digits_only
 
 
-@function_tool  # type: ignore[reportUntypedFunctionDecorator]
+@function_tool
 async def verify_and_link_patient(
     wrapper: RunContextWrapper[ConversationContext],
     phone_number: str
@@ -624,7 +624,7 @@ async def verify_and_link_patient(
         return f"ERROR: 連結帳號時發生錯誤：{e}"
 
 
-@function_tool  # type: ignore[reportUntypedFunctionDecorator]
+@function_tool
 async def create_patient_and_link(
     wrapper: RunContextWrapper[ConversationContext],
     phone_number: str,

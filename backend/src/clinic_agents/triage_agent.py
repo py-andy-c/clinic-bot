@@ -5,7 +5,7 @@ This agent classifies incoming LINE messages into appointment-related vs other q
 It uses structured output to ensure deterministic classification results.
 """
 
-from agents import Agent, ModelSettings  # type: ignore[import]
+from agents import Agent, ModelSettings
 from pydantic import BaseModel
 from typing import Literal
 

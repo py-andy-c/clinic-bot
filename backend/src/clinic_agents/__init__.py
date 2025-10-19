@@ -8,7 +8,7 @@ including agent definitions, tools, context management, and workflow orchestrati
 __version__ = "1.0.0"
 
 # Lazy imports to avoid circular import issues
-def __getattr__(name: str):  # type: ignore[reportUnknownParameterType]
+def __getattr__(name: str):
     # Import from the openai-agents package directly by bypassing sys.modules
     import importlib.util
 

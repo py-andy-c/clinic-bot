@@ -5,7 +5,7 @@ This agent handles the conversation flow for linking a LINE account to a patient
 by collecting and verifying phone numbers.
 """
 
-from agents import Agent, ModelSettings  # type: ignore[import]
+from agents import Agent, ModelSettings
 from clinic_agents.context import ConversationContext
 from clinic_agents.tools import verify_and_link_patient
 

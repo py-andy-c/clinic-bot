@@ -9,7 +9,7 @@ import logging
 from typing import Optional, Any
 from sqlalchemy.orm import Session
 
-from agents import Runner, RunConfig, trace  # type: ignore[import]
+from agents import Runner, RunConfig, trace
 # from agents.extensions.sqlalchemy_session import SQLAlchemySession  # Not available in current version
 
 from clinic_agents.context import ConversationContext

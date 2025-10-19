@@ -9,7 +9,7 @@ connection between LINE's user identification and the clinic's patient managemen
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 
-from models.base import Base
+from core.database import Base
 
 
 class LineUser(Base):

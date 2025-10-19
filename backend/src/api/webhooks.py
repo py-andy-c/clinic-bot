@@ -21,7 +21,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-@router.post(  # type: ignore[reportUntypedFunctionDecorator]
+@router.post(
     "/line",
     summary="LINE Webhook",
     description="Receive messages and events from LINE messaging platform for chatbot processing",
@@ -121,7 +121,7 @@ async def line_webhook(request: Request, db: Session = Depends(get_db)) -> Plain
         )
 
 
-@router.post(  # type: ignore[reportUntypedFunctionDecorator]
+@router.post(
     "/gcal",
     summary="Google Calendar Webhook",
     description="Receive push notifications for Google Calendar changes",

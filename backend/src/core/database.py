@@ -37,7 +37,7 @@ SessionLocal = sessionmaker(
 )
 
 # Create Base class for declarative models
-class Base(DeclarativeBase):  # type: ignore[reportUntypedBaseClass]
+class Base(DeclarativeBase):
     """Base class for all database models."""
     pass
 
