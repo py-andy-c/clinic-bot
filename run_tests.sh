@@ -106,6 +106,7 @@ print_status "Running all unit tests..."
 cd "$PROJECT_ROOT/backend/src"
 python3 -m pytest ../tests/unit/ -v --tb=short --cov=. --cov-report=term-missing \
     -W ignore::DeprecationWarning \
+    -W ignore::PendingDeprecationWarning \
     -W ignore::linebot.LineBotSdkDeprecatedIn30 \
     -W ignore::pydantic.PydanticDeprecatedSince20
 
@@ -125,6 +126,7 @@ print_status "Generating coverage report..."
 cd "$PROJECT_ROOT/backend/src"
 python3 -m pytest ../tests/unit/ --cov=. --cov-report=html:../htmlcov --cov-report=term \
     -W ignore::DeprecationWarning \
+    -W ignore::PendingDeprecationWarning \
     -W ignore::linebot.LineBotSdkDeprecatedIn30 \
     -W ignore::pydantic.PydanticDeprecatedSince20
 
