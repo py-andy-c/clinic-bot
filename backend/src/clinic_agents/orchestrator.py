@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """
 Workflow orchestrator for multi-agent LINE conversations.
 

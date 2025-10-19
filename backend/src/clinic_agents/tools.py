@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """
 Agent tools for database operations and external service integrations.
 

@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """
 Account linking agent for phone number verification.
 

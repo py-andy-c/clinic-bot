@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """
 Appointment agent for handling appointment-related conversations.
 

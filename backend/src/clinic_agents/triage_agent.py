@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """
 Triage agent for intent classification.
 
