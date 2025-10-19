@@ -142,9 +142,11 @@ class LINEService:
         """
         try:
             # Send push message to specific user
-            request = PushMessageRequest(  # type: ignore
+            request = PushMessageRequest(
                 to=line_user_id,
-                messages=[TextMessage(text=text)]  # type: ignore
+                messages=[TextMessage(text=text, quickReply=None, quoteToken=None)],
+                notificationDisabled=False,
+                customAggregationUnits=None
             )
             self.api.push_message(request)
         except Exception as e:
