@@ -7,7 +7,6 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 
 from services.line_service import LINEService
-from linebot.exceptions import LineBotApiError
 
 
 class TestLINEService:
@@ -142,61 +141,55 @@ class TestLINEService:
         result = line_service.extract_message_data(payload)
         assert result is None
 
-    @patch('services.line_service.LineBotApi')
-    @pytest.mark.asyncio
-    async def test_send_text_message_success(self, mock_line_api_class, line_service):
+    @patch('services.line_service.MessagingApi')
+    def test_send_text_message_success(self, mock_messaging_api_class, line_service):
         """Test successful text message sending."""
-        # Mock the LineBotApi instance
+        # Mock the MessagingApi instance
         mock_api = Mock()
-        mock_line_api_class.return_value = mock_api
+        mock_messaging_api_class.return_value = mock_api
 
         # Create new service instance to use the mocked API
         service = LINEService("secret", "token")
 
         # Send message
-        await service.send_text_message("user123", "Hello world")
+        service.send_text_message("user123", "Hello world")
 
         # Verify the API was called correctly
         mock_api.push_message.assert_called_once()
         call_args = mock_api.push_message.call_args
-        assert call_args[0][0] == "user123"  # user_id
-        # Check that the message is a TextSendMessage with the right text
-        message = call_args[0][1]
-        assert hasattr(message, 'text')
-        assert message.text == "Hello world"
+        # Check that it was called with a PushMessageRequest
+        request = call_args[0][0]
+        assert request.to == "user123"
+        assert len(request.messages) == 1
+        assert request.messages[0].text == "Hello world"
 
-    @patch('services.line_service.LineBotApi')
-    @pytest.mark.asyncio
-    async def test_send_text_message_api_error(self, mock_line_api_class, line_service):
+    @patch('services.line_service.MessagingApi')
+    def test_send_text_message_api_error(self, mock_messaging_api_class, line_service):
         """Test text message sending with API error."""
-        from linebot.models.error import Error
-
-        # Mock the LineBotApi to raise an error
+        # Mock the MessagingApi to raise an error
         mock_api = Mock()
-        error_obj = Error(message="Bad Request")
-        mock_api.push_message.side_effect = LineBotApiError(400, {}, error=error_obj)
-        mock_line_api_class.return_value = mock_api
+        mock_api.push_message.side_effect = Exception("API Error")
+        mock_messaging_api_class.return_value = mock_api
 
         # Create new service instance to use the mocked API
         service = LINEService("secret", "token")
 
         # Send message and expect exception
-        with pytest.raises(LineBotApiError):
-            await service.send_text_message("user123", "Hello world")
+        with pytest.raises(Exception, match="API Error"):
+            service.send_text_message("user123", "Hello world")
 
-    @patch('services.line_service.LineBotApi')
-    @pytest.mark.asyncio
-    async def test_send_text_message_unexpected_error(self, mock_line_api_class, line_service):
+    @patch('services.line_service.MessagingApi')
+    def test_send_text_message_unexpected_error(self, mock_messaging_api_class, line_service):
         """Test text message sending with unexpected error."""
-        # Mock the LineBotApi to raise an unexpected error
+        # Mock the MessagingApi to raise an unexpected error
         mock_api = Mock()
         mock_api.push_message.side_effect = Exception("Unexpected error")
-        mock_line_api_class.return_value = mock_api
+        mock_messaging_api_class.return_value = mock_api
 
         # Create new service instance to use the mocked API
         service = LINEService("secret", "token")
 
         # Send message and expect exception
         with pytest.raises(Exception, match="Unexpected error"):
-            await service.send_text_message("user123", "Hello world")
+            service.send_text_message("user123", "Hello world")
 

@@ -14,9 +14,9 @@ import base64
 import logging
 from typing import Any, Optional, Tuple
 
-from linebot import LineBotApi, WebhookHandler
-from linebot.models import TextSendMessage
-from linebot.exceptions import LineBotApiError
+from linebot.v3.messaging import MessagingApi, PushMessageRequest
+from linebot.v3.messaging.models import TextMessage
+from linebot.v3.webhook import WebhookHandler
 
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ class LINEService:
         self.channel_access_token = channel_access_token
 
         # Initialize LINE API clients
-        self.api = LineBotApi(channel_access_token)
+        self.api = MessagingApi(channel_access_token)
         self.handler = WebhookHandler(channel_secret)
 
     def verify_signature(self, body: str, signature: str) -> bool:
@@ -129,7 +129,7 @@ class LINEService:
             logger.warning(f"Invalid LINE payload structure: {e}")
             return None
 
-    async def send_text_message(self, line_user_id: str, text: str) -> None:
+    def send_text_message(self, line_user_id: str, text: str) -> None:
         """
         Send text message to LINE user.
 
@@ -138,18 +138,16 @@ class LINEService:
             text: Text content to send
 
         Raises:
-            LineBotApiError: If LINE API call fails
+            Exception: If LINE API call fails
         """
         try:
             # Send push message to specific user
-            self.api.push_message(
-                line_user_id,
-                TextSendMessage(text=text)
+            request = PushMessageRequest(  # type: ignore
+                to=line_user_id,
+                messages=[TextMessage(text=text)]  # type: ignore
             )
-        except LineBotApiError as e:
+            self.api.push_message(request)
+        except Exception as e:
             # Log the error but let caller handle it
             logger.error(f"Failed to send LINE message to {line_user_id}: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error sending LINE message: {e}")
             raise
