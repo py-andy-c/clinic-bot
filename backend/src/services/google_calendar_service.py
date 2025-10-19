@@ -131,7 +131,7 @@ class GoogleCalendarService:
             return event
 
         except HttpError as e:
-            error_details = json.loads(e.content) if e.content else {}
+            error_details = json.loads(e.content.decode('utf-8')) if e.content else {}
             raise GoogleCalendarError(f"Failed to create calendar event: {error_details.get('error', {}).get('message', str(e))}")
         except Exception as e:
             raise GoogleCalendarError(f"Unexpected error creating calendar event: {e}")
@@ -205,7 +205,7 @@ class GoogleCalendarService:
             return updated_event
 
         except HttpError as e:
-            error_details = json.loads(e.content) if e.content else {}
+            error_details = json.loads(e.content.decode('utf-8')) if e.content else {}
             if e.resp.status == 404:
                 raise GoogleCalendarError(f"Event {event_id} not found")
             raise GoogleCalendarError(f"Failed to update calendar event: {error_details.get('error', {}).get('message', str(e))}")
@@ -229,7 +229,7 @@ class GoogleCalendarService:
             ).execute()
 
         except HttpError as e:
-            error_details = json.loads(e.content) if e.content else {}
+            error_details = json.loads(e.content.decode('utf-8')) if e.content else {}
             if e.resp.status == 404:
                 # Event already deleted, treat as success
                 return
@@ -259,7 +259,7 @@ class GoogleCalendarService:
             return event
 
         except HttpError as e:
-            error_details = json.loads(e.content) if e.content else {}
+            error_details = json.loads(e.content.decode('utf-8')) if e.content else {}
             if e.resp.status == 404:
                 raise GoogleCalendarError(f"Event {event_id} not found")
             raise GoogleCalendarError(f"Failed to get calendar event: {error_details.get('error', {}).get('message', str(e))}")

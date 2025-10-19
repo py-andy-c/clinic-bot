@@ -5,7 +5,7 @@ alembic==1.13.1
 psycopg2-binary==2.9.9
 python-dotenv==1.0.0
 httpx==0.25.2
-pydantic==2.5.0
+pydantic>=2.10.0
 pydantic-settings==2.1.0
 pyright==1.1.406
 pytest==7.4.3
@@ -18,3 +18,9 @@ openai>=1.0.0
 
 # LINE Messaging API SDK
 line-bot-sdk>=3.19.0
+
+# Google API client libraries
+google-auth>=2.23.0
+google-auth-oauthlib>=1.0.0
+google-auth-httplib2>=0.1.0
+google-api-python-client>=2.100.0
