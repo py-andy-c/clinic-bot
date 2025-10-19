@@ -5,7 +5,7 @@
   "reportMissingImports": true,
   "reportMissingTypeStubs": false,
   "reportCallInDefaultInitializer": true,
-  "reportMissingSuperCall": true,
+  "reportMissingSuperCall": false,
   "reportUnknownVariableType": false,
   "reportUnknownMemberType": false,
   "reportUnknownParameterType": true,

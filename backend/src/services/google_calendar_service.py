@@ -38,7 +38,7 @@ class GoogleCalendarService:
     # Default calendar ID (primary calendar)
     DEFAULT_CALENDAR_ID = 'primary'
 
-    def __init__(self, credentials_json: str, calendar_id: str = DEFAULT_CALENDAR_ID) -> None:  # pyright: ignore[reportMissingSuperCall]
+    def __init__(self, credentials_json: str, calendar_id: str = DEFAULT_CALENDAR_ID) -> None:
         """
         Initialize Google Calendar service.
 
