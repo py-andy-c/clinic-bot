@@ -52,7 +52,7 @@ async def handle_line_message(
     # Wrap entire workflow in trace for observability
     with trace("LINE message workflow"):
         # 1. Get or create line_user and check linking status
-        line_user = get_or_create_line_user(db, line_user_id, clinic.id)
+        line_user = get_or_create_line_user(db, line_user_id, clinic.id)  # type: ignore[reportArgumentType]
         patient = get_patient_from_line_user(db, line_user)
         is_linked = patient is not None
 
@@ -201,7 +201,7 @@ async def _handle_appointment_flow(
             line_user = db.query(LineUser).filter_by(
                 line_user_id=context.line_user_id
             ).first()
-            patient = get_patient_from_line_user(db, line_user)
+            patient = get_patient_from_line_user(db, line_user)  # type: ignore[reportArgumentType]
             context = ConversationContext(
                 db_session=db,
                 clinic=context.clinic,

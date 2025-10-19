@@ -53,7 +53,7 @@ class ConversationContext:
         therapists = self.db_session.query(Therapist).filter(
             Therapist.clinic_id == self.clinic.id
         ).all()
-        return ", ".join([t.name for t in therapists])
+        return ", ".join([t.name for t in therapists])  # type: ignore[reportArgumentType]
 
     @property
     def appointment_types_list(self) -> str:
