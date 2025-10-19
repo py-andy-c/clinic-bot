@@ -165,10 +165,10 @@ class TestAPIIntegration:
         # Clean up override
         app.dependency_overrides = {}
 
-    @pytest.mark.asyncio
-    async def test_google_calendar_webhook(self):
+    def test_google_calendar_webhook(self, db_session, tables):
         """Test Google Calendar webhook endpoint."""
         from main import app
+        app.dependency_overrides[get_db] = self.get_db_override(db_session)
         client = TestClient(app)
         headers = {
             "X-Goog-Resource-State": "exists",

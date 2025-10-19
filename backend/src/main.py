@@ -20,6 +20,8 @@ from fastapi.responses import JSONResponse
 
 from api import webhooks, admin
 from core.constants import CORS_ORIGINS
+from services.reminder_service import start_reminder_scheduler, stop_reminder_scheduler
+from core.database import get_db
 
 # Configure logging
 logging.basicConfig(
@@ -38,7 +40,24 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup and shutdown events."""
     logger.info("🚀 Starting Clinic Bot Backend API")
+
+    # Start reminder scheduler
+    db = next(get_db())
+    try:
+        await start_reminder_scheduler(db)
+        logger.info("✅ Appointment reminder scheduler started")
+    except Exception as e:
+        logger.error(f"❌ Failed to start reminder scheduler: {e}")
+
     yield
+
+    # Stop reminder scheduler
+    try:
+        await stop_reminder_scheduler()
+        logger.info("🛑 Appointment reminder scheduler stopped")
+    except Exception as e:
+        logger.error(f"❌ Error stopping reminder scheduler: {e}")
+
     logger.info("🛑 Shutting down Clinic Bot Backend API")
 
 

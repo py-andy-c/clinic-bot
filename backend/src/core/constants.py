@@ -19,3 +19,6 @@ DB_POOL_RECYCLE_SECONDS = 300  # 5 minutes
 CORS_ORIGINS = [
     "http://localhost:5173",  # React dev server (Vite)
 ]
+
+# Appointment reminders
+DEFAULT_REMINDER_HOURS_BEFORE = 24  # Send reminders 24 hours before appointment

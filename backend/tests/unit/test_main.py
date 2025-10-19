@@ -185,13 +185,17 @@ class TestLifespan:
         """Test the lifespan context manager."""
         from main import lifespan
 
-        with patch('main.logger') as mock_logger:
+        with patch('main.logger') as mock_logger, \
+             patch('main.start_reminder_scheduler'), \
+             patch('main.stop_reminder_scheduler'):
             # Test startup
             async with lifespan(app):
-                mock_logger.info.assert_called_with("🚀 Starting Clinic Bot Backend API")
+                pass
 
-            # Test shutdown (should be called when exiting context)
-            mock_logger.info.assert_called_with("🛑 Shutting down Clinic Bot Backend API")
+            # Check that the expected messages were logged
+            startup_calls = [call.args[0] for call in mock_logger.info.call_args_list]
+            assert "🚀 Starting Clinic Bot Backend API" in startup_calls
+            assert "🛑 Shutting down Clinic Bot Backend API" in startup_calls
 
 
 class TestMiddlewareIntegration:
