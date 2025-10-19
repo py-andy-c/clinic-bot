@@ -20,12 +20,12 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from core.config import settings
+from core.config import DATABASE_URL
 from core.database import Base
 target_metadata = Base.metadata
 
 # Set the database URL from our settings
-config.set_main_option("sqlalchemy.url", settings.database_url)
+config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
