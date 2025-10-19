@@ -91,13 +91,14 @@ export PYTHONPATH="$VIRTUAL_ENV/lib/python3.12/site-packages"
 
 print_status "Running tests..."
 
-# Run pyright type checking (SQLAlchemy type errors are expected)
+# Run pyright type checking
 print_status "Running Pyright type checking..."
 cd "$PROJECT_ROOT/backend"
 if pyright; then
     print_success "Type checking passed!"
 else
-    print_warning "Type checking failed (expected with SQLAlchemy), continuing with tests..."
+    print_error "Type checking failed!"
+    exit 1
 fi
 
 # Run all unit tests from src directory
