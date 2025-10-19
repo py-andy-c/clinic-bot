@@ -14,7 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Session, sessionmaker
 
-from core.config import DATABASE_URL, ENVIRONMENT
+from core.config import DATABASE_URL
 from core.constants import DB_POOL_RECYCLE_SECONDS
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,  # Verify connections before use
     pool_recycle=DB_POOL_RECYCLE_SECONDS,
-    echo=ENVIRONMENT == "development",  # Log SQL in development
+    echo=False,          # Disable SQL logging
     future=True,         # Use SQLAlchemy 2.0 style
 )
 
