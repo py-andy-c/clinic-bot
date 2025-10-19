@@ -63,11 +63,11 @@ def get_db() -> Generator[Session, None, None]:
     try:
         yield db
     except SQLAlchemyError as e:
-        logger.error(f"Database error: {e}")
+        logger.error(f"Database error: {e}", exc_info=True)
         db.rollback()
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in database session: {e}")
+        logger.error(f"Unexpected error in database session: {e}", exc_info=True)
         db.rollback()
         raise
     finally:
@@ -97,7 +97,7 @@ def get_db_context() -> Generator[Session, None, None]:
         db.commit()
     except Exception as e:
         db.rollback()
-        logger.error(f"Database transaction failed: {e}")
+        logger.error(f"Database transaction failed: {e}", exc_info=True)
         raise
     finally:
         db.close()
