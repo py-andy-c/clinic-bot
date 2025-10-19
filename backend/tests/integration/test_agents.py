@@ -337,3 +337,173 @@ class TestConversationHistory:
             assert "user_1" in user_ids
             assert "user_2" in user_ids
 
+
+class TestOrchestratorAccountLinking:
+    """Test account linking flows in orchestrator."""
+
+    @pytest.fixture
+    def clinic(self):
+        """Create test clinic."""
+        return Clinic(
+            id=1,
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+
+    @patch('clinic_agents.orchestrator.get_or_create_line_user')
+    @patch('clinic_agents.orchestrator.get_patient_from_line_user')
+    @pytest.mark.asyncio
+    async def test_handle_line_message_account_linking_intent(self, mock_get_patient, mock_get_line_user, db_session, clinic):
+        """Test complete flow for account linking intent."""
+        # Setup mocks - user not linked
+        mock_line_user = LineUser(id=1, line_user_id="test_user", patient_id=None)
+        mock_get_line_user.return_value = mock_line_user
+        mock_get_patient.return_value = None
+
+        # Mock triage result with account_linking intent
+        mock_triage_result = Mock()
+        mock_triage_result.final_output.intent = "account_linking"
+
+        # Mock account linking result
+        mock_linking_result = Mock()
+        mock_linking_result.new_items = []  # No successful linking for this test
+        mock_linking_result.final_output_as.return_value = "請提供手機號碼"
+
+        with patch.object(Runner, 'run') as mock_runner:
+            mock_runner.side_effect = [mock_triage_result, mock_linking_result]
+
+            # Mock session storage
+            with patch('clinic_agents.orchestrator.get_session_storage') as mock_get_session:
+                mock_session = Mock()
+                mock_get_session.return_value = mock_session
+
+                result = await handle_line_message(
+                    db=db_session,
+                    clinic=clinic,
+                    line_user_id="test_user",
+                    message_text="0912345678"
+                )
+
+                assert result == "請提供手機號碼"
+
+                # Verify Runner.run was called twice (triage + account linking)
+                assert mock_runner.call_count == 2
+
+    @patch('clinic_agents.orchestrator.get_or_create_line_user')
+    @patch('clinic_agents.orchestrator.get_patient_from_line_user')
+    @pytest.mark.asyncio
+    async def test_handle_line_message_appointment_with_account_linking(self, mock_get_patient, mock_get_line_user, db_session, clinic):
+        """Test appointment flow that triggers account linking for unlinked user."""
+        # Setup mocks - user not linked initially
+        mock_line_user = LineUser(id=1, line_user_id="test_user", patient_id=None)
+        mock_get_line_user.return_value = mock_line_user
+        mock_get_patient.return_value = None
+
+        # Mock triage result
+        mock_triage_result = Mock()
+        mock_triage_result.final_output.intent = "appointment_related"
+
+        # Mock account linking result (successful)
+        mock_linking_result = Mock()
+        # Mock the new_items to simulate successful linking
+        mock_item = Mock()
+        mock_item.output = '{"success": true}'
+        mock_linking_result.new_items = [mock_item]
+        mock_linking_result.final_output_as.return_value = "帳號連結成功！"
+
+        # Mock appointment result after linking
+        mock_appointment_result = Mock()
+        mock_appointment_result.final_output_as.return_value = "預約成功！"
+
+        with patch.object(Runner, 'run') as mock_runner:
+            mock_runner.side_effect = [mock_triage_result, mock_linking_result, mock_appointment_result]
+
+            # Mock session storage
+            with patch('clinic_agents.orchestrator.get_session_storage') as mock_get_session:
+                mock_session = Mock()
+                mock_get_session.return_value = mock_session
+
+                result = await handle_line_message(
+                    db=db_session,
+                    clinic=clinic,
+                    line_user_id="test_user",
+                    message_text="我想預約治療"
+                )
+
+                assert result == "預約成功！"
+
+                # Verify Runner.run was called three times (triage + linking + appointment)
+                assert mock_runner.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_is_linking_successful_true_json(self, db_session):
+        """Test _is_linking_successful returns True for JSON success."""
+        from clinic_agents.orchestrator import _is_linking_successful
+
+        mock_result = Mock()
+        mock_item = Mock()
+        mock_item.output = '{"success": true}'
+        mock_result.new_items = [mock_item]
+
+        assert _is_linking_successful(mock_result) is True
+
+    @pytest.mark.asyncio
+    async def test_is_linking_successful_true_legacy_string(self, db_session):
+        """Test _is_linking_successful returns True for legacy SUCCESS string."""
+        from clinic_agents.orchestrator import _is_linking_successful
+
+        mock_result = Mock()
+        mock_item = Mock()
+        mock_item.output = "SUCCESS: Account linked"
+        mock_result.new_items = [mock_item]
+
+        assert _is_linking_successful(mock_result) is True
+
+    @pytest.mark.asyncio
+    async def test_is_linking_successful_false_no_success(self, db_session):
+        """Test _is_linking_successful returns False when no success found."""
+        from clinic_agents.orchestrator import _is_linking_successful
+
+        mock_result = Mock()
+        mock_item = Mock()
+        mock_item.output = '{"message": "Please provide phone number"}'
+        mock_result.new_items = [mock_item]
+
+        assert _is_linking_successful(mock_result) is False
+
+    @pytest.mark.asyncio
+    async def test_is_linking_successful_false_empty_items(self, db_session):
+        """Test _is_linking_successful returns False for empty new_items."""
+        from clinic_agents.orchestrator import _is_linking_successful
+
+        mock_result = Mock()
+        mock_result.new_items = []
+
+        assert _is_linking_successful(mock_result) is False
+
+    @pytest.mark.asyncio
+    async def test_is_linking_successful_false_invalid_json(self, db_session):
+        """Test _is_linking_successful handles invalid JSON gracefully."""
+        from clinic_agents.orchestrator import _is_linking_successful
+
+        mock_result = Mock()
+        mock_item = Mock()
+        mock_item.output = "invalid json {"
+        mock_result.new_items = [mock_item]
+
+        assert _is_linking_successful(mock_result) is False
+
+    @pytest.mark.asyncio
+    async def test_is_linking_successful_false_missing_output(self, db_session):
+        """Test _is_linking_successful handles missing output attribute."""
+        from clinic_agents.orchestrator import _is_linking_successful
+
+        mock_result = Mock()
+        mock_item = Mock()
+        # No output attribute
+        mock_result.new_items = [mock_item]
+
+        assert _is_linking_successful(mock_result) is False
+

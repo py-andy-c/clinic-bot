@@ -277,3 +277,284 @@ class TestGoogleCalendarService:
             # Verify refresh was not called
             mock_creds.refresh.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_create_event_with_naive_datetime_conversion(self, calendar_service):
+        """Test event creation converts naive datetimes to UTC."""
+        import datetime
+
+        # Create naive datetimes (no timezone info)
+        naive_start = datetime.datetime(2024, 1, 15, 10, 0, 0)
+        naive_end = datetime.datetime(2024, 1, 15, 11, 0, 0)
+
+        mock_event_result = {
+            'id': 'test_event_id',
+            'summary': 'Test Event',
+            'start': {'dateTime': '2024-01-15T10:00:00Z'},
+            'end': {'dateTime': '2024-01-15T11:00:00Z'}
+        }
+
+        calendar_service.service.events.return_value.insert.return_value.execute.return_value = mock_event_result
+
+        result = await calendar_service.create_event(
+            summary="Test Event",
+            start=naive_start,
+            end=naive_end,
+            description="Test description"
+        )
+
+        assert result['id'] == 'test_event_id'
+
+        # Verify the execute was called
+        calendar_service.service.events.return_value.insert.return_value.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_create_event_with_extended_properties(self, calendar_service):
+        """Test event creation with extended properties for sync."""
+        mock_event_result = {
+            'id': 'test_event_id',
+            'summary': 'Test Event',
+            'extendedProperties': {
+                'private': {
+                    'source': 'line_bot',
+                    'patient_id': '123'
+                }
+            }
+        }
+
+        calendar_service.service.events.return_value.insert.return_value.execute.return_value = mock_event_result
+
+        extended_props = {
+            'private': {
+                'source': 'line_bot',
+                'patient_id': '123'
+            }
+        }
+
+        result = await calendar_service.create_event(
+            summary="Test Event",
+            start=datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc),
+            end=datetime(2024, 1, 15, 11, 0, tzinfo=timezone.utc),
+            extended_properties=extended_props
+        )
+
+        assert result['id'] == 'test_event_id'
+
+        # Verify extended properties were included in the API call
+        call_args = calendar_service.service.events.return_value.insert.call_args
+        event_body = call_args[1]['body']
+        assert 'extendedProperties' in event_body
+        assert event_body['extendedProperties'] == extended_props
+
+    @pytest.mark.asyncio
+    async def test_create_event_with_location_and_color(self, calendar_service):
+        """Test event creation with location and custom color."""
+        mock_event_result = {'id': 'test_event_id'}
+
+        calendar_service.service.events.return_value.insert.return_value.execute.return_value = mock_event_result
+
+        result = await calendar_service.create_event(
+            summary="Test Event",
+            start=datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc),
+            end=datetime(2024, 1, 15, 11, 0, tzinfo=timezone.utc),
+            location="Clinic Address",
+            color_id="5"
+        )
+
+        assert result['id'] == 'test_event_id'
+
+        # Verify location and color were set
+        call_args = calendar_service.service.events.return_value.insert.call_args
+        event_body = call_args[1]['body']
+        assert event_body['location'] == "Clinic Address"
+        assert event_body['colorId'] == "5"
+
+    @pytest.mark.asyncio
+    async def test_create_event_http_error_with_details(self, calendar_service):
+        """Test event creation with HTTP error that includes error details."""
+        from googleapiclient.errors import HttpError
+        import json
+
+        error_content = {
+            'error': {
+                'message': 'Invalid request'
+            }
+        }
+
+        mock_response = Mock()
+        mock_response.status = 400
+        http_error = HttpError(mock_response, json.dumps(error_content).encode('utf-8'))
+
+        calendar_service.service.events.return_value.insert.return_value.execute.side_effect = http_error
+
+        with pytest.raises(GoogleCalendarError) as exc_info:
+            await calendar_service.create_event(
+                summary="Test Event",
+                start=datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc),
+                end=datetime(2024, 1, 15, 11, 0, tzinfo=timezone.utc)
+            )
+
+        assert "Invalid request" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_create_event_http_error_without_content(self, calendar_service):
+        """Test event creation with HTTP error that has no content."""
+        from googleapiclient.errors import HttpError
+
+        mock_response = Mock()
+        mock_response.status = 500
+        http_error = HttpError(mock_response, b'{"error": {"message": "Server error"}}')
+
+        calendar_service.service.events.return_value.insert.return_value.execute.side_effect = http_error
+
+        with pytest.raises(GoogleCalendarError) as exc_info:
+            await calendar_service.create_event(
+                summary="Test Event",
+                start=datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc),
+                end=datetime(2024, 1, 15, 11, 0, tzinfo=timezone.utc)
+            )
+
+        assert "Failed to create calendar event" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_create_event_unexpected_error(self, calendar_service):
+        """Test event creation with unexpected error."""
+        calendar_service.service.events.return_value.insert.return_value.execute.side_effect = Exception("Network error")
+
+        with pytest.raises(GoogleCalendarError) as exc_info:
+            await calendar_service.create_event(
+                summary="Test Event",
+                start=datetime(2024, 1, 15, 10, 0, tzinfo=timezone.utc),
+                end=datetime(2024, 1, 15, 11, 0, tzinfo=timezone.utc)
+            )
+
+        assert "Unexpected error creating calendar event: Network error" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_update_event_partial_update(self, calendar_service):
+        """Test event update with only some fields."""
+        mock_event_result = {'id': 'test_event_id', 'summary': 'Updated Event'}
+
+        # Mock the get_event call first
+        calendar_service.service.events.return_value.get.return_value.execute.return_value = {
+            'id': 'test_event_id',
+            'summary': 'Original Event',
+            'start': {'dateTime': '2024-01-15T10:00:00Z'},
+            'end': {'dateTime': '2024-01-15T11:00:00Z'}
+        }
+
+        calendar_service.service.events.return_value.update.return_value.execute.return_value = mock_event_result
+
+        result = await calendar_service.update_event(
+            event_id="test_event_id",
+            summary="Updated Event"
+            # Only updating summary, not start/end
+        )
+
+        assert result['id'] == 'test_event_id'
+        assert result['summary'] == 'Updated Event'
+
+    @pytest.mark.asyncio
+    async def test_update_event_full_update(self, calendar_service):
+        """Test event update with all fields."""
+        mock_event_result = {'id': 'test_event_id'}
+
+        # Mock the get_event call first
+        calendar_service.service.events.return_value.get.return_value.execute.return_value = {
+            'id': 'test_event_id',
+            'summary': 'Original Event',
+            'start': {'dateTime': '2024-01-15T10:00:00Z'},
+            'end': {'dateTime': '2024-01-15T11:00:00Z'}
+        }
+
+        calendar_service.service.events.return_value.update.return_value.execute.return_value = mock_event_result
+
+        new_start = datetime(2024, 1, 15, 14, 0, tzinfo=timezone.utc)
+        new_end = datetime(2024, 1, 15, 15, 0, tzinfo=timezone.utc)
+
+        result = await calendar_service.update_event(
+            event_id="test_event_id",
+            summary="Updated Event",
+            start=new_start,
+            end=new_end
+        )
+
+        assert result['id'] == 'test_event_id'
+
+        # Verify the update call was made with correct body
+        update_call = calendar_service.service.events.return_value.update.call_args
+        update_body = update_call[1]['body']
+        assert update_body['summary'] == 'Updated Event'
+        assert update_body['start']['dateTime'] == new_start.isoformat()
+        assert update_body['end']['dateTime'] == new_end.isoformat()
+
+    @pytest.mark.asyncio
+    async def test_get_event_with_full_details(self, calendar_service):
+        """Test getting event with all details."""
+        mock_event = {
+            'id': 'test_event_id',
+            'summary': 'Test Event',
+            'description': 'Test Description',
+            'location': 'Test Location',
+            'start': {'dateTime': '2024-01-15T10:00:00Z'},
+            'end': {'dateTime': '2024-01-15T11:00:00Z'},
+            'extendedProperties': {
+                'private': {'source': 'line_bot'}
+            }
+        }
+
+        calendar_service.service.events.return_value.get.return_value.execute.return_value = mock_event
+
+        result = await calendar_service.get_event("test_event_id")
+
+        assert result['id'] == 'test_event_id'
+        assert result['summary'] == 'Test Event'
+        assert result['description'] == 'Test Description'
+        assert result['location'] == 'Test Location'
+
+    @pytest.mark.asyncio
+    async def test_delete_event_success_with_event_id(self, calendar_service):
+        """Test successful event deletion with specific event ID."""
+        calendar_service.service.events.return_value.delete.return_value.execute.return_value = None
+
+        # Should not raise any exception
+        await calendar_service.delete_event("specific_event_id")
+
+        # Verify the delete call was made with correct event ID
+        delete_call = calendar_service.service.events.return_value.delete.call_args
+        assert delete_call[1]['eventId'] == 'specific_event_id'
+        assert delete_call[1]['calendarId'] == 'test_calendar'
+
+    @pytest.mark.asyncio
+    async def test_init_with_custom_calendar_id(self):
+        """Test service initialization with custom calendar ID."""
+        with patch('services.google_calendar_service.build') as mock_build, \
+             patch('services.google_calendar_service.Credentials') as mock_creds_class:
+            mock_service = Mock()
+            mock_build.return_value = mock_service
+            mock_creds = Mock()
+            mock_creds_class.from_authorized_user_info.return_value = mock_creds
+
+            service = GoogleCalendarService(
+                credentials_json='{"client_id": "test", "client_secret": "test", "refresh_token": "test"}',
+                calendar_id='custom_calendar_id'
+            )
+
+            assert service.calendar_id == 'custom_calendar_id'
+
+    @pytest.mark.asyncio
+    async def test_init_with_default_calendar_id(self):
+        """Test service initialization with default calendar ID."""
+        with patch('services.google_calendar_service.build') as mock_build, \
+             patch('services.google_calendar_service.Credentials') as mock_creds_class:
+            mock_service = Mock()
+            mock_build.return_value = mock_service
+            mock_creds = Mock()
+            mock_creds_class.from_authorized_user_info.return_value = mock_creds
+
+            service = GoogleCalendarService(
+                credentials_json='{"client_id": "test", "client_secret": "test", "refresh_token": "test"}'
+                # No calendar_id provided, should use default
+            )
+
+            assert service.calendar_id == 'primary'
+
