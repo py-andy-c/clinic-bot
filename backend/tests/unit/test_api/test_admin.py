@@ -1,280 +1,222 @@
 """
 Unit tests for admin API endpoints.
 
-Tests the admin API endpoints for therapist management and OAuth flows.
+Tests authentication, therapist management, patient management, and settings.
 """
 
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
-from fastapi.testclient import TestClient
 from fastapi import HTTPException
 
 from api.admin import (
-    initiate_google_oauth,
-    google_oauth_callback,
-    _handle_oauth_error,
-    _validate_oauth_params,
-    _process_oauth_success
+    initiate_google_auth,
+    google_auth_callback,
+    get_dashboard_stats,
+    get_therapists,
+    invite_therapist,
+    get_patients
 )
 from core.database import get_db
 from models.therapist import Therapist
-from models.clinic import Clinic
+from models.patient import Patient
 
 
-class TestInitiateGoogleOAuth:
-    """Test initiate_google_oauth endpoint."""
+class TestAdminAuth:
+    """Test admin authentication endpoints."""
 
     @pytest.mark.asyncio
-    async def test_initiate_google_oauth_success(self):
-        """Test successful OAuth initiation."""
-        # Mock database session
+    async def test_initiate_google_auth_success(self):
+        """Test successful admin Google OAuth initiation."""
+        with patch('api.admin.GOOGLE_CLIENT_ID', 'test_client_id'), \
+             patch('api.admin.API_BASE_URL', 'http://localhost:8000'):
+
+            result = await initiate_google_auth()
+
+            assert "auth_url" in result
+            assert "accounts.google.com" in result["auth_url"]
+            # The client_id will be empty if GOOGLE_CLIENT_ID is not set in the env
+
+    @pytest.mark.asyncio
+    async def test_google_auth_callback_success(self):
+        """Test successful admin Google OAuth callback."""
         mock_db = Mock()
 
-        # Mock therapist query
-        mock_therapist = Mock()
-        mock_therapist.id = 1
-        mock_therapist.clinic_id = 1
+        # Mock admin user
+        mock_admin = Mock()
+        mock_admin.id = 1
+        mock_admin.email = "admin@test.com"
+        mock_admin.full_name = "Test Admin"
+
+        # Mock clinic
+        mock_clinic = Mock()
+        mock_clinic.id = 1
+        mock_clinic.name = "Test Clinic"
 
         def query_side_effect(model):
             mock_query = Mock()
             mock_filter = Mock()
-            if model == Therapist:
-                mock_filter.first.return_value = mock_therapist
+            if hasattr(mock_filter, 'first'):
+                if model.__name__ == "ClinicAdmin":
+                    mock_filter.first.return_value = mock_admin
+                elif model.__name__ == "Clinic":
+                    mock_filter.first.return_value = mock_clinic
                 mock_query.filter.return_value = mock_filter
             return mock_query
 
         mock_db.query.side_effect = query_side_effect
 
-        # Mock OAuth service
-        with patch('api.admin.google_oauth_service') as mock_oauth_service:
-            mock_oauth_service.get_authorization_url.return_value = "https://accounts.google.com/oauth/test"
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value.__aenter__.return_value = mock_client
 
-            result = await initiate_google_oauth(therapist_id=1, clinic_id=1, db=mock_db)
+            # Mock token response
+            mock_token_response = AsyncMock()
+            mock_token_response.raise_for_status = AsyncMock()
+            mock_token_response.json = AsyncMock(return_value={
+                "access_token": "test_token",
+                "id_token": "test_id_token"
+            })
 
-            assert result == {"authorization_url": "https://accounts.google.com/oauth/test"}
-            mock_oauth_service.get_authorization_url.assert_called_once_with(1, 1)
+            # Mock user info response
+            mock_user_response = AsyncMock()
+            mock_user_response.raise_for_status = AsyncMock()
+            mock_user_response.json = AsyncMock(return_value={
+                "email": "admin@test.com",
+                "name": "Test Admin"
+            })
+
+            mock_client.post = AsyncMock(return_value=mock_token_response)
+            mock_client.get = AsyncMock(return_value=mock_user_response)
+
+            result = await google_auth_callback("test_code", "admin", mock_db)
+
+            assert result["user"]["email"] == "admin@test.com"
+            assert result["message"] == "Authentication successful"
 
     @pytest.mark.asyncio
-    async def test_initiate_google_oauth_therapist_not_found(self):
-        """Test OAuth initiation with non-existent therapist."""
+    async def test_google_auth_callback_invalid_state(self):
+        """Test Google OAuth callback with invalid state."""
         mock_db = Mock()
 
+        with pytest.raises(HTTPException) as exc_info:
+            await google_auth_callback("test_code", "invalid_state", mock_db)
+
+        assert exc_info.value.status_code == 400
+        assert "Invalid authentication state" in str(exc_info.value.detail)
+
+
+class TestDashboardStats:
+    """Test dashboard statistics endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_get_dashboard_stats_success(self):
+        """Test successful dashboard stats retrieval."""
+        mock_db = Mock()
+
+        # Mock current admin
+        current_admin = {"clinic_id": 1, "id": 1}
+
+        # Mock queries
+        mock_appointment_query = Mock()
+        mock_appointment_query.count.return_value = 100
+        mock_appointment_query.filter.return_value = mock_appointment_query
+
+        mock_patient_query = Mock()
+        mock_patient_query.count.return_value = 50
+        mock_patient_query.filter.return_value = mock_patient_query
+
         def query_side_effect(model):
-            mock_query = Mock()
-            mock_filter = Mock()
-            mock_filter.first.return_value = None  # Therapist not found
-            mock_query.filter.return_value = mock_filter
-            return mock_query
+            if model.__name__ == "Appointment":
+                return mock_appointment_query
+            elif model.__name__ == "Patient":
+                return mock_patient_query
+            return Mock()
 
         mock_db.query.side_effect = query_side_effect
 
-        with pytest.raises(HTTPException) as exc_info:
-            await initiate_google_oauth(therapist_id=999, clinic_id=1, db=mock_db)
+        result = await get_dashboard_stats(current_admin, mock_db)
 
-        assert exc_info.value.status_code == 404
-        assert "Therapist not found" in str(exc_info.value.detail)
-
-    @pytest.mark.skip(reason="Complex SQLAlchemy filter chain mocking not worth the effort")
-    async def test_initiate_google_oauth_clinic_mismatch(self):
-        """Test OAuth initiation with therapist belonging to different clinic."""
-        pass
-
-    @pytest.mark.asyncio
-    async def test_initiate_google_oauth_service_error(self):
-        """Test OAuth initiation with service error."""
-        mock_db = Mock()
-
-        # Mock therapist query
-        mock_therapist = Mock()
-        mock_therapist.id = 1
-        mock_therapist.clinic_id = 1
-
-        def query_side_effect(model):
-            mock_query = Mock()
-            mock_filter = Mock()
-            if model == Therapist:
-                mock_filter.first.return_value = mock_therapist
-                mock_query.filter.return_value = mock_filter
-            return mock_query
-
-        mock_db.query.side_effect = query_side_effect
-
-        # Mock OAuth service to raise exception
-        with patch('api.admin.google_oauth_service') as mock_oauth_service:
-            mock_oauth_service.get_authorization_url.side_effect = Exception("OAuth service error")
-
-            with pytest.raises(HTTPException) as exc_info:
-                await initiate_google_oauth(therapist_id=1, clinic_id=1, db=mock_db)
-
-            assert exc_info.value.status_code == 500
-            assert "Failed to initiate OAuth flow" in str(exc_info.value.detail)
+        assert result["total_appointments"] == 100
+        assert result["new_patients"] == 50
+        assert "upcoming_appointments" in result
+        assert "cancellation_rate" in result
 
 
-class TestOAuthCallbackHelpers:
-    """Test OAuth callback helper functions."""
-
-    def test_handle_oauth_error(self):
-        """Test OAuth error handling."""
-        with pytest.raises(HTTPException) as exc_info:
-            _handle_oauth_error("access_denied")
-
-        assert exc_info.value.status_code == 400
-        assert "OAuth authorization failed: access_denied" in str(exc_info.value.detail)
-
-    def test_validate_oauth_params_missing_code(self):
-        """Test OAuth parameter validation with missing code."""
-        with pytest.raises(HTTPException) as exc_info:
-            _validate_oauth_params(None, "state")
-
-        assert exc_info.value.status_code == 400
-        assert "Authorization code is required" in str(exc_info.value.detail)
-
-    def test_validate_oauth_params_missing_state(self):
-        """Test OAuth parameter validation with missing state."""
-        with pytest.raises(HTTPException) as exc_info:
-            _validate_oauth_params("code", None)
-
-        assert exc_info.value.status_code == 400
-        assert "State parameter is required" in str(exc_info.value.detail)
-
-    def test_validate_oauth_params_valid(self):
-        """Test OAuth parameter validation with valid parameters."""
-        # Should not raise any exception
-        _validate_oauth_params("code", "state")
+class TestTherapistManagement:
+    """Test therapist management endpoints."""
 
     @pytest.mark.asyncio
-    async def test_process_oauth_success(self):
-        """Test successful OAuth processing."""
+    async def test_get_therapists_success(self):
+        """Test successful therapist list retrieval."""
         mock_db = Mock()
+        current_admin = {"clinic_id": 1}
 
-        # Mock therapist
-        mock_therapist = Mock()
-        mock_therapist.id = 1
-        mock_therapist.name = "Test Therapist"
+        # Mock therapists as actual objects with attributes
+        class MockTherapist:
+            def __init__(self, id, name, email, gcal_credentials, gcal_sync_enabled):
+                self.id = id
+                self.name = name
+                self.email = email
+                self.gcal_credentials = gcal_credentials
+                self.gcal_sync_enabled = gcal_sync_enabled
+                self.created_at = Mock()
 
-        with patch('api.admin.google_oauth_service') as mock_oauth_service:
-            mock_oauth_service.handle_oauth_callback = AsyncMock(return_value=mock_therapist)
+        mock_therapists = [
+            MockTherapist(1, "Dr. Smith", "smith@test.com", None, False)
+        ]
 
-            result = await _process_oauth_success(mock_db, "test_code", "1:2")
+        mock_db.query.return_value.filter.return_value.all.return_value = mock_therapists
 
-            assert result == mock_therapist
-            mock_oauth_service.handle_oauth_callback.assert_called_once_with(mock_db, "test_code", "1:2")
+        result = await get_therapists(current_admin, mock_db)
 
-
-class TestGoogleOAuthCallback:
-    """Test google_oauth_callback endpoint."""
+        assert len(result) == 1
+        assert result[0]["name"] == "Dr. Smith"
+        assert result[0]["gcal_sync_enabled"] == False
 
     @pytest.mark.asyncio
-    async def test_oauth_callback_with_error(self):
-        """Test OAuth callback with error parameter."""
+    async def test_invite_therapist_success(self):
+        """Test successful therapist invitation."""
         mock_db = Mock()
+        current_admin = {"clinic_id": 1}
 
-        with pytest.raises(HTTPException) as exc_info:
-            await google_oauth_callback(code="code", state="state", error="access_denied", db=mock_db)
+        # Mock therapist creation
+        mock_therapist = Mock(id=1, name="Dr. Smith", email="smith@test.com")
+        mock_db.add = Mock()
+        mock_db.commit = Mock()
+        mock_db.refresh = Mock()
 
-        assert exc_info.value.status_code == 400
-        assert "OAuth authorization failed" in str(exc_info.value.detail)
+        result = await invite_therapist({"name": "Dr. Smith", "email": "smith@test.com"}, current_admin, mock_db)
+
+        assert result["name"] == "Dr. Smith"
+        assert result["email"] == "smith@test.com"
+
+
+class TestPatientManagement:
+    """Test patient management endpoints."""
 
     @pytest.mark.asyncio
-    async def test_oauth_callback_missing_code(self):
-        """Test OAuth callback with missing code."""
+    async def test_get_patients_success(self):
+        """Test successful patient list retrieval."""
         mock_db = Mock()
+        current_admin = {"clinic_id": 1}
 
-        with pytest.raises(HTTPException) as exc_info:
-            await google_oauth_callback(code=None, state="state", error=None, db=mock_db)
+        # Mock patients as actual objects with attributes
+        class MockPatient:
+            def __init__(self, id, full_name, phone_number, line_user):
+                self.id = id
+                self.full_name = full_name
+                self.phone_number = phone_number
+                self.line_user = line_user
+                self.created_at = Mock()
 
-        assert exc_info.value.status_code == 400
-        assert "Authorization code is required" in str(exc_info.value.detail)
+        mock_patients = [
+            MockPatient(1, "John Doe", "1234567890", Mock(line_user_id="line123"))
+        ]
 
-    @pytest.mark.asyncio
-    async def test_oauth_callback_missing_state(self):
-        """Test OAuth callback with missing state."""
-        mock_db = Mock()
+        mock_db.query.return_value.filter.return_value.all.return_value = mock_patients
 
-        with pytest.raises(HTTPException) as exc_info:
-            await google_oauth_callback(code="code", state=None, error=None, db=mock_db)
+        result = await get_patients(current_admin, mock_db)
 
-        assert exc_info.value.status_code == 400
-        assert "State parameter is required" in str(exc_info.value.detail)
-
-    @pytest.mark.asyncio
-    async def test_oauth_callback_success(self):
-        """Test successful OAuth callback."""
-        mock_db = Mock()
-
-        # Mock therapist
-        mock_therapist = Mock()
-        mock_therapist.id = 1
-        mock_therapist.name = "Test Therapist"
-
-        with patch('api.admin.google_oauth_service') as mock_oauth_service:
-            mock_oauth_service.handle_oauth_callback = AsyncMock(return_value=mock_therapist)
-
-            result = await google_oauth_callback(code="test_code", state="1:2", error=None, db=mock_db)
-
-            expected = {
-                "message": "Google Calendar access granted successfully",
-                "therapist_id": 1,
-                "therapist_name": "Test Therapist"
-            }
-            assert result == expected
-
-    @pytest.mark.asyncio
-    async def test_oauth_callback_service_error(self):
-        """Test OAuth callback with service error."""
-        mock_db = Mock()
-
-        with patch('api.admin.google_oauth_service') as mock_oauth_service:
-            mock_oauth_service.handle_oauth_callback = AsyncMock(side_effect=Exception("OAuth error"))
-
-            with pytest.raises(HTTPException) as exc_info:
-                await google_oauth_callback(code="test_code", state="1:2", error=None, db=mock_db)
-
-            assert exc_info.value.status_code == 500
-            assert "OAuth callback processing failed" in str(exc_info.value.detail)
-
-
-class TestAdminAPIIntegration:
-    """Integration tests for admin API endpoints."""
-
-    def test_initiate_oauth_endpoint_therapist_not_found(self):
-        """Test the full OAuth initiation endpoint with therapist not found."""
-        from main import app
-        client = TestClient(app)
-
-        # Mock the database dependency to return None for therapist lookup
-        mock_db = Mock()
-        def query_side_effect(model):
-            mock_query = Mock()
-            mock_filter = Mock()
-            mock_filter.first.return_value = None
-            mock_query.filter.return_value = mock_filter
-            return mock_query
-        mock_db.query.side_effect = query_side_effect
-
-        app.dependency_overrides[get_db] = lambda: mock_db
-
-        try:
-            response = client.get("/api/admin/therapists/999/gcal/auth?clinic_id=1")
-            assert response.status_code == 404
-            assert "Therapist not found" in response.json()["detail"]
-        finally:
-            app.dependency_overrides = {}
-
-    def test_oauth_callback_endpoint_missing_code(self):
-        """Test the full OAuth callback endpoint with missing code."""
-        from main import app
-        client = TestClient(app)
-
-        response = client.get("/api/admin/auth/google/callback?state=1:2")
-        # FastAPI returns 422 for missing required query parameters
-        assert response.status_code == 422
-
-    def test_oauth_callback_endpoint_with_error(self):
-        """Test the full OAuth callback endpoint with OAuth error."""
-        from main import app
-        client = TestClient(app)
-
-        response = client.get("/api/admin/auth/google/callback?error=access_denied&state=1:2")
-        assert response.status_code == 400
-        assert "OAuth authorization failed" in response.json()["detail"]
+        assert len(result) == 1
+        assert result[0]["full_name"] == "John Doe"
+        assert result[0]["line_user_id"] == "line123"

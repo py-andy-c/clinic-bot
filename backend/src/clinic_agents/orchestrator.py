@@ -18,6 +18,7 @@ from clinic_agents.triage_agent import triage_agent
 from clinic_agents.appointment_agent import appointment_agent
 from clinic_agents.account_linking_agent import account_linking_agent
 from clinic_agents.helpers import get_or_create_line_user, get_patient_from_line_user
+from services.guardrails_service import get_guardrails_service
 from models.clinic import Clinic
 from models.line_user import LineUser
 from core.config import DATABASE_URL
@@ -59,12 +60,27 @@ async def handle_line_message(
     """
     # Wrap entire workflow in trace for observability
     with trace("LINE message workflow"):
-        # 1. Get or create line_user and check linking status
+        # 1. Apply conversation guardrails
+        guardrails = get_guardrails_service()
+
+        # Check content safety
+        is_safe, safety_reason = guardrails.check_content_safety(message_text)
+        if not is_safe:
+            logger.warning(f"Unsafe content detected from {line_user_id}: {safety_reason}")
+            return "抱歉，我無法處理這個請求。如有醫療相關問題，請直接聯繫診所。"
+
+        # Check rate limiting
+        is_allowed, rate_limit_reason = guardrails.check_rate_limit(line_user_id)
+        if not is_allowed:
+            logger.warning(f"Rate limit exceeded for {line_user_id}: {rate_limit_reason}")
+            return "請求過於頻繁，請稍後再試。"
+
+        # 2. Get or create line_user and check linking status
         line_user = get_or_create_line_user(db, line_user_id, clinic.id)
         patient = get_patient_from_line_user(db, line_user)
         is_linked = patient is not None
 
-        # 2. Create conversation context
+        # 3. Create conversation context
         context = ConversationContext(
             db_session=db,
             clinic=clinic,
@@ -94,7 +110,7 @@ async def handle_line_message(
         intent = triage_result.final_output.intent
         logger.info(f"Triage result: {intent} (confidence: {triage_result.final_output.confidence})")
         logger.info(f"Reasoning: {triage_result.final_output.reasoning}")
-        
+
         if intent == "appointment_related":
             # Handle appointment-related queries
             response_text = await _handle_appointment_flow(
@@ -108,6 +124,33 @@ async def handle_line_message(
         else:
             # Non-appointment/non-account-linking query - DO NOT respond
             response_text = None
+
+        # 6. Monitor conversation quality (after response is determined)
+        if session:
+            try:
+                # Get conversation history for quality assessment
+                conversation_history = []
+                for item in session.list_items():  # type: ignore
+                    if hasattr(item, 'content'):
+                        conversation_history.append({  # type: ignore
+                            "role": "user" if "user" in str(type(item)).lower() else "assistant",  # type: ignore
+                            "content": item.content if hasattr(item, 'content') else str(item)
+                        })
+
+                # Assess conversation quality
+                quality_metrics = guardrails.assess_conversation_quality(conversation_history)  # type: ignore
+
+                # Log metrics for monitoring
+                guardrails.log_conversation_metrics(line_user_id, quality_metrics)
+
+                # Check if conversation should be escalated
+                should_escalate, escalation_reason = guardrails.should_escalate_conversation(conversation_history)  # type: ignore
+                if should_escalate:
+                    logger.warning(f"Conversation {line_user_id} flagged for escalation: {escalation_reason}")
+                    # TODO: In production, trigger escalation workflow (email alert, etc.)
+
+            except Exception as e:
+                logger.error(f"Error monitoring conversation quality for {line_user_id}: {e}")
 
         return response_text
 

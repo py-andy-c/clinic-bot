@@ -1,204 +1,467 @@
 """
 Admin API endpoints for clinic management.
 
-This module provides REST endpoints for clinic administrators to manage
-therapists, patients, and system configuration.
+This module provides REST API endpoints for clinic administrators to manage
+therapists, patients, settings, and view dashboard analytics.
 """
 
-from typing import Any
+import logging
+from typing import Any, Dict, List
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from services.google_oauth import google_oauth_service
-from models.therapist import Therapist
+from core.config import API_BASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+from models import Therapist, Patient, Appointment, AppointmentType, ClinicAdmin, Clinic
+from services.google_oauth import GoogleOAuthService
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
-@router.get(
-    "/therapists/{therapist_id}/gcal/auth",
-    summary="Initiate Google OAuth",
-    description="Generate authorization URL for therapist Google Calendar access",
-    responses={
-        200: {
-            "description": "Authorization URL generated successfully",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "authorization_url": "https://accounts.google.com/o/oauth2/auth?..."
-                    }
-                }
-            }
-        },
-        404: {"description": "Therapist not found"},
-        500: {"description": "Internal server error"},
-    },
-)
-async def initiate_google_oauth(
-    therapist_id: int,
-    clinic_id: int = Query(..., description="ID of the clinic the therapist belongs to"),
-    db: Session = Depends(get_db)
-) -> dict[str, str]:
+@router.get("/auth/google/login", summary="Initiate Google OAuth login")
+async def initiate_google_auth() -> Dict[str, str]:
     """
-    Initiate Google OAuth 2.0 flow for a therapist.
-
-    Generates an authorization URL that the therapist can use to grant
-    access to their Google Calendar. This URL should be presented to
-    the therapist in the admin interface.
-
-    Args:
-        therapist_id: Unique identifier of the therapist
-        clinic_id: ID of the clinic for security validation
-        db: Database session dependency
-
-    Returns:
-        dict containing the authorization URL
-
-    Raises:
-        HTTPException: If therapist is not found or clinic validation fails
+    Initiate Google OAuth login flow for clinic admins.
     """
     try:
-        # Verify therapist exists and belongs to the specified clinic
-        therapist = db.query(Therapist).filter(
-            Therapist.id == therapist_id,
-            Therapist.clinic_id == clinic_id
-        ).first()
+        # Simple Google OAuth URL construction for admin login
+        # In production, use proper OAuth2 client
+        from urllib.parse import urlencode
+        from core.config import GOOGLE_CLIENT_ID
 
-        if not therapist:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Therapist not found or does not belong to specified clinic"
-            )
+        params = {
+            "client_id": GOOGLE_CLIENT_ID,
+            "redirect_uri": f"{API_BASE_URL}/api/admin/auth/google/callback",
+            "scope": "openid profile email",
+            "response_type": "code",
+            "state": "admin"
+        }
 
-        # Generate OAuth authorization URL
-        auth_url = google_oauth_service.get_authorization_url(therapist_id, clinic_id)
-
-        return {"authorization_url": auth_url}
-
-    except HTTPException:
-        raise
+        auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+        return {"auth_url": auth_url}
     except Exception as e:
-        # Log unexpected errors for debugging
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error initiating Google OAuth for therapist {therapist_id}: {e}")
+        logger.error(f"Error initiating Google auth: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to initiate OAuth flow"
+            detail="Failed to initiate authentication"
         )
 
 
-@router.get(
-    "/auth/google/callback",
-    summary="Google OAuth Callback",
-    description="Handle OAuth callback and complete therapist calendar authorization",
-    responses={
-        200: {
-            "description": "OAuth flow completed successfully",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "message": "Google Calendar access granted successfully",
-                        "therapist_id": 1,
-                        "therapist_name": "Dr. Smith"
-                    }
-                }
-            }
-        },
-        400: {"description": "OAuth error or invalid parameters"},
-        500: {"description": "OAuth processing failed"},
-    },
-)
-def _handle_oauth_error(error: str) -> None:
-    """Handle OAuth authorization errors."""
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.warning(f"OAuth callback received error: {error}")
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail=f"OAuth authorization failed: {error}"
-    )
-
-
-def _validate_oauth_params(code: str | None, state: str | None) -> None:
-    """Validate required OAuth callback parameters."""
-    if not code:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Authorization code is required"
-        )
-
-    if not state:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="State parameter is required"
-        )
-
-
-async def _process_oauth_success(db: Session, code: str | None, state: str | None) -> Therapist:
-    """Process successful OAuth callback and return therapist."""
-    import logging
-    logger = logging.getLogger(__name__)
-
-    # At this point, validation should have ensured these are not None
-    assert code is not None, "Code should not be None at this point"
-    assert state is not None, "State should not be None at this point"
-
-    therapist = await google_oauth_service.handle_oauth_callback(db, code, state)
-    logger.info(f"Successfully authorized Google Calendar access for therapist {therapist.id}")
-    return therapist
-
-
-async def google_oauth_callback(
-    code: str | None = None,
-    state: str | None = None,
-    error: str | None = None,
+@router.get("/auth/google/callback", summary="Handle Google OAuth callback")
+async def google_auth_callback(
+    code: str,
+    state: str,
     db: Session = Depends(get_db)
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     """
-    Handle Google OAuth 2.0 callback and complete therapist authorization.
-
-    This endpoint is called by Google after the therapist grants or denies
-    calendar access. It exchanges the authorization code for tokens and
-    stores them securely in the database.
-
-    Args:
-        request: The HTTP request containing query parameters
-        db: Database session dependency
-
-    Returns:
-        dict with success message and therapist information
-
-    Raises:
-        HTTPException: If OAuth fails or parameters are invalid
+    Handle Google OAuth callback and authenticate clinic admin.
     """
-    import logging
-    logger = logging.getLogger(__name__)
-
     try:
-        # Handle OAuth errors
-        if error:
-            _handle_oauth_error(error)
+        # Validate state (should be "admin")
+        if state != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid authentication state"
+            )
 
-        # Validate parameters
-        _validate_oauth_params(code, state)
+        # Exchange code for tokens (simplified for admin auth)
+        import httpx
+        token_url = "https://oauth2.googleapis.com/token"
 
-        # Process successful OAuth
-        therapist = await _process_oauth_success(db, code, state)
+        token_data = {
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": f"{API_BASE_URL}/api/admin/auth/google/callback"
+        }
 
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(token_url, data=token_data)
+            token_response.raise_for_status()
+            token_info = token_response.json()
+
+            # Get user info
+            user_info_url = "https://www.googleapis.com/oauth2/v2/userinfo"
+            headers = {"Authorization": f"Bearer {token_info['access_token']}"}
+            user_response = await client.get(user_info_url, headers=headers)
+            user_response.raise_for_status()
+            user_info = user_response.json()
+
+        if not user_info or not user_info.get("email"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to get user information from Google"
+            )
+
+        email = user_info["email"]
+
+        # Check if user is a clinic admin
+        admin = db.query(ClinicAdmin).filter_by(email=email).first()
+
+        if not admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. You are not authorized to access this system."
+            )
+
+        # Get clinic information
+        clinic = db.query(Clinic).filter_by(id=admin.clinic_id).first()
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Clinic information not found"
+            )
+
+        # TODO: Create JWT token for session management
+        # For now, return user info
         return {
-            "message": "Google Calendar access granted successfully",
-            "therapist_id": therapist.id,
-            "therapist_name": therapist.name
+            "user": {
+                "id": admin.id,
+                "email": admin.email,
+                "name": admin.full_name or user_info.get("name", email),
+                "clinic_id": admin.clinic_id,
+                "clinic_name": clinic.name
+            },
+            "message": "Authentication successful"
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in OAuth callback: {e}", exc_info=True)
+        logger.error(f"Error in Google auth callback: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="OAuth callback processing failed"
+            detail="Authentication failed"
+        )
+
+
+@router.post("/auth/logout", summary="Logout current user")
+async def logout() -> Dict[str, str]:
+    """
+    Logout the current user by clearing session.
+    """
+    # TODO: Invalidate session/token
+    return {"message": "Logged out successfully"}
+
+
+# Dependency to get current clinic admin (placeholder for now)
+async def get_current_admin(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """
+    Get current authenticated admin.
+
+    TODO: Implement proper JWT/session-based authentication
+    For now, returns a mock admin for development.
+    """
+    # Mock admin for development - in production this would validate JWT/session
+    return {
+        "id": 1,
+        "clinic_id": 1,
+        "email": "admin@clinic.com",
+        "name": "Admin User"
+    }
+
+
+@router.get("/dashboard", summary="Get dashboard statistics")
+async def get_dashboard_stats(
+    current_admin: Dict[str, Any] = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get dashboard statistics for the admin's clinic.
+
+    Returns key metrics like appointment counts, patient stats, and cancellation rates.
+    """
+    clinic_id = current_admin["clinic_id"]
+
+    try:
+        # Total appointments
+        total_appointments = db.query(Appointment).filter(
+            Appointment.patient.has(clinic_id=clinic_id)
+        ).count()
+
+        # Upcoming appointments (next 7 days)
+        week_from_now = datetime.now(timezone.utc) + timedelta(days=7)
+        upcoming_appointments = db.query(Appointment).filter(
+            Appointment.patient.has(clinic_id=clinic_id),
+            Appointment.start_time >= datetime.now(timezone.utc),
+            Appointment.start_time <= week_from_now,
+            Appointment.status == "confirmed"
+        ).count()
+
+        # New patients (last 30 days)
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+        new_patients = db.query(Patient).filter(
+            Patient.clinic_id == clinic_id
+        ).filter(Patient.created_at >= thirty_days_ago).count()  # type: ignore
+
+        # Cancellation rate (last 30 days)
+        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+        recent_appointments = db.query(Appointment).filter(
+            Appointment.patient.has(clinic_id=clinic_id),
+            Appointment.created_at >= thirty_days_ago  # type: ignore
+        ).count()
+
+        cancelled_appointments = db.query(Appointment).filter(
+            Appointment.patient.has(clinic_id=clinic_id),
+            Appointment.created_at >= thirty_days_ago,  # type: ignore
+            Appointment.status.in_(["canceled_by_patient", "canceled_by_clinic"])
+        ).count()
+
+        cancellation_rate = cancelled_appointments / recent_appointments if recent_appointments > 0 else 0
+
+        return {
+            "total_appointments": total_appointments,
+            "upcoming_appointments": upcoming_appointments,
+            "new_patients": new_patients,
+            "cancellation_rate": cancellation_rate
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching dashboard stats: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch dashboard statistics"
+        )
+
+
+@router.get("/therapists", summary="List all therapists")
+async def get_therapists(
+    current_admin: Dict[str, Any] = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+) -> List[Dict[str, Any]]:
+    """
+    Get all therapists for the admin's clinic.
+    """
+    clinic_id = current_admin["clinic_id"]
+
+    try:
+        therapists = db.query(Therapist).filter_by(clinic_id=clinic_id).all()
+
+        return [{
+            "id": t.id,
+            "name": t.name,
+            "email": t.email,
+            "gcal_sync_enabled": t.gcal_credentials is not None and t.gcal_sync_enabled,
+            "created_at": t.created_at.isoformat()
+        } for t in therapists]
+
+    except Exception as e:
+        logger.error(f"Error fetching therapists: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch therapists"
+        )
+
+
+@router.post("/therapists", summary="Invite a new therapist")
+async def invite_therapist(
+    therapist_data: Dict[str, str],
+    current_admin: Dict[str, Any] = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Invite a new therapist by email.
+
+    Sends an invitation email with registration link.
+    """
+    clinic_id = current_admin["clinic_id"]
+    name = therapist_data.get("name")
+    email = therapist_data.get("email")
+
+    if not name or not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Name and email are required"
+        )
+
+    try:
+        # Check if therapist already exists
+        existing = db.query(Therapist).filter_by(
+            clinic_id=clinic_id,
+            email=email
+        ).first()
+
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Therapist with this email already exists"
+            )
+
+        # Create therapist record
+        therapist = Therapist(
+            clinic_id=clinic_id,
+            name=name,
+            email=email
+        )
+
+        db.add(therapist)
+        db.commit()
+        db.refresh(therapist)
+
+        # TODO: Send invitation email with registration link
+        logger.info(f"Therapist invitation created for {email}")
+
+        return {
+            "id": therapist.id,
+            "name": therapist.name,
+            "email": therapist.email,
+            "message": "Invitation sent successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error inviting therapist: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to invite therapist"
+        )
+
+
+@router.get("/therapists/{therapist_id}/gcal/auth", summary="Initiate Google Calendar OAuth")
+async def initiate_therapist_gcal_auth(
+    therapist_id: int,
+    current_admin: Dict[str, Any] = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+) -> Dict[str, str]:
+    """
+    Initiate Google Calendar OAuth flow for a therapist.
+    """
+    clinic_id = current_admin["clinic_id"]
+
+    try:
+        # Verify therapist belongs to clinic
+        therapist = db.query(Therapist).filter_by(
+            id=therapist_id,
+            clinic_id=clinic_id
+        ).first()
+
+        if not therapist:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Therapist not found"
+            )
+
+        # Generate OAuth URL using therapist OAuth service
+        oauth_service = GoogleOAuthService()
+        auth_url = oauth_service.get_authorization_url(therapist_id, clinic_id)
+
+        return {"auth_url": auth_url}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error initiating GCal auth: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to initiate Google Calendar authorization"
+        )
+
+
+@router.get("/patients", summary="List all patients")
+async def get_patients(
+    current_admin: Dict[str, Any] = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+) -> List[Dict[str, Any]]:
+    """
+    Get all patients for the admin's clinic.
+    """
+    clinic_id = current_admin["clinic_id"]
+
+    try:
+        patients = db.query(Patient).filter_by(clinic_id=clinic_id).all()
+
+        return [{
+            "id": p.id,
+            "full_name": p.full_name,
+            "phone_number": p.phone_number,
+            "line_user_id": p.line_user.line_user_id if p.line_user else None,
+            "created_at": p.created_at.isoformat()  # type: ignore
+        } for p in patients]
+
+    except Exception as e:
+        logger.error(f"Error fetching patients: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch patients"
+        )
+
+
+@router.get("/settings", summary="Get clinic settings")
+async def get_settings(
+    current_admin: Dict[str, Any] = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get clinic settings including appointment types and preferences.
+    """
+    clinic_id = current_admin["clinic_id"]
+
+    try:
+        # Get appointment types
+        appointment_types = db.query(AppointmentType).filter_by(clinic_id=clinic_id).all()
+
+        return {
+            "appointment_types": [{
+                "id": at.id,
+                "name": at.name,
+                "duration_minutes": at.duration_minutes
+            } for at in appointment_types],
+            "reminder_hours_before": 24,  # Default for now
+            "clinic_hours_start": "09:00",
+            "clinic_hours_end": "18:00",
+            "holidays": []  # Placeholder
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching settings: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch settings"
+        )
+
+
+@router.put("/settings", summary="Update clinic settings")
+async def update_settings(
+    settings: Dict[str, Any],
+    current_admin: Dict[str, Any] = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Update clinic settings including appointment types.
+    """
+    clinic_id = current_admin["clinic_id"]
+
+    try:
+        # Update appointment types
+        appointment_types_data = settings.get("appointment_types", [])
+
+        # Delete existing appointment types
+        db.query(AppointmentType).filter_by(clinic_id=clinic_id).delete()
+
+        # Add new appointment types
+        for at_data in appointment_types_data:
+            if at_data.get("name") and at_data.get("duration_minutes"):
+                appointment_type = AppointmentType(
+                    clinic_id=clinic_id,
+                    name=at_data["name"],
+                    duration_minutes=at_data["duration_minutes"]
+                )
+                db.add(appointment_type)
+
+        db.commit()
+
+        return {"message": "Settings updated successfully"}
+
+    except Exception as e:
+        logger.error(f"Error updating settings: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update settings"
         )
