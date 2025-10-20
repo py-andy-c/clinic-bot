@@ -95,6 +95,27 @@ class ApiService {
   async getDashboardStats(): Promise<any> {
     return this.get('/admin/dashboard');
   }
+
+  // Provider endpoints
+  async getProviderDashboard(): Promise<any> {
+    return this.get('/provider/dashboard');
+  }
+
+  async getProviderClinics(): Promise<any[]> {
+    return this.get('/provider/clinics');
+  }
+
+  async createProviderClinic(clinicData: any): Promise<any> {
+    return this.post('/provider/clinics', clinicData);
+  }
+
+  async getProviderClinicDetails(clinicId: number): Promise<any> {
+    return this.get(`/provider/clinics/${clinicId}`);
+  }
+
+  async updateProviderClinic(clinicId: number, clinicData: any): Promise<any> {
+    return this.put(`/provider/clinics/${clinicId}`, clinicData);
+  }
 }
 
 export const apiService = new ApiService();

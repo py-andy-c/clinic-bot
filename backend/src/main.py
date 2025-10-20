@@ -18,7 +18,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api import webhooks, admin
+from api import webhooks, admin, provider
 from core.constants import CORS_ORIGINS
 from services.reminder_service import start_reminder_scheduler, stop_reminder_scheduler
 from core.database import get_db
@@ -93,6 +93,16 @@ app.include_router(
     admin.router,
     prefix="/api",
     tags=["admin"],
+    responses={
+        401: {"description": "Unauthorized"},
+        404: {"description": "Resource not found"},
+        500: {"description": "Internal server error"},
+    },
+)
+app.include_router(
+    provider.router,
+    prefix="/api/provider",
+    tags=["provider"],
     responses={
         401: {"description": "Unauthorized"},
         404: {"description": "Resource not found"},
