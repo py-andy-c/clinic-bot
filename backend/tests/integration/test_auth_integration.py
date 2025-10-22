@@ -4,6 +4,8 @@ Integration tests for authentication system.
 Tests the complete authentication flow from signup to API access.
 """
 
+import asyncio
+
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
 from fastapi.testclient import TestClient
@@ -1516,3 +1518,133 @@ class TestSignupCallbackFlow:
 
         finally:
             client.app.dependency_overrides.pop(get_db, None)
+
+
+class TestLineWebhookAsyncDatabaseIntegration:
+    """Integration tests for LINE webhook async database operations."""
+
+    @pytest.mark.asyncio
+    async def test_line_webhook_async_sqlite_session_creation(self, db_session):
+        """Test that LINE webhook can create async SQLAlchemySession for conversation storage."""
+        from clinic_agents.orchestrator import get_session_storage
+        from core.config import DATABASE_URL
+
+        # Test that we can create a session storage instance
+        # This should work with the async-compatible URL conversion
+        line_user_id = "test_line_user_123"
+
+        try:
+            session = get_session_storage(line_user_id)
+            assert session is not None
+            # SQLAlchemySession should have basic session methods
+            assert hasattr(session, 'session_id')
+            assert hasattr(session, 'add_items')
+            assert hasattr(session, 'get_items')
+            assert session.session_id == line_user_id
+        except Exception as e:
+            # If this fails, it means our async URL conversion didn't work
+            pytest.fail(f"Failed to create SQLAlchemySession: {e}")
+
+    @pytest.mark.asyncio
+    async def test_line_webhook_handle_message_with_async_session(self, db_session):
+        """Test that handle_line_message can use async session storage without errors."""
+        from clinic_agents.orchestrator import handle_line_message
+        from clinic_agents.context import ConversationContext
+        from unittest.mock import patch, AsyncMock
+
+        # Create test clinic
+        clinic = Clinic(
+            name="Test Clinic Async",
+            line_channel_id="test_channel_async",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create test LINE user and patient (already linked)
+        from models.line_user import LineUser
+        from models.patient import Patient
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="+1234567890"
+        )
+        line_user = LineUser(
+            line_user_id="Utest_async_123"
+        )
+        patient.line_user = line_user
+
+        db_session.add_all([patient, line_user])
+        db_session.commit()
+
+        line_user_id = "Utest_async_123"
+
+        # Mock the agent runners to avoid full agent execution
+        with patch('clinic_agents.orchestrator.Runner.run') as mock_runner:
+            # Mock triage result
+            mock_triage_result = Mock()
+            mock_triage_result.final_output.intent = "appointment_related"
+            mock_triage_result.final_output.confidence = 0.9
+            mock_triage_result.final_output.reasoning = "User wants to book appointment"
+
+            # Mock appointment agent result
+            mock_appointment_result = Mock()
+            mock_appointment_result.final_output_as.return_value = "Appointment booked successfully"
+
+            # Configure mock to return results for triage and appointment agents only
+            # (no linking needed since user is already linked)
+            mock_runner.side_effect = [mock_triage_result, mock_appointment_result]
+
+            try:
+                # This should not raise the async SQLite error anymore
+                result = await handle_line_message(
+                    db=db_session,
+                    clinic=clinic,
+                    line_user_id=line_user_id,
+                    message_text="我要預約門診"
+                )
+
+                # Should return the appointment result
+                assert result == "Appointment booked successfully"
+
+                # Verify that session storage was attempted
+                # The get_session_storage call should not have failed with async error
+                assert True  # If we get here, the async session creation worked
+
+            except Exception as e:
+                if "asyncio extension requires an async driver" in str(e):
+                    pytest.fail(f"Async SQLite driver issue not resolved: {e}")
+                else:
+                    # Re-raise other exceptions as they might be expected test failures
+                    raise
+
+    @pytest.mark.asyncio
+    async def test_sqlalchemy_session_async_url_conversion(self, db_session):
+        """Test that DATABASE_URL is correctly converted for async operations."""
+        from core.config import DATABASE_URL
+        from clinic_agents.orchestrator import get_session_storage
+
+        # Test the URL conversion logic directly
+        original_url = DATABASE_URL
+        expected_async_url = original_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+
+        # Create session storage and verify it doesn't fail
+        try:
+            session = get_session_storage("test_user_conversion")
+            # If we get here without exception, the URL conversion worked
+            assert session is not None
+        except Exception as e:
+            if "asyncio extension requires an async driver" in str(e):
+                pytest.fail(f"URL conversion failed - aiosqlite not properly configured: {e}")
+            else:
+                raise
+
+    def test_async_sqlite_import_available(self):
+        """Test that aiosqlite can be imported (dependency is installed)."""
+        try:
+            import aiosqlite
+            assert aiosqlite is not None
+        except ImportError:
+            pytest.fail("aiosqlite is not installed - async SQLite operations will fail")

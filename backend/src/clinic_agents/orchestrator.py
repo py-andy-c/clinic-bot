@@ -30,9 +30,15 @@ logger = logging.getLogger(__name__)
 # Creates SQLAlchemySession instances for individual users
 def get_session_storage(line_user_id: str) -> SQLAlchemySession:
     """Get a SQLAlchemySession for the given LINE user."""
+    # Convert SQLite URL to async-compatible format for SQLAlchemySession
+    session_url = DATABASE_URL
+    if DATABASE_URL.startswith("sqlite:///"):
+        # Replace sqlite:/// with sqlite+aiosqlite:/// for async operations
+        session_url = DATABASE_URL.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+
     return SQLAlchemySession.from_url(
         session_id=line_user_id,
-        url=DATABASE_URL,
+        url=session_url,
         create_tables=True
     )
 
