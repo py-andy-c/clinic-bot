@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
 interface ClinicLayoutProps {
@@ -9,7 +9,7 @@ interface ClinicLayoutProps {
 const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   const { user, logout, isClinicAdmin, isPractitioner } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {

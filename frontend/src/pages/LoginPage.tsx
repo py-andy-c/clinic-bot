@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { UserType } from '../types';
 
 const LoginPage: React.FC = () => {
   const { login, isLoading } = useAuth();
-  const [userType, setUserType] = useState<UserType | ''>('');
+  // const [userType, setUserType] = useState<UserType | ''>('');
 
   const handleLogin = async (selectedUserType?: UserType) => {
     try {
@@ -180,7 +180,7 @@ const LoginPage: React.FC = () => {
               <button
                 onClick={async () => {
                   try {
-                    setAuthState(prev => ({ ...prev, isLoading: true }));
+                    // setAuthState(prev => ({ ...prev, isLoading: true }));
                     const response = await fetch('/api/auth/dev/login', {
                       method: 'POST',
                       headers: {
@@ -200,14 +200,14 @@ const LoginPage: React.FC = () => {
                     localStorage.setItem('access_token', data.access_token);
                     localStorage.setItem('was_logged_in', 'true');
 
-                    setAuthState({
-                      user: data.user,
-                      isAuthenticated: true,
-                      isLoading: false,
-                    });
+                    // setAuthState({
+                    //   user: data.user,
+                    //   isAuthenticated: true,
+                    //   isLoading: false,
+                    // });
                   } catch (error) {
                     console.error('Dev login failed:', error);
-                    setAuthState(prev => ({ ...prev, isLoading: false }));
+                    // setAuthState(prev => ({ ...prev, isLoading: false }));
                   }
                 }}
                 disabled={isLoading}

@@ -85,7 +85,7 @@ export interface Appointment {
 
 // Auth types
 export interface AuthUser {
-  id: number;
+  user_id: number;
   email: string;
   full_name: string;
   roles: UserRole[];
@@ -175,7 +175,15 @@ export interface SignupResponse {
 }
 
 // Settings types
+export interface AppointmentType {
+  id: number;
+  clinic_id: number;
+  name: string;
+  duration_minutes: number;
+}
+
 export interface ClinicSettings {
+  clinic_id: number;
   clinic_name: string;
   business_hours: {
     monday: { start: string; end: string; enabled: boolean };
@@ -192,4 +200,6 @@ export interface ClinicSettings {
     sms_reminders: boolean;
     reminder_hours_before: number;
   };
+  clinic_hours_start?: string;
+  clinic_hours_end?: string;
 }

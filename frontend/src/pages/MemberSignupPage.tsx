@@ -62,16 +62,16 @@ const MemberSignupPage: React.FC = () => {
     }
   };
 
-  const getRoleDisplay = (roles: string[]) => {
-    if (roles.includes('admin') && roles.includes('practitioner')) {
-      return '管理員 & 治療師';
-    } else if (roles.includes('admin')) {
-      return '管理員';
-    } else if (roles.includes('practitioner')) {
-      return '治療師';
-    }
-    return '一般使用者';
-  };
+  // const getRoleDisplay = (roles: string[]) => {
+  //   if (roles.includes('admin') && roles.includes('practitioner')) {
+  //     return '管理員 & 治療師';
+  //   } else if (roles.includes('admin')) {
+  //     return '管理員';
+  //   } else if (roles.includes('practitioner')) {
+  //     return '治療師';
+  //   }
+  //   return '一般使用者';
+  // };
 
   if (loading) {
     return (

@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import {
-  AuthUser,
+  // AuthUser,
   Clinic,
   Member,
   Patient,
@@ -22,7 +22,7 @@ class ApiService {
 
   constructor() {
     this.client = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+      baseURL: (import.meta as any).env?.VITE_API_BASE_URL || '/api',
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',
@@ -53,9 +53,11 @@ class ApiService {
                 error.config.headers.Authorization = `Bearer ${token}`;
                 return axios.request(error.config);
               }
+              return Promise.reject(error);
             }).catch(() => {
               // Refresh failed, redirect to login
               window.location.href = '/auth/google/login';
+              return Promise.reject(error);
             });
           } else {
             // No token, redirect to login

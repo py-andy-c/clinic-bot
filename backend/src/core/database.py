@@ -9,6 +9,7 @@ import logging
 from contextlib import contextmanager
 from typing import Generator
 
+from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase
@@ -66,6 +67,10 @@ def get_db() -> Generator[Session, None, None]:
         logger.error(f"Database error: {e}", exc_info=True)
         db.rollback()
         raise
+    except HTTPException:
+        # Don't log HTTPExceptions as errors - they're expected business logic
+        db.rollback()
+        raise
     except Exception as e:
         logger.error(f"Unexpected error in database session: {e}", exc_info=True)
         db.rollback()
@@ -95,6 +100,10 @@ def get_db_context() -> Generator[Session, None, None]:
     try:
         yield db
         db.commit()
+    except HTTPException:
+        # Don't log HTTPExceptions as errors - they're expected business logic
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"Database transaction failed: {e}", exc_info=True)

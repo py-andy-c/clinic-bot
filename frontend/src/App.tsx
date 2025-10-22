@@ -14,7 +14,7 @@ import ClinicSignupPage from './pages/ClinicSignupPage';
 import MemberSignupPage from './pages/MemberSignupPage';
 
 const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading, isSystemAdmin, isClinicAdmin, isPractitioner, user } = useAuth();
+  const { isAuthenticated, isLoading, isSystemAdmin, isClinicAdmin, isPractitioner } = useAuth();
 
   if (isLoading) {
     return (

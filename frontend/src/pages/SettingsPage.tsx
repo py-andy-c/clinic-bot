@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
-import { ClinicSettings } from '../types';
+import { ClinicSettings, AppointmentType } from '../types';
 
 const SettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<ClinicSettings | null>(null);
@@ -45,6 +45,7 @@ const SettingsPage: React.FC = () => {
 
     const newType: AppointmentType = {
       id: Date.now(), // Temporary ID for UI
+      clinic_id: settings.clinic_id || 0, // Use clinic_id from settings or default
       name: '',
       duration_minutes: 30,
     };
@@ -59,7 +60,10 @@ const SettingsPage: React.FC = () => {
     if (!settings) return;
 
     const updatedTypes = [...settings.appointment_types];
-    updatedTypes[index] = { ...updatedTypes[index], [field]: value };
+    updatedTypes[index] = { 
+      ...updatedTypes[index], 
+      [field]: value 
+    } as AppointmentType;
 
     setSettings({
       ...settings,
@@ -187,10 +191,13 @@ const SettingsPage: React.FC = () => {
           </label>
           <input
             type="number"
-            value={settings.reminder_hours_before}
+            value={settings.notification_settings.reminder_hours_before}
             onChange={(e) => setSettings({
               ...settings,
-              reminder_hours_before: parseInt(e.target.value) || 24
+              notification_settings: {
+                ...settings.notification_settings,
+                reminder_hours_before: parseInt(e.target.value) || 24
+              }
             })}
             className="input"
             min="1"

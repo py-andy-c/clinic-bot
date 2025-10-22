@@ -9,7 +9,7 @@ const SystemClinicsPage: React.FC = () => {
   const [selectedClinic, setSelectedClinic] = useState<Clinic | null>(null);
   const [clinicHealth, setClinicHealth] = useState<ClinicHealth | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -27,7 +27,7 @@ const SystemClinicsPage: React.FC = () => {
       const data = await apiService.getClinics();
       setClinics(data);
     } catch (err) {
-      setError('Failed to load clinics');
+      // setError('Failed to load clinics');
       console.error('Clinics error:', err);
     } finally {
       setLoading(false);
@@ -44,7 +44,7 @@ const SystemClinicsPage: React.FC = () => {
       setSelectedClinic(clinicData);
       setClinicHealth(healthData);
     } catch (err) {
-      setError('Failed to load clinic details');
+      // setError('Failed to load clinic details');
       console.error('Clinic details error:', err);
     } finally {
       setLoading(false);

@@ -268,13 +268,6 @@ async def remove_member(
                 detail="Member not found"
             )
 
-        # Prevent removing self
-        if current_user.user_id == user_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot remove yourself"
-            )
-
         # Prevent removing last admin
         if "admin" in member.roles:
             admin_count = db.query(User).filter(

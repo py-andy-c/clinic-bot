@@ -79,9 +79,20 @@ print_status "Generating coverage report..."
 PYTHONPATH=src python -m pytest tests/unit/ tests/integration/ --cov=src --cov-report=html:htmlcov --cov-report=term-missing
 print_success "Coverage report generated!"
 
+# Run TypeScript type checking for frontend
+print_status "Running TypeScript type checking for frontend..."
+cd "$PROJECT_ROOT/frontend"
+if npx tsc --noEmit; then
+    print_success "Frontend TypeScript type checking passed!"
+else
+    print_error "Frontend TypeScript type checking failed!"
+    exit 1
+fi
+
 # Final success message
 echo ""
 print_success "🎉 All Tests Passed Successfully!"
 echo ""
 print_success "📁 Coverage report: backend/htmlcov/index.html"
+print_success "🔍 TypeScript: All type checks passed"
 exit 0
