@@ -65,19 +65,15 @@ export ENCRYPTION_KEY="YyD8O45QlfRZUXT9kzjW3xEf6iNqz5EtF_OB8WEOBqw="
 export SYSTEM_ADMIN_EMAILS="test@example.com"
 export DATABASE_URL="sqlite:///:memory:"
 
-# Run all tests
-print_status "Running all tests..."
-if PYTHONPATH=src python -m pytest tests/unit/ tests/integration/ -v --tb=short; then
+# Run all tests with coverage
+print_status "Running all tests with coverage..."
+if PYTHONPATH=src python -m pytest tests/unit/ tests/integration/ -v --tb=short --cov=src --cov-report=html:htmlcov --cov-report=term-missing; then
     print_success "All tests passed!"
+    print_success "Coverage report generated!"
 else
     print_error "Tests failed!"
     exit 1
 fi
-
-# Generate coverage report
-print_status "Generating coverage report..."
-PYTHONPATH=src python -m pytest tests/unit/ tests/integration/ --cov=src --cov-report=html:htmlcov --cov-report=term-missing
-print_success "Coverage report generated!"
 
 # Run TypeScript type checking for frontend
 print_status "Running TypeScript type checking for frontend..."
