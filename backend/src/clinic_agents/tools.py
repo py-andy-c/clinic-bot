@@ -11,7 +11,7 @@ All tools follow the OpenAI Agent SDK pattern using RunContextWrapper[Conversati
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 from sqlalchemy.exc import IntegrityError
 
@@ -269,7 +269,7 @@ async def get_existing_appointments(
         # Query upcoming appointments
         appointments = db.query(Appointment).filter(
             Appointment.patient_id == patient_id,
-            Appointment.start_time >= datetime.now(),
+            Appointment.start_time >= datetime.now(timezone.utc),
             Appointment.status.in_(['confirmed', 'pending'])
         ).join(User).join(AppointmentType).order_by(Appointment.start_time).all()
 
@@ -540,7 +540,7 @@ async def get_last_appointment_therapist(
         # Query most recent past appointment
         last_appointment = db.query(Appointment).filter(
             Appointment.patient_id == patient_id,
-            Appointment.start_time < datetime.now(),  # Past appointments only
+            Appointment.start_time < datetime.now(timezone.utc),  # Past appointments only
             Appointment.status.in_(['confirmed', 'completed'])  # Successful appointments
         ).join(User).order_by(Appointment.start_time.desc()).first()
 

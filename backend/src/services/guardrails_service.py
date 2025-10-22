@@ -8,7 +8,7 @@ including content filtering, rate limiting, and quality scoring.
 import logging
 import re
 from typing import Dict, List, Optional, Tuple, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ class GuardrailsService:
         Returns:
             Tuple of (is_allowed, reason_if_blocked)
         """
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         window_start = now - timedelta(minutes=window_minutes)
 
         # Get user's request history

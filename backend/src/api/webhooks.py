@@ -79,15 +79,19 @@ async def line_webhook(request: Request, db: Session = Depends(get_db)) -> Plain
             )
 
         # 5. Update clinic webhook tracking
-        from datetime import datetime, timezone, timedelta
-        now = datetime.now(timezone.utc)
+        from utils.datetime_utils import utc_now, safe_datetime_diff
+        from datetime import timedelta
+        
+        now = utc_now()
 
         # Update 24h webhook count (reset if more than 24h since last webhook)
-        if clinic.last_webhook_received_at and (now - clinic.last_webhook_received_at) > timedelta(hours=24):
-            clinic.webhook_count_24h = 0
+        if clinic.last_webhook_received_at:
+            # Safely compare datetimes with timezone handling
+            if safe_datetime_diff(now, clinic.last_webhook_received_at) > timedelta(hours=24):
+                clinic.webhook_count_24h = 0
         clinic.webhook_count_24h += 1
 
-        # Update last webhook timestamp
+        # Update last webhook timestamp (ensure it's timezone-aware)
         clinic.last_webhook_received_at = now
 
         db.commit()
