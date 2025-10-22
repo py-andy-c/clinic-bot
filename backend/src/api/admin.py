@@ -257,59 +257,57 @@ async def get_therapists(
         )
 
 
-@router.post("/therapists", summary="Invite a new therapist")
-async def invite_therapist(
+@router.post("/therapists", summary="Create a new therapist")
+async def create_therapist(
     therapist_data: Dict[str, str],
     current_admin: Dict[str, Any] = Depends(get_current_admin),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
-    Invite a new therapist by email.
+    Create a new therapist record and return signup link.
 
-    Sends an invitation email with registration link.
+    Email is not required - it comes from Google OAuth during signup.
     """
     clinic_id = current_admin["clinic_id"]
     name = therapist_data.get("name")
-    email = therapist_data.get("email")
 
-    if not name or not email:
+    if not name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Name and email are required"
+            detail="Name is required"
         )
 
     try:
-        # Check if therapist already exists
+        # Check if therapist with this name already exists in the clinic
         existing = db.query(Therapist).filter_by(
             clinic_id=clinic_id,
-            email=email
+            name=name
         ).first()
 
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Therapist with this email already exists"
+                detail="Therapist with this name already exists"
             )
 
-        # Create therapist record
+        # Create therapist record (email will be set during Google OAuth signup)
         therapist = Therapist(
             clinic_id=clinic_id,
             name=name,
-            email=email
+            email=None  # Will be populated from Google OAuth
         )
 
         db.add(therapist)
         db.commit()
         db.refresh(therapist)
 
-        # TODO: Send invitation email with registration link
-        logger.info(f"Therapist invitation created for {email}")
+        logger.info(f"Therapist record created: {name} (ID: {therapist.id})")
 
         return {
             "id": therapist.id,
             "name": therapist.name,
-            "email": therapist.email,
-            "message": "Invitation sent successfully"
+            "email": therapist.email,  # Will be None initially
+            "message": "Therapist record created successfully"
         }
 
     except HTTPException:

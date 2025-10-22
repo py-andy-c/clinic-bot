@@ -18,50 +18,115 @@ This document outlines the product requirements for an LLM-powered LINE Bot desi
     *   Easily schedule, reschedule, and cancel her physical therapy appointments without having to call the clinic.
     *   Flexibility to book appointments based on her busy schedule.
     *   Receive timely reminders for her upcoming appointments to avoid missing them.
-    *   Optionally choose her preferred therapist.
+    *   Optionally choose her preferred practitioner.
 *   **Pain Points:**
     *   Frustration with waiting on hold when calling the clinic.
     *   Forgetting appointments due to a busy schedule.
     *   Difficulty finding a suitable appointment time that fits her work hours.
 
-### 2.2. 物理治療師 (Physical Therapist)
+### 2.2. Clinic Practitioners (Medical Professionals)
 *   **Name:** 王大明 (Wang Da-ming)
 *   **Age:** 42
+*   **Role:** Practitioner (can have both practitioner and admin roles)
 *   **Needs & Goals:**
-    *   A clear and up-to-date view of his daily appointments, including the patient's name and the purpose of the visit.
-    *   An easy way to manage and submit his available time slots.
+    *   A clear and up-to-date view of their daily appointments, including the patient's name and the purpose of the visit.
+    *   An easy way to manage and submit their available time slots.
     *   To reduce no-shows and last-minute cancellations.
-    *   Seamless integration with his personal calendar (Google Calendar).
+    *   Seamless integration with their personal calendar (Google Calendar).
 *   **Pain Points:**
-    *   Manually updating his availability across different platforms.
+    *   Manually updating their availability across different platforms.
     *   Patients not showing up for their appointments, leading to wasted time.
     *   Time spent on administrative tasks instead of patient care.
 
 ### 2.3. Clinic Administrator
 *   **Name:** 李先生 (Mr. Li)
 *   **Age:** 50
+*   **Role:** Admin (can have both admin and practitioner roles)
 *   **Needs & Goals:**
-    *   An efficient system to manage appointments for all therapists.
+    *   An efficient system to manage appointments for all practitioners.
     *   To reduce the time staff spends on phone calls for appointment scheduling.
     *   A centralized platform to configure clinic-wide settings, like appointment types and durations.
-    *   An overview of appointment statistics and therapist schedules.
+    *   An overview of appointment statistics and practitioner schedules.
+    *   Ability to manage team member roles and permissions.
 *   **Pain Points:**
     *   High volume of phone calls for appointment management.
     *   Double bookings and scheduling conflicts.
-    *   Difficulty in coordinating schedules for multiple therapists.
+    *   Difficulty in coordinating schedules for multiple practitioners.
+    *   Managing different access levels for team members.
 
 ## 3. Detailed User & System Flows
 
-### 3.1. Patient Onboarding & Account Linking
+### 3.1. Patient Auto-Registration & Account Linking
 
-**Problem:** A patient's LINE display name is unreliable for identification. The system must securely link a patient's stable LINE User ID to their official patient record in the clinic's system.
+**Problem:** A patient's LINE display name is unreliable for identification. The system must create a patient record and securely link it to the patient's stable LINE User ID.
+
+**Design Philosophy:** Patients do not need to be pre-registered in the clinic's system. The LINE bot automatically creates patient records during the first interaction, providing a frictionless onboarding experience.
 
 **Flow:**
-1.  **First Interaction:** When a user initiates a scheduling request for the first time, the bot will detect that their LINE User ID is not linked to a patient record.
-2.  **Verification Prompt:** The bot will reply with: "為了確認您的身份，請輸入您在診所登記的手機號碼。" ("To verify your identity, please enter the mobile phone number you registered with the clinic.")
-3.  **Backend Verification:** The system checks the entered phone number against the clinic's patient database.
-4.  **Successful Linking:** If a match is found, the system securely associates the patient's LINE User ID with their patient record. The bot confirms with: "感謝您！您的帳號已成功連結，現在可以開始預約了。" ("Thank you! Your account is now linked, and you can begin scheduling.")
-5.  **Failed Linking:** If the phone number is not found, the bot responds: "抱歉，找不到符合這個手機號碼的病患資料。請確認後再試一次，或直接聯繫診所。" ("Sorry, we could not find a patient record with this mobile number. Please check and try again, or contact the clinic directly.")
+1.  **First Interaction:** When a user initiates a scheduling request for the first time, the bot detects that their LINE User ID is not linked to any patient record.
+
+2.  **Information Collection:** The bot requests basic information:
+    ```
+    Bot: "歡迎！為了為您預約，請提供以下資訊：
+          1. 您的姓名
+          2. 您的手機號碼"
+    
+    User: "陳小姐, 0912-345-678"
+    ```
+
+3.  **Duplicate Detection:** The system checks if the phone number already exists in the clinic's patient database:
+    - **If phone number is NEW** → Create patient record and LINE link (Step 4)
+    - **If phone number EXISTS but not linked** → Link LINE ID to existing patient record (Step 5)
+    - **If phone number EXISTS and already linked** → Show error (Step 6)
+
+4.  **New Patient Registration:** If the phone number is new, the system:
+    - Creates a new patient record with the provided name and phone number
+    - Links the patient record to the LINE User ID in a single atomic transaction
+    - Confirms: "感謝您！您的帳號已成功建立，現在可以開始預約了。" ("Thank you! Your account has been created and you can begin scheduling.")
+
+5.  **Linking to Existing Patient:** If the phone number exists but has no LINE account linked:
+    - Links the LINE User ID to the existing patient record
+    - Confirms: "感謝您！您的帳號已成功連結至現有病患記錄，現在可以開始預約了。" ("Thank you! Your account has been linked to your existing patient record and you can begin scheduling.")
+
+6.  **Duplicate Phone Number (Error):** If the phone number is already registered with a different LINE account:
+    - Bot responds: "此手機號碼已被其他 LINE 帳號註冊。如果這是您的號碼，請聯繫診所處理：[診所電話]" ("This phone number is already registered with another LINE account. If this is your number, please contact the clinic at: [clinic phone]")
+    - Clinic admin can manually resolve the issue via admin dashboard
+
+**Security Considerations:**
+- **MVP Approach:** The system trusts user-provided information without SMS verification (simplified onboarding)
+- **Future Enhancement:** SMS OTP verification can be added for additional security
+- **Duplicate Protection:** Phone numbers can only be linked to one LINE account at a time
+- **Audit Trail:** All patient registrations are logged with timestamp and LINE User ID
+
+**Database Operations:**
+```sql
+-- Atomic transaction for patient registration
+BEGIN;
+  INSERT INTO patients (clinic_id, full_name, phone_number) 
+  VALUES (?, ?, ?) RETURNING id;
+  
+  INSERT INTO line_users (line_user_id, patient_id) 
+  VALUES (?, ?);
+COMMIT;
+```
+
+### Key Design Change: Auto-Registration vs Pre-Registration
+
+**Original Approach**: Clinics needed pre-existing patient databases for verification.
+
+**New Approach**: Patients are auto-registered during first bot interaction.
+
+**Why the Change?**
+- **Simpler**: No patient database import required
+- **Faster**: Immediate access for patients
+- **Scalable**: Works for clinics of any size
+- **Lower barrier**: Small clinics can start immediately
+
+**Patient Input**: Name + phone number only
+
+**Duplicate Handling**: Show error and ask to contact clinic
+
+**Security**: Trust user input for MVP (SMS verification future)
 
 ### 3.2. Patient Appointment Management (Conversational Flow)
 
@@ -76,12 +141,12 @@ To ensure accurate scheduling, the bot will confirm the type of appointment. The
 
 #### 3.2.2. Scheduling an Appointment
 
-*   **Scenario: User specifies a therapist with variations.**
-    *   **User Input Examples:** "我想預約王大名治療師" (Typo), "找大明" (Partial name), "跟上次一樣的治療師" ("The same therapist as last time").
-    *   **System Action:** The LLM is provided with the clinic's list of therapists as context to perform a fuzzy match or query the patient's appointment history. If the input is ambiguous, the bot will ask for clarification.
-    *   **Bot Response (Presenting Slots):** "好的，王大明治療師在以下時段有空檔可安排【初診評估】，請選擇：\n1. 10/23 (四) 14:00\n2. 10/23 (四) 15:00\n3. 10/24 (五) 16:00\n請直接回覆數字選擇時段。" ("Okay, Therapist Wang Da-ming has availability for a [First Visit Assessment] at the following times. Please select one:\n1. 10/23 (Thurs) 14:00\n2. 10/23 (Thurs) 15:00\n3. 10/24 (Fri) 16:00\nPlease reply with the number to choose a time slot.")
+*   **Scenario: User specifies a practitioner with variations.**
+    *   **User Input Examples:** "我想預約王大名治療師" (Typo), "找大明" (Partial name), "跟上次一樣的治療師" ("The same practitioner as last time").
+    *   **System Action:** The LLM is provided with the clinic's list of practitioners as context to perform a fuzzy match or query the patient's appointment history. If the input is ambiguous, the bot will ask for clarification.
+    *   **Bot Response (Presenting Slots):** "好的，王大明治療師在以下時段有空檔可安排【初診評估】，請選擇：\n1. 10/23 (四) 14:00\n2. 10/23 (四) 15:00\n3. 10/24 (五) 16:00\n請直接回覆數字選擇時段。" ("Okay, Practitioner Wang Da-ming has availability for a [First Visit Assessment] at the following times. Please select one:\n1. 10/23 (Thurs) 14:00\n2. 10/23 (Thurs) 15:00\n3. 10/24 (Fri) 16:00\nPlease reply with the number to choose a time slot.")
     *   **User Confirmation:** "1"
-    *   **Final Confirmation:** The bot confirms all details: "好的，已為您預約【王大明治療師】，時間是【10月23日 (四) 14:00】，項目為【初診評估】。期待與您見面！" ("Okay, your appointment with [Therapist Wang Da-ming] is scheduled for [October 23 (Thurs) 14:00] for a [First Visit Assessment]. We look forward to seeing you!")
+    *   **Final Confirmation:** The bot confirms all details: "好的，已為您預約【王大明治療師】，時間是【10月23日 (四) 14:00】，項目為【初診評估】。期待與您見面！" ("Okay, your appointment with [Practitioner Wang Da-ming] is scheduled for [October 23 (Thurs) 14:00] for a [First Visit Assessment]. We look forward to seeing you!")
 
 #### 3.2.3. Rescheduling & Cancellation (Edge Case Handling)
 
@@ -89,7 +154,7 @@ To ensure accurate scheduling, the bot will confirm the type of appointment. The
     *   **Bot Response:** "查詢不到您有任何即將到來的預約。您需要安排一個新的預約嗎？" ("I couldn't find any upcoming appointments for you. Would you like to schedule a new one?")
 
 *   **Edge Case: User has multiple upcoming appointments.**
-    *   **Bot Response:** "您有多個預約，請問您想更改或取消哪一個？\n1. 【10/23 (四) 14:00 - 王大明治療師】\n2. 【10/30 (四) 16:00 - 陳醫師】\n請回覆數字選擇。" ("You have multiple appointments. Which one would you like to change or cancel?\n1. [10/23 (Thurs) 14:00 - Therapist Wang]\n2. [10/30 (Thurs) 16:00 - Dr. Chen]\nPlease reply with the number to select.")
+    *   **Bot Response:** "您有多個預約，請問您想更改或取消哪一個？\n1. 【10/23 (四) 14:00 - 王大明治療師】\n2. 【10/30 (四) 16:00 - 陳醫師】\n請回覆數字選擇。" ("You have multiple appointments. Which one would you like to change or cancel?\n1. [10/23 (Thurs) 14:00 - Practitioner Wang]\n2. [10/30 (Thurs) 16:00 - Dr. Chen]\nPlease reply with the number to select.")
 
 ### 3.3. Google Calendar Event Details
 
@@ -102,13 +167,13 @@ To ensure accurate scheduling, the bot will confirm the type of appointment. The
 *   **Guests:** The patient will **not** be added as a guest.
 *   **Event Color:** A specific color for bot-scheduled appointments.
 
-### 3.4. Therapist-Initiated Cancellation
+### 3.4. Practitioner-Initiated Cancellation
 
 **Flow:**
-1.  **Therapist Action:** The therapist deletes the Google Calendar event.
+1.  **Practitioner Action:** The practitioner deletes the Google Calendar event.
 2.  **Google API Trigger:** A Google Calendar Push Notification (webhook) informs our system.
 3.  **System Action:** The system identifies the patient linked to the event.
-4.  **Patient Notification:** The bot sends a message to the patient: "提醒您，您原訂於【10/23 (四) 14:00】與【王大明治療師】的預約已被診所取消。很抱歉造成您的不便，請問需要為您重新安排預約嗎？" ("This is a notification that your appointment with [Therapist Wang Da-ming] on [10/23 (Thurs) 14:00] has been canceled by the clinic. We apologize for the inconvenience. Would you like to reschedule?")
+4.  **Patient Notification:** The bot sends a message to the patient: "提醒您，您原訂於【10/23 (四) 14:00】與【王大明治療師】的預約已被診所取消。很抱歉造成您的不便，請問需要為您重新安排預約嗎？" ("This is a notification that your appointment with [Practitioner Wang Da-ming] on [10/23 (Thurs) 14:00] has been canceled by the clinic. We apologize for the inconvenience. Would you like to reschedule?")
 
 ## 4. Backend Administration Platform (Web-based)
 
@@ -121,15 +186,17 @@ To ensure accurate scheduling, the bot will confirm the type of appointment. The
 ### 4.2. Platform Layout & Pages
 
 *   **儀表板 (Dashboard):** An overview of key metrics: upcoming appointments, new patient linkings, and cancellation rates.
-*   **預約行事曆 (Appointment Calendar):** This page features an embedded Google Calendar interface, displaying a consolidated, read-only view of all synced therapist calendars. This gives the admin a complete overview of the clinic's schedule.
-*   **治療師管理 (Therapist Management):** A list of all therapists.
+*   **預約行事曆 (Appointment Calendar):** This page features an embedded Google Calendar interface, displaying a consolidated, read-only view of all synced practitioner calendars. This gives the admin a complete overview of the clinic's schedule.
+*   **成員管理 (Member Management):** A list of all team members with their roles and permissions.
 *   **病患管理 (Patient Management):** A list of registered patients, showing their name, phone number, and linked LINE account status.
 *   **設定 (Settings):** Configuration for the clinic and the bot.
 
-### 4.3. Therapist Management Flow
+### 4.3. Team Member Management Flow
 
-1.  **Add Therapist:** The admin enters the therapist's name and email.
-2.  **Invite & Connect Calendar:** The therapist receives an email, sets a password, and is guided through the Google OAuth2 flow to grant calendar permissions.
+1.  **Invite Team Member:** The admin selects roles (admin, practitioner, or both) and generates a secure invitation link.
+2.  **Share Link:** The admin manually shares the signup link with the team member (via email, chat, etc.).
+3.  **Member Signup:** The team member clicks the link and authenticates with Google OAuth to grant calendar permissions if they have practitioner role.
+4.  **Role Management:** Admins can later adjust member roles via checkboxes (admin access, practitioner role).
 
 ### 4.4. Settings Page
 
@@ -154,10 +221,10 @@ To ensure accurate scheduling, the bot will confirm the type of appointment. The
 ### 6.1. Subscription Model
 
 *   **Free Trial:** 14-day full-featured free trial.
-*   **Monthly/Annual Plans:** Tiered plans based on the number of active therapists.
-    *   **Solo Practitioner:** 1-2 therapists.
-    *   **Small Clinic:** 3-5 therapists.
-    *   **Large Clinic:** 6+ therapists.
+*   **Monthly/Annual Plans:** Tiered plans based on the number of active practitioners.
+    *   **Solo Practitioner:** 1-2 practitioners.
+    *   **Small Clinic:** 3-5 practitioners.
+    *   **Large Clinic:** 6+ practitioners.
 
 ### 6.2. Billing User Flow & Service
 

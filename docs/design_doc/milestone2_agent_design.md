@@ -97,21 +97,22 @@ LINE Webhook → Triage Agent → [Account Linking Agent* → Appointment Agent 
 #### **Appointment Agent**
 - **Purpose**: Handle all appointment-related operations (book, reschedule, cancel)
 - **Capabilities**: Full conversational appointment management
-- **Context**: Patient info (guaranteed to be linked), clinic settings, therapist availability
+- **Context**: Patient info (guaranteed to be linked), clinic settings, practitioner availability
 - **Tools**: Database operations for appointments and availability
 - **Prerequisite**: Account must be linked (guaranteed by workflow orchestration)
 
 #### **Account Linking Agent**
-- **Purpose**: Handle phone number verification and account linking conversation
-- **Capabilities**: Phone number collection, verification, account creation
+- **Purpose**: Handle patient auto-registration and LINE account linking
+- **Capabilities**: Name and phone number collection, duplicate detection, patient record creation
 - **Context**: Clinic info, line_user_id, database session
-- **Tools**: `verify_and_link_patient` tool
+- **Tools**: `register_patient_with_line` tool
 - **Trigger**: Workflow orchestration calls this agent when `is_linked` is False
+- **Design Philosophy**: Auto-register patients (no pre-existing database needed)
 
 ## 3. Context Injection Strategy
 
 ### 3.1. Data Size Analysis
-- **Therapists**: <20 per clinic (small, stable)
+- **Practitioners**: <20 per clinic (small, stable)
 - **Appointment Types**: <10 per clinic (small, stable)
 - **Clinic Settings**: Single record per clinic
 
@@ -162,13 +163,13 @@ def get_appointment_instructions(
     """Generate dynamic instructions with current clinic and patient context."""
     ctx = wrapper.context
     clinic_name = ctx.clinic.name
-    therapists_list = ctx.therapists_list
+    practitioners_list = ctx.practitioners_list
     appointment_types_list = ctx.appointment_types_list
     patient_name = ctx.patient.full_name if ctx.patient else "Unknown"
     
     return f"""You are a helpful appointment booking assistant for {clinic_name}.
 
-    Available therapists: {therapists_list}
+    Available practitioners: {practitioners_list}
     Available appointment types: {appointment_types_list}
 
     Handle appointment requests conversationally in Traditional Chinese.
@@ -181,7 +182,7 @@ def get_appointment_instructions(
     - Reschedule existing appointments  
     - Cancel appointments
     - View upcoming appointments
-    - Handle requests like "same therapist as last time" """
+    - Handle requests like "same practitioner as last time" """
 
 # Module-level agent definition (created once, reused for all requests)
 appointment_agent = Agent[ConversationContext](
@@ -189,33 +190,37 @@ appointment_agent = Agent[ConversationContext](
     instructions=get_appointment_instructions,  # Function, evaluated per-request
     model="gpt-4o-mini",
     tools=[
-        get_therapist_availability,
+        get_practitioner_availability,
         create_appointment,
         get_existing_appointments,
         cancel_appointment,
         reschedule_appointment,  # PRD requirement
-        get_last_appointment_therapist,  # PRD requirement: "same therapist as last time"
+        get_last_appointment_practitioner,  # PRD requirement: "same practitioner as last time"
     ]
 )
 ```
 
 ### 4.3. Account Linking Agent
 
-**Note**: Dedicated agent for account linking conversation, called by workflow when needed. Uses static instructions since no dynamic clinic context needed.
+**Note**: Dedicated agent for patient auto-registration, called by workflow when needed. Uses static instructions since no dynamic clinic context needed.
 
 ```python
 # Module-level agent definition (created once, reused for all requests)
 account_linking_agent = Agent[ConversationContext](
     name="Account Linking Agent",
-    instructions="""You are helping a new patient link their LINE account to their clinic record.
+    instructions="""You are helping a new patient register and link their LINE account to the clinic system.
 
-    1. Ask for their phone number in Traditional Chinese
-    2. Use the verify_and_link_patient tool to verify and link their account
-    3. Provide clear feedback on success or failure
+    1. Warmly welcome the patient in Traditional Chinese
+    2. Ask for their name and phone number: "歡迎！為了為您預約，請提供您的姓名和手機號碼。"
+    3. Use the register_patient_with_line tool to create their patient record
+    4. Provide clear feedback on success or failure
     
-    If verification fails, tell them to contact the clinic directly.""",
+    If the phone number is already registered with another LINE account, 
+    tell them: "此手機號碼已被其他 LINE 帳號註冊。如果這是您的號碼，請聯繫診所處理。"
+    
+    Be friendly and conversational. Once registration is successful, let them know they can now make appointments.""",
     model="gpt-4o-mini",
-    tools=[verify_and_link_patient]
+    tools=[register_patient_with_line]
 )
 ```
 
@@ -232,17 +237,17 @@ from datetime import datetime
 from typing import Optional
 
 @function_tool
-async def get_therapist_availability(
+async def get_practitioner_availability(
     wrapper: RunContextWrapper[ConversationContext],  # SDK-compliant wrapper
-    therapist_name: str,
+    practitioner_name: str,
     date: str,
     appointment_type: str
 ) -> dict:
-    """Get available time slots for a specific therapist and appointment type.
-    
+    """Get available time slots for a specific practitioner and appointment type.
+
     Args:
         wrapper: Context wrapper (auto-injected, NOT specified by LLM)
-        therapist_name: Name of therapist (specified by LLM from conversation)
+        practitioner_name: Name of practitioner (specified by LLM from conversation)
         date: Date string in YYYY-MM-DD format
         appointment_type: Type of appointment (e.g., "初診評估")
     
@@ -254,13 +259,14 @@ async def get_therapist_availability(
     clinic = wrapper.context.clinic
     
     # Implementation: Query database for available slots
-    therapist = db.query(Therapist).filter(
-        Therapist.clinic_id == clinic.id,
-        Therapist.name == therapist_name
+    practitioner = db.query(User).filter(
+        User.clinic_id == clinic.id,
+        User.full_name == practitioner_name,
+        User.roles.contains(['practitioner'])
     ).first()
-    
-    if not therapist:
-        return {"error": f"找不到治療師：{therapist_name}"}
+
+    if not practitioner:
+        return {"error": f"找不到治療師：{practitioner_name}"}
     
     # Query availability logic...
     return {"slots": [...]}
@@ -268,7 +274,7 @@ async def get_therapist_availability(
 @function_tool
 async def create_appointment(
     wrapper: RunContextWrapper[ConversationContext],
-    therapist_id: int,
+    practitioner_id: int,
     appointment_type_id: int,
     start_time: datetime,
     patient_id: int
@@ -277,7 +283,7 @@ async def create_appointment(
     
     Args:
         wrapper: Context wrapper (auto-injected)
-        therapist_id: ID of therapist (from LLM tool call)
+        practitioner_id: ID of practitioner (from LLM tool call)
         appointment_type_id: ID of appointment type
         start_time: Appointment start time
         patient_id: ID of patient
@@ -339,10 +345,10 @@ async def reschedule_appointment(
     appointment_id: int,
     patient_id: int,
     new_start_time: datetime,
-    new_therapist_id: Optional[int] = None,
+    new_practitioner_id: Optional[int] = None,
     new_appointment_type_id: Optional[int] = None
 ) -> dict:
-    """Reschedule an existing appointment to a new time/therapist/type.
+    """Reschedule an existing appointment to a new time/practitioner/type.
     
     PRD Requirement: Section 2.1 & 3.2.3 - Enable patients to reschedule appointments.
     
@@ -432,57 +438,120 @@ async def get_last_appointment_therapist(
     }
 ```
 
-### 5.2. Patient Account Linking Tool
+### 5.2. Patient Auto-Registration Tool
 
 ```python
 @function_tool
-async def verify_and_link_patient(
+async def register_patient_with_line(
     wrapper: RunContextWrapper[ConversationContext],  # SDK-compliant wrapper
-    phone_number: str                                  # Specified by LLM from user input
+    full_name: str,                                    # Patient name from user
+    phone_number: str                                  # Phone number from user
 ) -> dict:
-    """Verify phone number and link LINE account to patient record.
+    """Register new patient and link LINE account in atomic transaction.
 
-    This tool PERFORMS THE LINKING ACTION, not just checking status.
-    Used within Account Linking Agent when user provides phone number.
+    This tool creates a patient record and links it to the LINE account.
+    Used within Account Linking Agent when user provides name and phone.
 
     Args:
         wrapper: Context wrapper (auto-injected, provides db_session, clinic, line_user_id)
-        phone_number: Phone number provided by user (from LLM conversation)
+        full_name: Patient's full name (provided by user in conversation)
+        phone_number: Patient's phone number (provided by user in conversation)
 
     Returns:
-        dict: {"success": bool, "message": str, "patient": dict | None}
+        dict: {
+            "success": bool, 
+            "message": str, 
+            "patient": dict | None,
+            "status": "created" | "linked_existing" | "duplicate_error"
+        }
         
     Implementation:
-        1. Query patients table for phone_number in this clinic
-        2. If found: Create line_users record linking line_user_id to patient_id
-        3. Return {"success": True, "message": "...", "patient": {...}}
-        4. If not found: Return {"success": False, "message": "請聯繫診所..."}
+        1. Check if phone number already exists in this clinic
+        2. If EXISTS and ALREADY LINKED → Return error (duplicate)
+        3. If EXISTS but NOT LINKED → Link LINE ID to existing patient
+        4. If NEW → Create patient + LINE link in atomic transaction
     """
     # Access context
     db = wrapper.context.db_session
     clinic = wrapper.context.clinic
     line_user_id = wrapper.context.line_user_id
     
-    # Implementation: Verify phone in patients table, create line_users link
-    patient = db.query(Patient).filter(
+    # Check for existing patient with this phone number
+    existing_patient = db.query(Patient).filter(
         Patient.clinic_id == clinic.id,
         Patient.phone_number == phone_number
     ).first()
     
-    if patient:
-        # Create linking
-        line_user = LineUser(line_user_id=line_user_id, patient_id=patient.id)
+    if existing_patient:
+        # Check if already linked to a LINE account
+        existing_line_user = db.query(LineUser).filter(
+            LineUser.patient_id == existing_patient.id
+        ).first()
+        
+        if existing_line_user:
+            # Phone number already registered with another LINE account
+            return {
+                "success": False,
+                "status": "duplicate_error",
+                "message": "此手機號碼已被其他 LINE 帳號註冊。如果這是您的號碼，請聯繫診所處理。",
+                "patient": None
+            }
+        else:
+            # Link to existing patient (orphaned patient record)
+            line_user = LineUser(
+                line_user_id=line_user_id,
+                patient_id=existing_patient.id
+            )
+            db.add(line_user)
+            db.commit()
+            
+            return {
+                "success": True,
+                "status": "linked_existing",
+                "message": "感謝您！您的帳號已成功連結至現有病患記錄，現在可以開始預約了。",
+                "patient": {
+                    "id": existing_patient.id,
+                    "name": existing_patient.full_name,
+                    "phone": existing_patient.phone_number
+                }
+            }
+    
+    # Create new patient + LINE link atomically
+    try:
+        # Create patient record
+        new_patient = Patient(
+            clinic_id=clinic.id,
+            full_name=full_name,
+            phone_number=phone_number
+        )
+        db.add(new_patient)
+        db.flush()  # Get patient.id without committing
+        
+        # Create LINE link
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            patient_id=new_patient.id
+        )
         db.add(line_user)
         db.commit()
+        
         return {
             "success": True,
-            "message": f"成功連結！歡迎 {patient.full_name}",
-            "patient": {"id": patient.id, "name": patient.full_name}
+            "status": "created",
+            "message": "感謝您！您的帳號已成功建立，現在可以開始預約了。",
+            "patient": {
+                "id": new_patient.id,
+                "name": new_patient.full_name,
+                "phone": new_patient.phone_number
+            }
         }
-    else:
+    except Exception as e:
+        db.rollback()
         return {
             "success": False,
-            "message": "找不到此手機號碼的病患資料，請聯繫診所。"
+            "status": "error",
+            "message": "註冊時發生錯誤，請稍後再試或聯繫診所。",
+            "patient": None
         }
 ```
 
@@ -503,7 +572,7 @@ async def verify_and_link_patient(
 class Clinic(Base):
     """Physical therapy clinic entity."""
     __tablename__ = "clinics"
-    
+
     id: int                         # Primary key
     name: str                       # Clinic name
     line_channel_id: str            # LINE Official Account ID
@@ -513,11 +582,20 @@ class Clinic(Base):
     stripe_customer_id: str         # For billing
     created_at: datetime
     updated_at: datetime
-    
+
     # Relationships
-    therapists: list[Therapist]     # Therapists at this clinic
+    users: list[User]               # All clinic members (admins + practitioners)
     patients: list[Patient]         # Registered patients
     appointment_types: list[AppointmentType]  # Available appointment types
+
+    # Convenience properties for role-based access
+    @property
+    def admins(self):
+        return [u for u in self.users if 'admin' in u.roles]
+
+    @property
+    def practitioners(self):
+        return [u for u in self.users if 'practitioner' in u.roles]
 ```
 
 **Patient Model** (`backend/src/models/patient.py`):
@@ -547,7 +625,7 @@ class Patient(Base):
 from dataclasses import dataclass
 from typing import Optional
 from sqlalchemy.orm import Session
-from models import Clinic, Patient, Therapist, AppointmentType
+from models import Clinic, Patient, User, AppointmentType
 
 @dataclass
 class ConversationContext:
@@ -566,11 +644,12 @@ class ConversationContext:
     
     @property
     def therapists_list(self) -> str:
-        """Formatted list of available therapists for prompt injection."""
-        therapists = self.db_session.query(Therapist).filter(
-            Therapist.clinic_id == self.clinic.id
+        """Formatted list of available practitioners for prompt injection."""
+        practitioners = self.db_session.query(User).filter(
+            User.clinic_id == self.clinic.id,
+            User.roles.contains(['practitioner'])
         ).all()
-        return ", ".join([t.name for t in therapists])
+        return ", ".join([p.full_name for p in practitioners])
 
     @property
     def appointment_types_list(self) -> str:
@@ -1197,7 +1276,7 @@ session_storage = SQLAlchemySession(
 CREATE TABLE appointments (
     id SERIAL PRIMARY KEY,
     patient_id INTEGER REFERENCES patients(id),
-    therapist_id INTEGER REFERENCES therapists(id),
+    user_id INTEGER REFERENCES users(id),  -- References users table (practitioners)
     appointment_type_id INTEGER REFERENCES appointment_types(id),
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ NOT NULL,
@@ -1205,10 +1284,10 @@ CREATE TABLE appointments (
     gcal_event_id VARCHAR(255) UNIQUE,  -- ← CRITICAL: Sync key to Google Calendar
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    
+
     -- Indexes for performance
     INDEX idx_patient_upcoming (patient_id, start_time),
-    INDEX idx_therapist_schedule (therapist_id, start_time),
+    INDEX idx_user_schedule (user_id, start_time),
     INDEX idx_gcal_sync (gcal_event_id)  -- Fast webhook lookups
 );
 ```
@@ -1236,7 +1315,7 @@ from services.google_calendar_service import GoogleCalendarService
 @function_tool
 async def create_appointment(
     wrapper: RunContextWrapper[ConversationContext],
-    therapist_id: int,
+    practitioner_id: int,
     appointment_type_id: int,
     start_time: datetime,
     patient_id: int
@@ -1519,7 +1598,7 @@ AGENT_MODEL=gpt-4o-mini  # Used for all agents
   - [ ] `cancel_appointment`
   - [ ] `reschedule_appointment` (NEW)
   - [ ] `get_last_appointment_therapist` (NEW)
-  - [ ] `verify_and_link_patient`
+  - [ ] `register_patient_with_line`
 - [ ] Create triage agent (`agents/triage_agent.py`)
 - [ ] Create appointment agent (`agents/appointment_agent.py`)
 - [ ] Create account linking agent (`agents/account_linking_agent.py`)
@@ -1578,7 +1657,7 @@ AGENT_MODEL=gpt-4o-mini  # Used for all agents
 6. `get_last_appointment_therapist` - Get previous therapist
 
 **Account Linking (1 tool):**
-7. `verify_and_link_patient` - Phone verification + account linking
+7. `register_patient_with_line` - Patient auto-registration + LINE account linking
 
 All tools use `RunContextWrapper[ConversationContext]` for SDK compliance.
 

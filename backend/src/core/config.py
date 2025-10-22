@@ -28,3 +28,8 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+
+# Authentication
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
+SYSTEM_ADMIN_EMAILS = os.getenv("SYSTEM_ADMIN_EMAILS", "").split(",")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
