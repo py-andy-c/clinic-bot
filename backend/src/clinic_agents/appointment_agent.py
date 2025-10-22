@@ -10,7 +10,7 @@ clinic-specific context for each conversation.
 from agents import Agent, ModelSettings, RunContextWrapper
 from clinic_agents.context import ConversationContext
 from clinic_agents.tools import (
-    get_therapist_availability,
+    get_practitioner_availability,
     create_appointment,
     get_existing_appointments,
     cancel_appointment,
@@ -62,7 +62,7 @@ def get_appointment_instructions(
 
 1. **預約建立**
    - 詢問用戶想要的治療師、預約類型和時間
-   - 使用 get_therapist_availability 查詢可用時段
+   - 使用 get_practitioner_availability 查詢可用時段
    - 使用 create_appointment 建立預約
    - 確認預約成功並提供詳細資訊
 
@@ -106,7 +106,7 @@ appointment_agent = Agent[ConversationContext](
     instructions=get_appointment_instructions,  # Dynamic function for context injection
     model="gpt-4o-mini",
     tools=[
-        get_therapist_availability,
+        get_practitioner_availability,
         create_appointment,
         get_existing_appointments,
         cancel_appointment,

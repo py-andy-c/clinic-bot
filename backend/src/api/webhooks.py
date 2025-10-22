@@ -17,7 +17,7 @@ from services.line_service import LINEService
 from services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
 from clinic_agents.helpers import get_clinic_from_request
 from core.database import get_db
-from models import Therapist, Appointment
+from models import User, Appointment
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -77,6 +77,20 @@ async def line_webhook(request: Request, db: Session = Depends(get_db)) -> Plain
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid LINE signature"
             )
+
+        # 5. Update clinic webhook tracking
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+
+        # Update 24h webhook count (reset if more than 24h since last webhook)
+        if clinic.last_webhook_received_at and (now - clinic.last_webhook_received_at) > timedelta(hours=24):
+            clinic.webhook_count_24h = 0
+        clinic.webhook_count_24h += 1
+
+        # Update last webhook timestamp
+        clinic.last_webhook_received_at = now
+
+        db.commit()
 
         # 5. Parse LINE message payload
         try:
@@ -208,35 +222,41 @@ async def _handle_calendar_changes(db: Session, resource_id: str) -> None:
         Exception: If calendar processing fails
     """
     try:
-        # Find the therapist associated with this resource ID
-        therapist = db.query(Therapist).filter_by(gcal_watch_resource_id=resource_id).first()
-        if not therapist:
-            logger.warning(f"No therapist found for resource ID: {resource_id}")
+        # Find the user associated with this resource ID
+        user = db.query(User).filter(
+            User.gcal_watch_resource_id == resource_id,
+            User.roles.contains(['practitioner'])
+        ).first()
+        if not user:
+            logger.warning(f"No practitioner found for resource ID: {resource_id}")
             return
 
-        logger.info(f"Processing calendar changes for therapist: {therapist.name} (ID: {therapist.id})")
+        logger.info(f"Processing calendar changes for practitioner: {user.full_name} (ID: {user.id})")
 
-        # Get all confirmed appointments for this therapist that have Google Calendar events
+        # Get all confirmed appointments for this user that have Google Calendar events
         appointments = db.query(Appointment).filter(
-            Appointment.therapist_id == therapist.id,
+            Appointment.user_id == user.id,
             Appointment.status == "confirmed",
             Appointment.gcal_event_id.isnot(None)
         ).all()
 
         if not appointments:
-            logger.info(f"No appointments with Google Calendar events found for therapist {therapist.id}")
+            logger.info(f"No appointments with Google Calendar events found for user {user.id}")
             return
 
-        # If therapist doesn't have Google Calendar credentials, we can't check
-        if not therapist.gcal_credentials:
-            logger.warning(f"Therapist {therapist.id} has no Google Calendar credentials")
+        # If user doesn't have Google Calendar credentials, we can't check
+        if not user.gcal_credentials:
+            logger.warning(f"User {user.id} has no Google Calendar credentials")
             return
 
-        # Initialize Google Calendar service
+        # Initialize Google Calendar service with decrypted credentials
         try:
-            gcal_service = GoogleCalendarService(therapist.gcal_credentials)
+            from services.encryption_service import get_encryption_service
+            import json
+            decrypted_credentials = get_encryption_service().decrypt_data(user.gcal_credentials)
+            gcal_service = GoogleCalendarService(json.dumps(decrypted_credentials))
         except GoogleCalendarError as e:
-            logger.error(f"Failed to initialize Google Calendar service for therapist {therapist.id}: {e}")
+            logger.error(f"Failed to initialize Google Calendar service for user {user.id}: {e}")
             return
 
         # Get current events from Google Calendar
@@ -258,7 +278,7 @@ async def _handle_calendar_changes(db: Session, resource_id: str) -> None:
             current_event_ids = {str(event.get('id', '')) for event in items if event.get('id')}  # type: ignore
 
         except Exception as e:
-            logger.error(f"Failed to fetch Google Calendar events for therapist {therapist.id}: {e}")
+            logger.error(f"Failed to fetch Google Calendar events for user {user.id}: {e}")
             return
 
         # Check for deleted events (appointments that have gcal_event_id but event no longer exists)
@@ -268,7 +288,7 @@ async def _handle_calendar_changes(db: Session, resource_id: str) -> None:
                 deleted_appointments.append(appointment)
 
         if not deleted_appointments:
-            logger.info(f"No deleted appointments found for therapist {therapist.id}")
+            logger.info(f"No deleted appointments found for user {user.id}")
             return
 
         # Process deleted appointments
@@ -313,7 +333,7 @@ async def _send_cancellation_notification(db: Session, appointment: Appointment)
             return
 
         # Format cancellation message (as specified in PRD)
-        therapist_name = appointment.therapist.name
+        therapist_name = appointment.user.full_name
         appointment_time = appointment.start_time.strftime("%m/%d (%a) %H:%M")
         message = (
             f"提醒您，您原訂於【{appointment_time}】與【{therapist_name}治療師】的預約已被診所取消。"

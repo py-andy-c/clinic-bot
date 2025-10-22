@@ -9,7 +9,7 @@ with its own LINE Official Account and Google Calendar integrations.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, TIMESTAMP, func
+from sqlalchemy import String, TIMESTAMP, func, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -92,15 +92,44 @@ class Clinic(Base):
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
     """Timestamp when the clinic was last updated."""
 
-    # Relationships
-    admins = relationship("ClinicAdmin", back_populates="clinic")
-    """Clinic administrators who manage this clinic."""
+    # LINE Integration Health Tracking
+    last_webhook_received_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    """Timestamp of the last successfully received LINE webhook."""
 
-    therapists = relationship("Therapist", back_populates="clinic")
-    """Therapists employed at this clinic."""
+    webhook_count_24h: Mapped[int] = mapped_column(Integer, default=0)
+    """Count of webhooks received in the last 24 hours."""
+
+    last_health_check_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    """Timestamp of the last health check performed."""
+
+    health_check_errors: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    """JSON string containing recent health check errors."""
+
+    # Relationships
+    users = relationship("User", back_populates="clinic")
+    """All clinic personnel (admins, practitioners)"""
 
     patients = relationship("Patient", back_populates="clinic")
     """Patients registered with this clinic."""
 
     appointment_types = relationship("AppointmentType", back_populates="clinic")
     """Types of appointments offered by this clinic."""
+
+    signup_tokens = relationship("SignupToken", back_populates="clinic")
+    """Active signup tokens for inviting new users"""
+
+    # Convenience properties for backward compatibility
+    @property
+    def admins(self):
+        """Get all admin users for this clinic."""
+        return [u for u in self.users if 'admin' in u.roles]
+
+    @property
+    def therapists(self):
+        """Get all practitioner users for this clinic (deprecated - use practitioners)."""
+        return self.practitioners
+
+    @property
+    def practitioners(self):
+        """Get all practitioner users for this clinic."""
+        return [u for u in self.users if 'practitioner' in u.roles]

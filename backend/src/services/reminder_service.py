@@ -164,7 +164,7 @@ class ReminderService:
                 return False
 
             # Format reminder message
-            therapist_name = appointment.therapist.name
+            therapist_name = appointment.user.full_name
             appointment_time = appointment.start_time.strftime("%m/%d (%a) %H:%M")
             appointment_type = appointment.appointment_type.name
 

@@ -6,8 +6,9 @@ book appointments and receive treatments. Each patient belongs to exactly one cl
 and can optionally have a LINE messaging account for communication.
 """
 
-from sqlalchemy import String, ForeignKey
+from sqlalchemy import String, ForeignKey, TIMESTAMP, func, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from datetime import datetime
 
 from core.database import Base
 
@@ -36,6 +37,9 @@ class Patient(Base):
     phone_number: Mapped[str] = mapped_column(String(50))
     """Contact phone number for the patient, used for appointment confirmations and reminders."""
 
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+    """Timestamp when the patient was first created."""
+
     # Relationships
     clinic = relationship("Clinic", back_populates="patients")
     """Relationship to the Clinic entity where this patient receives treatment."""
@@ -45,3 +49,7 @@ class Patient(Base):
 
     line_user = relationship("LineUser", back_populates="patient", uselist=False)
     """Optional relationship to the patient's LINE messaging account for communication."""
+
+    __table_args__ = (
+        UniqueConstraint('clinic_id', 'phone_number', name='uq_clinic_patient_phone'),
+    )

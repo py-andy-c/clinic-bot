@@ -27,3 +27,6 @@ google-api-python-client>=2.100.0
 
 # Background task scheduler
 apscheduler>=3.10.0
+
+# Encryption
+cryptography>=41.0.0

@@ -3,20 +3,21 @@
 Agent tools for database operations and external service integrations.
 
 This module contains all the tools that agents can call to perform actions:
-- Database operations (appointments, patients, therapists)
+- Database operations (appointments, patients, practitioners)
 - Google Calendar synchronization
 - Account linking operations
 
 All tools follow the OpenAI Agent SDK pattern using RunContextWrapper[ConversationContext].
 """
 
+import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from sqlalchemy.exc import IntegrityError
 
 from agents import function_tool, RunContextWrapper
 
-from models.therapist import Therapist
+from models import User
 from models.patient import Patient
 from models.appointment import Appointment
 from models.appointment_type import AppointmentType
@@ -26,21 +27,21 @@ from clinic_agents.context import ConversationContext
 
 
 @function_tool
-async def get_therapist_availability(
+async def get_practitioner_availability(
     wrapper: RunContextWrapper[ConversationContext],
-    therapist_name: str,
+    practitioner_name: str,
     date: str,
     appointment_type: str
 ) -> Dict[str, Any]:
     """
-    Get available time slots for a specific therapist and appointment type.
+    Get available time slots for a specific practitioner and appointment type.
 
-    This tool finds available time slots for a therapist on a specific date,
+    This tool finds available time slots for a practitioner on a specific date,
     considering their existing appointments and the requested appointment duration.
 
     Args:
         wrapper: Context wrapper (auto-injected)
-        therapist_name: Name of the therapist (from user conversation)
+        practitioner_name: Name of the practitioner (from user conversation)
         date: Date string in YYYY-MM-DD format
         appointment_type: Type of appointment (e.g., "初診評估")
 
@@ -54,14 +55,16 @@ async def get_therapist_availability(
         # Parse date
         requested_date = datetime.strptime(date, "%Y-%m-%d").date()
 
-        # Find therapist
-        therapist = db.query(Therapist).filter(
-            Therapist.clinic_id == clinic.id,
-            Therapist.name.ilike(f"%{therapist_name}%")  # Fuzzy name matching
+        # Find practitioner (user with practitioner role)
+        practitioner = db.query(User).filter(
+            User.clinic_id == clinic.id,
+            User.roles.contains(['practitioner']),
+            User.full_name.ilike(f"%{practitioner_name}%"),  # Fuzzy name matching
+            User.is_active == True
         ).first()
 
-        if not therapist:
-            return {"error": f"找不到治療師：{therapist_name}"}
+        if not practitioner:
+            return {"error": f"找不到醫師：{practitioner_name}"}
 
         # Find appointment type
         apt_type = db.query(AppointmentType).filter(
@@ -72,12 +75,12 @@ async def get_therapist_availability(
         if not apt_type:
             return {"error": f"找不到預約類型：{appointment_type}"}
 
-        # Get existing appointments for this therapist on this date
+        # Get existing appointments for this practitioner on this date
         day_start = datetime.combine(requested_date, datetime.min.time())
         day_end = datetime.combine(requested_date, datetime.max.time())
 
         existing_appointments = db.query(Appointment).filter(
-            Appointment.therapist_id == therapist.id,
+            Appointment.user_id == practitioner.id,
             Appointment.start_time >= day_start,
             Appointment.end_time <= day_end,
             Appointment.status.in_(['confirmed', 'pending'])  # Include confirmed and pending
@@ -108,8 +111,8 @@ async def get_therapist_availability(
             current_time += timedelta(minutes=30)
 
         return {
-            "therapist_id": therapist.id,
-            "therapist_name": therapist.name,
+            "therapist_id": practitioner.id,
+            "therapist_name": practitioner.full_name,
             "date": date,
             "appointment_type": appointment_type,
             "duration_minutes": apt_type.duration_minutes,
@@ -151,11 +154,15 @@ async def create_appointment(
 
     try:
         # Load related entities
-        therapist = db.query(Therapist).get(therapist_id)
+        practitioner = db.query(User).filter(
+            User.id == therapist_id,
+            User.roles.contains(['practitioner']),
+            User.is_active == True
+        ).first()
         patient = db.query(Patient).get(patient_id)
         apt_type = db.query(AppointmentType).get(appointment_type_id)
 
-        if therapist is None:
+        if practitioner is None:
             return {"error": "找不到指定的治療師"}
         if patient is None:
             return {"error": "找不到指定的病人"}
@@ -166,7 +173,11 @@ async def create_appointment(
         end_time = start_time + timedelta(minutes=apt_type.duration_minutes)
 
         # Create Google Calendar event FIRST
-        gcal_service = GoogleCalendarService(therapist.gcal_credentials)
+        if not practitioner.gcal_credentials:
+            return {"error": "Practitioner has no Google Calendar credentials"}
+        from services.encryption_service import get_encryption_service
+        gcal_credentials = get_encryption_service().decrypt_data(practitioner.gcal_credentials)
+        gcal_service = GoogleCalendarService(json.dumps(gcal_credentials))
         gcal_event = await gcal_service.create_event(
             summary=f"{patient.full_name} - {apt_type.name}",
             start=start_time,
@@ -190,7 +201,7 @@ async def create_appointment(
         # Create database record with gcal_event_id
         appointment = Appointment(
             patient_id=patient_id,
-            therapist_id=therapist_id,
+            user_id=therapist_id,
             appointment_type_id=appointment_type_id,
             start_time=start_time,
             end_time=end_time,
@@ -216,12 +227,12 @@ async def create_appointment(
         return {
             "success": True,
             "appointment_id": appointment.id,
-            "therapist_name": therapist.name,
+            "therapist_name": practitioner.full_name,
             "appointment_type": apt_type.name,
             "start_time": start_time.isoformat(),
             "end_time": end_time.isoformat(),
             "gcal_event_id": gcal_event['id'],
-            "message": f"預約成功！{start_time.strftime('%Y-%m-%d %H:%M')} 與 {therapist.name} 預約 {apt_type.name}"
+            "message": f"預約成功！{start_time.strftime('%Y-%m-%d %H:%M')} 與 {practitioner.full_name} 預約 {apt_type.name}"
         }
 
     except GoogleCalendarError as e:
@@ -260,12 +271,12 @@ async def get_existing_appointments(
             Appointment.patient_id == patient_id,
             Appointment.start_time >= datetime.now(),
             Appointment.status.in_(['confirmed', 'pending'])
-        ).join(Therapist).join(AppointmentType).order_by(Appointment.start_time).all()
+        ).join(User).join(AppointmentType).order_by(Appointment.start_time).all()
 
         return [
             {
                 "id": apt.id,
-                "therapist_name": apt.therapist.name,
+                "therapist_name": apt.user.full_name,
                 "appointment_type": apt.appointment_type.name,
                 "start_time": apt.start_time.isoformat(),
                 "end_time": apt.end_time.isoformat(),
@@ -311,10 +322,15 @@ async def cancel_appointment(
             return {"error": "找不到該預約或您無權限取消"}
 
         # Cancel in Google Calendar first
-        therapist = appointment.therapist
-        gcal_service = GoogleCalendarService(therapist.gcal_credentials)
+        practitioner = appointment.user
+        if practitioner.gcal_credentials:
+            from services.encryption_service import get_encryption_service
+            gcal_credentials = get_encryption_service().decrypt_data(practitioner.gcal_credentials)
+            gcal_service = GoogleCalendarService(json.dumps(gcal_credentials))
+        else:
+            gcal_service = None
 
-        if appointment.gcal_event_id is not None:
+        if appointment.gcal_event_id is not None and gcal_service is not None:
             await gcal_service.delete_event(appointment.gcal_event_id)
 
         # Update database
@@ -324,9 +340,9 @@ async def cancel_appointment(
         return {
             "success": True,
             "appointment_id": appointment.id,
-            "therapist_name": appointment.therapist.name,
+            "therapist_name": appointment.user.full_name,
             "start_time": appointment.start_time.isoformat(),
-            "message": f"預約已取消：{appointment.start_time.strftime('%Y-%m-%d %H:%M')} 與 {appointment.therapist.name} 的 {appointment.appointment_type.name}"
+            "message": f"預約已取消：{appointment.start_time.strftime('%Y-%m-%d %H:%M')} 與 {appointment.user.full_name} 的 {appointment.appointment_type.name}"
         }
 
     except GoogleCalendarError as e:
@@ -387,7 +403,11 @@ async def reschedule_appointment(
         new_apt_type = None
 
         if new_therapist_id:
-            new_therapist = db.query(Therapist).get(new_therapist_id)
+            new_therapist = db.query(User).filter(
+                User.id == new_therapist_id,
+                User.roles.contains(['practitioner']),
+                User.is_active == True
+            ).first()
             if not new_therapist:
                 return {"error": "找不到指定的治療師"}
 
@@ -397,23 +417,32 @@ async def reschedule_appointment(
                 return {"error": "找不到指定的預約類型"}
 
         # Use existing entities if not specified
-        final_therapist = new_therapist or appointment.therapist
+        final_therapist = new_therapist or appointment.user
         final_apt_type = new_apt_type or appointment.appointment_type
 
         # Calculate new end time
         new_end_time = new_start_time + timedelta(minutes=final_apt_type.duration_minutes)
 
         # Update Google Calendar event
-        gcal_service = GoogleCalendarService(final_therapist.gcal_credentials)
+        if final_therapist.gcal_credentials:
+            from services.encryption_service import get_encryption_service
+            gcal_credentials = get_encryption_service().decrypt_data(final_therapist.gcal_credentials)
+            gcal_service = GoogleCalendarService(json.dumps(gcal_credentials))
+        else:
+            gcal_service = None
 
         if appointment.gcal_event_id is not None:
             # Delete old event if therapist changed
-            if new_therapist and new_therapist.id != appointment.therapist_id:
-                old_gcal_service = GoogleCalendarService(appointment.therapist.gcal_credentials)
+            if new_therapist and new_therapist.id != appointment.user_id and appointment.user.gcal_credentials:
+                from services.encryption_service import get_encryption_service
+                old_gcal_credentials = get_encryption_service().decrypt_data(appointment.user.gcal_credentials)
+                old_gcal_service = GoogleCalendarService(json.dumps(old_gcal_credentials))
                 await old_gcal_service.delete_event(appointment.gcal_event_id)
 
                 # Create new event with new therapist
-                gcal_event = await gcal_service.create_event(
+                new_gcal_event_id = None
+                if gcal_service is not None:
+                    gcal_event = await gcal_service.create_event(
                     summary=f"{appointment.patient.full_name} - {final_apt_type.name}",
                     start=new_start_time,
                     end=new_end_time,
@@ -426,8 +455,8 @@ async def reschedule_appointment(
                         }
                     }
                 )
-                new_gcal_event_id = gcal_event['id']
-            else:
+                    new_gcal_event_id = gcal_event['id']
+            elif gcal_service is not None:
                 # Update existing event
                 await gcal_service.update_event(
                     event_id=appointment.gcal_event_id,
@@ -437,7 +466,9 @@ async def reschedule_appointment(
                     description=f"Patient: {appointment.patient.full_name}\nPhone: {appointment.patient.phone_number}\nType: {final_apt_type.name}\nScheduled Via: LINE Bot"
                 )
                 new_gcal_event_id = appointment.gcal_event_id
-        else:
+            else:
+                new_gcal_event_id = None
+        elif gcal_service is not None:
             # No existing GCal event, create new one
             gcal_event = await gcal_service.create_event(
                 summary=f"{appointment.patient.full_name} - {final_apt_type.name}",
@@ -453,12 +484,14 @@ async def reschedule_appointment(
                 }
             )
             new_gcal_event_id = gcal_event['id']
+        else:
+            new_gcal_event_id = None
 
         # Update database
         setattr(appointment, 'start_time', new_start_time)
         setattr(appointment, 'end_time', new_end_time)
         if new_therapist:
-            appointment.therapist_id = new_therapist.id
+            appointment.user_id = new_therapist.id
         if new_apt_type:
             appointment.appointment_type_id = new_apt_type.id
         appointment.gcal_event_id = new_gcal_event_id
@@ -468,11 +501,11 @@ async def reschedule_appointment(
         return {
             "success": True,
             "appointment_id": appointment.id,
-            "new_therapist": final_therapist.name,
+            "new_therapist": final_therapist.full_name,
             "new_appointment_type": final_apt_type.name,
             "new_start_time": new_start_time.isoformat(),
             "new_end_time": new_end_time.isoformat(),
-            "message": f"預約已更改至 {new_start_time.strftime('%Y-%m-%d %H:%M')} 與 {final_therapist.name} 預約 {final_apt_type.name}"
+            "message": f"預約已更改至 {new_start_time.strftime('%Y-%m-%d %H:%M')} 與 {final_therapist.full_name} 預約 {final_apt_type.name}"
         }
 
     except GoogleCalendarError as e:
@@ -509,18 +542,18 @@ async def get_last_appointment_therapist(
             Appointment.patient_id == patient_id,
             Appointment.start_time < datetime.now(),  # Past appointments only
             Appointment.status.in_(['confirmed', 'completed'])  # Successful appointments
-        ).join(Therapist).order_by(Appointment.start_time.desc()).first()
+        ).join(User).order_by(Appointment.start_time.desc()).first()
 
         if not last_appointment:
             return {"error": "找不到您之前的預約記錄"}
 
-        therapist = last_appointment.therapist
+        practitioner = last_appointment.user
         return {
-            "therapist_id": therapist.id,
-            "therapist_name": therapist.name,
+            "therapist_id": practitioner.id,
+            "therapist_name": practitioner.full_name,
             "last_appointment_date": last_appointment.start_time.strftime('%Y-%m-%d'),
             "last_appointment_type": last_appointment.appointment_type.name,
-            "message": f"您上次預約的治療師是 {therapist.name}（{last_appointment.start_time.strftime('%Y-%m-%d')}）"
+            "message": f"您上次預約的治療師是 {practitioner.full_name}（{last_appointment.start_time.strftime('%Y-%m-%d')}）"
         }
 
     except Exception as e:

@@ -73,10 +73,28 @@ class TestClinicAgentsInit:
         result = clinic_agents.SQLAlchemySession
         assert result is None
 
-    @pytest.mark.skip(reason="Complex mocking required for lazy import testing")
     def test_lazy_import_nonexistent_attribute(self):
         """Test __getattr__ for attributes that don't exist in agents package."""
-        pass
+        import clinic_agents
+
+        with patch('importlib.util.find_spec') as mock_find_spec, \
+             patch('importlib.util.module_from_spec') as mock_module_from_spec:
+
+            # Mock spec in site-packages
+            mock_spec = Mock()
+            mock_spec.origin = "/usr/local/lib/python3.12/site-packages/agents/__init__.py"
+            mock_spec.loader = Mock()
+            mock_find_spec.return_value = mock_spec
+
+            # Mock module that doesn't have the NonExistentAttribute
+            mock_module = Mock()
+            # Ensure hasattr returns False for this attribute
+            del mock_module.NonExistentAttribute  # Remove any default attribute
+            mock_module_from_spec.return_value = mock_module
+
+            # This should raise AttributeError since the attribute doesn't exist
+            with pytest.raises(AttributeError, match="module 'clinic_agents' has no attribute 'NonExistentAttribute'"):
+                _ = clinic_agents.NonExistentAttribute
 
     def test_version_attribute(self):
         """Test that the module has a version attribute."""

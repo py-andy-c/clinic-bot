@@ -10,7 +10,7 @@ status states throughout their lifecycle.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import TIMESTAMP, String, ForeignKey
+from sqlalchemy import TIMESTAMP, String, ForeignKey, Index, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -34,8 +34,8 @@ class Appointment(Base):
     patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
     """Reference to the patient who has booked this appointment."""
 
-    therapist_id: Mapped[int] = mapped_column(ForeignKey("therapists.id"))
-    """Reference to the therapist who will conduct this appointment."""
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    """Reference to the practitioner who will conduct this appointment."""
 
     appointment_type_id: Mapped[int] = mapped_column(ForeignKey("appointment_types.id"))
     """Reference to the type of appointment (service/treatment being provided)."""
@@ -52,12 +52,25 @@ class Appointment(Base):
     gcal_event_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     """Google Calendar event ID for appointments that have been synced with Google Calendar."""
 
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+    """Timestamp when the appointment was created."""
+
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    """Timestamp when the appointment was last updated."""
+
     # Relationships
     patient = relationship("Patient", back_populates="appointments")
     """Relationship to the Patient entity who booked this appointment."""
 
-    therapist = relationship("Therapist", back_populates="appointments")
-    """Relationship to the Therapist entity conducting this appointment."""
+    user = relationship("User", back_populates="appointments", foreign_keys=[user_id])
+    """Relationship to the User entity conducting this appointment."""
 
     appointment_type = relationship("AppointmentType", back_populates="appointments")
     """Relationship to the AppointmentType entity defining this appointment's service type."""
+
+    # Table indexes for performance
+    __table_args__ = (
+        Index('idx_patient_upcoming', 'patient_id', 'start_time'),
+        Index('idx_user_schedule', 'user_id', 'start_time'),
+        Index('idx_gcal_sync', 'gcal_event_id'),
+    )

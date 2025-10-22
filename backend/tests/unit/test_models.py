@@ -6,7 +6,7 @@ import pytest
 from datetime import datetime, timezone
 
 from models.clinic import Clinic
-from models.therapist import Therapist
+from models.user import User
 from models.patient import Patient
 from models.appointment_type import AppointmentType
 from models.appointment import Appointment
@@ -60,42 +60,47 @@ class TestClinicModel:
         assert "測試診所" in clinic.name
 
 
-class TestTherapistModel:
-    """Test cases for Therapist model."""
+class TestUserModel:
+    """Test cases for User model."""
 
-    def test_therapist_creation(self, sample_therapist_data):
-        """Test therapist model creation."""
-        therapist = Therapist(
+    def test_user_creation(self, sample_user_data):
+        """Test user model creation."""
+        user = User(
             clinic_id=1,
-            **sample_therapist_data
+            google_subject_id="google_123",
+            **sample_user_data
         )
 
-        assert therapist.name == "Dr. Test"
-        assert therapist.email == "dr.test@example.com"
-        assert therapist.clinic_id == 1
-        assert therapist.gcal_sync_enabled is None  # Default value (None in tests)
+        assert user.full_name == "Dr. Test"
+        assert user.email == "dr.test@example.com"
+        assert user.clinic_id == 1
+        assert user.roles == ["practitioner"]
+        # is_active has default=True, but defaults aren't applied in memory-only objects
+        # gcal_sync_enabled has default=False, but defaults aren't applied in memory-only objects
         # Note: created_at is a server default and may be None in tests
 
-    def test_therapist_google_calendar_fields(self, sample_therapist_data):
-        """Test therapist Google Calendar related fields."""
-        therapist = Therapist(
+    def test_user_google_calendar_fields(self, sample_user_data):
+        """Test user Google Calendar related fields."""
+        user = User(
             clinic_id=1,
-            gcal_credentials={"access_token": "token123"},
+            google_subject_id="google_123",
+            gcal_credentials="encrypted_credentials",
             gcal_sync_enabled=True,
             gcal_watch_resource_id="resource_123",
-            **sample_therapist_data
+            **sample_user_data
         )
 
-        assert therapist.gcal_credentials == {"access_token": "token123"}
-        assert therapist.gcal_sync_enabled is True
-        assert therapist.gcal_watch_resource_id == "resource_123"
+        assert user.gcal_credentials == "encrypted_credentials"
+        assert user.gcal_sync_enabled is True
+        assert user.gcal_watch_resource_id == "resource_123"
 
-    def test_therapist_relationships(self, sample_therapist_data):
-        """Test therapist model relationships."""
-        therapist = Therapist(clinic_id=1, **sample_therapist_data)
+    def test_user_relationships(self, sample_user_data):
+        """Test user model relationships."""
+        user = User(clinic_id=1, google_subject_id="google_123", **sample_user_data)
 
-        assert hasattr(therapist, 'clinic')
-        assert hasattr(therapist, 'appointments')
+        assert hasattr(user, 'clinic')
+        assert hasattr(user, 'appointments')
+        assert hasattr(user, 'refresh_tokens')
 
 
 class TestPatientModel:
@@ -193,7 +198,7 @@ class TestAppointmentModel:
 
         appointment = Appointment(
             patient_id=1,
-            therapist_id=2,
+            user_id=2,
             appointment_type_id=3,
             start_time=start_time,
             end_time=end_time,
@@ -201,7 +206,7 @@ class TestAppointmentModel:
         )
 
         assert appointment.patient_id == 1
-        assert appointment.therapist_id == 2
+        assert appointment.user_id == 2
         assert appointment.appointment_type_id == 3
         assert appointment.start_time == start_time
         assert appointment.end_time == end_time
@@ -215,7 +220,7 @@ class TestAppointmentModel:
         for status in statuses:
             appointment = Appointment(
                 patient_id=1,
-                therapist_id=2,
+                user_id=2,
                 appointment_type_id=3,
                 start_time=datetime.now(timezone.utc),
                 end_time=datetime.now(timezone.utc),
@@ -227,7 +232,7 @@ class TestAppointmentModel:
         """Test appointment with Google Calendar integration."""
         appointment = Appointment(
             patient_id=1,
-            therapist_id=2,
+            user_id=2,
             appointment_type_id=3,
             start_time=datetime.now(timezone.utc),
             end_time=datetime.now(timezone.utc),
@@ -241,7 +246,7 @@ class TestAppointmentModel:
         """Test appointment model relationships."""
         appointment = Appointment(
             patient_id=1,
-            therapist_id=2,
+            user_id=2,
             appointment_type_id=3,
             start_time=datetime.now(timezone.utc),
             end_time=datetime.now(timezone.utc),
@@ -249,5 +254,5 @@ class TestAppointmentModel:
         )
 
         assert hasattr(appointment, 'patient')
-        assert hasattr(appointment, 'therapist')
+        assert hasattr(appointment, 'user')
         assert hasattr(appointment, 'appointment_type')

@@ -18,7 +18,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api import webhooks, admin, provider
+from api import webhooks, auth, signup, system, clinic
 from core.constants import CORS_ORIGINS
 from services.reminder_service import start_reminder_scheduler, stop_reminder_scheduler
 from core.database import get_db
@@ -90,21 +90,42 @@ app.include_router(
     },
 )
 app.include_router(
-    admin.router,
-    prefix="/api",
-    tags=["admin"],
+    auth.router,
+    prefix="/api/auth",
+    tags=["authentication"],
     responses={
         401: {"description": "Unauthorized"},
+        500: {"description": "Internal server error"},
+    },
+)
+app.include_router(
+    signup.router,
+    prefix="/api/signup",
+    tags=["signup"],
+    responses={
+        400: {"description": "Bad request"},
+        401: {"description": "Unauthorized"},
+        500: {"description": "Internal server error"},
+    },
+)
+app.include_router(
+    system.router,
+    prefix="/api/system",
+    tags=["system"],
+    responses={
+        401: {"description": "Unauthorized"},
+        403: {"description": "Forbidden"},
         404: {"description": "Resource not found"},
         500: {"description": "Internal server error"},
     },
 )
 app.include_router(
-    provider.router,
-    prefix="/api/provider",
-    tags=["provider"],
+    clinic.router,
+    prefix="/api/clinic",
+    tags=["clinic"],
     responses={
         401: {"description": "Unauthorized"},
+        403: {"description": "Forbidden"},
         404: {"description": "Resource not found"},
         500: {"description": "Internal server error"},
     },

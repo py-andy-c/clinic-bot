@@ -19,8 +19,9 @@ from core.config import DATABASE_URL
 
 # Import all models to ensure they're registered with Base
 from models.clinic import Clinic
-from models.clinic_admin import ClinicAdmin
-from models.therapist import Therapist
+from models.user import User
+from models.signup_token import SignupToken
+from models.refresh_token import RefreshToken
 from models.patient import Patient
 from models.appointment import Appointment
 from models.appointment_type import AppointmentType
@@ -71,7 +72,7 @@ def reset_database():
         os.chdir("..")
 
         expected_tables = [
-            'clinics', 'clinic_admins', 'therapists', 'patients',
+            'clinics', 'users', 'signup_tokens', 'refresh_tokens', 'patients',
             'appointment_types', 'appointments', 'line_users'
         ]
 
@@ -86,7 +87,7 @@ def reset_database():
             print("🎉 Database reset complete! All tables created successfully.")
             print("\n📊 Database is now ready for testing with:")
             print("   - 0 clinics")
-            print("   - 0 therapists")
+            print("   - 0 users")
             print("   - 0 patients")
             print("   - 0 appointments")
         else:

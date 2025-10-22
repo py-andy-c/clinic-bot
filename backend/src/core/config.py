@@ -31,5 +31,11 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 
 # Authentication
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
-SYSTEM_ADMIN_EMAILS = os.getenv("SYSTEM_ADMIN_EMAILS", "").split(",")
+SYSTEM_ADMIN_EMAILS = [email.strip() for email in os.getenv("SYSTEM_ADMIN_EMAILS", "").split(",") if email.strip()]
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY", "")
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+JWT_REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+# Environment
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")  # "development" or "production"

@@ -9,10 +9,7 @@ from dataclasses import dataclass
 from typing import Optional
 from sqlalchemy.orm import Session
 
-from models.clinic import Clinic
-from models.patient import Patient
-from models.therapist import Therapist
-from models.appointment_type import AppointmentType
+from models import Clinic, Patient, User, AppointmentType
 
 
 @dataclass
@@ -45,15 +42,17 @@ class ConversationContext:
     @property
     def therapists_list(self) -> str:
         """
-        Formatted list of available therapists for prompt injection.
+        Formatted list of available practitioners for prompt injection.
 
         Returns:
-            Comma-separated list of therapist names (e.g., "王大明, 李小華, 陳醫師")
+            Comma-separated list of practitioner names (e.g., "王大明, 李小華, 陳醫師")
         """
-        therapists = self.db_session.query(Therapist).filter(
-            Therapist.clinic_id == self.clinic.id
+        practitioners = self.db_session.query(User).filter(
+            User.clinic_id == self.clinic.id,
+            User.roles.contains(['practitioner']),
+            User.is_active == True
         ).all()
-        return ", ".join([t.name for t in therapists])
+        return ", ".join([p.full_name for p in practitioners])
 
     @property
     def appointment_types_list(self) -> str:

@@ -25,32 +25,53 @@ class TestGoogleOAuthService:
         """Test service initialization."""
         assert oauth_service.client_id == "test_client_id"
         assert oauth_service.client_secret == "test_client_secret"
-        assert oauth_service.redirect_uri == "http://localhost:8000/api/admin/auth/google/callback"
+        assert oauth_service.redirect_uri == "http://localhost:8000/api/clinic/members/{user_id}/gcal/callback"
 
     def test_get_authorization_url(self, oauth_service):
         """Test authorization URL generation."""
-        url = oauth_service.get_authorization_url(therapist_id=1, clinic_id=2)
+        url = oauth_service.get_authorization_url(user_id=1, clinic_id=2)
 
         assert "https://accounts.google.com/o/oauth2/auth" in url
         assert "client_id=test_client_id" in url
-        assert "redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fapi%2Fadmin%2Fauth%2Fgoogle%2Fcallback" in url
+        assert "redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fapi%2Fclinic%2Fmembers%2F1%2Fgcal%2Fcallback" in url
         assert "scope=" in url
         assert "response_type=code" in url
         assert "access_type=offline" in url
         assert "prompt=consent" in url
 
-        # Check that state parameter contains therapist and clinic IDs
-        assert "state=1%3A2" in url
+        # Check that state parameter is a JWT (signed)
+        import re
+        state_match = re.search(r'state=([^&]+)', url)
+        assert state_match is not None
+        state = state_match.group(1)
+
+        # Verify the JWT state can be parsed
+        from services.jwt_service import jwt_service
+        state_data = jwt_service.verify_oauth_state(state)
+        assert state_data is not None
+        assert state_data["user_id"] == 1
+        assert state_data["clinic_id"] == 2
 
     def test_generate_state(self, oauth_service):
         """Test state parameter generation."""
-        state = oauth_service._generate_state(therapist_id=123, clinic_id=456)
-        assert state == "123:456"
+        state = oauth_service._generate_state(user_id=123, clinic_id=456)
+
+        # Verify it's a JWT
+        from services.jwt_service import jwt_service
+        state_data = jwt_service.verify_oauth_state(state)
+        assert state_data is not None
+        assert state_data["user_id"] == 123
+        assert state_data["clinic_id"] == 456
 
     def test_parse_state(self, oauth_service):
         """Test state parameter parsing."""
-        therapist_id, clinic_id = oauth_service._parse_state("123:456")
-        assert therapist_id == 123
+        # Create a signed state first
+        from services.jwt_service import jwt_service
+        signed_state = jwt_service.sign_oauth_state({"user_id": 123, "clinic_id": 456})
+
+        # Now parse it
+        user_id, clinic_id = oauth_service._parse_state(signed_state)
+        assert user_id == 123
         assert clinic_id == 456
 
     @pytest.mark.asyncio
@@ -169,7 +190,11 @@ class TestGoogleOAuthService:
                     "name": "Dr. Test"
                 }
 
-                result = await oauth_service.handle_oauth_callback(mock_db, "test_code", "1:2")
+                # Use signed state
+                from services.jwt_service import jwt_service
+                signed_state = jwt_service.sign_oauth_state({"user_id": 1, "clinic_id": 2})
+
+                result = await oauth_service.handle_oauth_callback(mock_db, "test_code", signed_state)
 
                 assert result == mock_therapist
                 assert mock_therapist.gcal_credentials is not None
@@ -192,5 +217,9 @@ class TestGoogleOAuthService:
             mock_exchange.return_value = {"access_token": "test_token"}
             mock_user_info.return_value = {"email": "test@example.com"}
 
-            with pytest.raises(ValueError, match="Therapist 999 not found in clinic 2"):
-                await oauth_service.handle_oauth_callback(mock_db, "test_code", "999:2")
+            # Use signed state
+            from services.jwt_service import jwt_service
+            signed_state = jwt_service.sign_oauth_state({"user_id": 999, "clinic_id": 2})
+
+            with pytest.raises(ValueError, match="User 999 not found in clinic 2"):
+                await oauth_service.handle_oauth_callback(mock_db, "test_code", signed_state)

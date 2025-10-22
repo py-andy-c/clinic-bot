@@ -59,6 +59,12 @@ else
     exit 1
 fi
 
+# Set up test environment variables
+export JWT_SECRET_KEY="test-jwt-secret-key-for-testing-purposes-only"
+export ENCRYPTION_KEY="YyD8O45QlfRZUXT9kzjW3xEf6iNqz5EtF_OB8WEOBqw="
+export SYSTEM_ADMIN_EMAILS="test@example.com"
+export DATABASE_URL="sqlite:///:memory:"
+
 # Run all tests
 print_status "Running all tests..."
 if PYTHONPATH=src python -m pytest tests/unit/ tests/integration/ -v --tb=short; then
