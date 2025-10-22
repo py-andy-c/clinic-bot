@@ -22,13 +22,13 @@ class GoogleOAuthService:
         super().__init__()
         self.client_id = GOOGLE_CLIENT_ID
         self.client_secret = GOOGLE_CLIENT_SECRET
-        # Use provided redirect URI or default to clinic member callback
-        self.redirect_uri = redirect_uri or f"{API_BASE_URL}/api/clinic/members/{{user_id}}/gcal/callback"
+        # Use provided redirect URI or default to clinic member callback (fixed URI)
+        self.redirect_uri = redirect_uri or f"{API_BASE_URL}/api/clinic/members/gcal/callback"
 
     def get_authorization_url(self, user_id: int, clinic_id: int) -> str:
         """Generate Google OAuth2 authorization URL"""
         state = self._generate_state(user_id, clinic_id)
-        redirect_uri = self.redirect_uri.format(user_id=user_id)
+        redirect_uri = self.redirect_uri
 
         params = {
             "client_id": self.client_id,
@@ -109,8 +109,8 @@ class GoogleOAuthService:
         """Handle OAuth callback and store tokens"""
         user_id, clinic_id = self._parse_state(state)
 
-        # Construct the redirect URI that was used for this request
-        redirect_uri = f"{API_BASE_URL}/api/clinic/members/{user_id}/gcal/callback"
+        # Use the fixed redirect URI
+        redirect_uri = self.redirect_uri
 
         # Exchange code for tokens
         token_data = await self.exchange_code_for_tokens(code, redirect_uri)

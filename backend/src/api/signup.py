@@ -6,7 +6,8 @@ Handles secure token-based user onboarding for clinic admins and team members.
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -152,9 +153,8 @@ async def initiate_member_signup(token: str, db: Session = Depends(get_db)) -> d
 async def signup_oauth_callback(
     code: str,
     state: str,
-    response: Response,
     db: Session = Depends(get_db)
-) -> dict[str, str]:
+) -> RedirectResponse:
     """
     Handle OAuth callback for user signup and account creation.
 
@@ -220,12 +220,10 @@ async def signup_oauth_callback(
             token_response.raise_for_status()
             token_info = token_response.json()
 
-            # Get user info
-            user_info_url = "https://www.googleapis.com/oauth2/v2/userinfo"
-            headers = {"Authorization": f"Bearer {token_info['access_token']}"}
-            user_response = await client.get(user_info_url, headers=headers)
-            user_response.raise_for_status()
-            user_info = user_response.json()
+        # Get user info from Google using OAuth service
+        from services.google_oauth import GoogleOAuthService
+        oauth_service = GoogleOAuthService()
+        user_info = await oauth_service.get_user_info(token_info["access_token"])
 
         if not user_info or not user_info.get("email"):
             raise HTTPException(
@@ -234,7 +232,12 @@ async def signup_oauth_callback(
             )
 
         email = user_info["email"]
-        google_subject_id = user_info["sub"]
+        google_subject_id = user_info.get("sub") or user_info.get("id")  # Try 'id' as fallback
+        if not google_subject_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無法從 Google 獲取用戶識別碼"
+            )
         name = user_info.get("name", email)
 
         # Check if user already exists
@@ -244,8 +247,10 @@ async def signup_oauth_callback(
 
         if existing_user:
             # User already exists, redirect to login
-            redirect_url = f"{FRONTEND_URL}/login?error=user_exists"
-            return {"redirect_url": redirect_url}
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/login?error=user_exists",
+                status_code=302
+            )
 
         # Check if email is already used in this clinic
         existing_email = db.query(User).filter(
@@ -256,8 +261,10 @@ async def signup_oauth_callback(
 
         if existing_email:
             # Email already used, redirect with error
-            redirect_url = f"{FRONTEND_URL}/login?error=email_taken"
-            return {"redirect_url": redirect_url}
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/login?error=email_taken",
+                status_code=302
+            )
 
         # Encrypt Google Calendar credentials
         gcal_credentials = {
@@ -280,7 +287,7 @@ async def signup_oauth_callback(
             full_name=name,
             roles=signup_token.default_roles,
             gcal_credentials=encrypted_credentials,
-            gcal_sync_enabled=True
+            gcal_sync_enabled=False  # Don't enable sync until they actually connect calendar
         )
 
         db.add(user)
@@ -318,20 +325,23 @@ async def signup_oauth_callback(
         db.add(refresh_token_record)
         db.commit()
 
-        # Set refresh token cookie
-        response.set_cookie(
+        # Create redirect response with token in URL and refresh token in cookie
+        redirect_response = RedirectResponse(
+            url=f"{FRONTEND_URL}/clinic/dashboard?token={token_data['access_token']}",
+            status_code=302
+        )
+
+        # Set refresh token as httpOnly cookie
+        redirect_response.set_cookie(
             key="refresh_token",
             value=token_data["refresh_token"],
             httponly=True,
-            secure=ENVIRONMENT == "production",  # Secure in production
+            secure=ENVIRONMENT == "production",
             samesite="strict",
-            max_age=7 * 24 * 60 * 60
+            max_age=7 * 24 * 60 * 60  # 7 days
         )
 
-        # Redirect to appropriate dashboard
-        redirect_url = f"{FRONTEND_URL}/dashboard?token={token_data['access_token']}"
-
-        return {"redirect_url": redirect_url}
+        return redirect_response
 
     except HTTPException:
         raise

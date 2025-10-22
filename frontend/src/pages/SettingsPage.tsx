@@ -1,19 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
-
-interface AppointmentType {
-  id: number;
-  name: string;
-  duration_minutes: number;
-}
-
-interface ClinicSettings {
-  appointment_types: AppointmentType[];
-  reminder_hours_before: number;
-  clinic_hours_start: string;
-  clinic_hours_end: string;
-  holidays: string[];
-}
+import { ClinicSettings } from '../types';
 
 const SettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<ClinicSettings | null>(null);
@@ -28,7 +15,7 @@ const SettingsPage: React.FC = () => {
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      const data = await apiService.getSettings();
+      const data = await apiService.getClinicSettings();
       setSettings(data);
     } catch (err) {
       setError('無法載入設定');
@@ -43,7 +30,7 @@ const SettingsPage: React.FC = () => {
 
     try {
       setSaving(true);
-      await apiService.updateSettings(settings);
+      await apiService.updateClinicSettings(settings);
       alert('設定已儲存');
     } catch (err) {
       console.error('Save settings error:', err);

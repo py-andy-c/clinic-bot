@@ -25,7 +25,7 @@ class TestGoogleOAuthService:
         """Test service initialization."""
         assert oauth_service.client_id == "test_client_id"
         assert oauth_service.client_secret == "test_client_secret"
-        assert oauth_service.redirect_uri == "http://localhost:8000/api/clinic/members/{user_id}/gcal/callback"
+        assert oauth_service.redirect_uri == "http://localhost:8000/api/clinic/members/gcal/callback"
 
     def test_get_authorization_url(self, oauth_service):
         """Test authorization URL generation."""
@@ -33,7 +33,7 @@ class TestGoogleOAuthService:
 
         assert "https://accounts.google.com/o/oauth2/auth" in url
         assert "client_id=test_client_id" in url
-        assert "redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fapi%2Fclinic%2Fmembers%2F1%2Fgcal%2Fcallback" in url
+        assert "redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fapi%2Fclinic%2Fmembers%2Fgcal%2Fcallback" in url
         assert "scope=" in url
         assert "response_type=code" in url
         assert "access_type=offline" in url

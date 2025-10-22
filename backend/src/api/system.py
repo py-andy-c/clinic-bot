@@ -306,7 +306,21 @@ async def get_system_dashboard(
         from models import Appointment
         total_appointments = db.query(Appointment).count()
 
+        # Determine system health based on various metrics
+        system_health = "healthy"
+
+        # Check if there are any issues
+        if total_clinics == 0:
+            system_health = "warning"  # No clinics yet
+        elif active_clinics == 0 and total_clinics > 0:
+            system_health = "warning"  # Clinics exist but none active
+
         return {
+            "total_clinics": total_clinics,
+            "active_clinics": active_clinics,
+            "total_users": total_users,
+            "system_health": system_health,
+            # Keep nested structure for backward compatibility
             "clinics": {
                 "total": total_clinics,
                 "active": active_clinics,

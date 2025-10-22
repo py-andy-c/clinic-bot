@@ -13,6 +13,7 @@ from main import app
 from models import User, SignupToken, RefreshToken, Clinic
 from datetime import datetime, timezone, timedelta
 from core.database import get_db
+from auth.dependencies import get_current_user
 
 
 @pytest.fixture
@@ -830,11 +831,11 @@ class TestSignupCallbackFlow:
                 signed_state = jwt_service.sign_oauth_state(state_data)
 
                 # Call signup callback
-                response = client.get(f"/api/signup/callback?code=mock_code&state={signed_state}")
+                response = client.get(f"/api/signup/callback?code=mock_code&state={signed_state}", follow_redirects=False)
 
-            assert response.status_code == 200
-            data = response.json()
-            assert "redirect_url" in data  # Signup callback returns redirect_url, not access_token directly
+            assert response.status_code == 302  # Redirect response
+            assert "location" in response.headers
+            assert "token=" in response.headers["location"]  # Token should be in redirect URL
 
             # Verify user was created in database
             user = db_session.query(User).filter(User.email == "newadmin@example.com").first()
@@ -921,11 +922,11 @@ class TestSignupCallbackFlow:
                 signed_state = jwt_service.sign_oauth_state(state_data)
 
                 # Call signup callback
-                response = client.get(f"/api/signup/callback?code=mock_code&state={signed_state}")
+                response = client.get(f"/api/signup/callback?code=mock_code&state={signed_state}", follow_redirects=False)
 
-                assert response.status_code == 200
-                data = response.json()
-                assert "redirect_url" in data  # Signup callback returns redirect_url
+                assert response.status_code == 302  # Redirect response
+                assert "location" in response.headers
+                assert "token=" in response.headers["location"]  # Token should be in redirect URL
 
                 # Verify user was created with correct roles
                 user = db_session.query(User).filter(User.email == "newmember@example.com").first()
@@ -958,6 +959,271 @@ class TestSignupCallbackFlow:
         finally:
             # Clean up overrides
             client.app.dependency_overrides.pop(get_db, None)
+
+    def test_signup_callback_google_userinfo_sub_field(self, client, db_session):
+        """Test signup callback handles Google userinfo with 'sub' field."""
+        from unittest.mock import AsyncMock, patch
+
+        # Create test clinic and signup token
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel_userinfo_sub",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        signup_token = SignupToken(
+            token="test_userinfo_token_sub",
+            clinic_id=clinic.id,
+            default_roles=["admin"],
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
+        )
+        db_session.add(signup_token)
+        db_session.commit()
+
+        mock_token_response = {
+            "access_token": "mock_access_token_sub",
+            "refresh_token": "mock_refresh_token",
+            "expires_in": 3600,
+            "token_type": "Bearer"
+        }
+
+        mock_user_info = {
+            "sub": "google_sub_123",
+            "email": "test_sub@example.com",
+            "name": "Test User Sub",
+            "email_verified": True
+        }
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        from unittest.mock import Mock
+        mock_token_resp = Mock()
+        mock_token_resp.json.return_value = mock_token_response
+        mock_token_resp.raise_for_status = Mock()
+        mock_client.post = AsyncMock(return_value=mock_token_resp)
+
+        # Override dependencies to use test session
+        def override_get_db():
+            yield db_session
+
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            with patch("httpx.AsyncClient", return_value=mock_client), \
+                 patch("services.google_oauth.GoogleOAuthService.get_user_info", return_value=mock_user_info):
+
+                # Sign the state parameter
+                from services.jwt_service import jwt_service
+                state_data = {"type": "clinic", "token": "test_userinfo_token_sub"}
+                signed_state = jwt_service.sign_oauth_state(state_data)
+
+                # Call signup callback
+                response = client.get(f"/api/signup/callback?code=mock_code&state={signed_state}", follow_redirects=False)
+
+                assert response.status_code == 302  # Redirect response
+                assert "location" in response.headers
+                assert "token=" in response.headers["location"]  # Token should be in redirect URL
+
+                # Verify user was created with 'sub' field
+                user = db_session.query(User).filter(User.email == "test_sub@example.com").first()
+                assert user is not None
+                assert user.google_subject_id == "google_sub_123"
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_signup_callback_google_userinfo_id_field_fallback(self, client, db_session):
+        """Test signup callback handles Google userinfo with 'id' field fallback."""
+        from unittest.mock import AsyncMock, patch
+
+        # Create test clinic and signup token
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel_userinfo_id",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        signup_token = SignupToken(
+            token="test_userinfo_token_id",
+            clinic_id=clinic.id,
+            default_roles=["admin"],
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
+        )
+        db_session.add(signup_token)
+        db_session.commit()
+
+        mock_token_response = {
+            "access_token": "mock_access_token_id",
+            "refresh_token": "mock_refresh_token",
+            "expires_in": 3600,
+            "token_type": "Bearer"
+        }
+
+        mock_user_info = {
+            "id": "google_id_456",  # Note: 'id' instead of 'sub'
+            "email": "test_id@example.com",
+            "name": "Test User ID",
+            "email_verified": True
+        }
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        from unittest.mock import Mock
+        mock_token_resp = Mock()
+        mock_token_resp.json.return_value = mock_token_response
+        mock_token_resp.raise_for_status = Mock()
+        mock_client.post = AsyncMock(return_value=mock_token_resp)
+
+        # Override dependencies to use test session
+        def override_get_db():
+            yield db_session
+
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            with patch("httpx.AsyncClient", return_value=mock_client), \
+                 patch("services.google_oauth.GoogleOAuthService.get_user_info", return_value=mock_user_info):
+
+                # Sign the state parameter
+                from services.jwt_service import jwt_service
+                state_data = {"type": "clinic", "token": "test_userinfo_token_id"}
+                signed_state = jwt_service.sign_oauth_state(state_data)
+
+                # Call signup callback
+                response = client.get(f"/api/signup/callback?code=mock_code&state={signed_state}", follow_redirects=False)
+
+                assert response.status_code == 302  # Redirect response
+                assert "location" in response.headers
+                assert "token=" in response.headers["location"]  # Token should be in redirect URL
+
+                # Verify user was created with 'id' field fallback
+                user = db_session.query(User).filter(User.email == "test_id@example.com").first()
+                assert user is not None
+                assert user.google_subject_id == "google_id_456"
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_signup_page_no_authentication_checks(self, client, db_session):
+        """Test that signup pages don't attempt authentication."""
+        # Override database dependency to avoid database errors
+        def override_get_db():
+            yield db_session
+
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # Test clinic signup page loads without auth errors
+            response = client.get("/api/signup/clinic?token=some_token")
+            # Should return 400 (bad token) but not 401 (auth error)
+            assert response.status_code == 400
+
+            # Test member signup page loads without auth errors
+            response = client.get("/api/signup/member?token=some_token")
+            # Should return 400 (bad token) but not 401 (auth error)
+            assert response.status_code == 400
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_google_calendar_oauth_fixed_redirect_uri(self, client, db_session):
+        """Test Google Calendar OAuth uses fixed redirect URI without user_id."""
+        from unittest.mock import AsyncMock, patch
+
+        # Create test clinic and user
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel_gcal",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        user = User(
+            clinic_id=clinic.id,
+            email="gcal@example.com",
+            google_subject_id="gcal_sub",
+            full_name="GCal User",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.add(user)
+        db_session.commit()
+
+        # Mock Google Calendar OAuth
+        mock_token_response = {
+            "access_token": "gcal_access_token",
+            "refresh_token": "gcal_refresh_token",
+            "expires_in": 3600,
+            "token_type": "Bearer"
+        }
+
+        mock_user_info = {
+            "sub": "gcal_user_sub",
+            "email": "gcal@example.com",
+            "name": "GCal User"
+        }
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        mock_token_resp = AsyncMock()
+        mock_token_resp.json.return_value = mock_token_response
+        mock_token_resp.raise_for_status = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_token_resp)
+
+        mock_user_resp = AsyncMock()
+        mock_user_resp.json.return_value = mock_user_info
+        mock_user_resp.raise_for_status = AsyncMock()
+
+        with patch("httpx.AsyncClient", return_value=mock_client), \
+             patch("services.google_oauth.GoogleOAuthService.get_user_info", return_value=mock_user_info):
+
+            # Mock authentication
+            from auth.dependencies import UserContext, get_current_user
+            admin_user = UserContext(
+                user_type="clinic_user",
+                email="admin@test.com",
+                roles=["admin"],
+                clinic_id=clinic.id,
+                google_subject_id="admin_sub",
+                name="Test Admin"
+            )
+
+            def override_get_db():
+                yield db_session
+
+            client.app.dependency_overrides[get_db] = override_get_db
+            client.app.dependency_overrides[get_current_user] = lambda: admin_user
+
+            try:
+                # Call Google Calendar auth endpoint
+                response = client.get(f"/api/clinic/members/{user.id}/gcal/auth")
+                assert response.status_code == 200
+                data = response.json()
+                assert "auth_url" in data
+
+                # Verify the auth URL uses the fixed redirect URI (not dynamic with user_id)
+                auth_url = data["auth_url"]
+                assert "redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fapi%2Fclinic%2Fmembers%2Fgcal%2Fcallback" in auth_url
+                # Should NOT contain the user_id in the redirect URI
+                assert f"members%2F{user.id}%2Fgcal%2Fcallback" not in auth_url
+
+            finally:
+                client.app.dependency_overrides.pop(get_db, None)
+                client.app.dependency_overrides.pop(get_current_user, None)
 
     def test_role_based_access_control(self, client, db_session):
         """Test role-based access control across different endpoints."""
@@ -1089,7 +1355,7 @@ class TestSignupCallbackFlow:
                 signed_state = jwt_service.sign_oauth_state(state_data)
 
                 response = client.get(
-                    f"/api/clinic/members/{user.id}/gcal/callback",
+                    "/api/clinic/members/gcal/callback",
                     params={
                         "code": "test_auth_code",
                         "state": signed_state
@@ -1163,3 +1429,90 @@ class TestSignupCallbackFlow:
             # Clean up overrides
             client.app.dependency_overrides.pop(get_db, None)
             client.app.dependency_overrides.pop(get_current_user, None)
+
+    def test_verify_token_valid(self, client, db_session):
+        """Test verifying a valid access token."""
+        # Create test clinic first
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_access_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create test user
+        user = User(
+            clinic_id=clinic.id,
+            email="test@example.com",
+            google_subject_id="test_sub",
+            full_name="Test User",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.add(user)
+        db_session.commit()
+
+        # Mock get_current_user to return the test user context
+        def mock_get_current_user():
+            return type('UserContext', (), {
+                'user_id': user.id,
+                'clinic_id': user.clinic_id,
+                'email': user.email,
+                'name': user.full_name,  # Note: UserContext uses 'name', not 'full_name'
+                'user_type': 'clinic_user',  # Determined by context, not stored in User model
+                'roles': user.roles
+            })()
+
+        try:
+            client.app.dependency_overrides[get_current_user] = mock_get_current_user
+
+            response = client.get("/api/auth/verify")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["user_id"] == user.id
+            assert data["clinic_id"] == user.clinic_id
+            assert data["email"] == user.email
+            assert data["full_name"] == user.full_name  # API returns 'full_name' from UserContext.name
+            assert data["user_type"] == 'clinic_user'
+            assert data["roles"] == user.roles
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_user, None)
+
+    def test_verify_token_invalid(self, client):
+        """Test verifying an invalid access token."""
+        # No authorization header provided
+        response = client.get("/api/auth/verify")
+        assert response.status_code == 401
+
+    def test_refresh_token_no_cookie(self, client):
+        """Test refresh token endpoint when no cookie is present."""
+        response = client.post("/api/auth/refresh")
+        assert response.status_code == 401
+        data = response.json()
+        assert "detail" in data
+        assert "Refresh token not found" in data["detail"]
+
+    def test_refresh_token_invalid_cookie(self, client, db_session):
+        """Test refresh token endpoint with invalid cookie."""
+        # Override get_db to use our test session
+        def override_get_db():
+            yield db_session
+
+        try:
+            client.app.dependency_overrides[get_db] = override_get_db
+
+            # Set an invalid refresh token cookie
+            client.cookies.set("refresh_token", "invalid_token")
+            response = client.post("/api/auth/refresh")
+            assert response.status_code == 401
+            # Should get "Invalid refresh token" error since token doesn't exist in database
+            data = response.json()
+            assert "detail" in data
+            assert "Invalid refresh token" in data["detail"]
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)

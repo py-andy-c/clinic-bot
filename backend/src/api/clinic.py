@@ -470,9 +470,8 @@ async def initiate_member_gcal_oauth(
         )
 
 
-@router.get("/members/{user_id}/gcal/callback", summary="Handle member calendar OAuth callback")
+@router.get("/members/gcal/callback", summary="Handle member calendar OAuth callback")
 async def handle_member_gcal_callback(
-    user_id: int,
     code: str = Query(..., description="Authorization code from Google"),
     state: str = Query(..., description="State parameter"),
     current_user: UserContext = Depends(require_admin_role),
@@ -484,22 +483,16 @@ async def handle_member_gcal_callback(
     Exchanges authorization code for tokens and stores encrypted credentials.
     """
     try:
-        # Verify user exists and belongs to current clinic
-        user = db.query(User).filter(
-            User.id == user_id,
-            User.clinic_id == current_user.clinic_id,
-            User.is_active == True
-        ).first()
-
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Team member not found"
-            )
-
-        # Handle OAuth callback
+        # Handle OAuth callback (user validation is done inside the service)
         oauth_service = GoogleOAuthService()
         updated_user = await oauth_service.handle_oauth_callback(db, code, state)
+
+        # Verify the updated user belongs to current clinic (additional security check)
+        if updated_user.clinic_id != current_user.clinic_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: User does not belong to your clinic"
+            )
 
         # Update user's calendar sync settings
         updated_user.gcal_sync_enabled = True
@@ -568,11 +561,23 @@ async def get_dashboard_stats(
 
         cancellation_rate = cancelled_appointments / recent_appointments if recent_appointments > 0 else 0
 
+        # Team members count - all active users in the clinic
+        total_members = db.query(User).filter(
+            User.clinic_id == clinic_id
+        ).count()
+
+        active_members = db.query(User).filter(
+            User.clinic_id == clinic_id,
+            User.is_active == True
+        ).count()
+
         return {
             "total_appointments": total_appointments,
             "upcoming_appointments": upcoming_appointments,
             "new_patients": new_patients,
-            "cancellation_rate": cancellation_rate
+            "cancellation_rate": cancellation_rate,
+            "total_members": total_members,
+            "active_members": active_members
         }
 
     except Exception:

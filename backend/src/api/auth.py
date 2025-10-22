@@ -10,11 +10,12 @@ from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from datetime import datetime, timezone
-from typing import Dict
+from typing import Dict, Any
 from core.database import get_db
 from core.config import API_BASE_URL, SYSTEM_ADMIN_EMAILS, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, ENVIRONMENT
 from services.jwt_service import jwt_service, TokenPayload
-from models import RefreshToken
+from models import RefreshToken, User, Clinic
+from auth.dependencies import UserContext, get_current_user
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
@@ -72,7 +73,7 @@ async def google_auth_callback(
     code: str,
     state: str,
     db: Session = Depends(get_db)
-) -> dict[str, str]:
+):
     """
     Handle Google OAuth callback and create JWT tokens.
 
@@ -92,8 +93,8 @@ async def google_auth_callback(
                 detail="Invalid or expired authentication state"
             )
 
-        user_type = state_data.get("type")
-        if user_type not in ["system_admin", "clinic_user"]:
+        intended_user_type = state_data.get("type")
+        if intended_user_type not in ["system_admin", "clinic_user"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid authentication state"
@@ -133,14 +134,13 @@ async def google_auth_callback(
         google_subject_id = user_info["id"]
         name = user_info.get("name", email)
 
-        # Handle different user types
-        if user_type == "system_admin":
-            # Verify system admin
-            if email not in SYSTEM_ADMIN_EMAILS:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access denied. You are not authorized as a system admin."
-                )
+        # Determine actual user type based on email (not frontend intention)
+        actual_user_type = "clinic_user"  # Default
+        existing_user = None
+
+        if email in SYSTEM_ADMIN_EMAILS:
+            # This is a system admin regardless of which button was clicked
+            actual_user_type = "system_admin"
 
             # Create token payload for system admin
             payload = TokenPayload(
@@ -154,36 +154,80 @@ async def google_auth_callback(
 
             redirect_url = f"{FRONTEND_URL}/system/dashboard"
 
-        else:  # clinic_user
-            # This would normally handle clinic user authentication
-            # For now, redirect to login with error
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Clinic user authentication must go through signup flow"
-            )
+        else:
+            # This is a clinic user - they need to go through signup flow
+            # Check if intended to be clinic user
+            if intended_user_type != "clinic_user":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Please use the clinic user login option"
+                )
+
+            # For clinic users, check if they have an existing account
+            existing_user = db.query(User).filter(User.email == email).first()
+            if existing_user:
+                # Existing clinic user - create tokens
+                payload = TokenPayload(
+                    sub=google_subject_id,
+                    email=email,
+                    user_type="clinic_user",
+                    roles=existing_user.roles,
+                    clinic_id=existing_user.clinic_id,
+                    name=name
+                )
+
+                redirect_url = f"{FRONTEND_URL}/clinic/dashboard"
+            else:
+                # New clinic user - redirect to signup
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Clinic user authentication must go through signup flow"
+                )
 
         # Create token pair
         token_data = jwt_service.create_token_pair(payload)
 
-        # For system admins, we don't have a user record, so we'll store by email
-        # In a real implementation, you might want a separate table for system admin sessions
-        # For now, we'll skip database storage for system admins
+        # Store refresh token in database
+        if actual_user_type == "system_admin":
+            # For system admins, we don't have a user record, so we'll store by email
+            # In a real implementation, you might want a separate table for system admin sessions
+            # For now, we'll create a dummy user ID based on email
+            dummy_user_id = hash(email) % 1000000  # Simple hash for demo
+        else:
+            # For clinic users, use the actual user ID
+            assert existing_user is not None, "existing_user should not be None for clinic users"
+            dummy_user_id = existing_user.id
 
-        # Create response with httpOnly cookie for refresh token
-        response = Response()
+        refresh_token_hash = token_data["refresh_token_hash"]
+        hmac_key = token_data["refresh_token_hmac"]
+
+        refresh_token_record = RefreshToken(
+            user_id=dummy_user_id,
+            token_hash=refresh_token_hash,
+            hmac_key=hmac_key,
+            expires_at=jwt_service.get_token_expiry("refresh")
+        )
+        db.add(refresh_token_record)
+        db.commit()
+
+        # Create redirect response with tokens in URL and refresh token in cookie
+        from fastapi.responses import RedirectResponse
+        response = RedirectResponse(
+            url=f"{redirect_url}?token={token_data['access_token']}",
+            status_code=302
+        )
+
+        # Set refresh token as httpOnly cookie
         response.set_cookie(
             key="refresh_token",
             value=token_data["refresh_token"],
             httponly=True,
-            secure=ENVIRONMENT == "production",  # Secure in production
+            secure=ENVIRONMENT == "production",
             samesite="strict",
             max_age=7 * 24 * 60 * 60  # 7 days
         )
 
-        # Redirect to appropriate dashboard with access token
-        redirect_url = f"{redirect_url}?token={token_data['access_token']}"
-
-        return {"redirect_url": redirect_url}
+        return response
 
     except HTTPException:
         raise
@@ -292,6 +336,127 @@ async def refresh_access_token(
         "access_token": token_data["access_token"],
         "token_type": token_data["token_type"],
         "expires_in": str(token_data["expires_in"])
+    }
+
+
+@router.get("/verify", summary="Verify access token")
+async def verify_token(
+    current_user: UserContext = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """
+    Verify that the provided access token is valid and return user information.
+
+    Returns user data if token is valid, raises 401 if invalid.
+    """
+    return {
+        "user_id": current_user.user_id,
+        "clinic_id": current_user.clinic_id,
+        "email": current_user.email,
+        "full_name": current_user.name,
+        "user_type": current_user.user_type,
+        "roles": current_user.roles
+    }
+
+
+@router.post("/dev/login", summary="Development login (bypass OAuth)")
+async def dev_login(
+    email: str,
+    user_type: str = "system_admin",
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Development endpoint to create/login users without OAuth.
+
+    WARNING: Only use in development/testing environments!
+    """
+    if ENVIRONMENT == "production":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Development login not available in production"
+        )
+
+    if user_type not in ["system_admin", "clinic_user"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid user_type. Must be 'system_admin' or 'clinic_user'"
+        )
+
+    # Check if user exists, if not create them
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        # Create a new user
+        if user_type == "clinic_user":
+            # Need a clinic for clinic users
+            clinic = db.query(Clinic).first()
+            if not clinic:
+                # Create a default clinic
+                clinic = Clinic(
+                    name="Development Clinic",
+                    line_channel_id="dev_channel",
+                    line_channel_secret="dev_secret",
+                    line_channel_access_token="dev_token"
+                )
+                db.add(clinic)
+                db.commit()
+
+            user = User(
+                clinic_id=clinic.id,
+                email=email,
+                google_subject_id=f"dev_{email.replace('@', '_').replace('.', '_')}",
+                full_name=email.split('@')[0].title(),
+                roles=["admin", "practitioner"] if user_type == "clinic_user" else [],
+                is_active=True
+            )
+        else:
+            # System admin doesn't need a clinic
+            user = User(
+                email=email,
+                google_subject_id=f"dev_{email.replace('@', '_').replace('.', '_')}",
+                full_name=email.split('@')[0].title(),
+                user_type="system_admin",
+                roles=[],
+                is_active=True
+            )
+        db.add(user)
+        db.commit()
+
+    # Create JWT tokens
+    token_payload = TokenPayload(
+        sub=str(user.google_subject_id),
+        user_type="system_admin" if email in SYSTEM_ADMIN_EMAILS else "clinic_user",
+        email=user.email,
+        roles=user.roles,
+        clinic_id=user.clinic_id,
+        name=user.full_name
+    )
+
+    token_data = jwt_service.create_token_pair(token_payload)
+
+    # Store refresh token
+    refresh_token_hash = token_data["refresh_token_hash"]
+    hmac_key = token_data["refresh_token_hmac"]
+
+    refresh_token_record = RefreshToken(
+        user_id=user.id,
+        token_hash=refresh_token_hash,
+        hmac_key=hmac_key,
+        expires_at=jwt_service.get_token_expiry("refresh")
+    )
+    db.add(refresh_token_record)
+    db.commit()
+
+    return {
+        "access_token": token_data["access_token"],
+        "refresh_token": token_data["refresh_token"],
+        "token_type": "bearer",
+        "expires_in": str(jwt_service.get_token_expiry("access")),
+        "user": {
+            "user_id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "user_type": token_payload.user_type,
+            "roles": user.roles
+        }
     }
 
 
