@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode, useMe
 import { AuthUser, AuthState, UserRole } from '../types';
 
 interface AuthContextType extends AuthState {
+  user: AuthUser | null;
   login: (userType?: 'system_admin' | 'clinic_user') => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
@@ -245,7 +246,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const value: AuthContextType = {
-    ...authState,
+    user: enhancedUser,
+    isAuthenticated: authState.isAuthenticated,
+    isLoading: authState.isLoading,
     login,
     logout,
     refreshToken,

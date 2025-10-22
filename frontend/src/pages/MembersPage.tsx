@@ -4,7 +4,20 @@ import { apiService } from '../services/api';
 import { Member, UserRole, MemberInviteData } from '../types';
 
 const MembersPage: React.FC = () => {
-  const { isClinicAdmin } = useAuth();
+  const { isClinicAdmin, user: currentUser, isAuthenticated } = useAuth();
+  
+  
+  // If not authenticated, show a message (in real app, this would redirect to login)
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">需要登入</h1>
+          <p className="text-gray-600">請先登入以查看成員管理頁面</p>
+        </div>
+      </div>
+    );
+  }
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,9 +49,14 @@ const MembersPage: React.FC = () => {
       await apiService.inviteMember(inviteData);
       setShowInviteModal(false);
       await fetchMembers(); // Refresh the list
-    } catch (err) {
+    } catch (err: any) {
       console.error('Invite member error:', err);
-      alert('邀請成員失敗，請稍後再試');
+      const errorMessage = err?.response?.data?.detail;
+      if (errorMessage === 'Invalid role specified') {
+        alert('指定的角色無效。請選擇有效的角色。');
+      } else {
+        alert('邀請成員失敗，請稍後再試');
+      }
     } finally {
       setInviting(false);
     }
@@ -50,9 +68,18 @@ const MembersPage: React.FC = () => {
       await apiService.updateMemberRoles(userId, roles);
       setShowRoleModal(null);
       await fetchMembers(); // Refresh the list
-    } catch (err) {
+    } catch (err: any) {
       console.error('Update roles error:', err);
-      alert('更新角色失敗，請稍後再試');
+      const errorMessage = err?.response?.data?.detail;
+      if (errorMessage === 'Member not found') {
+        alert('找不到該成員，請重新載入頁面後再試。');
+      } else if (errorMessage === 'Cannot remove admin access from the last administrator') {
+        alert('無法移除最後一位管理員的管理員權限。');
+      } else if (errorMessage === 'Invalid role specified') {
+        alert('指定的角色無效。請選擇有效的角色。');
+      } else {
+        alert('更新角色失敗，請稍後再試');
+      }
     } finally {
       setUpdatingRoles(false);
     }
@@ -66,9 +93,18 @@ const MembersPage: React.FC = () => {
     try {
       await apiService.removeMember(userId);
       await fetchMembers(); // Refresh the list
-    } catch (err) {
+    } catch (err: any) {
       console.error('Remove member error:', err);
-      alert('移除成員失敗，請稍後再試');
+
+      // Check for specific error messages from backend
+      const errorMessage = err?.response?.data?.detail;
+      if (errorMessage === 'Cannot remove the last administrator') {
+        alert('無法移除最後一位管理員。請先指派其他成員為管理員。');
+      } else if (errorMessage === 'Member not found') {
+        alert('找不到該成員，請重新載入頁面後再試。');
+      } else {
+        alert('移除成員失敗，請稍後再試');
+      }
     }
   };
 
@@ -234,12 +270,14 @@ const MembersPage: React.FC = () => {
                               編輯角色
                             </button>
 
-                            <button
-                              onClick={() => handleRemoveMember(member.id)}
-                              className="inline-flex items-center px-2.5 py-1.5 border border-red-300 shadow-sm text-xs font-medium rounded text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                            >
-                              移除
-                            </button>
+                            {member.id !== currentUser?.user_id && (
+                              <button
+                                onClick={() => handleRemoveMember(member.id)}
+                                className="inline-flex items-center px-2.5 py-1.5 border border-red-300 shadow-sm text-xs font-medium rounded text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                              >
+                                移除
+                              </button>
+                            )}
                           </>
                         )}
                       </div>

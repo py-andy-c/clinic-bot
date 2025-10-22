@@ -129,7 +129,7 @@ class ApiService {
 
   async getMembers(): Promise<Member[]> {
     const response = await this.client.get('/clinic/members');
-    return response.data;
+    return response.data.members;
   }
 
   async inviteMember(inviteData: MemberInviteData): Promise<{ signup_url: string }> {
@@ -152,7 +152,7 @@ class ApiService {
 
   async getPatients(): Promise<Patient[]> {
     const response = await this.client.get('/clinic/patients');
-    return response.data;
+    return response.data.patients;
   }
 
   async getClinicSettings(): Promise<ClinicSettings> {
