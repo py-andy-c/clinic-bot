@@ -7,7 +7,9 @@ Tests the complete authentication flow from signup to API access.
 import asyncio
 
 import pytest
+import httpx
 from unittest.mock import Mock, patch, AsyncMock
+from fastapi import Request, Response
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -30,7 +32,7 @@ def client():
 class TestAuthenticationFlow:
     """Test complete authentication flow."""
 
-    @patch('api.auth.jwt_service')
+    @patch('api.auth.jwt_service', autospec=True)
     def test_system_admin_oauth_flow(self, mock_jwt_service, client, db_session):
         """Test system admin OAuth flow."""
         # Mock JWT service
@@ -45,24 +47,26 @@ class TestAuthenticationFlow:
         mock_jwt_service.create_token_pair.return_value = mock_token_data
 
         # Mock Google OAuth response
-        with patch('httpx.AsyncClient') as mock_client:
-            mock_response = Mock()
+        with patch('httpx.AsyncClient', autospec=True) as mock_client:
+            mock_response = Mock(spec=httpx.Response)
             mock_response.raise_for_status.return_value = None
             mock_response.json.return_value = {
                 "access_token": "google_access_token",
                 "refresh_token": "google_refresh_token"
             }
-            mock_client.return_value.__aenter__.return_value.post.return_value = mock_response
+            instance = AsyncMock()
+            instance.post.return_value = mock_response
+            mock_client.return_value.__aenter__.return_value = instance
 
             # Mock user info response
-            user_info_response = Mock()
+            user_info_response = Mock(spec=httpx.Response)
             user_info_response.raise_for_status.return_value = None
             user_info_response.json.return_value = {
                 "id": "google_subject_123",
                 "email": "admin@example.com",
                 "name": "System Admin"
             }
-            mock_client.return_value.__aenter__.return_value.get.return_value = user_info_response
+            instance.get.return_value = user_info_response
 
             # Test OAuth callback with system admin email override
             from api import auth
@@ -523,8 +527,7 @@ class TestRefreshTokenFlow:
         mock_request.cookies = {"refresh_token": refresh_token_string}
 
         # Create a mock response
-        mock_response = Mock()
-        mock_response.set_cookie = Mock()
+        mock_response = Mock(spec=Response)
 
         # Call the refresh function directly
         result = await refresh_access_token(mock_request, mock_response, db_session)
@@ -812,21 +815,21 @@ class TestSignupCallbackFlow:
 
             from unittest.mock import AsyncMock
 
-            mock_client = AsyncMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
+            with patch("httpx.AsyncClient", autospec=True) as mock_client_class:
+                instance = AsyncMock()
 
-            mock_response = Mock()
-            mock_response.json.return_value = mock_token_response
-            mock_response.raise_for_status = Mock()
-            mock_client.post = AsyncMock(return_value=mock_response)
+                mock_response = Mock(spec=httpx.Response)
+                mock_response.json.return_value = mock_token_response
+                mock_response.raise_for_status = Mock()
+                instance.post = AsyncMock(return_value=mock_response)
 
-            mock_user_response = Mock()
-            mock_user_response.json.return_value = mock_user_info
-            mock_user_response.raise_for_status = Mock()
-            mock_client.get = AsyncMock(return_value=mock_user_response)
+                mock_user_response = Mock(spec=httpx.Response)
+                mock_user_response.json.return_value = mock_user_info
+                mock_user_response.raise_for_status = Mock()
+                instance.get = AsyncMock(return_value=mock_user_response)
 
-            with patch("httpx.AsyncClient", return_value=mock_client):
+                mock_client_class.return_value.__aenter__.return_value = instance
+
                 # Sign the state parameter as required by the updated implementation
                 from services.jwt_service import jwt_service
                 state_data = {"type": "clinic", "token": token}
@@ -903,21 +906,21 @@ class TestSignupCallbackFlow:
 
             from unittest.mock import AsyncMock
 
-            mock_client = AsyncMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
+            with patch("httpx.AsyncClient", autospec=True) as mock_client_class:
+                instance = AsyncMock()
 
-            mock_response = Mock()
-            mock_response.json.return_value = mock_token_response
-            mock_response.raise_for_status = Mock()
-            mock_client.post = AsyncMock(return_value=mock_response)
+                mock_response = Mock(spec=httpx.Response)
+                mock_response.json.return_value = mock_token_response
+                mock_response.raise_for_status = Mock()
+                instance.post = AsyncMock(return_value=mock_response)
 
-            mock_user_response = Mock()
-            mock_user_response.json.return_value = mock_user_info
-            mock_user_response.raise_for_status = Mock()
-            mock_client.get = AsyncMock(return_value=mock_user_response)
+                mock_user_response = Mock(spec=httpx.Response)
+                mock_user_response.json.return_value = mock_user_info
+                mock_user_response.raise_for_status = Mock()
+                instance.get = AsyncMock(return_value=mock_user_response)
 
-            with patch("httpx.AsyncClient", return_value=mock_client):
+                mock_client_class.return_value.__aenter__.return_value = instance
+
                 # Sign the state parameter as required by the updated implementation
                 from services.jwt_service import jwt_service
                 state_data = {"type": "member", "token": token}
@@ -999,16 +1002,6 @@ class TestSignupCallbackFlow:
             "email_verified": True
         }
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-
-        from unittest.mock import Mock
-        mock_token_resp = Mock()
-        mock_token_resp.json.return_value = mock_token_response
-        mock_token_resp.raise_for_status = Mock()
-        mock_client.post = AsyncMock(return_value=mock_token_resp)
-
         # Override dependencies to use test session
         def override_get_db():
             yield db_session
@@ -1016,8 +1009,17 @@ class TestSignupCallbackFlow:
         client.app.dependency_overrides[get_db] = override_get_db
 
         try:
-            with patch("httpx.AsyncClient", return_value=mock_client), \
-                 patch("services.google_oauth.GoogleOAuthService.get_user_info", return_value=mock_user_info):
+            with patch("httpx.AsyncClient", autospec=True) as mock_client_class, \
+                 patch("services.google_oauth.GoogleOAuthService.get_user_info", autospec=True, return_value=mock_user_info):
+                instance = AsyncMock()
+
+                from unittest.mock import Mock
+                mock_token_resp = Mock(spec=httpx.Response)
+                mock_token_resp.json.return_value = mock_token_response
+                mock_token_resp.raise_for_status = Mock()
+                instance.post = AsyncMock(return_value=mock_token_resp)
+
+                mock_client_class.return_value.__aenter__.return_value = instance
 
                 # Sign the state parameter
                 from services.jwt_service import jwt_service
@@ -1076,16 +1078,6 @@ class TestSignupCallbackFlow:
             "email_verified": True
         }
 
-        mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
-
-        from unittest.mock import Mock
-        mock_token_resp = Mock()
-        mock_token_resp.json.return_value = mock_token_response
-        mock_token_resp.raise_for_status = Mock()
-        mock_client.post = AsyncMock(return_value=mock_token_resp)
-
         # Override dependencies to use test session
         def override_get_db():
             yield db_session
@@ -1093,8 +1085,17 @@ class TestSignupCallbackFlow:
         client.app.dependency_overrides[get_db] = override_get_db
 
         try:
-            with patch("httpx.AsyncClient", return_value=mock_client), \
-                 patch("services.google_oauth.GoogleOAuthService.get_user_info", return_value=mock_user_info):
+            with patch("httpx.AsyncClient", autospec=True) as mock_client_class, \
+                 patch("services.google_oauth.GoogleOAuthService.get_user_info", autospec=True, return_value=mock_user_info):
+                instance = AsyncMock()
+
+                from unittest.mock import Mock
+                mock_token_resp = Mock(spec=httpx.Response)
+                mock_token_resp.json.return_value = mock_token_response
+                mock_token_resp.raise_for_status = Mock()
+                instance.post = AsyncMock(return_value=mock_token_resp)
+
+                mock_client_class.return_value.__aenter__.return_value = instance
 
                 # Sign the state parameter
                 from services.jwt_service import jwt_service
@@ -1178,20 +1179,14 @@ class TestSignupCallbackFlow:
         }
 
         mock_client = AsyncMock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=None)
 
-        mock_token_resp = AsyncMock()
+        mock_token_resp = Mock(spec=httpx.Response)
         mock_token_resp.json.return_value = mock_token_response
-        mock_token_resp.raise_for_status = AsyncMock()
+        mock_token_resp.raise_for_status = Mock(spec_set=True)
         mock_client.post = AsyncMock(return_value=mock_token_resp)
 
-        mock_user_resp = AsyncMock()
-        mock_user_resp.json.return_value = mock_user_info
-        mock_user_resp.raise_for_status = AsyncMock()
-
-        with patch("httpx.AsyncClient", return_value=mock_client), \
-             patch("services.google_oauth.GoogleOAuthService.get_user_info", return_value=mock_user_info):
+        with patch("httpx.AsyncClient", autospec=True, return_value=mock_client), \
+             patch("services.google_oauth.GoogleOAuthService.get_user_info", autospec=True, return_value=mock_user_info):
 
             # Mock authentication
             from auth.dependencies import UserContext, get_current_user
@@ -1328,28 +1323,26 @@ class TestSignupCallbackFlow:
 
         try:
             # Mock Google OAuth response
-            with patch("httpx.AsyncClient") as mock_client_class:
-                mock_client = AsyncMock()
-                mock_client_class.return_value = mock_client
-                mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-                mock_client.__aexit__ = AsyncMock(return_value=None)
+            with patch("httpx.AsyncClient", autospec=True) as mock_client_class:
+                instance = AsyncMock()
+                mock_client_class.return_value.__aenter__.return_value = instance
 
-                mock_response = Mock()
+                mock_response = Mock(spec=httpx.Response)
                 mock_response.raise_for_status.return_value = None
                 mock_response.json.return_value = {
                     "access_token": "google_access_token",
                     "refresh_token": "google_refresh_token"
                 }
-                mock_client.post.return_value = mock_response
+                instance.post.return_value = mock_response
 
-                mock_user_response = Mock()
+                mock_user_response = Mock(spec=httpx.Response)
                 mock_user_response.raise_for_status.return_value = None
                 mock_user_response.json.return_value = {
                     "id": "google_subject_123",
                     "email": "member@test.com",
                     "name": "Test Member"
                 }
-                mock_client.get.return_value = mock_user_response
+                instance.get.return_value = mock_user_response
 
                 # Sign the state like the member OAuth flow does
                 from services.jwt_service import jwt_service

@@ -53,18 +53,15 @@ async def test_prevent_double_booking_same_time_window(db_session):
     # First appointment: 10:00-10:30
     start = datetime.combine(datetime.now().date() + timedelta(days=1), time(10, 0))
 
-    with patch("clinic_agents.tools.GoogleCalendarService") as mock_gcal_class, \
-         patch("services.encryption_service.get_encryption_service") as mock_get_enc:
-        # Mock decrypt
-        mock_enc = Mock()
-        mock_enc.decrypt_data.return_value = {"access_token": "x"}
-        mock_get_enc.return_value = mock_enc
+    with patch("clinic_agents.tools.GoogleCalendarService", autospec=True) as mock_gcal_class, \
+         patch("services.encryption_service.get_encryption_service", autospec=True) as mock_get_enc:
+        # Mock decrypt - use autospecced return value
+        mock_get_enc.return_value.decrypt_data.return_value = {"access_token": "x"}
 
-        # Mock GCal service
-        mock_gcal = Mock()
-        mock_gcal.create_event = AsyncMock(return_value={"id": "evt1"})
-        mock_gcal.update_event = AsyncMock(return_value=None)
-        mock_gcal_class.return_value = mock_gcal
+        # Mock GCal service - use the autospecced return value
+        gcal_instance = mock_gcal_class.return_value  # already autospecced to GoogleCalendarService
+        gcal_instance.create_event = AsyncMock(return_value={'id': 'evt1'})
+        gcal_instance.update_event = AsyncMock(return_value=None)
 
         res1 = await create_appointment_impl(
             wrapper=wrapper,
@@ -77,16 +74,15 @@ async def test_prevent_double_booking_same_time_window(db_session):
 
     # Second overlapping appointment: 10:15-10:45 should be rejected
     overlapping_start = start + timedelta(minutes=15)
-    with patch("clinic_agents.tools.GoogleCalendarService") as mock_gcal_class, \
-         patch("services.encryption_service.get_encryption_service") as mock_get_enc:
-        mock_enc = Mock()
-        mock_enc.decrypt_data.return_value = {"access_token": "x"}
-        mock_get_enc.return_value = mock_enc
+    with patch("clinic_agents.tools.GoogleCalendarService", autospec=True) as mock_gcal_class, \
+         patch("services.encryption_service.get_encryption_service", autospec=True) as mock_get_enc:
+        # Mock decrypt - use autospecced return value
+        mock_get_enc.return_value.decrypt_data.return_value = {"access_token": "x"}
 
-        mock_gcal = Mock()
-        mock_gcal.create_event = AsyncMock(return_value={"id": "evt2"})
-        mock_gcal.update_event = AsyncMock(return_value=None)
-        mock_gcal_class.return_value = mock_gcal
+        # Mock GCal service - use the autospecced return value
+        gcal_instance = mock_gcal_class.return_value  # already autospecced to GoogleCalendarService
+        gcal_instance.create_event = AsyncMock(return_value={'id': 'evt2'})
+        gcal_instance.update_event = AsyncMock(return_value=None)
 
         res2 = await create_appointment_impl(
             wrapper=wrapper,

@@ -19,16 +19,17 @@ class TestGoogleCalendarService:
     @pytest.fixture
     def mock_credentials(self):
         """Create mock Google OAuth2 credentials."""
-        creds = Mock(spec=Credentials)
+        creds = Mock()
         creds.expired = False
         creds.refresh_token = None
+        creds.valid = True
         return creds
 
     @pytest.fixture
     def calendar_service(self, mock_credentials):
         """Create a Google Calendar service instance for testing."""
-        with patch('services.google_calendar_service.build') as mock_build, \
-             patch('services.google_calendar_service.Credentials') as mock_creds_class:
+        with patch('services.google_calendar_service.build', autospec=True) as mock_build, \
+             patch('services.google_calendar_service.Credentials', autospec=True) as mock_creds_class:
             mock_service = Mock()
             mock_build.return_value = mock_service
             mock_creds_class.from_authorized_user_info.return_value = mock_credentials
@@ -42,11 +43,13 @@ class TestGoogleCalendarService:
 
     def test_init_valid_credentials(self):
         """Test service initialization with valid credentials."""
-        with patch('services.google_calendar_service.build') as mock_build, \
-             patch('services.google_calendar_service.Credentials') as mock_creds_class:
+        with patch('services.google_calendar_service.build', autospec=True) as mock_build, \
+             patch('services.google_calendar_service.Credentials', autospec=True) as mock_creds_class:
             mock_service = Mock()
             mock_build.return_value = mock_service
             mock_creds = Mock()
+            mock_creds.expired = False
+            mock_creds.refresh_token = "test_refresh_token"
             mock_creds_class.from_authorized_user_info.return_value = mock_creds
 
             service = GoogleCalendarService('{"client_id": "test", "client_secret": "test", "refresh_token": "test"}', 'primary')
@@ -130,7 +133,7 @@ class TestGoogleCalendarService:
         error_response = Mock()
         error_response.status = 400
         error_content = {'error': {'message': 'Invalid request'}}
-        error_response.content = json.dumps(error_content)
+        error_response.content = json.dumps(error_content).encode('utf-8')
 
         calendar_service.service.events.return_value.insert.return_value.execute.side_effect = HttpError(
             error_response, json.dumps(error_content).encode()
@@ -240,8 +243,8 @@ class TestGoogleCalendarService:
 
     def test_expired_credentials_refresh(self):
         """Test credential refresh for expired tokens."""
-        with patch('services.google_calendar_service.build') as mock_build, \
-             patch('services.google_calendar_service.Credentials') as mock_creds_class:
+        with patch('services.google_calendar_service.build', autospec=True) as mock_build, \
+             patch('services.google_calendar_service.Credentials', autospec=True) as mock_creds_class:
 
             # Mock expired credentials with refresh token
             mock_creds = Mock()
@@ -259,8 +262,8 @@ class TestGoogleCalendarService:
 
     def test_expired_credentials_no_refresh_token(self):
         """Test handling of expired credentials without refresh token."""
-        with patch('services.google_calendar_service.build') as mock_build, \
-             patch('services.google_calendar_service.Credentials') as mock_creds_class:
+        with patch('services.google_calendar_service.build', autospec=True) as mock_build, \
+             patch('services.google_calendar_service.Credentials', autospec=True) as mock_creds_class:
 
             # Mock expired credentials without refresh token
             mock_creds = Mock()
@@ -527,8 +530,8 @@ class TestGoogleCalendarService:
     @pytest.mark.asyncio
     async def test_init_with_custom_calendar_id(self):
         """Test service initialization with custom calendar ID."""
-        with patch('services.google_calendar_service.build') as mock_build, \
-             patch('services.google_calendar_service.Credentials') as mock_creds_class:
+        with patch('services.google_calendar_service.build', autospec=True) as mock_build, \
+             patch('services.google_calendar_service.Credentials', autospec=True) as mock_creds_class:
             mock_service = Mock()
             mock_build.return_value = mock_service
             mock_creds = Mock()
@@ -544,8 +547,8 @@ class TestGoogleCalendarService:
     @pytest.mark.asyncio
     async def test_init_with_default_calendar_id(self):
         """Test service initialization with default calendar ID."""
-        with patch('services.google_calendar_service.build') as mock_build, \
-             patch('services.google_calendar_service.Credentials') as mock_creds_class:
+        with patch('services.google_calendar_service.build', autospec=True) as mock_build, \
+             patch('services.google_calendar_service.Credentials', autospec=True) as mock_creds_class:
             mock_service = Mock()
             mock_build.return_value = mock_service
             mock_creds = Mock()

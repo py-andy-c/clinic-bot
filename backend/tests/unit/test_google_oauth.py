@@ -3,7 +3,8 @@ Unit tests for Google OAuth service.
 """
 
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+import httpx
+from unittest.mock import AsyncMock, patch, MagicMock, Mock
 
 from services.google_oauth import GoogleOAuthService
 
@@ -75,21 +76,21 @@ class TestGoogleOAuthService:
         assert clinic_id == 456
 
     @pytest.mark.asyncio
-    @patch('services.google_oauth.httpx.AsyncClient')
+    @patch('services.google_oauth.httpx.AsyncClient', autospec=True)
     async def test_exchange_code_for_tokens_success(self, mock_client_class, oauth_service):
         """Test successful token exchange."""
-        mock_response = MagicMock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.json.return_value = {
-            "access_token": "test_access_token",
-            "refresh_token": "test_refresh_token",
-            "expires_in": 3600,
-            "token_type": "Bearer"
+            'access_token': 'test_access_token',
+            'refresh_token': 'test_refresh_token',
+            'expires_in': 3600,
+            'token_type': 'Bearer',
         }
-        mock_response.raise_for_status = MagicMock()
+        mock_response.raise_for_status = Mock(spec=httpx.Response)
 
-        mock_client = AsyncMock()
-        mock_client.post.return_value = mock_response
-        mock_client_class.return_value.__aenter__.return_value = mock_client
+        instance = AsyncMock()
+        instance.post.return_value = mock_response
+        mock_client_class.return_value.__aenter__.return_value = instance
 
         result = await oauth_service.exchange_code_for_tokens("test_code")
 
@@ -97,40 +98,40 @@ class TestGoogleOAuthService:
         assert result["refresh_token"] == "test_refresh_token"
         assert result["expires_in"] == 3600
 
-        mock_client.post.assert_called_once()
-        call_args = mock_client.post.call_args
+        instance.post.assert_called_once()
+        call_args = instance.post.call_args
         assert call_args[0][0] == "https://oauth2.googleapis.com/token"
 
     @pytest.mark.asyncio
-    @patch('services.google_oauth.httpx.AsyncClient')
+    @patch('services.google_oauth.httpx.AsyncClient', autospec=True)
     async def test_exchange_code_for_tokens_failure(self, mock_client_class, oauth_service):
         """Test token exchange failure."""
-        mock_response = MagicMock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.raise_for_status.side_effect = Exception("HTTP Error")
         mock_response.status_code = 400
 
-        mock_client = AsyncMock()
-        mock_client.post.return_value = mock_response
-        mock_client_class.return_value.__aenter__.return_value = mock_client
+        instance = AsyncMock()
+        instance.post.return_value = mock_response
+        mock_client_class.return_value.__aenter__.return_value = instance
 
         with pytest.raises(Exception):
             await oauth_service.exchange_code_for_tokens("invalid_code")
 
     @pytest.mark.asyncio
-    @patch('services.google_oauth.httpx.AsyncClient')
+    @patch('services.google_oauth.httpx.AsyncClient', autospec=True)
     async def test_refresh_access_token(self, mock_client_class, oauth_service):
         """Test access token refresh."""
-        mock_response = MagicMock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.json.return_value = {
             "access_token": "new_access_token",
             "expires_in": 3600,
             "token_type": "Bearer"
         }
-        mock_response.raise_for_status = MagicMock()
+        mock_response.raise_for_status = Mock(spec=httpx.Response)
 
-        mock_client = AsyncMock()
-        mock_client.post.return_value = mock_response
-        mock_client_class.return_value.__aenter__.return_value = mock_client
+        instance = AsyncMock()
+        instance.post.return_value = mock_response
+        mock_client_class.return_value.__aenter__.return_value = instance
 
         result = await oauth_service.refresh_access_token("refresh_token_123")
 
@@ -138,28 +139,28 @@ class TestGoogleOAuthService:
         assert result["expires_in"] == 3600
 
     @pytest.mark.asyncio
-    @patch('services.google_oauth.httpx.AsyncClient')
+    @patch('services.google_oauth.httpx.AsyncClient', autospec=True)
     async def test_get_user_info(self, mock_client_class, oauth_service):
         """Test user info retrieval."""
-        mock_response = MagicMock()
+        mock_response = Mock(spec=httpx.Response)
         mock_response.json.return_value = {
             "id": "12345",
             "email": "user@example.com",
             "name": "Test User",
             "verified_email": True
         }
-        mock_response.raise_for_status = MagicMock()
+        mock_response.raise_for_status = Mock(spec=httpx.Response)
 
-        mock_client = AsyncMock()
-        mock_client.get.return_value = mock_response
-        mock_client_class.return_value.__aenter__.return_value = mock_client
+        instance = AsyncMock()
+        instance.get.return_value = mock_response
+        mock_client_class.return_value.__aenter__.return_value = instance
 
         result = await oauth_service.get_user_info("access_token_123")
 
         assert result["email"] == "user@example.com"
         assert result["name"] == "Test User"
 
-        mock_client.get.assert_called_once_with(
+        instance.get.assert_called_once_with(
             "https://www.googleapis.com/oauth2/v2/userinfo",
             headers={"Authorization": "Bearer access_token_123"}
         )
