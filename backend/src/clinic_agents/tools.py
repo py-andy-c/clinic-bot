@@ -172,6 +172,16 @@ async def create_appointment(
         # Calculate end time
         end_time = start_time + timedelta(minutes=apt_type.duration_minutes)
 
+        # Prevent double-booking: check for overlapping appointments for this practitioner
+        conflict = db.query(Appointment).filter(
+            Appointment.user_id == therapist_id,
+            Appointment.status.in_(['confirmed', 'pending']),
+            Appointment.start_time < end_time,
+            Appointment.end_time > start_time,
+        ).first()
+        if conflict is not None:
+            return {"error": "預約時間衝突，請選擇其他時段"}
+
         # Create Google Calendar event FIRST
         if not practitioner.gcal_credentials:
             return {"error": "Practitioner has no Google Calendar credentials"}

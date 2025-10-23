@@ -338,7 +338,15 @@ async def _send_cancellation_notification(db: Session, appointment: Appointment)
 
         # Format cancellation message (as specified in PRD)
         therapist_name = appointment.user.full_name
-        appointment_time = appointment.start_time.strftime("%m/%d (%a) %H:%M")
+        # Convert to Asia/Taipei (UTC+8) for user-facing time
+        from datetime import timezone, timedelta
+        local_time = appointment.start_time
+        if local_time.tzinfo is not None:
+            local_time = local_time.astimezone(timezone(timedelta(hours=8)))
+        else:
+            # Treat naive as UTC then convert
+            local_time = local_time.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=8)))
+        appointment_time = local_time.strftime("%m/%d (%a) %H:%M")
         message = (
             f"提醒您，您原訂於【{appointment_time}】與【{therapist_name}治療師】的預約已被診所取消。"
             f"很抱歉造成您的不便，請問需要為您重新安排預約嗎？"
