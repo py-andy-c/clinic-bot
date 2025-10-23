@@ -136,7 +136,7 @@ async def handle_line_message(
             try:
                 # Get conversation history for quality assessment
                 conversation_history = []
-                for item in session.list_items():  # type: ignore
+                for item in session.get_items():  # type: ignore
                     if hasattr(item, 'content'):
                         conversation_history.append({  # type: ignore
                             "role": "user" if "user" in str(type(item)).lower() else "assistant",  # type: ignore
