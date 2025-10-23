@@ -278,3 +278,4 @@ Thumbs.db
 
 # Vercel specific
 .vercel/
+backend/:memory:
