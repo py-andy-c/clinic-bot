@@ -12,10 +12,15 @@ import {
   SignupTokenInfo,
   MemberInviteData,
   OAuthResponse,
-  SignupResponse,
-  ClinicSettings,
   UserRole
 } from '../types';
+import {
+  validateClinicSettings,
+  validateClinicDashboardStats,
+  validateSignupResponse,
+  ClinicSettings,
+  SignupResponse
+} from '../schemas/api';
 
 class ApiService {
   private client: AxiosInstance;
@@ -126,7 +131,7 @@ class ApiService {
   // Clinic APIs
   async getClinicDashboard(): Promise<ClinicDashboardStats> {
     const response = await this.client.get('/clinic/dashboard');
-    return response.data;
+    return validateClinicDashboardStats(response.data);
   }
 
   async getMembers(): Promise<Member[]> {
@@ -159,11 +164,12 @@ class ApiService {
 
   async getClinicSettings(): Promise<ClinicSettings> {
     const response = await this.client.get('/clinic/settings');
-    return response.data;
+    return validateClinicSettings(response.data);
   }
 
   async updateClinicSettings(settings: ClinicSettings): Promise<ClinicSettings> {
     const response = await this.client.put('/clinic/settings', settings);
+    // Note: We don't validate the response here since it's just a success message
     return response.data;
   }
 
@@ -185,12 +191,12 @@ class ApiService {
 
   async completeClinicSignup(token: string): Promise<SignupResponse> {
     const response = await this.client.post('/signup/callback', { token, type: 'clinic' });
-    return response.data;
+    return validateSignupResponse(response.data);
   }
 
   async completeMemberSignup(token: string): Promise<SignupResponse> {
     const response = await this.client.post('/signup/callback', { token, type: 'member' });
-    return response.data;
+    return validateSignupResponse(response.data);
   }
 }
 

@@ -66,13 +66,22 @@ class AppointmentTypeResponse(BaseModel):
     duration_minutes: int
 
 
+class NotificationSettings(BaseModel):
+    """Notification settings for clinic."""
+    email_reminders: bool = True
+    sms_reminders: bool = False
+    reminder_hours_before: int = 24
+
+
 class SettingsResponse(BaseModel):
     """Response model for clinic settings."""
+    clinic_id: int
+    clinic_name: str
+    business_hours: Dict[str, Dict[str, Any]]
     appointment_types: List[AppointmentTypeResponse]
-    reminder_hours_before: int
-    clinic_hours_start: str
-    clinic_hours_end: str
-    holidays: List[str]
+    notification_settings: NotificationSettings
+    clinic_hours_start: Optional[str] = None
+    clinic_hours_end: Optional[str] = None
 
 
 @router.get("/members", summary="List all clinic members")
@@ -310,6 +319,16 @@ async def get_settings(
     Requires practitioner role or higher.
     """
     try:
+        from models import Clinic
+
+        # Get clinic info
+        clinic = db.query(Clinic).filter(Clinic.id == current_user.clinic_id).first()
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Clinic not found"
+            )
+
         appointment_types = db.query(AppointmentType).filter(
             AppointmentType.clinic_id == current_user.clinic_id
         ).all()
@@ -323,12 +342,25 @@ async def get_settings(
             for at in appointment_types
         ]
 
+        # Default business hours
+        business_hours = {
+            "monday": {"start": "09:00", "end": "18:00", "enabled": True},
+            "tuesday": {"start": "09:00", "end": "18:00", "enabled": True},
+            "wednesday": {"start": "09:00", "end": "18:00", "enabled": True},
+            "thursday": {"start": "09:00", "end": "18:00", "enabled": True},
+            "friday": {"start": "09:00", "end": "18:00", "enabled": True},
+            "saturday": {"start": "09:00", "end": "18:00", "enabled": False},
+            "sunday": {"start": "09:00", "end": "18:00", "enabled": False},
+        }
+
         return SettingsResponse(
+            clinic_id=clinic.id,
+            clinic_name=clinic.name,
+            business_hours=business_hours,
             appointment_types=appointment_type_list,
-            reminder_hours_before=24,  # Default for now
+            notification_settings=NotificationSettings(),
             clinic_hours_start="09:00",
-            clinic_hours_end="18:00",
-            holidays=[]  # Placeholder
+            clinic_hours_end="18:00"
         )
 
     except Exception:
@@ -367,6 +399,9 @@ async def update_settings(
                     duration_minutes=at_data["duration_minutes"]
                 )
                 db.add(appointment_type)
+
+        # TODO: Save notification settings and business hours to database
+        # For now, just commit the appointment types
 
         db.commit()
 

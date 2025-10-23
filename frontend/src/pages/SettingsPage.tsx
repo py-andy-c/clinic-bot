@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
-import { ClinicSettings, AppointmentType } from '../types';
+import { ClinicSettings } from '../schemas/api';
+import { AppointmentType } from '../types';
 
 const SettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<ClinicSettings | null>(null);

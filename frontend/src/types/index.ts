@@ -185,15 +185,7 @@ export interface AppointmentType {
 export interface ClinicSettings {
   clinic_id: number;
   clinic_name: string;
-  business_hours: {
-    monday: { start: string; end: string; enabled: boolean };
-    tuesday: { start: string; end: string; enabled: boolean };
-    wednesday: { start: string; end: string; enabled: boolean };
-    thursday: { start: string; end: string; enabled: boolean };
-    friday: { start: string; end: string; enabled: boolean };
-    saturday: { start: string; end: string; enabled: boolean };
-    sunday: { start: string; end: string; enabled: boolean };
-  };
+  business_hours: Record<string, { start: string; end: string; enabled: boolean }>;
   appointment_types: AppointmentType[];
   notification_settings: {
     email_reminders: boolean;
