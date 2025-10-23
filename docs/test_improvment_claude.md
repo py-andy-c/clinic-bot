@@ -685,40 +685,47 @@ The foundation is now solid for Phase 2 implementation:
 - **Security:** Critical guardrails bug fixed for Chinese content
 - **Compatibility:** SQLAlchemy 2.0 ready
 
-### ✅ Phase 2: Error Scenarios & Business Logic - COMPLETED
+### ✅ Integration Test Expansion - COMPLETED
 
-**Phase 2: Error Scenarios & Business Logic** ✅ **DONE**
+**Integration Test Expansion** ✅ **DONE**
 
-**Goal:** Test error handling and business logic that can expose real bugs, not just confirm existing implementation.
+**Goal:** Expand integration testing to cover error scenarios and business logic validation that can expose real bugs.
+
+#### **Appointment Integration Tests** ✅ **DONE**
+**File:** `backend/tests/integration/test_appointment_integration.py`
+
+1. **Invalid Input Validation** ✅ **DONE**
+   - Test appointment creation with invalid therapist IDs
+   - Tests error handling for invalid foreign key references
+   - Test: `test_invalid_therapist_id_appointment_creation`
+
+2. **Business Rule Validation** ✅ **DONE**
+   - Test double booking prevention logic
+   - Critical business rule: no overlapping appointments for same therapist
+   - Test: `test_double_booking_prevention_business_logic`
+
+#### **Database Integration Tests** ✅ **DONE**
+**File:** `backend/tests/integration/test_database_integration.py`
 
 1. **Database Transaction Rollback Testing** ✅ **DONE**
    - Test that database failures during appointment creation properly rollback
    - Exposes bugs where partial operations aren't rolled back
-   - Added test: `test_database_failure_during_appointment_creation_rollback`
+   - Test: `test_database_failure_during_appointment_creation_rollback`
 
-2. **Invalid Input Validation** ✅ **DONE**
-   - Test appointment creation with invalid therapist IDs
-   - Tests error handling for invalid foreign key references
-   - Added test: `test_invalid_therapist_id_appointment_creation`
-
-3. **Business Rule Validation** ✅ **DONE**
-   - Test double booking prevention logic
-   - Critical business rule: no overlapping appointments for same therapist
-   - Added test: `test_double_booking_prevention_business_logic`
-
-### 📊 Phase 2 Results Achieved
+### 📊 Results Achieved
 
 - **Test Count:** +3 new integration tests (225 → 228 passing tests)
+- **New Test Files:** 2 properly organized integration test files
 - **Coverage:** Maintained overall coverage while adding critical error path testing
 - **Bugs Exposed:** Tests designed to catch rollback failures, invalid input handling, business rule violations
-- **Business Logic:** Direct testing of PRD requirements (no double booking, proper error handling)
+- **Organization:** Tests organized by functionality (appointments, database) rather than artificial phases
 
 ### 🔄 Next Steps
 
-**Phase 3: Real Agent Integration & API Coverage**
+**Real Agent Integration & API Coverage**
 - Real agent execution testing (reduced mocking)
 - Complete API endpoint test coverage
 - End-to-end user journey testing
 - Performance and concurrency testing
 
-**Status:** Phase 2 successfully completed with error scenarios and business logic validation.
+**Status:** Integration testing properly organized and expanded with error scenarios and business logic validation.
