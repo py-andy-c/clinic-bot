@@ -25,12 +25,12 @@ class GuardrailsService:
     """
 
     def __init__(self):
-        # Content filtering patterns
+        # Content filtering patterns - removed \b boundaries since they don't work well with Chinese
         self.inappropriate_patterns = [
-            r'\b(暴力|violence|殺|kill|自殺|suicide)\b',
-            r'\b(毒品|drugs|毒|poison)\b',
-            r'\b(非法|illegal|犯罪|crime)\b',
-            r'\b(歧視|discrimination|racial|hate)\b',
+            r'(暴力|violence|殺|kill|自殺|suicide)',
+            r'(毒品|drugs|毒|poison)',
+            r'(非法|illegal|犯罪|crime)',
+            r'(歧視|discrimination|racial|hate)',
         ]
 
         # Emergency keywords that should trigger special handling

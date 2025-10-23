@@ -423,8 +423,8 @@ async def mock_create_appointment(
             User.roles.contains(['practitioner']),
             User.is_active == True
         ).first()
-        patient = db.query(Patient).get(patient_id)
-        apt_type = db.query(AppointmentType).get(appointment_type_id)
+        patient = db.get(Patient, patient_id)
+        apt_type = db.get(AppointmentType, appointment_type_id)
 
         if practitioner is None:
             return {"error": "找不到指定的治療師"}
