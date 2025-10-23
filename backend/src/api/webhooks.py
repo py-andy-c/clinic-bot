@@ -271,15 +271,28 @@ async def _handle_calendar_changes(db: Session, resource_id: str) -> None:
             time_min = datetime.now(timezone.utc)
             time_max = time_min + timedelta(days=90)
 
-            events_result: Any = gcal_service.service.events().list(  # type: ignore
-                calendarId='primary',
-                timeMin=time_min.isoformat(),
-                timeMax=time_max.isoformat(),
-                singleEvents=True
-            ).execute()  # type: ignore
-
-            items: List[Any] = events_result.get('items', [])  # type: ignore
-            current_event_ids = {str(event.get('id', '')) for event in items if event.get('id')}  # type: ignore
+            # Handle pagination via nextPageToken
+            next_page_token: Any = None
+            while True:
+                request = gcal_service.service.events().list(  # type: ignore
+                    calendarId='primary',
+                    timeMin=time_min.isoformat(),
+                    timeMax=time_max.isoformat(),
+                    singleEvents=True,
+                    pageToken=next_page_token
+                )
+                events_result = request.execute()  # type: ignore
+                # Explicit typing/casting for static analysis
+                from typing import Dict as _Dict, Any as _Any, List as _List, cast
+                events_result = cast(_Dict[str, _Any], events_result)
+                items = cast(_List[_Dict[str, _Any]], events_result.get('items', []))
+                for event in items:
+                    eid_val = event.get('id')
+                    if eid_val:
+                        current_event_ids.add(str(eid_val))
+                next_page_token = events_result.get('nextPageToken')
+                if not next_page_token:
+                    break
 
         except Exception as e:
             logger.error(f"Failed to fetch Google Calendar events for user {user.id}: {e}")

@@ -125,31 +125,14 @@ async def get_practitioner_availability(
         return {"error": f"查詢可用時段時發生錯誤：{e}"}
 
 
-@function_tool
-async def create_appointment(
+async def create_appointment_impl(
     wrapper: RunContextWrapper[ConversationContext],
     therapist_id: int,
     appointment_type_id: int,
     start_time: datetime,
     patient_id: int
 ) -> Dict[str, Any]:
-    """
-    Create a new appointment with Google Calendar sync.
-
-    This tool creates a new appointment in the database and synchronizes it
-    with the therapist's Google Calendar. Uses transactional approach with rollback
-    on Google Calendar failure.
-
-    Args:
-        wrapper: Context wrapper (auto-injected)
-        therapist_id: ID of the therapist
-        appointment_type_id: ID of the appointment type
-        start_time: Appointment start time
-        patient_id: ID of the patient
-
-    Returns:
-        Dict with appointment details or error message
-    """
+    """Core implementation for creating an appointment with GCal sync."""
     db = wrapper.context.db_session
 
     try:
@@ -256,6 +239,27 @@ async def create_appointment(
     except Exception as e:
         db.rollback()
         return {"error": f"建立預約時發生錯誤：{e}"}
+
+
+@function_tool
+async def create_appointment(
+    wrapper: RunContextWrapper[ConversationContext],
+    therapist_id: int,
+    appointment_type_id: int,
+    start_time: datetime,
+    patient_id: int
+) -> Dict[str, Any]:
+    """
+    Create a new appointment with Google Calendar sync.
+    Delegates to create_appointment_impl for testability.
+    """
+    return await create_appointment_impl(
+        wrapper=wrapper,
+        therapist_id=therapist_id,
+        appointment_type_id=appointment_type_id,
+        start_time=start_time,
+        patient_id=patient_id,
+    )
 
 
 @function_tool
@@ -372,8 +376,7 @@ async def cancel_appointment(
         return {"error": f"取消預約時發生錯誤：{e}"}
 
 
-@function_tool
-async def reschedule_appointment(
+async def reschedule_appointment_impl(
     wrapper: RunContextWrapper[ConversationContext],
     appointment_id: int,
     patient_id: int,
@@ -382,18 +385,7 @@ async def reschedule_appointment(
     new_appointment_type_id: Optional[int] = None
 ) -> Dict[str, Any]:
     """
-    Reschedule an existing appointment to a new time/therapist/type.
-
-    Args:
-        wrapper: Context wrapper (auto-injected)
-        appointment_id: ID of appointment to reschedule
-        patient_id: ID of patient (for verification)
-        new_start_time: New appointment start time
-        new_therapist_id: Optional new therapist ID
-        new_appointment_type_id: Optional new appointment type ID
-
-    Returns:
-        Dict with updated appointment details or error
+    Core implementation for rescheduling appointments.
     """
     db = wrapper.context.db_session
 
@@ -432,6 +424,17 @@ async def reschedule_appointment(
 
         # Calculate new end time
         new_end_time = new_start_time + timedelta(minutes=final_apt_type.duration_minutes)
+
+        # Prevent conflicts: ensure the new window doesn't overlap other appointments for the target therapist
+        conflict = db.query(Appointment).filter(
+            Appointment.user_id == (new_therapist.id if new_therapist else appointment.user_id),
+            Appointment.id != appointment.id,
+            Appointment.status.in_(['confirmed', 'pending']),
+            Appointment.start_time < new_end_time,
+            Appointment.end_time > new_start_time,
+        ).first()
+        if conflict is not None:
+            return {"error": "預約時間衝突，請選擇其他時段"}
 
         # Update Google Calendar event
         if final_therapist.gcal_credentials:
@@ -525,6 +528,29 @@ async def reschedule_appointment(
     except Exception as e:
         db.rollback()
         return {"error": f"更改預約時發生錯誤：{e}"}
+
+
+@function_tool
+async def reschedule_appointment(
+    wrapper: RunContextWrapper[ConversationContext],
+    appointment_id: int,
+    patient_id: int,
+    new_start_time: datetime,
+    new_therapist_id: Optional[int] = None,
+    new_appointment_type_id: Optional[int] = None
+) -> Dict[str, Any]:
+    """
+    Reschedule an existing appointment to a new time/therapist/type.
+    Delegates to reschedule_appointment_impl to keep logic testable.
+    """
+    return await reschedule_appointment_impl(
+        wrapper=wrapper,
+        appointment_id=appointment_id,
+        patient_id=patient_id,
+        new_start_time=new_start_time,
+        new_therapist_id=new_therapist_id,
+        new_appointment_type_id=new_appointment_type_id,
+    )
 
 
 @function_tool

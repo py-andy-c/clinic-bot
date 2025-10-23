@@ -1,24 +1,18 @@
 """
-Integration test to expose double-booking behavior.
+Integration test verifying create_appointment() prevents overlapping bookings.
 
-This test is marked xfail to document the expected business rule:
-- Prevent overlapping appointments for the same practitioner and time window.
-
-Current implementation in `clinic_agents/tools.create_appointment` does not
-check for conflicts before creating the DB record (it creates the GCal event
-first). This test asserts the desired behavior and is expected to fail until
-conflict checks/constraints are added.
+Covers service-level guard in `clinic_agents/tools.create_appointment_impl`.
 """
 
 import pytest
 from datetime import datetime, timedelta, time
-from unittest.mock import Mock
+from unittest.mock import Mock, patch, AsyncMock
 
 from clinic_agents.context import ConversationContext
-from models import Clinic, User, Patient, AppointmentType, Appointment
+from clinic_agents.tools import create_appointment_impl
+from models import Clinic, User, Patient, AppointmentType
 
 
-@pytest.mark.xfail(reason="Double-booking prevention not enforced yet; test documents desired behavior")
 @pytest.mark.asyncio
 async def test_prevent_double_booking_same_time_window(db_session):
     # Arrange clinic, practitioner, type, patient
@@ -38,36 +32,67 @@ async def test_prevent_double_booking_same_time_window(db_session):
         google_subject_id="sub_conc",
         roles=["practitioner"],
         is_active=True,
+        gcal_credentials="enc_creds",  # ensure non-null for calendar path
     )
     at = AppointmentType(clinic_id=clinic.id, name="一般複診", duration_minutes=30)
     patient = Patient(clinic_id=clinic.id, full_name="P1", phone_number="0912000000")
     db_session.add_all([practitioner, at, patient])
     db_session.commit()
 
-    # Existing appointment at 10:00-10:30
-    start = datetime.combine(datetime.now().date() + timedelta(days=1), time(10, 0))
-    appt1 = Appointment(
-        patient_id=patient.id,
-        user_id=practitioner.id,
-        appointment_type_id=at.id,
-        start_time=start,
-        end_time=start + timedelta(minutes=30),
-        status="confirmed",
-        gcal_event_id="evt1",
+    # Prepare tool wrapper context
+    ctx = ConversationContext(
+        db_session=db_session,
+        clinic=clinic,
+        patient=None,
+        line_user_id="U1",
+        is_linked=True,
     )
-    db_session.add(appt1)
-    db_session.commit()
+    wrapper = Mock()
+    wrapper.context = ctx
 
-    # Attempt to create overlapping appointment 10:15-10:45 should be rejected
+    # First appointment: 10:00-10:30
+    start = datetime.combine(datetime.now().date() + timedelta(days=1), time(10, 0))
+
+    with patch("clinic_agents.tools.GoogleCalendarService") as mock_gcal_class, \
+         patch("services.encryption_service.get_encryption_service") as mock_get_enc:
+        # Mock decrypt
+        mock_enc = Mock()
+        mock_enc.decrypt_data.return_value = {"access_token": "x"}
+        mock_get_enc.return_value = mock_enc
+
+        # Mock GCal service
+        mock_gcal = Mock()
+        mock_gcal.create_event = AsyncMock(return_value={"id": "evt1"})
+        mock_gcal.update_event = AsyncMock(return_value=None)
+        mock_gcal_class.return_value = mock_gcal
+
+        res1 = await create_appointment_impl(
+            wrapper=wrapper,
+            therapist_id=practitioner.id,
+            appointment_type_id=at.id,
+            start_time=start,
+            patient_id=patient.id,
+        )
+        assert res1.get("success") is True
+
+    # Second overlapping appointment: 10:15-10:45 should be rejected
     overlapping_start = start + timedelta(minutes=15)
+    with patch("clinic_agents.tools.GoogleCalendarService") as mock_gcal_class, \
+         patch("services.encryption_service.get_encryption_service") as mock_get_enc:
+        mock_enc = Mock()
+        mock_enc.decrypt_data.return_value = {"access_token": "x"}
+        mock_get_enc.return_value = mock_enc
 
-    # Expected: service should reject; we'll check desired DB condition
-    overlapping = db_session.query(Appointment).filter(
-        Appointment.user_id == practitioner.id,
-        Appointment.status.in_(["confirmed", "pending"]),
-        Appointment.start_time < overlapping_start + timedelta(minutes=30),
-        Appointment.end_time > overlapping_start,
-    ).first()
+        mock_gcal = Mock()
+        mock_gcal.create_event = AsyncMock(return_value={"id": "evt2"})
+        mock_gcal.update_event = AsyncMock(return_value=None)
+        mock_gcal_class.return_value = mock_gcal
 
-    # Failing implementation currently allows; we assert desired state
-    assert overlapping is None, "Expected no overlapping appointment to be allowed (business rule)"
+        res2 = await create_appointment_impl(
+            wrapper=wrapper,
+            therapist_id=practitioner.id,
+            appointment_type_id=at.id,
+            start_time=overlapping_start,
+            patient_id=patient.id,
+        )
+        assert res2.get("error") == "預約時間衝突，請選擇其他時段"
