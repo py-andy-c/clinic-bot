@@ -1379,7 +1379,6 @@ class TestSignupCallbackFlow:
             client.app.dependency_overrides.pop(get_db, None)
             client.app.dependency_overrides.pop(get_current_user, None)
 
-    @pytest.mark.skip(reason="Health check test failing in test environment - LINE service mocking issues")
     def test_clinic_health_check(self, client, db_session):
         """Test clinic LINE integration health check endpoint."""
         from auth.dependencies import UserContext, get_current_user
@@ -1419,7 +1418,7 @@ class TestSignupCallbackFlow:
 
             data = response.json()
             assert data["clinic_id"] == clinic.id
-            assert data["line_integration_status"] == "warning"  # No recent webhooks
+            assert data["line_integration_status"] == "healthy"  # Has recent webhooks
             assert data["webhook_status"] == "active"  # Received webhooks in last 6 hours
             assert data["webhook_count_24h"] == 5
             assert "signature_verification_capable" in data

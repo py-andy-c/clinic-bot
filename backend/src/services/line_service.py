@@ -16,6 +16,8 @@ from typing import Any, Optional, Tuple
 
 from linebot.v3.messaging import MessagingApi, PushMessageRequest
 from linebot.v3.messaging.models import TextMessage
+from linebot.v3.messaging.api_client import ApiClient
+from linebot.v3.messaging.configuration import Configuration
 from linebot.v3.webhook import WebhookHandler
 
 
@@ -54,7 +56,9 @@ class LINEService:
         self.channel_access_token = channel_access_token
 
         # Initialize LINE API clients
-        self.api = MessagingApi(channel_access_token)
+        config = Configuration(access_token=channel_access_token)
+        api_client = ApiClient(configuration=config)
+        self.api = MessagingApi(api_client=api_client)
         self.handler = WebhookHandler(channel_secret)
 
     def verify_signature(self, body: str, signature: str) -> bool:

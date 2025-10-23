@@ -381,7 +381,14 @@ async def check_clinic_health(
         last_webhook_age_hours = None
 
         if clinic.last_webhook_received_at:
-            age = now - clinic.last_webhook_received_at
+            # Ensure both datetimes are timezone-aware for comparison
+            webhook_time = clinic.last_webhook_received_at
+            if webhook_time.tzinfo is None:
+                # Assume database datetime is UTC if naive
+                from datetime import timezone
+                webhook_time = webhook_time.replace(tzinfo=timezone.utc)
+
+            age = now - webhook_time
             last_webhook_age_hours = age.total_seconds() / 3600
 
             if age < timedelta(hours=1):

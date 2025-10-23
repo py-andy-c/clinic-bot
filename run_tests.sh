@@ -39,6 +39,15 @@ print_status "Project root: $PROJECT_ROOT"
 # Navigate to backend directory
 cd "$PROJECT_ROOT/backend"
 
+# Load test environment variables
+if [ -f ".env.test" ]; then
+    print_status "Loading test environment variables from backend/.env.test..."
+    source .env.test
+else
+    print_error ".env.test file not found in backend directory!"
+    exit 1
+fi
+
 # Check if venv exists
 if [ ! -d "venv" ]; then
     print_error "Virtual environment not found at backend/venv"
@@ -58,12 +67,6 @@ else
     print_error "Type checking failed!"
     exit 1
 fi
-
-# Set up test environment variables
-export JWT_SECRET_KEY="test-jwt-secret-key-for-testing-purposes-only"
-export ENCRYPTION_KEY="YyD8O45QlfRZUXT9kzjW3xEf6iNqz5EtF_OB8WEOBqw="
-export SYSTEM_ADMIN_EMAILS="test@example.com"
-export DATABASE_URL="sqlite:///:memory:"
 
 # Run all tests with coverage
 print_status "Running all tests with coverage..."
