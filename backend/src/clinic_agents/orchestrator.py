@@ -209,10 +209,10 @@ async def _handle_account_linking_flow(
         # No need to update context here as we're returning immediately
         
         # Return success message
-        return linking_result.final_output_as()  # type: ignore
+        return linking_result.final_output_as(str)  # type: ignore
     else:
         # Linking failed or in progress, return linking agent's response
-        return linking_result.final_output_as()  # type: ignore
+        return linking_result.final_output_as(str)  # type: ignore
 
 
 async def _handle_appointment_flow(
@@ -286,10 +286,10 @@ async def _handle_appointment_flow(
                     "step": "appointment_after_linking"
                 })
             )
-            return response.final_output_as()  # type: ignore
+            return response.final_output_as(str)  # type: ignore
         else:
             # Linking failed, return linking agent's response
-            return linking_result.final_output_as()  # type: ignore
+            return linking_result.final_output_as(str)  # type: ignore
     else:
         # Already linked: Go directly to appointment agent with trace metadata
         response = await Runner.run(
@@ -304,7 +304,7 @@ async def _handle_appointment_flow(
                 "step": "appointment"
             })
         )
-        return response.final_output_as()  # type: ignore
+        return response.final_output_as(str)  # type: ignore
 
 
 def _is_linking_successful(linking_result: Any) -> bool:
