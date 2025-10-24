@@ -22,7 +22,7 @@ const SystemDashboardPage: React.FC = () => {
       setStats(statsData);
       setClinics(clinicsData);
     } catch (err) {
-      setError('Failed to load dashboard data');
+      setError('無法載入儀表板數據');
       console.error('Dashboard error:', err);
     } finally {
       setLoading(false);
@@ -73,7 +73,7 @@ const SystemDashboardPage: React.FC = () => {
             </svg>
           </div>
           <div className="ml-3">
-            <h3 className="text-sm font-medium text-red-800">Error</h3>
+            <h3 className="text-sm font-medium text-red-800">錯誤</h3>
             <div className="mt-2 text-sm text-red-700">
               <p>{error}</p>
             </div>
@@ -83,7 +83,7 @@ const SystemDashboardPage: React.FC = () => {
                   onClick={fetchDashboardData}
                   className="bg-red-50 px-2 py-1.5 rounded-md text-sm font-medium text-red-800 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-red-50 focus:ring-red-600"
                 >
-                  Retry
+                  重試
                 </button>
               </div>
             </div>
@@ -99,10 +99,10 @@ const SystemDashboardPage: React.FC = () => {
       <div className="md:flex md:items-center md:justify-between">
         <div className="min-w-0 flex-1">
           <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
-            System Dashboard
+            系統儀表板
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Overview of all clinics and system health
+            所有診所和系統健康狀態總覽
           </p>
         </div>
         <div className="mt-4 flex md:mt-0 md:ml-4">
@@ -113,7 +113,7 @@ const SystemDashboardPage: React.FC = () => {
             <svg className="-ml-0.5 mr-1.5 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
             </svg>
-            Refresh
+            重新整理
           </button>
         </div>
       </div>
@@ -130,7 +130,7 @@ const SystemDashboardPage: React.FC = () => {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">Total Clinics</dt>
+                  <dt className="text-sm font-medium text-gray-500 truncate">總診所數</dt>
                   <dd className="text-lg font-medium text-gray-900">{stats?.total_clinics || 0}</dd>
                 </dl>
               </div>
@@ -148,7 +148,7 @@ const SystemDashboardPage: React.FC = () => {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">Active Clinics</dt>
+                  <dt className="text-sm font-medium text-gray-500 truncate">活躍診所</dt>
                   <dd className="text-lg font-medium text-gray-900">{stats?.active_clinics || 0}</dd>
                 </dl>
               </div>
@@ -166,7 +166,7 @@ const SystemDashboardPage: React.FC = () => {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">Total Users</dt>
+                  <dt className="text-sm font-medium text-gray-500 truncate">總使用者數</dt>
                   <dd className="text-lg font-medium text-gray-900">{stats?.total_users || 0}</dd>
                 </dl>
               </div>
@@ -182,7 +182,7 @@ const SystemDashboardPage: React.FC = () => {
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">System Health</dt>
+                  <dt className="text-sm font-medium text-gray-500 truncate">系統健康狀態</dt>
                   <dd className={`text-lg font-medium capitalize ${getHealthStatusColor(stats?.system_health || 'unknown')}`}>
                     {stats?.system_health || 'Unknown'}
                   </dd>
@@ -196,9 +196,9 @@ const SystemDashboardPage: React.FC = () => {
       {/* Clinics Table */}
       <div className="bg-white shadow overflow-hidden sm:rounded-md">
         <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">Clinics Overview</h3>
+          <h3 className="text-lg leading-6 font-medium text-gray-900">診所總覽</h3>
           <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            Manage and monitor all clinics in the system
+            管理和監控系統中的所有診所
           </p>
         </div>
         <ul role="list" className="divide-y divide-gray-200">
@@ -213,7 +213,7 @@ const SystemDashboardPage: React.FC = () => {
                     <div className="ml-4">
                       <div className="text-sm font-medium text-gray-900">{clinic.name}</div>
                       <div className="text-sm text-gray-500">
-                        Channel: {clinic.line_channel_id}
+                        頻道: {clinic.line_channel_id}
                       </div>
                     </div>
                   </div>
@@ -224,7 +224,7 @@ const SystemDashboardPage: React.FC = () => {
                       </span>
                     </div>
                     <div className="text-sm text-gray-900">
-                      {clinic.webhook_count_24h || 0} webhooks
+                      {clinic.webhook_count_24h || 0} 個 webhook
                     </div>
                   </div>
                 </div>
@@ -237,8 +237,8 @@ const SystemDashboardPage: React.FC = () => {
             <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No clinics</h3>
-            <p className="mt-1 text-sm text-gray-500">Get started by creating your first clinic.</p>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">尚無診所</h3>
+            <p className="mt-1 text-sm text-gray-500">請建立您的第一個診所開始使用。</p>
           </div>
         )}
       </div>

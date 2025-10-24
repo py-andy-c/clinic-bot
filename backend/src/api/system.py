@@ -273,7 +273,7 @@ async def generate_clinic_signup_link(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate signup link"
+            detail="無法產生註冊連結"
         )
 
 
@@ -341,7 +341,7 @@ async def get_system_dashboard(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch system metrics"
+            detail="無法取得系統指標"
         )
 
 
@@ -468,5 +468,5 @@ async def check_clinic_health(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to check clinic health"
+            detail="無法檢查診所健康狀態"
         )

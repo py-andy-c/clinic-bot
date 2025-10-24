@@ -21,11 +21,11 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   };
 
   const navigation = [
-    { name: 'Dashboard', href: '/clinic/dashboard', icon: '📊', show: true },
-    { name: 'Members', href: '/clinic/members', icon: '👥', show: isClinicAdmin },
-    { name: 'Patients', href: '/clinic/patients', icon: '👥', show: true },
-    { name: 'Availability', href: '/clinic/availability', icon: '🕒', show: isPractitioner },
-    { name: 'Settings', href: '/clinic/settings', icon: '⚙️', show: isClinicAdmin },
+    { name: '儀表板', href: '/clinic/dashboard', icon: '📊', show: true },
+    { name: '團隊成員', href: '/clinic/members', icon: '👥', show: isClinicAdmin },
+    { name: '病患管理', href: '/clinic/patients', icon: '👥', show: true },
+    { name: '可用時間', href: '/clinic/availability', icon: '🕒', show: isPractitioner },
+    { name: '設定', href: '/clinic/settings', icon: '⚙️', show: isClinicAdmin },
   ].filter(item => item.show);
 
   const isActive = (href: string) => {
@@ -34,13 +34,13 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
 
   const getUserRoleDisplay = () => {
     if (isClinicAdmin && isPractitioner) {
-      return 'Admin & Practitioner';
+      return '管理員 & 治療師';
     } else if (isClinicAdmin) {
-      return 'Clinic Admin';
+      return '診所管理員';
     } else if (isPractitioner) {
-      return 'Practitioner';
+      return '治療師';
     }
-    return 'User';
+    return '使用者';
   };
 
   return (
@@ -91,9 +91,9 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
                   <button
                     onClick={handleLogout}
                     className="bg-white p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                    title="Logout"
+                    title="登出"
                   >
-                    <span className="sr-only">Logout</span>
+                    <span className="sr-only">登出</span>
                     <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                     </svg>
@@ -108,7 +108,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className="bg-white inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500"
               >
-                <span className="sr-only">Open main menu</span>
+                <span className="sr-only">開啟主選單</span>
                 {isMobileMenuOpen ? (
                   <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -153,7 +153,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
                   onClick={handleLogout}
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 w-full text-left"
                 >
-                  Logout
+                  登出
                 </button>
               </div>
             </div>

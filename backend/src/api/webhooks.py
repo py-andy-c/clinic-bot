@@ -102,7 +102,7 @@ async def line_webhook(request: Request, db: Session = Depends(get_db)) -> Plain
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid JSON payload"
+                detail="無效的 JSON 負載"
             )
         message_data = line_service.extract_message_data(payload)
 
@@ -140,7 +140,7 @@ async def line_webhook(request: Request, db: Session = Depends(get_db)) -> Plain
         logger.error(f"Unexpected error processing LINE webhook: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
+            detail="內部伺服器錯誤"
         )
 
 
@@ -206,7 +206,7 @@ async def google_calendar_webhook(request: Request, db: Session = Depends(get_db
         logger.error(f"Unexpected error processing Google Calendar webhook: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
+            detail="內部伺服器錯誤"
         )
 
 

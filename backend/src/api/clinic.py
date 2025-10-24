@@ -149,7 +149,7 @@ async def list_members(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch members"
+            detail="無法取得成員列表"
         )
 
 
@@ -170,7 +170,7 @@ async def invite_member(
         if not all(role in valid_roles for role in invite_data.default_roles):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid role specified"
+                detail="指定的角色無效"
             )
 
         # Generate secure token
@@ -203,7 +203,7 @@ async def invite_member(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate invitation"
+            detail="無法產生邀請"
         )
 
 
@@ -230,7 +230,7 @@ async def update_member_roles(
         if not member:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Member not found"
+                detail="找不到成員"
             )
 
         # Prevent self-demotion if user would lose admin access
@@ -248,7 +248,7 @@ async def update_member_roles(
             if admin_count == 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot remove admin access from the last administrator"
+                    detail="無法從最後一位管理員移除管理員權限"
                 )
 
         # Validate roles
@@ -256,7 +256,7 @@ async def update_member_roles(
         if not all(role in valid_roles for role in new_roles):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid role specified"
+                detail="指定的角色無效"
             )
 
         # Update roles
@@ -280,7 +280,7 @@ async def update_member_roles(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update member roles"
+            detail="無法更新成員角色"
         )
 
 
@@ -306,7 +306,7 @@ async def remove_member(
         if not member:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Member not found"
+                detail="找不到成員"
             )
 
         # Prevent removing last admin
@@ -322,14 +322,14 @@ async def remove_member(
             if admin_count == 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot remove the last administrator"
+                    detail="無法移除最後一位管理員"
                 )
 
         # Soft delete
         member.is_active = False
         db.commit()
 
-        return {"message": "Member removed successfully"}
+        return {"message": "成員移除成功"}
 
     except HTTPException:
         raise
@@ -337,7 +337,7 @@ async def remove_member(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to remove member"
+            detail="無法移除成員"
         )
 
 
@@ -359,7 +359,7 @@ async def get_settings(
         if not clinic:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Clinic not found"
+                detail="找不到診所"
             )
 
         appointment_types = db.query(AppointmentType).filter(
@@ -399,7 +399,7 @@ async def get_settings(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch settings"
+            detail="無法取得設定"
         )
 
 
@@ -438,13 +438,13 @@ async def update_settings(
 
         db.commit()
 
-        return {"message": "Settings updated successfully"}
+        return {"message": "設定更新成功"}
 
     except Exception:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update settings"
+            detail="無法更新設定"
         )
 
 
@@ -479,7 +479,7 @@ async def get_patients(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch patients"
+            detail="無法取得病患列表"
         )
 
 
@@ -505,14 +505,14 @@ async def initiate_member_gcal_oauth(
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Team member not found"
+                detail="找不到團隊成員"
             )
 
         # Check if user has practitioner role
         if not user.is_practitioner:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User must have practitioner role to set up Google Calendar"
+                detail="使用者必須具有治療師角色才能設定 Google 日曆"
             )
 
         # Generate OAuth URL
@@ -527,7 +527,7 @@ async def initiate_member_gcal_oauth(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to initiate Google Calendar OAuth"
+            detail="無法啟動 Google 日曆 OAuth"
         )
 
 
@@ -552,7 +552,7 @@ async def handle_member_gcal_callback(
         if updated_user.clinic_id != current_user.clinic_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: User does not belong to your clinic"
+                detail="存取被拒絕：使用者不屬於您的診所"
             )
 
         # Update user's calendar sync settings
@@ -560,7 +560,7 @@ async def handle_member_gcal_callback(
         db.commit()
 
         return {
-            "message": "Google Calendar integration enabled successfully",
+            "message": "Google 日曆整合啟用成功",
             "user_id": updated_user.id,
             "gcal_sync_enabled": True
         }
@@ -570,7 +570,7 @@ async def handle_member_gcal_callback(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to complete Google Calendar OAuth"
+            detail="無法完成 Google 日曆 OAuth"
         )
 
 
@@ -644,7 +644,7 @@ async def get_dashboard_stats(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch dashboard statistics"
+            detail="無法取得儀表板統計資料"
         )
 
 
@@ -676,14 +676,14 @@ async def get_practitioner_availability(
         if not practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Practitioner not found"
+                detail="找不到治療師"
             )
 
         # Check permissions - practitioners can only view their own availability
         if not current_user.has_role('admin') and current_user.user_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: You can only view your own availability"
+                detail="存取被拒絕：您只能查看自己的可用時間"
             )
 
         # Get availability
@@ -715,7 +715,7 @@ async def get_practitioner_availability(
         logger.error(f"Failed to fetch practitioner availability for user {user_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch practitioner availability"
+            detail="無法取得治療師可用時間"
         )
 
 
@@ -750,14 +750,14 @@ async def create_practitioner_availability(
         if not practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Practitioner not found"
+                detail="找不到治療師"
             )
 
         # Check permissions - practitioners can only modify their own availability
         if not current_user.has_role('admin') and current_user.user_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: You can only modify your own availability"
+                detail="存取被拒絕：您只能修改自己的可用時間"
             )
 
         # Check if availability already exists for this day
@@ -769,7 +769,7 @@ async def create_practitioner_availability(
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Availability already exists for {existing.day_name}"
+                detail=f"{existing.day_name} 的可用時間已存在"
             )
 
         # Validate time format and logic
@@ -779,13 +779,13 @@ async def create_practitioner_availability(
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid time format. Use HH:MM format"
+                detail="無效的時間格式。請使用 HH:MM 格式"
             )
 
         if start_time >= end_time:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Start time must be before end time"
+                detail="開始時間必須早於結束時間"
             )
 
         # Create availability
@@ -821,7 +821,7 @@ async def create_practitioner_availability(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create practitioner availability"
+            detail="無法建立治療師可用時間"
         )
 
 
@@ -852,7 +852,7 @@ async def update_practitioner_availability(
         if not availability:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Availability not found"
+                detail="找不到可用時間"
             )
 
         # Verify the practitioner belongs to current clinic
@@ -869,14 +869,14 @@ async def update_practitioner_availability(
         if not practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Practitioner not found"
+                detail="找不到治療師"
             )
 
         # Check permissions - practitioners can only modify their own availability
         if not current_user.has_role('admin') and current_user.user_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: You can only modify your own availability"
+                detail="存取被拒絕：您只能修改自己的可用時間"
             )
 
         # Check for conflicts if changing day_of_week
@@ -890,7 +890,7 @@ async def update_practitioner_availability(
             if existing:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Availability already exists for {existing.day_name}"
+                    detail=f"{existing.day_name} 的可用時間已存在"
                 )
 
         # Validate time format and logic
@@ -900,13 +900,13 @@ async def update_practitioner_availability(
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid time format. Use HH:MM format"
+                detail="無效的時間格式。請使用 HH:MM 格式"
             )
 
         if start_time >= end_time:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Start time must be before end time"
+                detail="開始時間必須早於結束時間"
             )
 
         # Update availability
@@ -938,7 +938,7 @@ async def update_practitioner_availability(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update practitioner availability"
+            detail="無法更新治療師可用時間"
         )
 
 
@@ -966,7 +966,7 @@ async def delete_practitioner_availability(
         if not availability:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Availability not found"
+                detail="找不到可用時間"
             )
 
         # Verify the practitioner belongs to current clinic
@@ -983,14 +983,14 @@ async def delete_practitioner_availability(
         if not practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Practitioner not found"
+                detail="找不到治療師"
             )
 
         # Check permissions - practitioners can only modify their own availability
         if not current_user.has_role('admin') and current_user.user_id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied: You can only modify your own availability"
+                detail="存取被拒絕：您只能修改自己的可用時間"
             )
 
         # Delete availability
@@ -1006,7 +1006,7 @@ async def delete_practitioner_availability(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete practitioner availability"
+            detail="無法刪除治療師可用時間"
         )
 
 
@@ -1104,5 +1104,5 @@ async def get_calendar_embed_info(
         logger.error(f"Failed to generate calendar embed information for clinic {current_user.clinic_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate calendar embed information"
+            detail="無法產生行事曆嵌入資訊"
         )

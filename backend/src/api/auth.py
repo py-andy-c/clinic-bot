@@ -35,7 +35,7 @@ async def initiate_google_auth(user_type: str = "clinic_user") -> dict[str, str]
     if user_type not in ["system_admin", "clinic_user"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user_type. Must be 'system_admin' or 'clinic_user'"
+            detail="無效的使用者類型。必須是 'system_admin' 或 'clinic_user'"
         )
 
     from urllib.parse import urlencode
@@ -90,14 +90,14 @@ async def google_auth_callback(
         if not state_data:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or expired authentication state"
+                detail="無效或已過期的認證狀態"
             )
 
         intended_user_type = state_data.get("type")
         if intended_user_type not in ["system_admin", "clinic_user"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid authentication state"
+                detail="無效的認證狀態"
             )
 
         # Exchange code for tokens (simplified - would use actual OAuth client)
@@ -127,7 +127,7 @@ async def google_auth_callback(
         if not user_info or not user_info.get("email"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to get user information from Google"
+                detail="無法從 Google 取得使用者資訊"
             )
 
         email = user_info["email"]
@@ -160,7 +160,7 @@ async def google_auth_callback(
             if intended_user_type != "clinic_user":
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Please use the clinic user login option"
+                    detail="請使用診所使用者登入選項"
                 )
 
             # For clinic users, check if they have an existing account
@@ -181,7 +181,7 @@ async def google_auth_callback(
                 # New clinic user - redirect to signup
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Clinic user authentication must go through signup flow"
+                    detail="診所使用者認證必須透過註冊流程"
                 )
 
         # Create token pair
@@ -234,7 +234,7 @@ async def google_auth_callback(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Authentication failed"
+            detail="認證失敗"
         )
 
 
@@ -254,7 +254,7 @@ async def refresh_access_token(
     if not refresh_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token not found"
+            detail="找不到重新整理權杖"
         )
 
     # First, try fast lookup using HMAC key
@@ -286,7 +286,7 @@ async def refresh_access_token(
     if not refresh_token_record:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token"
+            detail="無效的重新整理權杖"
         )
 
     # Get the user associated with this refresh token
@@ -294,7 +294,7 @@ async def refresh_access_token(
     if not user or not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or inactive"
+            detail="找不到使用者或使用者已停用"
         )
 
     # Create new token pair
@@ -372,13 +372,13 @@ async def dev_login(
     if ENVIRONMENT == "production":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Development login not available in production"
+            detail="開發登入在生產環境中不可用"
         )
 
     if user_type not in ["system_admin", "clinic_user"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user_type. Must be 'system_admin' or 'clinic_user'"
+            detail="無效的使用者類型。必須是 'system_admin' 或 'clinic_user'"
         )
 
     # Check if user exists, if not create them
@@ -505,4 +505,4 @@ async def logout(
         samesite="strict"
     )
 
-    return {"message": "Logged out successfully"}
+    return {"message": "登出成功"}

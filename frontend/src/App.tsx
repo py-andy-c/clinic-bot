@@ -77,13 +77,13 @@ const AppRoutes: React.FC = () => {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
-        <p className="text-gray-600 mb-4">You don't have permission to access this application.</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-4">存取被拒絕</h1>
+        <p className="text-gray-600 mb-4">您沒有權限存取此應用程式。</p>
         <button
           onClick={() => window.location.href = '/auth/google/login'}
           className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
         >
-          Return to Login
+          返回登入
         </button>
       </div>
     </div>

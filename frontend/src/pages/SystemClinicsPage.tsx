@@ -59,7 +59,7 @@ const SystemClinicsPage: React.FC = () => {
       setShowCreateModal(false);
     } catch (err) {
       console.error('Create clinic error:', err);
-      alert('Failed to create clinic. Please try again.');
+      alert('建立診所失敗，請稍後再試。');
     } finally {
       setCreating(false);
     }
@@ -70,10 +70,10 @@ const SystemClinicsPage: React.FC = () => {
       const result = await apiService.generateClinicSignupLink(clinicId);
       // Copy to clipboard
       await navigator.clipboard.writeText(result.signup_url);
-      alert('Signup link copied to clipboard!');
+      alert('註冊連結已複製到剪貼簿！');
     } catch (err) {
       console.error('Generate signup link error:', err);
-      alert('Failed to generate signup link. Please try again.');
+      alert('產生註冊連結失敗，請稍後再試。');
     }
   };
 
@@ -225,7 +225,7 @@ const SystemClinicsPage: React.FC = () => {
               </div>
               {clinicHealth.error_messages.length > 0 && (
                 <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-                  <dt className="text-sm font-medium text-gray-500">Errors</dt>
+                  <dt className="text-sm font-medium text-gray-500">錯誤</dt>
                   <dd className="mt-1 text-sm text-red-600 sm:mt-0 sm:col-span-2">
                     <ul className="list-disc list-inside">
                       {clinicHealth.error_messages.map((error, index) => (

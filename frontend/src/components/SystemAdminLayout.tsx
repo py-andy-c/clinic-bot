@@ -21,8 +21,8 @@ const SystemAdminLayout: React.FC<SystemAdminLayoutProps> = ({ children }) => {
   };
 
   const navigation = [
-    { name: 'Dashboard', href: '/system/dashboard', icon: '📊' },
-    { name: 'Clinics', href: '/system/clinics', icon: '🏥' },
+    { name: '儀表板', href: '/system/dashboard', icon: '📊' },
+    { name: '診所管理', href: '/system/clinics', icon: '🏥' },
   ];
 
   const isActive = (href: string) => {
@@ -41,7 +41,7 @@ const SystemAdminLayout: React.FC<SystemAdminLayoutProps> = ({ children }) => {
                 <div className="flex items-center space-x-2">
                   <span className="text-2xl">🏥</span>
                   <span className="text-xl font-bold text-gray-900">Clinic Bot Admin</span>
-                  <span className="text-sm bg-red-100 text-red-800 px-2 py-1 rounded-full">System Admin</span>
+                  <span className="text-sm bg-red-100 text-red-800 px-2 py-1 rounded-full">系統管理員</span>
                 </div>
               </div>
 
@@ -76,7 +76,7 @@ const SystemAdminLayout: React.FC<SystemAdminLayoutProps> = ({ children }) => {
                     onClick={handleLogout}
                     className="bg-white p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                   >
-                    <span className="sr-only">Logout</span>
+                    <span className="sr-only">登出</span>
                     <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                     </svg>
@@ -91,7 +91,7 @@ const SystemAdminLayout: React.FC<SystemAdminLayoutProps> = ({ children }) => {
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className="bg-white inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500"
               >
-                <span className="sr-only">Open main menu</span>
+                <span className="sr-only">開啟主選單</span>
                 {isMobileMenuOpen ? (
                   <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -135,7 +135,7 @@ const SystemAdminLayout: React.FC<SystemAdminLayoutProps> = ({ children }) => {
                   onClick={handleLogout}
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-100 w-full text-left"
                 >
-                  Logout
+                  登出
                 </button>
               </div>
             </div>

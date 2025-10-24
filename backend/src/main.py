@@ -163,7 +163,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error", "type": "internal_error"},
+        content={"detail": "內部伺服器錯誤", "type": "internal_error"},
     )
 
 
@@ -183,5 +183,5 @@ async def http_status_error_handler(request: Request, exc: httpx.HTTPStatusError
     logger.error(f"External service error: {exc}", exc_info=True)
     return JSONResponse(
         status_code=502,
-        content={"detail": "External service error", "type": "external_service_error"},
+        content={"detail": "外部服務錯誤", "type": "external_service_error"},
     )
