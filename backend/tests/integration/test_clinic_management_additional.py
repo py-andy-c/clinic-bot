@@ -62,7 +62,7 @@ class TestLastAdminProtections:
         # Attempt to delete the only admin
         res = client.delete(f"/api/clinic/members/{admin.id}")
         assert res.status_code == 400
-        assert "Cannot remove the last administrator" in res.text
+        assert "無法停用最後一位管理員" in res.text
 
         app.dependency_overrides.pop(auth_deps.get_current_user, None)
 
@@ -75,7 +75,7 @@ class TestLastAdminProtections:
         # Attempt to remove own admin role while being the last admin
         res = client.put(f"/api/clinic/members/{admin.id}/roles", json={"roles": ["practitioner"]})
         assert res.status_code == 400
-        assert "Cannot remove admin access from the last administrator" in res.text
+        assert "無法從最後一位管理員停用管理員權限" in res.text
 
         app.dependency_overrides.pop(auth_deps.get_current_user, None)
 
@@ -90,7 +90,7 @@ class TestInviteValidation:
         # Invalid role should be rejected with 400
         res = client.post("/api/clinic/members/invite", json={"default_roles": ["superadmin"]})
         assert res.status_code == 400
-        assert "Invalid role" in res.text
+        assert "指定的角色無效" in res.text
 
         app.dependency_overrides.pop(auth_deps.get_current_user, None)
 

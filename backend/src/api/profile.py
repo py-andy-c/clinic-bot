@@ -7,7 +7,7 @@ Email cannot be changed as it's tied to the Google account used for signup.
 
 import logging
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel

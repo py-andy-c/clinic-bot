@@ -139,7 +139,7 @@ class ApiService {
     return response.data.members;
   }
 
-  async inviteMember(inviteData: MemberInviteData): Promise<{ signup_url: string }> {
+  async inviteMember(inviteData: MemberInviteData): Promise<{ signup_url: string; expires_at: string }> {
     const response = await this.client.post('/clinic/members/invite', inviteData);
     return response.data;
   }

@@ -76,7 +76,7 @@ class TestExceptionHandlers:
 
             assert response.status_code == 500
             data = response.body
-            assert b"Internal server error" in data
+            assert "內部伺服器錯誤".encode('utf-8') in data
             assert b"internal_error" in data
 
             # Verify logging
@@ -119,7 +119,7 @@ class TestExceptionHandlers:
 
             assert response.status_code == 502
             data = response.body
-            assert b"External service error" in data
+            assert "外部服務錯誤".encode('utf-8') in data
             assert b"external_service_error" in data
 
             # Verify logging

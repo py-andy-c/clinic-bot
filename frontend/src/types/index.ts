@@ -35,6 +35,7 @@ export interface User {
   roles: UserRole[];
   clinic_id?: number;
   user_type: UserType;
+  is_active: boolean;
   gcal_sync_enabled?: boolean;
   gcal_credentials?: any;
   gcal_watch_resource_id?: string;

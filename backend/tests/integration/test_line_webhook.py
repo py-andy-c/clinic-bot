@@ -361,7 +361,7 @@ class TestLineWebhookIntegration:
         # Should return 400 Bad Request
         assert response.status_code == 400
         response_data = response.json()
-        assert "Invalid JSON payload" in response_data["detail"]
+        assert "無效的 JSON 負載" in response_data["detail"]
 
 
 class TestLineWebhookSecurity:

@@ -640,13 +640,13 @@ class TestRefreshTokenFlow:
             # Test with no cookie
             response = client.post("/api/auth/refresh")
             assert response.status_code == 401
-            assert "Refresh token not found" in response.json()["detail"]
+            assert "找不到重新整理權杖" in response.json()["detail"]
 
             # Test with invalid cookie
             client.cookies.set("refresh_token", "invalid_token_string")
             response = client.post("/api/auth/refresh")
             assert response.status_code == 401
-            assert "Invalid refresh token" in response.json()["detail"]
+            assert "無效的重新整理權杖" in response.json()["detail"]
         finally:
             # Clean up overrides
             client.app.dependency_overrides.pop(get_db, None)
@@ -697,7 +697,7 @@ class TestRefreshTokenFlow:
             client.cookies.set("refresh_token", expired_token_string)
             response = client.post("/api/auth/refresh")
             assert response.status_code == 401
-            assert "Invalid refresh token" in response.json()["detail"]
+            assert "無效的重新整理權杖" in response.json()["detail"]
         finally:
             client.app.dependency_overrides.pop(get_db, None)
 
@@ -750,7 +750,7 @@ class TestRefreshTokenFlow:
             # Logout
             response = client.post("/api/auth/logout")
             assert response.status_code == 200
-            assert response.json()["message"] == "Logged out successfully"
+            assert response.json()["message"] == "登出成功"
 
             # Verify token was revoked
             db_session.refresh(refresh_token_record)
@@ -1360,7 +1360,7 @@ class TestSignupCallbackFlow:
                 assert response.status_code == 200
                 data = response.json()
                 assert "message" in data
-                assert "Google Calendar integration enabled" in data["message"]
+                assert "Google 日曆整合啟用成功" in data["message"]
 
                 # Verify user was updated with Google Calendar credentials
                 db_session.refresh(user)
@@ -1488,7 +1488,7 @@ class TestSignupCallbackFlow:
         assert response.status_code == 401
         data = response.json()
         assert "detail" in data
-        assert "Refresh token not found" in data["detail"]
+        assert "找不到重新整理權杖" in data["detail"]
 
     def test_refresh_token_invalid_cookie(self, client, db_session):
         """Test refresh token endpoint with invalid cookie."""
@@ -1506,7 +1506,7 @@ class TestSignupCallbackFlow:
             # Should get "Invalid refresh token" error since token doesn't exist in database
             data = response.json()
             assert "detail" in data
-            assert "Invalid refresh token" in data["detail"]
+            assert "無效的重新整理權杖" in data["detail"]
 
         finally:
             client.app.dependency_overrides.pop(get_db, None)

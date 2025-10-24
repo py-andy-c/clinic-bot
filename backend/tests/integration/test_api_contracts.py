@@ -310,7 +310,7 @@ class TestAPIContracts:
 
         response_data = response.json()
         assert "message" in response_data
-        assert "Settings updated successfully" in response_data["message"]
+        assert "設定更新成功" in response_data["message"]
 
     def test_business_hours_structure(self, api_contract_client):
         """Test that business_hours structure matches frontend expectations."""

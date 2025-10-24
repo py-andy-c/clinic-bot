@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 from core.database import get_db
 from core.config import FRONTEND_URL
-from auth.dependencies import require_admin_role, require_clinic_or_system_admin, require_clinic_member, require_read_access, require_practitioner_or_admin, UserContext
+from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
 from models import User, Patient, Appointment, AppointmentType, SignupToken, PractitionerAvailability
 from services.google_oauth import GoogleOAuthService
 

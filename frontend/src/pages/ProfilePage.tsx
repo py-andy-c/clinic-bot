@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { User } from '../types';
-import { useAuth } from '../hooks/useAuth';
 
 interface CalendarSettings {
   gcal_sync_enabled: boolean;
@@ -9,7 +8,6 @@ interface CalendarSettings {
 }
 
 const ProfilePage: React.FC = () => {
-  const { user: authUser } = useAuth();
   const [profile, setProfile] = useState<User | null>(null);
   const [calendarSettings, setCalendarSettings] = useState<CalendarSettings | null>(null);
   const [loading, setLoading] = useState(true);
