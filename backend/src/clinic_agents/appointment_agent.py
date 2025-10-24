@@ -104,7 +104,7 @@ def get_appointment_instructions(
 appointment_agent = Agent[ConversationContext](
     name="Appointment Agent",
     instructions=get_appointment_instructions,  # Dynamic function for context injection
-    model="gpt-5-nano",
+    model="gpt-4o-mini",
     tools=[
         get_practitioner_availability,
         create_appointment,

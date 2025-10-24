@@ -45,7 +45,7 @@ account_linking_agent = Agent[ConversationContext](
 - 成功連結後，鼓勵用戶開始使用預約功能
 - 永遠使用繁體中文回應
 """,
-    model="gpt-5-nano",
+    model="gpt-4o-mini",
     tools=[register_patient_account],
     model_settings=ModelSettings(
     )
