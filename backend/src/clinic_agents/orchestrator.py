@@ -36,7 +36,6 @@ def get_session_storage(line_user_id: str) -> SQLAlchemySession:
 
     # Convert SQLite URL to async-compatible format for SQLAlchemySession
     session_url = db_url
-    print(f"aaaaaa db_url: {db_url}")
     if db_url.startswith("sqlite:///"):
         # Replace sqlite:/// with sqlite+aiosqlite:/// for async operations
         session_url = db_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
