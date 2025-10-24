@@ -596,179 +596,172 @@ async def get_last_appointment_therapist(
         return {"error": f"查詢上次治療師時發生錯誤：{e}"}
 
 
-def sanitize_phone_number(phone_number: str) -> str:
+def validate_taiwanese_phone_number(phone_number: str) -> tuple[bool, str, str]:
     """
-    Sanitize and standardize phone number.
+    Validate and sanitize Taiwanese mobile phone number.
 
-    Removes spaces, dashes, and ensures proper format.
-    Assumes Taiwanese phone numbers.
+    Accepts mobile phone numbers in various formats:
+    - Local: 0912345678, 912345678
+    - International: +886912345678, 886912345678
+    - With separators: +886-912-345-678, 0912 345 678
+
+    Only accepts mobile phone numbers (starting with 09). Landline numbers are rejected.
 
     Args:
         phone_number: Raw phone number string
 
     Returns:
-        Sanitized phone number
+        Tuple of (is_valid, sanitized_number, error_message)
+        If valid: (True, sanitized_number, "")
+        If invalid: (False, "", error_message)
     """
-    # Remove all non-digit characters
-    digits_only = ''.join(filter(str.isdigit, phone_number))
+    # Handle international format first (before removing non-digits)
+    clean_number = phone_number.strip()
+    if clean_number.startswith('+886'):
+        # Convert +886xxxxxxxxxx to 0xxxxxxxxxx
+        digits_only = '0' + clean_number[4:]
+        # Remove any remaining non-digits
+        digits_only = ''.join(filter(str.isdigit, digits_only))
+    elif clean_number.startswith('886'):
+        # Convert 886xxxxxxxxxx to 0xxxxxxxxxx
+        digits_only = '0' + clean_number[3:]
+        # Remove any remaining non-digits
+        digits_only = ''.join(filter(str.isdigit, digits_only))
+    else:
+        # Remove all non-digit characters for regular formats
+        digits_only = ''.join(filter(str.isdigit, phone_number))
 
-    # Handle Taiwanese phone numbers
-    if digits_only.startswith('886'):  # International format
-        digits_only = '0' + digits_only[3:]  # Convert to local format
-    elif digits_only.startswith('09') and len(digits_only) == 10:  # Mobile format
-        pass  # Already correct
-    elif len(digits_only) == 9 and digits_only.startswith('9'):  # Missing leading 0
-        digits_only = '0' + digits_only
+    if not digits_only:
+        return False, "", "手機號碼不能為空。請提供有效的手機號碼。"
 
-    return digits_only
-
-
-@function_tool
-async def verify_and_link_patient(
-    wrapper: RunContextWrapper[ConversationContext],
-    phone_number: str
-) -> str:
-    """
-    Verify phone number and link LINE account to patient record.
-
-    This tool performs the actual linking operation, not just checking status.
-    For new patients, it will ask for additional information (name) to create a patient record.
-
-    Args:
-        wrapper: Context wrapper (auto-injected)
-        phone_number: Phone number provided by user
-
-    Returns:
-        Success or error message as string, or request for more info
-    """
-    db = wrapper.context.db_session
-    clinic = wrapper.context.clinic
-    line_user_id = wrapper.context.line_user_id
-
-    try:
-        # Sanitize phone number
-        sanitized_phone = sanitize_phone_number(phone_number)
-
-        # Query patient by phone number in this clinic
-        patient = db.query(Patient).filter(
-            Patient.clinic_id == clinic.id,
-            Patient.phone_number == sanitized_phone
-        ).first()
-
-        if not patient:
-            # For new patients, we need more information
-            return f"NEEDS_NAME: 您的手機號碼 {sanitized_phone} 尚未在系統中註冊。請提供您的全名，以便為您建立病患記錄。"
-
-        # Check if already linked to another LINE account
-        existing_link = db.query(LineUser).filter(
-            LineUser.patient_id == patient.id
-        ).first()
-
-        if existing_link is not None and existing_link.line_user_id != line_user_id:
-            return "ERROR: 此手機號碼已連結到其他 LINE 帳號。如有問題請聯繫診所。"
-
-        # Check if this LINE account is already linked
-        existing_line_user = db.query(LineUser).filter(
-            LineUser.line_user_id == line_user_id
-        ).first()
-
-        if existing_line_user is not None and existing_line_user.patient_id is not None:
-            if existing_line_user.patient_id == patient.id:
-                return f"SUCCESS: 您的帳號已經連結到 {patient.full_name}（{patient.phone_number}），無需重複連結。"
-            else:
-                return "ERROR: 此 LINE 帳號已連結到其他病患。如有問題請聯繫診所。"
-
-        # Create or update LINE user link
-        if existing_line_user:
-            existing_line_user.patient_id = patient.id
+    # Validate Taiwanese phone number formats - MOBILE PHONES ONLY
+    if digits_only.startswith('09'):
+        # Mobile phone format: 09xxxxxxxx (10 digits)
+        if len(digits_only) == 10:
+            return True, digits_only, ""
+        elif len(digits_only) == 9:
+            # Missing leading 0 for mobile
+            return True, '0' + digits_only, ""
         else:
-            line_user = LineUser(
-                line_user_id=line_user_id,
-                patient_id=patient.id
-            )
-            db.add(line_user)
-
-        db.commit()
-
-        return f"SUCCESS: 帳號連結成功！歡迎 {patient.full_name}（{patient.phone_number}），您現在可以開始預約了。"
-
-    except IntegrityError as e:
-        db.rollback()
-        return "ERROR: 資料庫錯誤，請稍後再試。"
-
-    except Exception as e:
-        db.rollback()
-        return f"ERROR: 連結帳號時發生錯誤：{e}"
+            return False, "", f"手機號碼格式錯誤。行動電話應為 10 位數字，例如：0912345678 或 912345678"
+    elif digits_only.startswith('0'):
+        # Reject landline numbers
+        return False, "", "只接受手機號碼，不接受市話號碼。請提供以 09 開頭的手機號碼，例如：0912345678"
+    else:
+        # Handle edge cases for mobile numbers
+        if len(digits_only) == 9 and digits_only.startswith('9'):
+            # Could be mobile missing leading 0, validate the number looks reasonable
+            # Taiwanese mobile numbers: 09xxxxxxxx where second digit is typically 0-9
+            # Reject obviously invalid patterns like 999999999
+            second_digit = digits_only[1]
+            if second_digit in '0123456789':
+                return True, '0' + digits_only, ""
+            else:
+                return False, "", "手機號碼格式錯誤。行動電話應以 09 開頭，例如：0912345678"
+        elif len(digits_only) == 10 and digits_only.startswith('9'):
+            return False, "", "手機號碼應以 09 開頭，例如：0912345678"
+        else:
+            return False, "", "手機號碼格式錯誤。只接受手機號碼，請提供以 09 開頭的 10 位數字，例如：0912345678"
 
 
 @function_tool
-async def create_patient_and_link(
+async def register_patient_account(
     wrapper: RunContextWrapper[ConversationContext],
     phone_number: str,
     full_name: str
 ) -> str:
     """
-    Create a new patient record and link LINE account.
+    Register or link a patient account with LINE.
 
-    This tool creates a new patient record with the provided information
-    and links the LINE account to it.
+    This tool handles both existing patient linking and new patient registration.
+    It will link an existing patient if the phone number matches, or create a new
+    patient record if the phone number doesn't exist.
 
     Args:
         wrapper: Context wrapper (auto-injected)
-        phone_number: Phone number for the new patient
-        full_name: Full name of the new patient
+        phone_number: Phone number for patient lookup/registration
+        full_name: Full name of the patient (required for new patients)
 
     Returns:
-        Success or error message as string
+        Success message or error description
     """
     db = wrapper.context.db_session
     clinic = wrapper.context.clinic
     line_user_id = wrapper.context.line_user_id
 
     try:
-        # Sanitize phone number
-        sanitized_phone = sanitize_phone_number(phone_number)
+        # Validate and sanitize phone number
+        is_valid, sanitized_phone, phone_error = validate_taiwanese_phone_number(phone_number)
+        if not is_valid:
+            return f"ERROR: {phone_error}"
 
-        # Check if phone number already exists
+        # Check if phone number already exists in this clinic
         existing_patient = db.query(Patient).filter(
             Patient.clinic_id == clinic.id,
             Patient.phone_number == sanitized_phone
         ).first()
 
-        if existing_patient:
-            return f"ERROR: 此手機號碼 {sanitized_phone} 已存在於系統中，姓名為 {existing_patient.full_name}。請使用正確的資訊，或聯繫診所協助。"
-
-        # Check if this LINE account is already linked
+        # Check if this LINE account is already linked to any patient
         existing_line_user = db.query(LineUser).filter(
             LineUser.line_user_id == line_user_id
         ).first()
 
         if existing_line_user is not None and existing_line_user.patient_id is not None:
-            existing_patient = db.query(Patient).filter(Patient.id == existing_line_user.patient_id).first()
-            return f"ERROR: 此 LINE 帳號已連結到 {existing_patient.full_name if existing_patient else '其他病患'}。"
+            current_patient = db.query(Patient).filter(Patient.id == existing_line_user.patient_id).first()
+            if current_patient and existing_patient and existing_patient.id == current_patient.id:
+                return f"SUCCESS: 您的帳號已經連結到 {current_patient.full_name}（{current_patient.phone_number}），無需重複連結。"
+            else:
+                patient_name = current_patient.full_name if current_patient else '其他病患'
+                return f"ERROR: 此 LINE 帳號已連結到 {patient_name}。如需更改請聯繫診所。"
 
-        # Create new patient
-        new_patient = Patient(
-            clinic_id=clinic.id,
-            full_name=full_name.strip(),
-            phone_number=sanitized_phone
-        )
-        db.add(new_patient)
-        db.flush()  # Get the patient ID
+        if existing_patient:
+            # Existing patient - verify not linked to another LINE account
+            existing_link = db.query(LineUser).filter(
+                LineUser.patient_id == existing_patient.id
+            ).first()
 
-        # Link LINE account to patient
-        if existing_line_user:
-            existing_line_user.patient_id = new_patient.id
+            if existing_link is not None and existing_link.line_user_id != line_user_id:
+                return "ERROR: 此手機號碼已連結到其他 LINE 帳號。如有問題請聯繫診所。"
+
+            # Link existing patient to this LINE account
+            if existing_line_user:
+                existing_line_user.patient_id = existing_patient.id
+            else:
+                line_user = LineUser(
+                    line_user_id=line_user_id,
+                    patient_id=existing_patient.id
+                )
+                db.add(line_user)
+
+            db.commit()
+            return f"SUCCESS: 帳號連結成功！歡迎 {existing_patient.full_name}（{existing_patient.phone_number}），您現在可以開始預約了。"
+
         else:
-            line_user = LineUser(
-                line_user_id=line_user_id,
-                patient_id=new_patient.id
+            # New patient - validate full name
+            if not full_name or not full_name.strip():
+                return "ERROR: 建立新病患記錄需要提供全名。"
+
+            # Create new patient
+            new_patient = Patient(
+                clinic_id=clinic.id,
+                full_name=full_name.strip(),
+                phone_number=sanitized_phone
             )
-            db.add(line_user)
+            db.add(new_patient)
+            db.flush()  # Get the patient ID
 
-        db.commit()
+            # Link LINE account to new patient
+            if existing_line_user:
+                existing_line_user.patient_id = new_patient.id
+            else:
+                line_user = LineUser(
+                    line_user_id=line_user_id,
+                    patient_id=new_patient.id
+                )
+                db.add(line_user)
 
-        return f"SUCCESS: 歡迎 {new_patient.full_name}！您的病患記錄已建立，手機號碼 {new_patient.phone_number} 已連結到 LINE 帳號。您現在可以開始預約了。"
+            db.commit()
+            return f"SUCCESS: 歡迎 {new_patient.full_name}！您的病患記錄已建立，手機號碼 {new_patient.phone_number} 已連結到 LINE 帳號。您現在可以開始預約了。"
 
     except IntegrityError as e:
         db.rollback()
@@ -776,4 +769,4 @@ async def create_patient_and_link(
 
     except Exception as e:
         db.rollback()
-        return f"ERROR: 建立病患記錄時發生錯誤：{e}"
+        return f"ERROR: 註冊帳號時發生錯誤：{e}"

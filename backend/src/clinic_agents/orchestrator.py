@@ -316,7 +316,7 @@ def _is_linking_successful(linking_result: Any) -> bool:
     Check if account linking was successful from agent result.
 
     Inspects tool call results in the agent's response to determine
-    if the verify_and_link_patient tool succeeded.
+    if the register_patient_account tool succeeded.
 
     Args:
         linking_result: Result from account linking agent
@@ -332,18 +332,20 @@ def _is_linking_successful(linking_result: Any) -> bool:
             try:
                 output = item.output
 
-                # Try to parse as JSON first
+                # Check for SUCCESS prefix in string responses
                 if isinstance(output, str):
-                    try:
-                        parsed = json.loads(output)
-                        if isinstance(parsed, dict):
-                            parsed_dict = cast(Dict[str, Any], parsed)
-                            if parsed_dict.get("success") is True:
-                                return True
-                    except json.JSONDecodeError:
-                        # Not JSON, check for legacy string format
-                        if output.startswith("SUCCESS:"):
+                    if output.startswith("SUCCESS:"):
+                        return True
+
+                # Try to parse as JSON (for backward compatibility)
+                try:
+                    parsed = json.loads(output)
+                    if isinstance(parsed, dict):
+                        parsed_dict = cast(Dict[str, Any], parsed)
+                        if parsed_dict.get("success") is True:
                             return True
+                except json.JSONDecodeError:
+                    pass
 
             except (AttributeError, TypeError):
                 # Not a valid tool result, continue checking

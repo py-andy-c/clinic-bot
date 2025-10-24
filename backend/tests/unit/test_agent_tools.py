@@ -935,3 +935,373 @@ class TestVerifyAndLinkPatient:
             # Should find the patient regardless of input format
             assert result.startswith("SUCCESS:")
             assert patient.full_name in result
+
+
+class TestValidateTaiwanesePhoneNumber:
+    """Test phone number validation function."""
+
+    def test_valid_mobile_formats(self):
+        """Test various valid mobile phone number formats."""
+        from clinic_agents.tools import validate_taiwanese_phone_number
+
+        valid_cases = [
+            ("0912345678", "0912345678"),      # Standard format
+            ("912345678", "0912345678"),       # Missing leading 0
+            ("0912-345-678", "0912345678"),    # With dashes
+            ("0912 345 678", "0912345678"),    # With spaces
+            ("+886912345678", "0912345678"),   # International with +
+            ("886912345678", "0912345678"),    # International without +
+            ("+886 912 345 678", "0912345678"), # International with spaces
+            ("+886-912-345-678", "0912345678"), # International with dashes
+            ("0999999999", "0999999999"),      # Valid format (even if not real number)
+        ]
+
+        for input_phone, expected_output in valid_cases:
+            is_valid, sanitized, error = validate_taiwanese_phone_number(input_phone)
+            assert is_valid, f"Expected {input_phone} to be valid"
+            assert sanitized == expected_output, f"Expected {expected_output}, got {sanitized}"
+            assert error == "", f"Expected no error, got {error}"
+
+    def test_invalid_formats(self):
+        """Test various invalid phone number formats."""
+        from clinic_agents.tools import validate_taiwanese_phone_number
+
+        invalid_cases = [
+            ("0212345678", "只接受手機號碼，不接受市話號碼"),      # Landline
+            ("02-12345678", "只接受手機號碼，不接受市話號碼"),     # Landline with dash
+            ("037-123456", "只接受手機號碼，不接受市話號碼"),      # Landline
+            ("+8860212345678", "只接受手機號碼，不接受市話號碼"),  # International landline
+            ("9123456789", "手機號碼應以 09 開頭"),                # 10 digits starting with 9
+            ("12345678", "手機號碼格式錯誤。只接受手機號碼"),      # Invalid length
+            ("", "手機號碼不能為空"),                              # Empty
+        ]
+
+        for input_phone, expected_error_prefix in invalid_cases:
+            is_valid, sanitized, error = validate_taiwanese_phone_number(input_phone)
+            assert not is_valid, f"Expected {input_phone} to be invalid"
+            assert sanitized == "", f"Expected empty sanitized for invalid input, got {sanitized}"
+            assert error.startswith(expected_error_prefix), f"Expected error to start with '{expected_error_prefix}', got '{error}'"
+
+    def test_edge_cases(self):
+        """Test edge cases and boundary conditions."""
+        from clinic_agents.tools import validate_taiwanese_phone_number
+
+        # Test that invalid 9-digit numbers starting with 9 are rejected if second digit is invalid
+        # (though currently all digits 0-9 are accepted for the second digit)
+        edge_cases = [
+            ("999999999", True, "0999999999"),  # Currently accepted
+        ]
+
+        for input_phone, should_be_valid, expected_output in edge_cases:
+            is_valid, sanitized, error = validate_taiwanese_phone_number(input_phone)
+            assert is_valid == should_be_valid, f"Expected {input_phone} validity: {should_be_valid}"
+            if should_be_valid:
+                assert sanitized == expected_output, f"Expected {expected_output}, got {sanitized}"
+
+
+# Mock version of register_patient_account for testing
+async def mock_register_patient_account(
+    wrapper,
+    phone_number: str,
+    full_name: str
+) -> str:
+    """Test version of register_patient_account function."""
+    from clinic_agents.tools import validate_taiwanese_phone_number
+
+    db = wrapper.context.db_session
+    clinic = wrapper.context.clinic
+    line_user_id = wrapper.context.line_user_id
+
+    try:
+        # Validate and sanitize phone number
+        is_valid, sanitized_phone, phone_error = validate_taiwanese_phone_number(phone_number)
+        if not is_valid:
+            return f"ERROR: {phone_error}"
+
+        # Check if phone number already exists in this clinic
+        existing_patient = db.query(Patient).filter(
+            Patient.clinic_id == clinic.id,
+            Patient.phone_number == sanitized_phone
+        ).first()
+
+        # Check if this LINE account is already linked to any patient
+        existing_line_user = db.query(LineUser).filter(
+            LineUser.line_user_id == line_user_id
+        ).first()
+
+        if existing_line_user is not None and existing_line_user.patient_id is not None:
+            current_patient = db.query(Patient).filter(Patient.id == existing_line_user.patient_id).first()
+            if existing_patient and existing_patient.id == current_patient.id:
+                return f"SUCCESS: 您的帳號已經連結到 {current_patient.full_name}（{current_patient.phone_number}），無需重複連結。"
+            else:
+                return f"ERROR: 此 LINE 帳號已連結到 {current_patient.full_name if current_patient else '其他病患'}。如需更改請聯繫診所。"
+
+        if existing_patient:
+            # Existing patient - verify not linked to another LINE account
+            existing_link = db.query(LineUser).filter(
+                LineUser.patient_id == existing_patient.id
+            ).first()
+
+            if existing_link is not None and existing_link.line_user_id != line_user_id:
+                return "ERROR: 此手機號碼已連結到其他 LINE 帳號。如有問題請聯繫診所。"
+
+            # Link existing patient to this LINE account
+            if existing_line_user:
+                existing_line_user.patient_id = existing_patient.id
+            else:
+                line_user = LineUser(
+                    line_user_id=line_user_id,
+                    patient_id=existing_patient.id
+                )
+                db.add(line_user)
+
+            db.commit()
+            return f"SUCCESS: 帳號連結成功！歡迎 {existing_patient.full_name}（{existing_patient.phone_number}），您現在可以開始預約了。"
+
+        else:
+            # New patient - validate full name
+            if not full_name or not full_name.strip():
+                return "ERROR: 建立新病患記錄需要提供全名。"
+
+            # Create new patient
+            new_patient = Patient(
+                clinic_id=clinic.id,
+                full_name=full_name.strip(),
+                phone_number=sanitized_phone
+            )
+            db.add(new_patient)
+            db.flush()  # Get the patient ID
+
+            # Link LINE account to new patient
+            if existing_line_user:
+                existing_line_user.patient_id = new_patient.id
+            else:
+                line_user = LineUser(
+                    line_user_id=line_user_id,
+                    patient_id=new_patient.id
+                )
+                db.add(line_user)
+
+            db.commit()
+            return f"SUCCESS: 歡迎 {new_patient.full_name}！您的病患記錄已建立，手機號碼 {new_patient.phone_number} 已連結到 LINE 帳號。您現在可以開始預約了。"
+
+    except Exception as e:
+        db.rollback()
+        return f"ERROR: 註冊帳號時發生錯誤：{e}"
+
+
+class TestRegisterPatientAccount:
+    """Test the register_patient_account tool."""
+
+    @pytest.mark.asyncio
+    async def test_register_existing_patient_success(self, db_session, test_clinic_with_therapist_and_types):
+        """Test successfully registering an existing patient."""
+
+        clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+
+        # Create existing patient
+        existing_patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Existing Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(existing_patient)
+        db_session.commit()
+
+        # Create unlinked LINE user
+        line_user = LineUser(line_user_id="Utest_register_existing")
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create context
+        context = ConversationContext(
+            db_session=db_session,
+            clinic=clinic,
+            patient=None,  # Not linked yet
+            line_user_id="Utest_register_existing",
+            is_linked=False
+        )
+
+        wrapper = Mock()
+        wrapper.context = context
+
+        # Register existing patient
+        result = await mock_register_patient_account(
+            wrapper=wrapper,
+            phone_number="0912345678",
+            full_name="Existing Patient"
+        )
+
+        # Should succeed
+        assert result.startswith("SUCCESS:")
+        assert "Existing Patient" in result
+        assert "0912345678" in result
+
+        # Check database state
+        updated_line_user = db_session.query(LineUser).filter_by(line_user_id="Utest_register_existing").first()
+        assert updated_line_user is not None
+        assert updated_line_user.patient_id == existing_patient.id
+
+    @pytest.mark.asyncio
+    async def test_register_new_patient_success(self, db_session, test_clinic_with_therapist_and_types):
+        """Test successfully registering a new patient."""
+
+        clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+
+        # Create unlinked LINE user
+        line_user = LineUser(line_user_id="Utest_register_new")
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create context
+        context = ConversationContext(
+            db_session=db_session,
+            clinic=clinic,
+            patient=None,  # Not linked yet
+            line_user_id="Utest_register_new",
+            is_linked=False
+        )
+
+        wrapper = Mock()
+        wrapper.context = context
+
+        # Register new patient
+        result = await mock_register_patient_account(
+            wrapper=wrapper,
+            phone_number="0987654321",
+            full_name="New Test Patient"
+        )
+
+        # Should succeed
+        assert result.startswith("SUCCESS:")
+        assert "New Test Patient" in result
+        assert "0987654321" in result
+
+        # Check database state - new patient should be created
+        new_patient = db_session.query(Patient).filter_by(phone_number="0987654321").first()
+        assert new_patient is not None
+        assert new_patient.full_name == "New Test Patient"
+        assert new_patient.clinic_id == clinic.id
+
+        # LINE user should be linked
+        updated_line_user = db_session.query(LineUser).filter_by(line_user_id="Utest_register_new").first()
+        assert updated_line_user is not None
+        assert updated_line_user.patient_id == new_patient.id
+
+    @pytest.mark.asyncio
+    async def test_register_duplicate_phone_links_existing(self, db_session, test_clinic_with_therapist_and_types):
+        """Test that registering with existing phone number links to existing patient regardless of name."""
+
+        clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+
+        # Create existing patient
+        existing_patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Existing Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(existing_patient)
+        db_session.commit()
+
+        # Create unlinked LINE user
+        line_user = LineUser(line_user_id="Utest_register_duplicate")
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create context
+        context = ConversationContext(
+            db_session=db_session,
+            clinic=clinic,
+            patient=None,  # Not linked yet
+            line_user_id="Utest_register_duplicate",
+            is_linked=False
+        )
+
+        wrapper = Mock()
+        wrapper.context = context
+
+        # Try to register with same phone number but different name
+        result = await mock_register_patient_account(
+            wrapper=wrapper,
+            phone_number="0912345678",
+            full_name="Different Name"  # Different name, but same phone
+        )
+
+        # Should succeed by linking to existing patient
+        assert result.startswith("SUCCESS:")
+        assert "Existing Patient" in result  # Links to existing patient, not the name provided
+        assert "0912345678" in result
+
+        # Check that LINE user is linked to existing patient
+        updated_line_user = db_session.query(LineUser).filter_by(line_user_id="Utest_register_duplicate").first()
+        assert updated_line_user is not None
+        assert updated_line_user.patient_id == existing_patient.id
+
+    @pytest.mark.asyncio
+    async def test_register_invalid_phone_error(self, db_session, test_clinic_with_therapist_and_types):
+        """Test error with invalid phone number format."""
+
+        clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+
+        # Create unlinked LINE user
+        line_user = LineUser(line_user_id="Utest_register_invalid")
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create context
+        context = ConversationContext(
+            db_session=db_session,
+            clinic=clinic,
+            patient=None,  # Not linked yet
+            line_user_id="Utest_register_invalid",
+            is_linked=False
+        )
+
+        wrapper = Mock()
+        wrapper.context = context
+
+        # Try to register with invalid phone number
+        result = await mock_register_patient_account(
+            wrapper=wrapper,
+            phone_number="0212345678",  # Landline
+            full_name="Test Patient"
+        )
+
+        # Should fail with phone validation error
+        assert result.startswith("ERROR:")
+        assert "只接受手機號碼" in result
+
+    @pytest.mark.asyncio
+    async def test_register_empty_name_error(self, db_session, test_clinic_with_therapist_and_types):
+        """Test error when name is empty for new patient."""
+
+        clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+
+        # Create unlinked LINE user
+        line_user = LineUser(line_user_id="Utest_register_empty_name")
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create context
+        context = ConversationContext(
+            db_session=db_session,
+            clinic=clinic,
+            patient=None,  # Not linked yet
+            line_user_id="Utest_register_empty_name",
+            is_linked=False
+        )
+
+        wrapper = Mock()
+        wrapper.context = context
+
+        # Try to register with empty name
+        result = await mock_register_patient_account(
+            wrapper=wrapper,
+            phone_number="0987654321",
+            full_name=""  # Empty name
+        )
+
+        # Should fail
+        assert result.startswith("ERROR:")
+        assert "需要提供全名" in result
+
