@@ -112,7 +112,15 @@ class GuardrailsService:
             Quality assessment metrics
         """
         if not conversation_history:
-            return {"score": 0, "issues": ["Empty conversation"]}
+            return {
+                "total_messages": 0,
+                "user_messages": 0,
+                "assistant_messages": 0,
+                "avg_user_message_length": 0,
+                "avg_assistant_message_length": 0,
+                "score": 0,
+                "issues": ["Empty conversation"]
+            }
 
         total_messages = len(conversation_history)
         user_messages = [msg for msg in conversation_history if msg.get("role") == "user"]
