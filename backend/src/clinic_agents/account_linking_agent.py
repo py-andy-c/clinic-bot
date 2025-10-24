@@ -48,7 +48,5 @@ account_linking_agent = Agent[ConversationContext](
     model="gpt-5-nano",
     tools=[register_patient_account],
     model_settings=ModelSettings(
-        temperature=0.7,  # Slightly higher for natural conversation
-        max_tokens=300
     )
 )

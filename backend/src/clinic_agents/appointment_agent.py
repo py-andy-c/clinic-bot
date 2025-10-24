@@ -114,7 +114,5 @@ appointment_agent = Agent[ConversationContext](
         get_last_appointment_therapist
     ],
     model_settings=ModelSettings(
-        temperature=0.7,  # Balanced for natural conversation
-        max_tokens=1000   # Allow longer responses for appointment details
     )
 )

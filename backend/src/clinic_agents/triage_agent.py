@@ -70,7 +70,5 @@ triage_agent = Agent(
     model="gpt-5-nano",
     output_type=TriageClassification,
     model_settings=ModelSettings(
-        temperature=0.1,  # Low temperature for consistent classification
-        max_tokens=200
     )
 )
