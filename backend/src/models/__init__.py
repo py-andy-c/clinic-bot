@@ -8,6 +8,7 @@ from .patient import Patient
 from .line_user import LineUser
 from .appointment import Appointment
 from .appointment_type import AppointmentType
+from .practitioner_availability import PractitionerAvailability
 
 __all__ = [
     "Clinic",
@@ -17,5 +18,6 @@ __all__ = [
     "Patient",
     "LineUser",
     "Appointment",
-    "AppointmentType"
+    "AppointmentType",
+    "PractitionerAvailability"
 ]

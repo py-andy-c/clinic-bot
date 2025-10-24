@@ -173,6 +173,31 @@ class ApiService {
     return response.data;
   }
 
+  async getCalendarEmbed(): Promise<{ embed_url: string; practitioners: any[] }> {
+    const response = await this.client.get('/clinic/calendar/embed');
+    return response.data;
+  }
+
+  // Practitioner Availability APIs
+  async getPractitionerAvailability(userId: number): Promise<any[]> {
+    const response = await this.client.get(`/clinic/practitioners/${userId}/availability`);
+    return response.data.availability;
+  }
+
+  async createPractitionerAvailability(userId: number, availabilityData: any): Promise<any> {
+    const response = await this.client.post(`/clinic/practitioners/${userId}/availability`, availabilityData);
+    return response.data;
+  }
+
+  async updatePractitionerAvailability(userId: number, availabilityId: number, availabilityData: any): Promise<any> {
+    const response = await this.client.put(`/clinic/practitioners/${userId}/availability/${availabilityId}`, availabilityData);
+    return response.data;
+  }
+
+  async deletePractitionerAvailability(userId: number, availabilityId: number): Promise<void> {
+    await this.client.delete(`/clinic/practitioners/${userId}/availability/${availabilityId}`);
+  }
+
   // Signup APIs (public)
   async validateSignupToken(token: string, type: 'clinic' | 'member'): Promise<SignupTokenInfo> {
     const response = await this.client.get(`/signup/${type}`, { params: { token } });

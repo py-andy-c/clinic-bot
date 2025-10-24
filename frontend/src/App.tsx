@@ -10,6 +10,7 @@ import ClinicDashboardPage from './pages/ClinicDashboardPage';
 import MembersPage from './pages/MembersPage';
 import PatientsPage from './pages/PatientsPage';
 import SettingsPage from './pages/SettingsPage';
+import AvailabilityPage from './pages/AvailabilityPage';
 import ClinicSignupPage from './pages/ClinicSignupPage';
 import MemberSignupPage from './pages/MemberSignupPage';
 
@@ -65,6 +66,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/clinic/members" element={<MembersPage />} />
           <Route path="/clinic/patients" element={<PatientsPage />} />
           <Route path="/clinic/settings" element={<SettingsPage />} />
+          <Route path="/clinic/availability" element={<AvailabilityPage />} />
           <Route path="*" element={<Navigate to="/clinic/dashboard" replace />} />
         </Routes>
       </ClinicLayout>

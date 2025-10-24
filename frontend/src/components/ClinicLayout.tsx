@@ -24,6 +24,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
     { name: 'Dashboard', href: '/clinic/dashboard', icon: '📊', show: true },
     { name: 'Members', href: '/clinic/members', icon: '👥', show: isClinicAdmin },
     { name: 'Patients', href: '/clinic/patients', icon: '👥', show: true },
+    { name: 'Availability', href: '/clinic/availability', icon: '🕒', show: isPractitioner },
     { name: 'Settings', href: '/clinic/settings', icon: '⚙️', show: isClinicAdmin },
   ].filter(item => item.show);
 

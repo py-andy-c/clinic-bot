@@ -150,6 +150,31 @@ const ClinicDashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Embedded Calendar */}
+      <div className="bg-white shadow overflow-hidden sm:rounded-md">
+        <div className="px-4 py-5 sm:px-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-lg leading-6 font-medium text-gray-900">預約行事曆</h3>
+              <p className="mt-1 max-w-2xl text-sm text-gray-500">
+                所有治療師的 Google 日曆整合檢視
+              </p>
+            </div>
+            <button
+              onClick={() => window.open('https://calendar.google.com', '_blank')}
+              className="btn-secondary text-sm"
+            >
+              在 Google 日曆中開啟
+            </button>
+          </div>
+        </div>
+        <div className="border-t border-gray-200">
+          <div className="p-4">
+            <EmbeddedCalendar />
+          </div>
+        </div>
+      </div>
+
       {/* Recent Activity Placeholder */}
       <div className="bg-white shadow overflow-hidden sm:rounded-md">
         <div className="px-4 py-5 sm:px-6">
@@ -185,6 +210,67 @@ const ClinicDashboardPage: React.FC = () => {
           </ul>
         </div>
       </div>
+    </div>
+  );
+};
+
+// Embedded Calendar Component
+const EmbeddedCalendar: React.FC = () => {
+  const [embedUrl, setEmbedUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCalendarEmbed = async () => {
+      try {
+        setLoading(true);
+        const data = await apiService.getCalendarEmbed();
+        setEmbedUrl(data.embed_url);
+      } catch (err) {
+        console.error('Failed to load calendar embed:', err);
+        setError('無法載入行事曆');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCalendarEmbed();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  if (error || !embedUrl) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 text-gray-500">
+        <svg className="w-12 h-12 mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+        <p className="text-lg font-medium">行事曆載入失敗</p>
+        <p className="text-sm text-center mt-2">
+          {error || '請確認至少有一位治療師已設定 Google 日曆同步'}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full">
+      <iframe
+        src={embedUrl}
+        style={{ border: 0 }}
+        width="100%"
+        height="600"
+        frameBorder="0"
+        scrolling="no"
+        title="Clinic Appointment Calendar"
+        className="rounded-lg"
+      />
     </div>
   );
 };

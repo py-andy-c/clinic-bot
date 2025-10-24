@@ -182,6 +182,16 @@ def require_clinic_user(user: UserContext = Depends(get_current_user)) -> UserCo
     return user
 
 
+def require_clinic_or_system_admin(user: UserContext = Depends(get_current_user)) -> UserContext:
+    """Require clinic user or system admin."""
+    if not (user.is_clinic_user() or user.is_system_admin()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Clinic user or system admin access required"
+        )
+    return user
+
+
 # Clinic isolation enforcement
 def require_clinic_access(
     user: UserContext = Depends(require_clinic_user),

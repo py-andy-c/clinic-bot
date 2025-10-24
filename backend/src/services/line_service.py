@@ -91,7 +91,7 @@ class LINEService:
 
         except Exception as e:
             # Log the error for debugging but don't expose details
-            logger.warning(f"Signature verification error: {e}")
+            logger.warning(f"Signature verification error: {e}", exc_info=True)
             return False
 
     def extract_message_data(self, payload: dict[str, Any]) -> Optional[Tuple[str, str]]:
@@ -130,7 +130,7 @@ class LINEService:
 
         except (KeyError, IndexError, TypeError) as e:
             # Invalid payload structure
-            logger.warning(f"Invalid LINE payload structure: {e}")
+            logger.warning(f"Invalid LINE payload structure: {e}", exc_info=True)
             return None
 
     def send_text_message(self, line_user_id: str, text: str) -> None:

@@ -144,7 +144,7 @@ async def handle_line_message(
                     if hasattr(item, 'content'):
                         conversation_history.append({  # type: ignore
                             "role": "user" if "user" in str(type(item)).lower() else "assistant",  # type: ignore
-                            "content": item.content if hasattr(item, 'content') else str(item)
+                            "content": item.get('content', str(item)) if isinstance(item, dict) else (item.content if hasattr(item, 'content') else str(item))  # type: ignore
                         })
 
                 # Assess conversation quality

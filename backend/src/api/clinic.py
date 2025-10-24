@@ -5,6 +5,7 @@ Provides clinic-specific operations for admins and practitioners,
 including member management, settings, patients, and appointments.
 """
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 
@@ -12,10 +13,12 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+logger = logging.getLogger(__name__)
+
 from core.database import get_db
 from core.config import FRONTEND_URL
-from auth.dependencies import require_admin_role, require_practitioner_role, UserContext
-from models import User, Patient, Appointment, AppointmentType, SignupToken
+from auth.dependencies import require_admin_role, require_clinic_or_system_admin, UserContext
+from models import User, Patient, Appointment, AppointmentType, SignupToken, PractitionerAvailability
 from services.google_oauth import GoogleOAuthService
 
 router = APIRouter()
@@ -84,9 +87,37 @@ class SettingsResponse(BaseModel):
     clinic_hours_end: Optional[str] = None
 
 
+class PractitionerAvailabilityRequest(BaseModel):
+    """Request model for practitioner availability."""
+    day_of_week: int  # 0=Monday, 1=Tuesday, ..., 6=Sunday
+    start_time: str  # HH:MM format
+    end_time: str    # HH:MM format
+    is_available: bool = True
+
+
+class PractitionerAvailabilityResponse(BaseModel):
+    """Response model for practitioner availability."""
+    id: int
+    user_id: int
+    day_of_week: int
+    day_name: str
+    day_name_zh: str
+    start_time: str
+    end_time: str
+    is_available: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class CalendarEmbedResponse(BaseModel):
+    """Response model for embedded calendar information."""
+    embed_url: str
+    practitioners: List[Dict[str, Any]]
+
+
 @router.get("/members", summary="List all clinic members")
 async def list_members(
-    current_user: UserContext = Depends(require_practitioner_role),
+    current_user: UserContext = Depends(require_clinic_or_system_admin),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -206,12 +237,13 @@ async def update_member_roles(
         new_roles = roles_update.get("roles", [])
         if current_user.user_id == user_id and "admin" not in new_roles:
             # Check if this user is the last admin
-            admin_count = db.query(User).filter(
+            admin_users = db.query(User).filter(
                 User.clinic_id == current_user.clinic_id,
-                User.roles.contains(["admin"]),
                 User.is_active == True,
                 User.id != user_id
-            ).count()
+            ).all()
+
+            admin_count = sum(1 for user in admin_users if 'admin' in user.roles)
 
             if admin_count == 0:
                 raise HTTPException(
@@ -279,12 +311,13 @@ async def remove_member(
 
         # Prevent removing last admin
         if "admin" in member.roles:
-            admin_count = db.query(User).filter(
+            admin_users = db.query(User).filter(
                 User.clinic_id == current_user.clinic_id,
-                User.roles.contains(["admin"]),
                 User.is_active == True,
                 User.id != user_id
-            ).count()
+            ).all()
+
+            admin_count = sum(1 for user in admin_users if 'admin' in user.roles)
 
             if admin_count == 0:
                 raise HTTPException(
@@ -310,7 +343,7 @@ async def remove_member(
 
 @router.get("/settings", summary="Get clinic settings")
 async def get_settings(
-    current_user: UserContext = Depends(require_practitioner_role),
+    current_user: UserContext = Depends(require_clinic_or_system_admin),
     db: Session = Depends(get_db)
 ) -> SettingsResponse:
     """
@@ -417,7 +450,7 @@ async def update_settings(
 
 @router.get("/patients", summary="List all patients")
 async def get_patients(
-    current_user: UserContext = Depends(require_practitioner_role),
+    current_user: UserContext = Depends(require_clinic_or_system_admin),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -543,7 +576,7 @@ async def handle_member_gcal_callback(
 
 @router.get("/dashboard", summary="Get clinic dashboard statistics")
 async def get_dashboard_stats(
-    current_user: UserContext = Depends(require_practitioner_role),
+    current_user: UserContext = Depends(require_clinic_or_system_admin),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -612,4 +645,464 @@ async def get_dashboard_stats(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch dashboard statistics"
+        )
+
+
+@router.get("/practitioners/{user_id}/availability", summary="Get practitioner availability")
+async def get_practitioner_availability(
+    user_id: int,
+    current_user: UserContext = Depends(require_clinic_or_system_admin),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get availability hours for a specific practitioner.
+
+    Both practitioners and admins can view availability.
+    Practitioners can only view their own availability.
+    Admins can view any practitioner's availability.
+    """
+    try:
+        # Find the practitioner
+        practitioner = db.query(User).filter(
+            User.id == user_id,
+            User.clinic_id == current_user.clinic_id,
+            User.is_active == True
+        ).first()
+
+        # Check if user has practitioner role
+        if not practitioner or 'practitioner' not in practitioner.roles:
+            practitioner = None
+
+        if not practitioner:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Practitioner not found"
+            )
+
+        # Check permissions - practitioners can only view their own availability
+        if not current_user.has_role('admin') and current_user.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You can only view your own availability"
+            )
+
+        # Get availability
+        availability = db.query(PractitionerAvailability).filter(
+            PractitionerAvailability.user_id == user_id
+        ).order_by(PractitionerAvailability.day_of_week).all()
+
+        availability_list = [
+            PractitionerAvailabilityResponse(
+                id=avail.id,
+                user_id=avail.user_id,
+                day_of_week=avail.day_of_week,
+                day_name=avail.day_name,
+                day_name_zh=avail.day_name_zh,
+                start_time=avail.start_time.strftime("%H:%M"),
+                end_time=avail.end_time.strftime("%H:%M"),
+                is_available=avail.is_available,
+                created_at=avail.created_at,
+                updated_at=avail.updated_at
+            )
+            for avail in availability
+        ]
+
+        return {"availability": availability_list}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch practitioner availability for user {user_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch practitioner availability"
+        )
+
+
+@router.post("/practitioners/{user_id}/availability", summary="Create practitioner availability", status_code=status.HTTP_201_CREATED)
+async def create_practitioner_availability(
+    user_id: int,
+    availability_data: PractitionerAvailabilityRequest,
+    current_user: UserContext = Depends(require_clinic_or_system_admin),
+    db: Session = Depends(get_db)
+) -> PractitionerAvailabilityResponse:
+    """
+    Create availability hours for a practitioner.
+
+    Both practitioners and admins can create availability.
+    Practitioners can only create their own availability.
+    Admins can create availability for any practitioner.
+    """
+    try:
+        from datetime import time
+
+        # Find the practitioner
+        practitioner = db.query(User).filter(
+            User.id == user_id,
+            User.clinic_id == current_user.clinic_id,
+            User.is_active == True
+        ).first()
+
+        # Check if user has practitioner role
+        if not practitioner or 'practitioner' not in practitioner.roles:
+            practitioner = None
+
+        if not practitioner:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Practitioner not found"
+            )
+
+        # Check permissions - practitioners can only modify their own availability
+        if not current_user.has_role('admin') and current_user.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You can only modify your own availability"
+            )
+
+        # Check if availability already exists for this day
+        existing = db.query(PractitionerAvailability).filter(
+            PractitionerAvailability.user_id == user_id,
+            PractitionerAvailability.day_of_week == availability_data.day_of_week
+        ).first()
+
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Availability already exists for {existing.day_name}"
+            )
+
+        # Validate time format and logic
+        try:
+            start_time = time.fromisoformat(availability_data.start_time)
+            end_time = time.fromisoformat(availability_data.end_time)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid time format. Use HH:MM format"
+            )
+
+        if start_time >= end_time:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Start time must be before end time"
+            )
+
+        # Create availability
+        availability = PractitionerAvailability(
+            user_id=user_id,
+            day_of_week=availability_data.day_of_week,
+            start_time=start_time,
+            end_time=end_time,
+            is_available=availability_data.is_available
+        )
+
+        db.add(availability)
+        db.commit()
+        db.refresh(availability)
+
+        return PractitionerAvailabilityResponse(
+            id=availability.id,
+            user_id=availability.user_id,
+            day_of_week=availability.day_of_week,
+            day_name=availability.day_name,
+            day_name_zh=availability.day_name_zh,
+            start_time=availability.start_time.strftime("%H:%M"),
+            end_time=availability.end_time.strftime("%H:%M"),
+            is_available=availability.is_available,
+            created_at=availability.created_at,
+            updated_at=availability.updated_at
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create practitioner availability for user {user_id}: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create practitioner availability"
+        )
+
+
+@router.put("/practitioners/{user_id}/availability/{availability_id}", summary="Update practitioner availability")
+async def update_practitioner_availability(
+    user_id: int,
+    availability_id: int,
+    availability_data: PractitionerAvailabilityRequest,
+    current_user: UserContext = Depends(require_clinic_or_system_admin),
+    db: Session = Depends(get_db)
+) -> PractitionerAvailabilityResponse:
+    """
+    Update availability hours for a practitioner.
+
+    Both practitioners and admins can update availability.
+    Practitioners can only update their own availability.
+    Admins can update availability for any practitioner.
+    """
+    try:
+        from datetime import time
+
+        # Find the availability
+        availability = db.query(PractitionerAvailability).filter(
+            PractitionerAvailability.id == availability_id,
+            PractitionerAvailability.user_id == user_id
+        ).first()
+
+        if not availability:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Availability not found"
+            )
+
+        # Verify the practitioner belongs to current clinic
+        practitioner = db.query(User).filter(
+            User.id == user_id,
+            User.clinic_id == current_user.clinic_id,
+            User.is_active == True
+        ).first()
+
+        # Check if user has practitioner role
+        if not practitioner or 'practitioner' not in practitioner.roles:
+            practitioner = None
+
+        if not practitioner:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Practitioner not found"
+            )
+
+        # Check permissions - practitioners can only modify their own availability
+        if not current_user.has_role('admin') and current_user.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You can only modify your own availability"
+            )
+
+        # Check for conflicts if changing day_of_week
+        if availability_data.day_of_week != availability.day_of_week:
+            existing = db.query(PractitionerAvailability).filter(
+                PractitionerAvailability.user_id == user_id,
+                PractitionerAvailability.day_of_week == availability_data.day_of_week,
+                PractitionerAvailability.id != availability_id
+            ).first()
+
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Availability already exists for {existing.day_name}"
+                )
+
+        # Validate time format and logic
+        try:
+            start_time = time.fromisoformat(availability_data.start_time)
+            end_time = time.fromisoformat(availability_data.end_time)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid time format. Use HH:MM format"
+            )
+
+        if start_time >= end_time:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Start time must be before end time"
+            )
+
+        # Update availability
+        availability.day_of_week = availability_data.day_of_week
+        availability.start_time = start_time
+        availability.end_time = end_time
+        availability.is_available = availability_data.is_available
+
+        db.commit()
+        db.refresh(availability)
+
+        return PractitionerAvailabilityResponse(
+            id=availability.id,
+            user_id=availability.user_id,
+            day_of_week=availability.day_of_week,
+            day_name=availability.day_name,
+            day_name_zh=availability.day_name_zh,
+            start_time=availability.start_time.strftime("%H:%M"),
+            end_time=availability.end_time.strftime("%H:%M"),
+            is_available=availability.is_available,
+            created_at=availability.created_at,
+            updated_at=availability.updated_at
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update practitioner availability {availability_id} for user {user_id}: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update practitioner availability"
+        )
+
+
+@router.delete("/practitioners/{user_id}/availability/{availability_id}", summary="Delete practitioner availability", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_practitioner_availability(
+    user_id: int,
+    availability_id: int,
+    current_user: UserContext = Depends(require_clinic_or_system_admin),
+    db: Session = Depends(get_db)
+) -> None:
+    """
+    Delete availability hours for a practitioner.
+
+    Both practitioners and admins can delete availability.
+    Practitioners can only delete their own availability.
+    Admins can delete availability for any practitioner.
+    """
+    try:
+        # Find the availability
+        availability = db.query(PractitionerAvailability).filter(
+            PractitionerAvailability.id == availability_id,
+            PractitionerAvailability.user_id == user_id
+        ).first()
+
+        if not availability:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Availability not found"
+            )
+
+        # Verify the practitioner belongs to current clinic
+        practitioner = db.query(User).filter(
+            User.id == user_id,
+            User.clinic_id == current_user.clinic_id,
+            User.is_active == True
+        ).first()
+
+        # Check if user has practitioner role
+        if not practitioner or 'practitioner' not in practitioner.roles:
+            practitioner = None
+
+        if not practitioner:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Practitioner not found"
+            )
+
+        # Check permissions - practitioners can only modify their own availability
+        if not current_user.has_role('admin') and current_user.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You can only modify your own availability"
+            )
+
+        # Delete availability
+        db.delete(availability)
+        db.commit()
+
+        # 204 No Content - no response body needed
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete practitioner availability {availability_id} for user {user_id}: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete practitioner availability"
+        )
+
+
+@router.get("/calendar/embed", summary="Get embedded calendar information")
+async def get_calendar_embed_info(
+    current_user: UserContext = Depends(require_clinic_or_system_admin),
+    db: Session = Depends(get_db)
+) -> CalendarEmbedResponse:
+    """
+    Get information needed to embed Google Calendar showing all practitioners' calendars.
+
+    Returns an embed URL and list of practitioners with calendar sync enabled.
+    """
+    try:
+        # Get all practitioners with Google Calendar sync enabled
+        practitioners = db.query(User).filter(
+            User.clinic_id == current_user.clinic_id,
+            User.is_active == True,
+            User.gcal_sync_enabled == True
+        ).all()
+
+        # Filter practitioners by role in Python
+        practitioners = [p for p in practitioners if 'practitioner' in p.roles]
+
+        # Extract calendar IDs from encrypted credentials
+        calendar_ids: List[str] = []
+        practitioner_info: List[Dict[str, str]] = []
+
+        try:
+            from services.encryption_service import get_encryption_service
+            encryption_service = get_encryption_service()
+        except Exception as e:
+            logger.error(f"Failed to initialize encryption service: {e}", exc_info=True)
+            encryption_service = None
+
+        for practitioner in practitioners:
+            calendar_id: Optional[str] = None
+
+            if practitioner.gcal_credentials and encryption_service:
+                try:
+                    # Decrypt credentials to get calendar ID
+                    creds_data = encryption_service.decrypt_data(practitioner.gcal_credentials)
+
+                    # The calendar ID is the user's email address
+                    calendar_id = creds_data.get('user_email', 'primary')
+
+                except Exception as e:
+                    # Skip practitioners with invalid credentials
+                    logger.warning(f"Failed to decrypt credentials for practitioner {practitioner.id}: {e}", exc_info=True)
+                    calendar_id = None
+
+            # If we couldn't get the calendar ID from credentials, use a fallback
+            if not calendar_id:
+                # Use the practitioner's email as calendar ID
+                calendar_id = practitioner.email
+
+            if calendar_id and calendar_id not in calendar_ids:
+                calendar_ids.append(calendar_id)
+                practitioner_info.append({
+                    "id": str(practitioner.id),
+                    "name": practitioner.full_name,
+                    "calendar_id": calendar_id
+                })
+
+        # Build embed URL with multiple calendar sources
+        # Format: https://calendar.google.com/calendar/embed?src=cal1&src=cal2&ctz=Asia/Taipei
+        base_url = "https://calendar.google.com/calendar/embed"
+        params: List[str] = []
+
+        # Add timezone
+        params.append("ctz=Asia/Taipei")
+
+        # Add each calendar as a source
+        for cal_id in calendar_ids:
+            params.append(f"src={cal_id}")
+
+        # Add other embed parameters for better UX
+        params.extend([
+            "mode=WEEK",  # Default to week view
+            "showCalendars=0",  # Hide calendar list
+            "showTz=1",  # Show timezone
+            "showPrint=0",  # Hide print option
+            "showTabs=1",  # Show tabs
+            "showTitle=0"  # Hide title
+        ])
+
+        embed_url = f"{base_url}?{'&'.join(params)}"
+
+        return CalendarEmbedResponse(
+            embed_url=embed_url,
+            practitioners=practitioner_info
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to generate calendar embed information for clinic {current_user.clinic_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate calendar embed information"
         )
