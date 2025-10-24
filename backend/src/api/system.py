@@ -26,6 +26,7 @@ class ClinicCreateRequest(BaseModel):
     line_channel_id: str
     line_channel_secret: str
     line_channel_access_token: str
+    subscription_status: Optional[str] = "trial"
 
 
 class ClinicResponse(BaseModel):
@@ -74,8 +75,8 @@ async def create_clinic(
             line_channel_id=clinic_data.line_channel_id,
             line_channel_secret=clinic_data.line_channel_secret,
             line_channel_access_token=clinic_data.line_channel_access_token,
-            subscription_status="trial",
-            trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14)  # 14-day trial
+            subscription_status=clinic_data.subscription_status,
+            trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14) if clinic_data.subscription_status == "trial" else None
         )
 
         db.add(clinic)
