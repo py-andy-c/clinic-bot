@@ -148,34 +148,3 @@ def session_database():
         os.environ['DATABASE_URL'] = old_db_url
     elif 'DATABASE_URL' in os.environ:
         del os.environ['DATABASE_URL']
-
-
-@pytest.fixture
-def require_env_vars(request):
-    """
-    Fixture that ensures required environment variables are set.
-
-    Usage:
-        @pytest.mark.parametrize("require_env_vars", [["OPENAI_API_KEY"]], indirect=True)
-        def test_real_agent(require_env_vars):
-            # Ensures OPENAI_API_KEY is set
-            pass
-
-    Args:
-        request: pytest request object containing the parametrized env var names
-
-    Returns:
-        dict: Dictionary of validated environment variables
-    """
-    if not hasattr(request, 'param'):
-        return {}
-
-    required_vars = request.param
-    validated_vars = {}
-
-    for var_name in required_vars:
-        var_value = os.getenv(var_name)
-        validated_vars[var_name] = var_value
-
-    return validated_vars
-

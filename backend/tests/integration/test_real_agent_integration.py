@@ -16,7 +16,6 @@ from models.patient import Patient
 from models.line_user import LineUser
 
 
-@pytest.mark.parametrize("require_env_vars", [["OPENAI_API_KEY"]], indirect=True)
 @pytest.mark.real_agent
 @pytest.mark.slow
 class TestRealAgentIntegration:
@@ -55,7 +54,7 @@ class TestRealAgentIntegration:
         return patient
 
     @pytest.mark.asyncio
-    async def test_triage_agent_real_sdk_call(self, db_session, real_agent_clinic, linked_patient, require_env_vars):
+    async def test_triage_agent_real_sdk_call(self, db_session, real_agent_clinic, linked_patient):
         """Test that triage agent works with real OpenAI SDK."""
         # This will actually call OpenAI API and test the final_output.intent access
         response = await handle_line_message(
@@ -70,7 +69,7 @@ class TestRealAgentIntegration:
         assert isinstance(response, str)
 
     @pytest.mark.asyncio
-    async def test_appointment_agent_real_sdk_call(self, db_session, real_agent_clinic, linked_patient, require_env_vars):
+    async def test_appointment_agent_real_sdk_call(self, db_session, real_agent_clinic, linked_patient):
         """Test that appointment agent works with real OpenAI SDK."""
         # Test the final_output_as(str) call that we fixed
         response = await handle_line_message(
@@ -84,7 +83,7 @@ class TestRealAgentIntegration:
         assert isinstance(response, str)
 
     @pytest.mark.asyncio
-    async def test_account_linking_agent_real_sdk_call(self, db_session, real_agent_clinic, require_env_vars):
+    async def test_account_linking_agent_real_sdk_call(self, db_session, real_agent_clinic):
         """Test account linking with real OpenAI SDK."""
         # Create unlinked user (no patient_id means unlinked)
         line_user = LineUser(

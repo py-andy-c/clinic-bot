@@ -763,11 +763,10 @@ class TestRefreshTokenFlow:
             client.app.dependency_overrides.pop(get_db, None)
 
 
-@pytest.mark.parametrize("require_env_vars", [["ENCRYPTION_KEY"]], indirect=True)
 class TestSignupCallbackFlow:
     """Test complete signup callback flow."""
 
-    def test_signup_callback_clinic_admin_success(self, client, db_session, require_env_vars):
+    def test_signup_callback_clinic_admin_success(self, client, db_session):
         """Test successful clinic admin signup callback."""
         # Create test clinic
         clinic = Clinic(
@@ -858,7 +857,7 @@ class TestSignupCallbackFlow:
             # Clean up overrides
             client.app.dependency_overrides.pop(get_db, None)
 
-    def test_signup_callback_member_success(self, client, db_session, require_env_vars):
+    def test_signup_callback_member_success(self, client, db_session):
         """Test successful team member signup callback."""
         # Create test clinic
         clinic = Clinic(
@@ -942,7 +941,7 @@ class TestSignupCallbackFlow:
             # Clean up overrides
             client.app.dependency_overrides.pop(get_db, None)
 
-    def test_signup_flow_invalid_token(self, client, db_session, require_env_vars):
+    def test_signup_flow_invalid_token(self, client, db_session):
         """Test signup flow with invalid/expired token."""
         # Override dependencies to use test session
         def override_get_db():
@@ -966,7 +965,7 @@ class TestSignupCallbackFlow:
             # Clean up overrides
             client.app.dependency_overrides.pop(get_db, None)
 
-    def test_signup_callback_google_userinfo_sub_field(self, client, db_session, require_env_vars):
+    def test_signup_callback_google_userinfo_sub_field(self, client, db_session):
         """Test signup callback handles Google userinfo with 'sub' field."""
         from unittest.mock import AsyncMock, patch
 
@@ -1042,7 +1041,7 @@ class TestSignupCallbackFlow:
         finally:
             client.app.dependency_overrides.pop(get_db, None)
 
-    def test_signup_callback_google_userinfo_id_field_fallback(self, client, db_session, require_env_vars):
+    def test_signup_callback_google_userinfo_id_field_fallback(self, client, db_session):
         """Test signup callback handles Google userinfo with 'id' field fallback."""
         from unittest.mock import AsyncMock, patch
 
@@ -1118,7 +1117,7 @@ class TestSignupCallbackFlow:
         finally:
             client.app.dependency_overrides.pop(get_db, None)
 
-    def test_signup_page_no_authentication_checks(self, client, db_session, require_env_vars):
+    def test_signup_page_no_authentication_checks(self, client, db_session):
         """Test that signup pages don't attempt authentication."""
         # Override database dependency to avoid database errors
         def override_get_db():
@@ -1140,7 +1139,7 @@ class TestSignupCallbackFlow:
         finally:
             client.app.dependency_overrides.pop(get_db, None)
 
-    def test_google_calendar_oauth_fixed_redirect_uri(self, client, db_session, require_env_vars):
+    def test_google_calendar_oauth_fixed_redirect_uri(self, client, db_session):
         """Test Google Calendar OAuth uses fixed redirect URI without user_id."""
         from unittest.mock import AsyncMock, patch
 
@@ -1223,7 +1222,7 @@ class TestSignupCallbackFlow:
                 client.app.dependency_overrides.pop(get_db, None)
                 client.app.dependency_overrides.pop(get_current_user, None)
 
-    def test_role_based_access_control(self, client, db_session, require_env_vars):
+    def test_role_based_access_control(self, client, db_session):
         """Test role-based access control across different endpoints."""
         from auth.dependencies import UserContext, get_current_user
 
@@ -1280,7 +1279,7 @@ class TestSignupCallbackFlow:
                 client.app.dependency_overrides.pop(get_current_user, None)
             client.app.dependency_overrides.pop(get_db, None)
 
-    def test_member_google_oauth_callback(self, client, db_session, require_env_vars):
+    def test_member_google_oauth_callback(self, client, db_session):
         """Test member Google OAuth callback with signed state."""
         from auth.dependencies import UserContext, get_current_user
 
@@ -1373,7 +1372,7 @@ class TestSignupCallbackFlow:
             client.app.dependency_overrides.pop(get_db, None)
             client.app.dependency_overrides.pop(get_current_user, None)
 
-    def test_clinic_health_check(self, client, db_session, require_env_vars):
+    def test_clinic_health_check(self, client, db_session):
         """Test clinic LINE integration health check endpoint."""
         from auth.dependencies import UserContext, get_current_user
 
@@ -1425,7 +1424,7 @@ class TestSignupCallbackFlow:
             client.app.dependency_overrides.pop(get_db, None)
             client.app.dependency_overrides.pop(get_current_user, None)
 
-    def test_verify_token_valid(self, client, db_session, require_env_vars):
+    def test_verify_token_valid(self, client, db_session):
         """Test verifying a valid access token."""
         # Create test clinic first
         clinic = Clinic(
@@ -1477,13 +1476,13 @@ class TestSignupCallbackFlow:
         finally:
             client.app.dependency_overrides.pop(get_current_user, None)
 
-    def test_verify_token_invalid(self, client, require_env_vars):
+    def test_verify_token_invalid(self, client):
         """Test verifying an invalid access token."""
         # No authorization header provided
         response = client.get("/api/auth/verify")
         assert response.status_code == 401
 
-    def test_refresh_token_no_cookie(self, client, require_env_vars):
+    def test_refresh_token_no_cookie(self, client):
         """Test refresh token endpoint when no cookie is present."""
         response = client.post("/api/auth/refresh")
         assert response.status_code == 401
@@ -1491,7 +1490,7 @@ class TestSignupCallbackFlow:
         assert "detail" in data
         assert "Refresh token not found" in data["detail"]
 
-    def test_refresh_token_invalid_cookie(self, client, db_session, require_env_vars):
+    def test_refresh_token_invalid_cookie(self, client, db_session):
         """Test refresh token endpoint with invalid cookie."""
         # Override get_db to use our test session
         def override_get_db():
