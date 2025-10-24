@@ -67,7 +67,7 @@ triage_agent = Agent(
 
 **注意：** 你只負責分類，系統會根據你的分類決定後續處理流程。
 """,
-    model="gpt-4o-mini",
+    model="gpt-5-nano",
     output_type=TriageClassification,
     model_settings=ModelSettings(
         temperature=0.1,  # Low temperature for consistent classification
