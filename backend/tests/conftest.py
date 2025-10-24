@@ -166,9 +166,6 @@ def require_env_vars(request):
 
     Returns:
         dict: Dictionary of validated environment variables
-
-    Raises:
-        pytest.skip: If any required env vars are missing
     """
     if not hasattr(request, 'param'):
         return {}
