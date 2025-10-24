@@ -192,6 +192,51 @@ def require_clinic_or_system_admin(user: UserContext = Depends(get_current_user)
     return user
 
 
+def require_clinic_member(user: UserContext = Depends(get_current_user)) -> UserContext:
+    """
+    Require any clinic member (regardless of roles).
+    
+    This allows users with no roles to have read-only access to clinic data.
+    System admins are also allowed.
+    """
+    if not (user.is_clinic_user() or user.is_system_admin()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Clinic member access required"
+        )
+    return user
+
+
+def require_read_access(user: UserContext = Depends(get_current_user)) -> UserContext:
+    """
+    Require read access to clinic data.
+    
+    This allows:
+    - System admins (full access)
+    - Clinic users with any roles (including no roles for read-only access)
+    """
+    if not (user.is_system_admin() or user.is_clinic_user()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access required"
+        )
+    return user
+
+
+def require_practitioner_or_admin(user: UserContext = Depends(get_current_user)) -> UserContext:
+    """
+    Require practitioner role or admin role (or system admin).
+    
+    This is for endpoints that need practitioner-specific functionality.
+    """
+    if not (user.has_role("practitioner") or user.has_role("admin") or user.is_system_admin()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Practitioner or admin access required"
+        )
+    return user
+
+
 # Clinic isolation enforcement
 def require_clinic_access(
     user: UserContext = Depends(require_clinic_user),

@@ -18,7 +18,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api import webhooks, auth, signup, system, clinic
+from api import webhooks, auth, signup, system, clinic, profile
 from core.constants import CORS_ORIGINS
 from services.reminder_service import start_reminder_scheduler, stop_reminder_scheduler
 from core.database import get_db
@@ -123,6 +123,17 @@ app.include_router(
     clinic.router,
     prefix="/api/clinic",
     tags=["clinic"],
+    responses={
+        401: {"description": "Unauthorized"},
+        403: {"description": "Forbidden"},
+        404: {"description": "Resource not found"},
+        500: {"description": "Internal server error"},
+    },
+)
+app.include_router(
+    profile.router,
+    prefix="/api",
+    tags=["profile"],
     responses={
         401: {"description": "Unauthorized"},
         403: {"description": "Forbidden"},

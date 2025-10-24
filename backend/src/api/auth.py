@@ -5,9 +5,12 @@ Handles Google OAuth login, token refresh, and logout for both
 system admins and clinic users.
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from datetime import datetime, timezone
 from typing import Dict, Any
@@ -354,6 +357,8 @@ async def verify_token(
 
     Returns user data if token is valid, raises 401 if invalid.
     """
+    logger.info(f"Token verification for user: {current_user.email}, type: {current_user.user_type}, roles: {current_user.roles}")
+    
     return {
         "user_id": current_user.user_id,
         "clinic_id": current_user.clinic_id,

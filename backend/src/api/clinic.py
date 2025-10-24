@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 from core.database import get_db
 from core.config import FRONTEND_URL
-from auth.dependencies import require_admin_role, require_clinic_or_system_admin, UserContext
+from auth.dependencies import require_admin_role, require_clinic_or_system_admin, require_clinic_member, require_read_access, require_practitioner_or_admin, UserContext
 from models import User, Patient, Appointment, AppointmentType, SignupToken, PractitionerAvailability
 from services.google_oauth import GoogleOAuthService
 
@@ -117,13 +117,13 @@ class CalendarEmbedResponse(BaseModel):
 
 @router.get("/members", summary="List all clinic members")
 async def list_members(
-    current_user: UserContext = Depends(require_clinic_or_system_admin),
+    current_user: UserContext = Depends(require_clinic_member),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
     Get all active members of the current user's clinic.
 
-    Requires practitioner role or higher.
+    Available to all clinic members (including read-only users).
     """
     try:
         members = db.query(User).filter(
@@ -343,13 +343,13 @@ async def remove_member(
 
 @router.get("/settings", summary="Get clinic settings")
 async def get_settings(
-    current_user: UserContext = Depends(require_clinic_or_system_admin),
+    current_user: UserContext = Depends(require_clinic_member),
     db: Session = Depends(get_db)
 ) -> SettingsResponse:
     """
     Get clinic settings including appointment types.
 
-    Requires practitioner role or higher.
+    Available to all clinic members (including read-only users).
     """
     try:
         from models import Clinic
@@ -450,13 +450,13 @@ async def update_settings(
 
 @router.get("/patients", summary="List all patients")
 async def get_patients(
-    current_user: UserContext = Depends(require_clinic_or_system_admin),
+    current_user: UserContext = Depends(require_clinic_member),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
     Get all patients for the current user's clinic.
 
-    Requires practitioner role or higher.
+    Available to all clinic members (including read-only users).
     """
     try:
         patients = db.query(Patient).filter(
@@ -576,13 +576,13 @@ async def handle_member_gcal_callback(
 
 @router.get("/dashboard", summary="Get clinic dashboard statistics")
 async def get_dashboard_stats(
-    current_user: UserContext = Depends(require_clinic_or_system_admin),
+    current_user: UserContext = Depends(require_clinic_member),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
     Get dashboard statistics for the current user's clinic.
 
-    Requires practitioner role or higher.
+    Available to all clinic members (including read-only users).
     """
     try:
         clinic_id = current_user.clinic_id
@@ -651,7 +651,7 @@ async def get_dashboard_stats(
 @router.get("/practitioners/{user_id}/availability", summary="Get practitioner availability")
 async def get_practitioner_availability(
     user_id: int,
-    current_user: UserContext = Depends(require_clinic_or_system_admin),
+    current_user: UserContext = Depends(require_clinic_member),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -723,7 +723,7 @@ async def get_practitioner_availability(
 async def create_practitioner_availability(
     user_id: int,
     availability_data: PractitionerAvailabilityRequest,
-    current_user: UserContext = Depends(require_clinic_or_system_admin),
+    current_user: UserContext = Depends(require_practitioner_or_admin),
     db: Session = Depends(get_db)
 ) -> PractitionerAvailabilityResponse:
     """
@@ -830,7 +830,7 @@ async def update_practitioner_availability(
     user_id: int,
     availability_id: int,
     availability_data: PractitionerAvailabilityRequest,
-    current_user: UserContext = Depends(require_clinic_or_system_admin),
+    current_user: UserContext = Depends(require_practitioner_or_admin),
     db: Session = Depends(get_db)
 ) -> PractitionerAvailabilityResponse:
     """
@@ -946,7 +946,7 @@ async def update_practitioner_availability(
 async def delete_practitioner_availability(
     user_id: int,
     availability_id: int,
-    current_user: UserContext = Depends(require_clinic_or_system_admin),
+    current_user: UserContext = Depends(require_practitioner_or_admin),
     db: Session = Depends(get_db)
 ) -> None:
     """
@@ -1012,7 +1012,7 @@ async def delete_practitioner_availability(
 
 @router.get("/calendar/embed", summary="Get embedded calendar information")
 async def get_calendar_embed_info(
-    current_user: UserContext = Depends(require_clinic_or_system_admin),
+    current_user: UserContext = Depends(require_clinic_member),
     db: Session = Depends(get_db)
 ) -> CalendarEmbedResponse:
     """

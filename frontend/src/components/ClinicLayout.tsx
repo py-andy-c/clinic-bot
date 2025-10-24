@@ -7,7 +7,7 @@ interface ClinicLayoutProps {
 }
 
 const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
-  const { user, logout, isClinicAdmin, isPractitioner } = useAuth();
+  const { user, logout, isClinicAdmin, isPractitioner, isReadOnlyUser } = useAuth();
   const location = useLocation();
   // const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -22,10 +22,11 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
 
   const navigation = [
     { name: '儀表板', href: '/clinic/dashboard', icon: '📊', show: true },
-    { name: '團隊成員', href: '/clinic/members', icon: '👥', show: isClinicAdmin },
+    { name: '團隊成員', href: '/clinic/members', icon: '👥', show: true }, // All clinic members can view
     { name: '病患管理', href: '/clinic/patients', icon: '👥', show: true },
     { name: '可用時間', href: '/clinic/availability', icon: '🕒', show: isPractitioner },
-    { name: '設定', href: '/clinic/settings', icon: '⚙️', show: isClinicAdmin },
+    { name: '設定', href: '/clinic/settings', icon: '⚙️', show: true }, // All clinic members can view settings
+    { name: '個人資料', href: '/profile', icon: '👤', show: true }, // All users can access profile
   ].filter(item => item.show);
 
   const isActive = (href: string) => {
@@ -39,6 +40,8 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
       return '診所管理員';
     } else if (isPractitioner) {
       return '治療師';
+    } else if (isReadOnlyUser) {
+      return '一般成員';
     }
     return '使用者';
   };

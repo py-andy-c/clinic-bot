@@ -142,7 +142,6 @@ const AvailabilityPage: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">我的可用時間</h1>
-          <p className="text-gray-600">設定您每週的可用預約時段</p>
         </div>
         <button
           onClick={handleAddAvailability}

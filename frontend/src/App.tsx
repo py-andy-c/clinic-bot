@@ -13,9 +13,23 @@ import SettingsPage from './pages/SettingsPage';
 import AvailabilityPage from './pages/AvailabilityPage';
 import ClinicSignupPage from './pages/ClinicSignupPage';
 import MemberSignupPage from './pages/MemberSignupPage';
+import ProfilePage from './pages/ProfilePage';
 
 const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading, isSystemAdmin, isClinicAdmin, isPractitioner } = useAuth();
+  const { isAuthenticated, isLoading, isSystemAdmin, isClinicUser, user } = useAuth();
+  
+  // Debug logging
+  console.log('AppRoutes - Auth State:', {
+    isAuthenticated,
+    isLoading,
+    isSystemAdmin,
+    isClinicUser,
+    user: user ? {
+      user_type: user.user_type,
+      roles: user.roles,
+      email: user.email
+    } : null
+  });
 
   if (isLoading) {
     return (
@@ -50,14 +64,15 @@ const AppRoutes: React.FC = () => {
           <Route path="/system/dashboard" element={<SystemDashboardPage />} />
           <Route path="/system/clinics" element={<SystemClinicsPage />} />
           <Route path="/system/clinics/:id" element={<SystemClinicsPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/system/dashboard" replace />} />
         </Routes>
       </SystemAdminLayout>
     );
   }
 
-  // Clinic User Routes (Admin or Practitioner)
-  if (isClinicAdmin || isPractitioner) {
+  // Clinic User Routes (Admin, Practitioner, or Read-only)
+  if (isClinicUser) {
     return (
       <ClinicLayout>
         <Routes>
@@ -67,6 +82,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/clinic/patients" element={<PatientsPage />} />
           <Route path="/clinic/settings" element={<SettingsPage />} />
           <Route path="/clinic/availability" element={<AvailabilityPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/clinic/dashboard" replace />} />
         </Routes>
       </ClinicLayout>

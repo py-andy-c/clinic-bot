@@ -10,6 +10,8 @@ interface AuthContextType extends AuthState {
   isSystemAdmin: boolean;
   isClinicAdmin: boolean;
   isPractitioner: boolean;
+  isReadOnlyUser: boolean;
+  isClinicUser: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -68,6 +70,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         })
         .then(userData => {
+          console.log('OAuth callback - User data received:', userData);
           setAuthState({
             user: userData,
             isAuthenticated: true,
@@ -89,13 +92,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Enhanced user object with role helpers
   const enhancedUser = useMemo(() => {
     if (!authState.user) return null;
-    return {
+    
+    const enhanced = {
       ...authState.user,
       hasRole: (role: UserRole) => authState.user?.roles?.includes(role) ?? false,
       isSystemAdmin: authState.user?.user_type === 'system_admin',
       isClinicAdmin: authState.user?.user_type === 'clinic_user' && authState.user?.roles?.includes('admin'),
       isPractitioner: authState.user?.user_type === 'clinic_user' && authState.user?.roles?.includes('practitioner'),
+      isReadOnlyUser: authState.user?.user_type === 'clinic_user' && (!authState.user?.roles || authState.user?.roles.length === 0),
+      isClinicUser: authState.user?.user_type === 'clinic_user',
     };
+    
+    console.log('Enhanced user object:', {
+      user_type: authState.user?.user_type,
+      roles: authState.user?.roles,
+      isSystemAdmin: enhanced.isSystemAdmin,
+      isClinicAdmin: enhanced.isClinicAdmin,
+      isPractitioner: enhanced.isPractitioner,
+      isReadOnlyUser: enhanced.isReadOnlyUser,
+      isClinicUser: enhanced.isClinicUser,
+    });
+    
+    return enhanced;
   }, [authState.user]);
 
   const checkAuthStatus = async () => {
@@ -114,6 +132,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           if (response.ok) {
             const userData = await response.json();
+            console.log('Token validation - User data received:', userData);
             setAuthState({
               user: userData,
               isAuthenticated: true,
@@ -256,6 +275,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isSystemAdmin: enhancedUser?.isSystemAdmin ?? false,
     isClinicAdmin: enhancedUser?.isClinicAdmin ?? false,
     isPractitioner: enhancedUser?.isPractitioner ?? false,
+    isReadOnlyUser: enhancedUser?.isReadOnlyUser ?? false,
+    isClinicUser: enhancedUser?.isClinicUser ?? false,
   };
 
   return (

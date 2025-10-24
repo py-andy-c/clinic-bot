@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { ClinicSettings } from '../schemas/api';
 import { AppointmentType } from '../types';
+import { useAuth } from '../hooks/useAuth';
 
 const SettingsPage: React.FC = () => {
+  const { isClinicAdmin } = useAuth();
   const [settings, setSettings] = useState<ClinicSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -103,15 +105,20 @@ const SettingsPage: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">設定</h1>
-          <p className="text-gray-600">管理診所的預約類型和系統設定</p>
         </div>
-        <button
-          onClick={handleSaveSettings}
-          disabled={saving}
-          className="btn-primary"
-        >
-          {saving ? '儲存中...' : '儲存設定'}
-        </button>
+        {isClinicAdmin ? (
+          <button
+            onClick={handleSaveSettings}
+            disabled={saving}
+            className="btn-primary"
+          >
+            {saving ? '儲存中...' : '儲存設定'}
+          </button>
+        ) : (
+          <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-md">
+            🔒 僅管理員可修改設定
+          </div>
+        )}
       </div>
 
       {error && (
@@ -124,12 +131,14 @@ const SettingsPage: React.FC = () => {
       <div className="card">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-medium text-gray-900">預約類型</h2>
-          <button
-            onClick={addAppointmentType}
-            className="btn-secondary text-sm"
-          >
-            新增類型
-          </button>
+          {isClinicAdmin && (
+            <button
+              onClick={addAppointmentType}
+              className="btn-secondary text-sm"
+            >
+              新增類型
+            </button>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -145,6 +154,7 @@ const SettingsPage: React.FC = () => {
                   onChange={(e) => updateAppointmentType(index, 'name', e.target.value)}
                   className="input"
                   placeholder="例如：初診評估"
+                  disabled={!isClinicAdmin}
                 />
               </div>
 
@@ -159,18 +169,21 @@ const SettingsPage: React.FC = () => {
                   className="input"
                   min="15"
                   max="480"
+                  disabled={!isClinicAdmin}
                 />
               </div>
 
-              <div className="flex items-end">
-                <button
-                  onClick={() => removeAppointmentType(index)}
-                  className="text-red-600 hover:text-red-800 p-2"
-                  title="刪除"
-                >
-                  🗑️
-                </button>
-              </div>
+              {isClinicAdmin && (
+                <div className="flex items-end">
+                  <button
+                    onClick={() => removeAppointmentType(index)}
+                    className="text-red-600 hover:text-red-800 p-2"
+                    title="刪除"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              )}
             </div>
           ))}
 
@@ -203,6 +216,7 @@ const SettingsPage: React.FC = () => {
             className="input"
             min="1"
             max="168"
+            disabled={!isClinicAdmin}
           />
           <p className="text-sm text-gray-500 mt-1">
             預設為 24 小時前發送提醒
@@ -227,6 +241,7 @@ const SettingsPage: React.FC = () => {
                 clinic_hours_start: e.target.value
               })}
               className="input"
+              disabled={!isClinicAdmin}
             />
           </div>
 
@@ -242,6 +257,7 @@ const SettingsPage: React.FC = () => {
                 clinic_hours_end: e.target.value
               })}
               className="input"
+              disabled={!isClinicAdmin}
             />
           </div>
         </div>

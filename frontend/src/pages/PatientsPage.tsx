@@ -36,7 +36,6 @@ const PatientsPage: React.FC = () => {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">病患管理</h1>
-        <p className="text-gray-600">查看已註冊的病患和 LINE 帳號連結狀態</p>
       </div>
 
       {error && (
