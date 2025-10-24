@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
         await start_reminder_scheduler(db)
         logger.info("✅ Appointment reminder scheduler started")
     except Exception as e:
-        logger.error(f"❌ Failed to start reminder scheduler: {e}")
+        logger.error(f"❌ Failed to start reminder scheduler: {e}", exc_info=True)
 
     yield
 
@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
         await stop_reminder_scheduler()
         logger.info("🛑 Appointment reminder scheduler stopped")
     except Exception as e:
-        logger.error(f"❌ Error stopping reminder scheduler: {e}")
+        logger.error(f"❌ Error stopping reminder scheduler: {e}", exc_info=True)
 
     logger.info("🛑 Shutting down Clinic Bot Backend API")
 
@@ -180,7 +180,7 @@ async def value_error_handler(request: Request, exc: ValueError):
 @app.exception_handler(httpx.HTTPStatusError)
 async def http_status_error_handler(request: Request, exc: httpx.HTTPStatusError):
     """Handle HTTP status errors from external services."""
-    logger.error(f"External service error: {exc}")
+    logger.error(f"External service error: {exc}", exc_info=True)
     return JSONResponse(
         status_code=502,
         content={"detail": "External service error", "type": "external_service_error"},

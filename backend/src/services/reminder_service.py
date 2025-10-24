@@ -181,7 +181,7 @@ class ReminderService:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to send reminder for appointment {appointment.id}: {e}")
+            logger.error(f"Failed to send reminder for appointment {appointment.id}: {e}", exc_info=True)
             return False
 
     async def send_immediate_reminder(self, appointment_id: int) -> bool:

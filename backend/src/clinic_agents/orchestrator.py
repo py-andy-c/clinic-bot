@@ -160,7 +160,7 @@ async def handle_line_message(
                     # TODO: In production, trigger escalation workflow (email alert, etc.)
 
             except Exception as e:
-                logger.error(f"Error monitoring conversation quality for {line_user_id}: {e}")
+                logger.error(f"Error monitoring conversation quality for {line_user_id}: {e}", exc_info=True)
 
         return response_text
 

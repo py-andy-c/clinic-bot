@@ -127,7 +127,7 @@ def create_tables() -> None:
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
     except SQLAlchemyError as e:
-        logger.error(f"Failed to create database tables: {e}")
+        logger.error(f"Failed to create database tables: {e}", exc_info=True)
         raise
 
 
@@ -145,5 +145,5 @@ def drop_tables() -> None:
         Base.metadata.drop_all(bind=engine)
         logger.info("Database tables dropped successfully")
     except SQLAlchemyError as e:
-        logger.error(f"Failed to drop database tables: {e}")
+        logger.error(f"Failed to drop database tables: {e}", exc_info=True)
         raise
