@@ -178,11 +178,6 @@ def require_env_vars(request):
 
     for var_name in required_vars:
         var_value = os.getenv(var_name)
-
-        # Check if variable is set
-        if var_value is None:
-            pytest.skip(f"Required env var {var_name} is not set")
-
         validated_vars[var_name] = var_value
 
     return validated_vars
