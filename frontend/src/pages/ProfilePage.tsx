@@ -137,7 +137,6 @@ const ProfilePage: React.FC = () => {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">個人資料</h1>
-          <p className="mt-2 text-gray-600">管理您的個人資訊和設定</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
