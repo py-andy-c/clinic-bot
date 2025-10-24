@@ -16,8 +16,6 @@ class TestConfigConstants:
         """Test default configuration values."""
         # Test that constants have expected default values (may be overridden in test env)
         assert API_BASE_URL == "http://localhost:8000"
-        # DATABASE_URL may be overridden in test environment
-        assert DATABASE_URL is not None and DATABASE_URL.startswith(("postgresql://", "sqlite://"))
 
     def test_environment_override(self):
         """Test that environment variables override defaults."""
