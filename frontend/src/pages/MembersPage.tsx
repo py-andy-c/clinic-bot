@@ -46,9 +46,8 @@ const MembersPage: React.FC = () => {
   const handleInviteMember = async (inviteData: MemberInviteData) => {
     try {
       setInviting(true);
-      await apiService.inviteMember(inviteData);
-      setShowInviteModal(false);
-      await fetchMembers(); // Refresh the list
+      const response = await apiService.inviteMember(inviteData);
+      return response;
     } catch (err: any) {
       console.error('Invite member error:', err);
       const errorMessage = err?.response?.data?.detail;
@@ -57,6 +56,7 @@ const MembersPage: React.FC = () => {
       } else {
         alert('邀請成員失敗，請稍後再試');
       }
+      throw err;
     } finally {
       setInviting(false);
     }
@@ -315,31 +315,45 @@ const MembersPage: React.FC = () => {
 // Invite Member Modal Component
 interface InviteMemberModalProps {
   onClose: () => void;
-  onInvite: (inviteData: MemberInviteData) => Promise<void>;
+  onInvite: (inviteData: MemberInviteData) => Promise<{ signup_url: string; expires_at: string }>;
   inviting: boolean;
 }
 
 const InviteMemberModal: React.FC<InviteMemberModalProps> = ({ onClose, onInvite, inviting }) => {
   const [formData, setFormData] = useState<MemberInviteData>({
-    email: '',
-    name: '',
-    roles: ['practitioner']
+    default_roles: ['practitioner']
   });
+  const [signupLink, setSignupLink] = useState<string | null>(null);
+  const [linkExpiry, setLinkExpiry] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.email && formData.name && formData.roles.length > 0) {
-      await onInvite(formData);
+    if (formData.default_roles.length > 0) {
+      const response = await onInvite(formData);
+      setSignupLink(response.signup_url);
+      setLinkExpiry(response.expires_at);
     }
   };
 
   const handleRoleChange = (role: UserRole, checked: boolean) => {
     setFormData(prev => ({
       ...prev,
-      roles: checked
-        ? [...prev.roles, role]
-        : prev.roles.filter(r => r !== role)
+      default_roles: checked
+        ? [...prev.default_roles, role]
+        : prev.default_roles.filter(r => r !== role)
     }));
+  };
+
+  const copyToClipboard = async () => {
+    if (signupLink) {
+      try {
+        await navigator.clipboard.writeText(signupLink);
+        alert('邀請連結已複製到剪貼簿');
+      } catch (err) {
+        console.error('Failed to copy:', err);
+        alert('複製失敗，請手動複製連結');
+      }
+    }
   };
 
   return (
@@ -356,88 +370,123 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({ onClose, onInvite
                 邀請新成員
               </h3>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                    成員姓名
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    id="name"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                    電子郵件
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    id="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                  />
-                </div>
-
-                <div>
-                  <fieldset>
-                    <legend className="text-sm font-medium text-gray-700">角色權限</legend>
-                    <div className="mt-2 space-y-2">
-                      <div className="flex items-center">
-                        <input
-                          id="role-admin"
-                          name="admin"
-                          type="checkbox"
-                          checked={formData.roles.includes('admin')}
-                          onChange={(e) => handleRoleChange('admin', e.target.checked)}
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                        />
-                        <label htmlFor="role-admin" className="ml-3 text-sm text-gray-700">
-                          <span className="font-medium">管理員</span> - 完整診所管理權限
-                        </label>
+              {!signupLink ? (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <fieldset>
+                      <legend className="text-sm font-medium text-gray-700">角色權限</legend>
+                      <div className="mt-2 space-y-2">
+                        <div className="flex items-center">
+                          <input
+                            id="role-admin"
+                            name="admin"
+                            type="checkbox"
+                            checked={formData.default_roles.includes('admin')}
+                            onChange={(e) => handleRoleChange('admin', e.target.checked)}
+                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                          />
+                          <label htmlFor="role-admin" className="ml-3 text-sm text-gray-700">
+                            <span className="font-medium">管理員</span> - 完整診所管理權限
+                          </label>
+                        </div>
+                        <div className="flex items-center">
+                          <input
+                            id="role-practitioner"
+                            name="practitioner"
+                            type="checkbox"
+                            checked={formData.default_roles.includes('practitioner')}
+                            onChange={(e) => handleRoleChange('practitioner', e.target.checked)}
+                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                          />
+                          <label htmlFor="role-practitioner" className="ml-3 text-sm text-gray-700">
+                            <span className="font-medium">治療師</span> - 預約管理和 Google Calendar 同步
+                          </label>
+                        </div>
                       </div>
-                      <div className="flex items-center">
-                        <input
-                          id="role-practitioner"
-                          name="practitioner"
-                          type="checkbox"
-                          checked={formData.roles.includes('practitioner')}
-                          onChange={(e) => handleRoleChange('practitioner', e.target.checked)}
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                        />
-                        <label htmlFor="role-practitioner" className="ml-3 text-sm text-gray-700">
-                          <span className="font-medium">治療師</span> - 預約管理和 Google Calendar 同步
-                        </label>
+                    </fieldset>
+                  </div>
+
+                  <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                    <button
+                      type="submit"
+                      disabled={inviting || formData.default_roles.length === 0}
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+                    >
+                      {inviting ? '生成中...' : '生成邀請連結'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:w-auto sm:text-sm"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-green-800">邀請連結已生成</h3>
+                        <div className="mt-2 text-sm text-green-700">
+                          <p>請將此連結分享給新成員，他們將透過 Google 帳號完成註冊。</p>
+                        </div>
                       </div>
                     </div>
-                  </fieldset>
-                </div>
+                  </div>
 
-                <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                  <button
-                    type="submit"
-                    disabled={inviting || !formData.email || !formData.name || formData.roles.length === 0}
-                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
-                  >
-                    {inviting ? '邀請中...' : '發送邀請'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:w-auto sm:text-sm"
-                  >
-                    取消
-                  </button>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      邀請連結
+                    </label>
+                    <div className="flex rounded-md border border-gray-300 shadow-sm">
+                      <input
+                        type="text"
+                        value={signupLink}
+                        readOnly
+                        className="flex-1 block w-full border-0 rounded-l-md shadow-none focus:ring-0 focus:border-0 sm:text-sm px-3 py-2 bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={copyToClipboard}
+                        className="inline-flex items-center px-3 py-2 border-0 border-l border-gray-300 rounded-r-md bg-white text-gray-500 text-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                        title="複製連結"
+                      >
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {linkExpiry && (
+                    <div className="text-sm text-gray-500">
+                      <span className="inline-flex items-center">
+                        <svg className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                        </svg>
+                        此連結將在 48 小時後過期
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm"
+                    >
+                      關閉
+                    </button>
+                  </div>
                 </div>
-              </form>
+              )}
             </div>
           </div>
         </div>

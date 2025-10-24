@@ -157,9 +157,7 @@ export interface SignupTokenInfo {
 }
 
 export interface MemberInviteData {
-  email: string;
-  name: string;
-  roles: UserRole[];
+  default_roles: UserRole[];
 }
 
 // OAuth types
