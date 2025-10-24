@@ -35,7 +35,6 @@ if not is_testing:
 def get_database_url():
     """Get the resolved database URL with proper path handling."""
     raw_url = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/clinic_bot")
-    print(f"aaaaaa raw_url: {raw_url}")
 
     # Handle SQLite database path resolution
     if raw_url.startswith("sqlite:///") and not raw_url.startswith("sqlite:////"):
