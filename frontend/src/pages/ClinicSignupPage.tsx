@@ -112,10 +112,6 @@ const ClinicSignupPage: React.FC = () => {
           <div className="space-y-4">
 
             <div className="text-center">
-              <p className="text-sm text-gray-600 mb-4">
-                點擊下方按鈕使用 Google 帳號完成註冊
-              </p>
-
               <button
                 onClick={handleGoogleSignup}
                 disabled={completing}
@@ -152,11 +148,6 @@ const ClinicSignupPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="mt-6 text-center">
-              <p className="text-xs text-gray-500">
-                註冊完成後，您將成為診所的管理員，並可以邀請其他團隊成員加入。
-              </p>
-            </div>
           </div>
         </div>
 
@@ -164,7 +155,7 @@ const ClinicSignupPage: React.FC = () => {
           <p className="text-sm text-gray-600">
             已經有帳號了嗎？{' '}
             <button
-              onClick={() => navigate('/')}
+              onClick={() => window.location.href = '/'}
               className="font-medium text-primary-600 hover:text-primary-500"
             >
               返回登入頁面
