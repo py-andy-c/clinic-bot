@@ -195,7 +195,13 @@ class TestGoogleOAuthService:
                 from services.jwt_service import jwt_service
                 signed_state = jwt_service.sign_oauth_state({"user_id": 1, "clinic_id": 2})
 
-                result = await oauth_service.handle_oauth_callback(mock_db, "test_code", signed_state)
+                # Mock encryption service to avoid needing real ENCRYPTION_KEY
+                with patch('services.encryption_service.get_encryption_service') as mock_get_encryption:
+                    mock_encryption_service = Mock()
+                    mock_encryption_service.encrypt_data.return_value = b'encrypted_credentials'
+                    mock_get_encryption.return_value = mock_encryption_service
+
+                    result = await oauth_service.handle_oauth_callback(mock_db, "test_code", signed_state)
 
                 assert result == mock_therapist
                 assert mock_therapist.gcal_credentials is not None

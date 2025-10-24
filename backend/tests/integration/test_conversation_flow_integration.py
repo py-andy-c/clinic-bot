@@ -58,11 +58,12 @@ def linked_conversation_user(db_session: Session, conversation_test_clinic: Clin
     return patient
 
 
-@pytest.mark.asyncio
+@pytest.mark.parametrize("session_database", [None], indirect=True)
 class TestConversationFlowIntegration:
     """End-to-end conversation flow tests with real session management."""
 
-    async def test_single_turn_conversation_with_session_management(self, db_session, conversation_test_clinic, linked_conversation_user):
+    @pytest.mark.asyncio
+    async def test_single_turn_conversation_with_session_management(self, db_session, conversation_test_clinic, linked_conversation_user, session_database):
         """Test a single conversation turn with real session creation and history storage."""
         line_user_id = linked_conversation_user.line_user.line_user_id
 
@@ -124,7 +125,9 @@ class TestConversationFlowIntegration:
             user_messages = [item for item in conversation_items if isinstance(item, dict) and item.get("content") == "王俊彥"]
             assert len(user_messages) >= 1, "User message should be stored in conversation history"
 
-    async def test_multi_turn_conversation_with_history_persistence(self, db_session, conversation_test_clinic, linked_conversation_user):
+    @pytest.mark.asyncio
+    @pytest.mark.asyncio
+    async def test_multi_turn_conversation_with_history_persistence(self, db_session, conversation_test_clinic, linked_conversation_user, session_database):
         """Test multi-turn conversation with persistent session history."""
         line_user_id = linked_conversation_user.line_user.line_user_id
 
@@ -161,7 +164,7 @@ class TestConversationFlowIntegration:
                 db=db_session,
                 clinic=conversation_test_clinic,
                 line_user_id=line_user_id,
-                message_text="王俊彥"
+                message_text="王俊彥",
             )
             assert response1 == "身份確認完成"
 
@@ -179,7 +182,7 @@ class TestConversationFlowIntegration:
                 db=db_session,
                 clinic=conversation_test_clinic,
                 line_user_id=line_user_id,
-                message_text="我想預約明天上午10點"
+                message_text="我想預約明天上午10點",
             )
             assert response2 == "預約成功"
 
@@ -205,7 +208,8 @@ class TestConversationFlowIntegration:
             assert any("王俊彥" in text for text in message_texts), "First message should be in history"
             assert any("預約" in text for text in message_texts), "Second message should be in history"
 
-    async def test_conversation_quality_monitoring_execution(self, db_session, conversation_test_clinic, linked_conversation_user):
+    @pytest.mark.asyncio
+    async def test_conversation_quality_monitoring_execution(self, db_session, conversation_test_clinic, linked_conversation_user, session_database):
         """Test that conversation quality monitoring runs without errors and processes history correctly."""
         line_user_id = linked_conversation_user.line_user.line_user_id
 
@@ -237,7 +241,7 @@ class TestConversationFlowIntegration:
                 db=db_session,
                 clinic=conversation_test_clinic,
                 line_user_id=line_user_id,
-                message_text="預約門診"
+                message_text="預約門診",
             )
 
             assert response == "預約已確認"
@@ -263,7 +267,8 @@ class TestConversationFlowIntegration:
             assert isinstance(call_args, list), "Should pass conversation history as list"
             # History can be empty for new conversations - this is expected behavior
 
-    async def test_session_persistence_across_requests(self, db_session, conversation_test_clinic, linked_conversation_user):
+    @pytest.mark.asyncio
+    async def test_session_persistence_across_requests(self, db_session, conversation_test_clinic, linked_conversation_user, session_database):
         """Test that session persists correctly across multiple handle_line_message calls."""
         line_user_id = linked_conversation_user.line_user.line_user_id
 
@@ -288,7 +293,7 @@ class TestConversationFlowIntegration:
                 db=db_session,
                 clinic=conversation_test_clinic,
                 line_user_id=line_user_id,
-                message_text="王俊彥"
+                message_text="王俊彥",
             )
             assert response1 == "身份確認完成"
 
@@ -323,7 +328,7 @@ class TestConversationFlowIntegration:
                 db=db_session,
                 clinic=conversation_test_clinic,
                 line_user_id=line_user_id,
-                message_text="預約門診"
+                message_text="預約門診",
             )
             assert response2 == "預約成功"
 
@@ -349,7 +354,8 @@ class TestConversationFlowIntegration:
         assert any("王俊彥" in text for text in message_texts), "First message should persist"
         assert any("預約" in text for text in message_texts), "Second message should be stored"
 
-    async def test_conversation_error_recovery_and_quality_monitoring(self, db_session, conversation_test_clinic, linked_conversation_user):
+    @pytest.mark.asyncio
+    async def test_conversation_error_recovery_and_quality_monitoring(self, db_session, conversation_test_clinic, linked_conversation_user, session_database):
         """Test that conversation errors are handled gracefully and quality monitoring still works."""
         line_user_id = linked_conversation_user.line_user.line_user_id
 
@@ -382,7 +388,7 @@ class TestConversationFlowIntegration:
                 db=db_session,
                 clinic=conversation_test_clinic,
                 line_user_id=line_user_id,
-                message_text="預約測試"
+                message_text="預約測試",
             )
 
             # Main functionality should still work

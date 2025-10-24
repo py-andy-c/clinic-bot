@@ -32,7 +32,7 @@ if not is_testing:
 
 # Configuration constants with defaults
 # These match the environment variables defined in .env.example
-def _get_database_url():
+def get_database_url():
     """Get the resolved database URL with proper path handling."""
     raw_url = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/clinic_bot")
 
@@ -50,7 +50,7 @@ def _get_database_url():
     else:
         return raw_url
 
-DATABASE_URL = _get_database_url()
+DATABASE_URL = get_database_url()
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")

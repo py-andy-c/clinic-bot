@@ -21,7 +21,7 @@ from clinic_agents.helpers import get_or_create_line_user, get_patient_from_line
 from services.guardrails_service import get_guardrails_service
 from models.clinic import Clinic
 from models.line_user import LineUser
-from core.config import DATABASE_URL
+# DATABASE_URL is now read dynamically in get_session_storage
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +30,15 @@ logger = logging.getLogger(__name__)
 # Creates SQLAlchemySession instances for individual users
 def get_session_storage(line_user_id: str) -> SQLAlchemySession:
     """Get a SQLAlchemySession for the given LINE user."""
+    # Read DATABASE_URL dynamically from environment
+    from core.config import get_database_url
+    db_url = get_database_url()
+
     # Convert SQLite URL to async-compatible format for SQLAlchemySession
-    session_url = DATABASE_URL
-    if DATABASE_URL.startswith("sqlite:///"):
+    session_url = db_url
+    if db_url.startswith("sqlite:///"):
         # Replace sqlite:/// with sqlite+aiosqlite:/// for async operations
-        session_url = DATABASE_URL.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+        session_url = db_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
 
     return SQLAlchemySession.from_url(
         session_id=line_user_id,

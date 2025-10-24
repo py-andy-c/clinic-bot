@@ -25,35 +25,21 @@ from services.line_service import LINEService
 from linebot.v3.messaging.models import TextMessage, PushMessageRequest
 
 
-@pytest.fixture
-def line_credentials():
-    """Get LINE test credentials from environment variables."""
-    secret = os.getenv('LINE_CHANNEL_SECRET')
-    token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
-
-    # Skip tests if credentials are not set or are test defaults
-    if not secret or not token:
-        pytest.skip("LINE credentials not configured")
-
-    if secret == 'test_line_channel_secret_for_testing' or token == 'test_line_access_token_for_testing':
-        pytest.skip("LINE test credentials not properly configured (using defaults)")
-
-    return {'secret': secret, 'token': token}
-
-
-@pytest.mark.integration
+@pytest.mark.parametrize("require_env_vars", [["LINE_CHANNEL_SECRET", "LINE_CHANNEL_ACCESS_TOKEN"]], indirect=True)
+@pytest.mark.line_api
+@pytest.mark.slow
 class TestLineApiIntegration:
     """Integration tests for LINE Messaging API."""
 
-    def test_line_service_initialization_with_real_credentials(self, line_credentials):
+    def test_line_service_initialization_with_real_credentials(self, require_env_vars):
         """Test that LINEService can be initialized with real LINE credentials."""
         service = LINEService(
-            channel_secret=line_credentials['secret'],
-            channel_access_token=line_credentials['token']
+            channel_secret=require_env_vars['LINE_CHANNEL_SECRET'],
+            channel_access_token=require_env_vars['LINE_CHANNEL_ACCESS_TOKEN']
         )
 
-        assert service.channel_secret == line_credentials['secret']
-        assert service.channel_access_token == line_credentials['token']
+        assert service.channel_secret == require_env_vars['LINE_CHANNEL_SECRET']
+        assert service.channel_access_token == require_env_vars['LINE_CHANNEL_ACCESS_TOKEN']
         assert service.api is not None
         assert service.handler is not None
 
@@ -62,11 +48,11 @@ class TestLineApiIntegration:
         assert service.api.api_client is not None
         assert not isinstance(service.api.api_client, str)  # Should not be a string
 
-    def test_line_service_signature_verification_with_real_handler(self, line_credentials):
+    def test_line_service_signature_verification_with_real_handler(self, require_env_vars):
         """Test signature verification using real LINE webhook handler."""
         service = LINEService(
-            channel_secret=line_credentials['secret'],
-            channel_access_token=line_credentials['token']
+            channel_secret=require_env_vars['LINE_CHANNEL_SECRET'],
+            channel_access_token=require_env_vars['LINE_CHANNEL_ACCESS_TOKEN']
         )
 
         # Test valid signature
@@ -76,7 +62,7 @@ class TestLineApiIntegration:
         import hashlib
         import base64
         hash_digest = hmac.new(
-            line_credentials['secret'].encode('utf-8'),
+            require_env_vars['LINE_CHANNEL_SECRET'].encode('utf-8'),
             body.encode('utf-8'),
             hashlib.sha256
         ).digest()
@@ -87,11 +73,11 @@ class TestLineApiIntegration:
         # Test invalid signature
         assert service.verify_signature(body, "invalid_signature") is False
 
-    def test_line_service_message_parsing(self, line_credentials):
+    def test_line_service_message_parsing(self, require_env_vars):
         """Test message parsing functionality."""
         service = LINEService(
-            channel_secret=line_credentials['secret'],
-            channel_access_token=line_credentials['token']
+            channel_secret=require_env_vars['LINE_CHANNEL_SECRET'],
+            channel_access_token=require_env_vars['LINE_CHANNEL_ACCESS_TOKEN']
         )
 
         # Test text message parsing
@@ -129,7 +115,7 @@ class TestLineApiIntegration:
         assert result is None
 
 
-    def test_line_service_invalid_credentials_handling(self):
+    def test_line_service_invalid_credentials_handling(self, require_env_vars):
         """Test that service properly handles invalid credentials."""
         # LINEService constructor doesn't validate credentials - it just creates objects
         # Invalid credentials are only detected during actual API calls
@@ -156,11 +142,11 @@ class TestLineApiIntegration:
             # This would fail with real API call, but structure should be valid
             # service.api.push_message(request)  # Commented out to avoid API call
 
-    def test_line_service_request_structure_validation(self, line_credentials):
+    def test_line_service_request_structure_validation(self, require_env_vars):
         """Test that LINE API requests are structured correctly."""
         service = LINEService(
-            channel_secret=line_credentials['secret'],
-            channel_access_token=line_credentials['token']
+            channel_secret=require_env_vars['LINE_CHANNEL_SECRET'],
+            channel_access_token=require_env_vars['LINE_CHANNEL_ACCESS_TOKEN']
         )
 
         # Create a valid request structure
@@ -178,7 +164,7 @@ class TestLineApiIntegration:
         assert request.messages[0].text == "Integration test message"
         assert request.notification_disabled is False
 
-    def test_line_service_error_handling_invalid_token(self):
+    def test_line_service_error_handling_invalid_token(self, require_env_vars):
         """Test error handling when LINE token is malformed."""
         # Test with various invalid token formats
         invalid_tokens = [
@@ -204,20 +190,19 @@ class TestLineApiIntegration:
                 pass
 
 
+@pytest.mark.parametrize("require_env_vars", [["LINE_CHANNEL_SECRET", "LINE_CHANNEL_ACCESS_TOKEN"]], indirect=True)
+@pytest.mark.line_api
 @pytest.mark.integration
-def test_line_integration_test_setup(line_credentials):
+def test_line_integration_test_setup(require_env_vars):
     """Test that LINE integration test environment is properly configured."""
-    assert line_credentials['secret'] != 'test_line_channel_secret_for_testing'
-    assert line_credentials['token'] != 'test_line_access_token_for_testing'
-
     # Verify credentials look like real LINE credentials
-    assert len(line_credentials['secret']) > 10  # LINE secrets are typically long
-    assert len(line_credentials['token']) > 50   # LINE tokens are typically very long
+    assert len(require_env_vars['LINE_CHANNEL_SECRET']) > 10  # LINE secrets are typically long
+    assert len(require_env_vars['LINE_CHANNEL_ACCESS_TOKEN']) > 50   # LINE tokens are typically very long
 
     # Test that we can create the service
     service = LINEService(
-        channel_secret=line_credentials['secret'],
-        channel_access_token=line_credentials['token']
+        channel_secret=require_env_vars['LINE_CHANNEL_SECRET'],
+        channel_access_token=require_env_vars['LINE_CHANNEL_ACCESS_TOKEN']
     )
 
     assert service is not None

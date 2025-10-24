@@ -39,7 +39,8 @@ print_status "Project root: $PROJECT_ROOT"
 # Navigate to backend directory
 cd "$PROJECT_ROOT/backend"
 
-# Load test environment variables
+# Load test environment variables globally for backward compatibility
+# Individual tests can use require_env_vars fixture for selective validation
 if [ -f ".env.test" ]; then
     print_status "Loading test environment variables from backend/.env.test..."
     source .env.test
