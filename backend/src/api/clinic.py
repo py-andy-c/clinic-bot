@@ -121,15 +121,25 @@ async def list_members(
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
-    Get all active members of the current user's clinic.
-
+    Get all members of the current user's clinic.
+    
+    For admins: Returns both active and inactive members.
+    For other users: Returns only active members.
+    
     Available to all clinic members (including read-only users).
     """
     try:
-        members = db.query(User).filter(
-            User.clinic_id == current_user.clinic_id,
-            User.is_active == True
-        ).all()
+        # Admins can see both active and inactive members
+        if current_user.has_role("admin"):
+            members = db.query(User).filter(
+                User.clinic_id == current_user.clinic_id
+            ).all()
+        else:
+            # Non-admins only see active members
+            members = db.query(User).filter(
+                User.clinic_id == current_user.clinic_id,
+                User.is_active == True
+            ).all()
 
         member_list = [
             MemberResponse(
@@ -163,11 +173,12 @@ async def invite_member(
     Generate a secure signup link for inviting a new team member.
 
     Only clinic admins can invite members.
+    Supports inviting users with no roles for read-only access.
     """
     try:
-        # Validate roles
+        # Validate roles - allow empty list for read-only access
         valid_roles = {"admin", "practitioner"}
-        if not all(role in valid_roles for role in invite_data.default_roles):
+        if invite_data.default_roles and not all(role in valid_roles for role in invite_data.default_roles):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="指定的角色無效"
@@ -248,7 +259,7 @@ async def update_member_roles(
             if admin_count == 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="無法從最後一位管理員移除管理員權限"
+                    detail="無法從最後一位管理員停用管理員權限"
                 )
 
         # Validate roles
@@ -322,14 +333,14 @@ async def remove_member(
             if admin_count == 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="無法移除最後一位管理員"
+                    detail="無法停用最後一位管理員"
                 )
 
         # Soft delete
         member.is_active = False
         db.commit()
 
-        return {"message": "成員移除成功"}
+        return {"message": "成員已停用"}
 
     except HTTPException:
         raise
@@ -337,7 +348,48 @@ async def remove_member(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="無法移除成員"
+            detail="無法停用成員"
+        )
+
+
+@router.post("/members/{user_id}/reactivate", summary="Reactivate a team member")
+async def reactivate_member(
+    user_id: int,
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Reactivate a previously removed team member.
+
+    Only clinic admins can reactivate members.
+    """
+    try:
+        # Find inactive member
+        member = db.query(User).filter(
+            User.id == user_id,
+            User.clinic_id == current_user.clinic_id,
+            User.is_active == False
+        ).first()
+
+        if not member:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到已停用的成員"
+            )
+
+        # Reactivate member
+        member.is_active = True
+        db.commit()
+
+        return {"message": "成員已重新啟用"}
+
+    except HTTPException:
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法重新啟用成員"
         )
 
 

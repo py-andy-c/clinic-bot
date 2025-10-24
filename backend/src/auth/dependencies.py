@@ -104,18 +104,24 @@ def get_current_user(
 
     # Handle clinic user authentication
     elif payload.user_type == "clinic_user":
-        # Verify user exists in database
+        # First check if user exists (regardless of active status)
         user = db.query(User).filter(
             User.google_subject_id == payload.sub,
-            User.email == payload.email,
-            User.is_active == True
+            User.email == payload.email
         ).first()
 
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or inactive"
+                detail="User not found"
             )
+
+            # Check if user is active
+            if not user.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="帳戶已被停用，請聯繫診所管理員重新啟用"
+                )
 
         # Verify clinic ID matches
         if payload.clinic_id != user.clinic_id:

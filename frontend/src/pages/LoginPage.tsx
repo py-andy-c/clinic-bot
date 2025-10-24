@@ -34,6 +34,10 @@ const LoginPage: React.FC = () => {
         // Translate specific backend error messages to user-friendly Traditional Chinese
         if (backendError.includes('診所使用者認證必須透過註冊流程')) {
           errorMsg = '您尚未註冊為診所使用者，請聯繫診所管理員取得註冊連結';
+        } else if (backendError.includes('User not found')) {
+          errorMsg = '找不到使用者，請聯繫診所管理員';
+        } else if (backendError.includes('帳戶已被停用，請聯繫診所管理員重新啟用')) {
+          errorMsg = '您的帳戶已被停用，請聯繫診所管理員重新啟用';
         } else if (backendError.includes('User not found or inactive')) {
           errorMsg = '找不到使用者或帳戶已停用，請聯繫診所管理員';
         } else if (backendError.includes('Access denied')) {

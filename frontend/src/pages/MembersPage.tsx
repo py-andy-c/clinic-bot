@@ -4,7 +4,7 @@ import { apiService } from '../services/api';
 import { Member, UserRole, MemberInviteData } from '../types';
 
 const MembersPage: React.FC = () => {
-  const { isClinicAdmin, user: currentUser, isAuthenticated } = useAuth();
+  const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus } = useAuth();
   
   
   // If not authenticated, show a message (in real app, this would redirect to login)
@@ -68,14 +68,19 @@ const MembersPage: React.FC = () => {
       await apiService.updateMemberRoles(userId, roles);
       setShowRoleModal(null);
       await fetchMembers(); // Refresh the list
+      
+      // If the current user updated their own roles, refresh auth status
+      if (currentUser && userId === currentUser.user_id) {
+        await checkAuthStatus();
+      }
     } catch (err: any) {
       console.error('Update roles error:', err);
       const errorMessage = err?.response?.data?.detail;
-      if (errorMessage === 'Member not found') {
+      if (errorMessage === '找不到成員') {
         alert('找不到該成員，請重新載入頁面後再試。');
-      } else if (errorMessage === 'Cannot remove admin access from the last administrator') {
-        alert('無法移除最後一位管理員的管理員權限。');
-      } else if (errorMessage === 'Invalid role specified') {
+      } else if (errorMessage === '無法從最後一位管理員停用管理員權限') {
+        alert('無法停用最後一位管理員的管理員權限。');
+      } else if (errorMessage === '指定的角色無效') {
         alert('指定的角色無效。請選擇有效的角色。');
       } else {
         alert('更新角色失敗，請稍後再試');
@@ -86,7 +91,7 @@ const MembersPage: React.FC = () => {
   };
 
   const handleRemoveMember = async (userId: number) => {
-    if (!confirm('確定要移除此成員嗎？此操作無法復原。')) {
+    if (!confirm('確定要停用此成員嗎？此操作可以復原。')) {
       return;
     }
 
@@ -98,12 +103,34 @@ const MembersPage: React.FC = () => {
 
       // Check for specific error messages from backend
       const errorMessage = err?.response?.data?.detail;
-      if (errorMessage === 'Cannot remove the last administrator') {
-        alert('無法移除最後一位管理員。請先指派其他成員為管理員。');
-      } else if (errorMessage === 'Member not found') {
+      if (errorMessage === '無法停用最後一位管理員') {
+        alert('無法停用最後一位管理員。請先指派其他成員為管理員。');
+      } else if (errorMessage === '找不到成員') {
         alert('找不到該成員，請重新載入頁面後再試。');
       } else {
-        alert('移除成員失敗，請稍後再試');
+        alert('停用成員失敗，請稍後再試');
+      }
+    }
+  };
+
+  const handleReactivateMember = async (userId: number) => {
+    if (!confirm('確定要重新啟用此成員嗎？')) {
+      return;
+    }
+
+    try {
+      await apiService.reactivateMember(userId);
+      await fetchMembers(); // Refresh the list
+      alert('成員已重新啟用');
+    } catch (err: any) {
+      console.error('Reactivate member error:', err);
+
+      // Check for specific error messages from backend
+      const errorMessage = err?.response?.data?.detail;
+      if (errorMessage === '找不到已停用的成員') {
+        alert('找不到已停用的成員，請重新載入頁面後再試。');
+      } else {
+        alert('重新啟用成員失敗，請稍後再試');
       }
     }
   };
@@ -126,7 +153,7 @@ const MembersPage: React.FC = () => {
     } else if (roles.includes('practitioner')) {
       return '治療師';
     }
-    return '一般使用者';
+    return '唯讀存取';
   };
 
   const getRoleColor = (roles: UserRole[]) => {
@@ -135,7 +162,7 @@ const MembersPage: React.FC = () => {
     } else if (roles.includes('practitioner')) {
       return 'bg-blue-100 text-blue-800';
     }
-    return 'bg-gray-100 text-gray-800';
+    return 'bg-green-100 text-green-800';
   };
 
   if (loading) {
@@ -218,23 +245,31 @@ const MembersPage: React.FC = () => {
           ) : (
             members.map((member) => (
               <li key={member.id}>
-                <div className="px-4 py-4 sm:px-6">
+                <div className={`px-4 py-4 sm:px-6 ${!member.is_active ? 'bg-gray-50 opacity-75' : ''}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <div className="flex-shrink-0">
-                        <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${!member.is_active ? 'bg-gray-200' : 'bg-primary-100'}`}>
                           <span className="text-lg">
                             {member.roles.includes('admin') ? '👑' : member.roles.includes('practitioner') ? '👨‍⚕️' : '👤'}
                           </span>
                         </div>
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{member.full_name}</div>
-                        <div className="text-sm text-gray-500">{member.email}</div>
-                        <div className="mt-1">
+                        <div className={`text-sm font-medium ${!member.is_active ? 'text-gray-500' : 'text-gray-900'}`}>
+                          {member.full_name}
+                          {!member.is_active && ' (已停用)'}
+                        </div>
+                        <div className={`text-sm ${!member.is_active ? 'text-gray-400' : 'text-gray-500'}`}>{member.email}</div>
+                        <div className="mt-1 flex items-center space-x-2">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleColor(member.roles)}`}>
                             {getRoleDisplay(member.roles)}
                           </span>
+                          {!member.is_active && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              已停用
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -261,19 +296,30 @@ const MembersPage: React.FC = () => {
 
                         {isClinicAdmin && (
                           <>
-                            <button
-                              onClick={() => setShowRoleModal(member)}
-                              className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                            >
-                              編輯角色
-                            </button>
+                            {member.is_active ? (
+                              <>
+                                <button
+                                  onClick={() => setShowRoleModal(member)}
+                                  className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                                >
+                                  編輯角色
+                                </button>
 
-                            {member.id !== currentUser?.user_id && (
+                                {member.id !== currentUser?.user_id && (
+                                  <button
+                                    onClick={() => handleRemoveMember(member.id)}
+                                    className="inline-flex items-center px-2.5 py-1.5 border border-red-300 shadow-sm text-xs font-medium rounded text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                  >
+                                    停用
+                                  </button>
+                                )}
+                              </>
+                            ) : (
                               <button
-                                onClick={() => handleRemoveMember(member.id)}
-                                className="inline-flex items-center px-2.5 py-1.5 border border-red-300 shadow-sm text-xs font-medium rounded text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                onClick={() => handleReactivateMember(member.id)}
+                                className="inline-flex items-center px-2.5 py-1.5 border border-green-300 shadow-sm text-xs font-medium rounded text-green-700 bg-white hover:bg-green-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                               >
-                                移除
+                                重新啟用
                               </button>
                             )}
                           </>
@@ -326,11 +372,10 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({ onClose, onInvite
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.default_roles.length > 0) {
-      const response = await onInvite(formData);
-      setSignupLink(response.signup_url);
-      setLinkExpiry(response.expires_at);
-    }
+    // Allow empty roles for read-only access
+    const response = await onInvite(formData);
+    setSignupLink(response.signup_url);
+    setLinkExpiry(response.expires_at);
   };
 
   const handleRoleChange = (role: UserRole, checked: boolean) => {
@@ -400,6 +445,9 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({ onClose, onInvite
                             <span className="font-medium">治療師</span> - 預約管理和 Google Calendar 同步
                           </label>
                         </div>
+                        <div className="mt-2 text-xs text-gray-500">
+                          <p>💡 提示：如果都不選擇，新成員將獲得唯讀存取權限，可以查看診所資料但無法進行修改。</p>
+                        </div>
                       </div>
                     </fieldset>
                   </div>
@@ -407,7 +455,7 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({ onClose, onInvite
                   <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
                     <button
                       type="submit"
-                      disabled={inviting || formData.default_roles.length === 0}
+                      disabled={inviting}
                       className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
                     >
                       {inviting ? '生成中...' : '生成邀請連結'}

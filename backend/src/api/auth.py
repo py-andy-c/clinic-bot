@@ -169,7 +169,14 @@ async def google_auth_callback(
             # For clinic users, check if they have an existing account
             existing_user = db.query(User).filter(User.email == email).first()
             if existing_user:
-                # Existing clinic user - create tokens
+                # Check if user is active
+                if not existing_user.is_active:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="帳戶已被停用，請聯繫診所管理員重新啟用"
+                    )
+                
+                # Existing active clinic user - create tokens
                 payload = TokenPayload(
                     sub=google_subject_id,
                     email=email,
@@ -235,6 +242,10 @@ async def google_auth_callback(
     except HTTPException as e:
         # Handle specific error cases by redirecting to frontend with error message
         if e.detail == "診所使用者認證必須透過註冊流程":
+            from fastapi.responses import RedirectResponse
+            error_url = f"{FRONTEND_URL}/login?error=true&message={e.detail}"
+            return RedirectResponse(url=error_url, status_code=302)
+        elif e.detail == "帳戶已被停用，請聯繫診所管理員重新啟用":
             from fastapi.responses import RedirectResponse
             error_url = f"{FRONTEND_URL}/login?error=true&message={e.detail}"
             return RedirectResponse(url=error_url, status_code=302)

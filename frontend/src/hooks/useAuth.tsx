@@ -6,6 +6,7 @@ interface AuthContextType extends AuthState {
   login: (userType?: 'system_admin' | 'clinic_user') => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
+  checkAuthStatus: () => Promise<void>;
   hasRole: (role: UserRole) => boolean;
   isSystemAdmin: boolean;
   isClinicAdmin: boolean;
@@ -271,6 +272,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     logout,
     refreshToken,
+    checkAuthStatus,
     hasRole,
     isSystemAdmin: enhancedUser?.isSystemAdmin ?? false,
     isClinicAdmin: enhancedUser?.isClinicAdmin ?? false,
