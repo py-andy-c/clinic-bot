@@ -1,14 +1,54 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
 const LoginPage: React.FC = () => {
   const { login, isLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check for error parameters in URL
+    const error = searchParams.get('error');
+    const message = searchParams.get('message');
+    
+    if (error && message) {
+      setErrorMessage(message);
+    }
+  }, [searchParams]);
 
   const handleLogin = async () => {
     try {
+      // Clear any existing error message
+      setErrorMessage(null);
       await login();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login failed:', error);
+      
+      // Handle different types of errors
+      let errorMsg = '登入失敗，請稍後再試';
+      
+      if (error?.response?.data?.detail) {
+        const backendError = error.response.data.detail;
+        
+        // Translate specific backend error messages to user-friendly Traditional Chinese
+        if (backendError.includes('診所使用者認證必須透過註冊流程')) {
+          errorMsg = '您尚未註冊為診所使用者，請聯繫診所管理員取得註冊連結';
+        } else if (backendError.includes('User not found or inactive')) {
+          errorMsg = '找不到使用者或帳戶已停用，請聯繫診所管理員';
+        } else if (backendError.includes('Access denied')) {
+          errorMsg = '存取被拒絕，您沒有權限使用此系統';
+        } else if (backendError.includes('Clinic access denied')) {
+          errorMsg = '診所存取被拒絕，請確認您有權限存取此診所';
+        } else {
+          // For other errors, show the backend message if it's in Chinese, otherwise show generic message
+          errorMsg = backendError;
+        }
+      } else if (error?.message) {
+        errorMsg = error.message;
+      }
+      
+      setErrorMessage(errorMsg);
     }
   };
 
@@ -25,6 +65,27 @@ const LoginPage: React.FC = () => {
         </div>
 
         <div className="mt-8">
+          {/* Error Message */}
+          {errorMessage && (
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">
+                    登入錯誤
+                  </h3>
+                  <div className="mt-2 text-sm text-red-700">
+                    {errorMessage}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Main Google Login */}
           <div className="bg-white py-6 px-6 shadow rounded-lg">
             <div className="text-center">

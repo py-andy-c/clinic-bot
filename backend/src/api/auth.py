@@ -229,8 +229,14 @@ async def google_auth_callback(
 
         return response
 
-    except HTTPException:
-        raise
+    except HTTPException as e:
+        # Handle specific error cases by redirecting to frontend with error message
+        if e.detail == "診所使用者認證必須透過註冊流程":
+            from fastapi.responses import RedirectResponse
+            error_url = f"{FRONTEND_URL}/login?error=true&message={e.detail}"
+            return RedirectResponse(url=error_url, status_code=302)
+        else:
+            raise
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
