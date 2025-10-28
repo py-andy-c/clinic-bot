@@ -69,14 +69,7 @@ class TestConversationFlowIntegration:
 
         # Mock external dependencies but keep session management real
         with patch('clinic_agents.orchestrator.Runner.run', new_callable=AsyncMock) as mock_runner, \
-             patch('services.line_service.LINEService.send_text_message') as mock_send, \
-             patch('clinic_agents.orchestrator.get_guardrails_service') as mock_guardrails:
-
-            # Setup mocks
-            mock_guardrails_instance = Mock()
-            mock_guardrails_instance.check_content_safety.return_value = (True, None)
-            mock_guardrails_instance.check_rate_limit.return_value = (True, None)
-            mock_guardrails.return_value = mock_guardrails_instance
+             patch('services.line_service.LINEService.send_text_message') as mock_send:
 
             # Mock triage result for account linking (since user provides name)
             mock_triage_result = AsyncMock()
@@ -133,13 +126,7 @@ class TestConversationFlowIntegration:
 
         # First conversation turn - account linking
         with patch('clinic_agents.orchestrator.Runner.run', new_callable=AsyncMock) as mock_runner, \
-             patch('services.line_service.LINEService.send_text_message') as mock_send, \
-             patch('clinic_agents.orchestrator.get_guardrails_service') as mock_guardrails:
-
-            mock_guardrails_instance = Mock()
-            mock_guardrails_instance.check_content_safety.return_value = (True, None)
-            mock_guardrails_instance.check_rate_limit.return_value = (True, None)
-            mock_guardrails.return_value = mock_guardrails_instance
+             patch('services.line_service.LINEService.send_text_message') as mock_send:
 
             # First turn: account linking
             mock_triage_1 = AsyncMock()
@@ -209,22 +196,12 @@ class TestConversationFlowIntegration:
             assert any("預約" in text for text in message_texts), "Second message should be in history"
 
     @pytest.mark.asyncio
-    async def test_conversation_quality_monitoring_execution(self, db_session, conversation_test_clinic, linked_conversation_user, session_database):
-        """Test that conversation quality monitoring runs without errors and processes history correctly."""
+    async def test_basic_conversation_flow(self, db_session, conversation_test_clinic, linked_conversation_user, session_database):
+        """Test basic conversation flow without guardrails."""
         line_user_id = linked_conversation_user.line_user.line_user_id
 
         with patch('clinic_agents.orchestrator.Runner.run', new_callable=AsyncMock) as mock_runner, \
-             patch('services.line_service.LINEService.send_text_message') as mock_send, \
-             patch('clinic_agents.orchestrator.get_guardrails_service') as mock_guardrails:
-
-            # Setup guardrails mock to capture quality monitoring calls
-            mock_guardrails_instance = Mock()
-            mock_guardrails_instance.check_content_safety.return_value = (True, None)
-            mock_guardrails_instance.check_rate_limit.return_value = (True, None)
-            mock_guardrails_instance.assess_conversation_quality.return_value = {"quality_score": 0.85}
-            mock_guardrails_instance.log_conversation_metrics = Mock()
-            mock_guardrails_instance.should_escalate_conversation.return_value = (False, None)
-            mock_guardrails.return_value = mock_guardrails_instance
+             patch('services.line_service.LINEService.send_text_message') as mock_send:
 
             # Mock successful triage and response
             mock_triage = AsyncMock()
@@ -246,27 +223,6 @@ class TestConversationFlowIntegration:
 
             assert response == "預約已確認"
 
-            # Manually add conversation items since agents are mocked
-            session = get_session_storage(line_user_id)
-            await session.add_items([{
-                "role": "user",
-                "content": "預約門診"
-            }, {
-                "role": "assistant",
-                "content": "預約已確認"
-            }])
-
-            # Verify conversation quality monitoring was called
-            mock_guardrails_instance.assess_conversation_quality.assert_called_once()
-            mock_guardrails_instance.log_conversation_metrics.assert_called_once_with(line_user_id, {"quality_score": 0.85})
-            mock_guardrails_instance.should_escalate_conversation.assert_called_once()
-
-            # Verify the conversation history was passed to quality assessment
-            # (History may be empty for first-time conversations, which is realistic)
-            call_args = mock_guardrails_instance.assess_conversation_quality.call_args[0][0]
-            assert isinstance(call_args, list), "Should pass conversation history as list"
-            # History can be empty for new conversations - this is expected behavior
-
     @pytest.mark.asyncio
     async def test_session_persistence_across_requests(self, db_session, conversation_test_clinic, linked_conversation_user, session_database):
         """Test that session persists correctly across multiple handle_line_message calls."""
@@ -274,13 +230,7 @@ class TestConversationFlowIntegration:
 
         # First request
         with patch('clinic_agents.orchestrator.Runner.run', new_callable=AsyncMock) as mock_runner1, \
-             patch('services.line_service.LINEService.send_text_message') as mock_send1, \
-             patch('clinic_agents.orchestrator.get_guardrails_service') as mock_guardrails1:
-
-            mock_guardrails_instance1 = Mock()
-            mock_guardrails_instance1.check_content_safety.return_value = (True, None)
-            mock_guardrails_instance1.check_rate_limit.return_value = (True, None)
-            mock_guardrails1.return_value = mock_guardrails_instance1
+             patch('services.line_service.LINEService.send_text_message') as mock_send1:
 
             mock_triage1 = AsyncMock()
             mock_triage1.final_output.intent = "account_linking"
@@ -309,13 +259,7 @@ class TestConversationFlowIntegration:
 
         # Second request - should use the same session
         with patch('clinic_agents.orchestrator.Runner.run', new_callable=AsyncMock) as mock_runner2, \
-             patch('services.line_service.LINEService.send_text_message') as mock_send2, \
-             patch('clinic_agents.orchestrator.get_guardrails_service') as mock_guardrails2:
-
-            mock_guardrails_instance2 = Mock()
-            mock_guardrails_instance2.check_content_safety.return_value = (True, None)
-            mock_guardrails_instance2.check_rate_limit.return_value = (True, None)
-            mock_guardrails2.return_value = mock_guardrails_instance2
+             patch('services.line_service.LINEService.send_text_message') as mock_send2:
 
             mock_triage2 = AsyncMock()
             mock_triage2.final_output.intent = "appointment_related"
@@ -353,65 +297,3 @@ class TestConversationFlowIntegration:
         message_texts = [item.content if hasattr(item, 'content') else item['content'] for item in messages_with_content]
         assert any("王俊彥" in text for text in message_texts), "First message should persist"
         assert any("預約" in text for text in message_texts), "Second message should be stored"
-
-    @pytest.mark.asyncio
-    async def test_conversation_error_recovery_and_quality_monitoring(self, db_session, conversation_test_clinic, linked_conversation_user, session_database):
-        """Test that conversation errors are handled gracefully and quality monitoring still works."""
-        line_user_id = linked_conversation_user.line_user.line_user_id
-
-        with patch('clinic_agents.orchestrator.Runner.run', new_callable=AsyncMock) as mock_runner, \
-             patch('services.line_service.LINEService.send_text_message') as mock_send, \
-             patch('clinic_agents.orchestrator.get_guardrails_service') as mock_guardrails:
-
-            # Setup guardrails with error simulation
-            mock_guardrails_instance = Mock()
-            mock_guardrails_instance.check_content_safety.return_value = (True, None)
-            mock_guardrails_instance.check_rate_limit.return_value = (True, None)
-            # Simulate quality assessment error
-            mock_guardrails_instance.assess_conversation_quality.side_effect = Exception("Quality assessment failed")
-            mock_guardrails_instance.log_conversation_metrics = Mock()
-            mock_guardrails_instance.should_escalate_conversation.return_value = (False, None)
-            mock_guardrails.return_value = mock_guardrails_instance
-
-            # Mock successful agent execution
-            mock_triage = AsyncMock()
-            mock_triage.final_output.intent = "appointment_related"
-            mock_triage.final_output.confidence = 0.9
-
-            mock_appointment = AsyncMock()
-            mock_appointment.final_output_as = Mock(return_value="預約處理完成")
-
-            mock_runner.side_effect = [mock_triage, mock_appointment]
-
-            # Execute conversation - should succeed despite quality monitoring error
-            response = await handle_line_message(
-                db=db_session,
-                clinic=conversation_test_clinic,
-                line_user_id=line_user_id,
-                message_text="預約測試",
-            )
-
-            # Main functionality should still work
-            assert response == "預約處理完成"
-            # Note: send_text_message is called by webhook handler, not by handle_line_message
-
-            # Add conversation items despite monitoring error
-            session = get_session_storage(line_user_id)
-            await session.add_items([{
-                "role": "user",
-                "content": "預約測試"
-            }, {
-                "role": "assistant",
-                "content": "預約處理完成"
-            }])
-
-            # Quality monitoring should have been attempted (and failed)
-            mock_guardrails_instance.assess_conversation_quality.assert_called_once()
-            # But logging should not have been called due to the error
-            mock_guardrails_instance.log_conversation_metrics.assert_not_called()
-
-            # Verify conversation was still stored despite monitoring error
-            session = get_session_storage(line_user_id)
-            conversation_items = await session.get_items()
-            messages_with_content = [item for item in conversation_items if (hasattr(item, 'content') or (isinstance(item, dict) and 'content' in item))]
-            assert len(messages_with_content) >= 1, "Conversation should be stored even if monitoring fails"

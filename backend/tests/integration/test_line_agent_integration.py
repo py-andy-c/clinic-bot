@@ -123,14 +123,7 @@ class TestLineConversationFlowsIntegration:
         # Mock the agent execution to test the orchestration logic
         # The key is testing that the right agents are called in the right order
         with patch('clinic_agents.orchestrator.Runner.run') as mock_runner, \
-             patch('clinic_agents.orchestrator.get_session_storage') as mock_session_storage, \
-             patch('clinic_agents.orchestrator.get_guardrails_service') as mock_guardrails_service:
-
-            # Mock guardrails to pass
-            mock_guardrails = Mock()
-            mock_guardrails.check_content_safety.return_value = (True, None)
-            mock_guardrails.check_rate_limit.return_value = (True, None)
-            mock_guardrails_service.return_value = mock_guardrails
+             patch('clinic_agents.orchestrator.get_session_storage') as mock_session_storage:
 
             # Mock session
             mock_session = AsyncMock()
@@ -194,14 +187,7 @@ class TestLineConversationFlowsIntegration:
 
         for message in non_appointment_messages:
             with patch('clinic_agents.orchestrator.Runner.run') as mock_runner, \
-                 patch('clinic_agents.orchestrator.get_session_storage') as mock_session_storage, \
-                 patch('clinic_agents.orchestrator.get_guardrails_service') as mock_guardrails_service:
-
-                # Mock guardrails to pass
-                mock_guardrails = Mock()
-                mock_guardrails.check_content_safety.return_value = (True, None)
-                mock_guardrails.check_rate_limit.return_value = (True, None)
-                mock_guardrails_service.return_value = mock_guardrails
+                 patch('clinic_agents.orchestrator.get_session_storage') as mock_session_storage:
 
                 # Mock session
                 mock_session = AsyncMock()
@@ -235,98 +221,6 @@ class TestLineConversationFlowsIntegration:
                 mock_runner.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_guardrails_content_filtering_integration(self, db_session, test_clinic_with_therapist_and_types, linked_patient):
-        """Test guardrails content filtering integration in real message flow.
-
-        Business rule: Inappropriate content should be blocked before reaching agents.
-        This test verifies the security integration works end-to-end.
-        """
-        clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
-
-        # Test inappropriate content that should be blocked
-        inappropriate_messages = [
-            "我想學會製造毒品的方法",
-            "暴力解決一切問題",
-            "如何自殺",
-            "我想買槍"
-        ]
-
-        for message in inappropriate_messages:
-            with patch('clinic_agents.orchestrator.Runner.run') as mock_runner, \
-                 patch('clinic_agents.orchestrator.get_session_storage') as mock_session_storage, \
-                 patch('clinic_agents.orchestrator.get_guardrails_service') as mock_guardrails_service:
-
-                # Mock guardrails to detect inappropriate content
-                mock_guardrails = Mock()
-                mock_guardrails.check_content_safety.return_value = (False, "檢測到不適當內容")
-                mock_guardrails.check_rate_limit.return_value = (True, None)
-                mock_guardrails_service.return_value = mock_guardrails
-
-                # Mock session
-                mock_session = AsyncMock()
-                mock_session.get_items.return_value = []
-                mock_session.add_items = AsyncMock()
-                mock_session_storage.return_value = mock_session
-
-                # Execute message handling
-                result = await handle_line_message(
-                    db=db_session,
-                    clinic=clinic,
-                    line_user_id=linked_patient.line_user.line_user_id,
-                    message_text=message
-                )
-
-                # Should be blocked by guardrails
-                assert result is not None
-                assert "不適當" in result or "無法處理" in result
-
-                # Critical: Verify agents were NOT called for inappropriate content
-                mock_runner.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_rate_limiting_integration_business_logic(self, db_session, test_clinic_with_therapist_and_types, linked_patient):
-        """Test rate limiting integration follows business rules.
-
-        Business rule: Excessive requests should be rate limited to prevent abuse.
-        This test exposes rate limiting bypass bugs.
-        """
-        clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
-
-        # Test normal message that would normally go to agents
-        normal_message = "我想預約門診"
-
-        with patch('clinic_agents.orchestrator.get_guardrails_service') as mock_guardrails_service, \
-             patch('clinic_agents.orchestrator.Runner.run') as mock_runner, \
-             patch('clinic_agents.orchestrator.get_session_storage') as mock_session_storage:
-
-            # Mock guardrails to rate limit the request
-            mock_guardrails = Mock()
-            mock_guardrails.check_content_safety.return_value = (True, None)
-            mock_guardrails.check_rate_limit.return_value = (False, "Rate limit exceeded")
-            mock_guardrails_service.return_value = mock_guardrails
-
-            # Mock session
-            mock_session = AsyncMock()
-            mock_session.get_items.return_value = []
-            mock_session.add_items = AsyncMock()
-            mock_session_storage.return_value = mock_session
-
-            # Execute message handling
-            result = await handle_line_message(
-                db=db_session,
-                clinic=clinic,
-                line_user_id=linked_patient.line_user.line_user_id,
-                message_text=normal_message
-            )
-
-            # Should be rate limited
-            assert result is not None
-            assert "過於頻繁" in result or "rate limit" in result.lower()
-
-            # Critical: Verify agents were NOT called during rate limiting
-            mock_runner.assert_not_called()
-
-    @pytest.mark.asyncio
     async def test_unlinked_user_appointment_request_flow(self, db_session, test_clinic_with_therapist_and_types, unlinked_line_user):
         """Test unlinked user appointment request follows PRD flow.
 
@@ -339,14 +233,7 @@ class TestLineConversationFlowsIntegration:
         appointment_request = "我想預約明天上午10點的門診，我的電話是0912345678"
 
         with patch('clinic_agents.orchestrator.Runner.run') as mock_runner, \
-             patch('clinic_agents.orchestrator.get_session_storage') as mock_session_storage, \
-             patch('clinic_agents.orchestrator.get_guardrails_service') as mock_guardrails_service:
-
-            # Mock guardrails to pass
-            mock_guardrails = Mock()
-            mock_guardrails.check_content_safety.return_value = (True, None)
-            mock_guardrails.check_rate_limit.return_value = (True, None)
-            mock_guardrails_service.return_value = mock_guardrails
+             patch('clinic_agents.orchestrator.get_session_storage') as mock_session_storage:
 
             # Mock session
             mock_session = AsyncMock()
