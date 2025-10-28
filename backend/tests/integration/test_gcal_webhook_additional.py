@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from main import app
 from core.database import get_db
-from models import Clinic, User, Patient, AppointmentType, Appointment, LineUser
+from models import Clinic, User, Patient, AppointmentType, Appointment, LineUser, CalendarEvent
 
 
 @pytest.fixture
@@ -54,14 +54,25 @@ def clinic_with_practitioner_and_appt(db_session):
 
     # Confirmed appointment with gcal_event_id that should be treated as deleted if not found
     start = datetime.now(timezone.utc) + timedelta(days=1)
-    appt = Appointment(
-        patient_id=p.id,
+    
+    # Create CalendarEvent first
+    calendar_event = CalendarEvent(
         user_id=user.id,
+        event_type='appointment',
+        date=start.date(),
+        start_time=start.time(),
+        end_time=(start + timedelta(minutes=60)).time(),
+        gcal_event_id="evt_target"
+    )
+    db_session.add(calendar_event)
+    db_session.commit()
+    
+    # Create Appointment referencing the CalendarEvent
+    appt = Appointment(
+        calendar_event_id=calendar_event.id,
+        patient_id=p.id,
         appointment_type_id=at.id,
-        start_time=start,
-        end_time=start + timedelta(minutes=60),
-        status="confirmed",
-        gcal_event_id="evt_target",
+        status="confirmed"
     )
     db_session.add(appt)
     db_session.commit()

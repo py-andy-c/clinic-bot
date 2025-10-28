@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from main import app
 from core.database import get_db
-from models import Clinic, User, Patient, AppointmentType, Appointment
+from models import Clinic, User, Patient, AppointmentType, Appointment, CalendarEvent
 
 
 @pytest.fixture
@@ -112,7 +112,25 @@ class TestSettingsDestructiveUpdate:
         # Create an appointment tied to the appointment type
         start = datetime.now(timezone.utc) + timedelta(days=1)
         end = start + timedelta(minutes=60)
-        appt = Appointment(patient_id=p.id, user_id=pract.id, appointment_type_id=at.id, start_time=start, end_time=end, status="confirmed")
+
+        # Create CalendarEvent first
+        calendar_event = CalendarEvent(
+            user_id=pract.id,
+            event_type='appointment',
+            date=start.date(),
+            start_time=start.time(),
+            end_time=end.time(),
+            gcal_event_id=None
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        appt = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=p.id,
+            appointment_type_id=at.id,
+            status="confirmed"
+        )
         db_session.add(appt)
         db_session.commit()
 

@@ -98,8 +98,7 @@ class TestPractitionerAvailability:
             user_id=test_practitioner.id,
             day_of_week=1,  # Tuesday
             start_time=time(9, 0),
-            end_time=time(17, 0),
-            is_available=True
+            end_time=time(17, 0)
         )
         db_session.add(availability)
         db_session.commit()
@@ -121,7 +120,6 @@ class TestPractitionerAvailability:
         assert availability[0]["day_of_week"] == 1
         assert availability[0]["start_time"] == "09:00"
         assert availability[0]["end_time"] == "17:00"
-        assert availability[0]["is_available"] is True
 
     def test_get_practitioner_availability_as_admin(self, client: TestClient, db_session: Session, test_clinic, test_admin, test_practitioner):
         """Test that an admin can view practitioner availability."""
@@ -130,8 +128,7 @@ class TestPractitionerAvailability:
             user_id=test_practitioner.id,
             day_of_week=1,  # Tuesday
             start_time=time(9, 0),
-            end_time=time(17, 0),
-            is_available=True
+            end_time=time(17, 0)
         )
         db_session.add(availability)
         db_session.commit()
@@ -159,8 +156,7 @@ class TestPractitionerAvailability:
             user_id=test_practitioner2.id,
             day_of_week=1,  # Tuesday
             start_time=time(9, 0),
-            end_time=time(17, 0),
-            is_available=True
+            end_time=time(17, 0)
         )
         db_session.add(availability)
         db_session.commit()
@@ -188,8 +184,7 @@ class TestPractitionerAvailability:
         availability_data = {
             "day_of_week": 1,  # Tuesday
             "start_time": "09:00:00",
-            "end_time": "17:00:00",
-            "is_available": True
+            "end_time": "17:00:00"
         }
         response = client.post(
             f"/api/clinic/practitioners/{test_practitioner.id}/availability",
@@ -201,7 +196,6 @@ class TestPractitionerAvailability:
         assert data["day_of_week"] == 1
         assert data["start_time"] == "09:00"
         assert data["end_time"] == "17:00"
-        assert data["is_available"] is True
 
     def test_create_practitioner_availability_as_admin(self, client: TestClient, db_session: Session, test_clinic, test_admin, test_practitioner):
         """Test that an admin can create availability for a practitioner."""
@@ -214,8 +208,7 @@ class TestPractitionerAvailability:
         availability_data = {
             "day_of_week": 1,  # Tuesday
             "start_time": "09:00:00",
-            "end_time": "17:00:00",
-            "is_available": True
+            "end_time": "17:00:00"
         }
         response = client.post(
             f"/api/clinic/practitioners/{test_practitioner.id}/availability",
@@ -237,8 +230,7 @@ class TestPractitionerAvailability:
         availability_data = {
             "day_of_week": 1,  # Tuesday
             "start_time": "09:00:00",
-            "end_time": "17:00:00",
-            "is_available": True
+            "end_time": "17:00:00"
         }
         response = client.post(
             f"/api/clinic/practitioners/{test_practitioner2.id}/availability",
@@ -254,8 +246,7 @@ class TestPractitionerAvailability:
             user_id=test_practitioner.id,
             day_of_week=1,  # Tuesday
             start_time=time(9, 0),
-            end_time=time(17, 0),
-            is_available=True
+            end_time=time(17, 0)
         )
         db_session.add(availability)
         db_session.commit()
@@ -269,8 +260,7 @@ class TestPractitionerAvailability:
         availability_data = {
             "day_of_week": 1,  # Tuesday (same day)
             "start_time": "10:00:00",
-            "end_time": "18:00:00",
-            "is_available": True
+            "end_time": "18:00:00"
         }
         response = client.post(
             f"/api/clinic/practitioners/{test_practitioner.id}/availability",
@@ -290,8 +280,7 @@ class TestPractitionerAvailability:
         availability_data = {
             "day_of_week": 1,  # Tuesday
             "start_time": "17:00:00",
-            "end_time": "09:00:00",  # Invalid: end before start
-            "is_available": True
+            "end_time": "09:00:00"  # Invalid: end before start
         }
         response = client.post(
             f"/api/clinic/practitioners/{test_practitioner.id}/availability",
@@ -307,8 +296,7 @@ class TestPractitionerAvailability:
             user_id=test_practitioner.id,
             day_of_week=1,  # Tuesday
             start_time=time(9, 0),
-            end_time=time(17, 0),
-            is_available=True
+            end_time=time(17, 0)
         )
         db_session.add(availability)
         db_session.commit()
@@ -322,8 +310,7 @@ class TestPractitionerAvailability:
         update_data = {
             "day_of_week": 1,  # Tuesday
             "start_time": "10:00:00",
-            "end_time": "18:00:00",
-            "is_available": False
+            "end_time": "18:00:00"
         }
         response = client.put(
             f"/api/clinic/practitioners/{test_practitioner.id}/availability/{availability.id}",
@@ -337,7 +324,6 @@ class TestPractitionerAvailability:
         data = response.json()
         assert data["start_time"] == "10:00"
         assert data["end_time"] == "18:00"
-        assert data["is_available"] is False
 
     def test_delete_practitioner_availability(self, client: TestClient, db_session: Session, test_clinic, test_practitioner):
         """Test deleting practitioner availability."""
@@ -346,8 +332,7 @@ class TestPractitionerAvailability:
             user_id=test_practitioner.id,
             day_of_week=1,  # Tuesday
             start_time=time(9, 0),
-            end_time=time(17, 0),
-            is_available=True
+            end_time=time(17, 0)
         )
         db_session.add(availability)
         db_session.commit()

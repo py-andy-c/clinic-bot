@@ -9,14 +9,15 @@ import pytest
 from datetime import datetime, time, timedelta
 from unittest.mock import patch, AsyncMock, Mock
 
-from clinic_agents.orchestrator import get_session_storage
+from clinic_agents.context import ConversationContext
+from clinic_agents.tools import create_appointment_impl
 from models.patient import Patient
 from models.line_user import LineUser
 from models.appointment import Appointment
 from models.user import User
 from models.appointment_type import AppointmentType
 from models.clinic import Clinic
-from services.encryption_service import EncryptionService
+from models.calendar_event import CalendarEvent
 
 
 @pytest.fixture
@@ -91,81 +92,6 @@ def linked_patient(db_session, test_clinic_with_therapist):
     return patient
 
 
-# Copy mock_create_appointment function for testing
-async def mock_create_appointment(db, therapist_id, appointment_type_id, start_time, patient_id):
-    """Mock version of create_appointment for testing without @function_tool decorator."""
-    from datetime import timedelta
-
-    # Load related entities
-    practitioner = db.query(User).filter(
-        User.id == therapist_id,
-        User.roles.contains(['practitioner']),
-        User.is_active == True
-    ).first()
-    patient = db.get(Patient, patient_id)
-    apt_type = db.get(AppointmentType, appointment_type_id)
-
-    if practitioner is None:
-        return {"error": "找不到指定的治療師"}
-    if patient is None:
-        return {"error": "找不到指定的病人"}
-    if apt_type is None:
-        return {"error": "找不到指定的預約類型"}
-
-    # Calculate end time
-    end_time = start_time + timedelta(minutes=apt_type.duration_minutes)
-
-    # Check for appointment conflicts
-    existing_conflicts = db.query(Appointment).filter(
-        Appointment.user_id == practitioner.id,
-        Appointment.status.in_(['confirmed', 'pending']),
-        Appointment.start_time < end_time,
-        Appointment.end_time > start_time
-    ).first()
-
-    if existing_conflicts:
-        return {"error": "預約時間衝突，請選擇其他時段"}
-
-    # Check if practitioner has Google Calendar credentials
-    if not practitioner.gcal_credentials:
-        return {"error": "治療師未設定 Google Calendar 認證"}
-
-    # For testing, skip actual encryption/decryption and just check format
-    try:
-        if practitioner.gcal_credentials.startswith("encrypted_"):
-            # Extract the JSON part for testing
-            credentials_json = practitioner.gcal_credentials[10:]  # Remove "encrypted_" prefix
-            credentials_dict = eval(credentials_json)  # Simple dict for testing
-        else:
-            return {"error": "Google Calendar 認證無效"}
-    except Exception:
-        return {"error": "Google Calendar 認證無效"}
-
-    # Create appointment record
-    appointment = Appointment(
-        user_id=practitioner.id,
-        patient_id=patient.id,
-        appointment_type_id=apt_type.id,
-        start_time=start_time,
-        end_time=end_time,
-        status='confirmed'
-    )
-
-    try:
-        db.add(appointment)
-        db.commit()
-        db.refresh(appointment)
-
-        return {
-            "appointment_id": appointment.id,
-            "message": f"預約已確認: {start_time.strftime('%Y-%m-%d %H:%M')} - {end_time.strftime('%H:%M')}"
-        }
-
-    except Exception as e:
-        db.rollback()
-        return {"error": f"建立預約失敗: {str(e)}"}
-
-
 class TestAppointmentIntegration:
     """Integration tests for appointment creation and business logic."""
 
@@ -181,14 +107,25 @@ class TestAppointmentIntegration:
         invalid_therapist_id = 99999
         start_time = datetime.combine((datetime.now() + timedelta(days=1)).date(), time(10, 0))
 
+        # Set up context
+        ctx = ConversationContext(
+            db_session=db_session,
+            clinic=clinic,
+            patient=linked_patient,
+            line_user_id="test_user",
+            is_linked=True,
+        )
+        wrapper = Mock()
+        wrapper.context = ctx
+
         with patch('clinic_agents.orchestrator.get_session_storage') as mock_session_storage:
             mock_session = AsyncMock()
             mock_session.get_items.return_value = []
             mock_session.add_items = AsyncMock()
             mock_session_storage.return_value = mock_session
 
-            result = await mock_create_appointment(
-                db=db_session,
+            result = await create_appointment_impl(
+                wrapper=wrapper,
                 therapist_id=invalid_therapist_id,  # Invalid ID
                 appointment_type_id=appointment_types[0].id,
                 start_time=start_time,
@@ -215,15 +152,32 @@ class TestAppointmentIntegration:
         db_session.add(therapist)
         db_session.commit()
 
+        # Set up context
+        ctx = ConversationContext(
+            db_session=db_session,
+            clinic=clinic,
+            patient=linked_patient,
+            line_user_id="test_user",
+            is_linked=True,
+        )
+        wrapper = Mock()
+        wrapper.context = ctx
+
         # Create first appointment at 10:00
         start_time_1 = datetime.combine((datetime.now() + timedelta(days=1)).date(), time(10, 0))
 
-        # Mock Google Calendar for first booking
+        # Mock Google Calendar and encryption service for first booking
         with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_class, \
+             patch('services.encryption_service.get_encryption_service') as mock_get_enc, \
              patch('clinic_agents.orchestrator.get_session_storage') as mock_session_storage:
 
+            # Mock encryption service
+            mock_get_enc.return_value.decrypt_data.return_value = {"access_token": "test_token"}
+
+            # Mock Google Calendar service
             mock_gcal_instance = Mock()
-            mock_gcal_instance.create_event.return_value = {'id': 'gcal_event_1'}
+            mock_gcal_instance.create_event = AsyncMock(return_value={'id': 'gcal_event_1'})
+            mock_gcal_instance.update_event = AsyncMock(return_value=None)
             mock_gcal_class.return_value = mock_gcal_instance
 
             mock_session = AsyncMock()
@@ -232,16 +186,15 @@ class TestAppointmentIntegration:
             mock_session_storage.return_value = mock_session
 
             # First booking should succeed
-            result1 = await mock_create_appointment(
-                db=db_session,
+            result1 = await create_appointment_impl(
+                wrapper=wrapper,
                 therapist_id=therapist.id,
                 appointment_type_id=apt_type.id,
                 start_time=start_time_1,
                 patient_id=linked_patient.id
             )
 
-            assert "appointment_id" in result1
-            assert result1["appointment_id"] is not None
+            assert result1.get("success") is True
 
         # Create second patient for testing double booking
         second_patient = Patient(
@@ -252,14 +205,23 @@ class TestAppointmentIntegration:
         db_session.add(second_patient)
         db_session.commit()
 
+        # Update context for second patient
+        ctx.patient = second_patient
+
         # Try to book the same time slot - should fail
         start_time_conflict = start_time_1  # Same time
 
         with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_class, \
+             patch('services.encryption_service.get_encryption_service') as mock_get_enc, \
              patch('clinic_agents.orchestrator.get_session_storage') as mock_session_storage:
 
+            # Mock encryption service
+            mock_get_enc.return_value.decrypt_data.return_value = {"access_token": "test_token"}
+
+            # Mock Google Calendar service
             mock_gcal_instance = Mock()
-            mock_gcal_instance.create_event.return_value = {'id': 'gcal_event_2'}
+            mock_gcal_instance.create_event = AsyncMock(return_value={'id': 'gcal_event_2'})
+            mock_gcal_instance.update_event = AsyncMock(return_value=None)
             mock_gcal_class.return_value = mock_gcal_instance
 
             mock_session = AsyncMock()
@@ -268,8 +230,8 @@ class TestAppointmentIntegration:
             mock_session_storage.return_value = mock_session
 
             # Second booking should fail due to conflict
-            result2 = await mock_create_appointment(
-                db=db_session,
+            result2 = await create_appointment_impl(
+                wrapper=wrapper,
                 therapist_id=therapist.id,
                 appointment_type_id=apt_type.id,
                 start_time=start_time_conflict,  # Same time slot
@@ -279,11 +241,10 @@ class TestAppointmentIntegration:
             # Should fail with conflict error
             assert "error" in result2
             assert "衝突" in result2["error"] or "conflict" in result2["error"].lower()
-            assert "appointment_id" not in result2
 
             # Verify only one appointment exists
-            appointments = db_session.query(Appointment).filter(
-                Appointment.user_id == therapist.id,
-                Appointment.start_time == start_time_1
+            appointments = db_session.query(Appointment).join(CalendarEvent).filter(
+                CalendarEvent.user_id == therapist.id,
+                CalendarEvent.start_time == start_time_1.time()
             ).all()
             assert len(appointments) == 1

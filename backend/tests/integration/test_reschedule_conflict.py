@@ -7,7 +7,7 @@ that conflicts with another confirmed appointment for the same practitioner.
 
 import pytest
 from datetime import datetime, timedelta, time
-from models import Clinic, User, Patient, AppointmentType, Appointment
+from models import Clinic, User, Patient, AppointmentType, Appointment, CalendarEvent
 from clinic_agents.context import ConversationContext
 from unittest.mock import Mock
 from clinic_agents import tools
@@ -38,28 +38,50 @@ async def test_reschedule_into_conflict_is_rejected(db_session):
     # Existing appointment A at 10:00-10:30
     day = datetime.now().date() + timedelta(days=1)
     a_start = datetime.combine(day, time(10, 0))
-    appt_a = Appointment(
-        patient_id=p1.id,
+    a_end = a_start + timedelta(minutes=30)
+
+    # Create CalendarEvent for appointment A
+    calendar_event_a = CalendarEvent(
         user_id=practitioner.id,
+        event_type='appointment',
+        date=a_start.date(),
+        start_time=a_start.time(),
+        end_time=a_end.time(),
+        gcal_event_id="evtA"
+    )
+    db_session.add(calendar_event_a)
+    db_session.commit()
+
+    appt_a = Appointment(
+        calendar_event_id=calendar_event_a.id,
+        patient_id=p1.id,
         appointment_type_id=at.id,
-        start_time=a_start,
-        end_time=a_start + timedelta(minutes=30),
-        status="confirmed",
-        gcal_event_id="evtA",
+        status="confirmed"
     )
     db_session.add(appt_a)
     db_session.commit()
 
     # Appointment B currently at 11:00-11:30
     b_start = datetime.combine(day, time(11, 0))
-    appt_b = Appointment(
-        patient_id=p2.id,
+    b_end = b_start + timedelta(minutes=30)
+
+    # Create CalendarEvent for appointment B
+    calendar_event_b = CalendarEvent(
         user_id=practitioner.id,
+        event_type='appointment',
+        date=b_start.date(),
+        start_time=b_start.time(),
+        end_time=b_end.time(),
+        gcal_event_id="evtB"
+    )
+    db_session.add(calendar_event_b)
+    db_session.commit()
+
+    appt_b = Appointment(
+        calendar_event_id=calendar_event_b.id,
+        patient_id=p2.id,
         appointment_type_id=at.id,
-        start_time=b_start,
-        end_time=b_start + timedelta(minutes=30),
-        status="confirmed",
-        gcal_event_id="evtB",
+        status="confirmed"
     )
     db_session.add(appt_b)
     db_session.commit()
@@ -82,7 +104,7 @@ async def test_reschedule_into_conflict_is_rejected(db_session):
     # Call real tool
     result = await reschedule_appointment_impl(
         wrapper=wrapper,
-        appointment_id=appt_b.id,
+        appointment_id=appt_b.calendar_event_id,
         patient_id=p2.id,
         new_start_time=new_b_start,
     )

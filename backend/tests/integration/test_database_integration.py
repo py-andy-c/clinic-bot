@@ -14,6 +14,7 @@ from models.appointment import Appointment
 from models.user import User
 from models.appointment_type import AppointmentType
 from models.clinic import Clinic
+from models.calendar_event import CalendarEvent
 from services.encryption_service import EncryptionService
 
 
@@ -114,11 +115,11 @@ async def mock_create_appointment(db, therapist_id, appointment_type_id, start_t
     end_time = start_time + timedelta(minutes=apt_type.duration_minutes)
 
     # Check for appointment conflicts
-    existing_conflicts = db.query(Appointment).filter(
-        Appointment.user_id == practitioner.id,
+    existing_conflicts = db.query(Appointment).join(CalendarEvent).filter(
+        CalendarEvent.user_id == practitioner.id,
         Appointment.status.in_(['confirmed', 'pending']),
-        Appointment.start_time < end_time,
-        Appointment.end_time > start_time
+        CalendarEvent.start_time < end_time.time(),
+        CalendarEvent.end_time > start_time.time()
     ).first()
 
     if existing_conflicts:
@@ -139,13 +140,23 @@ async def mock_create_appointment(db, therapist_id, appointment_type_id, start_t
     except Exception:
         return {"error": "Google Calendar 認證無效"}
 
+    # Create CalendarEvent first
+    calendar_event = CalendarEvent(
+        user_id=practitioner.id,
+        event_type='appointment',
+        date=start_time.date(),
+        start_time=start_time.time(),
+        end_time=end_time.time(),
+        gcal_event_id=None
+    )
+    db.add(calendar_event)
+    db.commit()
+
     # Create appointment record
     appointment = Appointment(
-        user_id=practitioner.id,
+        calendar_event_id=calendar_event.id,
         patient_id=patient.id,
         appointment_type_id=apt_type.id,
-        start_time=start_time,
-        end_time=end_time,
         status='confirmed'
     )
 
@@ -155,7 +166,7 @@ async def mock_create_appointment(db, therapist_id, appointment_type_id, start_t
         db.refresh(appointment)
 
         return {
-            "appointment_id": appointment.id,
+            "appointment_id": calendar_event.id,
             "message": f"預約已確認: {start_time.strftime('%Y-%m-%d %H:%M')} - {end_time.strftime('%H:%M')}"
         }
 
@@ -185,7 +196,7 @@ class TestDatabaseIntegration:
         def failing_commit():
             nonlocal commit_count
             commit_count += 1
-            if commit_count == 1:  # Fail on first commit (appointment creation)
+            if commit_count == 2:  # Fail on second commit (appointment creation)
                 raise Exception("Simulated database failure")
             original_commit()
 
@@ -239,8 +250,8 @@ class TestDatabaseIntegration:
             assert rollback_count > 0, "Database rollback should have been called on failure"
 
             # Verify no appointment was actually created in database
-            appointments = db_session.query(Appointment).filter(
+            appointments = db_session.query(Appointment).join(CalendarEvent).filter(
                 Appointment.patient_id == linked_patient.id,
-                Appointment.start_time == start_time
+                CalendarEvent.start_time == start_time.time()
             ).all()
             assert len(appointments) == 0, "Appointment should not exist after rollback"

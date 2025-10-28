@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 
 from main import app
 from core.database import get_db
-from models import Clinic, User, Patient, AppointmentType, Appointment, LineUser
+from models import Clinic, User, Patient, AppointmentType, Appointment, LineUser, CalendarEvent
 
 
 @pytest.fixture
@@ -130,14 +130,24 @@ class TestGoogleCalendarWebhook:
         # Create a confirmed appointment with a gcal_event_id that WILL be treated as deleted
         start = datetime.now(timezone.utc) + timedelta(days=1)
         end = start + timedelta(minutes=apt_type.duration_minutes)
-        appt = Appointment(
-            patient_id=linked_patient.id,
+
+        # Create CalendarEvent first
+        calendar_event = CalendarEvent(
             user_id=practitioner.id,
+            event_type='appointment',
+            date=start.date(),
+            start_time=start.time(),
+            end_time=end.time(),
+            gcal_event_id="event_to_be_deleted"
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        appt = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=linked_patient.id,
             appointment_type_id=apt_type.id,
-            start_time=start,
-            end_time=end,
-            status="confirmed",
-            gcal_event_id="event_to_be_deleted",
+            status="confirmed"
         )
         db_session.add(appt)
         db_session.commit()

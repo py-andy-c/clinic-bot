@@ -8,7 +8,7 @@ import pytest
 from datetime import datetime, timedelta, time, date
 from unittest.mock import patch, Mock
 
-from models import Clinic, User, Patient, Appointment, AppointmentType, LineUser
+from models import Clinic, User, Patient, Appointment, AppointmentType, LineUser, CalendarEvent
 from clinic_agents.context import ConversationContext
 from typing import Dict, List, Any
 
@@ -52,13 +52,9 @@ async def mock_get_practitioner_availability(
             return {"error": f"找不到預約類型：{appointment_type}"}
 
         # Get existing appointments for this practitioner on this date
-        day_start = datetime.combine(requested_date, datetime.min.time())
-        day_end = datetime.combine(requested_date, datetime.max.time())
-
-        existing_appointments = db.query(Appointment).filter(
-            Appointment.user_id == practitioner.id,
-            Appointment.start_time >= day_start,
-            Appointment.end_time <= day_end,
+        existing_appointments = db.query(Appointment).join(CalendarEvent).filter(
+            CalendarEvent.user_id == practitioner.id,
+            CalendarEvent.date == requested_date,
             Appointment.status.in_(['confirmed', 'pending'])  # Include confirmed and pending
         ).all()
 
@@ -76,7 +72,11 @@ async def mock_get_practitioner_availability(
             # Check if this slot conflicts with existing appointments
             conflict = False
             for appointment in existing_appointments:
-                if (current_time < appointment.end_time and slot_end > appointment.start_time):
+                # Convert appointment times to datetime for comparison
+                appt_start = datetime.combine(requested_date, appointment.calendar_event.start_time)
+                appt_end = datetime.combine(requested_date, appointment.calendar_event.end_time)
+                
+                if (current_time < appt_end and slot_end > appt_start):
                     conflict = True
                     break
 
@@ -259,12 +259,22 @@ class TestGetPractitionerAvailability:
         appointment_start = datetime.combine(tomorrow.date(), time(10, 0))
         appointment_end = appointment_start + timedelta(minutes=60)
 
-        existing_appointment = Appointment(
+        # Create CalendarEvent first
+        calendar_event = CalendarEvent(
             user_id=therapist.id,
+            event_type='appointment',
+            date=appointment_start.date(),
+            start_time=appointment_start.time(),
+            end_time=appointment_end.time(),
+            gcal_event_id=None
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        existing_appointment = Appointment(
+            calendar_event_id=calendar_event.id,
             patient_id=linked_patient.id,
             appointment_type_id=apt_type.id,
-            start_time=appointment_start,
-            end_time=appointment_end,
             status="confirmed"
         )
 
@@ -437,11 +447,11 @@ async def mock_create_appointment(
         end_time = start_time + timedelta(minutes=apt_type.duration_minutes)
 
         # Check for conflicts (this logic should be in the real function)
-        existing_conflicts = db.query(Appointment).filter(
-            Appointment.user_id == therapist_id,
+        existing_conflicts = db.query(Appointment).join(CalendarEvent).filter(
+            CalendarEvent.user_id == therapist_id,
             Appointment.status.in_(['confirmed', 'pending']),
-            Appointment.start_time < end_time,
-            Appointment.end_time > start_time
+            CalendarEvent.start_time < end_time.time(),
+            CalendarEvent.end_time > start_time.time()
         ).first()
 
         if existing_conflicts:
@@ -479,15 +489,24 @@ async def mock_create_appointment(
             }
         )
 
+        # Create CalendarEvent first
+        calendar_event = CalendarEvent(
+            user_id=therapist_id,
+            event_type='appointment',
+            date=start_time.date(),
+            start_time=start_time.time(),
+            end_time=end_time.time(),
+            gcal_event_id="test_gcal_event_123"
+        )
+        db.add(calendar_event)
+        db.commit()
+
         # Create database record with gcal_event_id
         appointment = Appointment(
+            calendar_event_id=calendar_event.id,
             patient_id=patient_id,
-            user_id=therapist_id,
             appointment_type_id=appointment_type_id,
-            start_time=start_time,
-            end_time=end_time,
-            status='confirmed',
-            gcal_event_id=gcal_event['id']  # Store sync key
+            status='confirmed'
         )
 
         db.add(appointment)
@@ -500,14 +519,14 @@ async def mock_create_appointment(
                 "private": {
                     "source": "line_bot",
                     "patient_id": str(patient_id),
-                    "appointment_db_id": str(appointment.id)
+                    "appointment_db_id": str(appointment.calendar_event_id)
                 }
             }
         )
 
         return {
             "success": True,
-            "appointment_id": appointment.id,
+            "appointment_id": appointment.calendar_event_id,
             "therapist_name": practitioner.full_name,
             "appointment_type": apt_type.name,
             "start_time": start_time.isoformat(),
@@ -685,9 +704,9 @@ class TestCreateAppointment:
 
             # Verify appointment was not created in database
             from models import Appointment
-            appointment_count = db_session.query(Appointment).filter(
+            appointment_count = db_session.query(Appointment).join(CalendarEvent).filter(
                 Appointment.patient_id == linked_patient.id,
-                Appointment.start_time == start_time
+                CalendarEvent.start_time == start_time
             ).count()
             assert appointment_count == 0
 
@@ -706,14 +725,23 @@ class TestCreateAppointment:
         start_time = datetime.combine((datetime.now() + timedelta(days=1)).date(), time(10, 0))
         end_time = start_time + timedelta(minutes=60)
 
-        existing_appointment = Appointment(
+        # Create CalendarEvent first
+        calendar_event = CalendarEvent(
             user_id=therapist.id,
+            event_type='appointment',
+            date=start_time.date(),
+            start_time=start_time.time(),
+            end_time=end_time.time(),
+            gcal_event_id="existing_event"
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        existing_appointment = Appointment(
+            calendar_event_id=calendar_event.id,
             patient_id=linked_patient.id,
             appointment_type_id=apt_type.id,
-            start_time=start_time,
-            end_time=end_time,
-            status="confirmed",
-            gcal_event_id="existing_event"
+            status="confirmed"
         )
         db_session.add(existing_appointment)
         db_session.commit()

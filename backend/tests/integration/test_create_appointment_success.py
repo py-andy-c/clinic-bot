@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, time
 from unittest.mock import AsyncMock, Mock
 
 from clinic_agents.context import ConversationContext
-from models import Clinic, User, Patient, AppointmentType, Appointment
+from models import Clinic, User, Patient, AppointmentType, Appointment, CalendarEvent
 
 
 @pytest.mark.asyncio
@@ -37,14 +37,24 @@ async def test_create_appointment_non_overlapping_invokes_gcal(db_session):
 
     # Existing appointment: 10:00-10:30
     base = datetime.combine(datetime.now().date() + timedelta(days=1), time(10, 0))
-    existing = Appointment(
-        patient_id=patient.id,
+
+    # Create CalendarEvent first
+    calendar_event = CalendarEvent(
         user_id=practitioner.id,
+        event_type='appointment',
+        date=base.date(),
+        start_time=base.time(),
+        end_time=(base + timedelta(minutes=30)).time(),
+        gcal_event_id="evt1"
+    )
+    db_session.add(calendar_event)
+    db_session.commit()
+
+    existing = Appointment(
+        calendar_event_id=calendar_event.id,
+        patient_id=patient.id,
         appointment_type_id=apt_type.id,
-        start_time=base,
-        end_time=base + timedelta(minutes=30),
-        status="confirmed",
-        gcal_event_id="evt1",
+        status="confirmed"
     )
     db_session.add(existing)
     db_session.commit()
@@ -56,11 +66,11 @@ async def test_create_appointment_non_overlapping_invokes_gcal(db_session):
     # Local helper that mirrors guard then calls mocked GCal
     async def _create_non_overlapping(db_session, practitioner, patient, apt_type, start_time):
         # Guard should find no conflict
-        conflict = db_session.query(Appointment).filter(
-            Appointment.user_id == practitioner.id,
+        conflict = db_session.query(Appointment).join(CalendarEvent).filter(
+            CalendarEvent.user_id == practitioner.id,
             Appointment.status.in_(["confirmed", "pending"]),
-            Appointment.start_time < end_time,
-            Appointment.end_time > start_time,
+            CalendarEvent.start_time < end_time,
+            CalendarEvent.end_time > start_time,
         ).first()
         assert conflict is None
 
@@ -84,15 +94,24 @@ async def test_create_appointment_non_overlapping_invokes_gcal(db_session):
                 extended_properties=Mock(),
             )
 
+            # Create CalendarEvent first
+            calendar_event = CalendarEvent(
+                user_id=practitioner.id,
+                event_type='appointment',
+                date=start_time.date(),
+                start_time=start_time.time(),
+                end_time=end_time.time(),
+                gcal_event_id=gcal_event["id"]
+            )
+            db_session.add(calendar_event)
+            db_session.commit()
+
             # Emulate DB insert similar to create_appointment
             appt = Appointment(
+                calendar_event_id=calendar_event.id,
                 patient_id=patient.id,
-                user_id=practitioner.id,
                 appointment_type_id=apt_type.id,
-                start_time=start_time,
-                end_time=end_time,
-                status="confirmed",
-                gcal_event_id=gcal_event["id"],
+                status="confirmed"
             )
             db_session.add(appt)
             db_session.commit()
@@ -109,7 +128,7 @@ async def test_create_appointment_non_overlapping_invokes_gcal(db_session):
 
             return {
                 "success": True,
-                "appointment_id": appt.id,
+                "appointment_id": calendar_event.id,
                 "gcal_event_id": "evt_new",
             }
 

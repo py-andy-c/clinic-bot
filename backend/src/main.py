@@ -18,7 +18,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api import webhooks, auth, signup, system, clinic, profile
+from api import webhooks, auth, signup, system, clinic, practitioner_calendar
 from core.constants import CORS_ORIGINS
 from services.reminder_service import start_reminder_scheduler, stop_reminder_scheduler
 from core.database import get_db
@@ -120,9 +120,9 @@ app.include_router(
     },
 )
 app.include_router(
-    clinic.router,
+    practitioner_calendar.router,
     prefix="/api/clinic",
-    tags=["clinic"],
+    tags=["practitioner-calendar"],
     responses={
         401: {"description": "Unauthorized"},
         403: {"description": "Forbidden"},
@@ -131,9 +131,9 @@ app.include_router(
     },
 )
 app.include_router(
-    profile.router,
-    prefix="/api",
-    tags=["profile"],
+    clinic.router,
+    prefix="/api/clinic",
+    tags=["clinic"],
     responses={
         401: {"description": "Unauthorized"},
         403: {"description": "Forbidden"},

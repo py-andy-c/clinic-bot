@@ -9,6 +9,8 @@ from .line_user import LineUser
 from .appointment import Appointment
 from .appointment_type import AppointmentType
 from .practitioner_availability import PractitionerAvailability
+from .calendar_event import CalendarEvent
+from .availability_exception import AvailabilityException
 
 __all__ = [
     "Clinic",
@@ -19,5 +21,7 @@ __all__ = [
     "LineUser",
     "Appointment",
     "AppointmentType",
-    "PractitionerAvailability"
+    "PractitionerAvailability",
+    "CalendarEvent",
+    "AvailabilityException"
 ]

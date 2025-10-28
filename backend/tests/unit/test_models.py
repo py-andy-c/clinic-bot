@@ -10,6 +10,7 @@ from models.user import User
 from models.patient import Patient
 from models.appointment_type import AppointmentType
 from models.appointment import Appointment
+from models.calendar_event import CalendarEvent
 
 
 class TestClinicModel:
@@ -99,7 +100,7 @@ class TestUserModel:
         user = User(clinic_id=1, google_subject_id="google_123", **sample_user_data)
 
         assert hasattr(user, 'clinic')
-        assert hasattr(user, 'appointments')
+        assert hasattr(user, 'calendar_events')
         assert hasattr(user, 'refresh_tokens')
 
 
@@ -196,20 +197,31 @@ class TestAppointmentModel:
         start_time = datetime.now(timezone.utc)
         end_time = start_time + timedelta(hours=1)
 
-        appointment = Appointment(
-            patient_id=1,
+        # Create CalendarEvent first
+        calendar_event = CalendarEvent(
             user_id=2,
+            event_type='appointment',
+            date=start_time.date(),
+            start_time=start_time.time(),
+            end_time=end_time.time(),
+            gcal_event_id=None
+        )
+
+        appointment = Appointment(
+            calendar_event_id=1,  # Mock ID for testing
+            patient_id=1,
             appointment_type_id=3,
-            start_time=start_time,
-            end_time=end_time,
             status="confirmed"
         )
+        
+        # Set the relationship manually for testing
+        appointment.calendar_event = calendar_event
 
         assert appointment.patient_id == 1
         assert appointment.user_id == 2
         assert appointment.appointment_type_id == 3
-        assert appointment.start_time == start_time
-        assert appointment.end_time == end_time
+        assert appointment.start_time == start_time.time()
+        assert appointment.end_time == end_time.time()
         assert appointment.status == "confirmed"
         assert appointment.gcal_event_id is None
 
@@ -218,41 +230,73 @@ class TestAppointmentModel:
         statuses = ["confirmed", "canceled_by_patient", "canceled_by_clinic"]
 
         for status in statuses:
-            appointment = Appointment(
-                patient_id=1,
+            # Create CalendarEvent first
+            calendar_event = CalendarEvent(
                 user_id=2,
+                event_type='appointment',
+                date=datetime.now(timezone.utc).date(),
+                start_time=datetime.now(timezone.utc).time(),
+                end_time=datetime.now(timezone.utc).time(),
+                gcal_event_id=None
+            )
+
+            appointment = Appointment(
+                calendar_event_id=1,  # Mock ID for testing
+                patient_id=1,
                 appointment_type_id=3,
-                start_time=datetime.now(timezone.utc),
-                end_time=datetime.now(timezone.utc),
                 status=status
             )
+            
+            # Set the relationship manually for testing
+            appointment.calendar_event = calendar_event
             assert appointment.status == status
 
     def test_appointment_with_google_calendar(self):
         """Test appointment with Google Calendar integration."""
-        appointment = Appointment(
-            patient_id=1,
+        # Create CalendarEvent first
+        calendar_event = CalendarEvent(
             user_id=2,
-            appointment_type_id=3,
-            start_time=datetime.now(timezone.utc),
-            end_time=datetime.now(timezone.utc),
-            status="confirmed",
+            event_type='appointment',
+            date=datetime.now(timezone.utc).date(),
+            start_time=datetime.now(timezone.utc).time(),
+            end_time=datetime.now(timezone.utc).time(),
             gcal_event_id="gcal_event_12345"
         )
+
+        appointment = Appointment(
+            calendar_event_id=1,  # Mock ID for testing
+            patient_id=1,
+            appointment_type_id=3,
+            status="confirmed"
+        )
+        
+        # Set the relationship manually for testing
+        appointment.calendar_event = calendar_event
 
         assert appointment.gcal_event_id == "gcal_event_12345"
 
     def test_appointment_relationships(self):
         """Test appointment model relationships."""
-        appointment = Appointment(
-            patient_id=1,
+        # Create CalendarEvent first
+        calendar_event = CalendarEvent(
             user_id=2,
-            appointment_type_id=3,
-            start_time=datetime.now(timezone.utc),
-            end_time=datetime.now(timezone.utc),
-            status="confirmed"
+            event_type='appointment',
+            date=datetime.now(timezone.utc).date(),
+            start_time=datetime.now(timezone.utc).time(),
+            end_time=datetime.now(timezone.utc).time(),
+            gcal_event_id=None
         )
 
+        appointment = Appointment(
+            calendar_event_id=1,  # Mock ID for testing
+            patient_id=1,
+            appointment_type_id=3,
+            status="confirmed"
+        )
+        
+        # Set the relationship manually for testing
+        appointment.calendar_event = calendar_event
+
         assert hasattr(appointment, 'patient')
-        assert hasattr(appointment, 'user')
+        assert hasattr(appointment, 'calendar_event')
         assert hasattr(appointment, 'appointment_type')

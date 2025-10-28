@@ -14,6 +14,7 @@ from apscheduler.triggers.cron import CronTrigger  # type: ignore
 from sqlalchemy.orm import Session
 
 from models.appointment import Appointment
+from models.calendar_event import CalendarEvent
 from models.line_user import LineUser
 from services.line_service import LINEService
 from core.constants import DEFAULT_REMINDER_HOURS_BEFORE
@@ -127,10 +128,10 @@ class ReminderService:
         Returns:
             List of appointments that need reminders
         """
-        return self.db.query(Appointment).filter(
+        return self.db.query(Appointment).join(CalendarEvent).filter(
             Appointment.status == "confirmed",
-            Appointment.start_time >= window_start,
-            Appointment.start_time <= window_end,
+            CalendarEvent.start_time >= window_start,
+            CalendarEvent.start_time <= window_end,
             # For now, we'll send reminders for all appointments
             # In the future, we could add a flag to track if reminder was sent
         ).all()
@@ -164,8 +165,8 @@ class ReminderService:
                 return False
 
             # Format reminder message
-            therapist_name = appointment.user.full_name
-            appointment_time = appointment.start_time.strftime("%m/%d (%a) %H:%M")
+            therapist_name = appointment.calendar_event.user.full_name
+            appointment_time = appointment.calendar_event.start_time.strftime("%m/%d (%a) %H:%M")
             appointment_type = appointment.appointment_type.name
 
             message = (
@@ -177,11 +178,11 @@ class ReminderService:
             # Send reminder via LINE
             line_service.send_text_message(line_user.line_user_id, message)
 
-            logger.info(f"Sent reminder for appointment {appointment.id} to patient {appointment.patient_id}")
+            logger.info(f"Sent reminder for appointment {appointment.calendar_event_id} to patient {appointment.patient_id}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to send reminder for appointment {appointment.id}: {e}", exc_info=True)
+            logger.error(f"Failed to send reminder for appointment {appointment.calendar_event_id}: {e}", exc_info=True)
             return False
 
     async def send_immediate_reminder(self, appointment_id: int) -> bool:

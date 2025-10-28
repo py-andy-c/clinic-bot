@@ -42,9 +42,9 @@ class User(Base):
 
     # Relationships
     clinic = relationship("Clinic", back_populates="users")
-    appointments = relationship("Appointment", back_populates="user", foreign_keys="Appointment.user_id")
     refresh_tokens = relationship("RefreshToken", back_populates="user")
     availability = relationship("PractitionerAvailability", back_populates="user", cascade="all, delete-orphan")
+    calendar_events = relationship("CalendarEvent", back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint('clinic_id', 'email', name='uq_clinic_user_email'),

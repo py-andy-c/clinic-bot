@@ -17,7 +17,7 @@ from services.line_service import LINEService
 from services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
 from clinic_agents.helpers import get_clinic_from_request
 from core.database import get_db
-from models import User, Appointment
+from models import User, Appointment, CalendarEvent
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -238,10 +238,10 @@ async def _handle_calendar_changes(db: Session, resource_id: str) -> None:
         logger.info(f"Processing calendar changes for practitioner: {user.full_name} (ID: {user.id})")
 
         # Get all confirmed appointments for this user that have Google Calendar events
-        appointments = db.query(Appointment).filter(
-            Appointment.user_id == user.id,
+        appointments = db.query(Appointment).join(CalendarEvent).filter(
+            CalendarEvent.user_id == user.id,
             Appointment.status == "confirmed",
-            Appointment.gcal_event_id.isnot(None)
+            CalendarEvent.gcal_event_id.isnot(None)
         ).all()
 
         if not appointments:
@@ -310,7 +310,7 @@ async def _handle_calendar_changes(db: Session, resource_id: str) -> None:
 
         # Process deleted appointments
         for appointment in deleted_appointments:
-            logger.info(f"Appointment {appointment.id} was cancelled by therapist via Google Calendar")
+            logger.info(f"Appointment {appointment.calendar_event_id} was cancelled by therapist via Google Calendar")
 
             # Update appointment status
             appointment.status = "canceled_by_clinic"
@@ -350,15 +350,16 @@ async def _send_cancellation_notification(db: Session, appointment: Appointment)
             return
 
         # Format cancellation message (as specified in PRD)
-        therapist_name = appointment.user.full_name
+        therapist_name = appointment.calendar_event.user.full_name
         # Convert to Asia/Taipei (UTC+8) for user-facing time
-        from datetime import timezone, timedelta
-        local_time = appointment.start_time
-        if local_time.tzinfo is not None:
-            local_time = local_time.astimezone(timezone(timedelta(hours=8)))
+        from datetime import timezone, timedelta, datetime
+        # Combine date and time to create datetime object
+        local_datetime = datetime.combine(appointment.calendar_event.date, appointment.calendar_event.start_time)
+        if local_datetime.tzinfo is not None:
+            local_time = local_datetime.astimezone(timezone(timedelta(hours=8)))
         else:
             # Treat naive as UTC then convert
-            local_time = local_time.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=8)))
+            local_time = local_datetime.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=8)))
         appointment_time = local_time.strftime("%m/%d (%a) %H:%M")
         message = (
             f"提醒您，您原訂於【{appointment_time}】與【{therapist_name}治療師】的預約已被診所取消。"
@@ -370,5 +371,5 @@ async def _send_cancellation_notification(db: Session, appointment: Appointment)
         logger.info(f"Sent cancellation notification to patient {appointment.patient_id} via LINE")
 
     except Exception as e:
-        logger.error(f"Failed to send cancellation notification for appointment {appointment.id}: {e}", exc_info=True)
+        logger.error(f"Failed to send cancellation notification for appointment {appointment.calendar_event_id}: {e}", exc_info=True)
         # Don't raise exception - we don't want to fail the webhook processing

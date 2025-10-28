@@ -11,7 +11,7 @@ All tools follow the OpenAI Agent SDK pattern using RunContextWrapper[Conversati
 """
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time
 from typing import Dict, List, Optional, Any
 from sqlalchemy.exc import IntegrityError
 
@@ -22,22 +22,23 @@ from models.patient import Patient
 from models.appointment import Appointment
 from models.appointment_type import AppointmentType
 from models.line_user import LineUser
+from models.calendar_event import CalendarEvent
+from models.practitioner_availability import PractitionerAvailability
 from services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
 from clinic_agents.context import ConversationContext
 
 
-@function_tool
-async def get_practitioner_availability(
+async def get_practitioner_availability_impl(
     wrapper: RunContextWrapper[ConversationContext],
     practitioner_name: str,
     date: str,
     appointment_type: str
 ) -> Dict[str, Any]:
     """
-    Get available time slots for a specific practitioner and appointment type.
+    Core implementation for getting available time slots for a specific practitioner and appointment type.
 
-    This tool finds available time slots for a practitioner on a specific date,
-    considering their existing appointments and the requested appointment duration.
+    This function finds available time slots for a practitioner on a specific date,
+    considering their default schedule, availability exceptions, and existing appointments.
 
     Args:
         wrapper: Context wrapper (auto-injected)
@@ -75,54 +76,125 @@ async def get_practitioner_availability(
         if not apt_type:
             return {"error": f"找不到預約類型：{appointment_type}"}
 
-        # Get existing appointments for this practitioner on this date
-        day_start = datetime.combine(requested_date, datetime.min.time())
-        day_end = datetime.combine(requested_date, datetime.max.time())
+        # Get default schedule for this day of week
+        day_of_week = requested_date.weekday()
+        default_intervals = db.query(PractitionerAvailability).filter(
+            PractitionerAvailability.user_id == practitioner.id,
+            PractitionerAvailability.day_of_week == day_of_week
+        ).order_by(PractitionerAvailability.start_time).all()
 
-        existing_appointments = db.query(Appointment).filter(
-            Appointment.user_id == practitioner.id,
-            Appointment.start_time >= day_start,
-            Appointment.end_time <= day_end,
-            Appointment.status.in_(['confirmed', 'pending'])  # Include confirmed and pending
+        if not default_intervals:
+            return {"error": f"{practitioner_name}在{requested_date.strftime('%Y年%m月%d日')}沒有預設的工作時間"}
+
+        # Get availability exceptions for this date
+        exceptions = db.query(CalendarEvent).filter(
+            CalendarEvent.user_id == practitioner.id,
+            CalendarEvent.event_type == 'availability_exception',
+            CalendarEvent.date == requested_date
         ).all()
 
-        # Calculate available slots (assuming clinic hours 9:00-17:00)
-        clinic_start = datetime.combine(requested_date, datetime.strptime("09:00", "%H:%M").time())
-        clinic_end = datetime.combine(requested_date, datetime.strptime("17:00", "%H:%M").time())
-        duration = timedelta(minutes=apt_type.duration_minutes)
+        # Get existing appointments for this date
+        appointments = db.query(CalendarEvent).filter(
+            CalendarEvent.user_id == practitioner.id,
+            CalendarEvent.event_type == 'appointment',
+            CalendarEvent.date == requested_date
+        ).all()
 
+        # Calculate available slots
         available_slots: List[str] = []
-        current_time = clinic_start
+        duration_minutes = apt_type.duration_minutes
 
-        while current_time + duration <= clinic_end:
-            slot_end = current_time + duration
-
-            # Check if this slot conflicts with existing appointments
-            conflict = False
-            for apt in existing_appointments:
-                if (current_time < apt.end_time and slot_end > apt.start_time):
-                    conflict = True
+        for interval in default_intervals:
+            # Check if this interval is blocked by an exception
+            blocked = False
+            for exception in exceptions:
+                if (exception.start_time and exception.end_time and
+                    _check_time_overlap(interval.start_time, interval.end_time, 
+                                      exception.start_time, exception.end_time)):
+                    blocked = True
                     break
 
-            if not conflict:
-                available_slots.append(current_time.strftime("%H:%M"))
+            if blocked:
+                continue
 
-            # Move to next slot (30-minute intervals)
-            current_time += timedelta(minutes=30)
+            # Generate slots within this interval
+            current_time = interval.start_time
+            while True:
+                # Calculate end time for this slot
+                slot_end_minutes = (current_time.hour * 60 + current_time.minute + duration_minutes)
+                slot_end_hour = slot_end_minutes // 60
+                slot_end_minute = slot_end_minutes % 60
+                slot_end_time = datetime.strptime(f"{slot_end_hour:02d}:{slot_end_minute:02d}", "%H:%M").time()
+
+                # Check if slot fits within the interval
+                if slot_end_time > interval.end_time:
+                    break
+
+                # Check if slot conflicts with existing appointments
+                slot_conflicts = False
+                for appointment in appointments:
+                    if (appointment.start_time and appointment.end_time and
+                        _check_time_overlap(current_time, slot_end_time,
+                                          appointment.start_time, appointment.end_time)):
+                        slot_conflicts = True
+                        break
+
+                if not slot_conflicts:
+                    available_slots.append(f"{current_time.strftime('%H:%M')}-{slot_end_time.strftime('%H:%M')}")
+
+                # Move to next slot (15-minute increments)
+                current_minutes = current_time.hour * 60 + current_time.minute + 15
+                current_time = datetime.strptime(f"{current_minutes // 60:02d}:{current_minutes % 60:02d}", "%H:%M").time()
+
+        if not available_slots:
+            return {"error": f"{practitioner_name}在{requested_date.strftime('%Y年%m月%d日')}沒有可用的時段"}
 
         return {
             "therapist_id": practitioner.id,
             "therapist_name": practitioner.full_name,
             "date": date,
             "appointment_type": appointment_type,
-            "duration_minutes": apt_type.duration_minutes,
+            "duration_minutes": duration_minutes,
             "available_slots": available_slots
         }
 
     except ValueError as e:
-        return {"error": f"日期格式錯誤：{e}"}
+        return {"error": f"日期格式錯誤：{str(e)}"}
     except Exception as e:
-        return {"error": f"查詢可用時段時發生錯誤：{e}"}
+        return {"error": f"查詢可用時段時發生錯誤：{str(e)}"}
+
+
+@function_tool
+async def get_practitioner_availability(
+    wrapper: RunContextWrapper[ConversationContext],
+    practitioner_name: str,
+    date: str,
+    appointment_type: str
+) -> Dict[str, Any]:
+    """
+    Get available time slots for a specific practitioner and appointment type.
+    Delegates to get_practitioner_availability_impl for testability.
+
+    Args:
+        wrapper: Context wrapper (auto-injected)
+        practitioner_name: Name of the practitioner (from user conversation)
+        date: Date string in YYYY-MM-DD format
+        appointment_type: Type of appointment (e.g., "初診評估")
+
+    Returns:
+        Dict with available slots or error message
+    """
+    return await get_practitioner_availability_impl(
+        wrapper=wrapper,
+        practitioner_name=practitioner_name,
+        date=date,
+        appointment_type=appointment_type
+    )
+
+
+def _check_time_overlap(start1: time, end1: time, start2: time, end2: time) -> bool:
+    """Check if two time intervals overlap."""
+    return start1 < end2 and start2 < end1
 
 
 async def create_appointment_impl(
@@ -156,11 +228,12 @@ async def create_appointment_impl(
         end_time = start_time + timedelta(minutes=apt_type.duration_minutes)
 
         # Prevent double-booking: check for overlapping appointments for this practitioner
-        conflict = db.query(Appointment).filter(
-            Appointment.user_id == therapist_id,
-            Appointment.status.in_(['confirmed', 'pending']),
-            Appointment.start_time < end_time,
-            Appointment.end_time > start_time,
+        conflict = db.query(CalendarEvent).filter(
+            CalendarEvent.user_id == therapist_id,
+            CalendarEvent.event_type == 'appointment',
+            CalendarEvent.date == start_time.date(),
+            CalendarEvent.start_time < end_time.time(),
+            CalendarEvent.end_time > start_time.time(),
         ).first()
         if conflict is not None:
             return {"error": "預約時間衝突，請選擇其他時段"}
@@ -191,15 +264,24 @@ async def create_appointment_impl(
             }
         )
 
-        # Create database record with gcal_event_id
-        appointment = Appointment(
-            patient_id=patient_id,
+        # Create calendar event first
+        calendar_event = CalendarEvent(
             user_id=therapist_id,
+            event_type='appointment',
+            date=start_time.date(),
+            start_time=start_time.time(),
+            end_time=end_time.time(),
+            gcal_event_id=gcal_event['id']
+        )
+        db.add(calendar_event)
+        db.flush()  # Get the calendar_event ID
+
+        # Create appointment record
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient_id,
             appointment_type_id=appointment_type_id,
-            start_time=start_time,
-            end_time=end_time,
-            status='confirmed',
-            gcal_event_id=gcal_event['id']  # Store sync key
+            status='confirmed'
         )
 
         db.add(appointment)
@@ -212,14 +294,14 @@ async def create_appointment_impl(
                 "private": {
                     "source": "line_bot",
                     "patient_id": str(patient_id),
-                    "appointment_db_id": str(appointment.id)
+                    "appointment_db_id": str(appointment.calendar_event_id)
                 }
             }
         )
 
         return {
             "success": True,
-            "appointment_id": appointment.id,
+            "appointment_id": appointment.calendar_event_id,
             "therapist_name": practitioner.full_name,
             "appointment_type": apt_type.name,
             "start_time": start_time.isoformat(),
@@ -281,16 +363,16 @@ async def get_existing_appointments(
 
     try:
         # Query upcoming appointments
-        appointments = db.query(Appointment).filter(
+        appointments = db.query(Appointment).join(CalendarEvent).filter(
             Appointment.patient_id == patient_id,
-            Appointment.start_time >= datetime.now(timezone.utc),
+            CalendarEvent.date >= datetime.now(timezone.utc).date(),
             Appointment.status.in_(['confirmed', 'pending'])
-        ).join(User).join(AppointmentType).order_by(Appointment.start_time).all()
+        ).join(User).join(AppointmentType).order_by(CalendarEvent.date, CalendarEvent.start_time).all()
 
         return [
             {
-                "id": apt.id,
-                "therapist_name": apt.user.full_name,
+                "id": apt.calendar_event_id,
+                "therapist_name": apt.calendar_event.user.full_name,
                 "appointment_type": apt.appointment_type.name,
                 "start_time": apt.start_time.isoformat(),
                 "end_time": apt.end_time.isoformat(),
@@ -326,8 +408,8 @@ async def cancel_appointment(
 
     try:
         # Find appointment and verify ownership
-        appointment = db.query(Appointment).filter(
-            Appointment.id == appointment_id,
+        appointment = db.query(Appointment).join(CalendarEvent).filter(
+            Appointment.calendar_event_id == appointment_id,
             Appointment.patient_id == patient_id,
             Appointment.status.in_(['confirmed', 'pending'])
         ).first()
@@ -336,7 +418,7 @@ async def cancel_appointment(
             return {"error": "找不到該預約或您無權限取消"}
 
         # Cancel in Google Calendar first
-        practitioner = appointment.user
+        practitioner = appointment.calendar_event.user
         if practitioner.gcal_credentials:
             from services.encryption_service import get_encryption_service
             gcal_credentials = get_encryption_service().decrypt_data(practitioner.gcal_credentials)
@@ -353,10 +435,10 @@ async def cancel_appointment(
 
         return {
             "success": True,
-            "appointment_id": appointment.id,
-            "therapist_name": appointment.user.full_name,
+            "appointment_id": appointment.calendar_event_id,
+            "therapist_name": appointment.calendar_event.user.full_name,
             "start_time": appointment.start_time.isoformat(),
-            "message": f"預約已取消：{appointment.start_time.strftime('%Y-%m-%d %H:%M')} 與 {appointment.user.full_name} 的 {appointment.appointment_type.name}"
+            "message": f"預約已取消：{appointment.start_time.strftime('%Y-%m-%d %H:%M')} 與 {appointment.calendar_event.user.full_name} 的 {appointment.appointment_type.name}"
         }
 
     except GoogleCalendarError as e:
@@ -367,7 +449,7 @@ async def cancel_appointment(
             return {
                 "success": True,
                 "warning": f"預約已取消，但日曆同步失敗：{e}",
-                "appointment_id": appointment.id
+                "appointment_id": appointment.calendar_event_id
             }
         else:
             return {"error": f"取消預約時發生錯誤：{e}"}
@@ -392,7 +474,7 @@ async def reschedule_appointment_impl(
     try:
         # Find appointment and verify ownership
         appointment = db.query(Appointment).filter(
-            Appointment.id == appointment_id,
+            Appointment.calendar_event_id == appointment_id,
             Appointment.patient_id == patient_id,
             Appointment.status.in_(['confirmed', 'pending'])
         ).first()
@@ -419,19 +501,19 @@ async def reschedule_appointment_impl(
                 return {"error": "找不到指定的預約類型"}
 
         # Use existing entities if not specified
-        final_therapist = new_therapist or appointment.user
+        final_therapist = new_therapist or appointment.calendar_event.user
         final_apt_type = new_apt_type or appointment.appointment_type
 
         # Calculate new end time
         new_end_time = new_start_time + timedelta(minutes=final_apt_type.duration_minutes)
 
         # Prevent conflicts: ensure the new window doesn't overlap other appointments for the target therapist
-        conflict = db.query(Appointment).filter(
-            Appointment.user_id == (new_therapist.id if new_therapist else appointment.user_id),
-            Appointment.id != appointment.id,
+        conflict = db.query(Appointment).join(CalendarEvent).filter(
+            CalendarEvent.user_id == (new_therapist.id if new_therapist else appointment.calendar_event.user_id),
+            Appointment.calendar_event_id != appointment.calendar_event_id,
             Appointment.status.in_(['confirmed', 'pending']),
-            Appointment.start_time < new_end_time,
-            Appointment.end_time > new_start_time,
+            CalendarEvent.start_time < new_end_time.time(),
+            CalendarEvent.end_time > new_start_time.time(),
         ).first()
         if conflict is not None:
             return {"error": "預約時間衝突，請選擇其他時段"}
@@ -444,13 +526,13 @@ async def reschedule_appointment_impl(
         else:
             gcal_service = None
 
-        if appointment.gcal_event_id is not None:
+        if appointment.calendar_event.gcal_event_id is not None:
             # Delete old event if therapist changed
-            if new_therapist and new_therapist.id != appointment.user_id and appointment.user.gcal_credentials:
+            if new_therapist and new_therapist.id != appointment.calendar_event.user_id and appointment.calendar_event.user.gcal_credentials:
                 from services.encryption_service import get_encryption_service
-                old_gcal_credentials = get_encryption_service().decrypt_data(appointment.user.gcal_credentials)
+                old_gcal_credentials = get_encryption_service().decrypt_data(appointment.calendar_event.user.gcal_credentials)
                 old_gcal_service = GoogleCalendarService(json.dumps(old_gcal_credentials))
-                await old_gcal_service.delete_event(appointment.gcal_event_id)
+                await old_gcal_service.delete_event(appointment.calendar_event.gcal_event_id)
 
                 # Create new event with new therapist
                 new_gcal_event_id = None
@@ -464,7 +546,7 @@ async def reschedule_appointment_impl(
                         "private": {
                             "source": "line_bot",
                             "patient_id": str(appointment.patient_id),
-                            "appointment_db_id": str(appointment.id)
+                            "appointment_db_id": str(appointment.calendar_event_id)
                         }
                     }
                 )
@@ -492,7 +574,7 @@ async def reschedule_appointment_impl(
                     "private": {
                         "source": "line_bot",
                         "patient_id": str(appointment.patient_id),
-                        "appointment_db_id": str(appointment.id)
+                        "appointment_db_id": str(appointment.calendar_event_id)
                     }
                 }
             )
@@ -501,19 +583,19 @@ async def reschedule_appointment_impl(
             new_gcal_event_id = None
 
         # Update database
-        setattr(appointment, 'start_time', new_start_time)
-        setattr(appointment, 'end_time', new_end_time)
+        setattr(appointment.calendar_event, 'start_time', new_start_time.time())
+        setattr(appointment.calendar_event, 'end_time', new_end_time.time())
         if new_therapist:
-            appointment.user_id = new_therapist.id
+            appointment.calendar_event.user_id = new_therapist.id
         if new_apt_type:
             appointment.appointment_type_id = new_apt_type.id
-        appointment.gcal_event_id = new_gcal_event_id
+        appointment.calendar_event.gcal_event_id = new_gcal_event_id
 
         db.commit()
 
         return {
             "success": True,
-            "appointment_id": appointment.id,
+            "appointment_id": appointment.calendar_event_id,
             "new_therapist": final_therapist.full_name,
             "new_appointment_type": final_apt_type.name,
             "new_start_time": new_start_time.isoformat(),
@@ -574,22 +656,22 @@ async def get_last_appointment_therapist(
 
     try:
         # Query most recent past appointment
-        last_appointment = db.query(Appointment).filter(
+        last_appointment = db.query(Appointment).join(CalendarEvent).filter(
             Appointment.patient_id == patient_id,
-            Appointment.start_time < datetime.now(timezone.utc),  # Past appointments only
+            CalendarEvent.start_time < datetime.now(timezone.utc),  # Past appointments only
             Appointment.status.in_(['confirmed', 'completed'])  # Successful appointments
-        ).join(User).order_by(Appointment.start_time.desc()).first()
+        ).order_by(CalendarEvent.start_time.desc()).first()
 
         if not last_appointment:
             return {"error": "找不到您之前的預約記錄"}
 
-        practitioner = last_appointment.user
+        practitioner = last_appointment.calendar_event.user
         return {
             "therapist_id": practitioner.id,
             "therapist_name": practitioner.full_name,
-            "last_appointment_date": last_appointment.start_time.strftime('%Y-%m-%d'),
+            "last_appointment_date": last_appointment.calendar_event.start_time.strftime('%Y-%m-%d'),
             "last_appointment_type": last_appointment.appointment_type.name,
-            "message": f"您上次預約的治療師是 {practitioner.full_name}（{last_appointment.start_time.strftime('%Y-%m-%d')}）"
+            "message": f"您上次預約的治療師是 {practitioner.full_name}（{last_appointment.calendar_event.start_time.strftime('%Y-%m-%d')}）"
         }
 
     except Exception as e:

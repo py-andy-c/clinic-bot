@@ -12,7 +12,7 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, Mock
 
 from utils import datetime_utils as du
-from models import Clinic, User, Patient, AppointmentType, Appointment
+from models import Clinic, User, Patient, AppointmentType, Appointment, CalendarEvent
 
 
 def test_ensure_utc_conversions():
@@ -54,16 +54,27 @@ async def test_cancellation_message_uses_taipei_time(db_session):
     db_session.add_all([practitioner, at, patient])
     db_session.commit()
 
-    # Appointment at 23:30 UTC on Jan 1 -> 07:30 (Jan 2) Asia/Taipei
-    start_utc = datetime(2025, 1, 1, 23, 30, 0, tzinfo=timezone.utc)
-    appt = Appointment(
-        patient_id=patient.id,
+    # Appointment at 22:30 UTC on Jan 1 -> 06:30 Asia/Taipei (same day)
+    start_utc = datetime(2025, 1, 1, 22, 30, 0, tzinfo=timezone.utc)
+    end_utc = start_utc + timedelta(minutes=60)
+
+    # Create CalendarEvent first
+    calendar_event = CalendarEvent(
         user_id=practitioner.id,
+        event_type='appointment',
+        date=start_utc.date(),
+        start_time=start_utc.time(),
+        end_time=end_utc.time(),
+        gcal_event_id="evt_tz"
+    )
+    db_session.add(calendar_event)
+    db_session.commit()
+
+    appt = Appointment(
+        calendar_event_id=calendar_event.id,
+        patient_id=patient.id,
         appointment_type_id=at.id,
-        start_time=start_utc,
-        end_time=start_utc + timedelta(minutes=60),
-        status="confirmed",
-        gcal_event_id="evt_tz",
+        status="confirmed"
     )
     db_session.add(appt)
     db_session.commit()
@@ -79,7 +90,7 @@ async def test_cancellation_message_uses_taipei_time(db_session):
         await _send_cancellation_notification(db_session, appt)
 
         # Assert message used local Asia/Taipei time (expected business rule)
-        # Jan 1 23:30 UTC -> Jan 2 (Thu) 07:30 local; pattern: MM/DD (dow) HH:MM
+        # Jan 1 22:30 UTC -> Jan 2 (Thu) 06:30 local; pattern: MM/DD (dow) HH:MM
         args, _ = mock_send.call_args
         message = args[1]
-        assert "01/02" in message and "07:30" in message
+        assert "01/02" in message and "06:30" in message

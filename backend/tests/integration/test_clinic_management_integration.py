@@ -15,6 +15,7 @@ from models.patient import Patient
 from models.appointment import Appointment
 from models.appointment_type import AppointmentType
 from models.line_user import LineUser
+from models.calendar_event import CalendarEvent
 
 
 @pytest.fixture
@@ -297,14 +298,23 @@ class TestAppointmentLifecycleIntegration:
         original_start = datetime.combine((datetime.now() + timedelta(days=1)).date(), time(10, 0))
         original_end = original_start + timedelta(minutes=apt_type.duration_minutes)
 
-        original_appointment = Appointment(
+        # Create CalendarEvent first
+        original_calendar_event = CalendarEvent(
             user_id=therapist.id,
+            event_type='appointment',
+            date=original_start.date(),
+            start_time=original_start.time(),
+            end_time=original_end.time(),
+            gcal_event_id='gcal_original_123'
+        )
+        db_session.add(original_calendar_event)
+        db_session.commit()
+
+        original_appointment = Appointment(
+            calendar_event_id=original_calendar_event.id,
             patient_id=linked_patient.id,
             appointment_type_id=apt_type.id,
-            start_time=original_start,
-            end_time=original_end,
-            status='confirmed',
-            gcal_event_id='gcal_original_123'
+            status='confirmed'
         )
         db_session.add(original_appointment)
         db_session.commit()
@@ -314,25 +324,25 @@ class TestAppointmentLifecycleIntegration:
         new_start = datetime.combine((datetime.now() + timedelta(days=1)).date(), time(14, 0))
         new_end = new_start + timedelta(minutes=apt_type.duration_minutes)
 
-        # Update appointment (simulating reschedule)
-        original_appointment.start_time = new_start
-        original_appointment.end_time = new_end
-        original_appointment.gcal_event_id = 'gcal_rescheduled_456'  # Would be updated by Google Calendar
+        # Update calendar event (simulating reschedule)
+        original_calendar_event.start_time = new_start.time()
+        original_calendar_event.end_time = new_end.time()
+        original_calendar_event.gcal_event_id = 'gcal_rescheduled_456'  # Would be updated by Google Calendar
         db_session.commit()
 
         # Verify reschedule maintained data integrity
-        updated_appointment = db_session.query(Appointment).filter(Appointment.id == original_appointment.id).first()
-        assert updated_appointment.start_time == new_start
-        assert updated_appointment.end_time == new_end
-        assert updated_appointment.gcal_event_id == 'gcal_rescheduled_456'
+        updated_appointment = db_session.query(Appointment).filter(Appointment.calendar_event_id == original_calendar_event.id).first()
+        assert updated_appointment.calendar_event.start_time == new_start.time()
+        assert updated_appointment.calendar_event.end_time == new_end.time()
+        assert updated_appointment.calendar_event.gcal_event_id == 'gcal_rescheduled_456'
         assert updated_appointment.patient_id == linked_patient.id
         assert updated_appointment.user_id == therapist.id
         assert updated_appointment.appointment_type_id == apt_type.id
 
         # Verify no duplicate appointments were created
-        appointments = db_session.query(Appointment).filter(
+        appointments = db_session.query(Appointment).join(CalendarEvent).filter(
             Appointment.patient_id == linked_patient.id,
-            Appointment.start_time >= original_start.replace(hour=0, minute=0)
+            CalendarEvent.date >= original_start.date()
         ).all()
         assert len(appointments) == 1  # Should only be the rescheduled one
 
@@ -356,31 +366,40 @@ class TestAppointmentLifecycleIntegration:
         start_time = datetime.combine((datetime.now() + timedelta(days=1)).date(), time(10, 0))
         end_time = start_time + timedelta(minutes=apt_type.duration_minutes)
 
-        appointment = Appointment(
+        # Create CalendarEvent first
+        calendar_event = CalendarEvent(
             user_id=therapist.id,
+            event_type='appointment',
+            date=start_time.date(),
+            start_time=start_time.time(),
+            end_time=end_time.time(),
+            gcal_event_id='gcal_event_123'
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
             patient_id=linked_patient.id,
             appointment_type_id=apt_type.id,
-            start_time=start_time,
-            end_time=end_time,
-            status='confirmed',
-            gcal_event_id='gcal_event_123'
+            status='confirmed'
         )
         db_session.add(appointment)
         db_session.commit()
 
         # Simulate cancellation (this would be handled by the cancellation tool)
         appointment.status = 'canceled_by_patient'
-        appointment.gcal_event_id = None  # Would be removed from Google Calendar
+        appointment.calendar_event.gcal_event_id = None  # Would be removed from Google Calendar
         db_session.commit()
 
         # Verify cancellation maintained data integrity
-        canceled_appointment = db_session.query(Appointment).filter(Appointment.id == appointment.id).first()
+        canceled_appointment = db_session.query(Appointment).filter(Appointment.calendar_event_id == appointment.calendar_event_id).first()
         assert canceled_appointment.status == 'canceled_by_patient'
-        assert canceled_appointment.gcal_event_id is None
-        assert canceled_appointment.start_time == start_time
-        assert canceled_appointment.end_time == end_time
+        assert canceled_appointment.calendar_event.gcal_event_id is None
+        assert canceled_appointment.calendar_event.start_time == start_time.time()
+        assert canceled_appointment.calendar_event.end_time == end_time.time()
         assert canceled_appointment.patient_id == linked_patient.id
-        assert canceled_appointment.user_id == therapist.id
+        assert canceled_appointment.calendar_event.user_id == therapist.id
 
         # Verify appointment still exists but is marked as canceled
         all_appointments = db_session.query(Appointment).filter(

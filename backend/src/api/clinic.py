@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
-from models import User, Patient, Appointment, AppointmentType, SignupToken, PractitionerAvailability
+from models import User, Patient, Appointment, AppointmentType, SignupToken, PractitionerAvailability, CalendarEvent
 from services.google_oauth import GoogleOAuthService
 
 router = APIRouter()
@@ -92,7 +92,6 @@ class PractitionerAvailabilityRequest(BaseModel):
     day_of_week: int  # 0=Monday, 1=Tuesday, ..., 6=Sunday
     start_time: str  # HH:MM format
     end_time: str    # HH:MM format
-    is_available: bool = True
 
 
 class PractitionerAvailabilityResponse(BaseModel):
@@ -104,7 +103,6 @@ class PractitionerAvailabilityResponse(BaseModel):
     day_name_zh: str
     start_time: str
     end_time: str
-    is_available: bool
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -646,10 +644,10 @@ async def get_dashboard_stats(
 
         # Upcoming appointments (next 7 days)
         week_from_now = datetime.now(timezone.utc) + timedelta(days=7)
-        upcoming_appointments = db.query(Appointment).filter(
+        upcoming_appointments = db.query(Appointment).join(CalendarEvent).filter(
             Appointment.patient.has(clinic_id=clinic_id),
-            Appointment.start_time >= datetime.now(timezone.utc),
-            Appointment.start_time <= week_from_now,
+            CalendarEvent.start_time >= datetime.now(timezone.utc),
+            CalendarEvent.start_time <= week_from_now,
             Appointment.status == "confirmed"
         ).count()
 
@@ -661,14 +659,14 @@ async def get_dashboard_stats(
         ).count()
 
         # Cancellation rate (last 30 days)
-        recent_appointments = db.query(Appointment).filter(
+        recent_appointments = db.query(Appointment).join(CalendarEvent).filter(
             Appointment.patient.has(clinic_id=clinic_id),
-            Appointment.created_at >= thirty_days_ago
+            CalendarEvent.created_at >= thirty_days_ago
         ).count()
 
-        cancelled_appointments = db.query(Appointment).filter(
+        cancelled_appointments = db.query(Appointment).join(CalendarEvent).filter(
             Appointment.patient.has(clinic_id=clinic_id),
-            Appointment.created_at >= thirty_days_ago,
+            CalendarEvent.created_at >= thirty_days_ago,
             Appointment.status.in_(["canceled_by_patient", "canceled_by_clinic"])
         ).count()
 
@@ -752,7 +750,6 @@ async def get_practitioner_availability(
                 day_name_zh=avail.day_name_zh,
                 start_time=avail.start_time.strftime("%H:%M"),
                 end_time=avail.end_time.strftime("%H:%M"),
-                is_available=avail.is_available,
                 created_at=avail.created_at,
                 updated_at=avail.updated_at
             )
@@ -845,8 +842,7 @@ async def create_practitioner_availability(
             user_id=user_id,
             day_of_week=availability_data.day_of_week,
             start_time=start_time,
-            end_time=end_time,
-            is_available=availability_data.is_available
+            end_time=end_time
         )
 
         db.add(availability)
@@ -861,7 +857,6 @@ async def create_practitioner_availability(
             day_name_zh=availability.day_name_zh,
             start_time=availability.start_time.strftime("%H:%M"),
             end_time=availability.end_time.strftime("%H:%M"),
-            is_available=availability.is_available,
             created_at=availability.created_at,
             updated_at=availability.updated_at
         )
@@ -965,7 +960,6 @@ async def update_practitioner_availability(
         availability.day_of_week = availability_data.day_of_week
         availability.start_time = start_time
         availability.end_time = end_time
-        availability.is_available = availability_data.is_available
 
         db.commit()
         db.refresh(availability)
@@ -978,7 +972,6 @@ async def update_practitioner_availability(
             day_name_zh=availability.day_name_zh,
             start_time=availability.start_time.strftime("%H:%M"),
             end_time=availability.end_time.strftime("%H:%M"),
-            is_available=availability.is_available,
             created_at=availability.created_at,
             updated_at=availability.updated_at
         )

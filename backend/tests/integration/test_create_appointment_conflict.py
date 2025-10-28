@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, Mock
 
 from clinic_agents.context import ConversationContext
 from clinic_agents import tools
-from models import Clinic, User, Patient, AppointmentType, Appointment
+from models import Clinic, User, Patient, AppointmentType, Appointment, CalendarEvent
 
 
 @pytest.mark.asyncio
@@ -36,14 +36,24 @@ async def test_create_appointment_conflict_returns_error(db_session):
 
     # Existing appointment: 10:00-10:30
     start = datetime.combine(datetime.now().date() + timedelta(days=1), time(10, 0))
-    existing = Appointment(
-        patient_id=patient.id,
+    
+    # Create CalendarEvent first
+    calendar_event = CalendarEvent(
         user_id=practitioner.id,
+        event_type='appointment',
+        date=start.date(),
+        start_time=start.time(),
+        end_time=(start + timedelta(minutes=30)).time(),
+        gcal_event_id="evt1"
+    )
+    db_session.add(calendar_event)
+    db_session.commit()
+
+    existing = Appointment(
+        calendar_event_id=calendar_event.id,
+        patient_id=patient.id,
         appointment_type_id=apt_type.id,
-        start_time=start,
-        end_time=start + timedelta(minutes=30),
-        status="confirmed",
-        gcal_event_id="evt1",
+        status="confirmed"
     )
     db_session.add(existing)
     db_session.commit()
@@ -66,11 +76,11 @@ async def test_create_appointment_conflict_returns_error(db_session):
     async def _create_appointment_like(wrapper, therapist_id, appointment_type_id, start_time, patient_id):
         db = wrapper.context.db_session
         end_time = start_time + timedelta(minutes=30)
-        conflict = db.query(Appointment).filter(
-            Appointment.user_id == therapist_id,
+        conflict = db.query(Appointment).join(CalendarEvent).filter(
+            CalendarEvent.user_id == therapist_id,
             Appointment.status.in_(["confirmed", "pending"]),
-            Appointment.start_time < end_time,
-            Appointment.end_time > start_time,
+            CalendarEvent.start_time < end_time.time(),
+            CalendarEvent.end_time > start_time.time(),
         ).first()
         if conflict is not None:
             return {"error": "預約時間衝突，請選擇其他時段"}
