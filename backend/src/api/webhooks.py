@@ -129,7 +129,7 @@ async def line_webhook(request: Request, db: Session = Depends(get_db)) -> Plain
             line_service.send_text_message(line_user_id, response_text)
             logger.info(f"✅ LINE MESSAGE SENT SUCCESSFULLY to {line_user_id}")
         else:
-            logger.info(f"No response needed for {line_user_id} (non-appointment query)")
+            logger.info(f"No response needed for {line_user_id}")
 
         return PlainTextResponse("OK")
 

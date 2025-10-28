@@ -37,6 +37,21 @@ def api_contract_client(db_session):
     # Verify clinic was created
     assert test_clinic.id is not None
 
+    # Create a test practitioner user
+    from models.user import User
+    test_user = User(
+        email="test@example.com",
+        full_name="Test Practitioner",
+        roles=["admin", "practitioner"],
+        clinic_id=test_clinic.id,
+        google_subject_id="test_sub"
+    )
+    db_session.add(test_user)
+    db_session.commit()
+
+    # Verify user was created
+    assert test_user.id is not None
+
     # Use the global app but with temporarily overridden dependencies
     from main import app
     from auth.dependencies import get_current_user, require_practitioner_role, require_admin_role, require_system_admin
@@ -54,8 +69,8 @@ def api_contract_client(db_session):
             roles=["admin", "practitioner"],
             clinic_id=test_clinic.id,
             google_subject_id="test_sub",
-            name="Test User",
-            user_id=1
+            name="Test Practitioner",
+            user_id=test_user.id
         )
 
     def override_require_practitioner_role():

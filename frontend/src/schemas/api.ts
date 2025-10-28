@@ -36,6 +36,17 @@ export const ClinicSettingsSchema = z.object({
 });
 
 // Clinic Dashboard Stats schema
+export const ClinicReadinessSchema = z.object({
+  is_ready: z.boolean(),
+  missing_appointment_types: z.boolean(),
+  appointment_types_count: z.number(),
+  practitioners_without_availability: z.array(z.object({
+    id: z.number(),
+    name: z.string(),
+  })),
+  practitioners_with_availability_count: z.number(),
+});
+
 export const ClinicDashboardStatsSchema = z.object({
   total_appointments: z.number(),
   upcoming_appointments: z.number(),
@@ -43,6 +54,7 @@ export const ClinicDashboardStatsSchema = z.object({
   cancellation_rate: z.number(),
   total_members: z.number(),
   active_members: z.number(),
+  clinic_readiness: ClinicReadinessSchema,
 });
 
 // User/Member schemas
@@ -84,6 +96,7 @@ export const SignupResponseSchema = z.object({
 // Type inference helpers
 export type ClinicSettings = z.infer<typeof ClinicSettingsSchema>;
 export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
+export type ClinicReadiness = z.infer<typeof ClinicReadinessSchema>;
 export type ClinicDashboardStats = z.infer<typeof ClinicDashboardStatsSchema>;
 export type User = z.infer<typeof UserSchema>;
 export type AuthUser = z.infer<typeof AuthUserSchema>;

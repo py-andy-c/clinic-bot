@@ -8,7 +8,7 @@ import pytest
 from datetime import datetime, timedelta, time, date
 from unittest.mock import patch, Mock
 
-from models import Clinic, User, Patient, Appointment, AppointmentType, LineUser, CalendarEvent
+from models import Clinic, User, Patient, Appointment, AppointmentType, LineUser, CalendarEvent, PractitionerAvailability
 from clinic_agents.context import ConversationContext
 from typing import Dict, List, Any
 
@@ -101,7 +101,7 @@ def test_clinic_with_therapist_and_types(db_session):
         line_channel_access_token="test_access_token_789"
     )
     db_session.add(clinic)
-    db_session.commit()
+    db_session.commit()  # Commit clinic first to get ID
 
     therapist = User(
         clinic_id=clinic.id,
@@ -111,6 +111,8 @@ def test_clinic_with_therapist_and_types(db_session):
         roles=["practitioner"],
         is_active=True
     )
+    db_session.add(therapist)
+    db_session.commit()  # Commit therapist to get ID
 
     # Create appointment types
     appointment_types = [
@@ -126,7 +128,20 @@ def test_clinic_with_therapist_and_types(db_session):
         )
     ]
 
-    db_session.add_all([therapist] + appointment_types)
+    # Create practitioner availability for Monday-Friday, 9am-5pm
+    from datetime import time
+    availability_records = []
+    for day in range(5):  # Monday to Friday
+        availability_records.append(
+            PractitionerAvailability(
+                user_id=therapist.id,
+                day_of_week=day,
+                start_time=time(9, 0),  # 9:00 AM
+                end_time=time(17, 0)    # 5:00 PM
+            )
+        )
+
+    db_session.add_all(appointment_types + availability_records)
     db_session.commit()
 
     return clinic, therapist, appointment_types

@@ -16,6 +16,7 @@ from models.appointment import Appointment
 from models.appointment_type import AppointmentType
 from models.line_user import LineUser
 from models.calendar_event import CalendarEvent
+from models.practitioner_availability import PractitionerAvailability
 
 
 @pytest.fixture
@@ -38,6 +39,8 @@ def test_clinic_with_therapist(db_session):
         roles=["practitioner"],
         is_active=True
     )
+    db_session.add(therapist)
+    db_session.commit()  # Commit therapist to get ID
 
     # Create appointment types
     appointment_types = [
@@ -53,7 +56,20 @@ def test_clinic_with_therapist(db_session):
         )
     ]
 
-    db_session.add_all([therapist] + appointment_types)
+    # Create practitioner availability for Monday-Friday, 9am-5pm
+    from datetime import time
+    availability_records = []
+    for day in range(5):  # Monday to Friday
+        availability_records.append(
+            PractitionerAvailability(
+                user_id=therapist.id,
+                day_of_week=day,
+                start_time=time(9, 0),  # 9:00 AM
+                end_time=time(17, 0)    # 5:00 PM
+            )
+        )
+
+    db_session.add_all(appointment_types + availability_records)
     db_session.commit()
 
     return clinic, therapist, appointment_types

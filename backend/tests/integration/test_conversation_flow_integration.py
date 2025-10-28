@@ -126,7 +126,8 @@ class TestConversationFlowIntegration:
 
         # First conversation turn - account linking
         with patch('clinic_agents.orchestrator.Runner.run', new_callable=AsyncMock) as mock_runner, \
-             patch('services.line_service.LINEService.send_text_message') as mock_send:
+             patch('services.line_service.LINEService.send_text_message') as mock_send, \
+             patch('clinic_agents.orchestrator.check_clinic_readiness_for_appointments') as mock_readiness:
 
             # First turn: account linking
             mock_triage_1 = AsyncMock()
@@ -143,6 +144,16 @@ class TestConversationFlowIntegration:
 
             mock_appointment = AsyncMock()
             mock_appointment.final_output_as = Mock(return_value="預約成功")
+
+            # Mock clinic readiness check to return ready status
+            from clinic_agents.orchestrator import ClinicReadinessStatus
+            mock_readiness.return_value = ClinicReadinessStatus(
+                is_ready=True,
+                missing_appointment_types=False,
+                appointment_types_count=2,
+                practitioners_without_availability=[],
+                practitioners_with_availability_count=1
+            )
 
             mock_runner.side_effect = [mock_triage_1, mock_linking_1, mock_triage_2, mock_appointment]
 
@@ -201,7 +212,8 @@ class TestConversationFlowIntegration:
         line_user_id = linked_conversation_user.line_user.line_user_id
 
         with patch('clinic_agents.orchestrator.Runner.run', new_callable=AsyncMock) as mock_runner, \
-             patch('services.line_service.LINEService.send_text_message') as mock_send:
+             patch('services.line_service.LINEService.send_text_message') as mock_send, \
+             patch('clinic_agents.orchestrator.check_clinic_readiness_for_appointments') as mock_readiness:
 
             # Mock successful triage and response
             mock_triage = AsyncMock()
@@ -210,6 +222,16 @@ class TestConversationFlowIntegration:
 
             mock_appointment = AsyncMock()
             mock_appointment.final_output_as = Mock(return_value="預約已確認")
+
+            # Mock clinic readiness check to return ready status
+            from clinic_agents.orchestrator import ClinicReadinessStatus
+            mock_readiness.return_value = ClinicReadinessStatus(
+                is_ready=True,
+                missing_appointment_types=False,
+                appointment_types_count=2,
+                practitioners_without_availability=[],
+                practitioners_with_availability_count=1
+            )
 
             mock_runner.side_effect = [mock_triage, mock_appointment]
 
@@ -230,7 +252,8 @@ class TestConversationFlowIntegration:
 
         # First request
         with patch('clinic_agents.orchestrator.Runner.run', new_callable=AsyncMock) as mock_runner1, \
-             patch('services.line_service.LINEService.send_text_message') as mock_send1:
+             patch('services.line_service.LINEService.send_text_message') as mock_send1, \
+             patch('clinic_agents.orchestrator.check_clinic_readiness_for_appointments') as mock_readiness1:
 
             mock_triage1 = AsyncMock()
             mock_triage1.final_output.intent = "account_linking"
@@ -259,12 +282,23 @@ class TestConversationFlowIntegration:
 
         # Second request - should use the same session
         with patch('clinic_agents.orchestrator.Runner.run', new_callable=AsyncMock) as mock_runner2, \
-             patch('services.line_service.LINEService.send_text_message') as mock_send2:
+             patch('services.line_service.LINEService.send_text_message') as mock_send2, \
+             patch('clinic_agents.orchestrator.check_clinic_readiness_for_appointments') as mock_readiness2:
 
             mock_triage2 = AsyncMock()
             mock_triage2.final_output.intent = "appointment_related"
             mock_appointment2 = AsyncMock()
             mock_appointment2.final_output_as = Mock(return_value="預約成功")
+
+            # Mock clinic readiness check to return ready status
+            from clinic_agents.orchestrator import ClinicReadinessStatus
+            mock_readiness2.return_value = ClinicReadinessStatus(
+                is_ready=True,
+                missing_appointment_types=False,
+                appointment_types_count=2,
+                practitioners_without_availability=[],
+                practitioners_with_availability_count=1
+            )
 
             mock_runner2.side_effect = [mock_triage2, mock_appointment2]
 

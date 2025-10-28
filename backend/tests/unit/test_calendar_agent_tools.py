@@ -331,7 +331,7 @@ class TestAgentToolsWithCalendarSchema:
         )
 
         assert "error" in result
-        assert "沒有預設的工作時間" in result["error"]
+        assert "沒有預設的可用時間" in result["error"]
 
     async def test_create_appointment_with_calendar_event(self, db_session):
         """Test creating appointment with new calendar event schema."""

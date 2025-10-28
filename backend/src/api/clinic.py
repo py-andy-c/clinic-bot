@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
-from models import User, Patient, Appointment, AppointmentType, SignupToken, PractitionerAvailability, CalendarEvent
+from models import User, Patient, Appointment, AppointmentType, SignupToken, PractitionerAvailability, CalendarEvent, Clinic
 from services.google_oauth import GoogleOAuthService
+from clinic_agents.orchestrator import check_clinic_readiness_for_appointments
 
 router = APIRouter()
 
@@ -688,13 +689,29 @@ async def get_dashboard_stats(
             User.is_active == True
         ).count()
 
+        # Get clinic readiness status
+        clinic = db.query(Clinic).get(clinic_id)
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="診所不存在"
+            )
+        readiness = check_clinic_readiness_for_appointments(db, clinic)
+
         return {
             "total_appointments": total_appointments,
             "upcoming_appointments": upcoming_appointments,
             "new_patients": new_patients,
             "cancellation_rate": cancellation_rate,
             "total_members": total_members,
-            "active_members": active_members
+            "active_members": active_members,
+            "clinic_readiness": {
+                "is_ready": readiness.is_ready,
+                "missing_appointment_types": readiness.missing_appointment_types,
+                "appointment_types_count": readiness.appointment_types_count,
+                "practitioners_without_availability": readiness.practitioners_without_availability,
+                "practitioners_with_availability_count": readiness.practitioners_with_availability_count
+            }
         }
 
     except Exception:

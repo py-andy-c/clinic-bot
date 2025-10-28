@@ -108,6 +108,16 @@ export interface ClinicDashboardStats {
   cancellation_rate: number;
   total_members: number;
   active_members: number;
+  clinic_readiness: {
+    is_ready: boolean;
+    missing_appointment_types: boolean;
+    appointment_types_count: number;
+    practitioners_without_availability: Array<{
+      id: number;
+      name: string;
+    }>;
+    practitioners_with_availability_count: number;
+  };
 }
 
 export interface SystemDashboardStats {

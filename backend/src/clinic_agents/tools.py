@@ -84,7 +84,7 @@ async def get_practitioner_availability_impl(
         ).order_by(PractitionerAvailability.start_time).all()
 
         if not default_intervals:
-            return {"error": f"{practitioner_name}在{requested_date.strftime('%Y年%m月%d日')}沒有預設的工作時間"}
+            return {"error": f"{practitioner_name}在{requested_date.strftime('%Y年%m月%d日')}沒有預設的可用時間"}
 
         # Get availability exceptions for this date
         exceptions = db.query(CalendarEvent).filter(

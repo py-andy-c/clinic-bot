@@ -1575,7 +1575,8 @@ class TestLineWebhookAsyncDatabaseIntegration:
         line_user_id = "Utest_async_123"
 
         # Mock the agent runners to avoid full agent execution
-        with patch('clinic_agents.orchestrator.Runner.run') as mock_runner:
+        with patch('clinic_agents.orchestrator.Runner.run') as mock_runner, \
+             patch('clinic_agents.orchestrator.check_clinic_readiness_for_appointments') as mock_readiness:
             # Mock triage result
             mock_triage_result = Mock()
             mock_triage_result.final_output.intent = "appointment_related"
@@ -1585,6 +1586,16 @@ class TestLineWebhookAsyncDatabaseIntegration:
             # Mock appointment agent result
             mock_appointment_result = Mock()
             mock_appointment_result.final_output_as.return_value = "Appointment booked successfully"
+
+            # Mock clinic readiness check to return ready status
+            from clinic_agents.orchestrator import ClinicReadinessStatus
+            mock_readiness.return_value = ClinicReadinessStatus(
+                is_ready=True,
+                missing_appointment_types=False,
+                appointment_types_count=2,
+                practitioners_without_availability=[],
+                practitioners_with_availability_count=1
+            )
 
             # Configure mock to return results for triage and appointment agents only
             # (no linking needed since user is already linked)
