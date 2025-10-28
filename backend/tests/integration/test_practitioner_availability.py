@@ -358,27 +358,3 @@ class TestPractitionerAvailability:
         data = response.json()
         assert len(data["availability"]) == 0
 
-    def test_get_calendar_embed_info(self, client: TestClient, db_session: Session, test_clinic, test_admin, test_practitioner):
-        """Test getting calendar embed information."""
-        # Set up practitioner with Google Calendar credentials
-        test_practitioner.gcal_credentials = '{"access_token": "test_token", "user_email": "practitioner@testclinic.com"}'
-        test_practitioner.gcal_sync_enabled = True
-        db_session.commit()
-
-        # Use dev login endpoint to get authentication
-        response = client.post(f"/api/auth/dev/login?email={test_admin.email}&user_type=clinic_user")
-        assert response.status_code == 200
-        token = response.json()["access_token"]
-
-        # Test getting calendar embed info
-        response = client.get(
-            "/api/clinic/calendar/embed",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        assert response.status_code == 200
-        data = response.json()
-        print(f"Calendar embed response: {data}")  # Debug output
-        assert "embed_url" in data
-        assert "practitioners" in data
-        assert len(data["practitioners"]) == 1
-        assert data["practitioners"][0]["name"] == "Test Practitioner"

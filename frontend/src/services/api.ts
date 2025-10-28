@@ -186,11 +186,6 @@ class ApiService {
     return response.data;
   }
 
-  async getCalendarEmbed(): Promise<{ embed_url: string; practitioners: any[] }> {
-    const response = await this.client.get('/clinic/calendar/embed');
-    return response.data;
-  }
-
   // Practitioner Availability APIs (Updated for new schema)
   async getPractitionerDefaultSchedule(userId: number): Promise<DefaultScheduleResponse> {
     const response = await this.client.get(`/clinic/practitioners/${userId}/availability/default`);
