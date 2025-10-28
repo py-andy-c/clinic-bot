@@ -318,6 +318,4 @@ export interface ClinicSettings {
     sms_reminders: boolean;
     reminder_hours_before: number;
   };
-  clinic_hours_start?: string;
-  clinic_hours_end?: string;
 }

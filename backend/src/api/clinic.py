@@ -83,8 +83,6 @@ class SettingsResponse(BaseModel):
     business_hours: Dict[str, Dict[str, Any]]
     appointment_types: List[AppointmentTypeResponse]
     notification_settings: NotificationSettings
-    clinic_hours_start: Optional[str] = None
-    clinic_hours_end: Optional[str] = None
 
 
 class PractitionerAvailabilityRequest(BaseModel):
@@ -446,9 +444,7 @@ async def get_settings(
             clinic_name=clinic.name,
             business_hours=business_hours,
             appointment_types=appointment_type_list,
-            notification_settings=NotificationSettings(),
-            clinic_hours_start="09:00",
-            clinic_hours_end="18:00"
+            notification_settings=NotificationSettings()
         )
 
     except Exception:

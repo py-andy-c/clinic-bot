@@ -33,8 +33,6 @@ export const ClinicSettingsSchema = z.object({
   business_hours: BusinessHoursSchema,
   appointment_types: z.array(AppointmentTypeSchema),
   notification_settings: NotificationSettingsSchema,
-  clinic_hours_start: z.string().optional(),
-  clinic_hours_end: z.string().optional(),
 });
 
 // Clinic Dashboard Stats schema

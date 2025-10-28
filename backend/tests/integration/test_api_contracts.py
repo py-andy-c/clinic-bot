@@ -140,9 +140,7 @@ CLINIC_SETTINGS_SCHEMA = {
                 "sms_reminders": {"type": "boolean"},
                 "reminder_hours_before": {"type": "number"}
             }
-        },
-        "clinic_hours_start": {"type": "string"},
-        "clinic_hours_end": {"type": "string"}
+        }
     }
 }
 

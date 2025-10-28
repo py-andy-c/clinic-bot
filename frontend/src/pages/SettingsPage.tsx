@@ -224,44 +224,6 @@ const SettingsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Clinic Hours */}
-      <div className="card">
-        <h2 className="text-lg font-medium text-gray-900 mb-6">診所營業時間</h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              開始時間
-            </label>
-            <input
-              type="time"
-              value={settings.clinic_hours_start}
-              onChange={(e) => setSettings({
-                ...settings,
-                clinic_hours_start: e.target.value
-              })}
-              className="input"
-              disabled={!isClinicAdmin}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              結束時間
-            </label>
-            <input
-              type="time"
-              value={settings.clinic_hours_end}
-              onChange={(e) => setSettings({
-                ...settings,
-                clinic_hours_end: e.target.value
-              })}
-              className="input"
-              disabled={!isClinicAdmin}
-            />
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
