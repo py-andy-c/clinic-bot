@@ -324,8 +324,6 @@ export interface ClinicSettings {
   business_hours: Record<string, { start: string; end: string; enabled: boolean }>;
   appointment_types: AppointmentType[];
   notification_settings: {
-    email_reminders: boolean;
-    sms_reminders: boolean;
-    reminder_hours_before: number;
+    reminder_hours_before: string | number;
   };
 }

@@ -149,10 +149,8 @@ CLINIC_SETTINGS_SCHEMA = {
         },
         "notification_settings": {
             "type": "object",
-            "required": ["email_reminders", "sms_reminders", "reminder_hours_before"],
+            "required": ["reminder_hours_before"],
             "properties": {
-                "email_reminders": {"type": "boolean"},
-                "sms_reminders": {"type": "boolean"},
                 "reminder_hours_before": {"type": "number"}
             }
         }
@@ -225,8 +223,6 @@ class TestAPIContracts:
 
         # Validate notification_settings structure
         notification_settings = response_data["notification_settings"]
-        assert "email_reminders" in notification_settings
-        assert "sms_reminders" in notification_settings
         assert "reminder_hours_before" in notification_settings
         assert isinstance(notification_settings["reminder_hours_before"], (int, float))
 
@@ -312,8 +308,6 @@ class TestAPIContracts:
                 }
             ],
             "notification_settings": {
-                "email_reminders": True,
-                "sms_reminders": False,
                 "reminder_hours_before": 48
             }
         }

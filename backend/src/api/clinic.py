@@ -73,8 +73,6 @@ class AppointmentTypeResponse(BaseModel):
 
 class NotificationSettings(BaseModel):
     """Notification settings for clinic."""
-    email_reminders: bool = True
-    sms_reminders: bool = False
     reminder_hours_before: int = 24
 
 
@@ -441,7 +439,9 @@ async def get_settings(
             clinic_name=clinic.name,
             business_hours=business_hours,
             appointment_types=appointment_type_list,
-            notification_settings=NotificationSettings()
+           notification_settings=NotificationSettings(
+               reminder_hours_before=clinic.reminder_hours_before
+           )
         )
 
     except Exception:
@@ -482,8 +482,12 @@ async def update_settings(
                 )
                 db.add(appointment_type)
 
-        # TODO: Save notification settings and business hours to database
-        # For now, just commit the appointment types
+        # Update notification settings
+        notification_settings = settings.get("notification_settings", {})
+        if notification_settings:
+            clinic = db.query(Clinic).get(current_user.clinic_id)
+            if clinic:
+                clinic.reminder_hours_before = notification_settings.get("reminder_hours_before", clinic.reminder_hours_before)
 
         db.commit()
 

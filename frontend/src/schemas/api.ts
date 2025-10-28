@@ -9,9 +9,7 @@ export const ApiResponseSchema = z.object({
 
 // Clinic Settings schemas
 export const NotificationSettingsSchema = z.object({
-  email_reminders: z.boolean(),
-  sms_reminders: z.boolean(),
-  reminder_hours_before: z.number(),
+  reminder_hours_before: z.union([z.number(), z.string()]),
 });
 
 export const BusinessHoursSchema = z.record(z.string(), z.object({

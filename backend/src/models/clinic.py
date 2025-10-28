@@ -105,6 +105,10 @@ class Clinic(Base):
     health_check_errors: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     """JSON string containing recent health check errors."""
 
+    # Notification Settings
+    reminder_hours_before: Mapped[int] = mapped_column(Integer, default=24)
+    """Number of hours before appointment to send reminders."""
+
     # Relationships
     users = relationship("User", back_populates="clinic")
     """All clinic personnel (admins, practitioners)"""

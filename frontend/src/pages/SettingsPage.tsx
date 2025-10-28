@@ -10,8 +10,6 @@ const SettingsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [composing, setComposing] = useState(false);
-  const [tempValues, setTempValues] = useState<{[key: string]: string}>({});
 
   useEffect(() => {
     fetchSettings();
@@ -30,12 +28,58 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  const validateSettings = (): string | null => {
+    if (!settings) return '設定資料不存在';
+
+    // Validate appointment types
+    for (let i = 0; i < settings.appointment_types.length; i++) {
+      const type = settings.appointment_types[i];
+      if (!type) continue; // Skip if type doesn't exist
+
+      // Check name
+      if (!type.name || type.name.trim().length === 0) {
+        return `預約類型 ${i + 1} 的名稱不能為空`;
+      }
+
+      // Check duration
+      const duration = Number(type.duration_minutes);
+      if (isNaN(duration) || duration < 15 || duration > 480) {
+        return `預約類型 ${i + 1} 的時長必須在 15-480 分鐘之間`;
+      }
+    }
+
+    // Validate reminder hours
+    const reminderHoursValue = settings.notification_settings.reminder_hours_before;
+    const reminderHours = typeof reminderHoursValue === 'string' ? parseFloat(reminderHoursValue) : reminderHoursValue;
+    if (isNaN(reminderHours) || reminderHours < 1 || reminderHours > 168) {
+      return '預約前幾小時發送提醒必須在 1-168 小時之間';
+    }
+
+    return null; // Valid
+  };
+
   const handleSaveSettings = async () => {
     if (!settings) return;
 
+    // Validate before saving
+    const validationError = validateSettings();
+    if (validationError) {
+      alert(`驗證失敗: ${validationError}`);
+      return;
+    }
+
+    // Convert reminder hours to number for backend
+    const settingsToSave = {
+      ...settings,
+      notification_settings: {
+        ...settings.notification_settings,
+        reminder_hours_before: parseInt(String(settings.notification_settings.reminder_hours_before)) || 24
+      }
+    };
+
     try {
       setSaving(true);
-      await apiService.updateClinicSettings(settings);
+      await apiService.updateClinicSettings(settingsToSave);
       alert('設定已儲存');
     } catch (err) {
       console.error('Save settings error:', err);
@@ -76,83 +120,6 @@ const SettingsPage: React.FC = () => {
     });
   };
 
-  const handleChange = (index: number, field: keyof AppointmentType, value: string) => {
-    if (composing) {
-      // During composition, update temp values for display only
-      const key = `${index}-${field}`;
-      setTempValues(prev => ({ ...prev, [key]: value }));
-    } else {
-      // Normal typing - validate and update state
-      let processedValue: string | number = value;
-      if (field === 'duration_minutes') {
-        const numValue = parseInt(value);
-        processedValue = isNaN(numValue) ? 30 : numValue;
-      }
-
-      if (validateAppointmentTypeValue(field, processedValue)) {
-        updateAppointmentType(index, field, processedValue);
-      }
-      // If invalid, don't update state - input will revert to previous value
-    }
-  };
-
-  const handleCompositionStart = () => {
-    setComposing(true);
-  };
-
-  const validateAppointmentTypeValue = (field: keyof AppointmentType, value: string | number): boolean => {
-    if (field === 'name') {
-      // Name should be non-empty string
-      return typeof value === 'string' && value.trim().length > 0;
-    } else if (field === 'duration_minutes') {
-      // Duration should be number between 15 and 480
-      const num = typeof value === 'string' ? parseInt(value) : value;
-      return !isNaN(num) && num >= 15 && num <= 480;
-    }
-    return false;
-  };
-
-  const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>, index: number, field: keyof AppointmentType) => {
-    setComposing(false);
-    const finalValue = e.currentTarget.value;
-
-    // Validate the final composed value
-    let processedValue: string | number = finalValue;
-    if (field === 'duration_minutes') {
-      const numValue = parseInt(finalValue);
-      processedValue = isNaN(numValue) ? 30 : numValue; // Default to 30 if invalid
-    }
-
-    // Only update if valid
-    if (validateAppointmentTypeValue(field, processedValue)) {
-      // Clear temp value and update with final composed text
-      const key = `${index}-${field}`;
-      setTempValues(prev => {
-        const newTemp = { ...prev };
-        delete newTemp[key];
-        return newTemp;
-      });
-
-      updateAppointmentType(index, field, processedValue);
-    } else {
-      // Invalid value - reset to previous valid value
-      const key = `${index}-${field}`;
-      setTempValues(prev => {
-        const newTemp = { ...prev };
-        delete newTemp[key];
-        return newTemp;
-      });
-      // Don't update state - let it revert to previous value
-    }
-  };
-
-  const getDisplayValue = (index: number, field: keyof AppointmentType) => {
-    if (composing) {
-      const key = `${index}-${field}`;
-      return tempValues[key] !== undefined ? tempValues[key] : settings?.appointment_types[index]?.[field] || '';
-    }
-    return settings?.appointment_types[index]?.[field] || '';
-  };
 
   const removeAppointmentType = (index: number) => {
     if (!settings) return;
@@ -230,10 +197,8 @@ const SettingsPage: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={getDisplayValue(index, 'name')}
-                  onChange={(e) => handleChange(index, 'name', e.target.value)}
-                  onCompositionStart={handleCompositionStart}
-                  onCompositionEnd={(e) => handleCompositionEnd(e, index, 'name')}
+                  value={type.name}
+                  onChange={(e) => updateAppointmentType(index, 'name', e.target.value)}
                   className="input"
                   placeholder="例如：初診評估"
                   disabled={!isClinicAdmin}
@@ -246,10 +211,11 @@ const SettingsPage: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={getDisplayValue(index, 'duration_minutes')}
-                  onChange={(e) => handleChange(index, 'duration_minutes', e.target.value)}
-                  onCompositionStart={handleCompositionStart}
-                  onCompositionEnd={(e) => handleCompositionEnd(e, index, 'duration_minutes')}
+                  value={type.duration_minutes}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    updateAppointmentType(index, 'duration_minutes', value);
+                  }}
                   className="input"
                   min="15"
                   max="480"
@@ -291,17 +257,15 @@ const SettingsPage: React.FC = () => {
             type="number"
             value={settings.notification_settings.reminder_hours_before}
             onChange={(e) => {
-              const value = parseInt(e.target.value) || 24;
+              const value = e.target.value;
               setSettings({
                 ...settings,
                 notification_settings: {
                   ...settings.notification_settings,
-                  reminder_hours_before: value
+                  reminder_hours_before: value // Allow any input during editing
                 }
               });
             }}
-            onCompositionStart={handleCompositionStart}
-            onCompositionEnd={() => setComposing(false)}
             className="input"
             min="1"
             max="168"

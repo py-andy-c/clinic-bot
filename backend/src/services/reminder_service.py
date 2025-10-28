@@ -16,8 +16,8 @@ from sqlalchemy.orm import Session
 from models.appointment import Appointment
 from models.calendar_event import CalendarEvent
 from models.line_user import LineUser
+from models.clinic import Clinic
 from services.line_service import LINEService
-from core.constants import DEFAULT_REMINDER_HOURS_BEFORE
 
 logger = logging.getLogger(__name__)
 
@@ -86,35 +86,44 @@ class ReminderService:
         try:
             logger.info("Checking for appointments needing reminders...")
 
-            # Find appointments that need reminders (configured hours before, not yet reminded)
-            reminder_time = datetime.now(timezone.utc) + timedelta(hours=DEFAULT_REMINDER_HOURS_BEFORE)
-            reminder_window_start = reminder_time - timedelta(minutes=30)  # 30-minute window
-            reminder_window_end = reminder_time + timedelta(minutes=30)
+            # Get all clinics and their reminder configurations
+            clinics = self.db.query(Clinic).all()
 
-            # Get confirmed appointments in the reminder window
-            appointments_needing_reminders = self._get_appointments_needing_reminders(
-                reminder_window_start, reminder_window_end
-            )
+            total_appointments_found = 0
+            total_sent = 0
 
-            if not appointments_needing_reminders:
+            for clinic in clinics:
+                # Calculate reminder window for this clinic
+                reminder_time = datetime.now(timezone.utc) + timedelta(hours=clinic.reminder_hours_before)
+                reminder_window_start = reminder_time - timedelta(minutes=30)  # 30-minute window
+                reminder_window_end = reminder_time + timedelta(minutes=30)
+
+                # Get confirmed appointments for this clinic in the reminder window
+                appointments_needing_reminders = self._get_appointments_needing_reminders(
+                    clinic.id, reminder_window_start, reminder_window_end
+                )
+
+                if appointments_needing_reminders:
+                    logger.info(f"Found {len(appointments_needing_reminders)} appointments for clinic {clinic.id} needing reminders")
+
+                    # Send reminders for each appointment
+                    for appointment in appointments_needing_reminders:
+                        if await self._send_reminder_for_appointment(appointment):
+                            total_sent += 1
+
+                    total_appointments_found += len(appointments_needing_reminders)
+
+            if total_appointments_found == 0:
                 logger.info("No appointments found that need reminders")
-                return
-
-            logger.info(f"Found {len(appointments_needing_reminders)} appointments needing reminders")
-
-            # Send reminders for each appointment
-            sent_count = 0
-            for appointment in appointments_needing_reminders:
-                if await self._send_reminder_for_appointment(appointment):
-                    sent_count += 1
-
-            logger.info(f"Successfully sent {sent_count} appointment reminders")
+            else:
+                logger.info(f"Successfully sent {total_sent} appointment reminders")
 
         except Exception as e:
             logger.error(f"Error sending pending reminders: {e}", exc_info=True)
 
     def _get_appointments_needing_reminders(
         self,
+        clinic_id: int,
         window_start: datetime,
         window_end: datetime
     ) -> List[Appointment]:
@@ -122,14 +131,18 @@ class ReminderService:
         Get appointments that need reminders sent.
 
         Args:
+            clinic_id: ID of the clinic to check appointments for
             window_start: Start of the reminder time window
             window_end: End of the reminder time window
 
         Returns:
             List of appointments that need reminders
         """
-        return self.db.query(Appointment).join(CalendarEvent).filter(
+        return self.db.query(Appointment).join(CalendarEvent).join(
+            Appointment.patient
+        ).filter(
             Appointment.status == "confirmed",
+            Appointment.patient.has(clinic_id=clinic_id),
             CalendarEvent.start_time >= window_start,
             CalendarEvent.start_time <= window_end,
             # For now, we'll send reminders for all appointments
