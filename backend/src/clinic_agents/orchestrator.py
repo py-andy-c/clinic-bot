@@ -66,13 +66,20 @@ def check_clinic_readiness_for_appointments(db: Session, clinic: Clinic) -> Clin
     all_practitioners = [u for u in all_users_in_clinic if 'practitioner' in u.roles]
 
     # Get practitioners with availability configured
-    practitioners_with_availability = db.query(User).join(
+    # Note: roles.contains(['practitioner']) doesn't work reliably with SQLite JSON columns
+    # So we get all users with availability and filter by role in Python
+    users_with_availability = db.query(User).join(
         PractitionerAvailability,
         User.id == PractitionerAvailability.user_id
     ).filter(
-        User.clinic_id == clinic.id,
-        User.roles.contains(['practitioner'])
+        User.clinic_id == clinic.id
     ).distinct().all()
+
+    # Filter to only practitioners in Python
+    practitioners_with_availability = [
+        u for u in users_with_availability
+        if 'practitioner' in u.roles
+    ]
 
     practitioners_with_availability_ids = {p.id for p in practitioners_with_availability}
 
