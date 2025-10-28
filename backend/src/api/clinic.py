@@ -155,6 +155,7 @@ async def list_members(
         return {"members": member_list}
 
     except Exception:
+        logger.exception("Error getting members list")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得成員列表"
@@ -209,6 +210,7 @@ async def invite_member(
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Error inviting member")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -286,6 +288,7 @@ async def update_member_roles(
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Error updating member roles")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -343,6 +346,7 @@ async def remove_member(
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Error removing member")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -384,6 +388,7 @@ async def reactivate_member(
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Error reactivating member")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -447,6 +452,7 @@ async def get_settings(
         )
 
     except Exception:
+        logger.exception("Error getting clinic settings")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得設定"
@@ -491,6 +497,7 @@ async def update_settings(
         return {"message": "設定更新成功"}
 
     except Exception:
+        logger.exception("Error updating clinic settings")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -527,6 +534,7 @@ async def get_patients(
         return {"patients": patient_list}
 
     except Exception:
+        logger.exception("Error getting patients list")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得病患列表"
@@ -575,6 +583,7 @@ async def initiate_member_gcal_oauth(
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Error initiating Google Calendar OAuth")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法啟動 Google 日曆 OAuth"
@@ -618,6 +627,7 @@ async def handle_member_gcal_callback(
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Error completing Google Calendar OAuth")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法完成 Google 日曆 OAuth"
@@ -638,14 +648,14 @@ async def get_dashboard_stats(
         clinic_id = current_user.clinic_id
 
         # Total appointments
-        total_appointments = db.query(Appointment).filter(
-            Appointment.patient.has(clinic_id=clinic_id)
+        total_appointments = db.query(Appointment).join(Patient).filter(
+            Patient.clinic_id == clinic_id
         ).count()
 
         # Upcoming appointments (next 7 days)
         week_from_now = datetime.now(timezone.utc) + timedelta(days=7)
-        upcoming_appointments = db.query(Appointment).join(CalendarEvent).filter(
-            Appointment.patient.has(clinic_id=clinic_id),
+        upcoming_appointments = db.query(Appointment).join(CalendarEvent).join(Patient).filter(
+            Patient.clinic_id == clinic_id,
             CalendarEvent.start_time >= datetime.now(timezone.utc),
             CalendarEvent.start_time <= week_from_now,
             Appointment.status == "confirmed"
@@ -659,13 +669,13 @@ async def get_dashboard_stats(
         ).count()
 
         # Cancellation rate (last 30 days)
-        recent_appointments = db.query(Appointment).join(CalendarEvent).filter(
-            Appointment.patient.has(clinic_id=clinic_id),
+        recent_appointments = db.query(Appointment).join(CalendarEvent).join(Patient).filter(
+            Patient.clinic_id == clinic_id,
             CalendarEvent.created_at >= thirty_days_ago
         ).count()
 
-        cancelled_appointments = db.query(Appointment).join(CalendarEvent).filter(
-            Appointment.patient.has(clinic_id=clinic_id),
+        cancelled_appointments = db.query(Appointment).join(CalendarEvent).join(Patient).filter(
+            Patient.clinic_id == clinic_id,
             CalendarEvent.created_at >= thirty_days_ago,
             Appointment.status.in_(["canceled_by_patient", "canceled_by_clinic"])
         ).count()
@@ -692,6 +702,7 @@ async def get_dashboard_stats(
         }
 
     except Exception:
+        logger.exception("Error getting dashboard stats")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得儀表板統計資料"
