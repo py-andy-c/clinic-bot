@@ -66,6 +66,7 @@ class AppointmentTypeRequest(BaseModel):
 class AppointmentTypeResponse(BaseModel):
     """Response model for appointment type."""
     id: int
+    clinic_id: int
     name: str
     duration_minutes: int
 
@@ -417,6 +418,7 @@ async def get_settings(
         appointment_type_list = [
             AppointmentTypeResponse(
                 id=at.id,
+                clinic_id=at.clinic_id,
                 name=at.name,
                 duration_minutes=at.duration_minutes
             )
