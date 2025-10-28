@@ -21,6 +21,15 @@ import {
   ClinicSettings,
   SignupResponse
 } from '../schemas/api';
+import {
+  DefaultScheduleResponse,
+  MonthlyCalendarData,
+  DailyCalendarData,
+  AvailableSlotsResponse,
+  AvailabilityExceptionRequest,
+  AvailabilityExceptionResponse,
+  PractitionerAvailability
+} from '../types';
 
 class ApiService {
   private client: AxiosInstance;
@@ -182,18 +191,64 @@ class ApiService {
     return response.data;
   }
 
-  // Practitioner Availability APIs
-  async getPractitionerAvailability(userId: number): Promise<any[]> {
+  // Practitioner Availability APIs (Updated for new schema)
+  async getPractitionerDefaultSchedule(userId: number): Promise<DefaultScheduleResponse> {
+    const response = await this.client.get(`/clinic/practitioners/${userId}/availability/default`);
+    return response.data;
+  }
+
+  async updatePractitionerDefaultSchedule(userId: number, scheduleData: DefaultScheduleResponse): Promise<DefaultScheduleResponse> {
+    const response = await this.client.put(`/clinic/practitioners/${userId}/availability/default`, scheduleData);
+    return response.data;
+  }
+
+  // Practitioner Calendar APIs
+  async getMonthlyCalendar(userId: number, month: string, page: number = 1, limit: number = 31): Promise<MonthlyCalendarData> {
+    const params = { month, page, limit };
+    const response = await this.client.get(`/clinic/practitioners/${userId}/availability/calendar`, { params });
+    return response.data;
+  }
+
+  async getDailyCalendar(userId: number, date: string): Promise<DailyCalendarData> {
+    const params = { date };
+    const response = await this.client.get(`/clinic/practitioners/${userId}/availability/calendar`, { params });
+    return response.data;
+  }
+
+  async getAvailableSlots(userId: number, date: string, appointmentTypeId: number): Promise<AvailableSlotsResponse> {
+    const params = { date, appointment_type_id: appointmentTypeId };
+    const response = await this.client.get(`/clinic/practitioners/${userId}/availability/slots`, { params });
+    return response.data;
+  }
+
+  // Availability Exception APIs
+  async createAvailabilityException(userId: number, exceptionData: AvailabilityExceptionRequest): Promise<AvailabilityExceptionResponse> {
+    const response = await this.client.post(`/clinic/practitioners/${userId}/availability/exceptions`, exceptionData);
+    return response.data;
+  }
+
+  async updateAvailabilityException(userId: number, exceptionId: number, exceptionData: Partial<AvailabilityExceptionRequest>): Promise<AvailabilityExceptionResponse> {
+    const response = await this.client.put(`/clinic/practitioners/${userId}/availability/exceptions/${exceptionId}`, exceptionData);
+    return response.data;
+  }
+
+  async deleteAvailabilityException(userId: number, exceptionId: number): Promise<{ message: string }> {
+    const response = await this.client.delete(`/clinic/practitioners/${userId}/availability/exceptions/${exceptionId}`);
+    return response.data;
+  }
+
+  // Legacy availability APIs (deprecated, kept for backward compatibility)
+  async getPractitionerAvailability(userId: number): Promise<PractitionerAvailability[]> {
     const response = await this.client.get(`/clinic/practitioners/${userId}/availability`);
     return response.data.availability;
   }
 
-  async createPractitionerAvailability(userId: number, availabilityData: any): Promise<any> {
+  async createPractitionerAvailability(userId: number, availabilityData: { day_of_week: number; start_time: string; end_time: string }): Promise<PractitionerAvailability> {
     const response = await this.client.post(`/clinic/practitioners/${userId}/availability`, availabilityData);
     return response.data;
   }
 
-  async updatePractitionerAvailability(userId: number, availabilityId: number, availabilityData: any): Promise<any> {
+  async updatePractitionerAvailability(userId: number, availabilityId: number, availabilityData: { day_of_week: number; start_time: string; end_time: string }): Promise<PractitionerAvailability> {
     const response = await this.client.put(`/clinic/practitioners/${userId}/availability/${availabilityId}`, availabilityData);
     return response.data;
   }

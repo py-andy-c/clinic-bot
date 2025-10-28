@@ -181,6 +181,133 @@ export interface AppointmentType {
   duration_minutes: number;
 }
 
+// Calendar and Availability types
+export interface TimeInterval {
+  start_time: string;
+  end_time: string;
+}
+
+export interface DefaultScheduleRequest {
+  monday: TimeInterval[];
+  tuesday: TimeInterval[];
+  wednesday: TimeInterval[];
+  thursday: TimeInterval[];
+  friday: TimeInterval[];
+  saturday: TimeInterval[];
+  sunday: TimeInterval[];
+}
+
+export interface DefaultScheduleResponse {
+  monday: TimeInterval[];
+  tuesday: TimeInterval[];
+  wednesday: TimeInterval[];
+  thursday: TimeInterval[];
+  friday: TimeInterval[];
+  saturday: TimeInterval[];
+  sunday: TimeInterval[];
+}
+
+export interface CalendarEvent {
+  id: number;
+  user_id: number;
+  event_type: 'appointment' | 'availability_exception';
+  date: string;
+  start_time?: string;
+  end_time?: string;
+  gcal_event_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppointmentEvent extends CalendarEvent {
+  event_type: 'appointment';
+  calendar_event_id: number;
+  patient_id: number;
+  appointment_type_id: number;
+  status: 'confirmed' | 'canceled_by_patient' | 'canceled_by_clinic';
+  title: string;
+  patient?: Patient;
+  appointment_type?: AppointmentType;
+}
+
+export interface AvailabilityExceptionEvent extends CalendarEvent {
+  event_type: 'availability_exception';
+  calendar_event_id: number;
+  exception_id: number;
+  title: string;
+}
+
+export type CalendarEventItem = AppointmentEvent | AvailabilityExceptionEvent;
+
+export interface MonthlyCalendarData {
+  month: string;
+  total_days: number;
+  page: number;
+  limit: number;
+  days: {
+    date: string;
+    appointment_count: number;
+  }[];
+}
+
+export interface DailyCalendarData {
+  date: string;
+  default_schedule: TimeInterval[];
+  events: CalendarEventItem[];
+}
+
+export interface AvailableSlotsResponse {
+  available_slots: TimeInterval[];
+}
+
+export interface AvailabilityExceptionRequest {
+  date: string;
+  start_time: string;
+  end_time: string;
+}
+
+export interface AvailabilityExceptionResponse {
+  calendar_event_id: number;
+  exception_id: number;
+  date: string;
+  start_time: string;
+  end_time: string;
+  gcal_event_id?: string;
+  created_at: string;
+}
+
+// Error and warning response types
+export interface ErrorResponse {
+  error: string;
+  message: string;
+  details?: any;
+}
+
+export interface WarningResponse {
+  warning: string;
+  message: string;
+  details?: any;
+}
+
+// Updated availability types (without is_available field)
+export interface PractitionerAvailability {
+  id: number;
+  user_id: number;
+  day_of_week: number;
+  day_name: string;
+  day_name_zh: string;
+  start_time: string;
+  end_time: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AvailabilityFormData {
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+}
+
 export interface ClinicSettings {
   clinic_id: number;
   clinic_name: string;
