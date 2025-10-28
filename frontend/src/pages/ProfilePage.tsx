@@ -10,18 +10,15 @@ const ProfilePage: React.FC = () => {
   const {
     profile,
     formData,
-    originalData,
     uiState,
     warning,
     showWarningDialog,
     setShowWarningDialog,
     saveData,
-    resetData,
     confirmSaveWithWarning,
     hasUnsavedChanges,
     updateFormData,
     updateSchedule,
-    validateIntervals,
   } = useProfileForm();
 
   // Setup navigation warnings
@@ -99,11 +96,9 @@ const ProfilePage: React.FC = () => {
               {profile.roles?.includes('practitioner') && (
                 <AvailabilitySettings
                   schedule={formData.schedule}
-                  onScheduleChange={updateSchedule}
                   onAddInterval={handleAddInterval}
                   onUpdateInterval={handleUpdateInterval}
                   onRemoveInterval={handleRemoveInterval}
-                  validateIntervals={validateIntervals}
                 />
               )}
 

@@ -78,7 +78,7 @@ export const useProfileForm = () => {
       const profileData = await apiService.getProfile();
       setProfile(profileData);
       
-      const newFormData = {
+      const newFormData: ProfileFormData = {
         fullName: profileData.full_name,
         schedule: {
           monday: [],

@@ -1,5 +1,5 @@
 import React from 'react';
-import { DefaultScheduleResponse, TimeInterval, WarningResponse } from '../types';
+import { DefaultScheduleResponse, TimeInterval } from '../types';
 
 const DAYS_OF_WEEK = [
   { value: 0, label: '星期一', labelEn: 'Monday' },
@@ -13,20 +13,16 @@ const DAYS_OF_WEEK = [
 
 interface AvailabilitySettingsProps {
   schedule: DefaultScheduleResponse;
-  onScheduleChange: (dayKey: keyof DefaultScheduleResponse, updates: any) => void;
   onAddInterval: (dayKey: keyof DefaultScheduleResponse) => void;
   onUpdateInterval: (dayKey: keyof DefaultScheduleResponse, index: number, field: keyof TimeInterval, value: string) => void;
   onRemoveInterval: (dayKey: keyof DefaultScheduleResponse, index: number) => void;
-  validateIntervals: (intervals: TimeInterval[]) => string | null;
 }
 
 const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
   schedule,
-  onScheduleChange,
   onAddInterval,
   onUpdateInterval,
   onRemoveInterval,
-  validateIntervals,
 }) => {
   const getDayKey = (dayOfWeek: number): keyof DefaultScheduleResponse => {
     const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];

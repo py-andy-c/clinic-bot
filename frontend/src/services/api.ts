@@ -263,15 +263,6 @@ class ApiService {
     return response.data;
   }
 
-  async getCalendarSettings(): Promise<{ gcal_sync_enabled: boolean; gcal_watch_resource_id?: string }> {
-    const response = await this.client.get('/profile/calendar');
-    return response.data;
-  }
-
-  async updateCalendarSettings(calendarData: { gcal_sync_enabled?: boolean }): Promise<{ gcal_sync_enabled: boolean; gcal_watch_resource_id?: string }> {
-    const response = await this.client.put('/profile/calendar', calendarData);
-    return response.data;
-  }
 
   // Signup APIs (public)
   async validateSignupToken(token: string, type: 'clinic' | 'member'): Promise<SignupTokenInfo> {

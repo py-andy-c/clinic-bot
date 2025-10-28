@@ -34,7 +34,7 @@ const WarningDialog: React.FC<WarningDialogProps> = ({
               <div className="mt-2 text-sm text-gray-600">
                 <p className="font-medium">詳細資訊:</p>
                 <ul className="list-disc list-inside mt-1">
-                  {warning.details.map((detail, index) => (
+                  {warning.details.map((detail: string, index: number) => (
                     <li key={index}>{detail}</li>
                   ))}
                 </ul>
