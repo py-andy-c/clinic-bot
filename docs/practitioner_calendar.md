@@ -776,3 +776,326 @@ Managed by Clinic Bot - Changes will sync automatically""",
 3. Advanced scheduling algorithms
 
 This design provides a practitioner-centric, intuitive, and extensible approach to availability management that aligns with user expectations while supporting healthcare-specific needs.
+
+## Implementation Changes Required
+
+### **Database Schema Changes**
+
+#### **1. Create New Tables**
+```sql
+-- Create calendar_events base table
+CREATE TABLE calendar_events (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    event_type VARCHAR(50) NOT NULL CHECK (event_type IN ('appointment', 'availability_exception')),
+    date DATE NOT NULL,
+    start_time TIME,  -- null = all day event
+    end_time TIME,    -- null = all day event
+    gcal_event_id VARCHAR(255) UNIQUE,
+    gcal_watch_resource_id VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    CONSTRAINT check_valid_time_range CHECK (start_time IS NULL OR end_time IS NULL OR start_time < end_time)
+);
+
+-- Create indexes
+CREATE INDEX idx_calendar_events_user_date ON calendar_events(user_id, date);
+CREATE INDEX idx_calendar_events_type ON calendar_events(event_type);
+CREATE INDEX idx_calendar_events_gcal_sync ON calendar_events(gcal_event_id);
+CREATE INDEX idx_calendar_events_user_date_type ON calendar_events(user_id, date, event_type);
+
+-- Create availability_exceptions table
+CREATE TABLE availability_exceptions (
+    id SERIAL PRIMARY KEY,
+    calendar_event_id INTEGER NOT NULL REFERENCES calendar_events(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_availability_exceptions_calendar_event ON availability_exceptions(calendar_event_id);
+```
+
+#### **2. Modify Existing Tables**
+```sql
+-- Modify appointments table to use calendar_event_id as primary key
+-- Step 1: Add calendar_event_id column
+ALTER TABLE appointments ADD COLUMN calendar_event_id INTEGER REFERENCES calendar_events(id);
+
+-- Step 2: Migrate existing appointments to calendar_events
+-- (Migration script needed to create calendar_events records for existing appointments)
+
+-- Step 3: Drop old columns and constraints
+ALTER TABLE appointments DROP COLUMN id;
+ALTER TABLE appointments DROP COLUMN user_id;
+ALTER TABLE appointments DROP COLUMN start_time;
+ALTER TABLE appointments DROP COLUMN end_time;
+ALTER TABLE appointments DROP COLUMN gcal_event_id;
+ALTER TABLE appointments DROP COLUMN created_at;
+ALTER TABLE appointments DROP COLUMN updated_at;
+
+-- Step 4: Make calendar_event_id the primary key
+ALTER TABLE appointments ADD PRIMARY KEY (calendar_event_id);
+
+-- Step 5: Update indexes
+DROP INDEX idx_user_schedule;
+DROP INDEX idx_gcal_sync;
+CREATE INDEX idx_appointments_patient ON appointments(patient_id);
+```
+
+#### **3. Update practitioner_availability Table**
+```sql
+-- Remove is_available column (not needed in new design)
+ALTER TABLE practitioner_availability DROP COLUMN is_available;
+
+-- Update unique constraint to allow multiple intervals per day
+DROP CONSTRAINT uq_user_day_availability;
+-- No replacement constraint needed - multiple intervals per day are allowed
+
+-- Add composite index for better performance
+CREATE INDEX idx_practitioner_availability_user_day_time 
+ON practitioner_availability(user_id, day_of_week, start_time);
+```
+
+### **Model Changes**
+
+#### **1. Create New Models**
+```python
+# backend/src/models/calendar_event.py
+class CalendarEvent(Base):
+    __tablename__ = "calendar_events"
+    
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    event_type: Mapped[str] = mapped_column(String(50))
+    date: Mapped[date] = mapped_column(Date)
+    start_time: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    end_time: Mapped[Optional[time]] = mapped_column(Time, nullable=True)
+    gcal_event_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    gcal_watch_resource_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="calendar_events")
+    appointment = relationship("Appointment", back_populates="calendar_event", uselist=False)
+    availability_exception = relationship("AvailabilityException", back_populates="calendar_event", uselist=False)
+
+# backend/src/models/availability_exception.py
+class AvailabilityException(Base):
+    __tablename__ = "availability_exceptions"
+    
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    calendar_event_id: Mapped[int] = mapped_column(ForeignKey("calendar_events.id"), primary_key=True)
+    
+    # Relationships
+    calendar_event = relationship("CalendarEvent", back_populates="availability_exception")
+```
+
+#### **2. Update Existing Models**
+```python
+# Update Appointment model
+class Appointment(Base):
+    __tablename__ = "appointments"
+    
+    calendar_event_id: Mapped[int] = mapped_column(ForeignKey("calendar_events.id"), primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"))
+    appointment_type_id: Mapped[int] = mapped_column(ForeignKey("appointment_types.id"))
+    status: Mapped[str] = mapped_column(String(50))
+    
+    # Relationships
+    calendar_event = relationship("CalendarEvent", back_populates="appointment")
+    patient = relationship("Patient", back_populates="appointments")
+    appointment_type = relationship("AppointmentType", back_populates="appointments")
+
+# Update User model
+class User(Base):
+    # ... existing fields ...
+    
+    # Add new relationships
+    calendar_events = relationship("CalendarEvent", back_populates="user")
+    # Remove old appointments relationship, replace with:
+    # appointments = relationship("Appointment", back_populates="calendar_event", secondary="calendar_events")
+
+# Update PractitionerAvailability model
+class PractitionerAvailability(Base):
+    # ... existing fields ...
+    
+    # Remove is_available field
+    # Remove unique constraint on (user_id, day_of_week)
+```
+
+### **API Changes**
+
+#### **1. Update Existing Endpoints**
+```python
+# Update practitioner availability endpoints to support multiple intervals per day
+@router.get("/practitioners/{user_id}/availability/default")
+async def get_default_schedule(user_id: int, ...):
+    # Return grouped by day with multiple intervals
+    return {
+        "monday": [
+            {"start_time": "09:00", "end_time": "12:00"},
+            {"start_time": "14:00", "end_time": "18:00"}
+        ],
+        # ... other days
+    }
+
+@router.put("/practitioners/{user_id}/availability/default")
+async def update_default_schedule(user_id: int, schedule_data: dict, ...):
+    # Handle multiple intervals per day
+    # Remove old intervals and create new ones
+    # Check for conflicts with future appointments
+```
+
+#### **2. Add New Endpoints**
+```python
+# Calendar data endpoints
+@router.get("/practitioners/{user_id}/availability/calendar")
+async def get_calendar_data(user_id: int, month: str = None, date: str = None, ...):
+    # Return monthly or daily calendar data with events
+
+# Exception management endpoints
+@router.post("/practitioners/{user_id}/availability/exceptions")
+async def create_availability_exception(user_id: int, exception_data: dict, ...):
+    # Create availability exception with conflict checking
+
+@router.put("/practitioners/{user_id}/availability/exceptions/{exception_id}")
+async def update_availability_exception(user_id: int, exception_id: int, ...):
+    # Update availability exception
+
+@router.delete("/practitioners/{user_id}/availability/exceptions/{exception_id}")
+async def delete_availability_exception(user_id: int, exception_id: int, ...):
+    # Delete availability exception
+
+# AI agent availability query
+@router.get("/practitioners/{user_id}/availability/slots")
+async def get_available_slots(user_id: int, date: str, appointment_type_id: int, ...):
+    # Return available time slots for AI agent booking
+```
+
+### **Migration Strategy**
+
+#### **1. Data Migration Script**
+```python
+# Create migration script to move existing appointments to new schema
+async def migrate_appointments_to_calendar_events():
+    """
+    Migrate existing appointments to new calendar_events schema.
+    This is a one-time migration that:
+    1. Creates calendar_events records for all existing appointments
+    2. Updates appointments table to reference calendar_events
+    3. Preserves all existing data and relationships
+    """
+    
+    # Get all existing appointments
+    appointments = db.query(Appointment).all()
+    
+    for appointment in appointments:
+        # Create calendar_event record
+        calendar_event = CalendarEvent(
+            user_id=appointment.user_id,
+            event_type="appointment",
+            date=appointment.start_time.date(),
+            start_time=appointment.start_time.time(),
+            end_time=appointment.end_time.time(),
+            gcal_event_id=appointment.gcal_event_id,
+            created_at=appointment.created_at,
+            updated_at=appointment.updated_at
+        )
+        
+        db.add(calendar_event)
+        db.flush()  # Get the ID
+        
+        # Update appointment to reference calendar_event
+        appointment.calendar_event_id = calendar_event.id
+        
+    db.commit()
+```
+
+#### **2. Backward Compatibility**
+```python
+# Add temporary compatibility layer during migration
+class AppointmentCompat:
+    """Temporary compatibility layer for existing code."""
+    
+    @property
+    def start_time(self):
+        return self.calendar_event.start_time
+    
+    @property
+    def end_time(self):
+        return self.calendar_event.end_time
+    
+    @property
+    def user_id(self):
+        return self.calendar_event.user_id
+```
+
+### **Frontend Changes**
+
+#### **1. Update Calendar Components**
+- Modify calendar view to show multiple exceptions per day
+- Update daily view to display overlapping exceptions
+- Add visual indicators for "outside hours" appointments
+- Implement warning dialogs for conflict scenarios
+
+#### **2. Update Settings Form**
+- Support multiple intervals per day in weekly schedule
+- Remove "is_available" checkbox (not needed)
+- Add auto-save functionality
+- Add conflict warning for default availability changes
+
+#### **3. Update API Integration**
+- Update API calls to use new endpoint structure
+- Handle new response formats with calendar_event_id
+- Implement warning response handling
+- Add pagination support for calendar data
+
+### **Testing Requirements**
+
+#### **1. Unit Tests**
+- Test new calendar_events model
+- Test availability_exceptions model
+- Test updated appointment model
+- Test conflict detection logic
+- Test multiple intervals per day
+
+#### **2. Integration Tests**
+- Test calendar data API endpoints
+- Test exception management endpoints
+- Test AI agent availability queries
+- Test Google Calendar sync with new schema
+- Test migration script
+
+#### **3. End-to-End Tests**
+- Test complete user flows for availability management
+- Test conflict scenarios and warning displays
+- Test calendar navigation and interactions
+- Test appointment booking with new availability system
+
+### **Deployment Plan**
+
+#### **Phase 1: Database Migration**
+1. Create new tables (calendar_events, availability_exceptions)
+2. Run migration script to move existing appointments
+3. Update appointments table structure
+4. Update practitioner_availability table
+
+#### **Phase 2: Backend Updates**
+1. Update models and relationships
+2. Implement new API endpoints
+3. Update existing endpoints
+4. Add conflict detection logic
+
+#### **Phase 3: Frontend Updates**
+1. Update calendar components
+2. Update settings form
+3. Implement new user flows
+4. Add warning dialogs
+
+#### **Phase 4: Testing & Rollout**
+1. Comprehensive testing
+2. Staging environment validation
+3. Gradual rollout to production
+4. Monitor and fix any issues
+
+This implementation plan ensures a smooth transition to the new practitioner calendar design while maintaining data integrity and system functionality.
