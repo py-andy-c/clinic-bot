@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
 import LoginPage from './pages/LoginPage';
 import SystemAdminLayout from './components/SystemAdminLayout';
 import ClinicLayout from './components/ClinicLayout';
@@ -109,7 +110,9 @@ const AppRoutes: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <UnsavedChangesProvider>
+        <AppRoutes />
+      </UnsavedChangesProvider>
     </AuthProvider>
   );
 };

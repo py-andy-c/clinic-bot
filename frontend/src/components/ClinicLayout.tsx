@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
 
 interface ClinicLayoutProps {
   children: React.ReactNode;
@@ -9,7 +10,8 @@ interface ClinicLayoutProps {
 const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   const { user, logout, isClinicAdmin, isPractitioner, isReadOnlyUser } = useAuth();
   const location = useLocation();
-  // const navigate = useNavigate();
+  const navigate = useNavigate();
+  const { hasUnsavedChanges } = useUnsavedChanges();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -20,13 +22,23 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
     }
   };
 
+  const handleNavigation = (href: string) => {
+    if (hasUnsavedChanges && location.pathname === '/profile') {
+      const confirmed = window.confirm('您有未儲存的變更，確定要離開嗎？');
+      if (!confirmed) {
+        return;
+      }
+    }
+    navigate(href);
+  };
+
   const navigation = [
     { name: '儀表板', href: '/clinic/dashboard', icon: '📊', show: true },
     { name: '團隊成員', href: '/clinic/members', icon: '👥', show: true }, // All clinic members can view
     { name: '病患管理', href: '/clinic/patients', icon: '👥', show: true },
-    { name: '可用時間', href: '/clinic/availability', icon: '🕒', show: isPractitioner },
-    { name: '設定', href: '/clinic/settings', icon: '⚙️', show: true }, // All clinic members can view settings
-    { name: '個人資料', href: '/profile', icon: '👤', show: true }, // All users can access profile
+    { name: '行事曆', href: '/clinic/availability', icon: '📅', show: isPractitioner },
+    { name: '診所設定', href: '/clinic/settings', icon: '⚙️', show: true }, // All clinic members can view settings
+    { name: '個人設定', href: '/profile', icon: '👤', show: true }, // All users can access profile
   ].filter(item => item.show);
 
   const isActive = (href: string) => {
@@ -67,9 +79,9 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
               {/* Desktop Navigation */}
               <div className="hidden md:ml-6 md:flex md:space-x-8">
                 {navigation.map((item) => (
-                  <Link
+                  <button
                     key={item.name}
-                    to={item.href}
+                    onClick={() => handleNavigation(item.href)}
                     className={`${
                       isActive(item.href)
                         ? 'border-primary-500 text-gray-900'
@@ -78,7 +90,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
                   >
                     <span className="mr-2">{item.icon}</span>
                     {item.name}
-                  </Link>
+                  </button>
                 ))}
               </div>
             </div>
@@ -131,19 +143,21 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
           <div className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t border-gray-200">
               {navigation.map((item) => (
-                <Link
+                <button
                   key={item.name}
-                  to={item.href}
+                  onClick={() => {
+                    handleNavigation(item.href);
+                    setIsMobileMenuOpen(false);
+                  }}
                   className={`${
                     isActive(item.href)
                       ? 'bg-primary-50 border-primary-500 text-primary-700'
                       : 'border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700'
-                  } block pl-3 pr-4 py-2 border-l-4 text-base font-medium`}
-                  onClick={() => setIsMobileMenuOpen(false)}
+                  } block pl-3 pr-4 py-2 border-l-4 text-base font-medium w-full text-left`}
                 >
                   <span className="mr-2">{item.icon}</span>
                   {item.name}
-                </Link>
+                </button>
               ))}
             </div>
             <div className="pt-4 pb-3 border-t border-gray-200">

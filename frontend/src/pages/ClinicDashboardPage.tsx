@@ -138,8 +138,8 @@ const ClinicDashboardPage: React.FC = () => {
                   <div className="mt-2 text-sm text-yellow-700">
                     <p>您需要設定可用時間才能讓病患預約您的時段。</p>
                     <p className="mt-2">
-                      <Link to="/clinic/availability" className="underline hover:text-yellow-800 font-medium">
-                        前往設定可用時間
+                      <Link to="/profile" className="underline hover:text-yellow-800 font-medium">
+                        前往個人設定
                       </Link>
                     </p>
                   </div>
