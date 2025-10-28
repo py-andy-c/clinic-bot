@@ -10,6 +10,8 @@ const SettingsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [composing, setComposing] = useState(false);
+  const [tempValues, setTempValues] = useState<{[key: string]: string}>({});
 
   useEffect(() => {
     fetchSettings();
@@ -63,15 +65,93 @@ const SettingsPage: React.FC = () => {
     if (!settings) return;
 
     const updatedTypes = [...settings.appointment_types];
-    updatedTypes[index] = { 
-      ...updatedTypes[index], 
-      [field]: value 
+    updatedTypes[index] = {
+      ...updatedTypes[index],
+      [field]: value
     } as AppointmentType;
 
     setSettings({
       ...settings,
       appointment_types: updatedTypes,
     });
+  };
+
+  const handleChange = (index: number, field: keyof AppointmentType, value: string) => {
+    if (composing) {
+      // During composition, update temp values for display only
+      const key = `${index}-${field}`;
+      setTempValues(prev => ({ ...prev, [key]: value }));
+    } else {
+      // Normal typing - validate and update state
+      let processedValue: string | number = value;
+      if (field === 'duration_minutes') {
+        const numValue = parseInt(value);
+        processedValue = isNaN(numValue) ? 30 : numValue;
+      }
+
+      if (validateAppointmentTypeValue(field, processedValue)) {
+        updateAppointmentType(index, field, processedValue);
+      }
+      // If invalid, don't update state - input will revert to previous value
+    }
+  };
+
+  const handleCompositionStart = () => {
+    setComposing(true);
+  };
+
+  const validateAppointmentTypeValue = (field: keyof AppointmentType, value: string | number): boolean => {
+    if (field === 'name') {
+      // Name should be non-empty string
+      return typeof value === 'string' && value.trim().length > 0;
+    } else if (field === 'duration_minutes') {
+      // Duration should be number between 15 and 480
+      const num = typeof value === 'string' ? parseInt(value) : value;
+      return !isNaN(num) && num >= 15 && num <= 480;
+    }
+    return false;
+  };
+
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>, index: number, field: keyof AppointmentType) => {
+    setComposing(false);
+    const finalValue = e.currentTarget.value;
+
+    // Validate the final composed value
+    let processedValue: string | number = finalValue;
+    if (field === 'duration_minutes') {
+      const numValue = parseInt(finalValue);
+      processedValue = isNaN(numValue) ? 30 : numValue; // Default to 30 if invalid
+    }
+
+    // Only update if valid
+    if (validateAppointmentTypeValue(field, processedValue)) {
+      // Clear temp value and update with final composed text
+      const key = `${index}-${field}`;
+      setTempValues(prev => {
+        const newTemp = { ...prev };
+        delete newTemp[key];
+        return newTemp;
+      });
+
+      updateAppointmentType(index, field, processedValue);
+    } else {
+      // Invalid value - reset to previous valid value
+      const key = `${index}-${field}`;
+      setTempValues(prev => {
+        const newTemp = { ...prev };
+        delete newTemp[key];
+        return newTemp;
+      });
+      // Don't update state - let it revert to previous value
+    }
+  };
+
+  const getDisplayValue = (index: number, field: keyof AppointmentType) => {
+    if (composing) {
+      const key = `${index}-${field}`;
+      return tempValues[key] !== undefined ? tempValues[key] : settings?.appointment_types[index]?.[field] || '';
+    }
+    return settings?.appointment_types[index]?.[field] || '';
   };
 
   const removeAppointmentType = (index: number) => {
@@ -150,8 +230,10 @@ const SettingsPage: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={type.name}
-                  onChange={(e) => updateAppointmentType(index, 'name', e.target.value)}
+                  value={getDisplayValue(index, 'name')}
+                  onChange={(e) => handleChange(index, 'name', e.target.value)}
+                  onCompositionStart={handleCompositionStart}
+                  onCompositionEnd={(e) => handleCompositionEnd(e, index, 'name')}
                   className="input"
                   placeholder="例如：初診評估"
                   disabled={!isClinicAdmin}
@@ -164,8 +246,10 @@ const SettingsPage: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  value={type.duration_minutes}
-                  onChange={(e) => updateAppointmentType(index, 'duration_minutes', parseInt(e.target.value) || 0)}
+                  value={getDisplayValue(index, 'duration_minutes')}
+                  onChange={(e) => handleChange(index, 'duration_minutes', e.target.value)}
+                  onCompositionStart={handleCompositionStart}
+                  onCompositionEnd={(e) => handleCompositionEnd(e, index, 'duration_minutes')}
                   className="input"
                   min="15"
                   max="480"
@@ -206,13 +290,18 @@ const SettingsPage: React.FC = () => {
           <input
             type="number"
             value={settings.notification_settings.reminder_hours_before}
-            onChange={(e) => setSettings({
-              ...settings,
-              notification_settings: {
-                ...settings.notification_settings,
-                reminder_hours_before: parseInt(e.target.value) || 24
-              }
-            })}
+            onChange={(e) => {
+              const value = parseInt(e.target.value) || 24;
+              setSettings({
+                ...settings,
+                notification_settings: {
+                  ...settings.notification_settings,
+                  reminder_hours_before: value
+                }
+              });
+            }}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={() => setComposing(false)}
             className="input"
             min="1"
             max="168"
