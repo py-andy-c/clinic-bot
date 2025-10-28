@@ -7,7 +7,7 @@ Covers:
 """
 
 import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time
 from unittest.mock import patch, Mock
 from fastapi.testclient import TestClient
 
@@ -53,7 +53,8 @@ def clinic_with_practitioner_and_appt(db_session):
     db_session.commit()
 
     # Confirmed appointment with gcal_event_id that should be treated as deleted if not found
-    start = datetime.now(timezone.utc) + timedelta(days=1)
+    # Use a fixed time to avoid midnight spanning issues
+    start = datetime.combine((datetime.now(timezone.utc) + timedelta(days=1)).date(), time(10, 0))
     
     # Create CalendarEvent first
     calendar_event = CalendarEvent(

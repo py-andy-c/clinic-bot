@@ -110,7 +110,8 @@ class TestSettingsDestructiveUpdate:
         db_session.commit()
 
         # Create an appointment tied to the appointment type
-        start = datetime.now(timezone.utc) + timedelta(days=1)
+        # Use a fixed time to avoid midnight spanning issues
+        start = datetime.combine((datetime.now(timezone.utc) + timedelta(days=1)).date(), time(10, 0))
         end = start + timedelta(minutes=60)
 
         # Create CalendarEvent first

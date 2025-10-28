@@ -7,7 +7,7 @@ and triggering LINE notifications.
 """
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time
 from unittest.mock import patch, Mock
 
 import pytest
@@ -128,7 +128,8 @@ class TestGoogleCalendarWebhook:
         db_session.commit()
 
         # Create a confirmed appointment with a gcal_event_id that WILL be treated as deleted
-        start = datetime.now(timezone.utc) + timedelta(days=1)
+        # Use a fixed time to avoid midnight spanning issues
+        start = datetime.combine((datetime.now(timezone.utc) + timedelta(days=1)).date(), time(10, 0))
         end = start + timedelta(minutes=apt_type.duration_minutes)
 
         # Create CalendarEvent first
