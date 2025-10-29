@@ -42,6 +42,7 @@ def get_appointment_instructions(
     clinic_name = ctx.clinic.name
     therapists_list = ctx.therapists_list
     appointment_types_list = ctx.appointment_types_list
+    current_date_time = ctx.current_date_time_info
 
     # Extract patient data (may be None if not linked)
     patient_name = ctx.patient.full_name if ctx.patient else "未連結的用戶"
@@ -57,6 +58,9 @@ def get_appointment_instructions(
 - 用戶名稱：{patient_name}
 - 帳號狀態：{"已驗證" if ctx.is_linked else "未連結"}
 
+**時間資訊：**
+- {current_date_time}
+
 **任務說明：**
 使用繁體中文與用戶對話，協助處理所有預約相關的操作：
 
@@ -65,6 +69,7 @@ def get_appointment_instructions(
    - 使用 get_practitioner_availability 查詢可用時段
    - 使用 create_appointment 建立預約
    - 確認預約成功並提供詳細資訊
+   - **重要：當用戶說「今天」、「明天」、「下週」等相對時間時，請根據當前日期計算具體日期**
 
 2. **預約查詢**
    - 使用 get_existing_appointments 查詢用戶的預約
@@ -91,6 +96,14 @@ def get_appointment_instructions(
 - 遇到模糊資訊時主動詢問澄清
 - 提供確認和成功訊息
 - 遇到錯誤時提供有用的解決方案
+
+**日期時間處理：**
+- 始終使用當前日期作為參考點
+- 當用戶說「今天」時，使用當前日期
+- 當用戶說「明天」時，使用當前日期 + 1天
+- 當用戶說「下週」時，使用當前日期 + 7天
+- 所有預約時間都必須是未來時間，不能是過去時間
+- 使用 YYYY-MM-DD 格式傳遞日期給工具函數
 
 **重要限制：**
 - 只處理預約相關話題

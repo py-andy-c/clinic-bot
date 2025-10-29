@@ -7,6 +7,7 @@ context to agents and tools during LINE message processing.
 
 from dataclasses import dataclass
 from typing import Optional
+from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 
 from models import Clinic, Patient, User, AppointmentType
@@ -38,6 +39,9 @@ class ConversationContext:
     patient: Optional[Patient] = None
     line_user_id: str = ""  # LINE platform user identifier
     is_linked: bool = False  # Read-only linking status
+    
+    # Current date/time for appointment scheduling
+    current_datetime: Optional[datetime] = None  # Will be set to current time in Taiwan timezone
 
     @property
     def therapists_list(self) -> str:
@@ -85,6 +89,26 @@ class ConversationContext:
             AppointmentType.clinic_id == self.clinic.id
         ).all()
         return ", ".join([f"{t.name}({t.duration_minutes}min)" for t in types])
+
+    @property
+    def current_date_time_info(self) -> str:
+        """
+        Formatted current date and time information for prompt injection.
+        
+        Returns:
+            Formatted string with current date and time in Taiwan timezone
+        """
+        if self.current_datetime is None:
+            # Fallback to current time if not set
+            current_time = datetime.now(timezone.utc)
+        else:
+            current_time = self.current_datetime
+            
+        # Format for Taiwan timezone (UTC+8)
+        taiwan_tz = timezone(timedelta(hours=8))
+        taiwan_time = current_time.astimezone(taiwan_tz)
+        
+        return f"今天日期：{taiwan_time.strftime('%Y年%m月%d日')}，現在時間：{taiwan_time.strftime('%H:%M')}"
 
     def __post_init__(self) -> None:
         """Validate context after initialization."""

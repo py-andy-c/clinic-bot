@@ -9,6 +9,7 @@ It handles conversation state management, agent routing, and response formatting
 import logging
 from typing import Optional, Any, Dict, cast, List
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from agents import Runner, RunConfig, trace
@@ -156,7 +157,8 @@ async def handle_line_message(
             clinic=clinic,
             patient=patient,
             line_user_id=line_user_id,
-            is_linked=is_linked
+            is_linked=is_linked,
+            current_datetime=datetime.now(timezone.utc)
         )
 
         # 3. Get session for this LINE user (auto-manages conversation history)
@@ -319,7 +321,8 @@ async def _handle_appointment_flow(
                 clinic=context.clinic,
                 patient=patient,
                 line_user_id=context.line_user_id,
-                is_linked=True
+                is_linked=True,
+                current_datetime=datetime.now(timezone.utc)
             )
 
             # Then: Run appointment agent with same message and trace metadata
