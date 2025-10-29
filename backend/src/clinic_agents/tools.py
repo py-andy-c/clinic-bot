@@ -52,6 +52,8 @@ async def get_practitioner_availability_impl(
     Returns:
         Dict with available slots or error message
     """
+    logger.debug(f"🔍 [get_practitioner_availability] Checking availability: {practitioner_name} on {date} for '{appointment_type}'")
+    
     db = wrapper.context.db_session
     clinic = wrapper.context.clinic
 
@@ -84,7 +86,10 @@ async def get_practitioner_availability_impl(
         ).first()
 
         if not apt_type:
+            logger.debug(f"❌ [get_practitioner_availability] Appointment type '{appointment_type}' not found")
             return {"error": f"找不到預約類型：{appointment_type}"}
+        
+        logger.debug(f"✅ [get_practitioner_availability] Found appointment type: {apt_type.name} ({apt_type.duration_minutes}min)")
 
         # Get default schedule for this day of week
         day_of_week = requested_date.weekday()
@@ -160,9 +165,10 @@ async def get_practitioner_availability_impl(
                 current_time = datetime.strptime(f"{current_minutes // 60:02d}:{current_minutes % 60:02d}", "%H:%M").time()
 
         if not available_slots:
+            logger.debug(f"❌ [get_practitioner_availability] No slots available for {practitioner_name} on {requested_date}")
             return {"error": f"{practitioner_name}在{requested_date.strftime('%Y年%m月%d日')}沒有可用的時段"}
 
-        return {
+        result = {
             "therapist_id": practitioner.id,
             "therapist_name": practitioner.full_name,
             "date": date,
@@ -170,6 +176,9 @@ async def get_practitioner_availability_impl(
             "duration_minutes": duration_minutes,
             "available_slots": available_slots
         }
+        
+        logger.debug(f"✅ [get_practitioner_availability] Found {len(available_slots)} available slots")
+        return result
 
     except ValueError as e:
         logger.error(f"Date format error in get_practitioner_availability: {e}", exc_info=True)
@@ -375,13 +384,16 @@ async def create_appointment(
     Create a new appointment with Google Calendar sync.
     Delegates to create_appointment_impl for testability.
     """
-    return await create_appointment_impl(
+    logger.debug(f"📅 [create_appointment] Creating appointment: therapist {therapist_id}, type {appointment_type_id}, time {start_time}")
+    result = await create_appointment_impl(
         wrapper=wrapper,
         therapist_id=therapist_id,
         appointment_type_id=appointment_type_id,
         start_time=start_time,
         patient_id=patient_id,
     )
+    logger.debug(f"✅ [create_appointment] Appointment result: {result.get('success', False)}")
+    return result
 
 
 @function_tool
@@ -399,6 +411,7 @@ async def get_existing_appointments(
     Returns:
         List of appointment dictionaries
     """
+    logger.debug(f"📋 [get_existing_appointments] Getting appointments for patient {patient_id}")
     db = wrapper.context.db_session
 
     try:
@@ -409,7 +422,7 @@ async def get_existing_appointments(
             Appointment.status.in_(['confirmed', 'pending'])
         ).join(User).join(AppointmentType).order_by(CalendarEvent.date, CalendarEvent.start_time).all()
 
-        return [
+        result = [
             {
                 "id": apt.calendar_event_id,
                 "therapist_name": apt.calendar_event.user.full_name,
@@ -421,8 +434,12 @@ async def get_existing_appointments(
             }
             for apt in appointments
         ]
+        
+        logger.debug(f"✅ [get_existing_appointments] Found {len(result)} appointments")
+        return result
 
     except Exception as e:
+        logger.debug(f"❌ [get_existing_appointments] Error getting appointments: {e}")
         return [{"error": f"查詢預約時發生錯誤：{e}"}]
 
 
@@ -526,11 +543,14 @@ async def cancel_appointment(
     Returns:
         Dict with cancellation confirmation or error
     """
-    return await cancel_appointment_impl(
+    logger.debug(f"❌ [cancel_appointment] Canceling appointment {appointment_id}")
+    result = await cancel_appointment_impl(
         wrapper=wrapper,
         appointment_id=appointment_id,
         patient_id=patient_id
     )
+    logger.debug(f"✅ [cancel_appointment] Cancel result: {result.get('success', False)}")
+    return result
 
 
 async def reschedule_appointment_impl(
@@ -723,7 +743,8 @@ async def reschedule_appointment(
     Reschedule an existing appointment to a new time/therapist/type.
     Delegates to reschedule_appointment_impl to keep logic testable.
     """
-    return await reschedule_appointment_impl(
+    logger.debug(f"🔄 [reschedule_appointment] Rescheduling appointment {appointment_id} to {new_start_time}")
+    result = await reschedule_appointment_impl(
         wrapper=wrapper,
         appointment_id=appointment_id,
         patient_id=patient_id,
@@ -731,6 +752,8 @@ async def reschedule_appointment(
         new_therapist_id=new_therapist_id,
         new_appointment_type_id=new_appointment_type_id,
     )
+    logger.debug(f"✅ [reschedule_appointment] Reschedule result: {result.get('success', False)}")
+    return result
 
 
 @function_tool
@@ -750,6 +773,7 @@ async def get_last_appointment_therapist(
     Returns:
         Dict with therapist info or error if no previous appointments
     """
+    logger.debug(f"👤 [get_last_appointment_therapist] Getting last therapist for patient {patient_id}")
     db = wrapper.context.db_session
 
     try:
@@ -761,18 +785,22 @@ async def get_last_appointment_therapist(
         ).order_by(CalendarEvent.start_time.desc()).first()
 
         if not last_appointment:
+            logger.debug(f"❌ [get_last_appointment_therapist] No previous appointments found")
             return {"error": "找不到您之前的預約記錄"}
 
         practitioner = last_appointment.calendar_event.user
-        return {
+        result = {
             "therapist_id": practitioner.id,
             "therapist_name": practitioner.full_name,
             "last_appointment_date": last_appointment.calendar_event.start_time.strftime('%Y-%m-%d'),
             "last_appointment_type": last_appointment.appointment_type.name,
             "message": f"您上次預約的治療師是 {practitioner.full_name}（{last_appointment.calendar_event.start_time.strftime('%Y-%m-%d')}）"
         }
+        logger.debug(f"✅ [get_last_appointment_therapist] Found last therapist: {practitioner.full_name}")
+        return result
 
     except Exception as e:
+        logger.debug(f"❌ [get_last_appointment_therapist] Error getting last therapist: {e}")
         return {"error": f"查詢上次治療師時發生錯誤：{e}"}
 
 
@@ -865,6 +893,7 @@ async def register_patient_account(
     Returns:
         Success message or error description
     """
+    logger.debug(f"👤 [register_patient_account] Registering patient: {full_name} ({phone_number})")
     db = wrapper.context.db_session
     clinic = wrapper.context.clinic
     line_user_id = wrapper.context.line_user_id
@@ -873,6 +902,7 @@ async def register_patient_account(
         # Validate and sanitize phone number
         is_valid, sanitized_phone, phone_error = validate_taiwanese_phone_number(phone_number)
         if not is_valid:
+            logger.debug(f"❌ [register_patient_account] Phone validation failed: {phone_error}")
             return f"ERROR: {phone_error}"
 
         # Check if phone number already exists in this clinic
@@ -889,9 +919,11 @@ async def register_patient_account(
         if existing_line_user is not None and existing_line_user.patient_id is not None:
             current_patient = db.query(Patient).filter(Patient.id == existing_line_user.patient_id).first()
             if current_patient and existing_patient and existing_patient.id == current_patient.id:
+                logger.debug(f"✅ [register_patient_account] Account already linked to {current_patient.full_name}")
                 return f"SUCCESS: 您的帳號已經連結到 {current_patient.full_name}（{current_patient.phone_number}），無需重複連結。"
             else:
                 patient_name = current_patient.full_name if current_patient else '其他病患'
+                logger.debug(f"❌ [register_patient_account] LINE account already linked to different patient: {patient_name}")
                 return f"ERROR: 此 LINE 帳號已連結到 {patient_name}。如需更改請聯繫診所。"
 
         if existing_patient:
@@ -901,6 +933,7 @@ async def register_patient_account(
             ).first()
 
             if existing_link is not None and existing_link.line_user_id != line_user_id:
+                logger.debug(f"❌ [register_patient_account] Phone already linked to different LINE account")
                 return "ERROR: 此手機號碼已連結到其他 LINE 帳號。如有問題請聯繫診所。"
 
             # Link existing patient to this LINE account
@@ -914,11 +947,13 @@ async def register_patient_account(
                 db.add(line_user)
 
             db.commit()
+            logger.debug(f"✅ [register_patient_account] Linked existing patient: {existing_patient.full_name}")
             return f"SUCCESS: 帳號連結成功！歡迎 {existing_patient.full_name}（{existing_patient.phone_number}），您現在可以開始預約了。"
 
         else:
             # New patient - validate full name
             if not full_name or not full_name.strip():
+                logger.debug(f"❌ [register_patient_account] Full name validation failed")
                 return "ERROR: 建立新病患記錄需要提供全名。"
 
             # Create new patient
@@ -941,12 +976,15 @@ async def register_patient_account(
                 db.add(line_user)
 
             db.commit()
+            logger.debug(f"✅ [register_patient_account] Created new patient: {new_patient.full_name}")
             return f"SUCCESS: 歡迎 {new_patient.full_name}！您的病患記錄已建立，手機號碼 {new_patient.phone_number} 已連結到 LINE 帳號。您現在可以開始預約了。"
 
     except IntegrityError as e:
         db.rollback()
+        logger.debug(f"❌ [register_patient_account] Database integrity error: {e}")
         return "ERROR: 資料庫錯誤，可能是手機號碼或姓名重複。請聯繫診所協助。"
 
     except Exception as e:
         db.rollback()
+        logger.debug(f"❌ [register_patient_account] Registration error: {e}")
         return f"ERROR: 註冊帳號時發生錯誤：{e}"

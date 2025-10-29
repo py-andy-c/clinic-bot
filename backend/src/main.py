@@ -12,6 +12,7 @@ Features:
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI, Request
@@ -23,17 +24,34 @@ from core.constants import CORS_ORIGINS
 from services.reminder_service import start_reminder_scheduler, stop_reminder_scheduler
 from core.database import get_db
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(),  # Console output
-        # Could add file handler here for production
-    ]
-)
+# Configure logging with agent debug support
+agent_debug = os.getenv("AGENT_DEBUG", "false").lower() == "true"
+
+if agent_debug:
+    # Agent debug mode: Set root logger to WARNING, then enable our specific loggers
+    logging.basicConfig(
+        level=logging.WARNING,  # Start with WARNING for everything
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler()],
+    )
+    
+    # Enable DEBUG level only for our agent-related loggers
+    logging.getLogger("clinic_agents").setLevel(logging.DEBUG)
+else:
+    # Normal mode: Standard INFO level logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler()],
+    )
 
 logger = logging.getLogger(__name__)
+
+# Log the current debug mode
+if agent_debug:
+    logger.info("🐛 Agent debug mode enabled - showing only agent-related logs")
+else:
+    logger.info("📊 Normal logging mode")
 
 
 @asynccontextmanager

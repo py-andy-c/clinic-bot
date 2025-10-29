@@ -53,16 +53,12 @@ async def line_webhook(request: Request, db: Session = Depends(get_db)) -> Plain
         HTTPException: If processing fails or signature is invalid
     """
     try:
-        logger.info("🔥 LINE WEBHOOK TRIGGERED!")
-        logger.info("LINE webhook received")
         # 1. Get request body and signature
         body = await request.body()
         signature = request.headers.get('X-Line-Signature', '')
-        logger.info(f"Request body length: {len(body)}, signature present: {bool(signature)}")
 
         # 2. Get clinic from request (by header or URL path)
         clinic = get_clinic_from_request(request, db)
-        logger.info(f"Found clinic: {clinic.name if clinic else 'None'}")
 
         # 3. Initialize LINE service for this clinic
         line_service = LINEService(
@@ -112,7 +108,6 @@ async def line_webhook(request: Request, db: Session = Depends(get_db)) -> Plain
             return PlainTextResponse("OK")
 
         line_user_id, message_text = message_data
-        logger.info(f"Processing text message from {line_user_id}: {message_text}")
 
         # 6. Delegate to orchestrator (business logic)
         response_text = await handle_line_message(
@@ -124,12 +119,7 @@ async def line_webhook(request: Request, db: Session = Depends(get_db)) -> Plain
 
         # 7. Send response via LINE API (only if not None)
         if response_text is not None:
-            logger.info(f"📤 SENDING RESPONSE: {response_text[:50]}...")
-            logger.info(f"Sending response to {line_user_id}: {response_text}")
             line_service.send_text_message(line_user_id, response_text)
-            logger.info(f"✅ LINE MESSAGE SENT SUCCESSFULLY to {line_user_id}")
-        else:
-            logger.info(f"No response needed for {line_user_id}")
 
         return PlainTextResponse("OK")
 

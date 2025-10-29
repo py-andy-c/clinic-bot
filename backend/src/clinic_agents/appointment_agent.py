@@ -7,7 +7,10 @@ canceling, and viewing appointments. It uses dynamic instructions to inject
 clinic-specific context for each conversation.
 """
 
+import logging
 from agents import Agent, ModelSettings, RunContextWrapper
+
+logger = logging.getLogger(__name__)
 from clinic_agents.context import ConversationContext
 from clinic_agents.tools import (
     get_practitioner_availability,
@@ -46,6 +49,12 @@ def get_appointment_instructions(
 
     # Extract patient data (may be None if not linked)
     patient_name = ctx.patient.full_name if ctx.patient else "未連結的用戶"
+    
+    # Debug logging for context information
+    logger.debug(f"🏥 Clinic: {clinic_name} | 👤 Patient: {patient_name} | 🔗 Linked: {ctx.is_linked}")
+    logger.debug(f"⏰ Current time: {current_date_time}")
+    logger.debug(f"👨‍⚕️ Therapists: {therapists_list}")
+    logger.debug(f"📋 Appointment types: {appointment_types_list}")
 
     return f"""
 你是一個友好的預約助手，專門為 {clinic_name} 處理預約相關的對話。

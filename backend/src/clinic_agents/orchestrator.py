@@ -161,10 +161,14 @@ async def handle_line_message(
             current_datetime=datetime.now(timezone.utc)
         )
 
-        # 3. Get session for this LINE user (auto-manages conversation history)
+        # 3. Log input message
+        logger.info(f"📝 Input message: {message_text}")
+
+        # 4. Get session for this LINE user (auto-manages conversation history)
         session = get_session_storage(line_user_id)
 
-        # 4. Run triage agent with session and trace metadata
+        # 5. Run triage agent with session and trace metadata
+        logger.debug(f"🤖 Running triage agent")
         triage_result = await Runner.run(
             triage_agent,
             input=message_text,
@@ -178,17 +182,17 @@ async def handle_line_message(
             })
         )
 
-        # 5. Route based on classification (WORKFLOW ORCHESTRATION)
+        # 6. Route based on classification (WORKFLOW ORCHESTRATION)
         intent = triage_result.final_output.intent
         logger.info(f"Triage result: {intent} (confidence: {triage_result.final_output.confidence})")
         logger.info(f"Reasoning: {triage_result.final_output.reasoning}")
-
         if intent == "appointment_related":
             # Handle appointment-related queries
             response_text = await _handle_appointment_flow(
                 db, context, session, is_linked, message_text, clinic, line_user_id
             )
             if response_text is None:
+                logger.debug("❌ Clinic not ready")
                 return None  # Clinic not ready, no response
         elif intent == "account_linking":
             # Handle account linking queries (e.g., providing phone number)
@@ -197,10 +201,11 @@ async def handle_line_message(
             )
         else:
             # Non-appointment/non-account-linking query - DO NOT respond
+            logger.debug(f"🚫 Non-appointment query - not responding")
             response_text = None
 
-        # 6. Log conversation completion
-        logger.info(f"Conversation {line_user_id} completed successfully")
+        # 7. Log agent response
+        logger.info(f"📤 Agent response: {response_text}")
 
         return response_text
 
