@@ -8,6 +8,7 @@ synchronized between the database and therapists' Google Calendars.
 """
 
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
@@ -15,6 +16,10 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
+from core.config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+
+logger = logging.getLogger(__name__)
 
 
 class GoogleCalendarError(Exception):
@@ -53,6 +58,13 @@ class GoogleCalendarService:
         try:
             # Parse credentials from JSON string
             creds_data = json.loads(credentials_json)
+            
+            # Add OAuth2 client configuration to the credentials
+            creds_data.update({
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET
+            })
+            
             self.credentials = Credentials.from_authorized_user_info(creds_data)
 
             # Refresh token if expired
@@ -96,24 +108,49 @@ class GoogleCalendarService:
         Raises:
             GoogleCalendarError: If event creation fails
         """
+        event_body = {}  # Initialize to avoid unbound variable error
         try:
-            # Ensure datetimes are timezone-aware
+            # Ensure datetimes are timezone-aware and convert to UTC
             if start.tzinfo is None:
                 start = start.replace(tzinfo=timezone.utc)
+            else:
+                # Convert to UTC if timezone-aware
+                start = start.astimezone(timezone.utc)
+            
             if end.tzinfo is None:
                 end = end.replace(tzinfo=timezone.utc)
+            else:
+                # Convert to UTC if timezone-aware
+                end = end.astimezone(timezone.utc)
 
+            # Format datetime as ISO 8601 string (Google Calendar API requirement)
+            # The timezone must be consistent - we use UTC for all times
+            # Format as RFC3339 with Z suffix for UTC
+            def format_utc_datetime(dt: datetime) -> str:
+                """Format UTC datetime as RFC3339 string with Z suffix."""
+                if dt.tzinfo != timezone.utc:
+                    dt = dt.astimezone(timezone.utc)
+                iso_str = dt.isoformat()
+                # Replace +00:00 or -00:00 with Z
+                if iso_str.endswith('+00:00') or iso_str.endswith('-00:00'):
+                    return iso_str[:-6] + 'Z'
+                elif iso_str.endswith('Z'):
+                    return iso_str
+                else:
+                    # Shouldn't happen if we properly converted to UTC
+                    return iso_str + 'Z'
+            
             event_body = {
-                'summary': summary,
-                'description': description,
-                'location': location,
+                'summary': summary or '',  # Ensure summary is not None
+                'description': description or '',  # Ensure description is not None
+                'location': location or '',  # Ensure location is not None
                 'colorId': color_id,
                 'start': {
-                    'dateTime': start.isoformat(),
+                    'dateTime': format_utc_datetime(start),
                     'timeZone': 'UTC',
                 },
                 'end': {
-                    'dateTime': end.isoformat(),
+                    'dateTime': format_utc_datetime(end),
                     'timeZone': 'UTC',
                 },
             }
@@ -122,18 +159,29 @@ class GoogleCalendarService:
             if extended_properties:
                 event_body['extendedProperties'] = extended_properties
 
+            # Log the event body being sent (for debugging)
+            logger.debug(f"Creating Google Calendar event with calendar_id={self.calendar_id}, body={json.dumps(event_body, indent=2)}")
+
             # Create the event
             event = self.service.events().insert(
                 calendarId=self.calendar_id,
                 body=event_body
             ).execute()
+            
+            logger.info(f"Google Calendar event created successfully: {event.get('id')}")
 
             return event
 
         except HttpError as e:
             error_details = json.loads(e.content.decode('utf-8')) if e.content else {}
-            raise GoogleCalendarError(f"Failed to create calendar event: {error_details.get('error', {}).get('message', str(e))}")
+            error_message = error_details.get('error', {}).get('message', str(e))
+            error_reason = error_details.get('error', {}).get('reason', 'unknown')
+            logger.error(f"Google Calendar API error: {error_message} (reason: {error_reason}, status: {e.resp.status})")
+            logger.error(f"Error details: {json.dumps(error_details, indent=2)}")
+            logger.error(f"Event body that was sent: {json.dumps(event_body, indent=2)}")
+            raise GoogleCalendarError(f"Failed to create calendar event: {error_message}")
         except Exception as e:
+            logger.error(f"Unexpected error creating calendar event: {e}", exc_info=True)
             raise GoogleCalendarError(f"Unexpected error creating calendar event: {e}")
 
     async def update_event(

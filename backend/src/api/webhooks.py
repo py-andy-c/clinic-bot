@@ -227,10 +227,14 @@ async def _handle_calendar_changes(db: Session, resource_id: str) -> None:
     """
     try:
         # Find the user associated with this resource ID
+        # Note: Filter roles in Python because SQLite JSON operations don't work reliably
         user = db.query(User).filter(
-            User.gcal_watch_resource_id == resource_id,
-            User.roles.contains(['practitioner'])
+            User.gcal_watch_resource_id == resource_id
         ).first()
+        
+        # Verify practitioner role
+        if user and 'practitioner' not in user.roles:
+            user = None
         if not user:
             logger.warning(f"No practitioner found for resource ID: {resource_id}")
             return

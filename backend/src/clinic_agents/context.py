@@ -43,16 +43,35 @@ class ConversationContext:
     def therapists_list(self) -> str:
         """
         Formatted list of available practitioners for prompt injection.
+        
+        Only includes practitioners who have configured their default availability.
 
         Returns:
             Comma-separated list of practitioner names (e.g., "王大明, 李小華, 陳醫師")
         """
-        practitioners = self.db_session.query(User).filter(
+        from models.practitioner_availability import PractitionerAvailability
+        
+        # Get all users in the clinic first, then filter in Python
+        # This is necessary because SQLite JSON operations don't work reliably with contains()
+        all_users_in_clinic = self.db_session.query(User).filter(
             User.clinic_id == self.clinic.id,
-            User.roles.contains(['practitioner']),
             User.is_active == True
         ).all()
-        return ", ".join([p.full_name for p in practitioners])
+        
+        # Filter to only practitioners
+        practitioners = [u for u in all_users_in_clinic if 'practitioner' in u.roles]
+        
+        # Get practitioners who have configured default availability
+        practitioners_with_availability: list[User] = []
+        for practitioner in practitioners:
+            has_availability = self.db_session.query(PractitionerAvailability).filter(
+                PractitionerAvailability.user_id == practitioner.id
+            ).first() is not None
+            
+            if has_availability:
+                practitioners_with_availability.append(practitioner)
+        
+        return ", ".join([p.full_name for p in practitioners_with_availability])
 
     @property
     def appointment_types_list(self) -> str:

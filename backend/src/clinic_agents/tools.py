@@ -11,9 +11,12 @@ All tools follow the OpenAI Agent SDK pattern using RunContextWrapper[Conversati
 """
 
 import json
+import logging
 from datetime import datetime, timedelta, timezone, time
 from typing import Dict, List, Optional, Any
 from sqlalchemy.exc import IntegrityError
+
+logger = logging.getLogger(__name__)
 
 from agents import function_tool, RunContextWrapper
 
@@ -24,7 +27,7 @@ from models.appointment_type import AppointmentType
 from models.line_user import LineUser
 from models.calendar_event import CalendarEvent
 from models.practitioner_availability import PractitionerAvailability
-from services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
+from services.google_calendar_service import GoogleCalendarService
 from clinic_agents.context import ConversationContext
 
 
@@ -57,12 +60,19 @@ async def get_practitioner_availability_impl(
         requested_date = datetime.strptime(date, "%Y-%m-%d").date()
 
         # Find practitioner (user with practitioner role)
-        practitioner = db.query(User).filter(
+        # Note: Filter in Python because SQLite JSON operations don't work reliably with contains()
+        all_users_in_clinic = db.query(User).filter(
             User.clinic_id == clinic.id,
-            User.roles.contains(['practitioner']),
-            User.full_name.ilike(f"%{practitioner_name}%"),  # Fuzzy name matching
             User.is_active == True
-        ).first()
+        ).all()
+        
+        # Filter to only practitioners and match by name (case-insensitive, fuzzy matching)
+        practitioner = None
+        practitioner_name_lower = practitioner_name.lower()
+        for user in all_users_in_clinic:
+            if 'practitioner' in user.roles and practitioner_name_lower in user.full_name.lower():
+                practitioner = user
+                break
 
         if not practitioner:
             return {"error": f"找不到醫師：{practitioner_name}"}
@@ -105,18 +115,6 @@ async def get_practitioner_availability_impl(
         duration_minutes = apt_type.duration_minutes
 
         for interval in default_intervals:
-            # Check if this interval is blocked by an exception
-            blocked = False
-            for exception in exceptions:
-                if (exception.start_time and exception.end_time and
-                    _check_time_overlap(interval.start_time, interval.end_time, 
-                                      exception.start_time, exception.end_time)):
-                    blocked = True
-                    break
-
-            if blocked:
-                continue
-
             # Generate slots within this interval
             current_time = interval.start_time
             while True:
@@ -129,6 +127,21 @@ async def get_practitioner_availability_impl(
                 # Check if slot fits within the interval
                 if slot_end_time > interval.end_time:
                     break
+
+                # Check if slot conflicts with availability exceptions
+                slot_blocked_by_exception = False
+                for exception in exceptions:
+                    if (exception.start_time and exception.end_time and
+                        _check_time_overlap(current_time, slot_end_time,
+                                          exception.start_time, exception.end_time)):
+                        slot_blocked_by_exception = True
+                        break
+
+                if slot_blocked_by_exception:
+                    # Move to next slot and continue
+                    current_minutes = current_time.hour * 60 + current_time.minute + 15
+                    current_time = datetime.strptime(f"{current_minutes // 60:02d}:{current_minutes % 60:02d}", "%H:%M").time()
+                    continue
 
                 # Check if slot conflicts with existing appointments
                 slot_conflicts = False
@@ -159,8 +172,10 @@ async def get_practitioner_availability_impl(
         }
 
     except ValueError as e:
+        logger.error(f"Date format error in get_practitioner_availability: {e}", exc_info=True)
         return {"error": f"日期格式錯誤：{str(e)}"}
     except Exception as e:
+        logger.error(f"Unexpected error in get_practitioner_availability: {e}", exc_info=True)
         return {"error": f"查詢可用時段時發生錯誤：{str(e)}"}
 
 
@@ -209,11 +224,15 @@ async def create_appointment_impl(
 
     try:
         # Load related entities
+        # Note: Filter roles in Python because SQLite JSON operations don't work reliably
         practitioner = db.query(User).filter(
             User.id == therapist_id,
-            User.roles.contains(['practitioner']),
             User.is_active == True
         ).first()
+        
+        # Verify practitioner role
+        if practitioner and 'practitioner' not in practitioner.roles:
+            practitioner = None
         patient = db.get(Patient, patient_id)
         apt_type = db.get(AppointmentType, appointment_type_id)
 
@@ -238,40 +257,14 @@ async def create_appointment_impl(
         if conflict is not None:
             return {"error": "預約時間衝突，請選擇其他時段"}
 
-        # Create Google Calendar event FIRST
-        if not practitioner.gcal_credentials:
-            return {"error": "Practitioner has no Google Calendar credentials"}
-        from services.encryption_service import get_encryption_service
-        gcal_credentials = get_encryption_service().decrypt_data(practitioner.gcal_credentials)
-        gcal_service = GoogleCalendarService(json.dumps(gcal_credentials))
-        gcal_event = await gcal_service.create_event(
-            summary=f"{patient.full_name} - {apt_type.name}",
-            start=start_time,
-            end=end_time,
-            description=(
-                f"Patient: {patient.full_name}\n"
-                f"Phone: {patient.phone_number}\n"
-                f"Type: {apt_type.name}\n"
-                f"Scheduled Via: LINE Bot"
-            ),
-            color_id="7",  # Blue color for appointments
-            extended_properties={
-                "private": {
-                    "source": "line_bot",
-                    "patient_id": str(patient_id),
-                    "appointment_db_id": None  # Will update after DB insert
-                }
-            }
-        )
-
-        # Create calendar event first
+        # Create database records FIRST (appointment should always be created)
         calendar_event = CalendarEvent(
             user_id=therapist_id,
             event_type='appointment',
             date=start_time.date(),
             start_time=start_time.time(),
             end_time=end_time.time(),
-            gcal_event_id=gcal_event['id']
+            gcal_event_id=None  # Will be set if Google Calendar sync succeeds
         )
         db.add(calendar_event)
         db.flush()  # Get the calendar_event ID
@@ -283,43 +276,90 @@ async def create_appointment_impl(
             appointment_type_id=appointment_type_id,
             status='confirmed'
         )
-
         db.add(appointment)
         db.commit()  # Commit to get appointment ID
+        
+        logger.info(f"Appointment created in database: {appointment.calendar_event_id}")
 
-        # Update Google Calendar event with database ID
-        await gcal_service.update_event(
-            event_id=gcal_event['id'],
-            extended_properties={
-                "private": {
-                    "source": "line_bot",
-                    "patient_id": str(patient_id),
-                    "appointment_db_id": str(appointment.calendar_event_id)
+        # Attempt Google Calendar sync (optional - won't block appointment creation)
+        gcal_event_id = None
+        if practitioner.gcal_credentials:
+            from services.encryption_service import get_encryption_service
+            try:
+                gcal_credentials = get_encryption_service().decrypt_data(practitioner.gcal_credentials)
+                logger.info(f"Decrypting Google Calendar credentials for practitioner {practitioner.full_name} (ID: {practitioner.id})")
+                
+                gcal_service = GoogleCalendarService(json.dumps(gcal_credentials))
+                logger.info(f"Creating Google Calendar event for appointment: {patient.full_name} with {practitioner.full_name} at {start_time}")
+                
+                # Prepare extended properties (avoid None values - Google Calendar API doesn't accept them)
+                extended_properties = {
+                    "private": {
+                        "source": "line_bot",
+                        "patient_id": str(patient_id),
+                        "appointment_db_id": str(appointment.calendar_event_id)
+                    }
                 }
-            }
-        )
+                
+                gcal_event = await gcal_service.create_event(
+                    summary=f"{patient.full_name} - {apt_type.name}",
+                    start=start_time,
+                    end=end_time,
+                    description=(
+                        f"Patient: {patient.full_name}\n"
+                        f"Phone: {patient.phone_number}\n"
+                        f"Type: {apt_type.name}\n"
+                        f"Scheduled Via: LINE Bot"
+                    ),
+                    color_id="7",  # Blue color for appointments
+                    extended_properties=extended_properties
+                )
+                gcal_event_id = gcal_event.get('id')
+                logger.info(f"Google Calendar event created successfully: {gcal_event_id}")
+                
+                # Update calendar_event with Google Calendar event ID
+                calendar_event.gcal_event_id = gcal_event_id
+                db.commit()
+                
+            except Exception as e:
+                # Log error but don't fail appointment creation
+                logger.warning(f"Google Calendar sync failed for appointment {appointment.calendar_event_id}, but appointment was created: {e}", exc_info=True)
+                # Appointment remains valid without Google Calendar sync
+        else:
+            logger.info(f"Practitioner {practitioner.full_name} (ID: {practitioner.id}) has no Google Calendar credentials - creating appointment without calendar sync")
 
-        return {
+        # Build response message
+        message = f"預約成功！{start_time.strftime('%Y-%m-%d %H:%M')} 與 {practitioner.full_name} 預約 {apt_type.name}"
+        if gcal_event_id is None:
+            message += "（注意：此預約未同步至 Google 日曆）"
+        
+        result = {
             "success": True,
             "appointment_id": appointment.calendar_event_id,
             "therapist_name": practitioner.full_name,
             "appointment_type": apt_type.name,
             "start_time": start_time.isoformat(),
             "end_time": end_time.isoformat(),
-            "gcal_event_id": gcal_event['id'],
-            "message": f"預約成功！{start_time.strftime('%Y-%m-%d %H:%M')} 與 {practitioner.full_name} 預約 {apt_type.name}"
+            "message": message
         }
-
-    except GoogleCalendarError as e:
-        db.rollback()
-        return {"error": f"日曆同步失敗：{e}"}
+        
+        # Include gcal_event_id only if sync succeeded
+        if gcal_event_id:
+            result["gcal_event_id"] = gcal_event_id
+            result["calendar_synced"] = True
+        else:
+            result["calendar_synced"] = False
+        
+        return result
 
     except IntegrityError as e:
         db.rollback()
+        logger.error(f"Database integrity error during appointment creation: {e}", exc_info=True)
         return {"error": "預約時間衝突，請選擇其他時段"}
 
     except Exception as e:
         db.rollback()
+        logger.error(f"Unexpected error during appointment creation: {e}", exc_info=True)
         return {"error": f"建立預約時發生錯誤：{e}"}
 
 
@@ -386,14 +426,13 @@ async def get_existing_appointments(
         return [{"error": f"查詢預約時發生錯誤：{e}"}]
 
 
-@function_tool
-async def cancel_appointment(
+async def cancel_appointment_impl(
     wrapper: RunContextWrapper[ConversationContext],
     appointment_id: int,
     patient_id: int
 ) -> Dict[str, Any]:
     """
-    Cancel appointment and remove from Google Calendar.
+    Core implementation for canceling appointments with optional Google Calendar sync.
 
     Args:
         wrapper: Context wrapper (auto-injected)
@@ -417,45 +456,81 @@ async def cancel_appointment(
         if not appointment:
             return {"error": "找不到該預約或您無權限取消"}
 
-        # Cancel in Google Calendar first
+        # Attempt Google Calendar sync (optional - won't block cancellation)
         practitioner = appointment.calendar_event.user
+        calendar_sync_warning = None
+        calendar_synced = False
+        
         if practitioner.gcal_credentials:
             from services.encryption_service import get_encryption_service
-            gcal_credentials = get_encryption_service().decrypt_data(practitioner.gcal_credentials)
-            gcal_service = GoogleCalendarService(json.dumps(gcal_credentials))
+            try:
+                gcal_credentials = get_encryption_service().decrypt_data(practitioner.gcal_credentials)
+                gcal_service = GoogleCalendarService(json.dumps(gcal_credentials))
+                
+                if appointment.gcal_event_id is not None:
+                    await gcal_service.delete_event(appointment.gcal_event_id)
+                    logger.info(f"Deleted Google Calendar event: {appointment.gcal_event_id}")
+                    calendar_synced = True
+                else:
+                    calendar_synced = True  # No event to delete, but sync attempted successfully
+                    
+            except Exception as e:
+                # Log error but don't fail cancellation
+                logger.warning(f"Google Calendar sync failed for appointment cancellation {appointment_id}, but cancellation will proceed: {e}", exc_info=True)
+                calendar_sync_warning = f"日曆同步失敗：{e}"
+                calendar_synced = False
         else:
-            gcal_service = None
+            logger.info(f"Practitioner {practitioner.full_name} has no Google Calendar credentials - canceling without calendar sync")
+            calendar_synced = False
 
-        if appointment.gcal_event_id is not None and gcal_service is not None:
-            await gcal_service.delete_event(appointment.gcal_event_id)
-
-        # Update database
+        # Update database (always succeeds)
         setattr(appointment, 'status', 'canceled_by_patient')
         db.commit()
 
-        return {
+        # Build response message
+        message = f"預約已取消：{appointment.start_time.strftime('%Y-%m-%d %H:%M')} 與 {appointment.calendar_event.user.full_name} 的 {appointment.appointment_type.name}"
+        if calendar_sync_warning:
+            message += f"（{calendar_sync_warning}）"
+
+        result = {
             "success": True,
             "appointment_id": appointment.calendar_event_id,
             "therapist_name": appointment.calendar_event.user.full_name,
             "start_time": appointment.start_time.isoformat(),
-            "message": f"預約已取消：{appointment.start_time.strftime('%Y-%m-%d %H:%M')} 與 {appointment.calendar_event.user.full_name} 的 {appointment.appointment_type.name}"
+            "message": message,
+            "calendar_synced": calendar_synced
         }
 
-    except GoogleCalendarError as e:
-        # Still update database even if GCal fails
-        if appointment is not None:
-            setattr(appointment, 'status', 'canceled_by_patient')
-            db.commit()
-            return {
-                "success": True,
-                "warning": f"預約已取消，但日曆同步失敗：{e}",
-                "appointment_id": appointment.calendar_event_id
-            }
-        else:
-            return {"error": f"取消預約時發生錯誤：{e}"}
+        return result
 
     except Exception as e:
+        logger.error(f"Unexpected error during appointment cancellation: {e}", exc_info=True)
         return {"error": f"取消預約時發生錯誤：{e}"}
+
+
+@function_tool
+async def cancel_appointment(
+    wrapper: RunContextWrapper[ConversationContext],
+    appointment_id: int,
+    patient_id: int
+) -> Dict[str, Any]:
+    """
+    Cancel appointment and remove from Google Calendar.
+    Delegates to cancel_appointment_impl for testability.
+
+    Args:
+        wrapper: Context wrapper (auto-injected)
+        appointment_id: ID of appointment to cancel
+        patient_id: ID of patient (for verification)
+
+    Returns:
+        Dict with cancellation confirmation or error
+    """
+    return await cancel_appointment_impl(
+        wrapper=wrapper,
+        appointment_id=appointment_id,
+        patient_id=patient_id
+    )
 
 
 async def reschedule_appointment_impl(
@@ -487,11 +562,16 @@ async def reschedule_appointment_impl(
         new_apt_type = None
 
         if new_therapist_id:
+            # Note: Filter roles in Python because SQLite JSON operations don't work reliably
             new_therapist = db.query(User).filter(
                 User.id == new_therapist_id,
-                User.roles.contains(['practitioner']),
                 User.is_active == True
             ).first()
+            
+            # Verify practitioner role
+            if new_therapist and 'practitioner' not in new_therapist.roles:
+                new_therapist = None
+                
             if not new_therapist:
                 return {"error": "找不到指定的治療師"}
 
@@ -518,94 +598,112 @@ async def reschedule_appointment_impl(
         if conflict is not None:
             return {"error": "預約時間衝突，請選擇其他時段"}
 
-        # Update Google Calendar event
-        if final_therapist.gcal_credentials:
-            from services.encryption_service import get_encryption_service
-            gcal_credentials = get_encryption_service().decrypt_data(final_therapist.gcal_credentials)
-            gcal_service = GoogleCalendarService(json.dumps(gcal_credentials))
-        else:
-            gcal_service = None
-
-        if appointment.calendar_event.gcal_event_id is not None:
-            # Delete old event if therapist changed
-            if new_therapist and new_therapist.id != appointment.calendar_event.user_id and appointment.calendar_event.user.gcal_credentials:
-                from services.encryption_service import get_encryption_service
-                old_gcal_credentials = get_encryption_service().decrypt_data(appointment.calendar_event.user.gcal_credentials)
-                old_gcal_service = GoogleCalendarService(json.dumps(old_gcal_credentials))
-                await old_gcal_service.delete_event(appointment.calendar_event.gcal_event_id)
-
-                # Create new event with new therapist
-                new_gcal_event_id = None
-                if gcal_service is not None:
-                    gcal_event = await gcal_service.create_event(
-                    summary=f"{appointment.patient.full_name} - {final_apt_type.name}",
-                    start=new_start_time,
-                    end=new_end_time,
-                    description=f"Patient: {appointment.patient.full_name}\nPhone: {appointment.patient.phone_number}\nType: {final_apt_type.name}\nScheduled Via: LINE Bot",
-                    extended_properties={
-                        "private": {
-                            "source": "line_bot",
-                            "patient_id": str(appointment.patient_id),
-                            "appointment_db_id": str(appointment.calendar_event_id)
-                        }
-                    }
-                )
-                    new_gcal_event_id = gcal_event['id']
-            elif gcal_service is not None:
-                # Update existing event
-                await gcal_service.update_event(
-                    event_id=appointment.gcal_event_id,
-                    summary=f"{appointment.patient.full_name} - {final_apt_type.name}",
-                    start=new_start_time,
-                    end=new_end_time,
-                    description=f"Patient: {appointment.patient.full_name}\nPhone: {appointment.patient.phone_number}\nType: {final_apt_type.name}\nScheduled Via: LINE Bot"
-                )
-                new_gcal_event_id = appointment.gcal_event_id
-            else:
-                new_gcal_event_id = None
-        elif gcal_service is not None:
-            # No existing GCal event, create new one
-            gcal_event = await gcal_service.create_event(
-                summary=f"{appointment.patient.full_name} - {final_apt_type.name}",
-                start=new_start_time,
-                end=new_end_time,
-                description=f"Patient: {appointment.patient.full_name}\nPhone: {appointment.patient.phone_number}\nType: {final_apt_type.name}\nScheduled Via: LINE Bot",
-                extended_properties={
-                    "private": {
-                        "source": "line_bot",
-                        "patient_id": str(appointment.patient_id),
-                        "appointment_db_id": str(appointment.calendar_event_id)
-                    }
-                }
-            )
-            new_gcal_event_id = gcal_event['id']
-        else:
-            new_gcal_event_id = None
-
-        # Update database
+        # Update database FIRST (reschedule should always succeed)
         setattr(appointment.calendar_event, 'start_time', new_start_time.time())
         setattr(appointment.calendar_event, 'end_time', new_end_time.time())
         if new_therapist:
             appointment.calendar_event.user_id = new_therapist.id
         if new_apt_type:
             appointment.appointment_type_id = new_apt_type.id
+        
+        # Attempt Google Calendar sync (optional - won't block rescheduling)
+        new_gcal_event_id = None
+        calendar_sync_warning = None
+        
+        if final_therapist.gcal_credentials:
+            from services.encryption_service import get_encryption_service
+            try:
+                gcal_credentials = get_encryption_service().decrypt_data(final_therapist.gcal_credentials)
+                gcal_service = GoogleCalendarService(json.dumps(gcal_credentials))
+                
+                if appointment.calendar_event.gcal_event_id is not None:
+                    # Delete old event if therapist changed
+                    if new_therapist and new_therapist.id != appointment.calendar_event.user_id and appointment.calendar_event.user.gcal_credentials:
+                        try:
+                            old_gcal_credentials = get_encryption_service().decrypt_data(appointment.calendar_event.user.gcal_credentials)
+                            old_gcal_service = GoogleCalendarService(json.dumps(old_gcal_credentials))
+                            await old_gcal_service.delete_event(appointment.calendar_event.gcal_event_id)
+                            logger.info(f"Deleted old Google Calendar event {appointment.calendar_event.gcal_event_id}")
+                        except Exception as e:
+                            logger.warning(f"Failed to delete old Google Calendar event: {e}", exc_info=True)
+                    
+                    # Create new event with new therapist or update existing
+                    if new_therapist and new_therapist.id != appointment.calendar_event.user_id:
+                        # Therapist changed - create new event
+                        gcal_event = await gcal_service.create_event(
+                            summary=f"{appointment.patient.full_name} - {final_apt_type.name}",
+                            start=new_start_time,
+                            end=new_end_time,
+                            description=f"Patient: {appointment.patient.full_name}\nPhone: {appointment.patient.phone_number}\nType: {final_apt_type.name}\nScheduled Via: LINE Bot",
+                            extended_properties={
+                                "private": {
+                                    "source": "line_bot",
+                                    "patient_id": str(appointment.patient_id),
+                                    "appointment_db_id": str(appointment.calendar_event_id)
+                                }
+                            }
+                        )
+                        new_gcal_event_id = gcal_event['id']
+                        logger.info(f"Created new Google Calendar event for rescheduled appointment: {new_gcal_event_id}")
+                    else:
+                        # Update existing event
+                        await gcal_service.update_event(
+                            event_id=appointment.calendar_event.gcal_event_id,
+                            summary=f"{appointment.patient.full_name} - {final_apt_type.name}",
+                            start=new_start_time,
+                            end=new_end_time,
+                            description=f"Patient: {appointment.patient.full_name}\nPhone: {appointment.patient.phone_number}\nType: {final_apt_type.name}\nScheduled Via: LINE Bot"
+                        )
+                        new_gcal_event_id = appointment.calendar_event.gcal_event_id
+                        logger.info(f"Updated Google Calendar event: {new_gcal_event_id}")
+                else:
+                    # No existing GCal event, create new one
+                    gcal_event = await gcal_service.create_event(
+                        summary=f"{appointment.patient.full_name} - {final_apt_type.name}",
+                        start=new_start_time,
+                        end=new_end_time,
+                        description=f"Patient: {appointment.patient.full_name}\nPhone: {appointment.patient.phone_number}\nType: {final_apt_type.name}\nScheduled Via: LINE Bot",
+                        extended_properties={
+                            "private": {
+                                "source": "line_bot",
+                                "patient_id": str(appointment.patient_id),
+                                "appointment_db_id": str(appointment.calendar_event_id)
+                            }
+                        }
+                    )
+                    new_gcal_event_id = gcal_event['id']
+                    logger.info(f"Created Google Calendar event for rescheduled appointment: {new_gcal_event_id}")
+                    
+            except Exception as e:
+                # Log error but don't fail rescheduling
+                logger.warning(f"Google Calendar sync failed for rescheduled appointment {appointment.calendar_event_id}, but reschedule was successful: {e}", exc_info=True)
+                calendar_sync_warning = f"日曆同步失敗：{e}"
+        else:
+            logger.info(f"Practitioner {final_therapist.full_name} has no Google Calendar credentials - rescheduling without calendar sync")
+        
+        # Update calendar event with new GCal event ID (or None if sync failed)
         appointment.calendar_event.gcal_event_id = new_gcal_event_id
-
         db.commit()
 
-        return {
+        message = f"預約已更改至 {new_start_time.strftime('%Y-%m-%d %H:%M')} 與 {final_therapist.full_name} 預約 {final_apt_type.name}"
+        if calendar_sync_warning:
+            message += f"（{calendar_sync_warning}）"
+        
+        result = {
             "success": True,
             "appointment_id": appointment.calendar_event_id,
             "new_therapist": final_therapist.full_name,
             "new_appointment_type": final_apt_type.name,
             "new_start_time": new_start_time.isoformat(),
             "new_end_time": new_end_time.isoformat(),
-            "message": f"預約已更改至 {new_start_time.strftime('%Y-%m-%d %H:%M')} 與 {final_therapist.full_name} 預約 {final_apt_type.name}"
+            "message": message,
+            "calendar_synced": new_gcal_event_id is not None
         }
-
-    except GoogleCalendarError as e:
-        db.rollback()
-        return {"error": f"日曆同步失敗：{e}"}
+        
+        if new_gcal_event_id:
+            result["gcal_event_id"] = new_gcal_event_id
+        
+        return result
 
     except Exception as e:
         db.rollback()
