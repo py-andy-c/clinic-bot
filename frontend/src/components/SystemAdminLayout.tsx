@@ -21,7 +21,6 @@ const SystemAdminLayout: React.FC<SystemAdminLayoutProps> = ({ children }) => {
   };
 
   const navigation = [
-    { name: '儀表板', href: '/system/dashboard', icon: '📊' },
     { name: '診所管理', href: '/system/clinics', icon: '🏥' },
   ];
 

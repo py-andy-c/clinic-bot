@@ -5,9 +5,7 @@ import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
 import LoginPage from './pages/LoginPage';
 import SystemAdminLayout from './components/SystemAdminLayout';
 import ClinicLayout from './components/ClinicLayout';
-import SystemDashboardPage from './pages/SystemDashboardPage';
 import SystemClinicsPage from './pages/SystemClinicsPage';
-import ClinicDashboardPage from './pages/ClinicDashboardPage';
 import MembersPage from './pages/MembersPage';
 import PatientsPage from './pages/PatientsPage';
 import SettingsPage from './pages/SettingsPage';
@@ -61,12 +59,11 @@ const AppRoutes: React.FC = () => {
     return (
       <SystemAdminLayout>
         <Routes>
-          <Route path="/" element={<Navigate to="/system/dashboard" replace />} />
-          <Route path="/system/dashboard" element={<SystemDashboardPage />} />
+          <Route path="/" element={<Navigate to="/system/clinics" replace />} />
           <Route path="/system/clinics" element={<SystemClinicsPage />} />
           <Route path="/system/clinics/:id" element={<SystemClinicsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="*" element={<Navigate to="/system/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/system/clinics" replace />} />
         </Routes>
       </SystemAdminLayout>
     );
@@ -74,17 +71,24 @@ const AppRoutes: React.FC = () => {
 
   // Clinic User Routes (Admin, Practitioner, or Read-only)
   if (isClinicUser) {
+    // Determine default route based on user role
+    const getDefaultRoute = () => {
+      if (user?.roles?.includes('practitioner')) {
+        return '/clinic/availability'; // Calendar for practitioners
+      }
+      return '/clinic/members'; // Members page for admins and read-only users
+    };
+
     return (
       <ClinicLayout>
         <Routes>
-          <Route path="/" element={<Navigate to="/clinic/dashboard" replace />} />
-          <Route path="/clinic/dashboard" element={<ClinicDashboardPage />} />
+          <Route path="/" element={<Navigate to={getDefaultRoute()} replace />} />
           <Route path="/clinic/members" element={<MembersPage />} />
           <Route path="/clinic/patients" element={<PatientsPage />} />
           <Route path="/clinic/settings" element={<SettingsPage />} />
           <Route path="/clinic/availability" element={<AvailabilityPage />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="*" element={<Navigate to="/clinic/dashboard" replace />} />
+          <Route path="*" element={<Navigate to={getDefaultRoute()} replace />} />
         </Routes>
       </ClinicLayout>
     );
