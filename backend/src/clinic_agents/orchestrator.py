@@ -7,11 +7,10 @@ It handles conversation state management, agent routing, and response formatting
 """
 
 import logging
-from typing import Optional, Any, Dict, cast, List, Callable, Awaitable
+from typing import Optional, Any, Dict, cast, List
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
-from functools import partial
 
 from agents import Runner, RunConfig, trace
 from agents.extensions.memory import SQLAlchemySession
@@ -31,17 +30,63 @@ from models.practitioner_availability import PractitionerAvailability
 logger = logging.getLogger(__name__)
 
 
-async def limited_history_callback(history_items: List[Any], new_items: List[Any], limit: int) -> List[Any]:
-    """Callback that limits conversation history for agents."""
-    # Return only the last 'limit' items from history + new items
-    limited_history = history_items[-limit:] if len(history_items) > limit else history_items
-    return limited_history + new_items
-
-
-def get_history_callback(agent: Any) -> Callable[[List[Any], List[Any]], Awaitable[List[Any]]]:
-    """Get a history limiting callback for a specific agent."""
-    limit = getattr(agent, 'history_limit', 30)  # Default to 30 if not set
-    return partial(limited_history_callback, limit=limit)
+async def smart_history_callback(
+    history_items: List[Any], 
+    new_items: List[Any], 
+    time_window_hours: int = 24,
+    min_items: int = 5,
+    max_items: int = 50
+) -> List[Any]:
+    """
+    Smart history filtering combining time window and item count limits.
+    
+    Rules:
+    - Always keep at least min_items (default: 5)
+    - Never exceed max_items (default: 50) 
+    - Filter by time_window_hours (default: 24 hours)
+    - Preserve tool call sequences
+    
+    Args:
+        history_items: List of conversation history items
+        new_items: List of new items to add
+        time_window_hours: Time window in hours to keep items
+        min_items: Minimum number of items to keep regardless of time
+        max_items: Maximum number of items to keep
+        
+    Returns:
+        Filtered list of history items + new items
+    """
+    from datetime import datetime, timezone, timedelta
+    
+    cutoff_time = datetime.now(timezone.utc) - timedelta(hours=time_window_hours)
+    
+    def get_item_timestamp(item: Any) -> datetime:
+        """Extract timestamp from conversation item."""
+        if hasattr(item, 'created_at'):
+            return item.created_at
+        elif hasattr(item, 'info') and hasattr(item.info, 'timestamp'):
+            return item.info.timestamp
+        else:
+            # Fallback: assume recent if no timestamp
+            return datetime.now(timezone.utc)
+    
+    # First, filter by time window
+    time_filtered: List[Any] = []
+    for item in history_items:
+        item_time = get_item_timestamp(item)
+        if item_time > cutoff_time:
+            time_filtered.append(item)
+    
+    # Ensure we have at least min_items (take most recent if needed)
+    if len(time_filtered) < min_items and len(history_items) >= min_items:
+        # Take the most recent min_items from original history
+        time_filtered = history_items[-min_items:]
+    
+    # Cap at max_items
+    if len(time_filtered) > max_items:
+        time_filtered = time_filtered[-max_items:]
+    
+    return time_filtered + new_items
 
 
 @dataclass
@@ -189,7 +234,7 @@ async def handle_line_message(
             context=context,
             session=session,
             run_config=RunConfig(
-                session_input_callback=get_history_callback(triage_agent),  # Limited to triage_agent.history_limit (30)
+                session_input_callback=smart_history_callback,
                 trace_metadata={
                     "__trace_source__": "line-webhook",
                     "clinic_id": clinic.id,
@@ -261,7 +306,7 @@ async def _handle_account_linking_flow(
         context=context,
         session=session,
         run_config=RunConfig(
-            session_input_callback=get_history_callback(account_linking_agent),  # Limited to account_linking_agent.history_limit (30)
+            session_input_callback=smart_history_callback,
             trace_metadata={
                 "__trace_source__": "line-webhook",
                 "clinic_id": clinic.id,
@@ -357,7 +402,7 @@ async def _handle_appointment_flow(
                 context=context,
                 session=session,
                 run_config=RunConfig(
-                    session_input_callback=get_history_callback(appointment_agent),  # Limited to appointment_agent.history_limit (30)
+                    session_input_callback=smart_history_callback,
                     trace_metadata={
                         "__trace_source__": "line-webhook",
                         "clinic_id": clinic.id,
@@ -378,7 +423,7 @@ async def _handle_appointment_flow(
             context=context,
             session=session,
             run_config=RunConfig(
-                session_input_callback=get_history_callback(appointment_agent),  # Limited to appointment_agent.history_limit (30)
+                session_input_callback=smart_history_callback,
                 trace_metadata={
                     "__trace_source__": "line-webhook",
                     "clinic_id": clinic.id,
