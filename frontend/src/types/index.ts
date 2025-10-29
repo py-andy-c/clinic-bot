@@ -221,6 +221,25 @@ export interface AvailabilityExceptionEvent extends CalendarEvent {
   title: string;
 }
 
+// API Response types (what the backend actually returns)
+export interface ApiCalendarEvent {
+  calendar_event_id: number;
+  type: 'appointment' | 'availability_exception';
+  start_time?: string;
+  end_time?: string;
+  title: string;
+  patient_id?: number;
+  appointment_type_id?: number;
+  status?: string;
+  exception_id?: number;
+}
+
+export interface ApiDailyCalendarData {
+  date: string;
+  default_schedule: TimeInterval[];
+  events: ApiCalendarEvent[];
+}
+
 export type CalendarEventItem = AppointmentEvent | AvailabilityExceptionEvent;
 
 export interface MonthlyCalendarData {

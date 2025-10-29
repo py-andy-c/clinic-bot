@@ -1,0 +1,144 @@
+/* React Big Calendar Custom Styles */
+
+/* Main calendar container */
+.calendar-container {
+  @apply bg-white rounded-lg shadow-sm;
+  height: 600px;
+}
+
+/* Calendar header */
+.rbc-header {
+  @apply bg-gray-50 text-gray-700 font-medium py-3 text-center border-b border-gray-200;
+}
+
+/* Calendar toolbar */
+.rbc-toolbar {
+  @apply mb-4;
+}
+
+.rbc-toolbar button {
+  @apply btn text-sm;
+}
+
+.rbc-toolbar button:hover {
+  @apply bg-gray-100;
+}
+
+.rbc-toolbar button.rbc-active {
+  @apply bg-primary-100 text-primary-700;
+}
+
+/* Calendar grid */
+.rbc-month-view {
+  @apply border border-gray-200 rounded-lg overflow-hidden;
+}
+
+.rbc-date-cell {
+  @apply relative p-2 min-h-[80px] border-r border-b border-gray-200 hover:bg-gray-50 cursor-pointer;
+}
+
+.rbc-date-cell:last-child {
+  @apply border-r-0;
+}
+
+.rbc-date-cell.rbc-off-range {
+  @apply bg-gray-50 text-gray-400;
+}
+
+.rbc-date-cell.rbc-today {
+  @apply bg-primary-50;
+}
+
+/* Remove today highlight in day view */
+.rbc-time-view .rbc-today {
+  @apply bg-white;
+}
+
+.rbc-date-number {
+  @apply text-sm font-medium text-gray-900;
+}
+
+/* Events */
+.rbc-event {
+  @apply rounded-md border-0 text-sm font-medium cursor-pointer;
+  padding: 2px 4px;
+  margin: 1px 0;
+}
+
+.rbc-event:hover {
+  @apply opacity-90;
+}
+
+/* Availability background events */
+.rbc-event.availability {
+  @apply bg-gray-200 text-gray-500;
+  opacity: 0.3;
+  border: 1px dashed #9CA3AF;
+  pointer-events: none;
+}
+
+/* Time slots for day/week view */
+.rbc-time-view {
+  @apply border border-gray-200 rounded-lg overflow-hidden;
+}
+
+.rbc-time-header {
+  @apply bg-gray-50 border-b border-gray-200;
+}
+
+.rbc-time-header-content {
+  @apply text-sm font-medium text-gray-700;
+}
+
+.rbc-time-content {
+  @apply border-t border-gray-200;
+}
+
+.rbc-timeslot-group,
+.rbc-day-view .rbc-time-slot {
+  @apply border-b border-gray-100;
+}
+
+.rbc-time-slot {
+  @apply text-xs text-gray-500 py-1;
+}
+
+/* Day slot styles */
+.rbc-day-slot .rbc-events-container,
+.rbc-day-view .rbc-events-container {
+  @apply mr-0;
+}
+
+.rbc-day-slot .rbc-event {
+  @apply rounded-md border-0 text-xs;
+  margin: 1px 2px;
+}
+
+/* Month view specific */
+.rbc-month-view .rbc-date-cell {
+  @apply min-h-[100px];
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .calendar-container {
+    height: 500px;
+  }
+  
+  .rbc-date-cell {
+    @apply min-h-[60px] p-1;
+  }
+  
+  .rbc-date-number,
+  .rbc-event {
+    @apply text-xs;
+  }
+  
+  .rbc-event {
+    padding: 1px 2px;
+  }
+  
+  .rbc-toolbar button {
+    @apply px-2 py-1 text-xs;
+  }
+}

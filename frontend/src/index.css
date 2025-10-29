@@ -1,3 +1,6 @@
+/* Import calendar styles */
+@import './styles/calendar.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
