@@ -1629,7 +1629,7 @@ class TestLineWebhookAsyncDatabaseIntegration:
 
         # Mock the agent runners to avoid full agent execution
         with patch('clinic_agents.orchestrator.Runner.run') as mock_runner, \
-             patch('clinic_agents.orchestrator.check_clinic_readiness_for_appointments') as mock_readiness:
+             patch('clinic_agents.workflow_handlers.check_clinic_readiness_for_appointments') as mock_readiness:
             # Mock triage result
             mock_triage_result = Mock()
             mock_triage_result.final_output.intent = "appointment_related"
@@ -1641,7 +1641,7 @@ class TestLineWebhookAsyncDatabaseIntegration:
             mock_appointment_result.final_output_as.return_value = "Appointment booked successfully"
 
             # Mock clinic readiness check to return ready status
-            from clinic_agents.orchestrator import ClinicReadinessStatus
+            from clinic_agents.clinic_readiness import ClinicReadinessStatus
             mock_readiness.return_value = ClinicReadinessStatus(
                 is_ready=True,
                 missing_appointment_types=False,

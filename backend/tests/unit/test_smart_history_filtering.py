@@ -10,7 +10,7 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import Mock
 from typing import List, Any
 
-from clinic_agents.orchestrator import smart_history_callback
+from clinic_agents.history_utils import smart_history_callback
 
 
 class MockHistoryItem:
@@ -54,7 +54,7 @@ class TestSmartHistoryCallback:
         history_items = [old_item1, recent_item1, old_item2, recent_item2]
         new_items = [MockHistoryItem(now)]
         
-        result = await smart_history_callback(
+        result = smart_history_callback(
             history_items=history_items,
             new_items=new_items,
             time_window_hours=24,
@@ -81,7 +81,7 @@ class TestSmartHistoryCallback:
         ]
         new_items = [MockHistoryItem(now)]
         
-        result = await smart_history_callback(
+        result = smart_history_callback(
             history_items=old_items,
             new_items=new_items,
             time_window_hours=24,
@@ -105,7 +105,7 @@ class TestSmartHistoryCallback:
         ]
         new_items = [MockHistoryItem(now)]
         
-        result = await smart_history_callback(
+        result = smart_history_callback(
             history_items=recent_items,
             new_items=new_items,
             time_window_hours=24,
@@ -132,7 +132,7 @@ class TestSmartHistoryCallback:
         history_items = [old_item, recent_item]
         new_items = [MockHistoryItemWithInfo(now)]
         
-        result = await smart_history_callback(
+        result = smart_history_callback(
             history_items=history_items,
             new_items=new_items,
             time_window_hours=24,
@@ -157,7 +157,7 @@ class TestSmartHistoryCallback:
         history_items = [no_timestamp_item1, no_timestamp_item2]
         new_items = [MockHistoryItemNoTimestamp("new")]
         
-        result = await smart_history_callback(
+        result = smart_history_callback(
             history_items=history_items,
             new_items=new_items,
             time_window_hours=24,
@@ -175,7 +175,7 @@ class TestSmartHistoryCallback:
         """Test behavior with empty history."""
         new_items = [MockHistoryItem(datetime.now(timezone.utc))]
         
-        result = await smart_history_callback(
+        result = smart_history_callback(
             history_items=[],
             new_items=new_items,
             time_window_hours=24,
@@ -198,7 +198,7 @@ class TestSmartHistoryCallback:
         ]
         new_items = [MockHistoryItem(now)]
         
-        result = await smart_history_callback(
+        result = smart_history_callback(
             history_items=items,
             new_items=new_items,
             time_window_hours=6,  # Only keep last 6 hours
@@ -222,7 +222,7 @@ class TestSmartHistoryCallback:
         history_items = [created_at_item, info_timestamp_item, no_timestamp_item]
         new_items = [MockHistoryItem(now)]
         
-        result = await smart_history_callback(
+        result = smart_history_callback(
             history_items=history_items,
             new_items=new_items,
             time_window_hours=24,
@@ -250,7 +250,7 @@ class TestSmartHistoryCallback:
         history_items = [at_cutoff_item, just_after_item]
         new_items = [MockHistoryItem(now)]
         
-        result = await smart_history_callback(
+        result = smart_history_callback(
             history_items=history_items,
             new_items=new_items,
             time_window_hours=24,
@@ -275,7 +275,7 @@ class TestSmartHistoryCallback:
         ]
         new_items = [MockHistoryItem(now)]
         
-        result = await smart_history_callback(
+        result = smart_history_callback(
             history_items=items,
             new_items=new_items,
             time_window_hours=24,
@@ -310,7 +310,7 @@ class TestSmartHistoryCallbackIntegration:
         
         new_items = [MockHistoryItem(now, "Day 2: User provides appointment details")]
         
-        result = await smart_history_callback(
+        result = smart_history_callback(
             history_items=conversation_items,
             new_items=new_items,
             time_window_hours=24,
@@ -343,7 +343,7 @@ class TestSmartHistoryCallbackIntegration:
         
         new_items = [MockHistoryItem(now, "User: I'll take the 9:30 slot")]
         
-        result = await smart_history_callback(
+        result = smart_history_callback(
             history_items=tool_call_items,
             new_items=new_items,
             time_window_hours=24,
