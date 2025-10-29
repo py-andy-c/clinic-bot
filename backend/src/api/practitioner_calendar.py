@@ -252,7 +252,7 @@ async def get_default_schedule(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to fetch default schedule for user {user_id}: {e}", exc_info=True)
+        logger.exception(f"Failed to fetch default schedule for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch default schedule"
@@ -357,7 +357,7 @@ async def update_default_schedule(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Failed to update default schedule for user {user_id}: {e}", exc_info=True)
+        logger.exception(f"Failed to update default schedule for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update default schedule"
@@ -511,7 +511,7 @@ async def get_calendar_data(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to fetch calendar data for user {user_id}: {e}", exc_info=True)
+        logger.exception(f"Failed to fetch calendar data for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch calendar data"
@@ -652,7 +652,7 @@ async def get_available_slots(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to fetch available slots for user {user_id}: {e}", exc_info=True)
+        logger.exception(f"Failed to fetch available slots for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch available slots"
@@ -770,7 +770,7 @@ async def create_availability_exception(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Failed to create availability exception for user {user_id}: {e}", exc_info=True)
+        logger.exception(f"Failed to create availability exception for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to create availability exception"
@@ -858,7 +858,7 @@ async def update_availability_exception(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Failed to update availability exception {exception_id} for user {user_id}: {e}", exc_info=True)
+        logger.exception(f"Failed to update availability exception {exception_id} for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update availability exception"
@@ -910,7 +910,7 @@ async def delete_availability_exception(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Failed to delete availability exception {exception_id} for user {user_id}: {e}", exc_info=True)
+        logger.exception(f"Failed to delete availability exception {exception_id} for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete availability exception"

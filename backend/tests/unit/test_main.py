@@ -80,8 +80,8 @@ class TestExceptionHandlers:
             assert b"internal_error" in data
 
             # Verify logging
-            mock_logger.error.assert_called_once()
-            call_args = mock_logger.error.call_args
+            mock_logger.exception.assert_called_once()
+            call_args = mock_logger.exception.call_args
             assert "Unhandled exception: Test error" in call_args[0][0]
 
     @pytest.mark.asyncio
@@ -123,8 +123,8 @@ class TestExceptionHandlers:
             assert b"external_service_error" in data
 
             # Verify logging
-            mock_logger.error.assert_called_once()
-            call_args = mock_logger.error.call_args[0]
+            mock_logger.exception.assert_called_once()
+            call_args = mock_logger.exception.call_args[0]
             assert "External service error:" in call_args[0]
 
 

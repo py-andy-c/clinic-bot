@@ -76,8 +76,10 @@ class GoogleCalendarService:
             self.calendar_id = calendar_id
 
         except json.JSONDecodeError as e:
+            logger.exception(f"Invalid credentials JSON: {e}")
             raise GoogleCalendarError(f"Invalid credentials JSON: {e}")
         except Exception as e:
+            logger.exception(f"Failed to initialize Google Calendar service: {e}")
             raise GoogleCalendarError(f"Failed to initialize Google Calendar service: {e}")
 
     async def create_event(
@@ -176,12 +178,10 @@ class GoogleCalendarService:
             error_details = json.loads(e.content.decode('utf-8')) if e.content else {}
             error_message = error_details.get('error', {}).get('message', str(e))
             error_reason = error_details.get('error', {}).get('reason', 'unknown')
-            logger.error(f"Google Calendar API error: {error_message} (reason: {error_reason}, status: {e.resp.status})")
-            logger.error(f"Error details: {json.dumps(error_details, indent=2)}")
-            logger.error(f"Event body that was sent: {json.dumps(event_body, indent=2)}")
+            logger.exception(f"Google Calendar API error: {error_message} (reason: {error_reason}, status: {e.resp.status})\nError details: {json.dumps(error_details, indent=2)}\nEvent body that was sent: {json.dumps(event_body, indent=2)}")
             raise GoogleCalendarError(f"Failed to create calendar event: {error_message}")
         except Exception as e:
-            logger.error(f"Unexpected error creating calendar event: {e}", exc_info=True)
+            logger.exception(f"Unexpected error creating calendar event: {e}")
             raise GoogleCalendarError(f"Unexpected error creating calendar event: {e}")
 
     async def update_event(
@@ -255,9 +255,13 @@ class GoogleCalendarService:
         except HttpError as e:
             error_details = json.loads(e.content.decode('utf-8')) if e.content else {}
             if e.resp.status == 404:
+                logger.exception(f"Event {event_id} not found")
                 raise GoogleCalendarError(f"Event {event_id} not found")
-            raise GoogleCalendarError(f"Failed to update calendar event: {error_details.get('error', {}).get('message', str(e))}")
+            else:
+                logger.exception(f"Failed to update calendar event: {error_details.get('error', {}).get('message', str(e))}")
+                raise GoogleCalendarError(f"Failed to update calendar event: {error_details.get('error', {}).get('message', str(e))}")
         except Exception as e:
+            logger.exception(f"Unexpected error updating calendar event: {e}")
             raise GoogleCalendarError(f"Unexpected error updating calendar event: {e}")
 
     async def delete_event(self, event_id: str) -> None:
@@ -281,8 +285,10 @@ class GoogleCalendarService:
             if e.resp.status == 404:
                 # Event already deleted, treat as success
                 return
+            logger.exception(f"Failed to delete calendar event: {error_details.get('error', {}).get('message', str(e))}")
             raise GoogleCalendarError(f"Failed to delete calendar event: {error_details.get('error', {}).get('message', str(e))}")
         except Exception as e:
+            logger.exception(f"Unexpected error deleting calendar event: {e}")
             raise GoogleCalendarError(f"Unexpected error deleting calendar event: {e}")
 
     async def get_event(self, event_id: str) -> Dict[str, Any]:
@@ -309,7 +315,11 @@ class GoogleCalendarService:
         except HttpError as e:
             error_details = json.loads(e.content.decode('utf-8')) if e.content else {}
             if e.resp.status == 404:
+                logger.exception(f"Event {event_id} not found")
                 raise GoogleCalendarError(f"Event {event_id} not found")
-            raise GoogleCalendarError(f"Failed to get calendar event: {error_details.get('error', {}).get('message', str(e))}")
+            else:
+                logger.exception(f"Failed to get calendar event: {error_details.get('error', {}).get('message', str(e))}")
+                raise GoogleCalendarError(f"Failed to get calendar event: {error_details.get('error', {}).get('message', str(e))}")
         except Exception as e:
+            logger.exception(f"Unexpected error getting calendar event: {e}")
             raise GoogleCalendarError(f"Unexpected error getting calendar event: {e}")

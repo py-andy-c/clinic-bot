@@ -119,7 +119,7 @@ class ReminderService:
                 logger.info(f"Successfully sent {total_sent} appointment reminders")
 
         except Exception as e:
-            logger.error(f"Error sending pending reminders: {e}", exc_info=True)
+            logger.exception(f"Error sending pending reminders: {e}")
 
     def _get_appointments_needing_reminders(
         self,
@@ -195,7 +195,7 @@ class ReminderService:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to send reminder for appointment {appointment.calendar_event_id}: {e}", exc_info=True)
+            logger.exception(f"Failed to send reminder for appointment {appointment.calendar_event_id}: {e}")
             return False
 
     async def send_immediate_reminder(self, appointment_id: int) -> bool:

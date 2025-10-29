@@ -155,5 +155,5 @@ class LINEService:
             self.api.push_message(request)
         except Exception as e:
             # Log the error but let caller handle it
-            logger.error(f"Failed to send LINE message to {line_user_id}: {e}", exc_info=True)
+            logger.exception(f"Failed to send LINE message to {line_user_id}: {e}")
             raise

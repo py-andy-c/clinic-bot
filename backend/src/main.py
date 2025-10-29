@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI):
         await start_reminder_scheduler(db)
         logger.info("✅ Appointment reminder scheduler started")
     except Exception as e:
-        logger.error(f"❌ Failed to start reminder scheduler: {e}", exc_info=True)
+        logger.exception(f"❌ Failed to start reminder scheduler: {e}")
 
     yield
 
@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI):
         await stop_reminder_scheduler()
         logger.info("🛑 Appointment reminder scheduler stopped")
     except Exception as e:
-        logger.error(f"❌ Error stopping reminder scheduler: {e}", exc_info=True)
+        logger.exception(f"❌ Error stopping reminder scheduler: {e}")
 
     logger.info("🛑 Shutting down Clinic Bot Backend API")
 
@@ -200,7 +200,7 @@ async def health_check() -> dict[str, str]:
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Handle unexpected exceptions globally."""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    logger.exception(f"Unhandled exception: {exc}")
     return JSONResponse(
         status_code=500,
         content={"detail": "內部伺服器錯誤", "type": "internal_error"},
@@ -220,7 +220,7 @@ async def value_error_handler(request: Request, exc: ValueError):
 @app.exception_handler(httpx.HTTPStatusError)
 async def http_status_error_handler(request: Request, exc: httpx.HTTPStatusError):
     """Handle HTTP status errors from external services."""
-    logger.error(f"External service error: {exc}", exc_info=True)
+    logger.exception(f"External service error: {exc}")
     return JSONResponse(
         status_code=502,
         content={"detail": "外部服務錯誤", "type": "external_service_error"},

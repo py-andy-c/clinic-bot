@@ -127,7 +127,7 @@ async def line_webhook(request: Request, db: Session = Depends(get_db)) -> Plain
         # Re-raise HTTP exceptions as-is
         raise
     except Exception as e:
-        logger.error(f"Unexpected error processing LINE webhook: {e}", exc_info=True)
+        logger.exception(f"Unexpected error processing LINE webhook: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="內部伺服器錯誤"
@@ -193,7 +193,7 @@ async def google_calendar_webhook(request: Request, db: Session = Depends(get_db
         return PlainTextResponse("OK")
 
     except Exception as e:
-        logger.error(f"Unexpected error processing Google Calendar webhook: {e}", exc_info=True)
+        logger.exception(f"Unexpected error processing Google Calendar webhook: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="內部伺服器錯誤"
@@ -254,7 +254,7 @@ async def _handle_calendar_changes(db: Session, resource_id: str) -> None:
             decrypted_credentials = get_encryption_service().decrypt_data(user.gcal_credentials)
             gcal_service = GoogleCalendarService(json.dumps(decrypted_credentials))
         except GoogleCalendarError as e:
-            logger.error(f"Failed to initialize Google Calendar service for user {user.id}: {e}", exc_info=True)
+            logger.exception(f"Failed to initialize Google Calendar service for user {user.id}: {e}")
             return
 
         # Get current events from Google Calendar
@@ -289,7 +289,7 @@ async def _handle_calendar_changes(db: Session, resource_id: str) -> None:
                     break
 
         except Exception as e:
-            logger.error(f"Failed to fetch Google Calendar events for user {user.id}: {e}", exc_info=True)
+            logger.exception(f"Failed to fetch Google Calendar events for user {user.id}: {e}")
             return
 
         # Check for deleted events (appointments that have gcal_event_id but event no longer exists)
@@ -314,7 +314,7 @@ async def _handle_calendar_changes(db: Session, resource_id: str) -> None:
             await _send_cancellation_notification(db, appointment)
 
     except Exception as e:
-        logger.error(f"Error handling calendar changes for resource ID {resource_id}: {e}", exc_info=True)
+        logger.exception(f"Error handling calendar changes for resource ID {resource_id}: {e}")
         raise
 
 
@@ -365,5 +365,5 @@ async def _send_cancellation_notification(db: Session, appointment: Appointment)
         logger.info(f"Sent cancellation notification to patient {appointment.patient_id} via LINE")
 
     except Exception as e:
-        logger.error(f"Failed to send cancellation notification for appointment {appointment.calendar_event_id}: {e}", exc_info=True)
+        logger.exception(f"Failed to send cancellation notification for appointment {appointment.calendar_event_id}: {e}")
         # Don't raise exception - we don't want to fail the webhook processing

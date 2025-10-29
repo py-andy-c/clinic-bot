@@ -251,7 +251,8 @@ async def google_auth_callback(
             return RedirectResponse(url=error_url, status_code=302)
         else:
             raise
-    except Exception:
+    except Exception as e:
+        logger.exception(f"Authentication error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="認證失敗"

@@ -695,7 +695,7 @@ async def get_practitioner_availability(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to fetch practitioner availability for user {user_id}: {e}", exc_info=True)
+        logger.exception(f"Failed to fetch practitioner availability for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得治療師可用時間"
@@ -798,7 +798,7 @@ async def create_practitioner_availability(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to create practitioner availability for user {user_id}: {e}", exc_info=True)
+        logger.exception(f"Failed to create practitioner availability for user {user_id}: {e}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -913,7 +913,7 @@ async def update_practitioner_availability(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to update practitioner availability {availability_id} for user {user_id}: {e}", exc_info=True)
+        logger.exception(f"Failed to update practitioner availability {availability_id} for user {user_id}: {e}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -981,7 +981,7 @@ async def delete_practitioner_availability(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to delete practitioner availability {availability_id} for user {user_id}: {e}", exc_info=True)
+        logger.exception(f"Failed to delete practitioner availability {availability_id} for user {user_id}: {e}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

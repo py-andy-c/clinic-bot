@@ -64,7 +64,7 @@ def get_db() -> Generator[Session, None, None]:
     try:
         yield db
     except SQLAlchemyError as e:
-        logger.error(f"Database error: {e}", exc_info=True)
+        logger.exception(f"Database error: {e}")
         db.rollback()
         raise
     except HTTPException:
@@ -72,7 +72,7 @@ def get_db() -> Generator[Session, None, None]:
         db.rollback()
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in database session: {e}", exc_info=True)
+        logger.exception(f"Unexpected error in database session: {e}")
         db.rollback()
         raise
     finally:
@@ -106,7 +106,7 @@ def get_db_context() -> Generator[Session, None, None]:
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Database transaction failed: {e}", exc_info=True)
+        logger.exception(f"Database transaction failed: {e}")
         raise
     finally:
         db.close()
@@ -127,7 +127,7 @@ def create_tables() -> None:
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
     except SQLAlchemyError as e:
-        logger.error(f"Failed to create database tables: {e}", exc_info=True)
+        logger.exception(f"Failed to create database tables: {e}")
         raise
 
 
@@ -145,5 +145,5 @@ def drop_tables() -> None:
         Base.metadata.drop_all(bind=engine)
         logger.info("Database tables dropped successfully")
     except SQLAlchemyError as e:
-        logger.error(f"Failed to drop database tables: {e}", exc_info=True)
+        logger.exception(f"Failed to drop database tables: {e}")
         raise

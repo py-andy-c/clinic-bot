@@ -92,7 +92,7 @@ async def get_profile(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting profile: {e}")
+        logger.exception(f"Error getting profile: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得個人資料"
@@ -157,7 +157,7 @@ async def update_profile(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating profile: {e}")
+        logger.exception(f"Error updating profile: {e}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

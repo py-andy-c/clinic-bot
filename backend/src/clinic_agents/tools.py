@@ -181,10 +181,10 @@ async def get_practitioner_availability_impl(
         return result
 
     except ValueError as e:
-        logger.error(f"Date format error in get_practitioner_availability: {e}", exc_info=True)
+        logger.exception(f"Date format error in get_practitioner_availability: {e}")
         return {"error": f"日期格式錯誤：{str(e)}"}
     except Exception as e:
-        logger.error(f"Unexpected error in get_practitioner_availability: {e}", exc_info=True)
+        logger.exception(f"Unexpected error in get_practitioner_availability: {e}")
         return {"error": f"查詢可用時段時發生錯誤：{str(e)}"}
 
 
@@ -363,12 +363,12 @@ async def create_appointment_impl(
 
     except IntegrityError as e:
         db.rollback()
-        logger.error(f"Database integrity error during appointment creation: {e}", exc_info=True)
+        logger.exception(f"Database integrity error during appointment creation: {e}")
         return {"error": "預約時間衝突，請選擇其他時段"}
 
     except Exception as e:
         db.rollback()
-        logger.error(f"Unexpected error during appointment creation: {e}", exc_info=True)
+        logger.exception(f"Unexpected error during appointment creation: {e}")
         return {"error": f"建立預約時發生錯誤：{e}"}
 
 
@@ -521,7 +521,7 @@ async def cancel_appointment_impl(
         return result
 
     except Exception as e:
-        logger.error(f"Unexpected error during appointment cancellation: {e}", exc_info=True)
+        logger.exception(f"Unexpected error during appointment cancellation: {e}")
         return {"error": f"取消預約時發生錯誤：{e}"}
 
 
