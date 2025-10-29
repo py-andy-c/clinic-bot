@@ -69,13 +69,6 @@
   @apply opacity-90;
 }
 
-/* Availability background events */
-.rbc-event.availability {
-  @apply bg-gray-200 text-gray-500;
-  opacity: 0.3;
-  border: 1px dashed #9CA3AF;
-  pointer-events: none;
-}
 
 /* Time slots for day/week view */
 .rbc-time-view {

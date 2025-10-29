@@ -74,50 +74,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     return { start: start.toDate(), end: end.toDate() };
   };
 
-  // Generate availability background events (Taiwan timezone)
-  const generateAvailabilityEvents = (date: Date, schedule: any) => {
-    if (!schedule) return [];
-    
-    const taiwanDate = moment(date).tz(taiwanTimezone);
-    const dayOfWeek = taiwanDate.day();
-    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const dayKey = dayNames[dayOfWeek] as keyof typeof schedule;
-    const daySchedule = schedule[dayKey] || [];
-    
-    const dateStr = taiwanDate.format('YYYY-MM-DD');
-    const events: any[] = [];
-    
-    // Add availability intervals as background events
-    daySchedule.forEach((interval: any, index: number) => {
-      events.push({
-        calendar_event_id: `availability-${dateStr}-${index}`,
-        type: 'availability',
-        start_time: interval.start_time,
-        end_time: interval.end_time,
-        title: 'Available',
-        date: dateStr
-      });
-    });
-    
-    return events;
-  };
 
   // Transform events for React Big Calendar
   const calendarEvents = useMemo(() => {
     const events = [...allEvents];
     
-    // Add availability background events for the current view
-    if (defaultSchedule && view !== Views.MONTH) {
-      const { start, end } = getDateRange(currentDate, view);
-      const current = moment(start);
-      const endMoment = moment(end);
-      
-      while (current.isSameOrBefore(endMoment, 'day')) {
-        const availabilityEvents = generateAvailabilityEvents(current.toDate(), defaultSchedule);
-        events.push(...availabilityEvents);
-        current.add(1, 'day');
-      }
-    }
+    // Availability background events removed - no longer showing default schedule as gray boxes
     
     return transformToCalendarEvents(events);
   }, [allEvents, defaultSchedule, currentDate, view]);
@@ -199,15 +161,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     };
 
     // Style based on event type
-    if (event.resource.type === 'availability') {
-      style = {
-        ...style,
-        backgroundColor: '#E5E7EB', // Light gray for availability
-        color: '#6B7280',
-        opacity: 0.3,
-        border: '1px dashed #9CA3AF'
-      };
-    } else if (event.resource.type === 'appointment') {
+    if (event.resource.type === 'appointment') {
       style = {
         ...style,
         backgroundColor: isOutsideHours ? '#F59E0B' : '#3B82F6', // Orange for outside hours, blue for normal
@@ -226,9 +180,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Handle event selection
   const handleSelectEvent = (event: CalendarEvent) => {
-    // Don't allow selection of availability background events
-    if (event.resource.type === 'availability') return;
-    
     setModalState({ type: 'event', data: event });
     if (onSelectEvent) {
       onSelectEvent(event);
