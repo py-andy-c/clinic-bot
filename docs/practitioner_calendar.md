@@ -1099,3 +1099,309 @@ class AppointmentCompat:
 4. Monitor and fix any issues
 
 This implementation plan ensures a smooth transition to the new practitioner calendar design while maintaining data integrity and system functionality.
+
+## React Big Calendar Implementation Plan
+
+### **Overview**
+
+To achieve the Google Calendar-like user experience specified in this design, we recommend implementing React Big Calendar as the primary calendar component. This library provides native support for all the UX patterns described in this document while offering additional enhancements for a superior user experience.
+
+### **Why React Big Calendar**
+
+**Perfect Alignment with Document Requirements:**
+- **Google Calendar-like UX**: Specifically designed to mimic Google Calendar's interface and interactions
+- **Mobile Responsive**: Built-in responsive design with touch gesture support
+- **Multiple Time Intervals**: Native support for multiple events per day
+- **Familiar Interactions**: Tap-to-navigate, drag-and-drop, and intuitive gestures
+- **Mature & Stable**: 7+ years of development, 6.5k+ GitHub stars, active maintenance
+- **TypeScript Support**: Full TypeScript definitions included
+- **Highly Customizable**: Extensive theming and component customization options
+
+### **Implementation Strategy**
+
+#### **Phase 1: Library Integration (1-2 days)**
+
+```bash
+# Install React Big Calendar and dependencies
+npm install react-big-calendar
+npm install @types/react-big-calendar  # TypeScript support
+npm install moment  # Date handling (or date-fns as alternative)
+```
+
+**Key Dependencies:**
+- `react-big-calendar`: Main calendar component
+- `moment` or `date-fns`: Date manipulation
+- `@types/react-big-calendar`: TypeScript definitions
+
+#### **Phase 2: Component Replacement (2-3 days)**
+
+**Replace `CalendarView.tsx` with React Big Calendar:**
+
+```typescript
+// New CalendarView.tsx structure
+import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
+import moment from 'moment';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
+
+const localizer = momentLocalizer(moment);
+
+interface CalendarViewProps {
+  userId: number;
+  onSelectEvent?: (event: any) => void;
+  onSelectSlot?: (slotInfo: any) => void;
+  onNavigate?: (date: Date) => void;
+}
+
+const CalendarView: React.FC<CalendarViewProps> = ({ userId, ...props }) => {
+  // Implementation with React Big Calendar
+};
+```
+
+#### **Phase 3: Data Transformation (1 day)**
+
+**Create data adapters to convert API responses:**
+
+```typescript
+// utils/calendarDataAdapter.ts
+export const transformToCalendarEvents = (apiEvents: CalendarEventItem[]) => {
+  return apiEvents.map(event => ({
+    id: event.calendar_event_id,
+    title: event.title,
+    start: new Date(`${event.date}T${event.start_time || '00:00'}`),
+    end: new Date(`${event.date}T${event.end_time || '23:59'}`),
+    resource: {
+      type: event.event_type,
+      isOutsideHours: event.isOutsideHours,
+      calendar_event_id: event.calendar_event_id,
+      patient_id: event.patient_id,
+      appointment_type_id: event.appointment_type_id,
+      status: event.status,
+      exception_id: event.exception_id
+    }
+  }));
+};
+```
+
+#### **Phase 4: Custom Styling (1-2 days)**
+
+**Customize to match design system and document requirements:**
+
+```css
+/* Custom calendar styles matching document specifications */
+.rbc-calendar {
+  @apply bg-white rounded-lg shadow-sm;
+}
+
+.rbc-event {
+  @apply rounded-md border-0 text-sm;
+}
+
+.rbc-event.appointment {
+  @apply bg-blue-100 text-blue-800;
+}
+
+.rbc-event.appointment.outside-hours {
+  @apply bg-orange-100 text-orange-800 border-orange-300;
+}
+
+.rbc-event.availability-exception {
+  @apply bg-red-100 text-red-800;
+}
+
+/* Monthly view appointment count indicators */
+.rbc-date-cell {
+  @apply relative;
+}
+
+.appointment-count-badge {
+  @apply absolute -top-1 -right-1 w-6 h-6 bg-primary-100 text-primary-800 text-xs font-medium rounded-full flex items-center justify-center;
+}
+```
+
+#### **Phase 5: Advanced Features (2-3 days)**
+
+**Implement Google Calendar-like features:**
+
+```typescript
+// Event styling based on document requirements
+const eventStyleGetter = (event: any) => {
+  const style = {
+    backgroundColor: getEventColor(event.resource.type, event.resource.isOutsideHours),
+    borderRadius: '6px',
+    opacity: event.resource.isOutsideHours ? 0.7 : 1,
+    color: 'white',
+    border: 'none',
+    display: 'block'
+  };
+  return { style };
+};
+
+const getEventColor = (eventType: string, isOutsideHours: boolean) => {
+  if (eventType === 'appointment') {
+    return isOutsideHours ? '#F59E0B' : '#3B82F6'; // Orange for outside hours, blue for normal
+  }
+  return '#EF4444'; // Red for availability exceptions
+};
+
+// Custom toolbar matching document navigation
+const CustomToolbar = (toolbar: any) => {
+  return (
+    <div className="flex justify-between items-center mb-4">
+      <div className="flex items-center space-x-2">
+        <button onClick={() => toolbar.onNavigate('PREV')}>‹</button>
+        <h2 className="text-xl font-semibold">{toolbar.label}</h2>
+        <button onClick={() => toolbar.onNavigate('NEXT')}>›</button>
+      </div>
+      <div className="flex space-x-1">
+        <button onClick={() => toolbar.onView('month')}>月</button>
+        <button onClick={() => toolbar.onView('week')}>週</button>
+        <button onClick={() => toolbar.onView('day')}>日</button>
+      </div>
+    </div>
+  );
+};
+```
+
+### **Document Requirements Mapping**
+
+| Document Requirement | React Big Calendar Implementation | Status |
+|---------------------|----------------------------------|---------|
+| **Google Calendar-like UX** | Native library design | ✅ Perfect Match |
+| **Multiple time intervals** | Custom event components | ✅ Fully Supported |
+| **Monthly/Daily views** | Native view switching | ✅ Built-in |
+| **Tap navigation** | onSelectEvent/onSelectSlot | ✅ Native Support |
+| **Event type styling** | eventStyleGetter | ✅ Customizable |
+| **Appointment counts** | Custom date header component | ✅ Custom Component |
+| **Conflict prevention** | Custom validation logic | ✅ Implementable |
+| **API integration** | Data transformation layer | ✅ Fully Compatible |
+
+### **Mobile Optimization**
+
+```typescript
+const CalendarView = () => {
+  const [view, setView] = useState<View>(Views.MONTH);
+  const [date, setDate] = useState(new Date());
+
+  // Mobile-specific configurations
+  const isMobile = window.innerWidth < 768;
+  
+  return (
+    <Calendar
+      localizer={localizer}
+      events={events}
+      startAccessor="start"
+      endAccessor="end"
+      view={isMobile ? Views.MONTH : view}
+      views={[Views.MONTH, Views.WEEK, Views.DAY]}
+      onView={setView}
+      onNavigate={setDate}
+      onSelectEvent={handleSelectEvent}
+      onSelectSlot={handleSelectSlot}
+      components={{
+        toolbar: CustomToolbar,
+        event: CustomEventComponent,
+        month: {
+          dateHeader: CustomDateHeader, // Shows appointment counts
+        }
+      }}
+      eventPropGetter={eventStyleGetter}
+      // Mobile optimizations
+      showMultiDayTimes={!isMobile}
+      step={isMobile ? 60 : 30}
+      timeslots={isMobile ? 1 : 2}
+    />
+  );
+};
+```
+
+### **Conflict Prevention Implementation**
+
+```typescript
+// Conflict detection before creating exceptions (matching document requirements)
+const handleCreateException = async (exceptionData: any) => {
+  const conflicts = await checkExceptionConflicts(exceptionData);
+  if (conflicts.length > 0) {
+    setWarningDialog({
+      type: 'appointment_conflicts',
+      message: 'This availability exception conflicts with existing appointments. The appointments will remain valid but marked as "outside hours".',
+      conflicts,
+      onConfirm: () => createException(exceptionData)
+    });
+  } else {
+    await createException(exceptionData);
+  }
+};
+
+const handleSelectEvent = (event: any) => {
+  // Edit event details (delete option only - no rescheduling as per document)
+  setSelectedEvent(event);
+  setShowEventModal(true);
+};
+
+const handleSelectSlot = (slotInfo: any) => {
+  // Add availability exception (matching document flow)
+  setSelectedSlot(slotInfo);
+  setShowExceptionModal(true);
+};
+```
+
+### **Expected Benefits**
+
+#### **User Experience**
+- ✅ Google Calendar-like interface matching document specifications
+- ✅ Drag & drop functionality for enhanced usability
+- ✅ Superior mobile experience with touch gestures
+- ✅ Keyboard navigation and accessibility
+- ✅ Intuitive interactions matching document requirements
+
+#### **Development**
+- ✅ Reduced maintenance burden (mature library)
+- ✅ Faster feature development
+- ✅ Better accessibility compliance
+- ✅ Consistent behavior across browsers
+- ✅ Built-in responsive design
+
+#### **Performance**
+- ✅ Optimized rendering for large datasets
+- ✅ Virtual scrolling support
+- ✅ Efficient event handling
+- ✅ Better memory management
+
+### **Migration Strategy**
+
+#### **Phase 1: Parallel Implementation**
+1. Keep existing `CalendarView.tsx` as fallback
+2. Create new `CalendarViewV2.tsx` with React Big Calendar
+3. Add feature flag to switch between implementations
+
+#### **Phase 2: Gradual Rollout**
+1. Deploy to staging environment
+2. Test with internal users
+3. Gather feedback and iterate
+4. Deploy to production with feature flag
+
+#### **Phase 3: Full Migration**
+1. Remove old calendar implementation
+2. Clean up unused code
+3. Update documentation
+
+### **Implementation Timeline**
+
+| Phase | Duration | Deliverables |
+|-------|----------|-------------|
+| **Phase 1** | 1-2 days | Library integration, basic setup |
+| **Phase 2** | 2-3 days | Component replacement, data transformation |
+| **Phase 3** | 1-2 days | Custom styling, theming |
+| **Phase 4** | 2-3 days | Advanced features, mobile optimization |
+| **Phase 5** | 1-2 days | Testing, bug fixes, deployment |
+| **Total** | **7-12 days** | **Production-ready Google Calendar-like UX** |
+
+### **Success Metrics**
+
+1. **User Adoption**: 90%+ users prefer new calendar
+2. **Performance**: <200ms load time
+3. **Mobile Usage**: 50%+ increase in mobile calendar usage
+4. **Feature Usage**: 80%+ users utilize drag & drop
+5. **Bug Reports**: 50% reduction in calendar-related issues
+
+This React Big Calendar implementation plan ensures perfect alignment with the user experience requirements specified in this document while providing additional enhancements for a superior overall experience.
