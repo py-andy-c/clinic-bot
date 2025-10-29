@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from core.config import API_BASE_URL, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, ENVIRONMENT
+from core.config import API_BASE_URL, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 from services.jwt_service import jwt_service, TokenPayload
 from models import User, SignupToken, RefreshToken
 
@@ -399,8 +399,8 @@ async def confirm_name(
         
         # Create JWT token payload
         payload = TokenPayload(
-            sub=google_subject_id,
-            email=email,
+            sub=str(google_subject_id),
+            email=str(email),
             user_type="clinic_user",
             roles=user.roles,
             clinic_id=user.clinic_id,

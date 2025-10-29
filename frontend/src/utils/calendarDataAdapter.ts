@@ -1,4 +1,4 @@
-import { ApiCalendarEvent, MonthlyCalendarData, DailyCalendarData } from '../types';
+import { ApiCalendarEvent, MonthlyCalendarData } from '../types';
 import moment from 'moment-timezone';
 
 export interface CalendarEvent {

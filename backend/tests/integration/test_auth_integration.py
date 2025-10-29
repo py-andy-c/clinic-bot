@@ -840,7 +840,20 @@ class TestSignupCallbackFlow:
 
             assert response.status_code == 302  # Redirect response
             assert "location" in response.headers
-            assert "token=" in response.headers["location"]  # Token should be in redirect URL
+            assert "confirm-name?token=" in response.headers["location"]  # Should redirect to name confirmation
+
+            # Extract temp token from redirect URL
+            redirect_url = response.headers["location"]
+            temp_token = redirect_url.split("token=")[1]
+
+            # Call name confirmation endpoint
+            name_confirmation_data = {"full_name": "New Admin"}
+            confirm_response = client.post(f"/api/signup/confirm-name?token={temp_token}", json=name_confirmation_data)
+
+            assert confirm_response.status_code == 200
+            confirm_result = confirm_response.json()
+            assert "redirect_url" in confirm_result
+            assert "token=" in confirm_result["redirect_url"]
 
             # Verify user was created in database
             user = db_session.query(User).filter(User.email == "newadmin@example.com").first()
@@ -931,10 +944,24 @@ class TestSignupCallbackFlow:
 
                 assert response.status_code == 302  # Redirect response
                 assert "location" in response.headers
-                assert "token=" in response.headers["location"]  # Token should be in redirect URL
+                assert "confirm-name?token=" in response.headers["location"]  # Should redirect to name confirmation
+
+                # Extract temp token from redirect URL
+                redirect_url = response.headers["location"]
+                temp_token = redirect_url.split("token=")[1]
+
+                # Call name confirmation endpoint
+                name_confirmation_data = {"full_name": "New Member"}
+                confirm_response = client.post(f"/api/signup/confirm-name?token={temp_token}", json=name_confirmation_data)
+
+                assert confirm_response.status_code == 200
+                confirm_result = confirm_response.json()
+                assert "redirect_url" in confirm_result
+                assert "token=" in confirm_result["redirect_url"]
 
                 # Verify user was created with correct roles
                 user = db_session.query(User).filter(User.email == "newmember@example.com").first()
+                assert user is not None
                 assert user.roles == ["practitioner"]
 
         finally:
@@ -1031,7 +1058,20 @@ class TestSignupCallbackFlow:
 
                 assert response.status_code == 302  # Redirect response
                 assert "location" in response.headers
-                assert "token=" in response.headers["location"]  # Token should be in redirect URL
+                assert "confirm-name?token=" in response.headers["location"]  # Should redirect to name confirmation
+
+                # Extract temp token from redirect URL
+                redirect_url = response.headers["location"]
+                temp_token = redirect_url.split("token=")[1]
+
+                # Call name confirmation endpoint
+                name_confirmation_data = {"full_name": "Test User Sub"}
+                confirm_response = client.post(f"/api/signup/confirm-name?token={temp_token}", json=name_confirmation_data)
+
+                assert confirm_response.status_code == 200
+                confirm_result = confirm_response.json()
+                assert "redirect_url" in confirm_result
+                assert "token=" in confirm_result["redirect_url"]
 
                 # Verify user was created with 'sub' field
                 user = db_session.query(User).filter(User.email == "test_sub@example.com").first()
@@ -1107,7 +1147,20 @@ class TestSignupCallbackFlow:
 
                 assert response.status_code == 302  # Redirect response
                 assert "location" in response.headers
-                assert "token=" in response.headers["location"]  # Token should be in redirect URL
+                assert "confirm-name?token=" in response.headers["location"]  # Should redirect to name confirmation
+
+                # Extract temp token from redirect URL
+                redirect_url = response.headers["location"]
+                temp_token = redirect_url.split("token=")[1]
+
+                # Call name confirmation endpoint
+                name_confirmation_data = {"full_name": "Test User ID"}
+                confirm_response = client.post(f"/api/signup/confirm-name?token={temp_token}", json=name_confirmation_data)
+
+                assert confirm_response.status_code == 200
+                confirm_result = confirm_response.json()
+                assert "redirect_url" in confirm_result
+                assert "token=" in confirm_result["redirect_url"]
 
                 # Verify user was created with 'id' field fallback
                 user = db_session.query(User).filter(User.email == "test_id@example.com").first()
