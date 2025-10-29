@@ -15,12 +15,61 @@ from sqlalchemy.orm import Session
 from clinic_agents.orchestrator import handle_line_message
 from services.line_service import LINEService
 from services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
-from clinic_agents.helpers import get_clinic_from_request
 from core.database import get_db
-from models import User, Appointment, CalendarEvent
+from models import User, Appointment, CalendarEvent, Clinic
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def get_clinic_from_request(request: Request, db: Session) -> Clinic:
+    """
+    Get clinic from webhook request.
+
+    Multiple strategies are supported:
+    1. Custom X-Clinic-ID header (recommended for security)
+    2. URL path parameter (e.g., /webhook/line/{clinic_id})
+    3. LINE channel ID parsing (fallback, less secure)
+
+    Args:
+        request: FastAPI request object
+        db: Database session
+
+    Returns:
+        Clinic object
+
+    Raises:
+        HTTPException: If clinic cannot be identified
+    """
+    # Strategy 1: Custom header (most secure)
+    clinic_id_header = getattr(request, 'headers', {}).get('x-clinic-id') or getattr(request, 'headers', {}).get('X-Clinic-ID')
+    if clinic_id_header:
+        try:
+            clinic_id = int(clinic_id_header)
+            clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+            if clinic:
+                return clinic
+        except (ValueError, TypeError):
+            pass
+
+    # Strategy 2: For testing - default to clinic ID 1
+    # TODO: Remove this fallback in production
+    try:
+        clinic = db.query(Clinic).filter(Clinic.id == 1).first()
+        if clinic:
+            return clinic
+    except Exception:
+        pass
+
+    # Strategy 3: URL path parameter (if implemented)
+    # This would require route parameter in FastAPI like /webhook/line/{clinic_id}
+    # path_params = getattr(request, 'path_params', {})
+    # clinic_id = path_params.get('clinic_id')
+
+    raise HTTPException(
+        status_code=400,
+        detail="Cannot identify clinic from request. Please provide X-Clinic-ID header."
+    )
 
 
 @router.post(

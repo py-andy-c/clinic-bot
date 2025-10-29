@@ -1,24 +1,17 @@
-"""
-Workflow handlers for multi-agent LINE conversations.
-
-This module contains the specific workflow handlers for account linking and appointment
-processing within the orchestration system.
-"""
-
+# pyright: reportMissingTypeStubs=false
 import logging
 import json
 from typing import Optional, Any, Dict, cast
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
-# pyright: reportMissingTypeStubs=false
 from agents import Runner, RunConfig
 from clinic_agents.context import ConversationContext
-from clinic_agents.account_linking_agent import account_linking_agent
 from clinic_agents.appointment_agent import appointment_agent
-from clinic_agents.helpers import get_patient_from_line_user
-from clinic_agents.clinic_readiness import check_clinic_readiness_for_appointments
+from clinic_agents.account_linking_agent import account_linking_agent
+from clinic_agents.line_user_utils import get_patient_from_line_user
 from clinic_agents.history_utils import smart_history_callback
+from clinic_agents.clinic_readiness import check_clinic_readiness_for_appointments
 from models.clinic import Clinic
 from models.line_user import LineUser
 
@@ -28,7 +21,7 @@ logger = logging.getLogger(__name__)
 async def handle_account_linking_flow(
     db: Session,
     context: ConversationContext,
-    session: Optional[Any],  # SQLAlchemySession
+    session: Optional[Any],
     message_text: str,
     clinic: Clinic,
     line_user_id: str
@@ -113,7 +106,6 @@ async def handle_appointment_flow(
         logger.info(f"Clinic {clinic.id} not ready for appointments - blocking appointment flow for {line_user_id}")
         logger.info(f"Missing: appointment_types={readiness.missing_appointment_types}, practitioners_without_availability={len(readiness.practitioners_without_availability)}")
         return None  # No response - rely on manual reply
-
     # Check if account linking is needed (WORKFLOW-LEVEL CHECK)
     if not is_linked:
         # First: Run account linking agent with trace metadata

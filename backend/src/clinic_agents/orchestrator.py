@@ -15,7 +15,7 @@ from agents import Runner, RunConfig, trace
 
 from clinic_agents.context import ConversationContext
 from clinic_agents.triage_agent import triage_agent
-from clinic_agents.helpers import get_or_create_line_user, get_patient_from_line_user
+from clinic_agents.line_user_utils import get_or_create_line_user, get_patient_from_line_user
 from clinic_agents.history_utils import smart_history_callback
 from clinic_agents.session_utils import get_session_storage
 from clinic_agents.workflow_handlers import handle_account_linking_flow, handle_appointment_flow
@@ -90,6 +90,8 @@ async def handle_line_message(
         intent = triage_result.final_output.intent
         logger.info(f"Triage result: {intent} (confidence: {triage_result.final_output.confidence})")
         logger.info(f"Reasoning: {triage_result.final_output.reasoning}")
+        response_text: Optional[str] = None
+
         if intent == "appointment_related":
             # Handle appointment-related queries
             response_text = await handle_appointment_flow(

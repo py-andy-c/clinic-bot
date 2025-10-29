@@ -1,16 +1,15 @@
 """
-Unit tests for helper functions.
+Unit tests for LINE user utilities and webhook clinic identification.
 """
 
 import pytest
 from unittest.mock import Mock, patch
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 
-from clinic_agents.helpers import (
-    get_clinic_from_request,
+from api.webhooks import get_clinic_from_request
+from clinic_agents.line_user_utils import (
     get_or_create_line_user,
     get_patient_from_line_user,
-    ensure_patient_linked
 )
 from models.clinic import Clinic
 from models.line_user import LineUser
@@ -164,55 +163,4 @@ class TestGetPatientFromLineUser:
             assert result is None
             mock_query.assert_not_called()
 
-
-class TestEnsurePatientLinked:
-    """Test ensure_patient_linked function."""
-
-    def test_patient_linked(self):
-        """Test when patient is properly linked."""
-        from clinic_agents.context import ConversationContext
-
-        patient = Patient(id=1, clinic_id=1, full_name="Test Patient", phone_number="0912345678")
-
-        context = ConversationContext(
-            db_session=Mock(),
-            clinic=Mock(),
-            patient=patient,
-            line_user_id="test_user",
-            is_linked=True
-        )
-
-        result = ensure_patient_linked(context)
-        assert result == patient
-
-    def test_patient_not_linked(self):
-        """Test when patient is not linked."""
-        from clinic_agents.context import ConversationContext
-
-        context = ConversationContext(
-            db_session=Mock(),
-            clinic=Mock(),
-            patient=None,
-            line_user_id="test_user",
-            is_linked=False
-        )
-
-        with pytest.raises(ValueError, match="Patient account must be linked"):
-            ensure_patient_linked(context)
-
-    def test_patient_none_but_is_linked_true(self):
-        """Test inconsistent state: patient is None but is_linked is True."""
-        from clinic_agents.context import ConversationContext
-
-        context = ConversationContext(
-            db_session=Mock(),
-            clinic=Mock(),
-            patient=None,
-            line_user_id="test_user",
-            is_linked=True  # This is inconsistent
-        )
-
-        # Should still raise error because patient is None
-        with pytest.raises(ValueError, match="Patient account must be linked"):
-            ensure_patient_linked(context)
 
