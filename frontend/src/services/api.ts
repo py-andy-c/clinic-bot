@@ -278,6 +278,11 @@ class ApiService {
     const response = await this.client.post('/signup/callback', { token, type: 'member' });
     return validateSignupResponse(response.data);
   }
+
+  async confirmName(token: string, fullName: string): Promise<{ redirect_url: string; refresh_token: string }> {
+    const response = await this.client.post(`/signup/confirm-name?token=${token}`, { full_name: fullName });
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();

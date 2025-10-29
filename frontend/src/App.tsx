@@ -12,6 +12,7 @@ import SettingsPage from './pages/SettingsPage';
 import AvailabilityPage from './pages/AvailabilityPage';
 import ClinicSignupPage from './pages/ClinicSignupPage';
 import MemberSignupPage from './pages/MemberSignupPage';
+import NameConfirmationPage from './pages/NameConfirmationPage';
 import ProfilePage from './pages/ProfilePage';
 
 const AppRoutes: React.FC = () => {
@@ -44,6 +45,7 @@ const AppRoutes: React.FC = () => {
       <Routes>
         <Route path="/signup/clinic" element={<ClinicSignupPage />} />
         <Route path="/signup/member" element={<MemberSignupPage />} />
+        <Route path="/signup/confirm-name" element={<NameConfirmationPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
