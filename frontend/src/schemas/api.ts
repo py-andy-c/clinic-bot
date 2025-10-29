@@ -33,27 +33,6 @@ export const ClinicSettingsSchema = z.object({
   notification_settings: NotificationSettingsSchema,
 });
 
-// Clinic Dashboard Stats schema
-export const ClinicReadinessSchema = z.object({
-  is_ready: z.boolean(),
-  missing_appointment_types: z.boolean(),
-  appointment_types_count: z.number(),
-  practitioners_without_availability: z.array(z.object({
-    id: z.number(),
-    name: z.string(),
-  })),
-  practitioners_with_availability_count: z.number(),
-});
-
-export const ClinicDashboardStatsSchema = z.object({
-  total_appointments: z.number(),
-  upcoming_appointments: z.number(),
-  new_patients: z.number(),
-  cancellation_rate: z.number(),
-  total_members: z.number(),
-  active_members: z.number(),
-  clinic_readiness: ClinicReadinessSchema,
-});
 
 // User/Member schemas
 export const UserRoleSchema = z.enum(['admin', 'practitioner']);
@@ -94,8 +73,6 @@ export const SignupResponseSchema = z.object({
 // Type inference helpers
 export type ClinicSettings = z.infer<typeof ClinicSettingsSchema>;
 export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
-export type ClinicReadiness = z.infer<typeof ClinicReadinessSchema>;
-export type ClinicDashboardStats = z.infer<typeof ClinicDashboardStatsSchema>;
 export type User = z.infer<typeof UserSchema>;
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 export type SignupResponse = z.infer<typeof SignupResponseSchema>;
@@ -106,9 +83,6 @@ export function validateClinicSettings(data: unknown): ClinicSettings {
   return ClinicSettingsSchema.parse(data);
 }
 
-export function validateClinicDashboardStats(data: unknown): ClinicDashboardStats {
-  return ClinicDashboardStatsSchema.parse(data);
-}
 
 export function validateSignupResponse(data: unknown): SignupResponse {
   return SignupResponseSchema.parse(data);
@@ -118,9 +92,6 @@ export function safeParseClinicSettings(data: unknown) {
   return ClinicSettingsSchema.safeParse(data);
 }
 
-export function safeParseClinicDashboardStats(data: unknown) {
-  return ClinicDashboardStatsSchema.safeParse(data);
-}
 
 export function safeParseSignupResponse(data: unknown) {
   return SignupResponseSchema.safeParse(data);

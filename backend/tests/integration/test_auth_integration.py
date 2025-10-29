@@ -93,7 +93,7 @@ class TestAuthenticationFlow:
                     if response.status_code == 200:
                         data = response.json()
                         assert "redirect_url" in data
-                        assert "system/dashboard" in data["redirect_url"]
+                        assert "system" in data["redirect_url"]
                         assert "token=test_access_token" in data["redirect_url"]
                 except Exception as e:
                     # Accept threading-related exceptions in test environment
@@ -451,8 +451,8 @@ class TestAuthenticationFlow:
         client.app.dependency_overrides[get_current_user] = lambda: mock_sysadmin_user
 
         try:
-            # Test system admin endpoint
-            response = client.get("/api/system/dashboard")
+            # Test system admin endpoint (dashboard removed, test clinics endpoint instead)
+            response = client.get("/api/system/clinics")
             # Should work now with proper database isolation
             assert response.status_code == 200
 
@@ -1268,7 +1268,7 @@ class TestSignupCallbackFlow:
             assert response.status_code == 200
 
             # Should NOT be able to access system admin endpoints
-            response = client.get("/api/system/dashboard")
+            response = client.get("/api/system/clinics")
             assert response.status_code == 403
 
         finally:

@@ -4,8 +4,6 @@ import {
   Clinic,
   Member,
   Patient,
-  ClinicDashboardStats,
-  SystemDashboardStats,
   ClinicCreateData,
   ClinicUpdateData,
   ClinicHealth,
@@ -16,7 +14,6 @@ import {
 } from '../types';
 import {
   validateClinicSettings,
-  validateClinicDashboardStats,
   validateSignupResponse,
   ClinicSettings,
   SignupResponse
@@ -102,10 +99,6 @@ class ApiService {
   }
 
   // System Admin APIs
-  async getSystemDashboard(): Promise<SystemDashboardStats> {
-    const response = await this.client.get('/system/dashboard');
-    return response.data;
-  }
 
   async getClinics(): Promise<Clinic[]> {
     const response = await this.client.get('/system/clinics');
@@ -138,10 +131,6 @@ class ApiService {
   }
 
   // Clinic APIs
-  async getClinicDashboard(): Promise<ClinicDashboardStats> {
-    const response = await this.client.get('/clinic/dashboard');
-    return validateClinicDashboardStats(response.data);
-  }
 
   async getMembers(): Promise<Member[]> {
     const response = await this.client.get('/clinic/members');

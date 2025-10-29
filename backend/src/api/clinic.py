@@ -18,9 +18,8 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
-from models import User, Patient, Appointment, AppointmentType, SignupToken, PractitionerAvailability, CalendarEvent, Clinic
+from models import User, Patient, AppointmentType, SignupToken, PractitionerAvailability, Clinic
 from services.google_oauth import GoogleOAuthService
-from clinic_agents.orchestrator import check_clinic_readiness_for_appointments
 
 router = APIRouter()
 
@@ -631,95 +630,6 @@ async def handle_member_gcal_callback(
         )
 
 
-@router.get("/dashboard", summary="Get clinic dashboard statistics")
-async def get_dashboard_stats(
-    current_user: UserContext = Depends(require_clinic_member),
-    db: Session = Depends(get_db)
-) -> Dict[str, Any]:
-    """
-    Get dashboard statistics for the current user's clinic.
-
-    Available to all clinic members (including read-only users).
-    """
-    try:
-        clinic_id = current_user.clinic_id
-
-        # Total appointments
-        total_appointments = db.query(Appointment).join(Patient).filter(
-            Patient.clinic_id == clinic_id
-        ).count()
-
-        # Upcoming appointments (next 7 days)
-        week_from_now = datetime.now(timezone.utc) + timedelta(days=7)
-        upcoming_appointments = db.query(Appointment).join(CalendarEvent).join(Patient).filter(
-            Patient.clinic_id == clinic_id,
-            CalendarEvent.start_time >= datetime.now(timezone.utc),
-            CalendarEvent.start_time <= week_from_now,
-            Appointment.status == "confirmed"
-        ).count()
-
-        # New patients (last 30 days)
-        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
-        new_patients = db.query(Patient).filter(
-            Patient.clinic_id == clinic_id,
-            Patient.created_at >= thirty_days_ago
-        ).count()
-
-        # Cancellation rate (last 30 days)
-        recent_appointments = db.query(Appointment).join(CalendarEvent).join(Patient).filter(
-            Patient.clinic_id == clinic_id,
-            CalendarEvent.created_at >= thirty_days_ago
-        ).count()
-
-        cancelled_appointments = db.query(Appointment).join(CalendarEvent).join(Patient).filter(
-            Patient.clinic_id == clinic_id,
-            CalendarEvent.created_at >= thirty_days_ago,
-            Appointment.status.in_(["canceled_by_patient", "canceled_by_clinic"])
-        ).count()
-
-        cancellation_rate = cancelled_appointments / recent_appointments if recent_appointments > 0 else 0
-
-        # Team members count - all active users in the clinic
-        total_members = db.query(User).filter(
-            User.clinic_id == clinic_id
-        ).count()
-
-        active_members = db.query(User).filter(
-            User.clinic_id == clinic_id,
-            User.is_active == True
-        ).count()
-
-        # Get clinic readiness status
-        clinic = db.query(Clinic).get(clinic_id)
-        if not clinic:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="診所不存在"
-            )
-        readiness = check_clinic_readiness_for_appointments(db, clinic)
-
-        return {
-            "total_appointments": total_appointments,
-            "upcoming_appointments": upcoming_appointments,
-            "new_patients": new_patients,
-            "cancellation_rate": cancellation_rate,
-            "total_members": total_members,
-            "active_members": active_members,
-            "clinic_readiness": {
-                "is_ready": readiness.is_ready,
-                "missing_appointment_types": readiness.missing_appointment_types,
-                "appointment_types_count": readiness.appointment_types_count,
-                "practitioners_without_availability": readiness.practitioners_without_availability,
-                "practitioners_with_availability_count": readiness.practitioners_with_availability_count
-            }
-        }
-
-    except Exception:
-        logger.exception("Error getting dashboard stats")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="無法取得儀表板統計資料"
-        )
 
 
 @router.get("/practitioners/{user_id}/availability", summary="Get practitioner availability")

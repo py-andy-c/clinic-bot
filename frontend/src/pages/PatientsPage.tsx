@@ -110,33 +110,6 @@ const PatientsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Summary Stats */}
-      {patients.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="card">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-gray-900">{patients.length}</div>
-              <div className="text-sm text-gray-600">總病患數</div>
-            </div>
-          </div>
-          <div className="card">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {patients.filter(p => p.line_user_id).length}
-              </div>
-              <div className="text-sm text-gray-600">已連結 LINE</div>
-            </div>
-          </div>
-          <div className="card">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">
-                {patients.filter(p => !p.line_user_id).length}
-              </div>
-              <div className="text-sm text-gray-600">未連結 LINE</div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

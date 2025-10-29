@@ -157,18 +157,6 @@ CLINIC_SETTINGS_SCHEMA = {
     }
 }
 
-CLINIC_DASHBOARD_SCHEMA = {
-    "type": "object",
-    "required": ["total_appointments", "upcoming_appointments", "new_patients", "cancellation_rate", "total_members", "active_members"],
-    "properties": {
-        "total_appointments": {"type": "number"},
-        "upcoming_appointments": {"type": "number"},
-        "new_patients": {"type": "number"},
-        "cancellation_rate": {"type": "number"},
-        "total_members": {"type": "number"},
-        "active_members": {"type": "number"}
-    }
-}
 
 SIGNUP_RESPONSE_SCHEMA = {
     "type": "object",
@@ -227,20 +215,9 @@ class TestAPIContracts:
         assert isinstance(notification_settings["reminder_hours_before"], (int, float))
 
     def test_clinic_dashboard_contract(self, api_contract_client):
-        """Test that /api/clinic/dashboard returns data matching frontend ClinicDashboardStats interface."""
+        """Test that /api/clinic/dashboard endpoint no longer exists (removed)."""
         response = api_contract_client.get('/api/clinic/dashboard')
-        assert response.status_code == 200
-
-        response_data = response.json()
-        self.validate_response_schema(response_data, CLINIC_DASHBOARD_SCHEMA, "/api/clinic/dashboard")
-
-        # Validate all required numeric fields
-        required_fields = ["total_appointments", "upcoming_appointments", "new_patients",
-                          "cancellation_rate", "total_members", "active_members"]
-
-        for field in required_fields:
-            assert field in response_data
-            assert isinstance(response_data[field], (int, float))
+        assert response.status_code == 404
 
     def test_clinic_members_contract(self, api_contract_client):
         """Test that /api/clinic/members returns properly structured member data."""
@@ -260,18 +237,9 @@ class TestAPIContracts:
             assert isinstance(member["roles"], list)
 
     def test_system_dashboard_contract(self, api_contract_client):
-        """Test that /api/system/dashboard returns properly structured system stats."""
+        """Test that /api/system/dashboard endpoint no longer exists (removed)."""
         response = api_contract_client.get('/api/system/dashboard')
-        assert response.status_code == 200
-
-        response_data = response.json()
-
-        # Validate system dashboard structure
-        required_fields = ["total_clinics", "active_clinics", "total_users", "system_health"]
-        for field in required_fields:
-            assert field in response_data
-
-        assert response_data["system_health"] in ["healthy", "warning", "error"]
+        assert response.status_code == 404
 
     def test_system_clinics_contract(self, api_contract_client):
         """Test that /api/system/clinics returns properly structured clinic data."""

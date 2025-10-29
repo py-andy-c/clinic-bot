@@ -100,32 +100,6 @@ export interface AuthState {
   isLoading: boolean;
 }
 
-// Dashboard types
-export interface ClinicDashboardStats {
-  total_appointments: number;
-  upcoming_appointments: number;
-  new_patients: number;
-  cancellation_rate: number;
-  total_members: number;
-  active_members: number;
-  clinic_readiness: {
-    is_ready: boolean;
-    missing_appointment_types: boolean;
-    appointment_types_count: number;
-    practitioners_without_availability: Array<{
-      id: number;
-      name: string;
-    }>;
-    practitioners_with_availability_count: number;
-  };
-}
-
-export interface SystemDashboardStats {
-  total_clinics: number;
-  active_clinics: number;
-  total_users: number;
-  system_health: 'healthy' | 'warning' | 'error';
-}
 
 // System admin types
 export interface ClinicCreateData {
