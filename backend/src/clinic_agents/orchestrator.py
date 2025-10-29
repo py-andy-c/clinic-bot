@@ -7,10 +7,11 @@ It handles conversation state management, agent routing, and response formatting
 """
 
 import logging
-from typing import Optional, Any, Dict, cast, List
+from typing import Optional, Any, Dict, cast, List, Callable, Awaitable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
+from functools import partial
 
 from agents import Runner, RunConfig, trace
 from agents.extensions.memory import SQLAlchemySession
@@ -28,6 +29,19 @@ from models.practitioner_availability import PractitionerAvailability
 # DATABASE_URL is now read dynamically in get_session_storage
 
 logger = logging.getLogger(__name__)
+
+
+async def limited_history_callback(history_items: List[Any], new_items: List[Any], limit: int) -> List[Any]:
+    """Callback that limits conversation history for agents."""
+    # Return only the last 'limit' items from history + new items
+    limited_history = history_items[-limit:] if len(history_items) > limit else history_items
+    return limited_history + new_items
+
+
+def get_history_callback(agent: Any) -> Callable[[List[Any], List[Any]], Awaitable[List[Any]]]:
+    """Get a history limiting callback for a specific agent."""
+    limit = getattr(agent, 'history_limit', 30)  # Default to 30 if not set
+    return partial(limited_history_callback, limit=limit)
 
 
 @dataclass
@@ -167,19 +181,22 @@ async def handle_line_message(
         # 4. Get session for this LINE user (auto-manages conversation history)
         session = get_session_storage(line_user_id)
 
-        # 5. Run triage agent with session and trace metadata
+        # 5. Run triage agent with limited history callback
         logger.debug(f"🤖 Running triage agent")
         triage_result = await Runner.run(
             triage_agent,
             input=message_text,
             context=context,
             session=session,
-            run_config=RunConfig(trace_metadata={
-                "__trace_source__": "line-webhook",
-                "clinic_id": clinic.id,
-                "line_user_id": line_user_id,
-                "step": "triage"
-            })
+            run_config=RunConfig(
+                session_input_callback=get_history_callback(triage_agent),  # Limited to triage_agent.history_limit (30)
+                trace_metadata={
+                    "__trace_source__": "line-webhook",
+                    "clinic_id": clinic.id,
+                    "line_user_id": line_user_id,
+                    "step": "triage"
+                }
+            )
         )
 
         # 6. Route based on classification (WORKFLOW ORCHESTRATION)
@@ -237,18 +254,21 @@ async def _handle_account_linking_flow(
     """
     logger.info(f"🔗 Handling account linking flow for {line_user_id}")
     
-    # Run account linking agent with trace metadata
+    # Run account linking agent with limited history callback
     linking_result = await Runner.run(
         account_linking_agent,
         input=message_text,
         context=context,
         session=session,
-        run_config=RunConfig(trace_metadata={
-            "__trace_source__": "line-webhook",
-            "clinic_id": clinic.id,
-            "line_user_id": line_user_id,
-            "step": "account_linking"
-        })
+        run_config=RunConfig(
+            session_input_callback=get_history_callback(account_linking_agent),  # Limited to account_linking_agent.history_limit (30)
+            trace_metadata={
+                "__trace_source__": "line-webhook",
+                "clinic_id": clinic.id,
+                "line_user_id": line_user_id,
+                "step": "account_linking"
+            }
+        )
     )
     
     # Check if linking was successful
@@ -330,36 +350,42 @@ async def _handle_appointment_flow(
                 current_datetime=datetime.now(timezone.utc)
             )
 
-            # Then: Run appointment agent with same message and trace metadata
+            # Then: Run appointment agent with limited history callback
             response = await Runner.run(
                 appointment_agent,
                 input=message_text,
                 context=context,
                 session=session,
-                run_config=RunConfig(trace_metadata={
-                    "__trace_source__": "line-webhook",
-                    "clinic_id": clinic.id,
-                    "line_user_id": line_user_id,
-                    "step": "appointment_after_linking"
-                })
+                run_config=RunConfig(
+                    session_input_callback=get_history_callback(appointment_agent),  # Limited to appointment_agent.history_limit (30)
+                    trace_metadata={
+                        "__trace_source__": "line-webhook",
+                        "clinic_id": clinic.id,
+                        "line_user_id": line_user_id,
+                        "step": "appointment_after_linking"
+                    }
+                )
             )
             return response.final_output_as(str)  # type: ignore
         else:
             # Linking failed, return linking agent's response
             return linking_result.final_output_as(str)  # type: ignore
     else:
-        # Already linked: Go directly to appointment agent with trace metadata
+        # Already linked: Go directly to appointment agent with limited history callback
         response = await Runner.run(
             appointment_agent,
             input=message_text,
             context=context,
             session=session,
-            run_config=RunConfig(trace_metadata={
-                "__trace_source__": "line-webhook",
-                "clinic_id": clinic.id,
-                "line_user_id": line_user_id,
-                "step": "appointment"
-            })
+            run_config=RunConfig(
+                session_input_callback=get_history_callback(appointment_agent),  # Limited to appointment_agent.history_limit (30)
+                trace_metadata={
+                    "__trace_source__": "line-webhook",
+                    "clinic_id": clinic.id,
+                    "line_user_id": line_user_id,
+                    "step": "appointment"
+                }
+            )
         )
         return response.final_output_as(str)  # type: ignore
 

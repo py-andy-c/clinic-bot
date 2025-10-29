@@ -50,3 +50,6 @@ account_linking_agent = Agent[ConversationContext](
     model_settings=ModelSettings(
     )
 )
+
+# Add history limit as an attribute
+account_linking_agent.history_limit = 30  # type: ignore

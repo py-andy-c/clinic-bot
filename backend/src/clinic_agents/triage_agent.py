@@ -72,3 +72,6 @@ triage_agent = Agent(
     model_settings=ModelSettings(
     )
 )
+
+# Add history limit as an attribute
+triage_agent.history_limit = 30  # type: ignore
