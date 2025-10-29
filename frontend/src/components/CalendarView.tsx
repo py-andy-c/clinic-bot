@@ -20,14 +20,12 @@ moment.tz.setDefault('Asia/Taipei');
 interface CalendarViewProps {
   userId: number;
   onSelectEvent?: (event: CalendarEvent) => void;
-  onSelectSlot?: (slotInfo: any) => void;
   onNavigate?: (date: Date) => void;
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({ 
   userId, 
   onSelectEvent, 
-  onSelectSlot, 
   onNavigate 
 }) => {
   // Taiwan timezone - declared at the top to avoid hoisting issues
@@ -186,16 +184,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
   };
 
-  // Handle slot selection for adding exceptions
+  // Handle slot selection - only for monthly view navigation
   const handleSelectSlot = (slotInfo: any) => {
-    setExceptionData({
-      startTime: moment(slotInfo.start).format('HH:mm'),
-      endTime: moment(slotInfo.end).format('HH:mm')
-    });
-    setModalState({ type: 'exception', data: slotInfo });
-    if (onSelectSlot) {
-      onSelectSlot(slotInfo);
+    // In monthly view, clicking a date should navigate to daily view of that date
+    if (view === Views.MONTH) {
+      setCurrentDate(slotInfo.start);
+      setView(Views.DAY);
+      if (onNavigate) {
+        onNavigate(slotInfo.start);
+      }
     }
+    // In daily view, clicking blank space does nothing
   };
 
   // Handle navigation
@@ -204,6 +203,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     if (onNavigate) {
       onNavigate(date);
     }
+  };
+
+
+  // Handle adding availability exception via button
+  const handleAddException = () => {
+    setExceptionData({
+      startTime: '',
+      endTime: ''
+    });
+    setModalState({ type: 'exception', data: null });
   };
 
 
@@ -227,7 +236,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       });
 
       if (hasConflict) {
-        setModalState({ type: 'conflict', data: '此例外時段與現有預約衝突，預約將標記為「超出工作時間」' });
+        setModalState({ type: 'conflict', data: '此休診時段與現有預約衝突，預約將標記為「超出工作時間」' });
         return;
       }
 
@@ -242,10 +251,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       await fetchCalendarData();
       setModalState({ type: null, data: null });
       setExceptionData({ startTime: '', endTime: '' });
-      alert('例外時段已建立');
+      alert('休診時段已建立');
     } catch (error) {
       console.error('Error creating exception:', error);
-      alert('建立例外時段失敗，請稍後再試');
+      alert('建立休診時段失敗，請稍後再試');
     }
   };
 
@@ -264,10 +273,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       await fetchCalendarData();
       setModalState({ type: null, data: null });
       setExceptionData({ startTime: '', endTime: '' });
-      alert('例外時段已建立（有衝突的預約將標記為超出工作時間）');
+      alert('休診時段已建立（有衝突的預約將標記為超出工作時間）');
     } catch (error) {
       console.error('Error creating exception:', error);
-      alert('建立例外時段失敗，請稍後再試');
+      alert('建立休診時段失敗，請稍後再試');
     }
   };
 
@@ -314,6 +323,20 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Calendar Controls */}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center space-x-4">
+          {view === Views.DAY && (
+            <button
+              onClick={handleAddException}
+              className="btn-primary text-sm"
+            >
+              新增休診時段
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Calendar Component */}
       <div className="card">
         <Calendar
@@ -328,7 +351,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           onView={setView}
           onSelectEvent={handleSelectEvent}
           onSelectSlot={handleSelectSlot}
-          selectable={true}
+          selectable={view === Views.MONTH}
           components={{
             toolbar: CustomToolbar,
             event: CustomEventComponent,
@@ -382,10 +405,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       )}
 
       {/* Exception Modal */}
-      {modalState.type === 'exception' && modalState.data && (
+      {modalState.type === 'exception' && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">新增例外時段</h3>
+            <h3 className="text-lg font-semibold mb-4">新增休診時段</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -421,7 +444,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 onClick={handleCreateException}
                 className="btn-primary"
               >
-                儲存例外時段
+                儲存休診時段
               </button>
             </div>
           </div>

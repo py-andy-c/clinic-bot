@@ -25,7 +25,6 @@ const AvailabilityPage: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">行事曆</h1>
-          <p className="text-gray-600 mt-1">查看您的行事曆和預約安排</p>
         </div>
       </div>
 
