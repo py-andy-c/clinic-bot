@@ -93,8 +93,11 @@ async def get_month_weekdays(
         "2024年11月1日(一) | 2024年11月2日(二) | ... | 2024年11月30日(日)"
         Returns error message if parameters are invalid.
     """
-    return await get_month_weekdays_impl(
+    logger.debug(f"📅 Getting weekday info for {year}-{month:02d}")
+    result = await get_month_weekdays_impl(
         wrapper=wrapper,
         year=year,
         month=month
     )
+    logger.debug(f"✅ Returned weekday info")
+    return result
