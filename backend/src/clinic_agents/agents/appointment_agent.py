@@ -9,6 +9,7 @@ clinic-specific context for each conversation.
 
 import logging
 from agents import Agent, ModelSettings, RunContextWrapper
+from openai.types.shared.reasoning import Reasoning
 
 logger = logging.getLogger(__name__)
 from clinic_agents.context import ConversationContext
@@ -108,10 +109,6 @@ def get_appointment_instructions(
 - 遇到錯誤時提供有用的解決方案
 
 **日期時間處理：**
-- 始終使用當前日期作為參考點
-- 當用戶說「今天」時，使用當前日期
-- 當用戶說「明天」時，使用當前日期 + 1天
-- 當用戶說「下週」時，使用當前日期 + 7天
 - 對於複雜日期參考（如「下個月第三個星期二」），使用 get_month_weekdays 工具來確定具體日期
 - 所有預約時間都必須是未來時間，不能是過去時間
 - 使用 YYYY-MM-DD 格式傳遞日期給工具函數
@@ -128,7 +125,7 @@ def get_appointment_instructions(
 appointment_agent = Agent[ConversationContext](
     name="Appointment Agent",
     instructions=get_appointment_instructions,  # Dynamic function for context injection
-    model="gpt-4o-mini",
+    model="gpt-5-nano",
     tools=[
         get_practitioner_availability,
         create_appointment,
@@ -139,5 +136,8 @@ appointment_agent = Agent[ConversationContext](
         get_month_weekdays
     ],
     model_settings=ModelSettings(
+        reasoning=Reasoning(
+            effort="minimal",
+        )
     )
 )
