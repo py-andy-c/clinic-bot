@@ -33,7 +33,6 @@ async def get_existing_appointments(
     scheduled for today or in the future, ordered by date and time.
 
     Args:
-        wrapper: Context wrapper containing database session and clinic information (auto-injected)
         patient_id: Database ID of the patient whose appointments to retrieve
 
     Returns:

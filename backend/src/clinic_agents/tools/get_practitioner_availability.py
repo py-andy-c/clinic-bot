@@ -193,7 +193,6 @@ async def get_practitioner_availability(
     Slots are returned in 15-minute intervals that fit the appointment duration.
 
     Args:
-        wrapper: Context wrapper containing database session and clinic information (auto-injected)
         practitioner_name: Full or partial name of the practitioner (case-insensitive fuzzy matching)
         date: Target date in YYYY-MM-DD format (e.g., "2024-12-25")
         appointment_type: Name of the appointment type (e.g., "初診評估", "復診")

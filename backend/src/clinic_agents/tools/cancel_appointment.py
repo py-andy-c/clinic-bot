@@ -116,7 +116,6 @@ async def cancel_appointment(
     The cancellation will succeed even if Google Calendar sync fails.
 
     Args:
-        wrapper: Context wrapper containing database session and clinic information (auto-injected)
         appointment_id: Database ID of the appointment to cancel
         patient_id: ID of the patient requesting cancellation (for ownership verification)
 

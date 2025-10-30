@@ -101,7 +101,6 @@ async def register_patient_account(
     doesn't exist. Validates Taiwanese phone numbers and prevents duplicate LINE linkages.
 
     Args:
-        wrapper: Context wrapper containing database session, clinic, and LINE user information (auto-injected)
         phone_number: Taiwanese mobile phone number (accepts various formats like 0912345678, +886912345678, etc.)
         full_name: Full name of the patient (required when creating new patient records)
 

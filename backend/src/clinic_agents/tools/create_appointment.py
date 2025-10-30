@@ -192,7 +192,6 @@ async def create_appointment(
     Google Calendar sync fails.
 
     Args:
-        wrapper: Context wrapper containing database session and clinic information (auto-injected)
         therapist_id: ID of the practitioner/therapist for the appointment
         appointment_type_id: ID of the appointment type (determines duration)
         start_time: Date and time when the appointment should start (timezone-aware datetime)

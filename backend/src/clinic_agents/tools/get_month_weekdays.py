@@ -85,7 +85,6 @@ async def get_month_weekdays(
     complex date references like "下個月第三個星期二" (the third Tuesday of next month).
 
     Args:
-        wrapper: Context wrapper containing database session and clinic information (auto-injected)
         year: Year as integer (e.g., 2024)
         month: Month as integer (1-12)
 

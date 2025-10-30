@@ -32,7 +32,6 @@ async def get_last_appointment_therapist(
     confirmed or completed.
 
     Args:
-        wrapper: Context wrapper containing database session and clinic information (auto-injected)
         patient_id: Database ID of the patient whose last therapist to find
 
     Returns:

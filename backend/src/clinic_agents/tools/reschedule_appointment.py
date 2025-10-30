@@ -218,7 +218,6 @@ async def reschedule_appointment(
     succeed even if Google Calendar sync fails.
 
     Args:
-        wrapper: Context wrapper containing database session and clinic information (auto-injected)
         appointment_id: Database ID of the appointment to reschedule
         patient_id: ID of the patient requesting rescheduling (for ownership verification)
         new_start_time: New date and time for the appointment start (timezone-aware datetime)
