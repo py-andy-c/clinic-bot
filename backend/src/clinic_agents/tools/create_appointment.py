@@ -168,20 +168,12 @@ async def create_appointment_impl(
 
         result = {
             "success": True,
-            "appointment_id": appointment.calendar_event_id,
             "therapist_name": practitioner.full_name,
             "appointment_type": apt_type.name,
             "start_time": start_time_dt.isoformat(),
             "end_time": end_time.isoformat(),
             "message": message
         }
-
-        # Include gcal_event_id only if sync succeeded
-        if gcal_event_id:
-            result["gcal_event_id"] = gcal_event_id
-            result["calendar_synced"] = True
-        else:
-            result["calendar_synced"] = False
 
         return result
 
@@ -216,14 +208,11 @@ async def create_appointment(
     Returns:
         Dict containing appointment creation result with the following keys:
             - success (bool): Whether the appointment was created successfully
-            - appointment_id (int): Database ID of the created appointment
             - therapist_name (str): Full name of the assigned therapist
             - appointment_type (str): Name of the appointment type
             - start_time (str): ISO-formatted start time string
             - end_time (str): ISO-formatted end time string
             - message (str): Human-readable success message
-            - calendar_synced (bool): Whether Google Calendar sync was successful
-            - gcal_event_id (str, optional): Google Calendar event ID if sync succeeded
             - error (str, optional): Error message if creation failed
     """
     logger.debug(f"📅 [create_appointment] Creating appointment: therapist {therapist_id}, type {appointment_type_id}, time {start_time}")

@@ -129,14 +129,11 @@ class TestOptionalGoogleCalendarSync:
         )
         
         assert result["success"] == True
-        assert "appointment_id" in result
-        assert result["calendar_synced"] == False
-        assert "gcal_event_id" not in result
         assert "注意：此預約未同步至 Google 日曆" in result["message"]
-        
+
         # Verify appointment was created in database
         appointment = db_session.query(Appointment).filter(
-            Appointment.calendar_event_id == result["appointment_id"]
+            Appointment.patient_id == patient.id
         ).first()
         assert appointment is not None
         assert appointment.calendar_event.gcal_event_id is None
@@ -174,13 +171,11 @@ class TestOptionalGoogleCalendarSync:
                 )
         
         assert result["success"] == True
-        assert "appointment_id" in result
-        assert result["calendar_synced"] == False
-        assert "gcal_event_id" not in result
-        
+        assert "注意：此預約未同步至 Google 日曆" in result["message"]
+
         # Verify appointment was created in database despite GCal failure
         appointment = db_session.query(Appointment).filter(
-            Appointment.calendar_event_id == result["appointment_id"]
+            Appointment.patient_id == patient.id
         ).first()
         assert appointment is not None
         assert appointment.calendar_event.gcal_event_id is None
@@ -218,13 +213,11 @@ class TestOptionalGoogleCalendarSync:
                 )
         
         assert result["success"] == True
-        assert "appointment_id" in result
-        assert result["calendar_synced"] == True
-        assert result["gcal_event_id"] == "gcal_event_123"
-        
+        assert "預約成功" in result["message"]
+
         # Verify appointment was created with GCal event ID
         appointment = db_session.query(Appointment).filter(
-            Appointment.calendar_event_id == result["appointment_id"]
+            Appointment.patient_id == patient.id
         ).first()
         assert appointment is not None
         assert appointment.calendar_event.gcal_event_id == "gcal_event_123"

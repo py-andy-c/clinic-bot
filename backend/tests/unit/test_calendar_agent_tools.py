@@ -408,7 +408,6 @@ class TestAgentToolsWithCalendarSchema:
                 )
 
                 assert result["success"] is True
-                assert "appointment_id" in result
                 assert result["therapist_name"] == "Dr. Test"
                 assert result["appointment_type"] == "Test Appointment"
 

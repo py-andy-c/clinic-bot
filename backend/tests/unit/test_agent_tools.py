@@ -475,10 +475,8 @@ class TestCreateAppointment:
 
         # Should return success
         assert result["success"] is True
-        assert "appointment_id" in result
         assert result["therapist_name"] == therapist.full_name
         assert result["appointment_type"] == apt_type.name
-        assert result["gcal_event_id"] == 'gcal_event_123'
         assert "預約成功" in result["message"]
 
     @pytest.mark.asyncio
@@ -545,7 +543,6 @@ class TestCreateAppointment:
         )
 
         assert result["success"] is True
-        assert "appointment_id" in result
         assert "未同步至 Google 日曆" in result["message"]
 
     @pytest.mark.asyncio
@@ -583,7 +580,6 @@ class TestCreateAppointment:
 
             # Should still succeed (GCal failure doesn't block appointment creation)
             assert result["success"] is True
-            assert "appointment_id" in result
             assert "未同步至 Google 日曆" in result["message"]
 
             # Verify appointment was created in database despite GCal failure

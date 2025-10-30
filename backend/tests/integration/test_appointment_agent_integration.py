@@ -192,7 +192,6 @@ class TestAppointmentAgentIntegration:
                     patient_id=patient.id
                 )
 
-                assert "appointment_id" in appointment_result
                 assert appointment_result["success"] == True
 
         # Step 3: Verify appointment was created in database
