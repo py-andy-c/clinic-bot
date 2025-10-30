@@ -40,8 +40,6 @@ async def get_existing_appointments(
             - appointment_type (str): Name of the appointment type
             - start_time (str): ISO-formatted appointment start time
             - end_time (str): ISO-formatted appointment end time
-            - status (str): Appointment status ('confirmed' or 'pending')
-            - gcal_event_id (str, optional): Google Calendar event ID if synced
 
         Returns an error dictionary with single "error" key if query fails.
     """
@@ -62,9 +60,7 @@ async def get_existing_appointments(
                 "therapist_name": apt.calendar_event.user.full_name,
                 "appointment_type": apt.appointment_type.name,
                 "start_time": apt.start_time.isoformat(),
-                "end_time": apt.end_time.isoformat(),
-                "status": apt.status,
-                "gcal_event_id": apt.gcal_event_id
+                "end_time": apt.end_time.isoformat()
             }
             for apt in appointments
         ]
