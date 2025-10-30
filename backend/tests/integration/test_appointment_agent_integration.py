@@ -188,7 +188,7 @@ class TestAppointmentAgentIntegration:
                     wrapper=wrapper,
                     therapist_id=practitioner.id,
                     appointment_type_id=appointment_type.id,
-                    start_time=datetime(2025, 1, 15, 9, 0),  # 9:00 AM
+                    start_time="2025-01-15 09:00",  # 9:00 AM
                     patient_id=patient.id
                 )
 
@@ -345,7 +345,7 @@ class TestAppointmentAgentIntegration:
             wrapper=wrapper,
             therapist_id=practitioner.id,
             appointment_type_id=appointment_type.id,
-            start_time=datetime(2025, 1, 15, 9, 30),  # 9:30 AM - conflicts with 9:00-10:00
+            start_time="2025-01-15 09:30",  # 9:30 AM - conflicts with 9:00-10:00
             patient_id=new_patient.id
         )
 

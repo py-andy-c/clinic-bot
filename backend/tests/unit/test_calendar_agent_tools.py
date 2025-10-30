@@ -399,12 +399,11 @@ class TestAgentToolsWithCalendarSchema:
                 mock_encryption.return_value.decrypt_data.return_value = {"credentials": "test"}
 
                 # Test creating appointment
-                start_time = datetime(2025, 1, 15, 10, 0)
                 result = await create_appointment_impl(
                     wrapper=wrapper,
                     therapist_id=practitioner.id,
                     appointment_type_id=appointment_type.id,
-                    start_time=start_time,
+                    start_time="2025-01-15 10:00",
                     patient_id=patient.id
                 )
 
@@ -507,12 +506,11 @@ class TestAgentToolsWithCalendarSchema:
         wrapper.context = context
 
         # Test creating conflicting appointment
-        start_time = datetime(2025, 1, 15, 10, 30)  # Overlaps with existing appointment
         result = await create_appointment_impl(
             wrapper=wrapper,
             therapist_id=practitioner.id,
             appointment_type_id=appointment_type.id,
-            start_time=start_time,
+            start_time="2025-01-15 10:30",  # Overlaps with existing appointment
             patient_id=patient.id
         )
 

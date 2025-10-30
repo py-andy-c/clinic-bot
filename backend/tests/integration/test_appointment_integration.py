@@ -121,7 +121,8 @@ class TestAppointmentIntegration:
 
         # Use a non-existent therapist ID
         invalid_therapist_id = 99999
-        start_time = datetime.combine((datetime.now() + timedelta(days=1)).date(), time(10, 0))
+        tomorrow = (datetime.now() + timedelta(days=1)).date()
+        start_time = f"{tomorrow} 10:00"
 
         # Set up context
         ctx = ConversationContext(
@@ -180,7 +181,8 @@ class TestAppointmentIntegration:
         wrapper.context = ctx
 
         # Create first appointment at 10:00
-        start_time_1 = datetime.combine((datetime.now() + timedelta(days=1)).date(), time(10, 0))
+        tomorrow = (datetime.now() + timedelta(days=1)).date()
+        start_time_1 = f"{tomorrow} 10:00"
 
         # Mock Google Calendar and encryption service for first booking
         with patch('clinic_agents.tools.create_appointment.GoogleCalendarService') as mock_gcal_class, \
@@ -259,8 +261,9 @@ class TestAppointmentIntegration:
             assert "衝突" in result2["error"] or "conflict" in result2["error"].lower()
 
             # Verify only one appointment exists
+            start_time_dt = datetime.strptime(start_time_1, "%Y-%m-%d %H:%M")
             appointments = db_session.query(Appointment).join(CalendarEvent).filter(
                 CalendarEvent.user_id == therapist.id,
-                CalendarEvent.start_time == start_time_1.time()
+                CalendarEvent.start_time == start_time_dt.time()
             ).all()
             assert len(appointments) == 1

@@ -8,7 +8,7 @@ including conflict checking and database transaction handling.
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 
 from agents import function_tool, RunContextWrapper
@@ -30,13 +30,33 @@ async def create_appointment_impl(
     wrapper: RunContextWrapper[ConversationContext],
     therapist_id: int,
     appointment_type_id: int,
-    start_time: datetime,
+    start_time: str,
     patient_id: int
 ) -> Dict[str, Any]:
     """Core implementation for creating an appointment with GCal sync."""
     db = wrapper.context.db_session
 
     try:
+        # Parse start_time string into timezone-aware datetime (Taiwan time)
+        taiwan_tz = timezone(timedelta(hours=8))
+        try:
+            # Try parsing as ISO format with timezone info first
+            if 'T' in start_time:
+                parsed_datetime = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            else:
+                # Assume YYYY-MM-DD HH:MM format
+                parsed_datetime = datetime.strptime(start_time, "%Y-%m-%d %H:%M")
+        except ValueError as e:
+            return {"error": f"時間格式錯誤：{start_time}，請使用 YYYY-MM-DD HH:MM 或 ISO 格式"}
+
+        # Ensure the datetime is in Taiwan timezone
+        if parsed_datetime.tzinfo is None:
+            # If naive, assume it's already in Taiwan time
+            start_time_dt = parsed_datetime.replace(tzinfo=taiwan_tz)
+        else:
+            # If already timezone-aware, convert to Taiwan time
+            start_time_dt = parsed_datetime.astimezone(taiwan_tz)
+
         # Load related entities
         # Note: Filter roles in Python because SQLite JSON operations don't work reliably
         practitioner = db.query(User).filter(
@@ -58,15 +78,15 @@ async def create_appointment_impl(
             return {"error": "找不到指定的預約類型"}
 
         # Calculate end time
-        end_time = start_time + timedelta(minutes=apt_type.duration_minutes)
+        end_time = start_time_dt + timedelta(minutes=apt_type.duration_minutes)
 
         # Prevent double-booking: check for overlapping appointments for this practitioner
         conflict = db.query(CalendarEvent).filter(
             CalendarEvent.user_id == therapist_id,
             CalendarEvent.event_type == 'appointment',
-            CalendarEvent.date == start_time.date(),
+            CalendarEvent.date == start_time_dt.date(),
             CalendarEvent.start_time < end_time.time(),
-            CalendarEvent.end_time > start_time.time(),
+            CalendarEvent.end_time > start_time_dt.time(),
         ).first()
         if conflict is not None:
             return {"error": "預約時間衝突，請選擇其他時段"}
@@ -75,8 +95,8 @@ async def create_appointment_impl(
         calendar_event = CalendarEvent(
             user_id=therapist_id,
             event_type='appointment',
-            date=start_time.date(),
-            start_time=start_time.time(),
+            date=start_time_dt.date(),
+            start_time=start_time_dt.time(),
             end_time=end_time.time(),
             gcal_event_id=None  # Will be set if Google Calendar sync succeeds
         )
@@ -116,7 +136,7 @@ async def create_appointment_impl(
 
                 gcal_event = await gcal_service.create_event(
                     summary=f"{patient.full_name} - {apt_type.name}",
-                    start=start_time,
+                    start=start_time_dt,
                     end=end_time,
                     description=(
                         f"Patient: {patient.full_name}\n"
@@ -142,7 +162,7 @@ async def create_appointment_impl(
             logger.info(f"Practitioner {practitioner.full_name} (ID: {practitioner.id}) has no Google Calendar credentials - creating appointment without calendar sync")
 
         # Build response message
-        message = f"預約成功！{start_time.strftime('%Y-%m-%d %H:%M')} 與 {practitioner.full_name} 預約 {apt_type.name}"
+        message = f"預約成功！{start_time_dt.strftime('%Y-%m-%d %H:%M')} 與 {practitioner.full_name} 預約 {apt_type.name}"
         if gcal_event_id is None:
             message += "（注意：此預約未同步至 Google 日曆）"
 
@@ -151,7 +171,7 @@ async def create_appointment_impl(
             "appointment_id": appointment.calendar_event_id,
             "therapist_name": practitioner.full_name,
             "appointment_type": apt_type.name,
-            "start_time": start_time.isoformat(),
+            "start_time": start_time_dt.isoformat(),
             "end_time": end_time.isoformat(),
             "message": message
         }
@@ -181,7 +201,7 @@ async def create_appointment(
     wrapper: RunContextWrapper[ConversationContext],
     therapist_id: int,
     appointment_type_id: int,
-    start_time: datetime,
+    start_time: str,
     patient_id: int
 ) -> Dict[str, Any]:
     """
@@ -190,7 +210,7 @@ async def create_appointment(
     Args:
         therapist_id: ID of the practitioner/therapist for the appointment
         appointment_type_id: ID of the appointment type (determines duration)
-        start_time: Date and time when the appointment should start (timezone-aware datetime)
+        start_time: Date and time when the appointment should start (format: "YYYY-MM-DD HH:MM" or ISO format)
         patient_id: ID of the patient making the appointment
 
     Returns:

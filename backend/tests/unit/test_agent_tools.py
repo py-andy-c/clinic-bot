@@ -6,10 +6,11 @@ Tests the core business logic tools that agents call to perform operations.
 
 import pytest
 from datetime import datetime, timedelta, time, date
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, AsyncMock
 
 from models import Clinic, User, Patient, Appointment, AppointmentType, LineUser, CalendarEvent, PractitionerAvailability
 from clinic_agents.context import ConversationContext
+from clinic_agents.tools.create_appointment import create_appointment_impl
 from typing import Dict, List, Any
 
 
@@ -427,144 +428,7 @@ class TestGetPractitionerAvailability:
         assert "available_slots" in result2
 
 
-# Copy the create_appointment logic for testing
-async def mock_create_appointment(
-    wrapper,
-    therapist_id: int,
-    appointment_type_id: int,
-    start_time,
-    patient_id: int,
-    mock_gcal_service=None
-) -> Dict[str, Any]:
-    """Test version of create_appointment function."""
-    from services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
-    from services.encryption_service import get_encryption_service
-    from sqlalchemy.exc import IntegrityError
-    import json
-
-    db = wrapper.context.db_session
-
-    try:
-        # Load related entities
-        practitioner = db.query(User).filter(
-            User.id == therapist_id,
-            User.roles.contains(['practitioner']),
-            User.is_active == True
-        ).first()
-        patient = db.get(Patient, patient_id)
-        apt_type = db.get(AppointmentType, appointment_type_id)
-
-        if practitioner is None:
-            return {"error": "找不到指定的治療師"}
-        if patient is None:
-            return {"error": "找不到指定的病人"}
-        if apt_type is None:
-            return {"error": "找不到指定的預約類型"}
-
-        # Calculate end time
-        end_time = start_time + timedelta(minutes=apt_type.duration_minutes)
-
-        # Check for conflicts (this logic should be in the real function)
-        existing_conflicts = db.query(Appointment).join(CalendarEvent).filter(
-            CalendarEvent.user_id == therapist_id,
-            Appointment.status.in_(['confirmed', 'pending']),
-            CalendarEvent.start_time < end_time.time(),
-            CalendarEvent.end_time > start_time.time()
-        ).first()
-
-        if existing_conflicts:
-            return {"error": "預約時間衝突，請選擇其他時段"}
-
-        # Create Google Calendar event FIRST
-        if not practitioner.gcal_credentials:
-            return {"error": "Practitioner has no Google Calendar credentials"}
-
-        # Use mock service if provided (for testing)
-        if mock_gcal_service is not None:
-            gcal_service = mock_gcal_service
-        else:
-            # Mock decryption - remove "encrypted_" prefix and parse as dict
-            gcal_credentials_str = practitioner.gcal_credentials.replace("encrypted_", "")
-            gcal_credentials = json.loads(gcal_credentials_str)
-            gcal_service = GoogleCalendarService(json.dumps(gcal_credentials))
-        gcal_event = await gcal_service.create_event(
-            summary=f"{patient.full_name} - {apt_type.name}",
-            start=start_time,
-            end=end_time,
-            description=(
-                f"Patient: {patient.full_name}\n"
-                f"Phone: {patient.phone_number}\n"
-                f"Type: {apt_type.name}\n"
-                f"Scheduled Via: LINE Bot"
-            ),
-            color_id="7",  # Blue color for appointments
-            extended_properties={
-                "private": {
-                    "source": "line_bot",
-                    "patient_id": str(patient_id),
-                    "appointment_db_id": None  # Will update after DB insert
-                }
-            }
-        )
-
-        # Create CalendarEvent first
-        calendar_event = CalendarEvent(
-            user_id=therapist_id,
-            event_type='appointment',
-            date=start_time.date(),
-            start_time=start_time.time(),
-            end_time=end_time.time(),
-            gcal_event_id="test_gcal_event_123"
-        )
-        db.add(calendar_event)
-        db.commit()
-
-        # Create database record with gcal_event_id
-        appointment = Appointment(
-            calendar_event_id=calendar_event.id,
-            patient_id=patient_id,
-            appointment_type_id=appointment_type_id,
-            status='confirmed'
-        )
-
-        db.add(appointment)
-        db.commit()  # Commit to get appointment ID
-
-        # Update Google Calendar event with database ID
-        await gcal_service.update_event(
-            event_id=gcal_event['id'],
-            extended_properties={
-                "private": {
-                    "source": "line_bot",
-                    "patient_id": str(patient_id),
-                    "appointment_db_id": str(appointment.calendar_event_id)
-                }
-            }
-        )
-
-        return {
-            "success": True,
-            "appointment_id": appointment.calendar_event_id,
-            "therapist_name": practitioner.full_name,
-            "appointment_type": apt_type.name,
-            "start_time": start_time.isoformat(),
-            "end_time": end_time.isoformat(),
-            "gcal_event_id": gcal_event['id'],
-            "message": f"預約成功！{start_time.strftime('%Y-%m-%d %H:%M')} 與 {practitioner.full_name} 預約 {apt_type.name}"
-        }
-
-    except GoogleCalendarError as e:
-        db.rollback()
-        return {"error": f"日曆同步失敗：{e}"}
-
-    except IntegrityError as e:
-        db.rollback()
-        return {"error": "預約時間衝突，請選擇其他時段"}
-
-    except Exception as e:
-        db.rollback()
-        return {"error": f"建立預約時發生錯誤：{e}"}
-
+# Mock function removed - tests now use create_appointment_impl directly
 
 class TestCreateAppointment:
     """Test the create_appointment tool."""
@@ -585,29 +449,29 @@ class TestCreateAppointment:
 
         # Create appointment for tomorrow at 10:00
         tomorrow = datetime.now() + timedelta(days=1)
-        start_time = datetime.combine(tomorrow.date(), time(10, 0))
+        start_time = datetime.combine(tomorrow.date(), time(10, 0)).strftime("%Y-%m-%d %H:%M")
 
-        # Create mock Google Calendar service
-        mock_gcal_service = Mock()
-        async def mock_create_event(*args, **kwargs):
-            return {
+        # Mock Google Calendar service and encryption service
+        with patch('clinic_agents.tools.create_appointment.GoogleCalendarService') as mock_gcal_class, \
+             patch('clinic_agents.tools.create_appointment.get_encryption_service') as mock_encryption:
+            mock_gcal_instance = Mock()
+            mock_gcal_instance.create_event = AsyncMock(return_value={
                 'id': 'gcal_event_123',
                 'summary': 'Test Appointment'
-            }
-        async def mock_update_event(*args, **kwargs):
-            return None
+            })
+            mock_gcal_instance.update_event = AsyncMock(return_value=None)
+            mock_gcal_class.return_value = mock_gcal_instance
 
-        mock_gcal_service.create_event = mock_create_event
-        mock_gcal_service.update_event = mock_update_event
+            # Mock encryption service to return decrypted credentials
+            mock_encryption.return_value.decrypt_data.return_value = test_credentials
 
-        result = await mock_create_appointment(
-            wrapper=wrapper,
-            therapist_id=therapist.id,
-            appointment_type_id=apt_type.id,
-            start_time=start_time,
-            patient_id=linked_patient.id,
-            mock_gcal_service=mock_gcal_service
-        )
+            result = await create_appointment_impl(
+                wrapper=wrapper,
+                therapist_id=therapist.id,
+                appointment_type_id=apt_type.id,
+                start_time=start_time,
+                patient_id=linked_patient.id
+            )
 
         # Should return success
         assert result["success"] is True
@@ -623,9 +487,9 @@ class TestCreateAppointment:
         wrapper = Mock()
         wrapper.context = conversation_context
 
-        start_time = datetime.now() + timedelta(days=1)
+        start_time = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
 
-        result = await mock_create_appointment(
+        result = await create_appointment_impl(
             wrapper=wrapper,
             therapist_id=999,  # Non-existent ID
             appointment_type_id=1,
@@ -644,9 +508,9 @@ class TestCreateAppointment:
         wrapper = Mock()
         wrapper.context = conversation_context
 
-        start_time = datetime.now() + timedelta(days=1)
+        start_time = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
 
-        result = await mock_create_appointment(
+        result = await create_appointment_impl(
             wrapper=wrapper,
             therapist_id=therapist.id,
             appointment_type_id=appointment_types[0].id,
@@ -670,9 +534,9 @@ class TestCreateAppointment:
         wrapper = Mock()
         wrapper.context = conversation_context
 
-        start_time = datetime.now() + timedelta(days=1)
+        start_time = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
 
-        result = await mock_create_appointment(
+        result = await create_appointment_impl(
             wrapper=wrapper,
             therapist_id=therapist.id,
             appointment_type_id=apt_type.id,
@@ -680,8 +544,9 @@ class TestCreateAppointment:
             patient_id=linked_patient.id
         )
 
-        assert "error" in result
-        assert "Practitioner has no Google Calendar credentials" in result["error"]
+        assert result["success"] is True
+        assert "appointment_id" in result
+        assert "未同步至 Google 日曆" in result["message"]
 
     @pytest.mark.asyncio
     async def test_create_appointment_gcal_failure_rollback(self, db_session, test_clinic_with_therapist_and_types, conversation_context, linked_patient):
@@ -697,18 +562,18 @@ class TestCreateAppointment:
         wrapper = Mock()
         wrapper.context = conversation_context
 
-        start_time = datetime.now() + timedelta(days=1)
+        start_time = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
 
         # Mock Google Calendar service to fail
-        with patch('services.google_calendar_service.GoogleCalendarService') as mock_gcal_class:
-            mock_gcal_service = Mock()
-            mock_gcal_class.return_value = mock_gcal_service
+        with patch('clinic_agents.tools.create_appointment.GoogleCalendarService') as mock_gcal_class:
+            mock_gcal_instance = Mock()
+            mock_gcal_class.return_value = mock_gcal_instance
 
             # Mock calendar creation to raise an error
             from services.google_calendar_service import GoogleCalendarError
-            mock_gcal_service.create_event.side_effect = GoogleCalendarError("Calendar API error")
+            mock_gcal_instance.create_event = AsyncMock(side_effect=GoogleCalendarError("Calendar API error"))
 
-            result = await mock_create_appointment(
+            result = await create_appointment_impl(
                 wrapper=wrapper,
                 therapist_id=therapist.id,
                 appointment_type_id=apt_type.id,
@@ -716,17 +581,17 @@ class TestCreateAppointment:
                 patient_id=linked_patient.id
             )
 
-            # Should return error
-            assert "error" in result
-            assert "日曆同步失敗" in result["error"]
+            # Should still succeed (GCal failure doesn't block appointment creation)
+            assert result["success"] is True
+            assert "appointment_id" in result
+            assert "未同步至 Google 日曆" in result["message"]
 
-            # Verify appointment was not created in database
+            # Verify appointment was created in database despite GCal failure
             from models import Appointment
-            appointment_count = db_session.query(Appointment).join(CalendarEvent).filter(
-                Appointment.patient_id == linked_patient.id,
-                CalendarEvent.start_time == start_time
+            appointment_count = db_session.query(Appointment).filter(
+                Appointment.patient_id == linked_patient.id
             ).count()
-            assert appointment_count == 0
+            assert appointment_count == 1
 
     @pytest.mark.asyncio
     async def test_create_appointment_conflict_rollback(self, db_session, test_clinic_with_therapist_and_types, conversation_context, linked_patient):
@@ -767,28 +632,24 @@ class TestCreateAppointment:
         wrapper = Mock()
         wrapper.context = conversation_context
 
-        # Create mock Google Calendar service
-        mock_gcal_service = Mock()
-        async def mock_create_event(*args, **kwargs):
-            return {
+        # Mock Google Calendar service
+        with patch('clinic_agents.tools.create_appointment.GoogleCalendarService') as mock_gcal_class:
+            mock_gcal_instance = Mock()
+            mock_gcal_instance.create_event = AsyncMock(return_value={
                 'id': 'gcal_event_123',
                 'summary': 'Test Appointment'
-            }
-        async def mock_update_event(*args, **kwargs):
-            return None
+            })
+            mock_gcal_instance.update_event = AsyncMock(return_value=None)
+            mock_gcal_class.return_value = mock_gcal_instance
 
-        mock_gcal_service.create_event = mock_create_event
-        mock_gcal_service.update_event = mock_update_event
-
-        # Try to create appointment at the same time
-        result = await mock_create_appointment(
-            wrapper=wrapper,
-            therapist_id=therapist.id,
-            appointment_type_id=apt_type.id,
-            start_time=start_time,
-            patient_id=linked_patient.id,
-            mock_gcal_service=mock_gcal_service
-        )
+            # Try to create appointment at the same time
+            result = await create_appointment_impl(
+                wrapper=wrapper,
+                therapist_id=therapist.id,
+                appointment_type_id=apt_type.id,
+                start_time=start_time.strftime("%Y-%m-%d %H:%M"),
+                patient_id=linked_patient.id
+            )
 
         # Should return conflict error
         assert "error" in result

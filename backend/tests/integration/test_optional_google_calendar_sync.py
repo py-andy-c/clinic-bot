@@ -120,13 +120,11 @@ class TestOptionalGoogleCalendarSync:
         appointment_type = test_clinic_with_practitioners["appointment_type"]
         patient = test_clinic_with_practitioners["patient"]
         
-        start_time = datetime(2025, 1, 15, 10, 0, tzinfo=timezone(timedelta(hours=8)))
-        
         result = await create_appointment_impl(
             wrapper=wrapper,
             therapist_id=practitioner.id,
             appointment_type_id=appointment_type.id,
-            start_time=start_time,
+            start_time="2025-01-15 10:00",
             patient_id=patient.id
         )
         
@@ -153,7 +151,7 @@ class TestOptionalGoogleCalendarSync:
         appointment_type = test_clinic_with_practitioners["appointment_type"]
         patient = test_clinic_with_practitioners["patient"]
         
-        start_time = datetime(2025, 1, 15, 10, 0, tzinfo=timezone(timedelta(hours=8)))
+        start_time = "2025-01-15 10:00"
         
         # Mock decryption to succeed, but GCal service to fail
         with patch('clinic_agents.tools.create_appointment.get_encryption_service') as mock_encryption:
@@ -197,7 +195,7 @@ class TestOptionalGoogleCalendarSync:
         appointment_type = test_clinic_with_practitioners["appointment_type"]
         patient = test_clinic_with_practitioners["patient"]
         
-        start_time = datetime(2025, 1, 15, 10, 0, tzinfo=timezone(timedelta(hours=8)))
+        start_time = "2025-01-15 10:00"
         
         # Mock successful Google Calendar sync
         with patch('clinic_agents.tools.create_appointment.get_encryption_service') as mock_encryption:
@@ -236,19 +234,19 @@ class TestOptionalGoogleCalendarSync:
         """Test that appointment can be canceled without Google Calendar sync."""
         wrapper = AsyncMock()
         wrapper.context = conversation_context
-        
+
         practitioner = test_clinic_with_practitioners["practitioner_without_gcal"]
         appointment_type = test_clinic_with_practitioners["appointment_type"]
         patient = test_clinic_with_practitioners["patient"]
-        
+
         # Create an appointment first
-        start_time = datetime(2025, 1, 15, 10, 0)
+        start_time_dt = datetime(2025, 1, 15, 10, 0)
         calendar_event = CalendarEvent(
             user_id=practitioner.id,
             event_type='appointment',
-            date=start_time.date(),
-            start_time=start_time.time(),
-            end_time=(start_time + timedelta(minutes=60)).time(),
+            date=start_time_dt.date(),
+            start_time=start_time_dt.time(),
+            end_time=(start_time_dt + timedelta(minutes=60)).time(),
             gcal_event_id=None
         )
         db_session.add(calendar_event)
@@ -284,19 +282,19 @@ class TestOptionalGoogleCalendarSync:
         """Test that appointment cancellation succeeds even when Google Calendar sync fails."""
         wrapper = AsyncMock()
         wrapper.context = conversation_context
-        
+
         practitioner = test_clinic_with_practitioners["practitioner_with_gcal"]
         appointment_type = test_clinic_with_practitioners["appointment_type"]
         patient = test_clinic_with_practitioners["patient"]
-        
+
         # Create an appointment with existing GCal event
-        start_time = datetime(2025, 1, 15, 10, 0)
+        start_time_dt = datetime(2025, 1, 15, 10, 0)
         calendar_event = CalendarEvent(
             user_id=practitioner.id,
             event_type='appointment',
-            date=start_time.date(),
-            start_time=start_time.time(),
-            end_time=(start_time + timedelta(minutes=60)).time(),
+            date=start_time_dt.date(),
+            start_time=start_time_dt.time(),
+            end_time=(start_time_dt + timedelta(minutes=60)).time(),
             gcal_event_id="existing_gcal_123"
         )
         db_session.add(calendar_event)
@@ -343,19 +341,19 @@ class TestOptionalGoogleCalendarSync:
         """Test that appointment can be rescheduled without Google Calendar sync."""
         wrapper = AsyncMock()
         wrapper.context = conversation_context
-        
+
         practitioner = test_clinic_with_practitioners["practitioner_without_gcal"]
         appointment_type = test_clinic_with_practitioners["appointment_type"]
         patient = test_clinic_with_practitioners["patient"]
-        
+
         # Create an appointment first
-        start_time = datetime(2025, 1, 15, 10, 0)
+        start_time_dt = datetime(2025, 1, 15, 10, 0)
         calendar_event = CalendarEvent(
             user_id=practitioner.id,
             event_type='appointment',
-            date=start_time.date(),
-            start_time=start_time.time(),
-            end_time=(start_time + timedelta(minutes=60)).time(),
+            date=start_time_dt.date(),
+            start_time=start_time_dt.time(),
+            end_time=(start_time_dt + timedelta(minutes=60)).time(),
             gcal_event_id=None
         )
         db_session.add(calendar_event)
@@ -394,19 +392,19 @@ class TestOptionalGoogleCalendarSync:
         """Test that rescheduling succeeds even when Google Calendar sync fails."""
         wrapper = AsyncMock()
         wrapper.context = conversation_context
-        
+
         practitioner = test_clinic_with_practitioners["practitioner_with_gcal"]
         appointment_type = test_clinic_with_practitioners["appointment_type"]
         patient = test_clinic_with_practitioners["patient"]
-        
+
         # Create an appointment with existing GCal event
-        start_time = datetime(2025, 1, 15, 10, 0)
+        start_time_dt = datetime(2025, 1, 15, 10, 0)
         calendar_event = CalendarEvent(
             user_id=practitioner.id,
             event_type='appointment',
-            date=start_time.date(),
-            start_time=start_time.time(),
-            end_time=(start_time + timedelta(minutes=60)).time(),
+            date=start_time_dt.date(),
+            start_time=start_time_dt.time(),
+            end_time=(start_time_dt + timedelta(minutes=60)).time(),
             gcal_event_id="existing_gcal_123"
         )
         db_session.add(calendar_event)

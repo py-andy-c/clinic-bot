@@ -51,7 +51,8 @@ async def test_prevent_double_booking_same_time_window(db_session):
     wrapper.context = ctx
 
     # First appointment: 10:00-10:30
-    start = datetime.combine(datetime.now().date() + timedelta(days=1), time(10, 0))
+    tomorrow = datetime.now().date() + timedelta(days=1)
+    start = f"{tomorrow} 10:00"
 
     with patch("clinic_agents.tools.create_appointment.GoogleCalendarService", autospec=True) as mock_gcal_class, \
          patch("services.encryption_service.get_encryption_service", autospec=True) as mock_get_enc:
@@ -73,7 +74,7 @@ async def test_prevent_double_booking_same_time_window(db_session):
         assert res1.get("success") is True
 
     # Second overlapping appointment: 10:15-10:45 should be rejected
-    overlapping_start = start + timedelta(minutes=15)
+    overlapping_start = f"{tomorrow} 10:15"
     with patch("clinic_agents.tools.create_appointment.GoogleCalendarService", autospec=True) as mock_gcal_class, \
          patch("services.encryption_service.get_encryption_service", autospec=True) as mock_get_enc:
         # Mock decrypt - use autospecced return value
