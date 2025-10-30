@@ -185,11 +185,7 @@ async def create_appointment(
     patient_id: int
 ) -> Dict[str, Any]:
     """
-    Create a new appointment for a patient with optional Google Calendar synchronization.
-
-    This tool creates a new appointment record in the database and attempts to sync it
-    with the practitioner's Google Calendar. The appointment will be created even if
-    Google Calendar sync fails.
+    Create a new appointment for a patient
 
     Args:
         therapist_id: ID of the practitioner/therapist for the appointment

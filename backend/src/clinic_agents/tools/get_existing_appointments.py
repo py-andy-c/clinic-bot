@@ -27,9 +27,7 @@ async def get_existing_appointments(
     patient_id: int
 ) -> List[Dict[str, Any]]:
     """
-    Retrieve a patient's upcoming confirmed appointments.
-
-    This tool fetches all confirmed and pending appointments for a patient that are
+    This tool fetches all appointments for a patient that are
     scheduled for today or in the future, ordered by date and time.
 
     Args:

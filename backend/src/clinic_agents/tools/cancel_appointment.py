@@ -109,11 +109,7 @@ async def cancel_appointment(
     patient_id: int
 ) -> Dict[str, Any]:
     """
-    Cancel an existing appointment and optionally remove it from Google Calendar.
-
-    This tool cancels a patient's appointment by changing its status to 'canceled_by_patient'
-    and attempts to remove the corresponding event from the practitioner's Google Calendar.
-    The cancellation will succeed even if Google Calendar sync fails.
+    Cancel an existing appointment.
 
     Args:
         appointment_id: Database ID of the appointment to cancel
