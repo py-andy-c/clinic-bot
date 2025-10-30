@@ -8,7 +8,7 @@ import pytest
 from datetime import datetime, date, time, timedelta
 from unittest.mock import AsyncMock, patch
 
-from clinic_agents.appointment_agent import get_appointment_instructions
+from clinic_agents.agents import get_appointment_instructions
 from clinic_agents.context import ConversationContext
 from clinic_agents.tools import get_practitioner_availability_impl, create_appointment_impl
 from models import User, Clinic, AppointmentType, Patient, PractitionerAvailability, CalendarEvent, Appointment

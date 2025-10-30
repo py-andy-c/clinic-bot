@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from agents import Runner, RunConfig, trace
 
 from clinic_agents.context import ConversationContext
-from clinic_agents.triage_agent import triage_agent
+from clinic_agents.agents import triage_agent
 from clinic_agents.line_user_utils import get_or_create_line_user, get_patient_from_line_user
 from clinic_agents.history_utils import smart_history_callback
 from clinic_agents.session_utils import get_session_storage

@@ -7,8 +7,7 @@ from sqlalchemy.orm import Session
 
 from agents import Runner, RunConfig
 from clinic_agents.context import ConversationContext
-from clinic_agents.appointment_agent import appointment_agent
-from clinic_agents.account_linking_agent import account_linking_agent
+from clinic_agents.agents import appointment_agent, account_linking_agent
 from clinic_agents.line_user_utils import get_patient_from_line_user
 from clinic_agents.history_utils import smart_history_callback
 from clinic_agents.clinic_readiness import check_clinic_readiness_for_appointments
