@@ -11,8 +11,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from clinic_agents.context import ConversationContext
 from clinic_agents.tools import (
     create_appointment_impl,
-    cancel_appointment_impl,
-    reschedule_appointment_impl
+    cancel_appointment_impl
 )
 from models import (
     User, Clinic, AppointmentType, Patient, PractitionerAvailability,
@@ -323,116 +322,4 @@ class TestOptionalGoogleCalendarSync:
         db_session.refresh(appointment)
         assert appointment.status == 'canceled_by_patient'
 
-    @pytest.mark.asyncio
-    async def test_reschedule_appointment_without_gcal(self, conversation_context, test_clinic_with_practitioners, db_session):
-        """Test that appointment can be rescheduled without Google Calendar sync."""
-        wrapper = AsyncMock()
-        wrapper.context = conversation_context
 
-        practitioner = test_clinic_with_practitioners["practitioner_without_gcal"]
-        appointment_type = test_clinic_with_practitioners["appointment_type"]
-        patient = test_clinic_with_practitioners["patient"]
-
-        # Create an appointment first
-        start_time_dt = datetime(2025, 1, 15, 10, 0)
-        calendar_event = CalendarEvent(
-            user_id=practitioner.id,
-            event_type='appointment',
-            date=start_time_dt.date(),
-            start_time=start_time_dt.time(),
-            end_time=(start_time_dt + timedelta(minutes=60)).time(),
-            gcal_event_id=None
-        )
-        db_session.add(calendar_event)
-        db_session.flush()
-        
-        appointment = Appointment(
-            calendar_event_id=calendar_event.id,
-            patient_id=patient.id,
-            appointment_type_id=appointment_type.id,
-            status='confirmed'
-        )
-        db_session.add(appointment)
-        db_session.commit()
-        
-        # Reschedule the appointment
-        new_start_time = datetime(2025, 1, 16, 14, 0, tzinfo=timezone(timedelta(hours=8)))
-        result = await reschedule_appointment_impl(
-            wrapper=wrapper,
-            appointment_id=calendar_event.id,
-            patient_id=patient.id,
-            new_start_time=new_start_time
-        )
-        
-        assert result["success"] == True
-        assert result["appointment_id"] == calendar_event.id
-        assert result["calendar_synced"] == False
-        assert "gcal_event_id" not in result
-        
-        # Verify appointment was rescheduled in database
-        db_session.refresh(calendar_event)
-        assert calendar_event.start_time == new_start_time.time()
-        assert calendar_event.gcal_event_id is None
-
-    @pytest.mark.asyncio
-    async def test_reschedule_appointment_with_gcal_failure(self, conversation_context, test_clinic_with_practitioners, db_session):
-        """Test that rescheduling succeeds even when Google Calendar sync fails."""
-        wrapper = AsyncMock()
-        wrapper.context = conversation_context
-
-        practitioner = test_clinic_with_practitioners["practitioner_with_gcal"]
-        appointment_type = test_clinic_with_practitioners["appointment_type"]
-        patient = test_clinic_with_practitioners["patient"]
-
-        # Create an appointment with existing GCal event
-        start_time_dt = datetime(2025, 1, 15, 10, 0)
-        calendar_event = CalendarEvent(
-            user_id=practitioner.id,
-            event_type='appointment',
-            date=start_time_dt.date(),
-            start_time=start_time_dt.time(),
-            end_time=(start_time_dt + timedelta(minutes=60)).time(),
-            gcal_event_id="existing_gcal_123"
-        )
-        db_session.add(calendar_event)
-        db_session.flush()
-        
-        appointment = Appointment(
-            calendar_event_id=calendar_event.id,
-            patient_id=patient.id,
-            appointment_type_id=appointment_type.id,
-            status='confirmed'
-        )
-        db_session.add(appointment)
-        db_session.commit()
-        
-        # Mock GCal service to fail during update
-        new_start_time = datetime(2025, 1, 16, 14, 0, tzinfo=timezone(timedelta(hours=8)))
-        
-        with patch('clinic_agents.tools.create_appointment.get_encryption_service') as mock_encryption:
-            mock_encryption.return_value.decrypt_data.return_value = {
-                "access_token": "test_token",
-                "refresh_token": "test_refresh"
-            }
-            
-            with patch('clinic_agents.tools.reschedule_appointment.GoogleCalendarService') as mock_gcal_class:
-                mock_gcal_instance = AsyncMock()
-                mock_gcal_instance.update_event = AsyncMock(side_effect=Exception("Google Calendar API error"))
-                mock_gcal_class.return_value = mock_gcal_instance
-
-                result = await reschedule_appointment_impl(
-                    wrapper=wrapper,
-                    appointment_id=calendar_event.id,
-                    patient_id=patient.id,
-                    new_start_time=new_start_time
-                )
-        
-        assert result["success"] == True
-        assert result["appointment_id"] == calendar_event.id
-        assert result["calendar_synced"] == False
-        assert "日曆同步失敗" in result["message"]
-        
-        # Verify appointment was rescheduled in database despite GCal failure
-        db_session.refresh(calendar_event)
-        assert calendar_event.start_time == new_start_time.time()
-        assert calendar_event.gcal_event_id is None  # Should be cleared on failure

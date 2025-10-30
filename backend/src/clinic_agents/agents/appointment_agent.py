@@ -18,7 +18,6 @@ from clinic_agents.tools import (
     create_appointment,
     get_existing_appointments,
     cancel_appointment,
-    reschedule_appointment,
     get_last_appointment_therapist,
     get_month_weekdays
 )
@@ -96,7 +95,8 @@ def get_appointment_instructions(
 
 4. **預約更改**
    - 詢問要更改哪個預約
-   - 使用 reschedule_appointment 更改時間/治療師/類型
+   - 先使用 cancel_appointment 取消舊預約
+   - 然後使用 create_appointment 建立新預約
    - 確認更改成功
 
 5. **常用請求處理**
@@ -138,7 +138,6 @@ appointment_agent = Agent[ConversationContext](
         create_appointment,
         get_existing_appointments,
         cancel_appointment,
-        reschedule_appointment,
         get_last_appointment_therapist,
         get_month_weekdays
     ],
