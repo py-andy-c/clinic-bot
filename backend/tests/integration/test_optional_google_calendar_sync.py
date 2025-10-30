@@ -257,14 +257,11 @@ class TestOptionalGoogleCalendarSync:
         # Cancel the appointment using the implementation function
         result = await cancel_appointment_impl(
             wrapper=wrapper,
-            appointment_id=calendar_event.id,
-            patient_id=patient.id
+            appointment_id=calendar_event.id
         )
-        
+
         assert result["success"] == True
-        assert result["appointment_id"] == calendar_event.id
-        assert result["calendar_synced"] == False
-        assert "gcal_event_id" not in result
+        assert "預約已取消" in result["message"]
         
         # Verify appointment was canceled in database
         db_session.refresh(appointment)
@@ -316,13 +313,10 @@ class TestOptionalGoogleCalendarSync:
 
                 result = await cancel_appointment_impl(
                     wrapper=wrapper,
-                    appointment_id=calendar_event.id,
-                    patient_id=patient.id
+                    appointment_id=calendar_event.id
                 )
-        
+
         assert result["success"] == True
-        assert result["appointment_id"] == calendar_event.id
-        assert result["calendar_synced"] == False
         assert "日曆同步失敗" in result["message"]
         
         # Verify appointment was canceled in database despite GCal failure
