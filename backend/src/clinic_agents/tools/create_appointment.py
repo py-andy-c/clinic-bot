@@ -8,7 +8,7 @@ including conflict checking and database transaction handling.
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Dict, Any
 
 from agents import function_tool, RunContextWrapper
@@ -37,16 +37,12 @@ async def create_appointment_impl(
     db = wrapper.context.db_session
 
     try:
-        # Parse start_time string into timezone-aware datetime (Taiwan time)
-        taiwan_tz = timezone(timedelta(hours=8))
+        # Parse start_time string into datetime (assumed Taiwan local time)
         try:
             # Assume YYYY-MM-DD HH:MM format in Taiwan local time
-            parsed_datetime = datetime.strptime(start_time, "%Y-%m-%d %H:%M")
+            start_time_dt = datetime.strptime(start_time, "%Y-%m-%d %H:%M")
         except ValueError as e:
             return {"error": f"時間格式錯誤：{start_time}，請使用 YYYY-MM-DD HH:MM 格式"}
-
-        # Assume input is already in Taiwan local time
-        start_time_dt = parsed_datetime.replace(tzinfo=taiwan_tz)
 
         # Load related entities
         # Note: Filter roles in Python because SQLite JSON operations don't work reliably
@@ -161,8 +157,8 @@ async def create_appointment_impl(
             "success": True,
             "therapist_name": practitioner.full_name,
             "appointment_type": apt_type.name,
-            "start_time": start_time_dt.isoformat(),
-            "end_time": end_time.isoformat(),
+            "start_time": start_time_dt.strftime('%Y-%m-%d %H:%M:%S'),
+            "end_time": end_time.strftime('%Y-%m-%d %H:%M:%S'),
             "message": message
         }
 
@@ -201,12 +197,12 @@ async def create_appointment(
             - success (bool): Whether the appointment was created successfully
             - therapist_name (str): Full name of the assigned therapist
             - appointment_type (str): Name of the appointment type
-            - start_time (str): ISO-formatted start time string
-            - end_time (str): ISO-formatted end time string
+            - start_time (str): Local time formatted start time string (YYYY-MM-DD HH:MM:SS)
+            - end_time (str): Local time formatted end time string (YYYY-MM-DD HH:MM:SS)
             - message (str): Human-readable success message
             - error (str, optional): Error message if creation failed
     """
-    logger.debug(f"📅 [create_appointment] Creating appointment: therapist {therapist_id}, type {appointment_type_id}, time {start_time}")
+    logger.debug(f"📅 Creating appointment: therapist {therapist_id}, type {appointment_type_id}, time {start_time}")
     result = await create_appointment_impl(
         wrapper=wrapper,
         therapist_id=therapist_id,
