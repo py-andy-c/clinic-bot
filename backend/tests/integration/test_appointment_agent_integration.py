@@ -140,9 +140,9 @@ class TestAppointmentAgentIntegration:
         # Should NOT include practitioner without availability
         assert "Dr. No Availability" not in instructions
 
-        # Should include appointment types
-        assert "初診評估(60min)" in instructions
-        assert "一般複診(30min)" in instructions
+        # Should include appointment types with IDs
+        assert "初診評估(60min, ID:1)" in instructions
+        assert "一般複診(30min, ID:2)" in instructions
 
     @pytest.mark.asyncio
     async def test_complete_appointment_flow(self, conversation_context, test_clinic_setup, db_session):

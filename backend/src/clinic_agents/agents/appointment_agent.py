@@ -51,9 +51,10 @@ def get_appointment_instructions(
 
     # Extract patient data (may be None if not linked)
     patient_name = ctx.patient.full_name if ctx.patient else "未連結的用戶"
+    patient_id = ctx.patient_id
     
     # Debug logging for context information
-    logger.debug(f"🏥 Clinic: {clinic_name} | 👤 Patient: {patient_name} | 🔗 Linked: {ctx.is_linked}")
+    logger.debug(f"🏥 Clinic: {clinic_name} | 👤 Patient: {patient_name} (ID: {patient_id}) | 🔗 Linked: {ctx.is_linked}")
     logger.debug(f"⏰ Current time: {current_date_time}")
     logger.debug(f"👨‍⚕️ Therapists: {therapists_list}")
     logger.debug(f"📋 Appointment types: {appointment_types_list}")
@@ -67,6 +68,7 @@ def get_appointment_instructions(
 
 **用戶資訊：**
 - 用戶名稱：{patient_name}
+- 用戶 ID：{patient_id if patient_id else "未連結"}
 - 帳號狀態：{"已驗證" if ctx.is_linked else "未連結"}
 
 **時間資訊：**
@@ -118,6 +120,11 @@ def get_appointment_instructions(
 - 對於非預約問題，告知用戶你只能協助預約事宜
 - 所有操作都要確認用戶意圖
 - 保持對話簡潔但資訊完整
+
+**ID 使用規則：**
+- 治療師、預約類型和用戶 ID 僅供內部追蹤使用
+- 絕對不要在任何情況下向患者顯示這些 ID 編號
+- 所有對話都應該使用名稱而非 ID
 """
 
 

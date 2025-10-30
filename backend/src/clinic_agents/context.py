@@ -46,49 +46,59 @@ class ConversationContext:
     @property
     def therapists_list(self) -> str:
         """
-        Formatted list of available practitioners for prompt injection.
-        
+        Formatted list of available practitioners with IDs for prompt injection.
+
         Only includes practitioners who have configured their default availability.
 
         Returns:
-            Comma-separated list of practitioner names (e.g., "王大明, 李小華, 陳醫師")
+            Comma-separated list of practitioner names with IDs (e.g., "王大明(ID:1), 李小華(ID:2), 陳醫師(ID:3)")
         """
         from models.practitioner_availability import PractitionerAvailability
-        
+
         # Get all users in the clinic first, then filter in Python
         # This is necessary because SQLite JSON operations don't work reliably with contains()
         all_users_in_clinic = self.db_session.query(User).filter(
             User.clinic_id == self.clinic.id,
             User.is_active == True
         ).all()
-        
+
         # Filter to only practitioners
         practitioners = [u for u in all_users_in_clinic if 'practitioner' in u.roles]
-        
+
         # Get practitioners who have configured default availability
         practitioners_with_availability: list[User] = []
         for practitioner in practitioners:
             has_availability = self.db_session.query(PractitionerAvailability).filter(
                 PractitionerAvailability.user_id == practitioner.id
             ).first() is not None
-            
+
             if has_availability:
                 practitioners_with_availability.append(practitioner)
-        
-        return ", ".join([p.full_name for p in practitioners_with_availability])
+
+        return ", ".join([f"{p.full_name}(ID:{p.id})" for p in practitioners_with_availability])
 
     @property
     def appointment_types_list(self) -> str:
         """
-        Formatted list of appointment types with durations for prompt injection.
+        Formatted list of appointment types with durations and IDs for prompt injection.
 
         Returns:
-            Comma-separated list with durations (e.g., "初診評估(60min), 一般複診(30min)")
+            Comma-separated list with durations and IDs (e.g., "初診評估(60min, ID:1), 一般複診(30min, ID:2)")
         """
         types = self.db_session.query(AppointmentType).filter(
             AppointmentType.clinic_id == self.clinic.id
         ).all()
-        return ", ".join([f"{t.name}({t.duration_minutes}min)" for t in types])
+        return ", ".join([f"{t.name}({t.duration_minutes}min, ID:{t.id})" for t in types])
+
+    @property
+    def patient_id(self) -> Optional[int]:
+        """
+        Get the patient ID for the linked patient.
+
+        Returns:
+            Patient ID if patient is linked, None otherwise
+        """
+        return self.patient.id if self.patient else None
 
     @property
     def current_date_time_info(self) -> str:
