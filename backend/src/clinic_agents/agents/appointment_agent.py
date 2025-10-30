@@ -18,7 +18,6 @@ from clinic_agents.tools import (
     create_appointment,
     get_existing_appointments,
     cancel_appointment,
-    get_last_appointment_therapist,
     get_month_weekdays
 )
 
@@ -100,7 +99,6 @@ def get_appointment_instructions(
    - 確認更改成功
 
 5. **常用請求處理**
-   - "跟上次一樣的治療師" → 使用 get_last_appointment_therapist
    - 提供友善的錯誤處理和重新引導
 
 **對話原則：**
@@ -138,7 +136,6 @@ appointment_agent = Agent[ConversationContext](
         create_appointment,
         get_existing_appointments,
         cancel_appointment,
-        get_last_appointment_therapist,
         get_month_weekdays
     ],
     model_settings=ModelSettings(
