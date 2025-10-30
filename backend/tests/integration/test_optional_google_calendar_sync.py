@@ -156,13 +156,13 @@ class TestOptionalGoogleCalendarSync:
         start_time = datetime(2025, 1, 15, 10, 0, tzinfo=timezone(timedelta(hours=8)))
         
         # Mock decryption to succeed, but GCal service to fail
-        with patch('services.encryption_service.get_encryption_service') as mock_encryption:
+        with patch('clinic_agents.tools.create_appointment.get_encryption_service') as mock_encryption:
             mock_encryption.return_value.decrypt_data.return_value = {
                 "access_token": "test_token",
                 "refresh_token": "test_refresh"
             }
             
-            with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_class:
+            with patch('clinic_agents.tools.create_appointment.GoogleCalendarService') as mock_gcal_class:
                 mock_gcal_instance = AsyncMock()
                 mock_gcal_instance.create_event = AsyncMock(side_effect=Exception("Google Calendar API error"))
                 mock_gcal_class.return_value = mock_gcal_instance
@@ -200,13 +200,13 @@ class TestOptionalGoogleCalendarSync:
         start_time = datetime(2025, 1, 15, 10, 0, tzinfo=timezone(timedelta(hours=8)))
         
         # Mock successful Google Calendar sync
-        with patch('services.encryption_service.get_encryption_service') as mock_encryption:
+        with patch('clinic_agents.tools.create_appointment.get_encryption_service') as mock_encryption:
             mock_encryption.return_value.decrypt_data.return_value = {
                 "access_token": "test_token",
                 "refresh_token": "test_refresh"
             }
             
-            with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_class:
+            with patch('clinic_agents.tools.create_appointment.GoogleCalendarService') as mock_gcal_class:
                 mock_gcal_instance = AsyncMock()
                 mock_gcal_instance.create_event = AsyncMock(return_value={"id": "gcal_event_123"})
                 mock_gcal_class.return_value = mock_gcal_instance
@@ -312,17 +312,17 @@ class TestOptionalGoogleCalendarSync:
         db_session.commit()
         
         # Mock GCal service to fail during deletion
-        with patch('services.encryption_service.get_encryption_service') as mock_encryption:
+        with patch('clinic_agents.tools.create_appointment.get_encryption_service') as mock_encryption:
             mock_encryption.return_value.decrypt_data.return_value = {
                 "access_token": "test_token",
                 "refresh_token": "test_refresh"
             }
             
-            with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_class:
+            with patch('clinic_agents.tools.cancel_appointment.GoogleCalendarService') as mock_gcal_class:
                 mock_gcal_instance = AsyncMock()
                 mock_gcal_instance.delete_event = AsyncMock(side_effect=Exception("Google Calendar API error"))
                 mock_gcal_class.return_value = mock_gcal_instance
-                
+
                 result = await cancel_appointment_impl(
                     wrapper=wrapper,
                     appointment_id=calendar_event.id,
@@ -424,17 +424,17 @@ class TestOptionalGoogleCalendarSync:
         # Mock GCal service to fail during update
         new_start_time = datetime(2025, 1, 16, 14, 0, tzinfo=timezone(timedelta(hours=8)))
         
-        with patch('services.encryption_service.get_encryption_service') as mock_encryption:
+        with patch('clinic_agents.tools.create_appointment.get_encryption_service') as mock_encryption:
             mock_encryption.return_value.decrypt_data.return_value = {
                 "access_token": "test_token",
                 "refresh_token": "test_refresh"
             }
             
-            with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_class:
+            with patch('clinic_agents.tools.reschedule_appointment.GoogleCalendarService') as mock_gcal_class:
                 mock_gcal_instance = AsyncMock()
                 mock_gcal_instance.update_event = AsyncMock(side_effect=Exception("Google Calendar API error"))
                 mock_gcal_class.return_value = mock_gcal_instance
-                
+
                 result = await reschedule_appointment_impl(
                     wrapper=wrapper,
                     appointment_id=calendar_event.id,

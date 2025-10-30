@@ -237,7 +237,7 @@ class TestDatabaseIntegration:
         start_time = datetime.combine((datetime.now() + timedelta(days=1)).date(), time(10, 0))
 
         # Mock Google Calendar service to succeed
-        with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_class, \
+        with patch('clinic_agents.tools.create_appointment.GoogleCalendarService') as mock_gcal_class, \
              patch('clinic_agents.orchestrator.get_session_storage') as mock_session_storage:
 
             mock_gcal_instance = Mock()

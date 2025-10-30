@@ -53,7 +53,7 @@ async def test_prevent_double_booking_same_time_window(db_session):
     # First appointment: 10:00-10:30
     start = datetime.combine(datetime.now().date() + timedelta(days=1), time(10, 0))
 
-    with patch("clinic_agents.tools.GoogleCalendarService", autospec=True) as mock_gcal_class, \
+    with patch("clinic_agents.tools.create_appointment.GoogleCalendarService", autospec=True) as mock_gcal_class, \
          patch("services.encryption_service.get_encryption_service", autospec=True) as mock_get_enc:
         # Mock decrypt - use autospecced return value
         mock_get_enc.return_value.decrypt_data.return_value = {"access_token": "x"}
@@ -74,7 +74,7 @@ async def test_prevent_double_booking_same_time_window(db_session):
 
     # Second overlapping appointment: 10:15-10:45 should be rejected
     overlapping_start = start + timedelta(minutes=15)
-    with patch("clinic_agents.tools.GoogleCalendarService", autospec=True) as mock_gcal_class, \
+    with patch("clinic_agents.tools.create_appointment.GoogleCalendarService", autospec=True) as mock_gcal_class, \
          patch("services.encryption_service.get_encryption_service", autospec=True) as mock_get_enc:
         # Mock decrypt - use autospecced return value
         mock_get_enc.return_value.decrypt_data.return_value = {"access_token": "x"}

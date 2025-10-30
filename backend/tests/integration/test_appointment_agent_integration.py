@@ -174,14 +174,14 @@ class TestAppointmentAgentIntegration:
         assert len(availability_result["available_slots"]) > 0
 
         # Step 2: Create appointment (mock Google Calendar)
-        with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_class:
+        with patch('clinic_agents.tools.create_appointment.GoogleCalendarService') as mock_gcal_class:
             # Create a mock instance
             mock_gcal_instance = AsyncMock()
             mock_gcal_instance.create_event = AsyncMock(return_value={"id": "gcal_event_123"})
             mock_gcal_class.return_value = mock_gcal_instance
             
             # Mock encryption service
-            with patch('services.encryption_service.get_encryption_service') as mock_encryption:
+            with patch('clinic_agents.tools.create_appointment.get_encryption_service') as mock_encryption:
                 mock_encryption.return_value.decrypt_data.return_value = {"access_token": "test_token"}
 
                 appointment_result = await create_appointment_impl(
@@ -376,3 +376,4 @@ class TestAppointmentAgentIntegration:
         # Should be in Traditional Chinese
         assert "你是一個友好的預約助手" in instructions
         assert "使用繁體中文與用戶對話" in instructions
+

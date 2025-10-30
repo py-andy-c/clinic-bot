@@ -388,14 +388,14 @@ class TestAgentToolsWithCalendarSchema:
         wrapper.context = context
 
         # Mock Google Calendar service
-        with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_service:
+        with patch('clinic_agents.tools.create_appointment.GoogleCalendarService') as mock_gcal_service:
             mock_service_instance = AsyncMock()
             mock_gcal_service.return_value = mock_service_instance
             mock_service_instance.create_event.return_value = {"id": "test_gcal_id"}
             mock_service_instance.update_event.return_value = {}
 
             # Mock encryption service
-            with patch('services.encryption_service.get_encryption_service') as mock_encryption:
+            with patch('clinic_agents.tools.create_appointment.get_encryption_service') as mock_encryption:
                 mock_encryption.return_value.decrypt_data.return_value = {"credentials": "test"}
 
                 # Test creating appointment

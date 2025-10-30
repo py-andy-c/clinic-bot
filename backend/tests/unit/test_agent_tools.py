@@ -697,7 +697,7 @@ class TestCreateAppointment:
         start_time = datetime.now() + timedelta(days=1)
 
         # Mock Google Calendar service to fail
-        with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_class:
+        with patch('services.google_calendar_service.GoogleCalendarService') as mock_gcal_class:
             mock_gcal_service = Mock()
             mock_gcal_class.return_value = mock_gcal_service
 
@@ -1347,4 +1347,5 @@ class TestRegisterPatientAccount:
         # Should fail
         assert result.startswith("ERROR:")
         assert "需要提供全名" in result
+
 

@@ -183,7 +183,7 @@ class TestAppointmentIntegration:
         start_time_1 = datetime.combine((datetime.now() + timedelta(days=1)).date(), time(10, 0))
 
         # Mock Google Calendar and encryption service for first booking
-        with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_class, \
+        with patch('clinic_agents.tools.create_appointment.GoogleCalendarService') as mock_gcal_class, \
              patch('services.encryption_service.get_encryption_service') as mock_get_enc, \
              patch('clinic_agents.orchestrator.get_session_storage') as mock_session_storage:
 
@@ -227,7 +227,7 @@ class TestAppointmentIntegration:
         # Try to book the same time slot - should fail
         start_time_conflict = start_time_1  # Same time
 
-        with patch('clinic_agents.tools.GoogleCalendarService') as mock_gcal_class, \
+        with patch('clinic_agents.tools.create_appointment.GoogleCalendarService') as mock_gcal_class, \
              patch('services.encryption_service.get_encryption_service') as mock_get_enc, \
              patch('clinic_agents.orchestrator.get_session_storage') as mock_session_storage:
 
