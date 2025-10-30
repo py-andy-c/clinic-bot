@@ -84,7 +84,7 @@ class TestAgentToolsWithCalendarSchema:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
-            appointment_type="Test Appointment"
+            appointment_type_id=appointment_type.id
         )
 
         assert "available_slots" in result
@@ -168,7 +168,7 @@ class TestAgentToolsWithCalendarSchema:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
-            appointment_type="Test Appointment"
+            appointment_type_id=appointment_type.id
         )
 
         assert "available_slots" in result
@@ -266,7 +266,7 @@ class TestAgentToolsWithCalendarSchema:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
-            appointment_type="Test Appointment"
+            appointment_type_id=appointment_type.id
         )
 
         assert "available_slots" in result
@@ -327,11 +327,11 @@ class TestAgentToolsWithCalendarSchema:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
-            appointment_type="Test Appointment"
+            appointment_type_id=appointment_type.id
         )
 
         assert "error" in result
-        assert "沒有預設的可用時間" in result["error"]
+        assert "沒有可用時間" in result["error"]
 
     async def test_create_appointment_with_calendar_event(self, db_session):
         """Test creating appointment with new calendar event schema."""

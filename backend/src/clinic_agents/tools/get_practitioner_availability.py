@@ -25,7 +25,7 @@ async def get_practitioner_availability_impl(
     wrapper: RunContextWrapper[ConversationContext],
     practitioner_id: int,
     date: str,
-    appointment_type: str
+    appointment_type_id: int
 ) -> Dict[str, Any]:
     """
     Core implementation for getting available time slots for a specific practitioner and appointment type.
@@ -37,12 +37,12 @@ async def get_practitioner_availability_impl(
         wrapper: Context wrapper (auto-injected)
         practitioner_id: Database ID of the practitioner
         date: Date string in YYYY-MM-DD format
-        appointment_type: Type of appointment (e.g., "初診評估")
+        appointment_type_id: Database ID of the appointment type
 
     Returns:
         Dict with available slots or error message
     """
-    logger.debug(f"🔍 [get_practitioner_availability] Checking availability for practitioner {practitioner_id} on {date} for '{appointment_type}'")
+    logger.debug(f"🔍 Checking availability for practitioner {practitioner_id} on {date} for appointment type ID {appointment_type_id}")
 
     db = wrapper.context.db_session
     clinic = wrapper.context.clinic
@@ -68,14 +68,14 @@ async def get_practitioner_availability_impl(
         # Find appointment type
         apt_type = db.query(AppointmentType).filter(
             AppointmentType.clinic_id == clinic.id,
-            AppointmentType.name == appointment_type
+            AppointmentType.id == appointment_type_id
         ).first()
 
         if not apt_type:
-            logger.debug(f"❌ [get_practitioner_availability] Appointment type '{appointment_type}' not found")
-            return {"error": f"找不到預約類型：{appointment_type}"}
+            logger.debug(f"❌ Appointment type ID {appointment_type_id} not found")
+            return {"error": f"找不到預約類型 ID：{appointment_type_id}"}
 
-        logger.debug(f"✅ [get_practitioner_availability] Found appointment type: {apt_type.name} ({apt_type.duration_minutes}min)")
+        logger.debug(f"✅ Found appointment type: {apt_type.name} ({apt_type.duration_minutes}min)")
 
         # Get default schedule for this day of week
         day_of_week = requested_date.weekday()
@@ -85,7 +85,7 @@ async def get_practitioner_availability_impl(
         ).order_by(PractitionerAvailability.start_time).all()
 
         if not default_intervals:
-            return {"error": f"{practitioner.full_name}在{requested_date.strftime('%Y年%m月%d日')}沒有預設的可用時間"}
+            return {"error": f"{practitioner.full_name}在{requested_date.strftime('%Y年%m月%d日')}沒有可用時間"}
 
         # Get availability exceptions for this date
         exceptions = db.query(CalendarEvent).filter(
@@ -151,14 +151,15 @@ async def get_practitioner_availability_impl(
                 current_time = datetime.strptime(f"{current_minutes // 60:02d}:{current_minutes % 60:02d}", "%H:%M").time()
 
         if not available_slots:
-            logger.debug(f"❌ [get_practitioner_availability] No slots available for {practitioner.full_name} on {requested_date}")
+            logger.debug(f"❌ No slots available for {practitioner.full_name} on {requested_date}")
             return {"error": f"{practitioner.full_name}在{requested_date.strftime('%Y年%m月%d日')}沒有可用的時段"}
 
         result = {
             "therapist_id": practitioner.id,
             "therapist_name": practitioner.full_name,
             "date": date,
-            "appointment_type": appointment_type,
+            "appointment_type_id": appointment_type_id,
+            "appointment_type": apt_type.name,
             "duration_minutes": duration_minutes,
             "available_slots": available_slots
         }
@@ -179,7 +180,7 @@ async def get_practitioner_availability(
     wrapper: RunContextWrapper[ConversationContext],
     practitioner_id: int,
     date: str,
-    appointment_type: str
+    appointment_type_id: int
 ) -> Dict[str, Any]:
     """
     Find available time slots for a practitioner on a specific date and appointment type.
@@ -191,14 +192,15 @@ async def get_practitioner_availability(
     Args:
         practitioner_id: Database ID of the practitioner
         date: Target date in YYYY-MM-DD format (e.g., "2024-12-25")
-        appointment_type: Name of the appointment type (e.g., "初診評估", "復診")
+        appointment_type_id: Database ID of the appointment type
 
     Returns:
         Dict containing availability information with the following keys:
             - therapist_id (int): Database ID of the practitioner
             - therapist_name (str): Full name of the practitioner
             - date (str): Requested date in YYYY-MM-DD format
-            - appointment_type (str): Requested appointment type name
+            - appointment_type_id (int): Database ID of the appointment type
+            - appointment_type (str): Name of the appointment type
             - duration_minutes (int): Duration of the appointment type in minutes
             - available_slots (List[str]): List of available time slots in "HH:MM-HH:MM" format
             - error (str, optional): Error message if no availability found or lookup failed
@@ -207,7 +209,7 @@ async def get_practitioner_availability(
         wrapper=wrapper,
         practitioner_id=practitioner_id,
         date=date,
-        appointment_type=appointment_type
+        appointment_type_id=appointment_type_id
     )
 
 

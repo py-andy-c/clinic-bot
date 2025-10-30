@@ -113,7 +113,7 @@ class TestAppointmentAgentScenarios:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
-            appointment_type="Test Appointment"
+            appointment_type_id=test_clinic_with_practitioners["appointment_type"].id
         )
 
         assert "available_slots" in result
@@ -162,7 +162,7 @@ class TestAppointmentAgentScenarios:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
-            appointment_type="Test Appointment"
+            appointment_type_id=test_clinic_with_practitioners["appointment_type"].id
         )
 
         assert "available_slots" in result
@@ -220,7 +220,7 @@ class TestAppointmentAgentScenarios:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
-            appointment_type="Test Appointment"
+            appointment_type_id=test_clinic_with_practitioners["appointment_type"].id
         )
 
         assert "available_slots" in result
@@ -295,7 +295,7 @@ class TestAppointmentAgentScenarios:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
-            appointment_type="Test Appointment"
+            appointment_type_id=test_clinic_with_practitioners["appointment_type"].id
         )
 
         assert "available_slots" in result
@@ -329,15 +329,15 @@ class TestAppointmentAgentScenarios:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
-            appointment_type="Test Appointment"
+            appointment_type_id=test_clinic_with_practitioners["appointment_type"].id
         )
 
         # Should return error because no default availability
         assert "error" in result
-        assert "沒有預設的可用時間" in result["error"]
+        assert "沒有可用時間" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_availability_practitioner_not_found(self, conversation_context):
+    async def test_availability_practitioner_not_found(self, conversation_context, test_clinic_with_practitioners):
         """Test error handling for non-existent practitioner."""
         wrapper = AsyncMock()
         wrapper.context = conversation_context
@@ -346,7 +346,7 @@ class TestAppointmentAgentScenarios:
             wrapper=wrapper,
             practitioner_id=99999,  # Non-existent ID
             date="2025-01-15",
-            appointment_type="Test Appointment"
+            appointment_type_id=test_clinic_with_practitioners["appointment_type"].id
         )
 
         assert "error" in result
@@ -364,7 +364,7 @@ class TestAppointmentAgentScenarios:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-15",
-            appointment_type="Non-existent Appointment"
+            appointment_type_id=99999  # Non-existent ID
         )
 
         assert "error" in result
@@ -414,7 +414,7 @@ class TestAppointmentAgentScenarios:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
-            appointment_type="Test Appointment"
+            appointment_type_id=test_clinic_with_practitioners["appointment_type"].id
         )
 
         assert "error" in result
@@ -443,7 +443,7 @@ class TestAppointmentAgentScenarios:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-13",  # Monday
-            appointment_type="Test Appointment"
+            appointment_type_id=test_clinic_with_practitioners["appointment_type"].id
         )
 
         assert "available_slots" in result
@@ -459,8 +459,8 @@ class TestAppointmentAgentScenarios:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-14",  # Tuesday
-            appointment_type="Test Appointment"
+            appointment_type_id=test_clinic_with_practitioners["appointment_type"].id
         )
 
         assert "error" in result
-        assert "沒有預設的可用時間" in result["error"]
+        assert "沒有可用時間" in result["error"]

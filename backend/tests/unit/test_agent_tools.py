@@ -19,7 +19,7 @@ async def mock_get_practitioner_availability(
     wrapper,
     practitioner_id: int,
     date: str,
-    appointment_type: str
+    appointment_type_id: int
 ) -> Dict[str, Any]:
     """Test version of get_practitioner_availability function."""
     from sqlalchemy import and_
@@ -49,11 +49,11 @@ async def mock_get_practitioner_availability(
         # Find appointment type
         apt_type = db.query(AppointmentType).filter(
             AppointmentType.clinic_id == clinic.id,
-            AppointmentType.name == appointment_type
+            AppointmentType.id == appointment_type_id
         ).first()
 
         if not apt_type:
-            return {"error": f"找不到預約類型：{appointment_type}"}
+            return {"error": f"找不到預約類型 ID：{appointment_type_id}"}
 
         # Get existing appointments for this practitioner on this date
         existing_appointments = db.query(Appointment).join(CalendarEvent).filter(
@@ -211,7 +211,7 @@ class TestGetPractitionerAvailability:
             wrapper=wrapper,
             practitioner_id=therapist.id,
             date=test_date,
-            appointment_type="初診評估"
+            appointment_type_id=apt_type.id
         )
 
         # Should return available slots
@@ -241,7 +241,7 @@ class TestGetPractitionerAvailability:
             wrapper=wrapper,
             practitioner_id=99999,  # Non-existent ID
             date=test_date,
-            appointment_type="初診評估"
+            appointment_type_id=1  # Valid appointment type ID
         )
 
         assert "error" in result
@@ -261,7 +261,7 @@ class TestGetPractitionerAvailability:
             wrapper=wrapper,
             practitioner_id=therapist.id,
             date=test_date,
-            appointment_type="不存在的類型"
+            appointment_type_id=99999
         )
 
         assert "error" in result
@@ -309,7 +309,7 @@ class TestGetPractitionerAvailability:
             wrapper=wrapper,
             practitioner_id=therapist.id,
             date=test_date,
-            appointment_type="初診評估"
+            appointment_type_id=apt_type.id
         )
 
         # Should return available slots
@@ -340,7 +340,7 @@ class TestGetPractitionerAvailability:
             wrapper=wrapper,
             practitioner_id=therapist.id,
             date=test_date,
-            appointment_type="回診"  # 30 minutes
+            appointment_type_id=appointment_types[1].id  # 30 minutes
         )
 
         assert "available_slots" in result
@@ -353,6 +353,7 @@ class TestGetPractitionerAvailability:
     async def test_get_availability_past_date(self, db_session, test_clinic_with_therapist_and_types, conversation_context):
         """Test availability lookup for past dates."""
         clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+        apt_type = appointment_types[0]  # 60-minute appointment
 
         wrapper = Mock()
         wrapper.context = conversation_context
@@ -364,7 +365,7 @@ class TestGetPractitionerAvailability:
             wrapper=wrapper,
             practitioner_id=therapist.id,
             date=past_date,
-            appointment_type="初診評估"
+            appointment_type_id=apt_type.id
         )
 
         # Should still return slots (business logic doesn't prevent past dates)
@@ -375,6 +376,7 @@ class TestGetPractitionerAvailability:
     async def test_get_availability_inactive_practitioner(self, db_session, test_clinic_with_therapist_and_types, conversation_context):
         """Test availability lookup for inactive practitioner."""
         clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+        apt_type = appointment_types[0]  # 60-minute appointment
 
         # Mark therapist as inactive
         therapist.is_active = False
@@ -389,7 +391,7 @@ class TestGetPractitionerAvailability:
             wrapper=wrapper,
             practitioner_id=therapist.id,
             date=test_date,
-            appointment_type="初診評估"
+            appointment_type_id=apt_type.id
         )
 
         # Should not find inactive practitioner
@@ -400,6 +402,7 @@ class TestGetPractitionerAvailability:
     async def test_get_availability_by_id(self, db_session, test_clinic_with_therapist_and_types, conversation_context):
         """Test availability lookup using practitioner ID."""
         clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+        apt_type = appointment_types[0]  # 60-minute appointment
 
         wrapper = Mock()
         wrapper.context = conversation_context
@@ -411,7 +414,7 @@ class TestGetPractitionerAvailability:
             wrapper=wrapper,
             practitioner_id=therapist.id,
             date=test_date,
-            appointment_type="初診評估"
+            appointment_type_id=apt_type.id
         )
 
         # Should find the practitioner by ID
@@ -422,7 +425,7 @@ class TestGetPractitionerAvailability:
             wrapper=wrapper,
             practitioner_id=therapist.id,
             date=test_date,
-            appointment_type="初診評估"
+            appointment_type_id=apt_type.id
         )
 
         assert "available_slots" in result2

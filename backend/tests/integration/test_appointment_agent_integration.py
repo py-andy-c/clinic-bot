@@ -167,7 +167,7 @@ class TestAppointmentAgentIntegration:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
-            appointment_type="初診評估"
+            appointment_type_id=test_clinic_setup["appointment_types"][0].id
         )
 
         assert "available_slots" in availability_result
@@ -269,7 +269,7 @@ class TestAppointmentAgentIntegration:
             wrapper=wrapper,
             practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
-            appointment_type="初診評估"
+            appointment_type_id=test_clinic_setup["appointment_types"][0].id
         )
 
         assert "available_slots" in availability_result

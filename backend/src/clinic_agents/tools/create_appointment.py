@@ -154,6 +154,8 @@ async def create_appointment_impl(
 
         # Build response message
         message = f"預約成功！{start_time_dt.strftime('%Y-%m-%d %H:%M')} 與 {practitioner.full_name} 預約 {apt_type.name}"
+        if gcal_event_id is None:
+            message += "（注意：此預約未同步至 Google 日曆）"
 
         result = {
             "success": True,
