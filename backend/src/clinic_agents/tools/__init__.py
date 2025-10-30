@@ -5,6 +5,7 @@ from .get_existing_appointments import get_existing_appointments
 from .cancel_appointment import cancel_appointment
 from .reschedule_appointment import reschedule_appointment
 from .get_last_appointment_therapist import get_last_appointment_therapist
+from .get_month_weekdays import get_month_weekdays
 from .register_patient_account import register_patient_account, validate_taiwanese_phone_number
 
 # Export implementation functions for testing
@@ -22,6 +23,7 @@ __all__ = [
     "cancel_appointment",
     "reschedule_appointment",
     "get_last_appointment_therapist",
+    "get_month_weekdays",
     "register_patient_account",
     "validate_taiwanese_phone_number",
     # Implementation functions for testing

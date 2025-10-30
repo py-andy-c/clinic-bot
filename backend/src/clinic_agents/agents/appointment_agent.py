@@ -18,7 +18,8 @@ from clinic_agents.tools import (
     get_existing_appointments,
     cancel_appointment,
     reschedule_appointment,
-    get_last_appointment_therapist
+    get_last_appointment_therapist,
+    get_month_weekdays
 )
 
 
@@ -111,6 +112,7 @@ def get_appointment_instructions(
 - 當用戶說「今天」時，使用當前日期
 - 當用戶說「明天」時，使用當前日期 + 1天
 - 當用戶說「下週」時，使用當前日期 + 7天
+- 對於複雜日期參考（如「下個月第三個星期二」），使用 get_month_weekdays 工具來確定具體日期
 - 所有預約時間都必須是未來時間，不能是過去時間
 - 使用 YYYY-MM-DD 格式傳遞日期給工具函數
 
@@ -133,7 +135,8 @@ appointment_agent = Agent[ConversationContext](
         get_existing_appointments,
         cancel_appointment,
         reschedule_appointment,
-        get_last_appointment_therapist
+        get_last_appointment_therapist,
+        get_month_weekdays
     ],
     model_settings=ModelSettings(
     )

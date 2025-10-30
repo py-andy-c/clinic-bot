@@ -94,21 +94,52 @@ class ConversationContext:
     def current_date_time_info(self) -> str:
         """
         Formatted current date and time information for prompt injection.
-        
+        Includes weekday information for dates from today up to 21 days from now.
+
         Returns:
-            Formatted string with current date and time in Taiwan timezone
+            Formatted string with current date and time in Taiwan timezone plus weekday calendar
         """
         if self.current_datetime is None:
             # Fallback to current time if not set
             current_time = datetime.now(timezone.utc)
         else:
             current_time = self.current_datetime
-            
+
         # Format for Taiwan timezone (UTC+8)
         taiwan_tz = timezone(timedelta(hours=8))
         taiwan_time = current_time.astimezone(taiwan_tz)
-        
-        return f"今天日期：{taiwan_time.strftime('%Y年%m月%d日')}，現在時間：{taiwan_time.strftime('%H:%M')}"
+
+        # Generate weekday information for dates up to 21 days from now
+        weekday_names = ["一", "二", "三", "四", "五", "六", "日"]
+        today_weekday = weekday_names[taiwan_time.date().weekday()]
+        calendar_info: list[str] = []
+
+        # Start from today, go to 21 days from now (22 days total)
+        start_date = taiwan_time.date()
+        end_date = taiwan_time.date() + timedelta(days=21)
+
+        current = start_date
+        while current <= end_date:
+            weekday_name = weekday_names[current.weekday()]
+            calendar_info.append(f"{current.strftime('%Y年%m月%d日')}({weekday_name})")
+            current += timedelta(days=1)
+
+        calendar_text = " | ".join(calendar_info)
+
+        # Format time with AM/PM indicator in Chinese
+        hour = taiwan_time.hour
+        minute = taiwan_time.minute
+        am_pm = "上午" if hour < 12 else "下午"
+        hour_12 = hour if hour <= 12 else hour - 12
+        if hour_12 == 0:
+            hour_12 = 12
+
+        time_str = f"{hour_12}:{minute:02d} {am_pm}"
+
+        return f"""今天日期：{taiwan_time.strftime('%Y年%m月%d日')}（{today_weekday}），現在時間：{time_str}
+
+**日期參考（今天起到21天後）：**
+{calendar_text}"""
 
     def __post_init__(self) -> None:
         """Validate context after initialization."""
