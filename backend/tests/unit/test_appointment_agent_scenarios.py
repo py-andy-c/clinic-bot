@@ -107,9 +107,11 @@ class TestAppointmentAgentScenarios:
         wrapper = AsyncMock()
         wrapper.context = conversation_context
 
+        practitioner = test_clinic_with_practitioners["practitioner_with_availability"]
+
         result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Available",
+            practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
             appointment_type="Test Appointment"
         )
@@ -158,7 +160,7 @@ class TestAppointmentAgentScenarios:
 
         result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Available",
+            practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
             appointment_type="Test Appointment"
         )
@@ -216,7 +218,7 @@ class TestAppointmentAgentScenarios:
 
         result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Available",
+            practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
             appointment_type="Test Appointment"
         )
@@ -291,7 +293,7 @@ class TestAppointmentAgentScenarios:
 
         result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Available",
+            practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
             appointment_type="Test Appointment"
         )
@@ -316,14 +318,16 @@ class TestAppointmentAgentScenarios:
 
     @pytest.mark.asyncio
     async def test_availability_practitioner_without_default_schedule(self, conversation_context, test_clinic_with_practitioners):
-        """Test that practitioners without default availability are not shown in system prompt."""
+        """Test that practitioners without default availability return error."""
         wrapper = AsyncMock()
         wrapper.context = conversation_context
+
+        practitioner = test_clinic_with_practitioners["practitioner_without_availability"]
 
         # Try to get availability for practitioner without default schedule
         result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Unavailable",
+            practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
             appointment_type="Test Appointment"
         )
@@ -340,7 +344,7 @@ class TestAppointmentAgentScenarios:
 
         result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. NonExistent",
+            practitioner_id=99999,  # Non-existent ID
             date="2025-01-15",
             appointment_type="Test Appointment"
         )
@@ -354,9 +358,11 @@ class TestAppointmentAgentScenarios:
         wrapper = AsyncMock()
         wrapper.context = conversation_context
 
+        practitioner = test_clinic_with_practitioners["practitioner_with_availability"]
+
         result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Available",
+            practitioner_id=practitioner.id,
             date="2025-01-15",
             appointment_type="Non-existent Appointment"
         )
@@ -406,7 +412,7 @@ class TestAppointmentAgentScenarios:
 
         result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Available",
+            practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
             appointment_type="Test Appointment"
         )
@@ -435,7 +441,7 @@ class TestAppointmentAgentScenarios:
         # Test Monday availability
         result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Available",
+            practitioner_id=practitioner.id,
             date="2025-01-13",  # Monday
             appointment_type="Test Appointment"
         )
@@ -451,7 +457,7 @@ class TestAppointmentAgentScenarios:
         # Test Tuesday (no availability)
         result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Available",
+            practitioner_id=practitioner.id,
             date="2025-01-14",  # Tuesday
             appointment_type="Test Appointment"
         )

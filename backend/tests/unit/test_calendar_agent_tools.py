@@ -82,7 +82,7 @@ class TestAgentToolsWithCalendarSchema:
         # Test getting availability
         result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Test",
+            practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
             appointment_type="Test Appointment"
         )
@@ -166,14 +166,14 @@ class TestAgentToolsWithCalendarSchema:
         # Test getting availability
         result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Test",
+            practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
             appointment_type="Test Appointment"
         )
 
         assert "available_slots" in result
         slots = result["available_slots"]
-        
+
         # Should not have slots during exception time (19:00-20:00)
         exception_slots = [s for s in slots if "19:00" in s or "20:00" in s]
         assert len(exception_slots) == 0
@@ -264,14 +264,14 @@ class TestAgentToolsWithCalendarSchema:
         # Test getting availability
         result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Test",
+            practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
             appointment_type="Test Appointment"
         )
 
         assert "available_slots" in result
         slots = result["available_slots"]
-        
+
         # Should not have slots that overlap with appointment time (10:00-11:00)
         # The appointment is 10:00-11:00, so we shouldn't have slots that start at 10:00 or 10:30
         # But 09:00-10:00 and 11:00-12:00 are fine as they don't overlap
@@ -325,7 +325,7 @@ class TestAgentToolsWithCalendarSchema:
         # Test getting availability
         result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Test",
+            practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
             appointment_type="Test Appointment"
         )

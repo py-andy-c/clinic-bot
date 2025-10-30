@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 async def get_practitioner_availability_impl(
     wrapper: RunContextWrapper[ConversationContext],
-    practitioner_name: str,
+    practitioner_id: int,
     date: str,
     appointment_type: str
 ) -> Dict[str, Any]:
@@ -35,14 +35,14 @@ async def get_practitioner_availability_impl(
 
     Args:
         wrapper: Context wrapper (auto-injected)
-        practitioner_name: Name of the practitioner (from user conversation)
+        practitioner_id: Database ID of the practitioner
         date: Date string in YYYY-MM-DD format
         appointment_type: Type of appointment (e.g., "初診評估")
 
     Returns:
         Dict with available slots or error message
     """
-    logger.debug(f"🔍 [get_practitioner_availability] Checking availability: {practitioner_name} on {date} for '{appointment_type}'")
+    logger.debug(f"🔍 [get_practitioner_availability] Checking availability for practitioner {practitioner_id} on {date} for '{appointment_type}'")
 
     db = wrapper.context.db_session
     clinic = wrapper.context.clinic
@@ -51,23 +51,19 @@ async def get_practitioner_availability_impl(
         # Parse date
         requested_date = datetime.strptime(date, "%Y-%m-%d").date()
 
-        # Find practitioner (user with practitioner role)
-        # Note: Filter in Python because SQLite JSON operations don't work reliably with contains()
-        all_users_in_clinic = db.query(User).filter(
+        # Find practitioner by ID with practitioner role verification
+        practitioner = db.query(User).filter(
+            User.id == practitioner_id,
             User.clinic_id == clinic.id,
             User.is_active == True
-        ).all()
+        ).first()
 
-        # Filter to only practitioners and match by name (case-insensitive, fuzzy matching)
-        practitioner = None
-        practitioner_name_lower = practitioner_name.lower()
-        for user in all_users_in_clinic:
-            if 'practitioner' in user.roles and practitioner_name_lower in user.full_name.lower():
-                practitioner = user
-                break
+        # Verify practitioner role
+        if practitioner and 'practitioner' not in practitioner.roles:
+            practitioner = None
 
         if not practitioner:
-            return {"error": f"找不到醫師：{practitioner_name}"}
+            return {"error": f"找不到醫師 ID：{practitioner_id}"}
 
         # Find appointment type
         apt_type = db.query(AppointmentType).filter(
@@ -89,7 +85,7 @@ async def get_practitioner_availability_impl(
         ).order_by(PractitionerAvailability.start_time).all()
 
         if not default_intervals:
-            return {"error": f"{practitioner_name}在{requested_date.strftime('%Y年%m月%d日')}沒有預設的可用時間"}
+            return {"error": f"{practitioner.full_name}在{requested_date.strftime('%Y年%m月%d日')}沒有預設的可用時間"}
 
         # Get availability exceptions for this date
         exceptions = db.query(CalendarEvent).filter(
@@ -155,8 +151,8 @@ async def get_practitioner_availability_impl(
                 current_time = datetime.strptime(f"{current_minutes // 60:02d}:{current_minutes % 60:02d}", "%H:%M").time()
 
         if not available_slots:
-            logger.debug(f"❌ [get_practitioner_availability] No slots available for {practitioner_name} on {requested_date}")
-            return {"error": f"{practitioner_name}在{requested_date.strftime('%Y年%m月%d日')}沒有可用的時段"}
+            logger.debug(f"❌ [get_practitioner_availability] No slots available for {practitioner.full_name} on {requested_date}")
+            return {"error": f"{practitioner.full_name}在{requested_date.strftime('%Y年%m月%d日')}沒有可用的時段"}
 
         result = {
             "therapist_id": practitioner.id,
@@ -181,7 +177,7 @@ async def get_practitioner_availability_impl(
 @function_tool
 async def get_practitioner_availability(
     wrapper: RunContextWrapper[ConversationContext],
-    practitioner_name: str,
+    practitioner_id: int,
     date: str,
     appointment_type: str
 ) -> Dict[str, Any]:
@@ -193,13 +189,13 @@ async def get_practitioner_availability(
     Slots are returned in 15-minute intervals that fit the appointment duration.
 
     Args:
-        practitioner_name: Full name of the practitioner
+        practitioner_id: Database ID of the practitioner
         date: Target date in YYYY-MM-DD format (e.g., "2024-12-25")
         appointment_type: Name of the appointment type (e.g., "初診評估", "復診")
 
     Returns:
         Dict containing availability information with the following keys:
-            - therapist_id (int): Database ID of the found practitioner
+            - therapist_id (int): Database ID of the practitioner
             - therapist_name (str): Full name of the practitioner
             - date (str): Requested date in YYYY-MM-DD format
             - appointment_type (str): Requested appointment type name
@@ -209,7 +205,7 @@ async def get_practitioner_availability(
     """
     return await get_practitioner_availability_impl(
         wrapper=wrapper,
-        practitioner_name=practitioner_name,
+        practitioner_id=practitioner_id,
         date=date,
         appointment_type=appointment_type
     )

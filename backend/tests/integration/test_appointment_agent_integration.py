@@ -165,7 +165,7 @@ class TestAppointmentAgentIntegration:
         # Step 1: Check availability
         availability_result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Full Availability",
+            practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
             appointment_type="初診評估"
         )
@@ -268,7 +268,7 @@ class TestAppointmentAgentIntegration:
         # Check availability - should exclude blocked periods
         availability_result = await get_practitioner_availability_impl(
             wrapper=wrapper,
-            practitioner_name="Dr. Full Availability",
+            practitioner_id=practitioner.id,
             date="2025-01-15",  # Wednesday
             appointment_type="初診評估"
         )

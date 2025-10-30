@@ -16,7 +16,7 @@ from typing import Dict, List, Any
 # Copy the get_practitioner_availability logic for testing
 async def mock_get_practitioner_availability(
     wrapper,
-    practitioner_name: str,
+    practitioner_id: int,
     date: str,
     appointment_type: str
 ) -> Dict[str, Any]:
@@ -31,16 +31,19 @@ async def mock_get_practitioner_availability(
         # Parse date
         requested_date = datetime.strptime(date, "%Y-%m-%d").date()
 
-        # Find practitioner (user with practitioner role)
+        # Find practitioner by ID with practitioner role verification
         practitioner = db.query(User).filter(
+            User.id == practitioner_id,
             User.clinic_id == clinic.id,
-            User.roles.contains(['practitioner']),
-            User.full_name.ilike(f"%{practitioner_name}%"),  # Fuzzy name matching
             User.is_active == True
         ).first()
 
+        # Verify practitioner role
+        if practitioner and 'practitioner' not in practitioner.roles:
+            practitioner = None
+
         if not practitioner:
-            return {"error": f"找不到醫師：{practitioner_name}"}
+            return {"error": f"找不到醫師 ID：{practitioner_id}"}
 
         # Find appointment type
         apt_type = db.query(AppointmentType).filter(
@@ -205,7 +208,7 @@ class TestGetPractitionerAvailability:
         # Call the test function
         result = await mock_get_practitioner_availability(
             wrapper=wrapper,
-            practitioner_name="Dr. Test",
+            practitioner_id=therapist.id,
             date=test_date,
             appointment_type="初診評估"
         )
@@ -235,7 +238,7 @@ class TestGetPractitionerAvailability:
 
         result = await mock_get_practitioner_availability(
             wrapper=wrapper,
-            practitioner_name="Dr. Nonexistent",
+            practitioner_id=99999,  # Non-existent ID
             date=test_date,
             appointment_type="初診評估"
         )
@@ -255,7 +258,7 @@ class TestGetPractitionerAvailability:
 
         result = await mock_get_practitioner_availability(
             wrapper=wrapper,
-            practitioner_name="Dr. Test",
+            practitioner_id=therapist.id,
             date=test_date,
             appointment_type="不存在的類型"
         )
@@ -303,7 +306,7 @@ class TestGetPractitionerAvailability:
 
         result = await mock_get_practitioner_availability(
             wrapper=wrapper,
-            practitioner_name="Dr. Test",
+            practitioner_id=therapist.id,
             date=test_date,
             appointment_type="初診評估"
         )
@@ -334,7 +337,7 @@ class TestGetPractitionerAvailability:
         # Test with 30-minute appointment type
         result = await mock_get_practitioner_availability(
             wrapper=wrapper,
-            practitioner_name="Dr. Test",
+            practitioner_id=therapist.id,
             date=test_date,
             appointment_type="回診"  # 30 minutes
         )
@@ -358,7 +361,7 @@ class TestGetPractitionerAvailability:
 
         result = await mock_get_practitioner_availability(
             wrapper=wrapper,
-            practitioner_name="Dr. Test",
+            practitioner_id=therapist.id,
             date=past_date,
             appointment_type="初診評估"
         )
@@ -383,7 +386,7 @@ class TestGetPractitionerAvailability:
 
         result = await mock_get_practitioner_availability(
             wrapper=wrapper,
-            practitioner_name="Dr. Test",
+            practitioner_id=therapist.id,
             date=test_date,
             appointment_type="初診評估"
         )
@@ -393,8 +396,8 @@ class TestGetPractitionerAvailability:
         assert "找不到醫師" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_get_availability_fuzzy_name_matching(self, db_session, test_clinic_with_therapist_and_types, conversation_context):
-        """Test fuzzy name matching for practitioner lookup."""
+    async def test_get_availability_by_id(self, db_session, test_clinic_with_therapist_and_types, conversation_context):
+        """Test availability lookup using practitioner ID."""
         clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
 
         wrapper = Mock()
@@ -402,21 +405,21 @@ class TestGetPractitionerAvailability:
 
         test_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
-        # Try partial name match
+        # Test with actual practitioner ID
         result = await mock_get_practitioner_availability(
             wrapper=wrapper,
-            practitioner_name="Dr.",  # Partial match
+            practitioner_id=therapist.id,
             date=test_date,
             appointment_type="初診評估"
         )
 
-        # Should find the practitioner with fuzzy matching
+        # Should find the practitioner by ID
         assert "available_slots" in result
 
-        # Try another partial match
+        # Test with another call using the same ID
         result2 = await mock_get_practitioner_availability(
             wrapper=wrapper,
-            practitioner_name="Test",  # Partial match
+            practitioner_id=therapist.id,
             date=test_date,
             appointment_type="初診評估"
         )
