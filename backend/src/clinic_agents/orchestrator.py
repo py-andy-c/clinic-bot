@@ -8,7 +8,7 @@ It handles conversation state management, agent routing, and response formatting
 
 import logging
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 
 from agents import Runner, RunConfig, trace
@@ -53,13 +53,15 @@ async def handle_line_message(
         is_linked = patient is not None
 
         # 2. Create conversation context
+        # Use Taiwan timezone directly (UTC+8) since this is Taiwan-only service
+        taiwan_tz = timezone(timedelta(hours=8))
         context = ConversationContext(
             db_session=db,
             clinic=clinic,
             patient=patient,
             line_user_id=line_user_id,
             is_linked=is_linked,
-            current_datetime=datetime.now(timezone.utc)
+            current_datetime=datetime.now(taiwan_tz)
         )
 
         # 3. Log input message

@@ -2,7 +2,7 @@
 import logging
 import json
 from typing import Optional, Any, Dict, cast
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 
 from agents import Runner, RunConfig
@@ -131,13 +131,15 @@ async def handle_appointment_flow(
                 patient = get_patient_from_line_user(db, line_user)
             else:
                 patient = None
+            # Use Taiwan timezone directly (UTC+8) since this is Taiwan-only service
+            taiwan_tz = timezone(timedelta(hours=8))
             context = ConversationContext(
                 db_session=db,
                 clinic=context.clinic,
                 patient=patient,
                 line_user_id=context.line_user_id,
                 is_linked=True,
-                current_datetime=datetime.now(timezone.utc)
+                current_datetime=datetime.now(taiwan_tz)
             )
 
             # Then: Run appointment agent with limited history callback

@@ -28,13 +28,15 @@ class TestContextDateTimeInfo:
         db_session.add(clinic)
         db_session.commit()
 
-        # Create context with current time (UTC, as done in orchestrator)
-        current_time_utc = datetime(2025, 10, 30, 1, 0, 0, tzinfo=timezone.utc)  # 01:00 UTC = 09:00 Taiwan
+        # Create context with current time (Taiwan timezone, as done in orchestrator)
+        from datetime import timedelta
+        taiwan_tz = timezone(timedelta(hours=8))
+        current_time_taiwan = datetime(2025, 10, 30, 9, 0, 0, tzinfo=taiwan_tz)  # 09:00 Taiwan time
         context = ConversationContext(
             db_session=db_session,
             clinic=clinic,
             line_user_id="test_line_user_123",
-            current_datetime=current_time_utc
+            current_datetime=current_time_taiwan
         )
 
         result = context.current_date_time_info
@@ -96,17 +98,19 @@ class TestContextDateTimeInfo:
             current_datetime=None
         )
 
-        # Mock datetime.now to return a predictable time
+        # Mock datetime.now to return a predictable Taiwan time
+        from datetime import timedelta
+        taiwan_tz = timezone(timedelta(hours=8))
         with patch('clinic_agents.context.datetime') as mock_datetime:
-            mock_now = datetime(2025, 10, 30, 1, 0, 0, tzinfo=timezone.utc)  # UTC time
+            mock_now = datetime(2025, 10, 30, 9, 0, 0, tzinfo=taiwan_tz)  # Taiwan time directly
             mock_datetime.now.return_value = mock_now
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
 
             result = context.current_date_time_info
 
-            # Should convert UTC to Taiwan time (UTC+8) and include weekday
+            # Should use Taiwan time directly and include weekday
             assert "今天日期：2025年10月30日（四）" in result  # Thursday in Chinese
-            assert "現在時間：9:00 上午" in result  # 01:00 UTC + 8 hours = 9:00 AM Taiwan
+            assert "現在時間：9:00 上午" in result  # 09:00 Taiwan time = 9:00 AM Taiwan
 
     def test_current_date_time_info_correct_weekday_mapping(self, db_session):
         """Test that weekdays are correctly mapped to dates."""

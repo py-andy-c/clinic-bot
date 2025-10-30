@@ -41,7 +41,7 @@ class ConversationContext:
     is_linked: bool = False  # Read-only linking status
     
     # Current date/time for appointment scheduling
-    current_datetime: Optional[datetime] = None  # Will be set to current time in Taiwan timezone
+    current_datetime: Optional[datetime] = None  # Will be set to current Taiwan time directly
 
     @property
     def therapists_list(self) -> str:
@@ -110,14 +110,12 @@ class ConversationContext:
             Formatted string with current date and time in Taiwan timezone plus weekday calendar
         """
         if self.current_datetime is None:
-            # Fallback to current time if not set
-            current_time = datetime.now(timezone.utc)
+            # Fallback to current Taiwan time if not set
+            taiwan_tz = timezone(timedelta(hours=8))
+            taiwan_time = datetime.now(taiwan_tz)
         else:
-            current_time = self.current_datetime
-
-        # Format for Taiwan timezone (UTC+8)
-        taiwan_tz = timezone(timedelta(hours=8))
-        taiwan_time = current_time.astimezone(taiwan_tz)
+            # current_datetime is already in Taiwan timezone
+            taiwan_time = self.current_datetime
 
         # Generate weekday information for dates up to 21 days from now
         weekday_names = ["一", "二", "三", "四", "五", "六", "日"]
