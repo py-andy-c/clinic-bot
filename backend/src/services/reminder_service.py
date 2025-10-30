@@ -93,8 +93,10 @@ class ReminderService:
             total_sent = 0
 
             for clinic in clinics:
-                # Calculate reminder window for this clinic
-                reminder_time = datetime.now(timezone.utc) + timedelta(hours=clinic.reminder_hours_before)
+                # Calculate reminder window for this clinic using Taiwan time
+                taiwan_tz = timezone(timedelta(hours=8))
+                taiwan_now = datetime.now(taiwan_tz)
+                reminder_time = taiwan_now + timedelta(hours=clinic.reminder_hours_before)
                 reminder_window_start = reminder_time - timedelta(minutes=30)  # 30-minute window
                 reminder_window_end = reminder_time + timedelta(minutes=30)
 
@@ -132,22 +134,36 @@ class ReminderService:
 
         Args:
             clinic_id: ID of the clinic to check appointments for
-            window_start: Start of the reminder time window
-            window_end: End of the reminder time window
+            window_start: Start of the reminder time window (Taiwan time)
+            window_end: End of the reminder time window (Taiwan time)
 
         Returns:
             List of appointments that need reminders
         """
-        return self.db.query(Appointment).join(CalendarEvent).join(
+        # Get all appointments for this clinic that are confirmed
+        appointments = self.db.query(Appointment).join(CalendarEvent).join(
             Appointment.patient
         ).filter(
             Appointment.status == "confirmed",
             Appointment.patient.has(clinic_id=clinic_id),
-            CalendarEvent.start_time >= window_start,
-            CalendarEvent.start_time <= window_end,
             # For now, we'll send reminders for all appointments
             # In the future, we could add a flag to track if reminder was sent
         ).all()
+
+        # Filter appointments that fall within the reminder window
+        appointments_needing_reminders: List[Appointment] = []
+        for appointment in appointments:
+            # Combine appointment date and time to get full datetime
+            appointment_datetime = datetime.combine(
+                appointment.calendar_event.date,
+                appointment.calendar_event.start_time
+            ).replace(tzinfo=window_start.tzinfo)  # Add timezone info
+
+            # Check if appointment falls within reminder window
+            if window_start <= appointment_datetime <= window_end:
+                appointments_needing_reminders.append(appointment)
+
+        return appointments_needing_reminders
 
     async def _send_reminder_for_appointment(self, appointment: Appointment) -> bool:
         """
@@ -179,7 +195,8 @@ class ReminderService:
 
             # Format reminder message
             therapist_name = appointment.calendar_event.user.full_name
-            appointment_time = appointment.calendar_event.start_time.strftime("%m/%d (%a) %H:%M")
+            appointment_datetime = datetime.combine(appointment.calendar_event.date, appointment.calendar_event.start_time)
+            appointment_time = appointment_datetime.strftime("%m/%d (%a) %H:%M")
             appointment_type = appointment.appointment_type.name
 
             message = (
