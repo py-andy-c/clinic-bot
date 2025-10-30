@@ -40,22 +40,13 @@ async def create_appointment_impl(
         # Parse start_time string into timezone-aware datetime (Taiwan time)
         taiwan_tz = timezone(timedelta(hours=8))
         try:
-            # Try parsing as ISO format with timezone info first
-            if 'T' in start_time:
-                parsed_datetime = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-            else:
-                # Assume YYYY-MM-DD HH:MM format
-                parsed_datetime = datetime.strptime(start_time, "%Y-%m-%d %H:%M")
+            # Assume YYYY-MM-DD HH:MM format in Taiwan local time
+            parsed_datetime = datetime.strptime(start_time, "%Y-%m-%d %H:%M")
         except ValueError as e:
-            return {"error": f"時間格式錯誤：{start_time}，請使用 YYYY-MM-DD HH:MM 或 ISO 格式"}
+            return {"error": f"時間格式錯誤：{start_time}，請使用 YYYY-MM-DD HH:MM 格式"}
 
-        # Ensure the datetime is in Taiwan timezone
-        if parsed_datetime.tzinfo is None:
-            # If naive, assume it's already in Taiwan time
-            start_time_dt = parsed_datetime.replace(tzinfo=taiwan_tz)
-        else:
-            # If already timezone-aware, convert to Taiwan time
-            start_time_dt = parsed_datetime.astimezone(taiwan_tz)
+        # Assume input is already in Taiwan local time
+        start_time_dt = parsed_datetime.replace(tzinfo=taiwan_tz)
 
         # Load related entities
         # Note: Filter roles in Python because SQLite JSON operations don't work reliably
@@ -163,8 +154,6 @@ async def create_appointment_impl(
 
         # Build response message
         message = f"預約成功！{start_time_dt.strftime('%Y-%m-%d %H:%M')} 與 {practitioner.full_name} 預約 {apt_type.name}"
-        if gcal_event_id is None:
-            message += "（注意：此預約未同步至 Google 日曆）"
 
         result = {
             "success": True,
@@ -202,7 +191,7 @@ async def create_appointment(
     Args:
         therapist_id: ID of the practitioner/therapist for the appointment
         appointment_type_id: ID of the appointment type (determines duration)
-        start_time: Date and time when the appointment should start (format: "YYYY-MM-DD HH:MM" or ISO format)
+        start_time: Date and time when the appointment should start (format: "YYYY-MM-DD HH:MM")
         patient_id: ID of the patient making the appointment
 
     Returns:
@@ -223,5 +212,5 @@ async def create_appointment(
         start_time=start_time,
         patient_id=patient_id,
     )
-    logger.debug(f"✅ [create_appointment] Appointment result: {result.get('success', False)}")
+    logger.debug(f"Appointment result: {result.get('success', False)}")
     return result
