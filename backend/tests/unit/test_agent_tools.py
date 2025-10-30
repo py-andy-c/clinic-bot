@@ -11,6 +11,7 @@ from unittest.mock import patch, Mock, AsyncMock
 from models import Clinic, User, Patient, Appointment, AppointmentType, LineUser, CalendarEvent, PractitionerAvailability
 from clinic_agents.context import ConversationContext
 from clinic_agents.tools.create_appointment import create_appointment_impl
+from clinic_agents.tools.get_existing_appointments import get_existing_appointments_impl
 from typing import Dict, List, Any
 
 
@@ -732,6 +733,212 @@ async def mock_verify_and_link_patient(
     except Exception as e:
         db.rollback()
         return f"ERROR: 連結帳號時發生錯誤：{e}"
+
+
+class TestGetExistingAppointments:
+    """Test the get_existing_appointments tool."""
+
+    @pytest.mark.asyncio
+    async def test_get_existing_appointments_successful(self, db_session, test_clinic_with_therapist_and_types, conversation_context, linked_patient):
+        """Test successful retrieval of existing appointments."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+        apt_type = appointment_types[0]  # 60-minute appointment
+
+        wrapper = Mock()
+        wrapper.context = conversation_context
+
+        # Create a future appointment
+        tomorrow = datetime.now() + timedelta(days=1)
+        appointment_time = time(10, 0)  # 10:00 AM
+
+        # Create calendar event
+        calendar_event = CalendarEvent(
+            user_id=therapist.id,
+            event_type='appointment',
+            date=tomorrow.date(),
+            start_time=appointment_time,
+            end_time=time(11, 0)  # 11:00 AM
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        # Create appointment
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=linked_patient.id,
+            appointment_type_id=apt_type.id,
+            status='confirmed'
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Test the function
+        result = await get_existing_appointments_impl(
+            wrapper=wrapper,
+            patient_id=linked_patient.id
+        )
+
+        # Should return list with one appointment
+        assert isinstance(result, list)
+        assert len(result) == 1
+
+        appointment_data = result[0]
+        assert appointment_data["id"] == calendar_event.id
+        assert appointment_data["therapist_name"] == therapist.full_name
+        assert appointment_data["appointment_type"] == apt_type.name
+        assert appointment_data["start_time"] == f"{tomorrow.date()} 10:00:00"
+        assert appointment_data["end_time"] == f"{tomorrow.date()} 11:00:00"
+
+    @pytest.mark.asyncio
+    async def test_get_existing_appointments_no_appointments(self, db_session, test_clinic_with_therapist_and_types, conversation_context, linked_patient):
+        """Test retrieval when patient has no upcoming appointments."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+
+        wrapper = Mock()
+        wrapper.context = conversation_context
+
+        # Test the function
+        result = await get_existing_appointments_impl(
+            wrapper=wrapper,
+            patient_id=linked_patient.id
+        )
+
+        # Should return empty list
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    @pytest.mark.asyncio
+    async def test_get_existing_appointments_past_appointments_filtered(self, db_session, test_clinic_with_therapist_and_types, conversation_context, linked_patient):
+        """Test that past appointments are not returned."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+        apt_type = appointment_types[0]  # 60-minute appointment
+
+        wrapper = Mock()
+        wrapper.context = conversation_context
+
+        # Create a past appointment
+        yesterday = datetime.now() - timedelta(days=1)
+        appointment_time = time(10, 0)  # 10:00 AM
+
+        # Create calendar event for past date
+        calendar_event = CalendarEvent(
+            user_id=therapist.id,
+            event_type='appointment',
+            date=yesterday.date(),
+            start_time=appointment_time,
+            end_time=time(11, 0)  # 11:00 AM
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        # Create appointment
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=linked_patient.id,
+            appointment_type_id=apt_type.id,
+            status='confirmed'
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Test the function
+        result = await get_existing_appointments_impl(
+            wrapper=wrapper,
+            patient_id=linked_patient.id
+        )
+
+        # Should return empty list (past appointments filtered out)
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    @pytest.mark.asyncio
+    async def test_get_existing_appointments_pending_status_included(self, db_session, test_clinic_with_therapist_and_types, conversation_context, linked_patient):
+        """Test that appointments with 'pending' status are included."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+        apt_type = appointment_types[0]  # 60-minute appointment
+
+        wrapper = Mock()
+        wrapper.context = conversation_context
+
+        # Create a future appointment with pending status
+        tomorrow = datetime.now() + timedelta(days=1)
+        appointment_time = time(10, 0)  # 10:00 AM
+
+        # Create calendar event
+        calendar_event = CalendarEvent(
+            user_id=therapist.id,
+            event_type='appointment',
+            date=tomorrow.date(),
+            start_time=appointment_time,
+            end_time=time(11, 0)  # 11:00 AM
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        # Create appointment with pending status
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=linked_patient.id,
+            appointment_type_id=apt_type.id,
+            status='pending'  # Not confirmed
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Test the function
+        result = await get_existing_appointments_impl(
+            wrapper=wrapper,
+            patient_id=linked_patient.id
+        )
+
+        # Should return list with one appointment (pending status included)
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["id"] == calendar_event.id
+
+    @pytest.mark.asyncio
+    async def test_get_existing_appointments_canceled_status_excluded(self, db_session, test_clinic_with_therapist_and_types, conversation_context, linked_patient):
+        """Test that appointments with canceled status are excluded."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+        apt_type = appointment_types[0]  # 60-minute appointment
+
+        wrapper = Mock()
+        wrapper.context = conversation_context
+
+        # Create a future appointment with canceled status
+        tomorrow = datetime.now() + timedelta(days=1)
+        appointment_time = time(10, 0)  # 10:00 AM
+
+        # Create calendar event
+        calendar_event = CalendarEvent(
+            user_id=therapist.id,
+            event_type='appointment',
+            date=tomorrow.date(),
+            start_time=appointment_time,
+            end_time=time(11, 0)  # 11:00 AM
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        # Create appointment with canceled status
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=linked_patient.id,
+            appointment_type_id=apt_type.id,
+            status='canceled_by_patient'  # Canceled
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Test the function
+        result = await get_existing_appointments_impl(
+            wrapper=wrapper,
+            patient_id=linked_patient.id
+        )
+
+        # Should return empty list (canceled appointments excluded)
+        assert isinstance(result, list)
+        assert len(result) == 0
 
 
 class TestVerifyAndLinkPatient:

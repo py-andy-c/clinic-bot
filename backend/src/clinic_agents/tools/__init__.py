@@ -11,6 +11,7 @@ from .get_practitioner_availability import get_practitioner_availability_impl
 from .get_practitioner_availability import _check_time_overlap  # pyright: ignore
 from .create_appointment import create_appointment_impl
 from .cancel_appointment import cancel_appointment_impl
+from .get_existing_appointments import get_existing_appointments_impl
 
 __all__ = [
     # Tool functions
@@ -25,5 +26,6 @@ __all__ = [
     "get_practitioner_availability_impl",
     "create_appointment_impl",
     "cancel_appointment_impl",
+    "get_existing_appointments_impl",
     "_check_time_overlap",
 ]
