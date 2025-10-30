@@ -8,6 +8,7 @@ including ownership verification and error handling.
 
 import json
 import logging
+from datetime import datetime
 from typing import Dict, Any
 
 from agents import function_tool, RunContextWrapper
@@ -73,7 +74,8 @@ async def cancel_appointment_impl(
         db.commit()
 
         # Build response message
-        message = f"預約已取消：{appointment.start_time.strftime('%Y-%m-%d %H:%M')} 與 {appointment.calendar_event.user.full_name} 的 {appointment.appointment_type.name}"
+        appointment_datetime = datetime.combine(appointment.calendar_event.date, appointment.start_time)
+        message = f"預約已取消：{appointment_datetime.strftime('%Y-%m-%d %H:%M')} 與 {appointment.calendar_event.user.full_name} 的 {appointment.appointment_type.name}"
         if calendar_sync_warning:
             message += f"（{calendar_sync_warning}）"
 
