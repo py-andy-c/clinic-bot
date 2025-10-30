@@ -94,19 +94,32 @@ async def register_patient_account(
     full_name: str
 ) -> str:
     """
-    Register or link a patient account with LINE.
+    Register a new patient or link an existing patient account to a LINE user.
 
-    This tool handles both existing patient linking and new patient registration.
-    It will link an existing patient if the phone number matches, or create a new
-    patient record if the phone number doesn't exist.
+    This tool handles patient account registration by either linking an existing patient
+    record to the current LINE user or creating a new patient record if the phone number
+    doesn't exist. Validates Taiwanese phone numbers and prevents duplicate LINE linkages.
 
     Args:
-        wrapper: Context wrapper (auto-injected)
-        phone_number: Phone number for patient lookup/registration
-        full_name: Full name of the patient (required for new patients)
+        wrapper: Context wrapper containing database session, clinic, and LINE user information (auto-injected)
+        phone_number: Taiwanese mobile phone number (accepts various formats like 0912345678, +886912345678, etc.)
+        full_name: Full name of the patient (required when creating new patient records)
 
     Returns:
-        Success message or error description
+        String message indicating the result:
+            - "SUCCESS: <confirmation message>" for successful registration/linking
+            - "ERROR: <error description>" for validation or processing failures
+
+        Common success messages:
+            - Account already linked to the same patient
+            - Existing patient account linked to LINE
+            - New patient account created and linked
+
+        Common error messages:
+            - Invalid phone number format
+            - Phone number already linked to different LINE account
+            - LINE account already linked to different patient
+            - Database integrity errors
     """
     logger.debug(f"👤 [register_patient_account] Registering patient: {full_name} ({phone_number})")
     db = wrapper.context.db_session

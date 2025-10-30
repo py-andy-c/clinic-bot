@@ -27,14 +27,26 @@ async def get_existing_appointments(
     patient_id: int
 ) -> List[Dict[str, Any]]:
     """
-    Get patient's upcoming appointments.
+    Retrieve a patient's upcoming confirmed appointments.
+
+    This tool fetches all confirmed and pending appointments for a patient that are
+    scheduled for today or in the future, ordered by date and time.
 
     Args:
-        wrapper: Context wrapper (auto-injected)
-        patient_id: ID of the patient
+        wrapper: Context wrapper containing database session and clinic information (auto-injected)
+        patient_id: Database ID of the patient whose appointments to retrieve
 
     Returns:
-        List of appointment dictionaries
+        List of appointment dictionaries, each containing:
+            - id (int): Database ID of the appointment
+            - therapist_name (str): Full name of the assigned practitioner
+            - appointment_type (str): Name of the appointment type
+            - start_time (str): ISO-formatted appointment start time
+            - end_time (str): ISO-formatted appointment end time
+            - status (str): Appointment status ('confirmed' or 'pending')
+            - gcal_event_id (str, optional): Google Calendar event ID if synced
+
+        Returns an error dictionary with single "error" key if query fails.
     """
     logger.debug(f"📋 [get_existing_appointments] Getting appointments for patient {patient_id}")
     db = wrapper.context.db_session

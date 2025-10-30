@@ -185,8 +185,31 @@ async def create_appointment(
     patient_id: int
 ) -> Dict[str, Any]:
     """
-    Create a new appointment with Google Calendar sync.
-    Delegates to create_appointment_impl for testability.
+    Create a new appointment for a patient with optional Google Calendar synchronization.
+
+    This tool creates a new appointment record in the database and attempts to sync it
+    with the practitioner's Google Calendar. The appointment will be created even if
+    Google Calendar sync fails.
+
+    Args:
+        wrapper: Context wrapper containing database session and clinic information (auto-injected)
+        therapist_id: ID of the practitioner/therapist for the appointment
+        appointment_type_id: ID of the appointment type (determines duration)
+        start_time: Date and time when the appointment should start (timezone-aware datetime)
+        patient_id: ID of the patient making the appointment
+
+    Returns:
+        Dict containing appointment creation result with the following keys:
+            - success (bool): Whether the appointment was created successfully
+            - appointment_id (int): Database ID of the created appointment
+            - therapist_name (str): Full name of the assigned therapist
+            - appointment_type (str): Name of the appointment type
+            - start_time (str): ISO-formatted start time string
+            - end_time (str): ISO-formatted end time string
+            - message (str): Human-readable success message
+            - calendar_synced (bool): Whether Google Calendar sync was successful
+            - gcal_event_id (str, optional): Google Calendar event ID if sync succeeded
+            - error (str, optional): Error message if creation failed
     """
     logger.debug(f"📅 [create_appointment] Creating appointment: therapist {therapist_id}, type {appointment_type_id}, time {start_time}")
     result = await create_appointment_impl(

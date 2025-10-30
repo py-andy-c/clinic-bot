@@ -109,16 +109,26 @@ async def cancel_appointment(
     patient_id: int
 ) -> Dict[str, Any]:
     """
-    Cancel appointment and remove from Google Calendar.
-    Delegates to cancel_appointment_impl for testability.
+    Cancel an existing appointment and optionally remove it from Google Calendar.
+
+    This tool cancels a patient's appointment by changing its status to 'canceled_by_patient'
+    and attempts to remove the corresponding event from the practitioner's Google Calendar.
+    The cancellation will succeed even if Google Calendar sync fails.
 
     Args:
-        wrapper: Context wrapper (auto-injected)
-        appointment_id: ID of appointment to cancel
-        patient_id: ID of patient (for verification)
+        wrapper: Context wrapper containing database session and clinic information (auto-injected)
+        appointment_id: Database ID of the appointment to cancel
+        patient_id: ID of the patient requesting cancellation (for ownership verification)
 
     Returns:
-        Dict with cancellation confirmation or error
+        Dict containing cancellation result with the following keys:
+            - success (bool): Whether the appointment was canceled successfully
+            - appointment_id (int): Database ID of the canceled appointment
+            - therapist_name (str): Full name of the practitioner
+            - start_time (str): ISO-formatted original start time string
+            - message (str): Human-readable cancellation confirmation message
+            - calendar_synced (bool): Whether Google Calendar sync was successful
+            - error (str, optional): Error message if cancellation failed
     """
     logger.debug(f"❌ [cancel_appointment] Canceling appointment {appointment_id}")
     result = await cancel_appointment_impl(

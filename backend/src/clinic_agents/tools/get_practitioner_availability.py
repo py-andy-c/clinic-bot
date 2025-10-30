@@ -186,17 +186,27 @@ async def get_practitioner_availability(
     appointment_type: str
 ) -> Dict[str, Any]:
     """
-    Get available time slots for a specific practitioner and appointment type.
-    Delegates to get_practitioner_availability_impl for testability.
+    Find available time slots for a practitioner on a specific date and appointment type.
+
+    This tool calculates available appointment slots by considering the practitioner's
+    default weekly schedule, any availability exceptions, and existing appointments.
+    Slots are returned in 15-minute intervals that fit the appointment duration.
 
     Args:
-        wrapper: Context wrapper (auto-injected)
-        practitioner_name: Name of the practitioner (from user conversation)
-        date: Date string in YYYY-MM-DD format
-        appointment_type: Type of appointment (e.g., "初診評估")
+        wrapper: Context wrapper containing database session and clinic information (auto-injected)
+        practitioner_name: Full or partial name of the practitioner (case-insensitive fuzzy matching)
+        date: Target date in YYYY-MM-DD format (e.g., "2024-12-25")
+        appointment_type: Name of the appointment type (e.g., "初診評估", "復診")
 
     Returns:
-        Dict with available slots or error message
+        Dict containing availability information with the following keys:
+            - therapist_id (int): Database ID of the found practitioner
+            - therapist_name (str): Full name of the practitioner
+            - date (str): Requested date in YYYY-MM-DD format
+            - appointment_type (str): Requested appointment type name
+            - duration_minutes (int): Duration of the appointment type in minutes
+            - available_slots (List[str]): List of available time slots in "HH:MM-HH:MM" format
+            - error (str, optional): Error message if no availability found or lookup failed
     """
     return await get_practitioner_availability_impl(
         wrapper=wrapper,

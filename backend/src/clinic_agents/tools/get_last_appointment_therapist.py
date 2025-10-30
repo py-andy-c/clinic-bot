@@ -25,16 +25,24 @@ async def get_last_appointment_therapist(
     patient_id: int
 ) -> Dict[str, Any]:
     """
-    Get the therapist from patient's most recent appointment.
+    Retrieve the therapist information from a patient's most recent completed appointment.
 
-    This tool helps with "same therapist as last time" requests.
+    This tool is used to support "same therapist as last time" requests by finding
+    the practitioner from the patient's most recent past appointment that was either
+    confirmed or completed.
 
     Args:
-        wrapper: Context wrapper (auto-injected)
-        patient_id: ID of the patient
+        wrapper: Context wrapper containing database session and clinic information (auto-injected)
+        patient_id: Database ID of the patient whose last therapist to find
 
     Returns:
-        Dict with therapist info or error if no previous appointments
+        Dict containing therapist information with the following keys:
+            - therapist_id (int): Database ID of the last therapist
+            - therapist_name (str): Full name of the last therapist
+            - last_appointment_date (str): Date of the last appointment in YYYY-MM-DD format
+            - last_appointment_type (str): Name of the appointment type from the last visit
+            - message (str): Human-readable message with therapist and appointment details
+            - error (str, optional): Error message if no previous appointments found
     """
     logger.debug(f"👤 [get_last_appointment_therapist] Getting last therapist for patient {patient_id}")
     db = wrapper.context.db_session

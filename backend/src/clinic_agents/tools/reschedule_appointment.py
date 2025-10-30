@@ -210,8 +210,33 @@ async def reschedule_appointment(
     new_appointment_type_id: Optional[int] = None
 ) -> Dict[str, Any]:
     """
-    Reschedule an existing appointment to a new time/therapist/type.
-    Delegates to reschedule_appointment_impl to keep logic testable.
+    Reschedule an existing appointment with optional changes to time, therapist, or type.
+
+    This tool updates an appointment's time slot and optionally changes the assigned
+    therapist and/or appointment type. It handles Google Calendar synchronization,
+    including creating new events when the therapist changes. The rescheduling will
+    succeed even if Google Calendar sync fails.
+
+    Args:
+        wrapper: Context wrapper containing database session and clinic information (auto-injected)
+        appointment_id: Database ID of the appointment to reschedule
+        patient_id: ID of the patient requesting rescheduling (for ownership verification)
+        new_start_time: New date and time for the appointment start (timezone-aware datetime)
+        new_therapist_id: Optional new practitioner ID (if changing therapists)
+        new_appointment_type_id: Optional new appointment type ID (if changing appointment type)
+
+    Returns:
+        Dict containing rescheduling result with the following keys:
+            - success (bool): Whether the appointment was rescheduled successfully
+            - appointment_id (int): Database ID of the rescheduled appointment
+            - new_therapist (str): Full name of the final assigned therapist
+            - new_appointment_type (str): Name of the final appointment type
+            - new_start_time (str): ISO-formatted new start time string
+            - new_end_time (str): ISO-formatted new end time string
+            - message (str): Human-readable rescheduling confirmation message
+            - calendar_synced (bool): Whether Google Calendar sync was successful
+            - gcal_event_id (str, optional): New Google Calendar event ID if sync succeeded
+            - error (str, optional): Error message if rescheduling failed
     """
     logger.debug(f"🔄 [reschedule_appointment] Rescheduling appointment {appointment_id} to {new_start_time}")
     result = await reschedule_appointment_impl(
