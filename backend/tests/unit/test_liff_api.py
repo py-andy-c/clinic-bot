@@ -46,7 +46,7 @@ class TestPatientManagement:
 
     def test_create_patient_missing_auth(self, db_session):
         """Test creating patient without authentication."""
-        response = client.post("/api/liff/patients/primary", json={
+        response = client.post("/api/liff/patients", json={
             "full_name": "Test Patient",
             "phone_number": "0912345678"
         })

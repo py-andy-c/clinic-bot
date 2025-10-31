@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from core.config import SYSTEM_ADMIN_EMAILS
 from services.jwt_service import jwt_service, TokenPayload
-from models import User, LineUser
+from models import User, LineUser, Clinic
 
 
 class UserContext:
@@ -315,6 +315,83 @@ def get_current_line_user(
             )
 
         return line_user
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+
+
+def get_current_line_user_with_clinic(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_db)
+) -> tuple[LineUser, Clinic]:
+    """
+    Get authenticated LINE user and clinic from JWT token.
+
+    Returns both LineUser and Clinic to ensure proper clinic isolation.
+    Clinic context comes from JWT payload (set during LIFF login).
+    """
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials not provided"
+        )
+
+    token = credentials.credentials
+
+    try:
+        # Decode JWT directly without TokenPayload validation
+        payload = jwt_service.verify_token(token)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token"
+            )
+
+        # Extract clinic_id from JWT payload
+        clinic_id = getattr(payload, 'clinic_id', None)
+        if not clinic_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid clinic token"
+            )
+
+        # Validate clinic exists and is active
+        clinic = db.query(Clinic).filter(
+            Clinic.id == clinic_id,
+            Clinic.is_active == True
+        ).first()
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Clinic not found or inactive"
+            )
+
+        # For LIFF users, we expect line_user_id in the payload
+        line_user_id = getattr(payload, 'line_user_id', None)
+        if not line_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid LINE user token"
+            )
+
+        line_user = db.query(LineUser).filter(LineUser.line_user_id == line_user_id).first()
+        if not line_user:
+            # This shouldn't happen in normal flow, but handle gracefully
+            display_name = getattr(payload, 'display_name', None)
+            line_user = LineUser(
+                line_user_id=line_user_id,
+                display_name=display_name
+            )
+            db.add(line_user)
+            db.commit()
+            db.refresh(line_user)
+
+        return line_user, clinic
+
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

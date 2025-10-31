@@ -211,28 +211,3 @@ class PatientService:
 
         logger.info(f"Soft deleted patient {patient_id} for LINE user {line_user_id}")
 
-    @staticmethod
-    def get_primary_patient_for_line_user(
-        db: Session,
-        line_user_id: int,
-        clinic_id: int
-    ) -> Optional[Patient]:
-        """
-        Get the primary patient for a LINE user at a clinic.
-
-        The primary patient is the first one created for this LINE user at this clinic.
-
-        Args:
-            db: Database session
-            line_user_id: LINE user ID
-            clinic_id: Clinic ID
-
-        Returns:
-            Primary Patient object or None if no patients exist
-        """
-        patient = db.query(Patient).filter_by(
-            line_user_id=line_user_id,
-            clinic_id=clinic_id
-        ).order_by(Patient.created_at).first()
-
-        return patient

@@ -447,11 +447,20 @@ async def liff_login(
     display_name: str,
     clinic_id: int
 ):
+    # ✅ Validate clinic_id exists and is active
+    clinic = db.query(Clinic).filter_by(
+        id=clinic_id,
+        is_active=True  # Assuming we add this field for clinic lifecycle management
+    ).first()
+
+    if not clinic:
+        raise HTTPException(404, "Clinic not found or inactive")
+
     # Get or create LINE user
     line_user = db.query(LineUser).filter_by(
         line_user_id=line_user_id
     ).first()
-    
+
     if not line_user:
         line_user = LineUser(
             line_user_id=line_user_id,
@@ -459,26 +468,28 @@ async def liff_login(
         )
         db.add(line_user)
         db.commit()
-    
+
     # Check if patient exists for this clinic
     patient = db.query(Patient).filter_by(
         line_user_id=line_user.id,
         clinic_id=clinic_id
     ).first()
-    
+
     is_first_time = patient is None
-    
-    # Generate JWT
+
+    # Generate JWT with validated clinic context
     token = create_jwt({
         "line_user_id": line_user_id,
-        "clinic_id": clinic_id,
+        "clinic_id": clinic_id,  # ✅ Validated clinic ID
+        "iat": datetime.utcnow(),
         "exp": datetime.utcnow() + timedelta(days=7)
     })
-    
+
     return {
         "token": token,
         "is_first_time": is_first_time,
-        "display_name": display_name
+        "display_name": display_name,
+        "clinic_id": clinic_id
     }
 ```
 
@@ -491,47 +502,96 @@ async def liff_login(
 
 ### 4.3 Multi-Clinic Architecture
 
-**How Clinic Isolation Works:**
+**Industry Best Practice: Single LIFF App with URL-based Clinic Context**
 
-Each clinic gets their own LIFF app for proper data isolation:
+Based on research, creating separate LIFF apps per clinic is not the best practice. Instead, use a **single shared LIFF app** with clinic context passed via URL parameters. This is more maintainable, cost-effective, and follows SaaS architecture patterns.
 
-```sql
-ALTER TABLE clinics ADD COLUMN line_liff_id VARCHAR(255) UNIQUE;
+**Architecture:**
+```
+Single LIFF App (one LIFF ID for all clinics)
+    ↓
+Rich Menu URLs contain clinic context: ?clinic_id=123
+    ↓
+Frontend extracts clinic_id from URL
+    ↓
+Backend validates and scopes all operations
 ```
 
-**Clinic → LIFF ID Mapping:**
+**Rich Menu Configuration (Per Clinic):**
 ```
-Clinic A → LIFF ID: 1234567890-abcdefgh → liff.line.me/1234567890-abcdefgh
-Clinic B → LIFF ID: 9876543210-hijklmno → liff.line.me/9876543210-hijklmno
-```
-
-**How Backend Identifies Clinic:**
-
-**Option 1: Extract from LIFF Access Token** (Recommended)
-```python
-# LIFF access token contains client_id (LIFF ID)
-def get_clinic_from_liff_token(liff_access_token: str) -> int:
-    # Verify and decode LIFF token
-    response = requests.get(
-        'https://api.line.me/oauth2/v2.1/verify',
-        params={'access_token': liff_access_token}
-    )
-    liff_id = response.json()['client_id']
-    
-    # Look up clinic
-    clinic = db.query(Clinic).filter_by(line_liff_id=liff_id).first()
-    return clinic.id
+LINE Rich Menu → "線上約診" button
+    ↓
+Opens: https://liff.line.me/YOUR_LIFF_ID?clinic_id=123
 ```
 
-**Option 2: Pass clinic_id in JWT** (Simpler)
-```python
-# Include clinic_id in JWT after first lookup
-jwt_payload = {
-    "line_user_id": "U...",
-    "clinic_id": 1,  # Set during LIFF authentication
-    "exp": ...
+**Frontend Clinic Context Extraction:**
+```javascript
+// Extract clinic context from URL
+const urlParams = new URLSearchParams(window.location.search);
+const clinicId = urlParams.get('clinic_id');
+
+if (!clinicId) {
+  // Error: Invalid access
+  showError("請從診所的LINE官方帳號進入");
+  return;
 }
+
+// Include in all API requests
+const response = await fetch('/api/auth/liff-login', {
+  method: 'POST',
+  body: JSON.stringify({
+    access_token: liff.getAccessToken(),
+    line_user_id: profile.userId,
+    display_name: profile.displayName,
+    clinic_id: clinicId  // From URL parameter
+  })
+});
 ```
+
+**Backend Clinic Validation:**
+```python
+@liff_login
+def liff_login(request: LiffLoginRequest, db: Session):
+    # ✅ Validate clinic_id exists and is active
+    clinic = db.query(Clinic).filter_by(
+        id=request.clinic_id,
+        is_active=True  # Assuming we add this field
+    ).first()
+
+    if not clinic:
+        raise HTTPException(404, "Clinic not found or inactive")
+
+    # ✅ No line_liff_id needed - single shared LIFF app
+
+    # Create JWT with validated clinic context
+    jwt_payload = {
+        'line_user_id': request.line_user_id,
+        'clinic_id': clinic.id,  # Validated clinic ID
+        'iat': now,
+        'exp': now + timedelta(days=7)
+    }
+
+    token = jwt.encode(jwt_payload, SECRET_KEY, algorithm='HS256')
+    return {'access_token': token}
+```
+
+**Security Benefits:**
+- ✅ **Trusted Source**: Clinic context from validated URL parameter
+- ✅ **Backend Validation**: Clinic existence and status verified
+- ✅ **Tamper-Proof**: JWT signed with validated clinic_id
+- ✅ **No External Dependencies**: No LINE API calls needed for clinic lookup
+- ✅ **Fast Authentication**: Direct database lookup
+
+**Advantages Over Multiple LIFF Apps:**
+| Aspect | Single LIFF App + URL Params | Multiple LIFF Apps |
+|--------|------------------------------|---------------------|
+| **Setup Complexity** | ⭐ Low (one-time setup) | ⭐⭐⭐ High (per clinic) |
+| **Maintenance** | ⭐ Easy (single codebase) | ⭐⭐⭐ Difficult (N apps) |
+| **Deployment** | ⭐ Deploy once | ⭐⭐⭐ Deploy N times |
+| **Scalability** | ⭐ Excellent | ⭐⭐ Limited |
+| **Cost** | ⭐ Low | ⭐⭐⭐ High |
+| **Security** | ⭐ Good (with validation) | ⭐⭐ Slightly better isolation |
+| **Clinic Isolation** | ⭐ Enforced by backend | ⭐ Enforced by separate apps |
 
 **Data Isolation:**
 - One LINE user can have multiple patient records across different clinics
@@ -553,11 +613,11 @@ Clinics need to configure their LINE Rich Menu to include three buttons for the 
 **Best for**: Clinics with existing rich menus who want to add our buttons
 
 **Setup:**
-1. Provide clinic with LIFF URLs:
+1. Provide clinic with LIFF URLs (include their clinic_id):
    ```
-   線上約診: https://liff.line.me/{LIFF_ID}?mode=book
-   預約查詢: https://liff.line.me/{LIFF_ID}?mode=query
-   個人設定: https://liff.line.me/{LIFF_ID}?mode=settings
+   線上約診: https://liff.line.me/{SHARED_LIFF_ID}?clinic_id={clinic_id}&mode=book
+   預約查詢: https://liff.line.me/{SHARED_LIFF_ID}?clinic_id={clinic_id}&mode=query
+   個人設定: https://liff.line.me/{SHARED_LIFF_ID}?clinic_id={clinic_id}&mode=settings
    ```
 
 2. Clinic admin manually configures via LINE Official Account Manager:
@@ -598,15 +658,15 @@ rich_menu_id = api.create_rich_menu(
         areas=[
             RichMenuArea(
                 bounds=RichMenuBounds(x=0, y=0, width=833, height=1686),
-                action=URIAction(uri=f'https://liff.line.me/{LIFF_ID}?mode=book')
+                action=URIAction(uri=f'https://liff.line.me/{SHARED_LIFF_ID}?clinic_id={clinic_id}&mode=book')
             ),
             RichMenuArea(
                 bounds=RichMenuBounds(x=833, y=0, width=834, height=1686),
-                action=URIAction(uri=f'https://liff.line.me/{LIFF_ID}?mode=query')
+                action=URIAction(uri=f'https://liff.line.me/{SHARED_LIFF_ID}?clinic_id={clinic_id}&mode=query')
             ),
             RichMenuArea(
                 bounds=RichMenuBounds(x=1667, y=0, width=833, height=1686),
-                action=URIAction(uri=f'https://liff.line.me/{LIFF_ID}?mode=settings')
+                action=URIAction(uri=f'https://liff.line.me/{SHARED_LIFF_ID}?clinic_id={clinic_id}&mode=settings')
             ),
         ]
     )
@@ -641,14 +701,14 @@ db.execute(
 ✓ 您的專屬選單已準備完成！
 
 選項一：啟用預設選單（推薦新診所）
-→ 前往 LINE 官方帳號後台 > 選單 > 
+→ 前往 LINE 官方帳號後台 > 選單 >
   選擇「診所預約系統」> 設為預設選單
 
 選項二：整合至現有選單（推薦有現有選單的診所）
 → 手動將以下按鈕加入您的現有選單：
-  • 線上約診: https://liff.line.me/xxx?mode=book
-  • 預約查詢: https://liff.line.me/xxx?mode=query
-  • 個人設定: https://liff.line.me/xxx?mode=settings
+  • 線上約診: https://liff.line.me/{SHARED_LIFF_ID}?clinic_id={clinic_id}&mode=book
+  • 預約查詢: https://liff.line.me/{SHARED_LIFF_ID}?clinic_id={clinic_id}&mode=query
+  • 個人設定: https://liff.line.me/{SHARED_LIFF_ID}?clinic_id={clinic_id}&mode=settings
 
 [查看詳細設定教學]
 ```
@@ -861,8 +921,8 @@ CREATE INDEX idx_practitioner_types_type ON practitioner_appointment_types(appoi
 | `patients` | Add `line_user_id` FK | Link to LINE user (one-to-many) |
 | `patients` | Make `phone_number` nullable | Manual input, not all patients need phone |
 | `patients` | Use partial unique index | Allow multiple NULL phone numbers |
-| `clinics` | Add `line_liff_id` VARCHAR(255) UNIQUE | Map clinic to LIFF app (multi-tenant isolation) |
 | `clinics` | Add `line_rich_menu_id` VARCHAR(255) | Track programmatically created menu |
+| `clinics` | Add `is_active` BOOLEAN DEFAULT true | Enable/disable clinic access for maintenance |
 | `appointments` | Add `notes` TEXT | Store patient-provided notes (備註) |
 | `practitioner_appointment_types` | New table | Many-to-many: practitioners ↔ types |
 
@@ -910,7 +970,19 @@ CREATE INDEX idx_practitioner_types_type ON practitioner_appointment_types(appoi
 ```
 
 **Logic:**
-1. **Verify LIFF token** (prevent token forgery):
+1. **Validate clinic_id** (from URL parameter):
+   ```python
+   # clinic_id comes from frontend URL parameter (?clinic_id=123)
+   clinic = db.query(Clinic).filter_by(
+       id=clinic_id,
+       is_active=True  # Ensure clinic is active
+   ).first()
+
+   if not clinic:
+       raise HTTPException(404, "Clinic not found or inactive")
+   ```
+
+2. **Verify LIFF token** (prevent token forgery):
    ```python
    response = requests.get(
        'https://api.line.me/oauth2/v2.1/verify',
@@ -918,21 +990,14 @@ CREATE INDEX idx_practitioner_types_type ON practitioner_appointment_types(appoi
    )
    if response.status_code != 200:
        raise Unauthorized("Invalid LIFF token")
-   
+
    verified_data = response.json()
    # Verify line_user_id matches
    if verified_data['sub'] != line_user_id:
        raise Unauthorized("Line user ID mismatch")
-   
-   # Extract clinic_id from LIFF client_id
-   liff_id = verified_data['client_id']
-   clinic = db.query(Clinic).filter_by(line_liff_id=liff_id).first()
-   if not clinic:
-       raise NotFound("Clinic not found")
-   clinic_id = clinic.id
    ```
 
-2. Get or create LINE user:
+3. Get or create LINE user:
    ```python
    line_user = db.query(LineUser).filter_by(
        line_user_id=line_user_id
@@ -947,17 +1012,17 @@ CREATE INDEX idx_practitioner_types_type ON practitioner_appointment_types(appoi
        db.commit()
    ```
 
-3. Check if patient exists for this clinic:
+4. Check if patient exists for this clinic:
    ```python
    patient = db.query(Patient).filter_by(
        line_user_id=line_user.id,
        clinic_id=clinic_id
    ).first()
-   
+
    is_first_time = patient is None
    ```
 
-4. Generate JWT with clinic_id:
+5. Generate JWT with clinic_id:
    ```python
    from datetime import datetime, timedelta
    import jwt
@@ -2803,14 +2868,11 @@ security_logger.info(
    aws cloudfront create-invalidation --distribution-id XXX --paths "/*"
    ```
 
-6. **Create Production LIFF Apps** (15 min per clinic)
-   - Log in to LINE Developers Console
-   - Create new LIFF app for each clinic
-   - Copy LIFF ID
-   - Update `clinics.line_liff_id` in database
-   ```sql
-   UPDATE clinics SET line_liff_id = '1234567890-abcdefgh' WHERE id = 1;
-   ```
+6. **Create Production LIFF App** (5 min once)
+   - Log in to LINE Developers Console (once for all clinics)
+   - Create single shared LIFF app
+   - Copy LIFF ID: `SHARED_LIFF_ID`
+   - No database updates needed (single shared app)
 
 7. **Configure Rich Menus** (10 min per clinic)
    - Option A: Programmatic creation
@@ -2873,11 +2935,11 @@ aws cloudfront create-invalidation --distribution-id XXX --paths "/*"
 
 **Scenario 4: Critical Bug Found Post-Deployment**
 ```bash
-# Quick fix: Disable LIFF access
-UPDATE clinics SET line_liff_id = NULL;  # Temporarily disable
-
-# Or: Enable maintenance mode
+# Quick fix: Enable maintenance mode
 kubectl scale deployment frontend --replicas=0
+
+# Or: Temporarily disable clinic access
+UPDATE clinics SET is_active = false WHERE id = PROBLEMATIC_CLINIC_ID;
 
 # Fix bug
 # Redeploy

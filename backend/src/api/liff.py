@@ -30,7 +30,7 @@ from api.responses import (
     AvailabilityResponse, AvailabilitySlot,
     AppointmentResponse, AppointmentListResponse, AppointmentListItem
 )
-from auth.dependencies import get_current_line_user
+from auth.dependencies import get_current_line_user_with_clinic
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ class LiffLoginRequest(BaseModel):
     line_user_id: str
     display_name: str
     liff_access_token: str
-    clinic_id: int  # For testing - in production this comes from LIFF app ID
+    clinic_id: int  # From URL parameter (?clinic_id=123)
 
 
 class LiffLoginResponse(BaseModel):
@@ -129,61 +129,6 @@ class AppointmentCreateRequest(BaseModel):
 
 # ===== Helper Functions =====
 
-def get_clinic_from_liff_token(liff_access_token: str, db: Session) -> Clinic:
-    """
-    Extract clinic ID from LIFF access token.
-
-    The LIFF access token contains a client_id field that maps to
-    the clinic's line_liff_id.
-    """
-    # This is a simplified version - in production you'd verify the token
-    # with LINE's API to extract the client_id
-    # For now, we'll assume we have a way to map tokens to clinics
-
-    # TODO: Implement proper LIFF token verification
-    # For MVP, we'll use a simple approach
-    raise NotImplementedError("LIFF token to clinic mapping not implemented yet")
-
-
-def get_clinic_from_line_user(line_user: LineUser, db: Session) -> Clinic:
-    """
-    Determine clinic from LINE user's context.
-
-    For MVP, we'll need to implement clinic detection logic.
-    This could be based on:
-    1. LIFF ID mapping (each clinic has unique LIFF app)
-    2. Query parameter in LIFF URL
-    3. First patient's clinic if they exist
-    """
-    # Check if LINE user has any patients
-    patients = db.query(Patient).filter(
-        Patient.line_user_id == line_user.id
-    ).all()
-
-    if patients:
-        # All patients should be from same clinic for now
-        clinic_ids = set(p.clinic_id for p in patients)
-        if len(clinic_ids) > 1:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Multiple clinic associations not supported yet"
-            )
-        clinic = db.query(Clinic).get(clinic_ids.pop())
-        if not clinic:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Clinic not found"
-            )
-        return clinic
-
-    # For first-time users, we'll need clinic context from elsewhere
-    # This is a placeholder - in real implementation, clinic would be
-    # determined from LIFF app ID or URL parameters
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Clinic context required for first-time registration"
-    )
-
 
 
 
@@ -198,6 +143,7 @@ async def liff_login(
     Authenticate LIFF user and create/update LINE user record.
 
     This endpoint is called after LIFF authentication succeeds.
+    Clinic context comes from URL parameter (?clinic_id=123).
     It creates/updates the LINE user record and determines if this
     is a first-time user for the clinic.
     """
@@ -221,12 +167,15 @@ async def liff_login(
                 line_user.display_name = request.display_name
                 db.commit()
 
-        # Get clinic from request (for testing) or determine from LIFF app ID
-        clinic = db.query(Clinic).get(request.clinic_id)
+        # Validate clinic exists and is active
+        clinic = db.query(Clinic).filter(
+            Clinic.id == request.clinic_id,
+            Clinic.is_active == True
+        ).first()
         if not clinic:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Clinic not found"
+                detail="Clinic not found or inactive"
             )
 
         # Check if patient exists for this clinic
@@ -264,45 +213,29 @@ async def liff_login(
         )
 
 
-@router.post("/patients/primary", response_model=PatientCreateResponse)
-async def create_primary_patient(
+@router.post("/patients", response_model=PatientCreateResponse)
+async def create_patient(
     request: PatientCreateRequest,
-    line_user: LineUser = Depends(get_current_line_user),
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
 ):
     """
-    Create the first patient record for a LINE user at a clinic.
+    Create a patient record for a LINE user at a clinic.
 
-    This is called during first-time registration after LIFF authentication.
-    The clinic context is determined from existing logic.
+    This is called during registration after LIFF authentication.
+    Users can create multiple patients (family members).
+    Clinic context comes from LIFF token for proper isolation.
     """
+    line_user, clinic = line_user_clinic
+
     try:
-        # Determine clinic
-        clinic = get_clinic_from_line_user(line_user, db)
-
-        # Check if patient already exists for this clinic
-        existing_patient = db.query(Patient).filter_by(
-            line_user_id=line_user.id,
-            clinic_id=clinic.id
-        ).first()
-
-        if existing_patient:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Patient already exists for this clinic"
-            )
-
-        # Create patient
-        patient = Patient(
-            line_user_id=line_user.id,
+        patient = PatientService.create_patient(
+            db=db,
             clinic_id=clinic.id,
             full_name=request.full_name,
-            phone_number=request.phone_number
+            phone_number=request.phone_number,
+            line_user_id=line_user.id
         )
-
-        db.add(patient)
-        db.commit()
-        db.refresh(patient)
 
         return PatientCreateResponse(
             patient_id=patient.id,
@@ -322,55 +255,20 @@ async def create_primary_patient(
         )
 
 
-@router.post("/patients", response_model=PatientCreateResponse)
-async def create_additional_patient(
-    request: PatientCreateRequest,
-    line_user: LineUser = Depends(get_current_line_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Create additional patient records for a LINE user.
-
-    Allows LINE users to manage appointments for multiple family members.
-    """
-    try:
-        # Determine clinic
-        clinic = get_clinic_from_line_user(line_user, db)
-
-        # Create patient using service
-        patient = PatientService.create_patient(
-            db=db,
-            clinic_id=clinic.id,
-            full_name=request.full_name,
-            phone_number=request.phone_number,
-            line_user_id=line_user.id
-        )
-
-        return PatientCreateResponse(
-            patient_id=patient.id,
-            full_name=patient.full_name,
-            phone_number=patient.phone_number,
-            created_at=patient.created_at
-        )
-
-    except HTTPException:
-        raise
-
-
 @router.get("/patients", response_model=PatientListResponse)
 async def list_patients(
-    line_user: LineUser = Depends(get_current_line_user),
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
 ):
     """
     List all patients associated with the LINE user for the current clinic.
 
     Returns patients sorted by creation time (oldest first).
+    Clinic isolation is enforced through LIFF token context.
     """
-    try:
-        # Determine clinic
-        clinic = get_clinic_from_line_user(line_user, db)
+    line_user, clinic = line_user_clinic
 
+    try:
         # Get patients using service
         patients = PatientService.list_patients_for_line_user(
             db=db,
@@ -396,18 +294,18 @@ async def list_patients(
 @router.delete("/patients/{patient_id}")
 async def delete_patient(
     patient_id: int,
-    line_user: LineUser = Depends(get_current_line_user),
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
 ):
     """
     Delete a patient record.
 
     Prevents deletion if this is the last patient or if there are future appointments.
+    Clinic isolation is enforced through LIFF token context.
     """
-    try:
-        # Determine clinic
-        clinic = get_clinic_from_line_user(line_user, db)
+    line_user, clinic = line_user_clinic
 
+    try:
         # Delete patient using service
         PatientService.delete_patient_for_line_user(
             db=db,
@@ -424,16 +322,16 @@ async def delete_patient(
 
 @router.get("/appointment-types", response_model=AppointmentTypeListResponse)
 async def list_appointment_types(
-    line_user: LineUser = Depends(get_current_line_user),
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
 ):
     """
     List all appointment types available at the clinic.
+    Clinic context comes from LIFF token for proper isolation.
     """
-    try:
-        # Determine clinic
-        clinic = get_clinic_from_line_user(line_user, db)
+    _, clinic = line_user_clinic
 
+    try:
         # Get appointment types for clinic
         appointment_types = db.query(AppointmentType).filter_by(
             clinic_id=clinic.id
@@ -462,18 +360,18 @@ async def list_appointment_types(
 @router.get("/practitioners", response_model=PractitionerListResponse)
 async def list_practitioners(
     appointment_type_id: Optional[int] = Query(None),
-    line_user: LineUser = Depends(get_current_line_user),
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
 ):
     """
     List practitioners who can offer the specified appointment type.
 
     If no appointment_type_id provided, returns all practitioners.
+    Clinic isolation is enforced through LIFF token context.
     """
-    try:
-        # Determine clinic
-        clinic = get_clinic_from_line_user(line_user, db)
+    _, clinic = line_user_clinic
 
+    try:
         # Get practitioners using service
         practitioners_data = PractitionerService.list_practitioners_for_clinic(
             db=db,
@@ -498,7 +396,7 @@ async def get_availability(
     date: str,
     appointment_type_id: int,
     practitioner_id: Optional[int] = Query(None),
-    line_user: LineUser = Depends(get_current_line_user),
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
 ):
     """
@@ -507,12 +405,12 @@ async def get_availability(
     Returns time slots where appointments can be booked for the given date,
     appointment type, and optional practitioner.
 
+    Clinic isolation is enforced through LIFF token context.
     Performance: Results are cached for 10 minutes to handle frequent queries.
     """
-    try:
-        # Determine clinic
-        clinic = get_clinic_from_line_user(line_user, db)
+    _, clinic = line_user_clinic
 
+    try:
         # Get practitioner IDs to check (if specific practitioner requested)
         practitioner_ids = [practitioner_id] if practitioner_id else None
 
@@ -540,7 +438,7 @@ async def get_availability(
 @router.post("/appointments", response_model=AppointmentResponse)
 async def create_appointment(
     request: AppointmentCreateRequest,
-    line_user: LineUser = Depends(get_current_line_user),
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
 ):
     """
@@ -548,11 +446,11 @@ async def create_appointment(
 
     Handles the complex booking logic including practitioner assignment,
     availability checking, and Google Calendar synchronization.
+    Clinic isolation is enforced through LIFF token context.
     """
-    try:
-        # Determine clinic
-        clinic = get_clinic_from_line_user(line_user, db)
+    line_user, clinic = line_user_clinic
 
+    try:
         # Create appointment using service
         appointment_data = AppointmentService.create_appointment(
             db=db,
@@ -574,16 +472,16 @@ async def create_appointment(
 @router.get("/appointments", response_model=AppointmentListResponse)
 async def list_appointments(
     upcoming_only: bool = Query(True),
-    line_user: LineUser = Depends(get_current_line_user),
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
 ):
     """
     List all appointments for the LINE user's patients at this clinic.
+    Clinic isolation is enforced through LIFF token context.
     """
-    try:
-        # Determine clinic
-        clinic = get_clinic_from_line_user(line_user, db)
+    line_user, clinic = line_user_clinic
 
+    try:
         # Get appointments using service
         appointments_data = AppointmentService.list_appointments_for_line_user(
             db=db,
@@ -607,19 +505,19 @@ async def list_appointments(
 @router.delete("/appointments/{appointment_id}")
 async def cancel_appointment(
     appointment_id: int,
-    line_user: LineUser = Depends(get_current_line_user),
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
 ):
     """
     Cancel an appointment.
 
     Verifies ownership and updates appointment status.
+    Clinic isolation is enforced through LIFF token context.
     Google Calendar event deletion handled asynchronously.
     """
-    try:
-        # Determine clinic
-        clinic = get_clinic_from_line_user(line_user, db)
+    line_user, clinic = line_user_clinic
 
+    try:
         # Cancel appointment using service
         result = AppointmentService.cancel_appointment_by_patient(
             db=db,

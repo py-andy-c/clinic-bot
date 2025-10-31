@@ -9,7 +9,7 @@ with its own LINE Official Account and Google Calendar integrations.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, TIMESTAMP, func, Integer, Text
+from sqlalchemy import String, TIMESTAMP, func, Integer, Text, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -109,13 +109,13 @@ class Clinic(Base):
     reminder_hours_before: Mapped[int] = mapped_column(Integer, default=24)
     """Number of hours before appointment to send reminders."""
 
-    # LIFF Integration
-    line_liff_id: Mapped[Optional[str]] = mapped_column(String(MAX_STRING_LENGTH), nullable=True, unique=True)
+    # Clinic Lifecycle Management
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     """
-    LIFF ID for this clinic's LIFF app instance.
+    Whether this clinic is active and can accept new appointments.
 
-    Each clinic gets its own LIFF app for proper data isolation in multi-tenant setup.
-    Used to identify which clinic's LIFF app the user is accessing.
+    Set to false during maintenance, billing issues, or clinic closure.
+    Active clinics can still view existing data but cannot book new appointments.
     """
 
     # Relationships

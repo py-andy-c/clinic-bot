@@ -18,6 +18,7 @@ from models import (
 )
 from core.config import JWT_SECRET_KEY
 from core.database import get_db
+from auth.dependencies import get_current_line_user_with_clinic
 
 
 client = TestClient(app)
@@ -41,8 +42,7 @@ def test_clinic_with_liff(db_session: Session):
         name="Test LIFF Clinic",
         line_channel_id="test_liff_channel",
         line_channel_secret="test_secret",
-        line_channel_access_token="test_token",
-        line_liff_id="test_liff_app_id"
+        line_channel_access_token="test_token"
     )
     db_session.add(clinic)
     db_session.commit()
@@ -129,8 +129,7 @@ class TestLiffDatabaseOperations:
         db_session.commit()
 
         # Now test creating additional patients (not primary)
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -166,7 +165,7 @@ class TestLiffDatabaseOperations:
             assert patients_count == 2
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
     def test_appointment_creation_database_operations(self, db_session: Session, test_clinic_with_liff):
@@ -194,8 +193,7 @@ class TestLiffDatabaseOperations:
         db_session.commit()
 
         # Mock authentication
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -236,7 +234,7 @@ class TestLiffDatabaseOperations:
             assert appointment.notes == "Integration test appointment"
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
     def test_appointment_listing_database_operations(self, db_session: Session, test_clinic_with_liff):
@@ -292,8 +290,7 @@ class TestLiffDatabaseOperations:
         db_session.commit()
 
         # Mock authentication
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -314,7 +311,7 @@ class TestLiffDatabaseOperations:
             assert "Appointment for Patient Two" in notes
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
     def test_first_time_user_complete_flow(self, db_session: Session, test_clinic_with_liff):
@@ -330,8 +327,8 @@ class TestLiffDatabaseOperations:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -383,7 +380,7 @@ class TestLiffDatabaseOperations:
             assert "notes" in appointment_result
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
         # Verify database state
@@ -411,8 +408,8 @@ class TestLiffReturningUserFlow:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -449,7 +446,7 @@ class TestLiffReturningUserFlow:
                 assert db_patient.clinic_id == clinic.id
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
     def test_returning_user_books_for_different_patients(self, db_session: Session, test_clinic_with_liff):
@@ -465,8 +462,8 @@ class TestLiffReturningUserFlow:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -522,7 +519,7 @@ class TestLiffReturningUserFlow:
             assert len(appointments) == 2
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
     def test_user_views_appointment_history(self, db_session: Session, test_clinic_with_liff):
@@ -538,8 +535,8 @@ class TestLiffReturningUserFlow:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -593,7 +590,7 @@ class TestLiffReturningUserFlow:
                 assert "notes" in appt
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
     def test_user_cancels_appointment(self, db_session: Session, test_clinic_with_liff):
@@ -609,8 +606,8 @@ class TestLiffReturningUserFlow:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -656,7 +653,7 @@ class TestLiffReturningUserFlow:
             assert db_appointment.canceled_at is not None
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
 
@@ -676,8 +673,8 @@ class TestLiffAvailabilityAndScheduling:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -713,7 +710,7 @@ class TestLiffAvailabilityAndScheduling:
                 assert "practitioner_name" in slot
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
     def test_booking_creates_correct_database_records(self, db_session: Session, test_clinic_with_liff):
@@ -729,8 +726,8 @@ class TestLiffAvailabilityAndScheduling:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -747,7 +744,7 @@ class TestLiffAvailabilityAndScheduling:
             # Create additional patient for testing
             response = client.post(
                 "/api/liff/patients",
-                json={"full_name": "趙小龍", "phone_number": "0977777778"}
+                json={"full_name": "陳小美", "phone_number": "0977777778"}
             )
             patient = response.json()
 
@@ -788,7 +785,7 @@ class TestLiffAvailabilityAndScheduling:
             assert appointment.notes == "跟進檢查"
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
     def test_practitioner_assignment_without_specification(self, db_session: Session, test_clinic_with_liff):
@@ -804,8 +801,8 @@ class TestLiffAvailabilityAndScheduling:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -822,7 +819,7 @@ class TestLiffAvailabilityAndScheduling:
             # Create additional patient for testing
             response = client.post(
                 "/api/liff/patients",
-                json={"full_name": "孫小美", "phone_number": "0988888889"}
+                json={"full_name": "孫小華", "phone_number": "0988888889"}
             )
             patient = response.json()
 
@@ -845,7 +842,7 @@ class TestLiffAvailabilityAndScheduling:
             assert appointment_result["practitioner_name"] == practitioner.full_name
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
 
@@ -865,8 +862,8 @@ class TestLiffErrorHandling:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -892,7 +889,7 @@ class TestLiffErrorHandling:
             assert "Patient not found" in response.json()["detail"]
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
     def test_past_appointment_returns_validation_error(self, db_session: Session, test_clinic_with_liff):
@@ -908,8 +905,8 @@ class TestLiffErrorHandling:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -926,7 +923,7 @@ class TestLiffErrorHandling:
             # Create additional patient for testing
             response = client.post(
                 "/api/liff/patients",
-                json={"full_name": "郭小華"}
+                json={"full_name": "郭小明"}
             )
             patient = response.json()
 
@@ -946,7 +943,7 @@ class TestLiffErrorHandling:
             assert "Cannot book appointments in the past" in str(response.json())
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
     def test_double_booking_prevention(self, db_session: Session, test_clinic_with_liff):
@@ -962,8 +959,8 @@ class TestLiffErrorHandling:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -980,7 +977,7 @@ class TestLiffErrorHandling:
             # Create additional patient for testing
             response = client.post(
                 "/api/liff/patients",
-                json={"full_name": "錢小明", "phone_number": "0999999998"}
+                json={"full_name": "錢小華", "phone_number": "0999999998"}
             )
             patient = response.json()
 
@@ -1019,7 +1016,7 @@ class TestLiffErrorHandling:
             assert "時段已被預約" in response.json()["detail"]
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
     def test_too_far_future_booking_rejected(self, db_session: Session, test_clinic_with_liff):
@@ -1035,8 +1032,8 @@ class TestLiffErrorHandling:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -1053,7 +1050,7 @@ class TestLiffErrorHandling:
             # Create additional patient for testing
             response = client.post(
                 "/api/liff/patients",
-                json={"full_name": "周小美"}
+                json={"full_name": "周小華"}
             )
             patient = response.json()
 
@@ -1073,5 +1070,5 @@ class TestLiffErrorHandling:
             assert "Cannot book more than 90 days in advance" in str(response.json())
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
