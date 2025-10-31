@@ -1,8 +1,9 @@
 """
 Webhook endpoints for external service integrations.
 
-This module handles incoming webhooks from LINE messaging platform
-and Google Calendar push notifications for the chatbot system.
+This module handles incoming webhooks from Google Calendar push notifications.
+When therapists cancel appointments in Google Calendar, patients receive LINE notifications.
+LINE messaging webhooks are no longer supported (AI agents removed).
 """
 
 import logging
@@ -12,175 +13,12 @@ from fastapi import APIRouter, Request, HTTPException, status, Depends
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
-from clinic_agents.orchestrator import handle_line_message
-from services.line_service import LINEService
 from services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
 from core.database import get_db
 from models import User, Appointment, CalendarEvent, Clinic
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-
-def get_clinic_from_request(request: Request, db: Session) -> Clinic:
-    """
-    Get clinic from webhook request.
-
-    Multiple strategies are supported:
-    1. Custom X-Clinic-ID header (recommended for security)
-    2. URL path parameter (e.g., /webhook/line/{clinic_id})
-    3. LINE channel ID parsing (fallback, less secure)
-
-    Args:
-        request: FastAPI request object
-        db: Database session
-
-    Returns:
-        Clinic object
-
-    Raises:
-        HTTPException: If clinic cannot be identified
-    """
-    # Strategy 1: Custom header (most secure)
-    clinic_id_header = getattr(request, 'headers', {}).get('x-clinic-id') or getattr(request, 'headers', {}).get('X-Clinic-ID')
-    if clinic_id_header:
-        try:
-            clinic_id = int(clinic_id_header)
-            clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
-            if clinic:
-                return clinic
-        except (ValueError, TypeError):
-            pass
-
-    # Strategy 2: For testing - default to clinic ID 1
-    # TODO: Remove this fallback in production
-    try:
-        clinic = db.query(Clinic).filter(Clinic.id == 1).first()
-        if clinic:
-            return clinic
-    except Exception:
-        pass
-
-    # Strategy 3: URL path parameter (if implemented)
-    # This would require route parameter in FastAPI like /webhook/line/{clinic_id}
-    # path_params = getattr(request, 'path_params', {})
-    # clinic_id = path_params.get('clinic_id')
-
-    raise HTTPException(
-        status_code=400,
-        detail="Cannot identify clinic from request. Please provide X-Clinic-ID header."
-    )
-
-
-@router.post(
-    "/line",
-    summary="LINE Webhook",
-    description="Receive messages and events from LINE messaging platform for chatbot processing",
-    responses={
-        200: {"description": "Webhook processed successfully"},
-        400: {"description": "Invalid request format"},
-        401: {"description": "Invalid signature"},
-        500: {"description": "Internal server error"},
-    },
-)
-async def line_webhook(request: Request, db: Session = Depends(get_db)) -> PlainTextResponse:
-    """
-    Process incoming LINE webhook events for chatbot conversations.
-
-    Handles text messages by routing them through the multi-agent orchestrator.
-    Non-appointment queries are ignored (no response sent).
-    Appointment-related queries trigger the full agent workflow.
-
-    Args:
-        request: The incoming webhook request from LINE
-        db: Database session
-
-    Returns:
-        PlainTextResponse: "OK" to acknowledge receipt
-
-    Raises:
-        HTTPException: If processing fails or signature is invalid
-    """
-    try:
-        # 1. Get request body and signature
-        body = await request.body()
-        signature = request.headers.get('X-Line-Signature', '')
-
-        # 2. Get clinic from request (by header or URL path)
-        clinic = get_clinic_from_request(request, db)
-
-        # 3. Initialize LINE service for this clinic
-        line_service = LINEService(
-            channel_secret=clinic.line_channel_secret,
-            channel_access_token=clinic.line_channel_access_token
-        )
-
-        # 4. Verify LINE signature (security)
-        if not line_service.verify_signature(body.decode('utf-8'), signature):
-            logger.warning("Invalid LINE signature received")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid LINE signature"
-            )
-
-        # 5. Update clinic webhook tracking
-        from utils.datetime_utils import utc_now, safe_datetime_diff
-        from datetime import timedelta
-        
-        now = utc_now()
-
-        # Update 24h webhook count (reset if more than 24h since last webhook)
-        if clinic.last_webhook_received_at:
-            # Safely compare datetimes with timezone handling
-            if safe_datetime_diff(now, clinic.last_webhook_received_at) > timedelta(hours=24):
-                clinic.webhook_count_24h = 0
-        clinic.webhook_count_24h += 1
-
-        # Update last webhook timestamp (ensure it's timezone-aware)
-        clinic.last_webhook_received_at = now
-
-        db.commit()
-
-        # 5. Parse LINE message payload
-        try:
-            payload: dict[str, Any] = await request.json()
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="無效的 JSON 負載"
-            )
-        message_data = line_service.extract_message_data(payload)
-
-        if not message_data:
-            # Not a text message (could be image, sticker, etc.) - ignore
-            logger.info("Received non-text message, ignoring")
-            return PlainTextResponse("OK")
-
-        line_user_id, message_text = message_data
-
-        # 6. Delegate to orchestrator (business logic)
-        response_text = await handle_line_message(
-            db=db,
-            clinic=clinic,
-            line_user_id=line_user_id,
-            message_text=message_text
-        )
-
-        # 7. Send response via LINE API (only if not None)
-        if response_text is not None:
-            line_service.send_text_message(line_user_id, response_text)
-
-        return PlainTextResponse("OK")
-
-    except HTTPException:
-        # Re-raise HTTP exceptions as-is
-        raise
-    except Exception as e:
-        logger.exception(f"Unexpected error processing LINE webhook: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="內部伺服器錯誤"
-        )
 
 
 @router.post(
@@ -360,59 +198,51 @@ async def _handle_calendar_changes(db: Session, resource_id: str) -> None:
             db.commit()
 
             # Send LINE notification to patient
-            await _send_cancellation_notification(db, appointment)
+            try:
+                _send_gcal_cancellation_notification(db, appointment, user)
+            except Exception as e:
+                logger.exception(f"Failed to send LINE notification for Google Calendar cancellation of appointment {appointment.calendar_event_id}: {e}")
+                # Continue processing other deletions
 
     except Exception as e:
         logger.exception(f"Error handling calendar changes for resource ID {resource_id}: {e}")
         raise
 
 
-async def _send_cancellation_notification(db: Session, appointment: Appointment) -> None:
+def _send_gcal_cancellation_notification(db: Session, appointment: Appointment, practitioner: User) -> None:
     """
-    Send a LINE notification to the patient about a cancelled appointment.
-
-    Args:
-        db: Database session
-        appointment: The cancelled appointment
+    Send LINE notification to patient about therapist-initiated cancellation via Google Calendar.
     """
     try:
-        # Get the clinic for LINE service initialization
-        clinic = appointment.patient.clinic
+        # Get patient and check if they have LINE user
+        patient = appointment.patient
+        if not patient.line_user:
+            logger.info(f"Patient {patient.id} has no LINE user, skipping notification")
+            return
 
-        # Initialize LINE service
+        # Get clinic's LINE credentials
+        clinic = patient.clinic
+
+        # Format date/time for notification
+        # Convert to local timezone (assuming UTC+8 for Taiwan)
+        from datetime import timezone, timedelta
+        local_tz = timezone(timedelta(hours=8))
+        local_datetime = appointment.calendar_event.start_datetime.astimezone(local_tz)
+        formatted_datetime = local_datetime.strftime("%m/%d (%a) %H:%M")
+
+        # Send LINE message using clinic's LINE service
+        from services.line_service import LINEService
         line_service = LINEService(
             channel_secret=clinic.line_channel_secret,
             channel_access_token=clinic.line_channel_access_token
         )
 
-        # Get patient's LINE user ID
-        from models.line_user import LineUser
-        line_user = db.query(LineUser).filter_by(patient_id=appointment.patient_id).first()
-        if not line_user:
-            logger.warning(f"No LINE user found for patient {appointment.patient_id}")
-            return
+        message = f"您的預約已被取消：{formatted_datetime} - {practitioner.full_name}治療師。如需重新預約，請點選「線上約診」"
 
-        # Format cancellation message (as specified in PRD)
-        therapist_name = appointment.calendar_event.user.full_name
-        # Convert to Asia/Taipei (UTC+8) for user-facing time
-        from datetime import timezone, timedelta, datetime
-        # Combine date and time to create datetime object
-        local_datetime = datetime.combine(appointment.calendar_event.date, appointment.calendar_event.start_time)
-        if local_datetime.tzinfo is not None:
-            local_time = local_datetime.astimezone(timezone(timedelta(hours=8)))
-        else:
-            # Treat naive as UTC then convert
-            local_time = local_datetime.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=8)))
-        appointment_time = local_time.strftime("%m/%d (%a) %H:%M")
-        message = (
-            f"提醒您，您原訂於【{appointment_time}】與【{therapist_name}治療師】的預約已被診所取消。"
-            f"很抱歉造成您的不便，請問需要為您重新安排預約嗎？"
-        )
+        line_service.send_text_message(patient.line_user.line_user_id, message)
 
-        # Send message via LINE
-        line_service.send_text_message(line_user.line_user_id, message)
-        logger.info(f"Sent cancellation notification to patient {appointment.patient_id} via LINE")
+        logger.info(f"Sent Google Calendar cancellation LINE notification to patient {patient.id} for appointment {appointment.calendar_event_id}")
 
     except Exception as e:
-        logger.exception(f"Failed to send cancellation notification for appointment {appointment.calendar_event_id}: {e}")
-        # Don't raise exception - we don't want to fail the webhook processing
+        logger.exception(f"Failed to send Google Calendar cancellation notification: {e}")
+        raise

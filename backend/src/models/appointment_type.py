@@ -41,3 +41,6 @@ class AppointmentType(Base):
 
     appointments = relationship("Appointment", back_populates="appointment_type")
     """Relationship to all Appointment instances that use this appointment type."""
+
+    practitioner_appointment_types = relationship("PractitionerAppointmentTypes", back_populates="appointment_type", cascade="all, delete-orphan")
+    """Relationship to practitioners who can offer this appointment type."""

@@ -70,6 +70,23 @@ class CalendarEvent(Base):
     Used to identify which calendar watch triggered a webhook notification.
     """
 
+    # Google Calendar sync status
+    sync_status: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    """
+    Status of Google Calendar synchronization.
+    - 'synced': Successfully synced to Google Calendar
+    - 'auth_failed': Practitioner needs to reconnect Google Calendar
+    - 'pending_retry': Temporary failure, will retry
+    - 'failed': Permanent failure after max retries
+    - null: Not yet attempted
+    """
+
+    sync_error: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    """Error message from last Google Calendar sync attempt."""
+
+    retry_count: Mapped[int] = mapped_column(default=0)
+    """Number of retry attempts for failed sync operations."""
+
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
     """Timestamp when the calendar event was created."""
 

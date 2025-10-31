@@ -11,6 +11,7 @@ from .appointment_type import AppointmentType
 from .practitioner_availability import PractitionerAvailability
 from .calendar_event import CalendarEvent
 from .availability_exception import AvailabilityException
+from .practitioner_appointment_types import PractitionerAppointmentTypes
 
 __all__ = [
     "Clinic",
@@ -23,5 +24,6 @@ __all__ = [
     "AppointmentType",
     "PractitionerAvailability",
     "CalendarEvent",
-    "AvailabilityException"
+    "AvailabilityException",
+    "PractitionerAppointmentTypes"
 ]

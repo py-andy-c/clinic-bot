@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from core.config import SYSTEM_ADMIN_EMAILS
 from services.jwt_service import jwt_service, TokenPayload
-from models import User
+from models import User, LineUser
 
 
 class UserContext:
@@ -275,3 +275,48 @@ def get_optional_user(
         return get_current_user(payload, db)
     except HTTPException:
         return None
+
+
+# LIFF/Line user authentication dependencies
+def get_current_line_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_db)
+) -> LineUser:
+    """Get authenticated LINE user from JWT token."""
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials not provided"
+        )
+
+    token = credentials.credentials
+    try:
+        # Decode JWT directly without TokenPayload validation
+        payload = jwt_service.verify_token(token)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token"
+            )
+
+        # For LIFF users, we expect line_user_id in the payload
+        line_user_id = getattr(payload, 'line_user_id', None)
+        if not line_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid LINE user token"
+            )
+
+        line_user = db.query(LineUser).filter(LineUser.line_user_id == line_user_id).first()
+        if not line_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="LINE user not found"
+            )
+
+        return line_user
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )

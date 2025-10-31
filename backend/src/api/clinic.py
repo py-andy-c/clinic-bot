@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
-from models import User, Patient, AppointmentType, SignupToken, PractitionerAvailability, Clinic
+from models import User, Patient, Appointment, AppointmentType, SignupToken, PractitionerAvailability, Clinic, CalendarEvent
 from services.google_oauth import GoogleOAuthService
 
 router = APIRouter()
@@ -51,7 +51,7 @@ class PatientResponse(BaseModel):
     """Response model for patient information."""
     id: int
     full_name: str
-    phone_number: str
+    phone_number: Optional[str]
     line_user_id: Optional[str]
     created_at: datetime
 
@@ -102,6 +102,26 @@ class PractitionerAvailabilityResponse(BaseModel):
     end_time: str
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+
+class ClinicAppointmentResponse(BaseModel):
+    """Response model for clinic appointment information."""
+    appointment_id: int
+    calendar_event_id: int
+    patient_name: str
+    patient_phone: Optional[str]
+    practitioner_name: str
+    appointment_type_name: str
+    start_time: datetime
+    end_time: datetime
+    status: str
+    notes: Optional[str]
+    created_at: datetime
+
+
+class ClinicAppointmentsResponse(BaseModel):
+    """Response model for listing clinic appointments."""
+    appointments: List[ClinicAppointmentResponse]
 
 
 @router.get("/members", summary="List all clinic members")
@@ -987,5 +1007,245 @@ async def delete_practitioner_availability(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法刪除治療師可用時間"
         )
+
+
+@router.get("/appointments", response_model=ClinicAppointmentsResponse, summary="List all clinic appointments")
+async def list_clinic_appointments(
+    current_user: UserContext = Depends(require_clinic_member),
+    date: Optional[str] = Query(None, description="Filter by specific date (YYYY-MM-DD)"),
+    practitioner_id: Optional[int] = Query(None, description="Filter by practitioner ID"),
+    status_filter: Optional[str] = Query(None, description="Filter by status ('confirmed', 'canceled_by_patient', 'canceled_by_clinic')"),
+    db: Session = Depends(get_db)
+) -> ClinicAppointmentsResponse:
+    """
+    Get all appointments for the current user's clinic.
+
+    Available to all clinic members. Admins can see all appointments.
+    Practitioners can see appointments they're involved in.
+    """
+    try:
+        # Base query - join appointments with calendar events
+        query = db.query(Appointment).join(CalendarEvent).join(Patient).join(User, CalendarEvent.user_id == User.id)
+
+        # Filter by clinic
+        query = query.filter(User.clinic_id == current_user.clinic_id)
+
+        # Filter by date if provided
+        if date:
+            try:
+                from datetime import datetime as dt
+                filter_date = dt.fromisoformat(date).date()
+                query = query.filter(CalendarEvent.date == filter_date)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid date format. Use YYYY-MM-DD"
+                )
+
+        # Filter by practitioner if provided
+        if practitioner_id:
+            query = query.filter(CalendarEvent.user_id == practitioner_id)
+
+        # Filter by status if provided
+        if status_filter:
+            if status_filter not in ['confirmed', 'canceled_by_patient', 'canceled_by_clinic']:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid status. Must be 'confirmed', 'canceled_by_patient', or 'canceled_by_clinic'"
+                )
+            query = query.filter(Appointment.status == status_filter)
+
+        # For non-admin users, only show appointments they're involved in
+        if not current_user.has_role('admin'):
+            query = query.filter(CalendarEvent.user_id == current_user.user_id)
+
+        # Order by start time (most recent first)
+        appointments = query.order_by(CalendarEvent.start_time.desc()).all()
+
+        # Format response
+        result: List[ClinicAppointmentResponse] = []
+        for appointment in appointments:
+            practitioner = db.query(User).get(appointment.calendar_event.user_id)
+            if not practitioner:
+                continue  # Skip if practitioner not found
+
+            # Construct datetime from date and time
+            from datetime import datetime
+            start_datetime = datetime.combine(appointment.calendar_event.date, appointment.calendar_event.start_time)
+            end_datetime = datetime.combine(appointment.calendar_event.date, appointment.calendar_event.end_time)
+
+            result.append(ClinicAppointmentResponse(
+                appointment_id=appointment.calendar_event_id,
+                calendar_event_id=appointment.calendar_event_id,
+                patient_name=appointment.patient.full_name,
+                patient_phone=appointment.patient.phone_number,
+                practitioner_name=practitioner.full_name,
+                appointment_type_name=appointment.appointment_type.name,
+                start_time=start_datetime,
+                end_time=end_datetime,
+                status=appointment.status,
+                notes=appointment.notes,
+                created_at=appointment.patient.created_at
+            ))
+
+        return ClinicAppointmentsResponse(appointments=result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to list clinic appointments for user {current_user.user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得預約列表"
+        )
+
+
+@router.delete("/appointments/{appointment_id}", summary="Cancel appointment by clinic admin")
+async def cancel_clinic_appointment(
+    appointment_id: int,
+    current_user: UserContext = Depends(require_admin_role),  # Only admins can cancel appointments
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel an appointment by clinic admin.
+
+    Updates appointment status to 'canceled_by_clinic', deletes Google Calendar event,
+    and sends LINE notification to patient.
+    """
+    try:
+        # Find appointment
+        appointment = db.query(Appointment).filter(
+            Appointment.calendar_event_id == appointment_id
+        ).first()
+
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約不存在"
+            )
+
+        # Verify appointment belongs to current clinic
+        calendar_event = db.query(CalendarEvent).filter(
+            CalendarEvent.id == appointment_id
+        ).first()
+
+        if not calendar_event:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約不存在"
+            )
+
+        practitioner = db.query(User).filter(
+            User.id == calendar_event.user_id,
+            User.clinic_id == current_user.clinic_id
+        ).first()
+
+        if not practitioner:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到相關治療師"
+            )
+
+        # Check if appointment is already cancelled
+        if appointment.status in ['canceled_by_patient', 'canceled_by_clinic']:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="預約已被取消"
+            )
+
+        # Update appointment status
+        appointment.status = 'canceled_by_clinic'
+        appointment.canceled_at = datetime.now(timezone.utc)
+
+        # Delete Google Calendar event if it exists
+        if calendar_event.gcal_event_id:
+            try:
+                # Get practitioner's Google Calendar credentials
+                if practitioner.gcal_credentials:
+                    from services.encryption_service import get_encryption_service
+                    from services.google_calendar_service import GoogleCalendarService
+                    import asyncio
+                    import json
+
+                    decrypted_credentials = get_encryption_service().decrypt_data(practitioner.gcal_credentials)
+                    gcal_service = GoogleCalendarService(json.dumps(decrypted_credentials))
+
+                    # Delete event from Google Calendar (run in thread pool since it's async)
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        loop.run_until_complete(gcal_service.delete_event(calendar_event.gcal_event_id))
+                        logger.info(f"Deleted Google Calendar event {calendar_event.gcal_event_id} for appointment {appointment_id}")
+                    finally:
+                        loop.close()
+                else:
+                    logger.warning(f"No Google Calendar credentials for practitioner {practitioner.id}")
+            except Exception as e:
+                logger.exception(f"Failed to delete Google Calendar event for appointment {appointment_id}: {e}")
+                # Continue with cancellation even if GCal deletion fails
+
+        # Send LINE notification to patient
+        try:
+            _send_clinic_cancellation_notification(db, appointment, practitioner)
+        except Exception as e:
+            logger.exception(f"Failed to send LINE notification for clinic cancellation of appointment {appointment_id}: {e}")
+            # Continue with cancellation even if LINE notification fails
+
+        db.commit()
+
+        return {
+            "success": True,
+            "message": "預約已取消，已通知患者",
+            "appointment_id": appointment_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to cancel appointment {appointment_id}: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="取消預約失敗"
+        )
+
+
+def _send_clinic_cancellation_notification(db: Session, appointment: Appointment, practitioner: User) -> None:
+    """
+    Send LINE notification to patient about clinic-initiated cancellation.
+    """
+    try:
+        # Get patient and check if they have LINE user
+        patient = appointment.patient
+        if not patient.line_user:
+            logger.info(f"Patient {patient.id} has no LINE user, skipping notification")
+            return
+
+        # Get clinic's LINE credentials
+        clinic = patient.clinic
+
+        # Format date/time for notification
+        # Convert to local timezone (assuming UTC+8 for Taiwan)
+        from datetime import timezone, timedelta
+        local_tz = timezone(timedelta(hours=8))
+        local_datetime = appointment.calendar_event.start_datetime.astimezone(local_tz)
+        formatted_datetime = local_datetime.strftime("%m/%d (%a) %H:%M")
+
+        # Send LINE message using clinic's LINE service
+        from services.line_service import LINEService
+        line_service = LINEService(
+            channel_secret=clinic.line_channel_secret,
+            channel_access_token=clinic.line_channel_access_token
+        )
+
+        message = f"您的預約已被診所取消：{formatted_datetime} - {practitioner.full_name}治療師。如需重新預約，請點選「線上約診」"
+
+        line_service.send_text_message(patient.line_user.line_user_id, message)
+
+        logger.info(f"Sent clinic cancellation LINE notification to patient {patient.id} for appointment {appointment.calendar_event_id}")
+
+    except Exception as e:
+        logger.exception(f"Failed to send clinic cancellation notification: {e}")
+        raise
 
 

@@ -62,7 +62,7 @@ fi
 source load_test_env.sh
 # Run all tests with coverage
 print_status "Running all tests with coverage..."
-if PYTHONPATH=src python -m pytest tests/unit/ tests/integration/ -v --tb=short --cov=src --cov-report=html:htmlcov --cov-report=term-missing; then
+if PYTHONPATH=src python -m pytest tests/unit/ tests/integration/ -v --tb=short --cov=src --cov-report=html:htmlcov --cov-report=term-missing --cov-fail-under=60; then
     print_success "All tests passed!"
     print_success "Coverage report generated!"
 else

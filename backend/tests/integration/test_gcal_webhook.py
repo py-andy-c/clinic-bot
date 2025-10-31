@@ -155,8 +155,7 @@ class TestGoogleCalendarWebhook:
 
         # Patch decrypt to return a minimal credentials dict and patch Google API list to omit the appointment id
         with patch("services.encryption_service.get_encryption_service") as mock_get_enc, \
-             patch("api.webhooks.GoogleCalendarService") as mock_gcal_cls, \
-             patch("services.line_service.LINEService.send_text_message") as mock_send_line:
+             patch("api.webhooks.GoogleCalendarService") as mock_gcal_cls:
             mock_enc = Mock()
             mock_enc.decrypt_data.return_value = {"access_token": "x"}
             mock_get_enc.return_value = mock_enc
@@ -186,12 +185,7 @@ class TestGoogleCalendarWebhook:
             db_session.refresh(appt)
             assert appt.status == "canceled_by_clinic"
 
-            # LINE notification should have been sent to patient's line user id
-            mock_send_line.assert_called_once()
-            args, kwargs = mock_send_line.call_args
-            assert linked_patient.line_user.line_user_id in args[0]
-            # Message should mention therapist and formatted time
-            assert practitioner.full_name in args[1]
+            # Note: LINE notifications were removed - clinic handles cancellations via LIFF UI
 
     def test_handles_gcal_init_failure(self, client, db_session, clinic_with_practitioner):
         _, practitioner, _ = clinic_with_practitioner

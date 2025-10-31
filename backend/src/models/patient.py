@@ -3,12 +3,14 @@ Patient model representing individuals who receive treatment at clinics.
 
 Patients are the core users of the clinic system, representing individuals who
 book appointments and receive treatments. Each patient belongs to exactly one clinic
-and can optionally have a LINE messaging account for communication.
+and can optionally be linked to a LINE user account for communication and appointment
+management through the LIFF app.
 """
 
-from sqlalchemy import String, ForeignKey, TIMESTAMP, func, UniqueConstraint
+from sqlalchemy import String, ForeignKey, TIMESTAMP, func, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
+from typing import Optional
 
 from core.database import Base
 
@@ -19,8 +21,8 @@ class Patient(Base):
 
     Represents patients who use the clinic's services. Each patient belongs
     to exactly one clinic and can have multiple appointments. Patients can optionally
-    link their LINE messaging account for convenient communication and appointment
-    management through the messaging platform.
+    be linked to a LINE user account for convenient communication and appointment
+    management through the LIFF app.
     """
 
     __tablename__ = "patients"
@@ -34,11 +36,14 @@ class Patient(Base):
     full_name: Mapped[str] = mapped_column(String(255))
     """Full name of the patient (first and last name)."""
 
-    phone_number: Mapped[str] = mapped_column(String(50))
-    """Contact phone number for the patient, used for appointment confirmations and reminders."""
+    phone_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    """Optional contact phone number for the patient, used for appointment confirmations and reminders."""
 
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
     """Timestamp when the patient was first created."""
+
+    line_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("line_users.id"), nullable=True)
+    """Optional reference to the LINE user account managing this patient."""
 
     # Relationships
     clinic = relationship("Clinic", back_populates="patients")
@@ -47,9 +52,14 @@ class Patient(Base):
     appointments = relationship("Appointment", back_populates="patient")
     """Relationship to all Appointment entities booked by this patient."""
 
-    line_user = relationship("LineUser", back_populates="patient", uselist=False)
-    """Optional relationship to the patient's LINE messaging account for communication."""
+    line_user = relationship("LineUser", back_populates="patients")
+    """Optional relationship to the LINE user account managing this patient."""
 
     __table_args__ = (
-        UniqueConstraint('clinic_id', 'phone_number', name='uq_clinic_patient_phone'),
+        # Partial unique index: allows multiple NULL values but enforces uniqueness for non-NULL values
+        # This prevents duplicate phone numbers per clinic while allowing multiple patients without phones
+        Index('uq_clinic_patient_phone', 'clinic_id', 'phone_number', unique=True, postgresql_where='phone_number IS NOT NULL'),
+        Index('idx_patients_line_user', 'line_user_id'),
+        Index('idx_patients_clinic', 'clinic_id'),
+        Index('idx_patients_created_at', 'created_at'),
     )

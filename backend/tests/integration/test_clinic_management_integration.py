@@ -8,8 +8,14 @@ business logic from authentication_user_management.md.
 import pytest
 from datetime import datetime, time, timedelta
 from unittest.mock import patch, AsyncMock, Mock
+from fastapi.testclient import TestClient
 
+from main import app
+from core.database import get_db
 from models.user import User
+
+# Test client for API calls
+client = TestClient(app)
 from models.clinic import Clinic
 from models.patient import Patient
 from models.appointment import Appointment
@@ -98,9 +104,12 @@ def linked_patient(db_session, test_clinic_with_therapist):
     # Create LINE user and link to patient
     line_user = LineUser(
         line_user_id="U_test_patient_123",
-        patient_id=patient.id
+        display_name="Test Patient"
     )
     db_session.add(line_user)
+
+    # Update patient to link to LINE user
+    patient.line_user_id = line_user.id
     db_session.commit()
 
     return patient
@@ -423,3 +432,437 @@ class TestAppointmentLifecycleIntegration:
         ).all()
         assert len(all_appointments) == 1
         assert all_appointments[0].status == 'canceled_by_patient'
+
+
+class TestClinicAppointmentManagement:
+    """Test clinic admin appointment management endpoints."""
+
+    def test_list_clinic_appointments_admin_view(self, test_clinic_with_therapist, linked_patient, db_session):
+        """Test that clinic admin can view all appointments."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist
+
+        # Create admin user
+        admin = User(
+            clinic_id=clinic.id,
+            full_name="Admin User",
+            email="admin@example.com",
+            google_subject_id="admin_google_sub_123",
+            roles=["admin"],
+            is_active=True
+        )
+        db_session.add(admin)
+        db_session.commit()
+
+        # Create an appointment
+        start_time = datetime.now() + timedelta(days=1)
+        end_time = start_time + timedelta(hours=1)
+        calendar_event = CalendarEvent(
+            user_id=therapist.id,
+            event_type="appointment",
+            date=start_time.date(),
+            start_time=start_time.time(),
+            end_time=end_time.time(),
+            gcal_event_id="test_event_123"
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=linked_patient.id,
+            appointment_type_id=appointment_types[0].id,
+            status='confirmed'
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Override dependencies for testing
+        from auth.dependencies import get_current_user
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=admin.email,
+            roles=["admin"],
+            clinic_id=admin.clinic_id,
+            google_subject_id=admin.google_subject_id,
+            name=admin.full_name,
+            user_id=admin.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # List appointments
+            response = client.get("/api/clinic/appointments")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["appointments"]) == 1
+
+            apt_data = data["appointments"][0]
+            assert apt_data["appointment_id"] == calendar_event.id
+            assert apt_data["patient_name"] == linked_patient.full_name
+            assert apt_data["practitioner_name"] == therapist.full_name
+            assert apt_data["appointment_type_name"] == appointment_types[0].name
+            assert apt_data["status"] == "confirmed"
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_list_clinic_appointments_practitioner_view(self, test_clinic_with_therapist, linked_patient, db_session):
+        """Test that practitioners can only see their own appointments."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist
+
+        # Create another practitioner
+        therapist2 = User(
+            clinic_id=clinic.id,
+            full_name="Dr. Other",
+            email="dr.other@example.com",
+            google_subject_id="therapist2_google_sub_456",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.add(therapist2)
+        db_session.commit()
+
+        # Create appointments for both practitioners
+        start_time = datetime.now() + timedelta(days=1)
+        end_time = start_time + timedelta(hours=1)
+
+        # Appointment for therapist 1
+        calendar_event1 = CalendarEvent(
+            user_id=therapist.id,
+            event_type="appointment",
+            date=start_time.date(),
+            start_time=start_time.time(),
+            end_time=end_time.time()
+        )
+        db_session.add(calendar_event1)
+        db_session.flush()
+
+        appointment1 = Appointment(
+            calendar_event_id=calendar_event1.id,
+            patient_id=linked_patient.id,
+            appointment_type_id=appointment_types[0].id,
+            status='confirmed'
+        )
+        db_session.add(appointment1)
+
+        # Appointment for therapist 2
+        calendar_event2 = CalendarEvent(
+            user_id=therapist2.id,
+            event_type="appointment",
+            date=start_time.date(),
+            start_time=start_time.time(),
+            end_time=end_time.time()
+        )
+        db_session.add(calendar_event2)
+        db_session.flush()
+
+        appointment2 = Appointment(
+            calendar_event_id=calendar_event2.id,
+            patient_id=linked_patient.id,
+            appointment_type_id=appointment_types[0].id,
+            status='confirmed'
+        )
+        db_session.add(appointment2)
+        db_session.commit()
+
+        # Override dependencies for testing
+        from auth.dependencies import get_current_user
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=therapist.email,
+            roles=["practitioner"],
+            clinic_id=therapist.clinic_id,
+            google_subject_id=therapist.google_subject_id,
+            name=therapist.full_name,
+            user_id=therapist.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # List appointments
+            response = client.get("/api/clinic/appointments")
+
+            assert response.status_code == 200
+            data = response.json()
+            # Should only see their own appointment
+            assert len(data["appointments"]) == 1
+            assert data["appointments"][0]["practitioner_name"] == therapist.full_name
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_cancel_appointment_by_admin(self, test_clinic_with_therapist, linked_patient, db_session):
+        """Test that clinic admin can cancel appointments."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist
+
+        # Create admin user
+        admin = User(
+            clinic_id=clinic.id,
+            full_name="Admin User",
+            email="admin@example.com",
+            google_subject_id="admin_google_sub_123",
+            roles=["admin"],
+            is_active=True
+        )
+        db_session.add(admin)
+        db_session.commit()
+
+        # Create an appointment
+        start_time = datetime.now() + timedelta(days=1)
+        end_time = start_time + timedelta(hours=1)
+        calendar_event = CalendarEvent(
+            user_id=therapist.id,
+            event_type="appointment",
+            date=start_time.date(),
+            start_time=start_time.time(),
+            end_time=end_time.time(),
+            gcal_event_id="test_event_123"
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=linked_patient.id,
+            appointment_type_id=appointment_types[0].id,
+            status='confirmed'
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Override dependencies for testing
+        from auth.dependencies import get_current_user
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=admin.email,
+            roles=["admin"],
+            clinic_id=admin.clinic_id,
+            google_subject_id=admin.google_subject_id,
+            name=admin.full_name,
+            user_id=admin.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        # Mock LINE service to avoid actual API calls
+        with patch('services.line_service.LINEService') as mock_line_service_class:
+            mock_line_service = Mock()
+            mock_line_service_class.return_value = mock_line_service
+
+            # Mock Google Calendar service
+            with patch('api.clinic.GoogleOAuthService') as mock_gcal_service_class:
+                mock_gcal_service = Mock()
+                mock_gcal_service_class.return_value = mock_gcal_service
+                mock_gcal_service.service = Mock()
+                mock_gcal_service.service.events.return_value.delete.return_value.execute.return_value = None
+
+                try:
+                    # Cancel appointment
+                    response = client.delete(f"/api/clinic/appointments/{calendar_event.id}")
+
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert data["success"] is True
+                    assert "已取消" in data["message"]
+                    assert data["appointment_id"] == calendar_event.id
+
+                    # Verify appointment status updated
+                    updated_appointment = db_session.query(Appointment).filter(
+                        Appointment.calendar_event_id == calendar_event.id
+                    ).first()
+                    assert updated_appointment.status == 'canceled_by_clinic'
+                    assert updated_appointment.canceled_at is not None
+                finally:
+                    # Clean up overrides
+                    client.app.dependency_overrides.pop(get_current_user, None)
+                    client.app.dependency_overrides.pop(get_db, None)
+
+    def test_cancel_appointment_nonexistent(self, test_clinic_with_therapist, db_session):
+        """Test cancelling a non-existent appointment."""
+        clinic, _, _ = test_clinic_with_therapist
+
+        # Create admin user
+        admin = User(
+            clinic_id=clinic.id,
+            full_name="Admin User",
+            email="admin@example.com",
+            google_subject_id="admin_google_sub_123",
+            roles=["admin"],
+            is_active=True
+        )
+        db_session.add(admin)
+        db_session.commit()
+
+        # Override dependencies for testing
+        from auth.dependencies import get_current_user
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=admin.email,
+            roles=["admin"],
+            clinic_id=admin.clinic_id,
+            google_subject_id=admin.google_subject_id,
+            name=admin.full_name,
+            user_id=admin.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Try to cancel non-existent appointment
+            response = client.delete("/api/clinic/appointments/99999")
+
+            assert response.status_code == 404
+            assert "不存在" in response.json()["detail"]
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_cancel_appointment_already_cancelled(self, test_clinic_with_therapist, linked_patient, db_session):
+        """Test cancelling an already cancelled appointment."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist
+
+        # Create admin user
+        admin = User(
+            clinic_id=clinic.id,
+            full_name="Admin User",
+            email="admin@example.com",
+            google_subject_id="admin_google_sub_123",
+            roles=["admin"],
+            is_active=True
+        )
+        db_session.add(admin)
+        db_session.commit()
+
+        # Create a cancelled appointment
+        start_time = datetime.now() + timedelta(days=1)
+        end_time = start_time + timedelta(hours=1)
+        calendar_event = CalendarEvent(
+            user_id=therapist.id,
+            event_type="appointment",
+            date=start_time.date(),
+            start_time=start_time.time(),
+            end_time=end_time.time()
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=linked_patient.id,
+            appointment_type_id=appointment_types[0].id,
+            status='canceled_by_patient'
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Override dependencies for testing
+        from auth.dependencies import get_current_user
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=admin.email,
+            roles=["admin"],
+            clinic_id=admin.clinic_id,
+            google_subject_id=admin.google_subject_id,
+            name=admin.full_name,
+            user_id=admin.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Try to cancel already cancelled appointment
+            response = client.delete(f"/api/clinic/appointments/{calendar_event.id}")
+
+            assert response.status_code == 409
+            assert "已被取消" in response.json()["detail"]
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_cancel_appointment_requires_admin_role(self, test_clinic_with_therapist, linked_patient, db_session):
+        """Test that only admins can cancel appointments."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist
+
+        # Create practitioner user (not admin)
+        practitioner = User(
+            clinic_id=clinic.id,
+            full_name="Practitioner User",
+            email="practitioner@example.com",
+            google_subject_id="practitioner_google_sub_456",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.add(practitioner)
+        db_session.commit()
+
+        # Create an appointment
+        start_time = datetime.now() + timedelta(days=1)
+        end_time = start_time + timedelta(hours=1)
+        calendar_event = CalendarEvent(
+            user_id=therapist.id,
+            event_type="appointment",
+            date=start_time.date(),
+            start_time=start_time.time(),
+            end_time=end_time.time()
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=linked_patient.id,
+            appointment_type_id=appointment_types[0].id,
+            status='confirmed'
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Override dependencies for testing
+        from auth.dependencies import get_current_user
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=practitioner.email,
+            roles=["practitioner"],
+            clinic_id=practitioner.clinic_id,
+            google_subject_id=practitioner.google_subject_id,
+            name=practitioner.full_name,
+            user_id=practitioner.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Try to cancel appointment
+            response = client.delete(f"/api/clinic/appointments/{calendar_event.id}")
+
+            assert response.status_code == 403
+            assert "Admin access required" in response.json()["detail"]
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)

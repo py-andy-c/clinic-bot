@@ -681,7 +681,8 @@ ADD COLUMN line_rich_menu_id VARCHAR(255);  -- Store programmatically created me
 
 **Keep for:**
 - **Appointment reminders**: Configurable timing (from clinic settings page, already implemented)
-- **Clinic-initiated cancellations**: When clinic cancels an appointment, send LINE message to patient
+- **Clinic-initiated cancellations**: When clinic admin cancels an appointment through admin dashboard, send LINE message to patient
+- **Google Calendar deletions**: When therapist deletes appointment from Google Calendar, send LINE message to patient (webhook-triggered)
 
 **Example:**
 ```python
@@ -2515,6 +2516,11 @@ security_logger.info(
 - [ ] Test migration on staging database
 - [ ] Update SQLAlchemy models
 - [ ] Create new API endpoints (6.1, 6.2, 6.3, 6.4)
+- [ ] **Clinic admin appointment management:**
+  - [ ] `GET /api/clinic/appointments` - List appointments for admin dashboard
+  - [ ] `DELETE /api/clinic/appointments/{appointment_id}` - Cancel appointment with LINE notification
+- [ ] **LINE notification service for clinic cancellations**
+- [ ] Update Google Calendar webhook to send LINE notifications for therapist deletions
 - [ ] Unit tests for new APIs
 - [ ] Remove AI agent code
 
@@ -2533,6 +2539,10 @@ security_logger.info(
 - [ ] Build appointment query UI
 - [ ] Build patient management UI
 - [ ] Implement ICS file generation
+- [ ] **Update clinic admin dashboard:**
+  - [ ] Add appointment cancellation functionality to calendar view
+  - [ ] Update appointment details modal with cancel button
+  - [ ] Implement LINE notification integration for clinic cancellations
 
 **Deliverables:**
 - Functional LIFF app for all three features
@@ -2586,6 +2596,16 @@ security_logger.info(
   - [ ] Add new patient
   - [ ] Delete patient (validates last patient rule)
   - [ ] Phone number uniqueness enforced
+- [ ] **Clinic admin appointment management**
+  - [ ] Admin can view all clinic appointments in calendar
+  - [ ] Appointment details modal shows [編輯] [取消預約] buttons
+  - [ ] Cancel appointment sends LINE notification to patient
+  - [ ] Cancelled appointment status changes to 'canceled_by_clinic'
+  - [ ] Google Calendar event deleted when clinic cancels
+- [ ] **LINE notifications for cancellations**
+  - [ ] Patient cancellation → No LINE notification (handled in LIFF UI)
+  - [ ] Clinic admin cancellation → LINE message sent to patient
+  - [ ] Google Calendar therapist deletion → LINE message sent to patient
 
 **4.2 Edge Case Testing**
 - [ ] **Double booking prevention**
@@ -2997,10 +3017,118 @@ Body: { "appointment_type_ids": [1, 2] }
   患者：陳小明
   電話：0912-345-678
   預約類型：初診評估
-  
+
   備註：
   左肩疼痛約一週
   ```
+
+#### **API Endpoints for Clinic Admin Appointment Management**
+
+##### **GET /api/clinic/appointments**
+
+**Purpose**: Get all appointments for the clinic (admin view)
+
+**Auth**: Clinic admin JWT
+
+**Query Parameters:**
+- `date` (optional): Filter by specific date (YYYY-MM-DD)
+- `practitioner_id` (optional): Filter by practitioner
+- `status` (optional): Filter by status ('confirmed', 'canceled_by_patient', 'canceled_by_clinic')
+
+**Response:**
+```json
+{
+  "appointments": [
+    {
+      "appointment_id": 123,
+      "calendar_event_id": 456,
+      "patient_name": "陳小明",
+      "patient_phone": "0912345678",
+      "practitioner_name": "王大明",
+      "appointment_type_name": "初診評估",
+      "start_time": "2025-11-15T10:00:00+08:00",
+      "end_time": "2025-11-15T11:00:00+08:00",
+      "status": "confirmed",
+      "notes": "左肩疼痛約一週",
+      "created_at": "2025-11-10T14:30:00+08:00"
+    }
+  ]
+}
+```
+
+##### **DELETE /api/clinic/appointments/{appointment_id}**
+
+**Purpose**: Cancel appointment by clinic admin
+
+**Auth**: Clinic admin JWT
+
+**Process:**
+1. Verify clinic admin has permission for this clinic
+2. Find appointment and verify it belongs to clinic
+3. Update status to `'canceled_by_clinic'`
+4. Delete corresponding Google Calendar event
+5. Send LINE notification to patient
+6. Return success response
+
+**LINE Notification:**
+```python
+# Send clinic cancellation notification
+api.push_message(
+    to=patient.line_user.line_user_id,
+    messages=TextSendMessage(
+        text=f"您的預約已被診所取消：{formatted_date_time} - {practitioner_name}治療師。如需重新預約，請點選「線上約診」"
+    )
+)
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "預約已取消，已通知患者",
+  "appointment_id": 123
+}
+```
+
+**Error Cases:**
+- 403: No permission to cancel this appointment
+- 404: Appointment not found
+- 409: Appointment already cancelled
+
+#### **Google Calendar Webhook Integration**
+
+**Purpose**: Detect when therapists cancel appointments directly in Google Calendar and notify patients via LINE.
+
+**Webhook Endpoint**: `POST /webhook/gcal`
+
+**Process:**
+1. Google sends push notification when calendar event is deleted
+2. Webhook identifies the therapist and appointment
+3. Updates appointment status to `'canceled_by_clinic'`
+4. Sends LINE notification to patient with cancellation details
+5. Logs the clinic-initiated cancellation
+
+**LINE Notification Example:**
+```python
+# When therapist deletes from Google Calendar
+api.push_message(
+    to=patient.line_user.line_user_id,
+    messages=TextSendMessage(
+        text=f"您的預約已被取消：{formatted_date_time} - {practitioner_name}治療師。如需重新預約，請點選「線上約診」"
+    )
+)
+```
+
+**Webhook Headers Processed:**
+- `X-Goog-Resource-State`: "exists", "sync", "not_exists"
+- `X-Goog-Resource-ID`: Google Calendar watch resource ID
+- `X-Goog-Channel-ID`: Channel identifier
+
+**Error Handling:**
+- Invalid resource ID → Log warning, return OK
+- Missing Google Calendar credentials → Log warning, return OK
+- LINE API failure → Log error, continue (don't fail webhook)
+- Database errors → Log error, return 500
 
 ---
 

@@ -109,6 +109,15 @@ class Clinic(Base):
     reminder_hours_before: Mapped[int] = mapped_column(Integer, default=24)
     """Number of hours before appointment to send reminders."""
 
+    # LIFF Integration
+    line_liff_id: Mapped[Optional[str]] = mapped_column(String(MAX_STRING_LENGTH), nullable=True, unique=True)
+    """
+    LIFF ID for this clinic's LIFF app instance.
+
+    Each clinic gets its own LIFF app for proper data isolation in multi-tenant setup.
+    Used to identify which clinic's LIFF app the user is accessing.
+    """
+
     # Relationships
     users = relationship("User", back_populates="clinic")
     """All clinic personnel (admins, practitioners)"""

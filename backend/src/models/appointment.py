@@ -7,8 +7,9 @@ time slot. Appointments are now based on the CalendarEvent schema for unified
 calendar management while maintaining specialized appointment-specific data.
 """
 
-from datetime import date as date_type
-from sqlalchemy import String, ForeignKey, Index
+from datetime import date as date_type, datetime
+from typing import Optional
+from sqlalchemy import String, ForeignKey, Index, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -46,6 +47,12 @@ class Appointment(Base):
 
     status: Mapped[str] = mapped_column(String(50))  # 'confirmed', 'canceled_by_patient', 'canceled_by_clinic'
     """Current status of the appointment. Valid values: 'confirmed', 'canceled_by_patient', 'canceled_by_clinic'."""
+
+    canceled_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    """Timestamp when the appointment was canceled (if applicable)."""
+
+    notes: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    """Optional patient-provided notes about the appointment (備註)."""
 
     # Relationships
     calendar_event = relationship("CalendarEvent", back_populates="appointment")
