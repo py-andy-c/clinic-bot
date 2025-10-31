@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
 from core.database import get_db
-from models import User, Appointment, CalendarEvent, Clinic
+from models import User, Appointment, CalendarEvent
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

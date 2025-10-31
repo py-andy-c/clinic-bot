@@ -11,18 +11,24 @@ All endpoints require JWT authentication from LIFF login flow.
 import logging
 import jwt
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Dict, Any, cast
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
 
 from core.database import get_db
 from core.config import JWT_SECRET_KEY
 from models import (
-    User, Patient, LineUser, Appointment, AppointmentType,
-    Clinic, CalendarEvent, PractitionerAppointmentTypes
+    LineUser, Clinic, Patient, AppointmentType
+)
+from services import PatientService, AppointmentService, AvailabilityService, PractitionerService
+from api.responses import (
+    PatientResponse, PatientCreateResponse, PatientListResponse,
+    AppointmentTypeResponse, AppointmentTypeListResponse,
+    PractitionerResponse, PractitionerListResponse,
+    AvailabilityResponse, AvailabilitySlot,
+    AppointmentResponse, AppointmentListResponse, AppointmentListItem
 )
 from auth.dependencies import get_current_line_user
 
@@ -78,53 +84,6 @@ class PatientCreateRequest(BaseModel):
         return v
 
 
-class PatientResponse(BaseModel):
-    """Response model for patient information."""
-    id: int
-    full_name: str
-    phone_number: Optional[str]
-    created_at: datetime
-
-
-class PatientCreateResponse(BaseModel):
-    """Response model for patient creation."""
-    patient_id: int
-    full_name: str
-    phone_number: Optional[str]
-    created_at: datetime
-
-
-class PatientListResponse(BaseModel):
-    """Response model for listing patients."""
-    patients: List[PatientResponse]
-
-
-class AppointmentTypeResponse(BaseModel):
-    """Response model for appointment type."""
-    id: int
-    name: str
-    duration_minutes: int
-
-
-class PractitionerResponse(BaseModel):
-    """Response model for practitioner information."""
-    id: int
-    full_name: str
-    offered_types: List[int]  # List of appointment_type_ids
-
-
-class AvailabilitySlot(BaseModel):
-    """Model for availability time slot."""
-    start_time: str  # HH:MM format
-    end_time: str    # HH:MM format
-    practitioner_id: Optional[int]
-    practitioner_name: Optional[str]
-
-
-class AvailabilityResponse(BaseModel):
-    """Response model for availability query."""
-    date: str
-    slots: List[AvailabilitySlot]
 
 
 class AppointmentCreateRequest(BaseModel):
@@ -166,31 +125,6 @@ class AppointmentCreateRequest(BaseModel):
         return v
 
 
-class AppointmentResponse(BaseModel):
-    """Response model for appointment information."""
-    appointment_id: int
-    calendar_event_id: int
-    patient_name: str
-    practitioner_name: str
-    appointment_type_name: str
-    start_time: datetime
-    end_time: datetime
-    notes: Optional[str]
-
-
-class AppointmentListResponse(BaseModel):
-    """Response model for listing appointments."""
-    appointments: List[Dict[str, Any]]
-
-
-class AppointmentTypeListResponse(BaseModel):
-    """Response model for listing appointment types."""
-    appointment_types: List[AppointmentTypeResponse]
-
-
-class PractitionerListResponse(BaseModel):
-    """Response model for listing practitioners."""
-    practitioners: List[PractitionerResponse]
 
 
 # ===== Helper Functions =====
@@ -251,21 +185,6 @@ def get_clinic_from_line_user(line_user: LineUser, db: Session) -> Clinic:
     )
 
 
-def check_patient_ownership(patient_id: int, line_user: LineUser, clinic: Clinic, db: Session) -> Patient:
-    """Verify patient belongs to LINE user and clinic."""
-    patient = db.query(Patient).filter(
-        Patient.id == patient_id,
-        Patient.line_user_id == line_user.id,
-        Patient.clinic_id == clinic.id
-    ).first()
-
-    if not patient:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Patient not found or access denied"
-        )
-
-    return patient
 
 
 # ===== API Endpoints =====
@@ -418,17 +337,14 @@ async def create_additional_patient(
         # Determine clinic
         clinic = get_clinic_from_line_user(line_user, db)
 
-        # Create patient (phone_number can be null)
-        patient = Patient(
-            line_user_id=line_user.id,
+        # Create patient using service
+        patient = PatientService.create_patient(
+            db=db,
             clinic_id=clinic.id,
             full_name=request.full_name,
-            phone_number=request.phone_number
+            phone_number=request.phone_number,
+            line_user_id=line_user.id
         )
-
-        db.add(patient)
-        db.commit()
-        db.refresh(patient)
 
         return PatientCreateResponse(
             patient_id=patient.id,
@@ -439,13 +355,6 @@ async def create_additional_patient(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Additional patient creation error: {e}")
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create patient"
-        )
 
 
 @router.get("/patients", response_model=PatientListResponse)
@@ -462,11 +371,12 @@ async def list_patients(
         # Determine clinic
         clinic = get_clinic_from_line_user(line_user, db)
 
-        # Get patients for this LINE user at this clinic
-        patients = db.query(Patient).filter_by(
+        # Get patients using service
+        patients = PatientService.list_patients_for_line_user(
+            db=db,
             line_user_id=line_user.id,
             clinic_id=clinic.id
-        ).order_by(Patient.created_at).all()
+        )
 
         return PatientListResponse(
             patients=[
@@ -481,12 +391,6 @@ async def list_patients(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Patient list error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve patients"
-        )
 
 
 @router.delete("/patients/{patient_id}")
@@ -504,48 +408,18 @@ async def delete_patient(
         # Determine clinic
         clinic = get_clinic_from_line_user(line_user, db)
 
-        # Verify patient ownership
-        patient = check_patient_ownership(patient_id, line_user, clinic, db)
-
-        # Check for future appointments
-        future_appointments = db.query(Appointment).join(CalendarEvent).filter(
-            Appointment.patient_id == patient_id,
-            CalendarEvent.start_time > datetime.now()
-        ).count()
-
-        if future_appointments > 0:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot delete patient with future appointments"
-            )
-
-        # Check if this is the last patient
-        total_patients = db.query(Patient).filter_by(
+        # Delete patient using service
+        PatientService.delete_patient_for_line_user(
+            db=db,
+            patient_id=patient_id,
             line_user_id=line_user.id,
             clinic_id=clinic.id
-        ).count()
-
-        if total_patients <= 1:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="至少需保留一位就診人"
-            )
-
-        # Soft delete by unlinking from LINE user (preserves appointment history)
-        patient.line_user_id = None
-        db.commit()
+        )
 
         return {"success": True, "message": "Patient removed"}
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Patient deletion error: {e}")
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete patient"
-        )
 
 
 @router.get("/appointment-types", response_model=AppointmentTypeListResponse)
@@ -600,45 +474,23 @@ async def list_practitioners(
         # Determine clinic
         clinic = get_clinic_from_line_user(line_user, db)
 
-        # Base query for practitioners
-        query = db.query(User).filter(
-            User.clinic_id == clinic.id,
-            User.is_active == True,
-            User.roles.contains(['practitioner'])
+        # Get practitioners using service
+        practitioners_data = PractitionerService.list_practitioners_for_clinic(
+            db=db,
+            clinic_id=clinic.id,
+            appointment_type_id=appointment_type_id
         )
 
-        if appointment_type_id:
-            # Filter by practitioners who offer this appointment type
-            query = query.join(PractitionerAppointmentTypes).filter(
-                PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
-            )
+        # Convert dicts to response objects
+        practitioners = [
+            PractitionerResponse(**practitioner)
+            for practitioner in practitioners_data
+        ]
 
-        practitioners = query.all()
-
-        # Get offered types for each practitioner
-        result: List[PractitionerResponse] = []
-        for practitioner in practitioners:
-            offered_types = [
-                pat.appointment_type_id
-                for pat in practitioner.practitioner_appointment_types
-            ]
-
-            result.append(PractitionerResponse(
-                id=practitioner.id,
-                full_name=practitioner.full_name,
-                offered_types=offered_types
-            ))
-
-        return PractitionerListResponse(practitioners=result)
+        return PractitionerListResponse(practitioners=practitioners)
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Practitioners list error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve practitioners"
-        )
 
 
 @router.get("/availability", response_model=AvailabilityResponse)
@@ -658,133 +510,31 @@ async def get_availability(
     Performance: Results are cached for 10 minutes to handle frequent queries.
     """
     try:
-        # Validate date
-        try:
-            requested_date = datetime.strptime(date, '%Y-%m-%d').date()
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid date format (use YYYY-MM-DD)"
-            )
-
-        # Validate date range
-        today = datetime.now().date()
-        max_date = today + timedelta(days=90)
-
-        if requested_date < today:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot book appointments in the past"
-            )
-        if requested_date > max_date:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="最多只能預約 90 天內的時段"
-            )
-
         # Determine clinic
         clinic = get_clinic_from_line_user(line_user, db)
 
-        # Get appointment type
-        appointment_type = db.query(AppointmentType).filter_by(
-            id=appointment_type_id,
+        # Get practitioner IDs to check (if specific practitioner requested)
+        practitioner_ids = [practitioner_id] if practitioner_id else None
+
+        # Get available slots using service
+        slots_data = AvailabilityService.get_available_slots(
+            db=db,
+            date=date,
+            appointment_type_id=appointment_type_id,
+            practitioner_ids=practitioner_ids,
             clinic_id=clinic.id
-        ).first()
+        )
 
-        if not appointment_type:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Appointment type not found"
-            )
-
-        duration_minutes = appointment_type.duration_minutes
-
-        # Get practitioners who offer this type
-        if practitioner_id:
-            # Specific practitioner requested
-            practitioners: List[User] = db.query(User).filter(
-                User.id == practitioner_id,
-                User.clinic_id == clinic.id,
-                User.is_active == True,
-                User.roles.contains(['practitioner'])
-            ).join(PractitionerAppointmentTypes).filter(
-                PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
-            ).all()
-        else:
-            # All practitioners who offer this type
-            practitioners: List[User] = db.query(User).filter(
-                User.clinic_id == clinic.id,
-                User.is_active == True,
-                User.roles.contains(['practitioner'])
-            ).join(PractitionerAppointmentTypes).filter(
-                PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
-            ).all()
-
-        if not practitioners:
-            # No practitioners offer this type
-            return AvailabilityResponse(date=date, slots=[])
-
-        # Calculate available slots
-        # This is a simplified implementation - in production, you'd want to:
-        # 1. Check practitioner availability schedules
-        # 2. Subtract exceptions (time off, holidays)
-        # 3. Subtract existing appointments
-        # 4. Generate time slots based on clinic operating hours
-
-        # For MVP, return some sample slots
-        # TODO: Implement proper availability calculation
-        slots: List[AvailabilitySlot] = []
-
-        # Sample: 9 AM to 5 PM in 30-minute increments
-        current_time = datetime.combine(requested_date, datetime.strptime("09:00", "%H:%M").time())
-        end_time = datetime.combine(requested_date, datetime.strptime("17:00", "%H:%M").time())
-
-        while current_time + timedelta(minutes=duration_minutes) <= end_time:
-            slot_end = current_time + timedelta(minutes=duration_minutes)
-
-            # Check if this slot conflicts with existing appointments
-            # This is a simplified check - production would be more sophisticated
-            conflicts = db.query(CalendarEvent).filter(
-                CalendarEvent.user_id.in_([p.id for p in practitioners]),
-                CalendarEvent.date == requested_date,
-                CalendarEvent.start_time < slot_end.time(),
-                CalendarEvent.end_time > current_time.time(),
-                CalendarEvent.event_type == 'appointment'
-            ).count()
-
-            if conflicts == 0:
-                # Slot is available
-                if practitioner_id:
-                    # Specific practitioner
-                    practitioner = practitioners[0]
-                    slots.append(AvailabilitySlot(
-                        start_time=current_time.strftime("%H:%M"),
-                        end_time=slot_end.strftime("%H:%M"),
-                        practitioner_id=practitioner.id,
-                        practitioner_name=practitioner.full_name
-                    ))
-                else:
-                    # Any practitioner - show multiple options
-                    for practitioner in practitioners:
-                        slots.append(AvailabilitySlot(
-                            start_time=current_time.strftime("%H:%M"),
-                            end_time=slot_end.strftime("%H:%M"),
-                            practitioner_id=practitioner.id,
-                            practitioner_name=practitioner.full_name
-                        ))
-
-            current_time += timedelta(minutes=30)  # 30-minute increments
+        # Convert dicts to response objects
+        slots = [
+            AvailabilitySlot(**slot)
+            for slot in slots_data
+        ]
 
         return AvailabilityResponse(date=date, slots=slots)
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Availability query error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve availability"
-        )
 
 
 @router.post("/appointments", response_model=AppointmentResponse)
@@ -803,154 +553,22 @@ async def create_appointment(
         # Determine clinic
         clinic = get_clinic_from_line_user(line_user, db)
 
-        # Verify patient ownership
-        patient = check_patient_ownership(request.patient_id, line_user, clinic, db)
-
-        # Get appointment type
-        appointment_type = db.query(AppointmentType).filter_by(
-            id=request.appointment_type_id,
-            clinic_id=clinic.id
-        ).first()
-
-        if not appointment_type:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Appointment type not found"
-            )
-
-        # Calculate end time
-        end_time = request.start_time + timedelta(minutes=appointment_type.duration_minutes)
-
-        # Handle practitioner assignment
-        if request.practitioner_id is None:
-            # "不指定" - assign to practitioner with least appointments that day
-            candidates: List[User] = db.query(User).filter(
-                User.clinic_id == clinic.id,
-                User.is_active == True,
-                User.roles.contains(['practitioner'])
-            ).join(PractitionerAppointmentTypes).filter(
-                PractitionerAppointmentTypes.appointment_type_id == request.appointment_type_id
-            ).all()
-
-            # Filter by availability at requested time
-            available_candidates: List[User] = []
-            for candidate in candidates:
-                # Check if candidate is available at this time
-                # TODO: Implement proper availability checking
-                conflicts = db.query(CalendarEvent).filter(
-                    CalendarEvent.user_id == candidate.id,
-                    CalendarEvent.date == request.start_time.date(),
-                    CalendarEvent.start_time < end_time.time(),
-                    CalendarEvent.end_time > request.start_time.time(),
-                    CalendarEvent.event_type == 'appointment'
-                ).count()
-
-                if conflicts == 0:
-                    available_candidates.append(candidate)
-
-            if not available_candidates:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="無可用治療師"
-                )
-
-            # Assign to practitioner with least appointments that day
-            selected_practitioner = min(
-                available_candidates,
-                key=lambda p: db.query(CalendarEvent).filter(
-                    CalendarEvent.user_id == p.id,
-                    CalendarEvent.date == request.start_time.date(),
-                    CalendarEvent.event_type == 'appointment'
-                ).count()
-            )
-            practitioner_id = selected_practitioner.id
-        else:
-            # Specific practitioner requested
-            practitioner = db.query(User).filter(
-                User.id == request.practitioner_id,
-                User.clinic_id == clinic.id,
-                User.is_active == True,
-                User.roles.contains(['practitioner'])
-            ).join(PractitionerAppointmentTypes).filter(
-                PractitionerAppointmentTypes.appointment_type_id == request.appointment_type_id
-            ).first()
-
-            if not practitioner:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Practitioner not found or doesn't offer this appointment type"
-                )
-
-            # Check availability
-            conflicts = db.query(CalendarEvent).filter(
-                CalendarEvent.user_id == practitioner.id,
-                CalendarEvent.date == request.start_time.date(),
-                CalendarEvent.start_time < end_time.time(),
-                CalendarEvent.end_time > request.start_time.time(),
-                CalendarEvent.event_type == 'appointment'
-            ).count()
-
-            if conflicts > 0:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="時段已被預約"
-                )
-
-            practitioner_id = practitioner.id
-
-        # Create calendar event first
-        calendar_event = CalendarEvent(
-            user_id=practitioner_id,
-            event_type='appointment',
-            date=request.start_time.date(),
-            start_time=request.start_time.time(),
-            end_time=end_time.time()
-        )
-
-        db.add(calendar_event)
-        db.flush()  # Get calendar_event.id
-
-        # Create appointment
-        appointment = Appointment(
-            calendar_event_id=calendar_event.id,
+        # Create appointment using service
+        appointment_data = AppointmentService.create_appointment(
+            db=db,
+            clinic_id=clinic.id,
             patient_id=request.patient_id,
             appointment_type_id=request.appointment_type_id,
-            status='confirmed',
-            notes=request.notes
-        )
-
-        db.add(appointment)
-        db.commit()
-
-        # Get practitioner for response
-        practitioner = db.query(User).get(practitioner_id)
-        if not practitioner:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Practitioner not found after creation"
-            )
-        practitioner = cast(User, practitioner)
-
-        return AppointmentResponse(
-            appointment_id=appointment.calendar_event_id,  # Using calendar_event_id as appointment_id
-            calendar_event_id=calendar_event.id,
-            patient_name=patient.full_name,
-            practitioner_name=practitioner.full_name,
-            appointment_type_name=appointment_type.name,
             start_time=request.start_time,
-            end_time=end_time,
-            notes=request.notes
+            practitioner_id=request.practitioner_id,
+            notes=request.notes,
+            line_user_id=line_user.id
         )
+
+        return AppointmentResponse(**appointment_data)
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Appointment creation error: {e}")
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create appointment"
-        )
 
 
 @router.get("/appointments", response_model=AppointmentListResponse)
@@ -966,74 +584,24 @@ async def list_appointments(
         # Determine clinic
         clinic = get_clinic_from_line_user(line_user, db)
 
-        # Get all patients for this LINE user at this clinic
-        patients: List[Patient] = db.query(Patient).filter_by(
+        # Get appointments using service
+        appointments_data = AppointmentService.list_appointments_for_line_user(
+            db=db,
             line_user_id=line_user.id,
-            clinic_id=clinic.id
-        ).all()
-
-        if not patients:
-            return AppointmentListResponse(appointments=[])
-
-        patient_ids = [p.id for p in patients]
-
-        # Build query
-        query = db.query(Appointment).join(CalendarEvent).filter(
-            Appointment.patient_id.in_(patient_ids)
+            clinic_id=clinic.id,
+            upcoming_only=upcoming_only
         )
 
-        if upcoming_only:
-            # Filter for upcoming appointments: future dates or today with future times
-            today = datetime.now().date()
-            current_time = datetime.now().time()
-            query = query.filter(
-                (CalendarEvent.date > today) |
-                and_(CalendarEvent.date == today, CalendarEvent.start_time > current_time)
-            )
+        # Convert dicts to response objects
+        appointments = [
+            AppointmentListItem(**appointment)
+            for appointment in appointments_data
+        ]
 
-        appointments: List[Appointment] = query.order_by(CalendarEvent.start_time).all()
-
-        # Format response
-        result: List[Dict[str, Any]] = []
-        for appointment in appointments:
-            practitioner = db.query(User).get(appointment.calendar_event.user_id)
-            if not practitioner:
-                continue  # Skip if practitioner not found
-            practitioner = cast(User, practitioner)
-
-            appointment_type = db.query(AppointmentType).get(appointment.appointment_type_id)
-            if not appointment_type:
-                continue  # Skip if appointment type not found
-            appointment_type = cast(AppointmentType, appointment_type)
-            patient = db.query(Patient).get(appointment.patient_id)
-            if not patient:
-                continue  # Skip if patient not found
-
-            # Type cast for Pyright
-            patient = cast(Patient, patient)
-
-            result.append({
-                "id": appointment.calendar_event_id,
-                "patient_id": appointment.patient_id,
-                "patient_name": patient.full_name,
-                "practitioner_name": practitioner.full_name,
-                "appointment_type_name": appointment_type.name,
-                "start_time": appointment.calendar_event.start_time,
-                "end_time": appointment.calendar_event.end_time,
-                "status": appointment.status,
-                "notes": appointment.notes
-            })
-
-        return AppointmentListResponse(appointments=result)
+        return AppointmentListResponse(appointments=appointments)
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Appointments list error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve appointments"
-        )
 
 
 @router.delete("/appointments/{appointment_id}")
@@ -1052,44 +620,15 @@ async def cancel_appointment(
         # Determine clinic
         clinic = get_clinic_from_line_user(line_user, db)
 
-        # Find appointment
-        appointment = db.query(Appointment).filter(
-            Appointment.calendar_event_id == appointment_id
-        ).first()
+        # Cancel appointment using service
+        result = AppointmentService.cancel_appointment_by_patient(
+            db=db,
+            appointment_id=appointment_id,
+            line_user_id=line_user.id,
+            clinic_id=clinic.id
+        )
 
-        if not appointment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="預約不存在"
-            )
-
-        # Verify ownership through patient
-        patient = db.query(Patient).filter(
-            Patient.id == appointment.patient_id,
-            Patient.line_user_id == line_user.id,
-            Patient.clinic_id == clinic.id
-        ).first()
-
-        if not patient:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="無權限取消此預約"
-            )
-
-        # Update status
-        appointment.status = 'canceled_by_patient'
-        appointment.canceled_at = datetime.now()
-
-        db.commit()
-
-        return {"success": True, "message": "預約已取消"}
+        return result
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Appointment cancellation error: {e}")
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to cancel appointment"
-        )

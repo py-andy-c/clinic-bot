@@ -25,6 +25,8 @@ from models import (
     User, AppointmentType,
     PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment
 )
+from services import AvailabilityService
+from api.responses import AvailableSlotsResponse, AvailableSlotResponse
 
 router = APIRouter()
 
@@ -110,17 +112,6 @@ class AvailabilityExceptionResponse(BaseModel):
     end_time: Optional[str]
     gcal_event_id: Optional[str]
     created_at: datetime
-
-
-class AvailableSlotResponse(BaseModel):
-    """Response model for available time slots."""
-    start_time: str  # Format: "HH:MM"
-    end_time: str    # Format: "HH:MM"
-
-
-class AvailableSlotsResponse(BaseModel):
-    """Response model for available slots query."""
-    available_slots: List[AvailableSlotResponse]
 
 
 class ConflictWarningResponse(BaseModel):
@@ -566,87 +557,20 @@ async def get_available_slots(
                 detail="Appointment type not found"
             )
         
-        try:
-            target_date = datetime.strptime(date, '%Y-%m-%d').date()
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid date format. Use YYYY-MM-DD"
-            )
-        
-        # Get default schedule for this day of week
-        day_of_week = target_date.weekday()
-        default_intervals = db.query(PractitionerAvailability).filter(
-            PractitionerAvailability.user_id == user_id,
-            PractitionerAvailability.day_of_week == day_of_week
-        ).order_by(PractitionerAvailability.start_time).all()
-        
-        if not default_intervals:
-            return AvailableSlotsResponse(available_slots=[])
-        
-        # Get availability exceptions for this date
-        exceptions = db.query(CalendarEvent).filter(
-            CalendarEvent.user_id == user_id,
-            CalendarEvent.event_type == 'availability_exception',
-            CalendarEvent.date == target_date
-        ).all()
-        
-        # Get existing appointments for this date
-        appointments = db.query(CalendarEvent).filter(
-            CalendarEvent.user_id == user_id,
-            CalendarEvent.event_type == 'appointment',
-            CalendarEvent.date == target_date
-        ).all()
-        
-        # Calculate available slots
-        available_slots: List[AvailableSlotResponse] = []
-        duration_minutes = appointment_type.duration_minutes
-        
-        for interval in default_intervals:
-            # Check if this interval is blocked by an exception
-            blocked = False
-            for exception in exceptions:
-                if (exception.start_time and exception.end_time and
-                    _check_time_overlap(interval.start_time, interval.end_time, 
-                                      exception.start_time, exception.end_time)):
-                    blocked = True
-                    break
-            
-            if blocked:
-                continue
-            
-            # Generate slots within this interval
-            current_time = interval.start_time
-            while True:
-                # Calculate end time for this slot
-                slot_end_minutes = (current_time.hour * 60 + current_time.minute + duration_minutes)
-                slot_end_hour = slot_end_minutes // 60
-                slot_end_minute = slot_end_minutes % 60
-                slot_end_time = time(slot_end_hour, slot_end_minute)
-                
-                # Check if slot fits within the interval
-                if slot_end_time > interval.end_time:
-                    break
-                
-                # Check if slot conflicts with existing appointments
-                slot_conflicts = False
-                for appointment in appointments:
-                    if (appointment.start_time and appointment.end_time and
-                        _check_time_overlap(current_time, slot_end_time,
-                                          appointment.start_time, appointment.end_time)):
-                        slot_conflicts = True
-                        break
-                
-                if not slot_conflicts:
-                    available_slots.append(AvailableSlotResponse(
-                        start_time=_format_time(current_time),
-                        end_time=_format_time(slot_end_time)
-                    ))
-                
-                # Move to next slot (15-minute increments)
-                current_minutes = current_time.hour * 60 + current_time.minute + 15
-                current_time = time(current_minutes // 60, current_minutes % 60)
-        
+        # Get available slots using service
+        slots_data = AvailabilityService.get_available_slots_for_practitioner(
+            db=db,
+            practitioner_id=user_id,
+            date=date,
+            appointment_type_id=appointment_type_id
+        )
+
+        # Convert dicts to response objects
+        available_slots = [
+            AvailableSlotResponse(**slot)
+            for slot in slots_data
+        ]
+
         return AvailableSlotsResponse(available_slots=available_slots)
         
     except HTTPException:
