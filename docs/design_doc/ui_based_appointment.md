@@ -2576,23 +2576,25 @@ security_logger.info(
 
 ### Phase 1: Database & API Foundation (Week 1-2)
 
+**Note:** Since we haven't launched yet, no migration scripts or backward compatibility concerns apply. SQLAlchemy will create the correct schema from the updated models.
+
 **Tasks:**
-- [ ] Database migration script
-- [ ] Test migration on staging database
-- [ ] Update SQLAlchemy models
-- [ ] Create new API endpoints (6.1, 6.2, 6.3, 6.4)
-- [ ] **Clinic admin appointment management:**
-  - [ ] `GET /api/clinic/appointments` - List appointments for admin dashboard
-  - [ ] `DELETE /api/clinic/appointments/{appointment_id}` - Cancel appointment with LINE notification
-- [ ] **LINE notification service for clinic cancellations**
-- [ ] Update Google Calendar webhook to send LINE notifications for therapist deletions
-- [ ] Unit tests for new APIs
-- [ ] Remove AI agent code
+- [x] Database migration script (Not needed - fresh database start)
+- [x] Test migration on staging database (Not needed - fresh database start)
+- [x] Update SQLAlchemy models
+- [x] Create new API endpoints (6.1, 6.2, 6.3, 6.4)
+- [x] **Clinic admin appointment management:**
+  - [x] `GET /api/clinic/appointments` - List appointments for admin dashboard
+  - [x] `DELETE /api/clinic/appointments/{appointment_id}` - Cancel appointment with LINE notification
+- [x] **LINE notification service for clinic cancellations**
+- [x] Update Google Calendar webhook to send LINE notifications for therapist deletions
+- [x] Unit tests for new APIs
+- [x] Remove AI agent code
 
 **Deliverables:**
-- Working REST APIs for appointment booking
-- Patient management APIs functional
-- Database schema updated
+- ✅ Working REST APIs for appointment booking
+- ✅ Patient management APIs functional
+- ✅ Database schema updated
 
 ### Phase 2: LIFF Frontend (Week 2-3)
 
