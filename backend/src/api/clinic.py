@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """
 Clinic management API endpoints.
 
@@ -18,9 +19,10 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
-from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, Appointment
+from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability
 from services import PatientService, AppointmentService
 from services.google_oauth import GoogleOAuthService
+from services.notification_service import NotificationService, CancellationSource
 from api.responses import (
     ClinicPatientResponse, ClinicPatientListResponse,
     ClinicAppointmentResponse, ClinicAppointmentsResponse,
@@ -1061,7 +1063,9 @@ async def cancel_clinic_appointment(
 
         # Send LINE notification to patient
         try:
-            _send_clinic_cancellation_notification(db, appointment, practitioner)
+            NotificationService.send_appointment_cancellation(
+                db, appointment, practitioner, CancellationSource.CLINIC
+            )
         except Exception as e:
             logger.exception(f"Failed to send LINE notification for clinic cancellation of appointment {appointment_id}: {e}")
             # Continue with cancellation even if LINE notification fails
@@ -1083,44 +1087,5 @@ async def cancel_clinic_appointment(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="取消預約失敗"
         )
-
-
-def _send_clinic_cancellation_notification(db: Session, appointment: Appointment, practitioner: User) -> None:
-    """
-    Send LINE notification to patient about clinic-initiated cancellation.
-    """
-    try:
-        # Get patient and check if they have LINE user
-        patient = appointment.patient
-        if not patient.line_user:
-            logger.info(f"Patient {patient.id} has no LINE user, skipping notification")
-            return
-
-        # Get clinic's LINE credentials
-        clinic = patient.clinic
-
-        # Format date/time for notification
-        # Convert to local timezone (assuming UTC+8 for Taiwan)
-        from datetime import timezone, timedelta
-        local_tz = timezone(timedelta(hours=8))
-        local_datetime = appointment.calendar_event.start_datetime.astimezone(local_tz)
-        formatted_datetime = local_datetime.strftime("%m/%d (%a) %H:%M")
-
-        # Send LINE message using clinic's LINE service
-        from services.line_service import LINEService
-        line_service = LINEService(
-            channel_secret=clinic.line_channel_secret,
-            channel_access_token=clinic.line_channel_access_token
-        )
-
-        message = f"您的預約已被診所取消：{formatted_datetime} - {practitioner.full_name}治療師。如需重新預約，請點選「線上約診」"
-
-        line_service.send_text_message(patient.line_user.line_user_id, message)
-
-        logger.info(f"Sent clinic cancellation LINE notification to patient {patient.id} for appointment {appointment.calendar_event_id}")
-
-    except Exception as e:
-        logger.exception(f"Failed to send clinic cancellation notification: {e}")
-        raise
 
 

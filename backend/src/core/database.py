@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """
 Database configuration and session management.
 

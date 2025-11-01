@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """
 System admin API endpoints.
 

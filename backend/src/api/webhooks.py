@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """
 Webhook endpoints for external service integrations.
 
@@ -14,6 +15,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from services.google_calendar_service import GoogleCalendarService, GoogleCalendarError
+from services.notification_service import NotificationService, CancellationSource
 from core.database import get_db
 from models import User, Appointment, CalendarEvent
 
@@ -199,7 +201,9 @@ async def _handle_calendar_changes(db: Session, resource_id: str) -> None:
 
             # Send LINE notification to patient
             try:
-                _send_gcal_cancellation_notification(db, appointment, user)
+                NotificationService.send_appointment_cancellation(
+                    db, appointment, user, CancellationSource.GCAL
+                )
             except Exception as e:
                 logger.exception(f"Failed to send LINE notification for Google Calendar cancellation of appointment {appointment.calendar_event_id}: {e}")
                 # Continue processing other deletions
@@ -209,40 +213,3 @@ async def _handle_calendar_changes(db: Session, resource_id: str) -> None:
         raise
 
 
-def _send_gcal_cancellation_notification(db: Session, appointment: Appointment, practitioner: User) -> None:
-    """
-    Send LINE notification to patient about therapist-initiated cancellation via Google Calendar.
-    """
-    try:
-        # Get patient and check if they have LINE user
-        patient = appointment.patient
-        if not patient.line_user:
-            logger.info(f"Patient {patient.id} has no LINE user, skipping notification")
-            return
-
-        # Get clinic's LINE credentials
-        clinic = patient.clinic
-
-        # Format date/time for notification
-        # Convert to local timezone (assuming UTC+8 for Taiwan)
-        from datetime import timezone, timedelta
-        local_tz = timezone(timedelta(hours=8))
-        local_datetime = appointment.calendar_event.start_datetime.astimezone(local_tz)
-        formatted_datetime = local_datetime.strftime("%m/%d (%a) %H:%M")
-
-        # Send LINE message using clinic's LINE service
-        from services.line_service import LINEService
-        line_service = LINEService(
-            channel_secret=clinic.line_channel_secret,
-            channel_access_token=clinic.line_channel_access_token
-        )
-
-        message = f"您的預約已被取消：{formatted_datetime} - {practitioner.full_name}治療師。如需重新預約，請點選「線上約診」"
-
-        line_service.send_text_message(patient.line_user.line_user_id, message)
-
-        logger.info(f"Sent Google Calendar cancellation LINE notification to patient {patient.id} for appointment {appointment.calendar_event_id}")
-
-    except Exception as e:
-        logger.exception(f"Failed to send Google Calendar cancellation notification: {e}")
-        raise

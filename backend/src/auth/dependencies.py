@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """
 Authentication and authorization dependencies for FastAPI.
 

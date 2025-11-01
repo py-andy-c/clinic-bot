@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """
 Signup API endpoints.
 

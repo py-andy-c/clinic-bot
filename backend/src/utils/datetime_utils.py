@@ -5,7 +5,7 @@ This module provides utilities to ensure all datetime operations use timezone-aw
 datetimes consistently, preventing timezone-related bugs.
 """
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, time
 from typing import Optional
 
 
@@ -75,3 +75,24 @@ def is_within_hours(dt1: datetime, dt2: datetime, hours: int) -> bool:
     """
     diff = safe_datetime_diff(dt1, dt2)
     return abs(diff) <= timedelta(hours=hours)
+
+
+def format_time_hhmm(time_obj: time) -> str:
+    """Format time object to HH:MM string."""
+    return time_obj.strftime('%H:%M')
+
+
+def parse_time_hhmm(time_str: str) -> time:
+    """Parse time string in HH:MM format to time object."""
+    hour, minute = map(int, time_str.split(':'))
+    return time(hour, minute)
+
+
+def check_time_overlap(
+    start1: time,
+    end1: time,
+    start2: time,
+    end2: time
+) -> bool:
+    """Check if two time intervals overlap."""
+    return start1 < end2 and start2 < end1

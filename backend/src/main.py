@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """
 Clinic Bot Backend API
 

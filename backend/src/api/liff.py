@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """
 LIFF (LINE Front-end Framework) API endpoints.
 

@@ -1,3 +1,4 @@
+# pyright: reportMissingTypeStubs=false
 """
 Profile management API endpoints.
 

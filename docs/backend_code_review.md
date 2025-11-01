@@ -289,6 +289,12 @@ Then import from both files:
 from utils.datetime_utils import format_time_hhmm, parse_time_hhmm, check_time_overlap
 ```
 
+**✅ DONE** - Code duplication issues have been resolved by:
+- Creating centralized `NotificationService` in `services/notification_service.py`
+- Extracting permission dependencies to `auth/permissions.py`
+- Adding shared datetime utilities to `utils/datetime_utils.py`
+- Removing duplicate notification and time formatting code across the codebase
+
 ---
 
 ## 2. Error Handling Inconsistencies
