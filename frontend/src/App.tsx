@@ -1,35 +1,36 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
-import LoginPage from './pages/LoginPage';
-import SystemAdminLayout from './components/SystemAdminLayout';
-import ClinicLayout from './components/ClinicLayout';
-import SystemClinicsPage from './pages/SystemClinicsPage';
-import MembersPage from './pages/MembersPage';
-import PatientsPage from './pages/PatientsPage';
-import SettingsPage from './pages/SettingsPage';
-import AvailabilityPage from './pages/AvailabilityPage';
-import ClinicSignupPage from './pages/ClinicSignupPage';
-import MemberSignupPage from './pages/MemberSignupPage';
-import NameConfirmationPage from './pages/NameConfirmationPage';
-import ProfilePage from './pages/ProfilePage';
-import LiffApp from './liff/LiffApp';
+import { ModalProvider } from './contexts/ModalContext';
+import ErrorBoundary from './components/ErrorBoundary';
+import { logger } from './utils/logger';
+// Lazy load page components for code splitting
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const SystemAdminLayout = lazy(() => import('./components/SystemAdminLayout'));
+const ClinicLayout = lazy(() => import('./components/ClinicLayout'));
+const SystemClinicsPage = lazy(() => import('./pages/SystemClinicsPage'));
+const MembersPage = lazy(() => import('./pages/MembersPage'));
+const PatientsPage = lazy(() => import('./pages/PatientsPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const AvailabilityPage = lazy(() => import('./pages/AvailabilityPage'));
+const ClinicSignupPage = lazy(() => import('./pages/ClinicSignupPage'));
+const MemberSignupPage = lazy(() => import('./pages/MemberSignupPage'));
+const NameConfirmationPage = lazy(() => import('./pages/NameConfirmationPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const LiffApp = lazy(() => import('./liff/LiffApp'));
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading, isSystemAdmin, isClinicUser, user } = useAuth();
 
   // Debug logging
-  console.log('AppRoutes - Auth State:', {
+  logger.log('AppRoutes - Auth State:', {
     isAuthenticated,
     isLoading,
     isSystemAdmin,
     isClinicUser,
-    user: user ? {
-      user_type: user.user_type,
-      roles: user.roles,
-      email: user.email
-    } : null
+    user_type: user?.user_type,
+    hasRoles: !!user?.roles
   });
 
   if (isLoading) {
@@ -40,26 +41,37 @@ const AppRoutes: React.FC = () => {
     );
   }
 
-  // LIFF routes (check for /liff path)
-  if (window.location.pathname.startsWith('/liff')) {
-    return <LiffApp />;
-  }
-
-  // Public signup routes (no authentication required)
-  if (window.location.pathname.startsWith('/signup/')) {
-    return (
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600"></div>
+      </div>
+    }>
       <Routes>
+        {/* LIFF routes */}
+        <Route path="/liff/*" element={<LiffApp />} />
+
+        {/* Public signup routes */}
         <Route path="/signup/clinic" element={<ClinicSignupPage />} />
         <Route path="/signup/member" element={<MemberSignupPage />} />
         <Route path="/signup/confirm-name" element={<NameConfirmationPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    );
-  }
 
-  // If not authenticated, show login page
+        {/* Login route */}
+        <Route path="/login" element={<LoginPage />} />
+
+        {/* Protected routes */}
+        <Route path="/*" element={<ProtectedRoutes />} />
+      </Routes>
+    </Suspense>
+  );
+};
+
+const ProtectedRoutes: React.FC = () => {
+  const { isAuthenticated, isSystemAdmin, isClinicUser, user } = useAuth();
+
+  // If not authenticated, redirect to login
   if (!isAuthenticated) {
-    return <LoginPage />;
+    return <Navigate to="/login" replace />;
   }
 
   // System Admin Routes
@@ -109,7 +121,7 @@ const AppRoutes: React.FC = () => {
         <h1 className="text-2xl font-bold text-gray-900 mb-4">存取被拒絕</h1>
         <p className="text-gray-600 mb-4">您沒有權限存取此應用程式。</p>
         <button
-          onClick={() => window.location.href = '/auth/google/login'}
+          onClick={() => window.location.href = '/login'}
           className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
         >
           返回登入
@@ -121,11 +133,15 @@ const AppRoutes: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <UnsavedChangesProvider>
-        <AppRoutes />
-      </UnsavedChangesProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <ModalProvider>
+          <UnsavedChangesProvider>
+            <AppRoutes />
+          </UnsavedChangesProvider>
+        </ModalProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 };
 

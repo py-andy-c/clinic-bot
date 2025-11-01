@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { liffApiService, LiffLoginResponse } from '../services/liffApi';
+import { logger } from '../utils/logger';
+import { config } from '../config/env';
 
 // Get API base URL from environment variable
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || '/api';
+const API_BASE_URL = config.apiBaseUrl;
 
 interface UseLineAuthReturn {
   isAuthenticated: boolean;
@@ -51,7 +53,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
 
           if (response.ok && !cancelled) {
             // Token is valid - user is authenticated
-            console.log('✅ JWT token validated - user is authenticated');
+            logger.log('JWT token validated - user is authenticated');
             setIsAuthenticated(true);
             setIsFirstTime(false);
             const urlClinicId = getClinicIdFromUrl();
@@ -110,7 +112,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
 
       } catch (err) {
         if (!cancelled) {
-          console.error('LINE authentication failed:', err);
+          logger.error('LINE authentication failed:', err);
           setError(err instanceof Error ? err.message : '認證失敗');
           setIsAuthenticated(false);
         }
@@ -126,39 +128,12 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
     return () => { cancelled = true; };
   }, [lineProfile, liffAccessToken]); // Only depend on external inputs
 
-  // Listen for authentication refresh events (simplified)
+  // Listen for authentication refresh events
   useEffect(() => {
-    const handleAuthRefresh = async () => {
-      console.log('🔄 Auth refresh event received');
-      setIsLoading(true);
-
-      const token = localStorage.getItem('liff_jwt_token');
-      if (token) {
-        try {
-          const response = await fetch(`${API_BASE_URL}/liff/patients`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-
-          if (response.ok) {
-            setIsAuthenticated(true);
-            setIsFirstTime(false);
-            const urlClinicId = getClinicIdFromUrl();
-            if (urlClinicId) {
-              setClinicId(urlClinicId);
-            }
-          } else {
-            localStorage.removeItem('liff_jwt_token');
-            setIsAuthenticated(false);
-          }
-        } catch (error) {
-          localStorage.removeItem('liff_jwt_token');
-          setIsAuthenticated(false);
-        }
-      }
-      setIsLoading(false);
+    const handleAuthRefresh = () => {
+      logger.log('Auth refresh event received');
+      // Trigger re-run of main authentication logic
+      window.location.reload();
     };
 
     window.addEventListener('auth-refresh', handleAuthRefresh);
@@ -191,7 +166,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
         setDisplayName(response.display_name);
 
       } catch (err) {
-        console.error('LINE authentication failed:', err);
+        logger.error('LINE authentication failed:', err);
         setError(err instanceof Error ? err.message : '認證失敗');
         setIsAuthenticated(false);
       } finally {
@@ -212,7 +187,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
   };
 
   const refreshAuth = async () => {
-    console.log('🔄 Auth refresh event received');
+    logger.log('Auth refresh event received');
     setIsLoading(true);
 
     const token = localStorage.getItem('liff_jwt_token');

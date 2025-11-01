@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import { config } from '../config/env';
 import {
   // AuthUser,
   Clinic,
@@ -30,10 +31,12 @@ import {
 
 class ApiService {
   private client: AxiosInstance;
+  private refreshTokenPromise: Promise<void> | null = null;
+  private isRefreshing = false;
 
   constructor() {
     this.client = axios.create({
-      baseURL: (import.meta as any).env?.VITE_API_BASE_URL || '/api',
+      baseURL: config.apiBaseUrl,
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',
@@ -53,29 +56,40 @@ class ApiService {
     // Add response interceptor for error handling
     this.client.interceptors.response.use(
       (response) => response,
-      (error) => {
-        if (error.response?.status === 401) {
-          // Token expired or invalid, try refresh
-          if (localStorage.getItem('access_token')) {
-            // Trigger refresh and retry
-            this.refreshToken().then(() => {
-              // Retry the original request
-              const token = localStorage.getItem('access_token');
-              if (token) {
-                error.config.headers.Authorization = `Bearer ${token}`;
-                return axios.request(error.config);
-              }
-              return Promise.reject(error);
-            }).catch(() => {
-              // Refresh failed, redirect to login
-              window.location.href = '/auth/google/login';
-              return Promise.reject(error);
-            });
-          } else {
-            // No token, redirect to login
-            window.location.href = '/auth/google/login';
-          }
+      async (error) => {
+        const originalRequest = error.config;
+
+        // Prevent infinite loops
+        if (originalRequest._retry || error.response?.status !== 401) {
+          return Promise.reject(error);
         }
+
+        originalRequest._retry = true;
+
+        try {
+          // Queue requests if refresh is already in progress
+          if (this.isRefreshing) {
+            await this.refreshTokenPromise;
+          } else {
+            this.isRefreshing = true;
+            this.refreshTokenPromise = this.refreshToken();
+            await this.refreshTokenPromise;
+            this.isRefreshing = false;
+          }
+
+          // Retry with new token
+          const token = localStorage.getItem('access_token');
+          if (token) {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return this.client.request(originalRequest);
+          }
+        } catch (refreshError) {
+          // Refresh failed, redirect to login
+          this.isRefreshing = false;
+          window.location.href = '/login';
+          return Promise.reject(refreshError);
+        }
+
         return Promise.reject(error);
       }
     );
@@ -101,8 +115,9 @@ class ApiService {
 
   // System Admin APIs
 
-  async getClinics(): Promise<Clinic[]> {
-    const response = await this.client.get('/system/clinics');
+  async getClinics(signal?: AbortSignal): Promise<Clinic[]> {
+    const config = signal ? { signal } : {};
+    const response = await this.client.get('/system/clinics', config);
     return response.data;
   }
 
@@ -133,8 +148,9 @@ class ApiService {
 
   // Clinic APIs
 
-  async getMembers(): Promise<Member[]> {
-    const response = await this.client.get('/clinic/members');
+  async getMembers(signal?: AbortSignal): Promise<Member[]> {
+    const config = signal ? { signal } : {};
+    const response = await this.client.get('/clinic/members', config);
     return response.data.members;
   }
 
@@ -160,8 +176,9 @@ class ApiService {
     return response.data;
   }
 
-  async getPatients(): Promise<Patient[]> {
-    const response = await this.client.get('/clinic/patients');
+  async getPatients(signal?: AbortSignal): Promise<Patient[]> {
+    const config = signal ? { signal } : {};
+    const response = await this.client.get('/clinic/patients', config);
     return response.data.patients;
   }
 

@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useModal } from '../contexts/ModalContext';
 import { apiService } from '../services/api';
 import { Member, UserRole, MemberInviteData } from '../types';
+import { logger } from '../utils/logger';
 
 const MembersPage: React.FC = () => {
   const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus } = useAuth();
+  const { alert, confirm } = useModal();
   
   
   // If not authenticated, show a message (in real app, this would redirect to login)
@@ -37,7 +40,7 @@ const MembersPage: React.FC = () => {
       setMembers(data);
     } catch (err) {
       setError('無法載入成員列表');
-      console.error('Fetch members error:', err);
+      logger.error('Fetch members error:', err);
     } finally {
       setLoading(false);
     }
@@ -49,12 +52,12 @@ const MembersPage: React.FC = () => {
       const response = await apiService.inviteMember(inviteData);
       return response;
     } catch (err: any) {
-      console.error('Invite member error:', err);
+      logger.error('Invite member error:', err);
       const errorMessage = err?.response?.data?.detail;
       if (errorMessage === 'Invalid role specified') {
-        alert('指定的角色無效。請選擇有效的角色。');
+        await alert('指定的角色無效。請選擇有效的角色。');
       } else {
-        alert('邀請成員失敗，請稍後再試');
+        await alert('邀請成員失敗，請稍後再試');
       }
       throw err;
     } finally {
@@ -74,16 +77,16 @@ const MembersPage: React.FC = () => {
         await checkAuthStatus();
       }
     } catch (err: any) {
-      console.error('Update roles error:', err);
+      logger.error('Update roles error:', err);
       const errorMessage = err?.response?.data?.detail;
       if (errorMessage === '找不到成員') {
-        alert('找不到該成員，請重新載入頁面後再試。');
+        await alert('找不到該成員，請重新載入頁面後再試。');
       } else if (errorMessage === '無法從最後一位管理員停用管理員權限') {
-        alert('無法停用最後一位管理員的管理員權限。');
+        await alert('無法停用最後一位管理員的管理員權限。');
       } else if (errorMessage === '指定的角色無效') {
-        alert('指定的角色無效。請選擇有效的角色。');
+        await alert('指定的角色無效。請選擇有效的角色。');
       } else {
-        alert('更新角色失敗，請稍後再試');
+        await alert('更新角色失敗，請稍後再試');
       }
     } finally {
       setUpdatingRoles(false);
@@ -91,7 +94,8 @@ const MembersPage: React.FC = () => {
   };
 
   const handleRemoveMember = async (userId: number) => {
-    if (!confirm('確定要停用此成員嗎？此操作可以復原。')) {
+    const confirmed = await confirm('確定要停用此成員嗎？此操作可以復原。');
+    if (!confirmed) {
       return;
     }
 
@@ -99,38 +103,39 @@ const MembersPage: React.FC = () => {
       await apiService.removeMember(userId);
       await fetchMembers(); // Refresh the list
     } catch (err: any) {
-      console.error('Remove member error:', err);
+      logger.error('Remove member error:', err);
 
       // Check for specific error messages from backend
       const errorMessage = err?.response?.data?.detail;
       if (errorMessage === '無法停用最後一位管理員') {
-        alert('無法停用最後一位管理員。請先指派其他成員為管理員。');
+        await alert('無法停用最後一位管理員。請先指派其他成員為管理員。');
       } else if (errorMessage === '找不到成員') {
-        alert('找不到該成員，請重新載入頁面後再試。');
+        await alert('找不到該成員，請重新載入頁面後再試。');
       } else {
-        alert('停用成員失敗，請稍後再試');
+        await alert('停用成員失敗，請稍後再試');
       }
     }
   };
 
   const handleReactivateMember = async (userId: number) => {
-    if (!confirm('確定要重新啟用此成員嗎？')) {
+    const confirmed = await confirm('確定要重新啟用此成員嗎？');
+    if (!confirmed) {
       return;
     }
 
     try {
       await apiService.reactivateMember(userId);
       await fetchMembers(); // Refresh the list
-      alert('成員已重新啟用');
+      await alert('成員已重新啟用');
     } catch (err: any) {
-      console.error('Reactivate member error:', err);
+      logger.error('Reactivate member error:', err);
 
       // Check for specific error messages from backend
       const errorMessage = err?.response?.data?.detail;
       if (errorMessage === '找不到已停用的成員') {
-        alert('找不到已停用的成員，請重新載入頁面後再試。');
+        await alert('找不到已停用的成員，請重新載入頁面後再試。');
       } else {
-        alert('重新啟用成員失敗，請稍後再試');
+        await alert('重新啟用成員失敗，請稍後再試');
       }
     }
   };
@@ -140,8 +145,8 @@ const MembersPage: React.FC = () => {
       const response = await apiService.initiateMemberGcalAuth(userId);
       window.open(response.auth_url, '_blank');
     } catch (err) {
-      console.error('GCal auth error:', err);
-      alert('啟動 Google Calendar 授權失敗');
+      logger.error('GCal auth error:', err);
+      await alert('啟動 Google Calendar 授權失敗');
     }
   };
 
@@ -391,10 +396,10 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({ onClose, onInvite
     if (signupLink) {
       try {
         await navigator.clipboard.writeText(signupLink);
-        alert('邀請連結已複製到剪貼簿');
+        await alert('邀請連結已複製到剪貼簿');
       } catch (err) {
-        console.error('Failed to copy:', err);
-        alert('複製失敗，請手動複製連結');
+        logger.error('Failed to copy:', err);
+        await alert('複製失敗，請手動複製連結');
       }
     }
   };

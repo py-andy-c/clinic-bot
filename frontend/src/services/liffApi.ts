@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import { config } from '../config/env';
 
 // LIFF-specific types
 export interface LiffLoginRequest {
@@ -102,7 +103,7 @@ class LiffApiService {
 
   constructor() {
     this.client = axios.create({
-      baseURL: (import.meta as any).env?.VITE_API_BASE_URL || '/api',
+      baseURL: config.apiBaseUrl,
       timeout: 10000,
       headers: {
         'Content-Type': 'application/json',

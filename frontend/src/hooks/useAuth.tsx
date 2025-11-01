@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo } from 'react';
 import { AuthUser, AuthState, UserRole } from '../types';
+import { logger } from '../utils/logger';
+import { config } from '../config/env';
 
 // Get API base URL from environment variable
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || '/api';
+const API_BASE_URL = config.apiBaseUrl;
 
 interface AuthContextType extends AuthState {
   user: AuthUser | null;
@@ -74,7 +76,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         })
         .then(userData => {
-          console.log('OAuth callback - User data received:', userData);
+          logger.log('OAuth callback - User data received');
           setAuthState({
             user: userData,
             isAuthenticated: true,
@@ -82,7 +84,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           });
         })
         .catch(error => {
-          console.error('OAuth callback token validation failed:', error);
+          logger.error('OAuth callback token validation failed:', error);
           clearAuthState();
         });
 
@@ -107,7 +109,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       isClinicUser: authState.user?.user_type === 'clinic_user',
     };
     
-    console.log('Enhanced user object:', {
+    logger.log('Enhanced user object created:', {
       user_type: authState.user?.user_type,
       roles: authState.user?.roles,
       isSystemAdmin: enhanced.isSystemAdmin,
@@ -136,7 +138,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           if (response.ok) {
             const userData = await response.json();
-            console.log('Token validation - User data received:', userData);
+            logger.log('Token validation successful');
             setAuthState({
               user: userData,
               isAuthenticated: true,
@@ -147,7 +149,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             await refreshToken();
           }
         } catch (error) {
-          console.error('Token validation failed:', error);
+          logger.error('Token validation failed:', error);
           // Try refresh token flow
           await refreshToken();
         }
@@ -164,7 +166,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      logger.error('Auth check failed:', error);
       setAuthState(prev => ({ ...prev, isLoading: false }));
     }
   };
@@ -204,7 +206,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         clearAuthState();
       }
     } catch (error) {
-      console.error('Token refresh failed:', error);
+      logger.error('Token refresh failed:', error);
       clearAuthState();
     }
   };
@@ -236,7 +238,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Redirect to Google OAuth
       window.location.href = data.auth_url;
     } catch (error) {
-      console.error('Login failed:', error);
+      logger.error('Login failed:', error);
       setAuthState(prev => ({ ...prev, isLoading: false }));
       throw error;
     }
@@ -256,9 +258,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       clearAuthState();
 
       // Redirect to login page
-      window.location.href = '/auth/google/login';
+      window.location.href = '/login';
     } catch (error) {
-      console.error('Logout failed:', error);
+      logger.error('Logout failed:', error);
       // Still clear local state even if API call fails
       clearAuthState();
     }
