@@ -35,11 +35,16 @@
 }
 
 .rbc-date-cell {
-  @apply relative p-2 min-h-[80px] border-r border-b border-gray-200 hover:bg-gray-50 cursor-pointer;
+  @apply relative p-2 min-h-[80px] border-r border-gray-200 hover:bg-gray-50 cursor-pointer;
 }
 
 .rbc-date-cell:last-child {
   @apply border-r-0;
+}
+
+/* Month row borders - override react-big-calendar default to match our design */
+.rbc-month-row + .rbc-month-row {
+  border-top: 1px solid rgb(229 231 235); /* border-gray-200 */
 }
 
 .rbc-date-cell.rbc-off-range {
