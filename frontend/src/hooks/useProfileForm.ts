@@ -5,11 +5,13 @@ import { User, DefaultScheduleResponse, TimeInterval } from '../types';
 interface ProfileFormData {
   fullName: string;
   schedule: DefaultScheduleResponse;
+  selectedAppointmentTypeIds: number[];
 }
 
 interface OriginalData {
   fullName: string;
   schedule: DefaultScheduleResponse | null;
+  selectedAppointmentTypeIds: number[];
 }
 
 interface UIState {
@@ -41,10 +43,12 @@ export const useProfileForm = () => {
       saturday: [],
       sunday: [],
     },
+    selectedAppointmentTypeIds: [],
   });
   const [originalData, setOriginalData] = useState<OriginalData>({
     fullName: '',
     schedule: null,
+    selectedAppointmentTypeIds: [],
   });
   const [uiState, setUiState] = useState<UIState>({
     loading: true,
@@ -87,6 +91,7 @@ export const useProfileForm = () => {
           saturday: [],
           sunday: [],
         },
+        selectedAppointmentTypeIds: [],
       };
 
       // Fetch availability schedule (only for practitioners)
@@ -97,12 +102,21 @@ export const useProfileForm = () => {
         } catch (err) {
           console.warn('Could not fetch availability schedule:', err);
         }
+
+        // Fetch practitioner's appointment types
+        try {
+          const practitionerData = await apiService.getPractitionerAppointmentTypes(profileData.id);
+          newFormData.selectedAppointmentTypeIds = practitionerData.appointment_types.map((at: any) => at.id);
+        } catch (err) {
+          console.warn('Could not fetch practitioner appointment types:', err);
+        }
       }
 
       setFormData(newFormData);
       setOriginalData({
         fullName: profileData.full_name,
         schedule: newFormData.schedule,
+        selectedAppointmentTypeIds: newFormData.selectedAppointmentTypeIds,
       });
     } catch (err) {
       setUiState(prev => ({ ...prev, error: '無法載入個人資料' }));
@@ -130,16 +144,16 @@ export const useProfileForm = () => {
       }
 
       // Save schedule changes if needed (only for practitioners)
-      if (profile.roles?.includes('practitioner') && originalData.schedule && 
+      if (profile.roles?.includes('practitioner') && originalData.schedule &&
           JSON.stringify(formData.schedule) !== JSON.stringify(originalData.schedule)) {
-        
+
         // Validate all intervals first
         for (const dayKey of Object.keys(formData.schedule) as Array<keyof DefaultScheduleResponse>) {
           const validationError = validateIntervals(formData.schedule[dayKey]);
           if (validationError) {
-            setUiState(prev => ({ 
-              ...prev, 
-              error: `${DAYS_OF_WEEK.find(d => d.labelEn.toLowerCase() === dayKey)?.label}: ${validationError}` 
+            setUiState(prev => ({
+              ...prev,
+              error: `${DAYS_OF_WEEK.find(d => d.labelEn.toLowerCase() === dayKey)?.label}: ${validationError}`
             }));
             return;
           }
@@ -148,6 +162,14 @@ export const useProfileForm = () => {
         await apiService.updatePractitionerDefaultSchedule(profile.id, formData.schedule);
         setOriginalData(prev => ({ ...prev, schedule: JSON.parse(JSON.stringify(formData.schedule)) }));
         hasScheduleChanges = true;
+      }
+
+      // Save appointment types changes if needed (only for practitioners)
+      if (profile.roles?.includes('practitioner') &&
+          JSON.stringify(formData.selectedAppointmentTypeIds) !== JSON.stringify(originalData.selectedAppointmentTypeIds)) {
+        await apiService.updatePractitionerAppointmentTypes(profile.id, formData.selectedAppointmentTypeIds);
+        setOriginalData(prev => ({ ...prev, selectedAppointmentTypeIds: [...formData.selectedAppointmentTypeIds] }));
+        hasScheduleChanges = true; // Reuse the same flag for any practitioner changes
       }
 
       // Only show success message if we actually saved something
@@ -177,15 +199,17 @@ export const useProfileForm = () => {
         saturday: [],
         sunday: [],
       },
+      selectedAppointmentTypeIds: originalData.selectedAppointmentTypeIds,
     });
   };
 
 
   const hasUnsavedChanges = () => {
     const profileChanged = formData.fullName !== originalData.fullName;
-    const scheduleChanged = originalData.schedule ? 
+    const scheduleChanged = originalData.schedule ?
       JSON.stringify(formData.schedule) !== JSON.stringify(originalData.schedule) : false;
-    return profileChanged || scheduleChanged;
+    const appointmentTypesChanged = JSON.stringify(formData.selectedAppointmentTypeIds) !== JSON.stringify(originalData.selectedAppointmentTypeIds);
+    return profileChanged || scheduleChanged || appointmentTypesChanged;
   };
 
   const updateFormData = (updates: Partial<ProfileFormData>) => {
@@ -199,6 +223,13 @@ export const useProfileForm = () => {
         ...prev.schedule,
         [dayKey]: updates,
       },
+    }));
+  };
+
+  const updateSelectedAppointmentTypeIds = (selectedTypeIds: number[]) => {
+    setFormData(prev => ({
+      ...prev,
+      selectedAppointmentTypeIds: selectedTypeIds,
     }));
   };
 
@@ -217,6 +248,7 @@ export const useProfileForm = () => {
     hasUnsavedChanges,
     updateFormData,
     updateSchedule,
+    updateSelectedAppointmentTypeIds,
     validateIntervals,
   };
 };

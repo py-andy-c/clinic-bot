@@ -5,18 +5,35 @@ interface ProfileFormProps {
   profile: User | null;
   fullName: string;
   onFullNameChange: (name: string) => void;
+  showSaveButton?: boolean;
+  onSave?: () => void;
+  saving?: boolean;
 }
 
 const ProfileForm: React.FC<ProfileFormProps> = ({
   profile,
   fullName,
   onFullNameChange,
+  showSaveButton = false,
+  onSave,
+  saving = false,
 }) => {
   if (!profile) return null;
 
   return (
     <div className="mb-8">
-      <h2 className="text-xl font-semibold text-gray-900 mb-6">基本資訊</h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-semibold text-gray-900">基本資訊</h2>
+        {showSaveButton && onSave && (
+          <button
+            onClick={onSave}
+            disabled={saving}
+            className="btn-primary"
+          >
+            {saving ? '儲存中...' : '儲存更變'}
+          </button>
+        )}
+      </div>
       
       <div className="space-y-4">
         {/* Email (Read-only) */}

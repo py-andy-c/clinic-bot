@@ -16,6 +16,9 @@ interface AvailabilitySettingsProps {
   onAddInterval: (dayKey: keyof DefaultScheduleResponse) => void;
   onUpdateInterval: (dayKey: keyof DefaultScheduleResponse, index: number, field: keyof TimeInterval, value: string) => void;
   onRemoveInterval: (dayKey: keyof DefaultScheduleResponse, index: number) => void;
+  showSaveButton?: boolean;
+  onSave?: () => void;
+  saving?: boolean;
 }
 
 const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
@@ -23,6 +26,9 @@ const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
   onAddInterval,
   onUpdateInterval,
   onRemoveInterval,
+  showSaveButton = false,
+  onSave,
+  saving = false,
 }) => {
   const getDayKey = (dayOfWeek: number): keyof DefaultScheduleResponse => {
     const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -31,7 +37,18 @@ const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
 
   return (
     <div className="mb-8">
-      <h2 className="text-xl font-semibold text-gray-900 mb-6">診療時段</h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-semibold text-gray-900">診療時段</h2>
+        {showSaveButton && onSave && (
+          <button
+            onClick={onSave}
+            disabled={saving}
+            className="btn-primary"
+          >
+            {saving ? '儲存中...' : '儲存更變'}
+          </button>
+        )}
+      </div>
       
       <div className="space-y-4">
         <div className="grid gap-4">

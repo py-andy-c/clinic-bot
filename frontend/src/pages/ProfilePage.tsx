@@ -10,15 +10,23 @@ const ProfilePage: React.FC = () => {
   const {
     profile,
     formData,
+    originalData,
     uiState,
     saveData,
     hasUnsavedChanges,
     updateFormData,
     updateSchedule,
+    updateSelectedAppointmentTypeIds,
   } = useProfileForm();
 
   // Setup navigation warnings
   useUnsavedChangesDetection({ hasUnsavedChanges });
+
+  // Check which sections have changes
+  const hasProfileChanges = formData.fullName !== originalData.fullName;
+  const hasScheduleChanges = originalData.schedule ?
+    JSON.stringify(formData.schedule) !== JSON.stringify(originalData.schedule) : false;
+  const hasAppointmentTypeChanges = JSON.stringify(formData.selectedAppointmentTypeIds) !== JSON.stringify(originalData.selectedAppointmentTypeIds);
 
   const handleAddInterval = (dayKey: keyof typeof formData.schedule) => {
     const newInterval: TimeInterval = {
@@ -66,15 +74,8 @@ const ProfilePage: React.FC = () => {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8 flex justify-between items-center">
+        <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">個人設定</h1>
-          <button
-            onClick={saveData}
-            disabled={uiState.saving || !hasUnsavedChanges()}
-            className="px-4 py-2 bg-primary-600 text-white rounded-md text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-400"
-          >
-            {uiState.saving ? '儲存中...' : '儲存變更'}
-          </button>
         </div>
 
         <div className="space-y-8">
@@ -86,6 +87,9 @@ const ProfilePage: React.FC = () => {
                 profile={profile}
                 fullName={formData.fullName}
                 onFullNameChange={(name) => updateFormData({ fullName: name })}
+                showSaveButton={hasProfileChanges}
+                onSave={saveData}
+                saving={uiState.saving}
               />
 
               {/* Availability Settings (Only for practitioners) */}
@@ -95,13 +99,22 @@ const ProfilePage: React.FC = () => {
                   onAddInterval={handleAddInterval}
                   onUpdateInterval={handleUpdateInterval}
                   onRemoveInterval={handleRemoveInterval}
+                  showSaveButton={hasScheduleChanges}
+                  onSave={saveData}
+                  saving={uiState.saving}
                 />
               )}
 
               {/* Practitioner Appointment Types (Only for practitioners) */}
               {profile.roles?.includes('practitioner') && (
                 <div className="pt-6">
-                  <PractitionerAppointmentTypes />
+                  <PractitionerAppointmentTypes
+                    selectedAppointmentTypeIds={formData.selectedAppointmentTypeIds}
+                    onAppointmentTypeChange={updateSelectedAppointmentTypeIds}
+                    showSaveButton={hasAppointmentTypeChanges}
+                    onSave={saveData}
+                    saving={uiState.saving}
+                  />
                 </div>
               )}
 

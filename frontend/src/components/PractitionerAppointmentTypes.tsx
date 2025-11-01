@@ -2,18 +2,41 @@ import React from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
 
-const PractitionerAppointmentTypes: React.FC = () => {
+interface PractitionerAppointmentTypesProps {
+  selectedAppointmentTypeIds?: number[];
+  onAppointmentTypeChange?: (selectedTypeIds: number[]) => void;
+  showSaveButton?: boolean;
+  onSave?: () => void;
+  saving?: boolean;
+}
+
+const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> = ({
+  selectedAppointmentTypeIds: externalSelectedTypeIds,
+  onAppointmentTypeChange,
+  showSaveButton = false,
+  onSave,
+  saving = false,
+}) => {
   const { user } = useAuth();
   const [availableTypes, setAvailableTypes] = React.useState<any[]>([]);
-  const [selectedTypeIds, setSelectedTypeIds] = React.useState<number[]>([]);
+  const [selectedTypeIds, setSelectedTypeIds] = React.useState<number[]>(externalSelectedTypeIds || []);
   const [hasAvailability, setHasAvailability] = React.useState<boolean>(true);
   const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  // Use external state if provided, otherwise use internal state
+  const currentSelectedTypeIds = externalSelectedTypeIds !== undefined ? externalSelectedTypeIds : selectedTypeIds;
 
   React.useEffect(() => {
     fetchData();
   }, [user]);
+
+  // Update internal state when external state changes
+  React.useEffect(() => {
+    if (externalSelectedTypeIds !== undefined) {
+      setSelectedTypeIds(externalSelectedTypeIds);
+    }
+  }, [externalSelectedTypeIds]);
 
   const fetchData = async () => {
     if (!user?.user_id) return;
@@ -26,9 +49,11 @@ const PractitionerAppointmentTypes: React.FC = () => {
       const clinicSettings = await apiService.getClinicSettings();
       setAvailableTypes(clinicSettings.appointment_types);
 
-      // Get practitioner's current appointment types
+      // Get practitioner's current appointment types (only set internal state if not using external)
       const practitionerData = await apiService.getPractitionerAppointmentTypes(user.user_id);
-      setSelectedTypeIds(practitionerData.appointment_types.map((at: any) => at.id));
+      if (externalSelectedTypeIds === undefined) {
+        setSelectedTypeIds(practitionerData.appointment_types.map((at: any) => at.id));
+      }
 
       // Get practitioner's status (includes availability check)
       const status = await apiService.getPractitionerStatus(user.user_id);
@@ -43,27 +68,17 @@ const PractitionerAppointmentTypes: React.FC = () => {
   };
 
   const handleTypeToggle = (typeId: number) => {
-    setSelectedTypeIds(prev =>
-      prev.includes(typeId)
-        ? prev.filter(id => id !== typeId)
-        : [...prev, typeId]
-    );
-  };
+    const newSelectedTypeIds = currentSelectedTypeIds.includes(typeId)
+      ? currentSelectedTypeIds.filter(id => id !== typeId)
+      : [...currentSelectedTypeIds, typeId];
 
-  const handleSave = async () => {
-    if (!user?.user_id) return;
-
-    try {
-      setSaving(true);
-      await apiService.updatePractitionerAppointmentTypes(user.user_id, selectedTypeIds);
-      alert('預約類型設定已儲存');
-    } catch (err) {
-      console.error('Error saving practitioner appointment types:', err);
-      alert('儲存失敗，請稍後再試');
-    } finally {
-      setSaving(false);
+    if (onAppointmentTypeChange) {
+      onAppointmentTypeChange(newSelectedTypeIds);
+    } else {
+      setSelectedTypeIds(newSelectedTypeIds);
     }
   };
+
 
   if (loading) {
     return (
@@ -77,13 +92,15 @@ const PractitionerAppointmentTypes: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-gray-900">提供的預約類型</h2>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="btn-primary"
-        >
-          {saving ? '儲存中...' : '儲存設定'}
-        </button>
+        {showSaveButton && onSave && (
+          <button
+            onClick={onSave}
+            disabled={saving}
+            className="btn-primary"
+          >
+            {saving ? '儲存中...' : '儲存更變'}
+          </button>
+        )}
       </div>
 
       {error && (
@@ -99,7 +116,7 @@ const PractitionerAppointmentTypes: React.FC = () => {
             <input
               type="checkbox"
               id={`type-${type.id}`}
-              checked={selectedTypeIds.includes(type.id)}
+              checked={currentSelectedTypeIds.includes(type.id)}
               onChange={() => handleTypeToggle(type.id)}
               className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
             />
@@ -109,7 +126,7 @@ const PractitionerAppointmentTypes: React.FC = () => {
                   <span className="font-medium text-gray-900">{type.name}</span>
                   <span className="ml-2 text-sm text-gray-500">({type.duration_minutes} 分鐘)</span>
                 </div>
-                {selectedTypeIds.includes(type.id) && (
+                {currentSelectedTypeIds.includes(type.id) && (
                   <span className="text-primary-600">✓</span>
                 )}
               </div>
