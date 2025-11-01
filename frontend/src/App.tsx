@@ -14,10 +14,11 @@ import ClinicSignupPage from './pages/ClinicSignupPage';
 import MemberSignupPage from './pages/MemberSignupPage';
 import NameConfirmationPage from './pages/NameConfirmationPage';
 import ProfilePage from './pages/ProfilePage';
+import LiffApp from './liff/LiffApp';
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading, isSystemAdmin, isClinicUser, user } = useAuth();
-  
+
   // Debug logging
   console.log('AppRoutes - Auth State:', {
     isAuthenticated,
@@ -37,6 +38,11 @@ const AppRoutes: React.FC = () => {
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600"></div>
       </div>
     );
+  }
+
+  // LIFF routes (check for /liff path)
+  if (window.location.pathname.startsWith('/liff')) {
+    return <LiffApp />;
   }
 
   // Public signup routes (no authentication required)
