@@ -118,10 +118,10 @@ const SettingsPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-8 flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">診所設定</h1>
         {!isClinicAdmin && (
-          <div className="mt-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-md inline-block">
+          <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-md inline-block">
             🔒 唯讀模式 - 僅管理員可修改設定
           </div>
         )}

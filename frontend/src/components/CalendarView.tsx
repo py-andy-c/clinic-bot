@@ -21,12 +21,14 @@ interface CalendarViewProps {
   userId: number;
   onSelectEvent?: (event: CalendarEvent) => void;
   onNavigate?: (date: Date) => void;
+  onAddExceptionHandlerReady?: (handler: () => void, view: View) => void;
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({ 
   userId, 
   onSelectEvent, 
-  onNavigate 
+  onNavigate,
+  onAddExceptionHandlerReady
 }) => {
   // Taiwan timezone - declared at the top to avoid hoisting issues
   const taiwanTimezone = 'Asia/Taipei';
@@ -215,6 +217,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     setModalState({ type: 'exception', data: null });
   };
 
+  // Expose handler to parent component
+  useEffect(() => {
+    if (onAddExceptionHandlerReady) {
+      onAddExceptionHandlerReady(handleAddException, view);
+    }
+  }, [view, onAddExceptionHandlerReady]);
+
 
   // Create availability exception with conflict checking
   const handleCreateException = async () => {
@@ -322,20 +331,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Calendar Controls */}
-      <div className="flex justify-between items-center">
-        <div className="flex items-center space-x-4">
-          {view === Views.DAY && (
-            <button
-              onClick={handleAddException}
-              className="btn-primary text-sm"
-            >
-              新增休診時段
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Calendar Component */}
       <div className="card">
         <Calendar
