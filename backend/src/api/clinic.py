@@ -519,13 +519,14 @@ async def get_patients(
             clinic_id=current_user.clinic_id
         )
 
-        # Format for clinic response (includes line_user_id)
+        # Format for clinic response (includes line_user_id and display_name)
         patient_list = [
             ClinicPatientResponse(
                 id=patient.id,
                 full_name=patient.full_name,
                 phone_number=patient.phone_number,
                 line_user_id=patient.line_user.line_user_id if patient.line_user else None,
+                line_user_display_name=patient.line_user.display_name if patient.line_user else None,
                 created_at=patient.created_at
             )
             for patient in patients

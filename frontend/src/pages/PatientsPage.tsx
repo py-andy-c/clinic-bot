@@ -77,7 +77,7 @@ const PatientsPage: React.FC = () => {
                       手機號碼
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      LINE 連結狀態
+                      LINE 使用者
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       註冊時間
@@ -101,16 +101,9 @@ const PatientsPage: React.FC = () => {
                         {patient.phone_number}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className={`w-2 h-2 rounded-full mr-2 ${
-                            patient.line_user_id ? 'bg-green-500' : 'bg-gray-400'
-                          }`}></div>
-                          <span className={`text-sm ${
-                            patient.line_user_id ? 'text-green-800' : 'text-gray-600'
-                          }`}>
-                            {patient.line_user_id ? '已連結' : '未連結'}
-                          </span>
-                        </div>
+                        <span className="text-sm text-gray-900">
+                          {patient.line_user_display_name || '-'}
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(patient.created_at).toLocaleDateString('zh-TW')}

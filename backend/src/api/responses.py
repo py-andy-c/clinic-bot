@@ -105,8 +105,9 @@ class AppointmentListResponse(BaseModel):
 # Clinic-specific response models (extend shared ones)
 
 class ClinicPatientResponse(PatientResponse):
-    """Response model for patient information in clinic context (includes line_user_id)."""
+    """Response model for patient information in clinic context (includes line_user_id and display_name)."""
     line_user_id: Optional[str]
+    line_user_display_name: Optional[str]
 
 
 class ClinicPatientListResponse(BaseModel):

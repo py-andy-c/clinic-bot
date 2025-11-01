@@ -10,7 +10,7 @@ from datetime import datetime, date, time
 from typing import List, Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 
 from models import Patient, Appointment, CalendarEvent
@@ -118,7 +118,10 @@ class PatientService:
         Returns:
             List of all Patient objects for the clinic
         """
-        patients = db.query(Patient).filter(
+        # Eager load line_user to avoid N+1 queries when accessing display_name
+        patients = db.query(Patient).options(
+            joinedload(Patient.line_user)
+        ).filter(
             Patient.clinic_id == clinic_id
         ).all()
 

@@ -55,6 +55,7 @@ export interface Patient {
   phone_number: string;
   created_at: string;
   line_user_id?: string;
+  line_user_display_name?: string;
 }
 
 // Appointment types
