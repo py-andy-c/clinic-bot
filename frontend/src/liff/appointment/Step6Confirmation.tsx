@@ -3,7 +3,7 @@ import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 
 const Step6Confirmation: React.FC = () => {
-  const { appointmentType, practitioner, date, startTime, patient, notes, clinicId } = useAppointmentStore();
+  const { appointmentType, practitioner, date, startTime, patient, notes, clinicId, step, setStep } = useAppointmentStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -102,8 +102,8 @@ const Step6Confirmation: React.FC = () => {
         </button>
 
         <button
-          onClick={() => window.history.back()}
-          className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-md hover:bg-gray-200"
+          onClick={() => setStep(step - 1)}
+          className="w-full bg-white border-2 border-gray-300 text-gray-700 py-3 px-4 rounded-md hover:border-gray-400 hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 font-medium"
         >
           返回修改
         </button>

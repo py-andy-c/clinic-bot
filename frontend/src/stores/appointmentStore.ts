@@ -52,6 +52,7 @@ interface AppointmentState {
   setDateTime: (date: string, time: string) => void;
   setPatient: (id: number, patient: Patient) => void;
   setNotes: (notes: string) => void;
+  updateNotesOnly: (notes: string) => void; // Updates notes without changing step
   setClinicId: (clinicId: number) => void;
   reset: () => void;
 
@@ -109,6 +110,10 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
   setNotes: (notes) => set({
     notes,
     step: 6,
+  }),
+
+  updateNotesOnly: (notes) => set({
+    notes,
   }),
 
   setClinicId: (clinicId) => set({ clinicId }),

@@ -2,10 +2,10 @@ import React from 'react';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 
 const Step5AddNotes: React.FC = () => {
-  const { notes, setNotes } = useAppointmentStore();
+  const { notes, updateNotesOnly, step, setStep } = useAppointmentStore();
 
   const handleNotesChange = (value: string) => {
-    setNotes(value);
+    updateNotesOnly(value);
   };
 
   return (
@@ -34,15 +34,15 @@ const Step5AddNotes: React.FC = () => {
 
       <div className="space-y-3">
         <button
-          onClick={() => setNotes('')}
+          onClick={() => setStep(6)}
           className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700"
         >
           下一步
         </button>
 
         <button
-          onClick={() => window.history.back()}
-          className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-md hover:bg-gray-200"
+          onClick={() => setStep(step - 1)}
+          className="w-full bg-white border-2 border-gray-300 text-gray-700 py-3 px-4 rounded-md hover:border-gray-400 hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 font-medium"
         >
           返回上一步
         </button>
