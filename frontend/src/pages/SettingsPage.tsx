@@ -116,22 +116,21 @@ const SettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">診所設定</h1>
-          {!isClinicAdmin && (
-            <div className="mt-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-md inline-block">
+    <div className="max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">診所設定</h1>
+        {!isClinicAdmin && (
+          <div className="mt-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-md inline-block">
             🔒 唯讀模式 - 僅管理員可修改設定
           </div>
         )}
       </div>
 
-        <div className="space-y-8">
-          {/* Single Form */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <form onSubmit={(e) => { e.preventDefault(); saveData(); }}>
+      <div className="space-y-8">
+        {/* Single Form */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <form onSubmit={(e) => { e.preventDefault(); saveData(); }}>
               {/* Appointment Types */}
               <ClinicAppointmentTypes
                 appointmentTypes={settings.appointment_types}
@@ -179,8 +178,7 @@ const SettingsPage: React.FC = () => {
                   </div>
                 </div>
               )}
-            </form>
-          </div>
+          </form>
         </div>
       </div>
     </div>

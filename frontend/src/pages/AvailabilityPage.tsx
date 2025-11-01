@@ -21,17 +21,18 @@ const AvailabilityPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">行事曆</h1>
-        </div>
+    <div className="max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">行事曆</h1>
       </div>
 
       {/* Calendar View */}
-      {user?.user_id && (
-        <CalendarView userId={user.user_id} />
-      )}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        {user?.user_id && (
+          <CalendarView userId={user.user_id} />
+        )}
+      </div>
     </div>
   );
 };

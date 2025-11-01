@@ -157,17 +157,16 @@ const ProfilePage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">個人設定</h1>
-        </div>
+    <div className="max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">個人設定</h1>
+      </div>
 
-        <div className="space-y-8">
-          {/* Single Form */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <form onSubmit={(e) => { e.preventDefault(); saveData(); }}>
+      <div className="space-y-8">
+        {/* Single Form */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <form onSubmit={(e) => { e.preventDefault(); saveData(); }}>
               {/* Profile Form */}
               <ProfileForm
                 profile={profile}
@@ -222,29 +221,27 @@ const ProfilePage: React.FC = () => {
                   </div>
                 </div>
               )}
-            </form>
-          </div>
+          </form>
+        </div>
 
-          {/* System Admin Notice */}
-          {profile.user_type === 'system_admin' && (
-            <div className="bg-blue-50 rounded-lg p-6">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-blue-800">系統管理員</h3>
-                  <div className="mt-2 text-sm text-blue-700">
-                    <p>您正在以系統管理員身份使用此應用程式。</p>
-                  </div>
+        {/* System Admin Notice */}
+        {profile.user_type === 'system_admin' && (
+          <div className="bg-blue-50 rounded-lg p-6">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-blue-800">系統管理員</h3>
+                <div className="mt-2 text-sm text-blue-700">
+                  <p>您正在以系統管理員身份使用此應用程式。</p>
                 </div>
               </div>
             </div>
-          )}
-        </div>
-
+          </div>
+        )}
       </div>
     </div>
   );
