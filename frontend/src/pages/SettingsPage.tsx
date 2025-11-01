@@ -5,10 +5,10 @@ import { AppointmentType } from '../types';
 import { useAuth } from '../hooks/useAuth';
 
 const SettingsPage: React.FC = () => {
-  const { isClinicAdmin } = useAuth();
+  const { isClinicAdmin, isClinicUser } = useAuth();
 
-  // Only clinic admins can access clinic settings
-  if (!isClinicAdmin) {
+  // Only clinic users can access clinic settings
+  if (!isClinicUser) {
     return (
       <div className="space-y-8">
         <div className="flex justify-between items-center">
@@ -23,14 +23,14 @@ const SettingsPage: React.FC = () => {
           </div>
           <h3 className="text-lg font-medium text-yellow-800 mb-2">無權限存取設定</h3>
           <p className="text-yellow-700">
-            只有診所管理員才能查看此頁面。如有需要，請聯絡管理員。
+            只有診所成員才能查看此頁面。
           </p>
         </div>
       </div>
     );
   }
 
-  // For clinic admins, show clinic settings
+  // For all clinic users, show clinic settings (read-only for non-admins)
   const [settings, setSettings] = useState<ClinicSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -188,7 +188,7 @@ const SettingsPage: React.FC = () => {
           </button>
         ) : (
           <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-md">
-            🔒 僅管理員可修改設定
+            🔒 唯讀模式 - 僅管理員可修改設定
           </div>
         )}
       </div>
