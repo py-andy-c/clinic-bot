@@ -83,9 +83,11 @@ const GlobalWarnings: React.FC = () => {
   }
 
   return (
-    <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-start">
+    <div className="bg-amber-50 border-b border-amber-200 py-3">
+      <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div className="px-4 py-0 sm:px-0">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-start">
           <div className="flex-shrink-0">
             <span className="text-amber-600 text-lg">⚠️</span>
           </div>
@@ -127,6 +129,8 @@ const GlobalWarnings: React.FC = () => {
                   </ul>
                 </div>
               )}
+            </div>
+          </div>
             </div>
           </div>
         </div>
