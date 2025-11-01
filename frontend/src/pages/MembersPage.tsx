@@ -280,25 +280,8 @@ const MembersPage: React.FC = () => {
                     </div>
 
                     <div className="flex items-center space-x-3">
-                      {/* Google Calendar Status */}
-                      <div className="flex items-center space-x-2">
-                        <div className={`w-2 h-2 rounded-full ${member.gcal_sync_enabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                        <span className="text-sm text-gray-600 hidden sm:inline">
-                          {member.gcal_sync_enabled ? 'Calendar 已同步' : 'Calendar 未同步'}
-                        </span>
-                      </div>
-
                       {/* Actions */}
                       <div className="flex items-center space-x-2">
-                        {member.roles.includes('practitioner') && !member.gcal_sync_enabled && (
-                          <button
-                            onClick={() => handleGcalAuth(member.id)}
-                            className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                          >
-                            設定 Calendar
-                          </button>
-                        )}
-
                         {isClinicAdmin && (
                           <>
                             {member.is_active ? (
