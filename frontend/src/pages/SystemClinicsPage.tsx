@@ -74,9 +74,29 @@ const SystemClinicsPage: React.FC = () => {
   const handleGenerateSignupLink = async (clinicId: number) => {
     try {
       const result = await apiService.generateClinicSignupLink(clinicId);
-      // Copy to clipboard
-      await navigator.clipboard.writeText(result.signup_url);
-      alert('註冊連結已複製到剪貼簿！');
+      // Copy to clipboard with fallback
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(result.signup_url);
+        alert('註冊連結已複製到剪貼簿！');
+      } else {
+        // Fallback for browsers/environments without Clipboard API
+        const textArea = document.createElement('textarea');
+        textArea.value = result.signup_url;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          alert('註冊連結已複製到剪貼簿！');
+        } catch (fallbackErr) {
+          // If fallback also fails, show the URL to user
+          alert(`註冊連結：\n${result.signup_url}\n\n請手動複製此連結。`);
+        }
+        document.body.removeChild(textArea);
+      }
     } catch (err) {
       console.error('Generate signup link error:', err);
       alert('產生註冊連結失敗，請稍後再試。');

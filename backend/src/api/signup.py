@@ -5,6 +5,7 @@ Signup API endpoints.
 Handles secure token-based user onboarding for clinic admins and team members.
 """
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,6 +18,8 @@ from core.database import get_db
 from core.config import API_BASE_URL, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 from services.jwt_service import jwt_service, TokenPayload
 from models import User, SignupToken, RefreshToken
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
@@ -84,6 +87,7 @@ async def initiate_clinic_admin_signup(token: str, db: Session = Depends(get_db)
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Error initiating clinic admin signup")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="註冊流程初始化失敗"
@@ -145,6 +149,7 @@ async def initiate_member_signup(token: str, db: Session = Depends(get_db)) -> d
     except HTTPException:
         raise
     except Exception:
+        logger.exception("Error initiating member signup")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="註冊流程初始化失敗"
@@ -307,6 +312,7 @@ async def signup_oauth_callback(
         raise
     except Exception:
         db.rollback()
+        logger.exception("Error in signup OAuth callback")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="註冊失敗"
@@ -434,6 +440,7 @@ async def confirm_name(
         raise
     except Exception:
         db.rollback()
+        logger.exception("Error in name confirmation and signup completion")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="註冊完成失敗"

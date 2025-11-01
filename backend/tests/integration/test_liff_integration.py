@@ -824,14 +824,16 @@ class TestLiffAvailabilityAndScheduling:
             patient = response.json()
 
             # Book without specifying practitioner
-            tomorrow = (datetime.now() + timedelta(days=1)).date().isoformat()
+            # Use 3 days in future to avoid timezone edge cases, similar to other tests
+            future_date = (datetime.now() + timedelta(days=3)).date()
+            start_time = f"{future_date.isoformat()}T11:00:00+08:00"
             response = client.post(
                 "/api/liff/appointments",
                 json={
                     "patient_id": patient["patient_id"],  # Use patient_id from creation response
                     "appointment_type_id": appt_types[0].id,
                     "practitioner_id": None,  # 不指定
-                    "start_time": f"{tomorrow}T11:00:00+08:00",
+                    "start_time": start_time,
                     "notes": "不指定治療師"
                 }
             )
