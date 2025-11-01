@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAppointmentStore } from '../../stores/appointmentStore';
-import { useLineAuth } from '../../hooks/useLineAuth';
 import { liffApiService } from '../../services/liffApi';
 
 const FirstTimeRegister: React.FC = () => {
-  const navigate = useNavigate();
   const { clinicId } = useAppointmentStore();
   // For first-time registration, we don't have a display name from LINE yet
   const [fullName, setFullName] = useState('');

@@ -169,14 +169,14 @@ class LiffApiService {
   }
 
   // Appointment Types
-  async getAppointmentTypes(clinicId: number): Promise<{ appointment_types: Array<{ id: number; name: string; duration_minutes: number }> }> {
+  async getAppointmentTypes(_clinicId: number): Promise<{ appointment_types: Array<{ id: number; name: string; duration_minutes: number }> }> {
     // Clinic ID is already in the JWT token, don't need it in URL
     const response = await this.client.get('/liff/appointment-types');
     return response.data;
   }
 
   // Practitioners
-  async getPractitioners(clinicId: number, appointmentTypeId?: number): Promise<PractitionersResponse> {
+  async getPractitioners(_clinicId: number, appointmentTypeId?: number): Promise<PractitionersResponse> {
     // Clinic ID is already in the JWT token, don't need it in URL
     const params = appointmentTypeId ? { appointment_type_id: appointmentTypeId } : {};
     const response = await this.client.get('/liff/practitioners', { params });

@@ -50,20 +50,6 @@ class PatientService:
             HTTPException: If creation fails
         """
         try:
-            # Check if LINE user already has a patient in this clinic
-            if line_user_id:
-                existing_patient = db.query(Patient).filter_by(
-                    line_user_id=line_user_id,
-                    clinic_id=clinic_id
-                ).first()
-
-                if existing_patient:
-                    logger.error(f"LINE user {line_user_id} already has patient {existing_patient.id} in clinic {clinic_id} - rejecting duplicate")
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail="您已經在這個診所註冊過病患資料，請勿重複註冊"
-                    )
-
             patient = Patient(
                 clinic_id=clinic_id,
                 full_name=full_name,

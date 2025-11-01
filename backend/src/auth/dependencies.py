@@ -10,6 +10,7 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+import jwt
 
 from core.database import get_db
 from core.config import SYSTEM_ADMIN_EMAILS
@@ -293,7 +294,6 @@ def get_current_line_user(
     token = credentials.credentials
     try:
         # Decode JWT directly - LIFF tokens have different structure than TokenPayload
-        import jwt
         from core.config import JWT_SECRET_KEY
         
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
@@ -358,7 +358,6 @@ def get_current_line_user_with_clinic(
 
     try:
         # Decode JWT directly - LIFF tokens have different structure than TokenPayload
-        import jwt
         from core.config import JWT_SECRET_KEY
         
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
