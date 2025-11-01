@@ -46,6 +46,22 @@ const ProfilePage: React.FC = () => {
         selectedAppointmentTypeIds: [],
       };
 
+      // Fetch profile if not already loaded
+      let profileToUse = profile;
+      if (!profileToUse) {
+        try {
+          profileToUse = await apiService.getProfile();
+          setProfile(profileToUse);
+        } catch (err) {
+          console.error('Error fetching profile:', err);
+        }
+      }
+
+      // Set the full name from the profile
+      if (profileToUse) {
+        result.fullName = profileToUse.full_name || '';
+      }
+
       // Fetch availability schedule (only for practitioners)
       if (user?.roles?.includes('practitioner') && user.user_id) {
         try {
@@ -62,11 +78,6 @@ const ProfilePage: React.FC = () => {
         } catch (err) {
           console.warn('Could not fetch practitioner appointment types:', err);
         }
-      }
-
-      // Set the full name from the profile we already fetched
-      if (profile) {
-        result.fullName = profile.full_name;
       }
 
       return result;
