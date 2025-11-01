@@ -8,6 +8,8 @@ const Step4SelectPatient: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newPatientName, setNewPatientName] = useState('');
+  const [newPatientPhone, setNewPatientPhone] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
   useEffect(() => {
@@ -30,13 +32,32 @@ const Step4SelectPatient: React.FC = () => {
     setPatient(patient.id, patient);
   };
 
+  const validatePhoneNumber = (phone: string): boolean => {
+    // Taiwanese phone number format: 09xxxxxxxx (10 digits)
+    const phoneRegex = /^09\d{8}$/;
+    return phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''));
+  };
+
   const handleAddPatient = async () => {
     if (!newPatientName.trim() || !clinicId) return;
 
+    // Validate phone number
+    if (!newPatientPhone.trim()) {
+      setError('請輸入手機號碼');
+      return;
+    }
+
+    if (!validatePhoneNumber(newPatientPhone)) {
+      setError('手機號碼格式不正確，請輸入09開頭的10位數字');
+      return;
+    }
+
     try {
       setIsAdding(true);
+      setError(null);
       const response = await liffApiService.createPatient({
         full_name: newPatientName.trim(),
+        phone_number: newPatientPhone.replace(/[\s\-\(\)]/g, ''),
       });
 
       const newPatient: Patient = {
@@ -47,10 +68,28 @@ const Step4SelectPatient: React.FC = () => {
 
       setPatients(prev => [...prev, newPatient]);
       setNewPatientName('');
+      setNewPatientPhone('');
       setShowAddForm(false);
       setPatient(newPatient.id, newPatient);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to add patient:', err);
+      
+      // Handle FastAPI validation errors (422) - detail is an array
+      let errorMessage = '新增就診人失敗，請稍後再試';
+      if (err?.response?.data?.detail) {
+        const detail = err.response.data.detail;
+        if (Array.isArray(detail)) {
+          // Validation error: extract first error message
+          errorMessage = detail[0]?.msg || detail[0]?.message || errorMessage;
+        } else if (typeof detail === 'string') {
+          // Regular error message
+          errorMessage = detail;
+        }
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsAdding(false);
     }
@@ -110,10 +149,22 @@ const Step4SelectPatient: React.FC = () => {
               placeholder="請輸入姓名"
               className="w-full px-3 py-2 border border-gray-300 rounded-md mb-3"
             />
+            <input
+              type="tel"
+              value={newPatientPhone}
+              onChange={(e) => setNewPatientPhone(e.target.value)}
+              placeholder="請輸入手機號碼 (0912345678)"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md mb-3"
+            />
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-2 mb-3">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            )}
             <div className="flex space-x-2">
               <button
                 onClick={handleAddPatient}
-                disabled={isAdding || !newPatientName.trim()}
+                disabled={isAdding || !newPatientName.trim() || !newPatientPhone.trim()}
                 className="flex-1 bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 disabled:opacity-50"
               >
                 {isAdding ? '新增中...' : '確認'}
@@ -122,6 +173,8 @@ const Step4SelectPatient: React.FC = () => {
                 onClick={() => {
                   setShowAddForm(false);
                   setNewPatientName('');
+                  setNewPatientPhone('');
+                  setError(null);
                 }}
                 className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200"
               >

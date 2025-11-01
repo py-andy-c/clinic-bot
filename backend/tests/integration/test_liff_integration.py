@@ -168,6 +168,191 @@ class TestLiffDatabaseOperations:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
+    def test_patient_update_database_operations(self, db_session: Session, test_clinic_with_liff):
+        """Test patient update with direct database operations."""
+        clinic, practitioner, appt_types = test_clinic_with_liff
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_patient_update",
+            display_name="Test Update User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create primary patient
+        primary_patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Original Name",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        db_session.add(primary_patient)
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Test updating patient name only
+            update_data = {
+                "full_name": "Updated Name"
+            }
+            response = client.put(f"/api/liff/patients/{primary_patient.id}", json=update_data)
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["full_name"] == "Updated Name"
+            assert data["phone_number"] == "0912345678"  # Phone number unchanged
+
+            # Verify database state
+            db_session.refresh(primary_patient)
+            assert primary_patient.full_name == "Updated Name"
+            assert primary_patient.phone_number == "0912345678"
+
+            # Test updating phone number only
+            update_data = {
+                "phone_number": "0987654321"
+            }
+            response = client.put(f"/api/liff/patients/{primary_patient.id}", json=update_data)
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["full_name"] == "Updated Name"
+            assert data["phone_number"] == "0987654321"
+
+            # Verify database state
+            db_session.refresh(primary_patient)
+            assert primary_patient.full_name == "Updated Name"
+            assert primary_patient.phone_number == "0987654321"
+
+            # Test updating both fields
+            update_data = {
+                "full_name": "Final Name",
+                "phone_number": "0976543210"
+            }
+            response = client.put(f"/api/liff/patients/{primary_patient.id}", json=update_data)
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["full_name"] == "Final Name"
+            assert data["phone_number"] == "0976543210"
+
+            # Verify database state
+            db_session.refresh(primary_patient)
+            assert primary_patient.full_name == "Final Name"
+            assert primary_patient.phone_number == "0976543210"
+
+            # Test updating with formatted phone number (should be cleaned)
+            update_data = {
+                "phone_number": "09-8765-4321"  # With dashes
+            }
+            response = client.put(f"/api/liff/patients/{primary_patient.id}", json=update_data)
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["phone_number"] == "0987654321"  # Dashes removed
+
+            # Verify database state
+            db_session.refresh(primary_patient)
+            assert primary_patient.phone_number == "0987654321"
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_patient_update_validation_errors(self, db_session: Session, test_clinic_with_liff):
+        """Test patient update validation errors."""
+        clinic, practitioner, appt_types = test_clinic_with_liff
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_update_validation",
+            display_name="Validation Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create primary patient
+        primary_patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        db_session.add(primary_patient)
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Test updating with empty request (no fields provided)
+            response = client.put(f"/api/liff/patients/{primary_patient.id}", json={})
+            assert response.status_code == 422
+            assert "At least one field must be provided" in str(response.json())
+
+            # Test updating with invalid phone format (not 09xxxxxxxx)
+            update_data = {
+                "phone_number": "1234567890"  # Doesn't start with 09
+            }
+            response = client.put(f"/api/liff/patients/{primary_patient.id}", json=update_data)
+            assert response.status_code == 422
+            assert "09xxxxxxxx" in str(response.json())
+
+            # Test updating with phone number that's too short
+            update_data = {
+                "phone_number": "091234567"  # Only 9 digits
+            }
+            response = client.put(f"/api/liff/patients/{primary_patient.id}", json=update_data)
+            assert response.status_code == 422
+
+            # Test updating with phone number that's too long
+            update_data = {
+                "phone_number": "09123456789"  # 11 digits
+            }
+            response = client.put(f"/api/liff/patients/{primary_patient.id}", json=update_data)
+            assert response.status_code == 422
+
+            # Test updating with empty name
+            update_data = {
+                "full_name": "   "  # Only whitespace
+            }
+            response = client.put(f"/api/liff/patients/{primary_patient.id}", json=update_data)
+            assert response.status_code == 422
+            assert "cannot be empty" in str(response.json())
+
+            # Test updating with invalid patient ID (not owned by user)
+            other_line_user = LineUser(
+                line_user_id="U_other_user",
+                display_name="Other User"
+            )
+            db_session.add(other_line_user)
+            db_session.commit()
+
+            other_patient = Patient(
+                clinic_id=clinic.id,
+                full_name="Other Patient",
+                phone_number="0987654321",
+                line_user_id=other_line_user.id
+            )
+            db_session.add(other_patient)
+            db_session.commit()
+
+            # Try to update patient from other user
+            update_data = {
+                "full_name": "Hacked Name"
+            }
+            response = client.put(f"/api/liff/patients/{other_patient.id}", json=update_data)
+            assert response.status_code == 403
+            assert "access denied" in response.json()["detail"].lower()
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
     def test_appointment_creation_database_operations(self, db_session: Session, test_clinic_with_liff):
         """Test appointment creation with database verification."""
         clinic, practitioner, appt_types = test_clinic_with_liff

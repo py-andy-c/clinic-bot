@@ -5,6 +5,7 @@ import { liffApiService } from '../../services/liffApi';
 interface Patient {
   id: number;
   full_name: string;
+  phone_number: string;
   created_at: string;
 }
 
@@ -15,7 +16,12 @@ const PatientManagement: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newPatientName, setNewPatientName] = useState('');
+  const [newPatientPhone, setNewPatientPhone] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [editingPatientId, setEditingPatientId] = useState<number | null>(null);
+  const [editPatientName, setEditPatientName] = useState('');
+  const [editPatientPhone, setEditPatientPhone] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     loadPatients();
@@ -35,30 +41,121 @@ const PatientManagement: React.FC = () => {
     }
   };
 
+  const validatePhoneNumber = (phone: string): boolean => {
+    // Taiwanese phone number format: 09xxxxxxxx (10 digits)
+    const phoneRegex = /^09\d{8}$/;
+    return phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''));
+  };
+
   const handleAddPatient = async () => {
     if (!newPatientName.trim() || !clinicId) return;
 
+    // Validate phone number
+    if (!newPatientPhone.trim()) {
+      setError('請輸入手機號碼');
+      return;
+    }
+
+    if (!validatePhoneNumber(newPatientPhone)) {
+      setError('手機號碼格式不正確，請輸入09開頭的10位數字');
+      return;
+    }
+
     try {
       setIsAdding(true);
+      setError(null);
       const response = await liffApiService.createPatient({
         full_name: newPatientName.trim(),
+        phone_number: newPatientPhone.replace(/[\s\-\(\)]/g, ''),
       });
 
-      const newPatient: Patient = {
-        id: response.patient_id,
-        full_name: response.full_name,
-        created_at: new Date().toISOString(),
-      };
-
-      setPatients(prev => [...prev, newPatient]);
+      // Reload patients to get the full data including phone number
+      await loadPatients();
       setNewPatientName('');
+      setNewPatientPhone('');
       setShowAddForm(false);
     } catch (err: any) {
       console.error('Failed to add patient:', err);
-      const errorMessage = err?.response?.data?.detail || '新增就診人失敗，請稍後再試';
-      alert(errorMessage);
+      
+      // Handle FastAPI validation errors (422) - detail is an array
+      let errorMessage = '新增就診人失敗，請稍後再試';
+      if (err?.response?.data?.detail) {
+        const detail = err.response.data.detail;
+        if (Array.isArray(detail)) {
+          // Validation error: extract first error message
+          errorMessage = detail[0]?.msg || detail[0]?.message || errorMessage;
+        } else if (typeof detail === 'string') {
+          // Regular error message
+          errorMessage = detail;
+        }
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsAdding(false);
+    }
+  };
+
+  const handleStartEdit = (patient: Patient) => {
+    setEditingPatientId(patient.id);
+    setEditPatientName(patient.full_name);
+    setEditPatientPhone(patient.phone_number);
+    setError(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPatientId(null);
+    setEditPatientName('');
+    setEditPatientPhone('');
+    setError(null);
+  };
+
+  const handleUpdatePatient = async (patientId: number) => {
+    if (!editPatientName.trim()) {
+      setError('請輸入姓名');
+      return;
+    }
+
+    if (!editPatientPhone.trim()) {
+      setError('請輸入手機號碼');
+      return;
+    }
+
+    if (!validatePhoneNumber(editPatientPhone)) {
+      setError('手機號碼格式不正確，請輸入09開頭的10位數字');
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      setError(null);
+      await liffApiService.updatePatient(patientId, {
+        full_name: editPatientName.trim(),
+        phone_number: editPatientPhone.replace(/[\s\-\(\)]/g, ''),
+      });
+
+      // Reload patients to get updated data
+      await loadPatients();
+      setEditingPatientId(null);
+    } catch (err: any) {
+      console.error('Failed to update patient:', err);
+      
+      // Handle FastAPI validation errors (422) - detail is an array
+      let errorMessage = '更新就診人失敗，請稍後再試';
+      if (err?.response?.data?.detail) {
+        const detail = err.response.data.detail;
+        if (Array.isArray(detail)) {
+          // Validation error: extract first error message
+          errorMessage = detail[0]?.msg || detail[0]?.message || errorMessage;
+        } else if (typeof detail === 'string') {
+          // Regular error message
+          errorMessage = detail;
+        }
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -131,18 +228,68 @@ const PatientManagement: React.FC = () => {
 
           <div className="space-y-3 mb-6">
             {patients.map((patient) => (
-              <div
-                key={patient.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-md"
-              >
-                <span className="font-medium text-gray-900">{patient.full_name}</span>
-                {patients.length > 1 && (
-                  <button
-                    onClick={() => handleDeletePatient(patient.id, patient.full_name)}
-                    className="text-red-600 hover:text-red-800 text-sm font-medium"
-                  >
-                    刪除
-                  </button>
+              <div key={patient.id}>
+                {editingPatientId === patient.id ? (
+                  <div className="border border-gray-200 rounded-md p-4 bg-white">
+                    <h3 className="font-medium text-gray-900 mb-3">編輯就診人</h3>
+                    <input
+                      type="text"
+                      value={editPatientName}
+                      onChange={(e) => setEditPatientName(e.target.value)}
+                      placeholder="請輸入姓名"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md mb-3"
+                    />
+                    <input
+                      type="tel"
+                      value={editPatientPhone}
+                      onChange={(e) => setEditPatientPhone(e.target.value)}
+                      placeholder="請輸入手機號碼 (0912345678)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md mb-3"
+                    />
+                    {error && (
+                      <div className="bg-red-50 border border-red-200 rounded-md p-2 mb-3">
+                        <p className="text-sm text-red-600">{error}</p>
+                      </div>
+                    )}
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleUpdatePatient(patient.id)}
+                        disabled={isUpdating || !editPatientName.trim() || !editPatientPhone.trim()}
+                        className="flex-1 bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 disabled:opacity-50"
+                      >
+                        {isUpdating ? '更新中...' : '確認'}
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">{patient.full_name}</div>
+                      <div className="text-sm text-gray-600 mt-1">{patient.phone_number}</div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleStartEdit(patient)}
+                        className="text-primary-600 hover:text-primary-800 text-sm font-medium"
+                      >
+                        編輯
+                      </button>
+                      {patients.length > 1 && (
+                        <button
+                          onClick={() => handleDeletePatient(patient.id, patient.full_name)}
+                          className="text-red-600 hover:text-red-800 text-sm font-medium"
+                        >
+                          刪除
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             ))}
@@ -171,10 +318,23 @@ const PatientManagement: React.FC = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md mb-3"
                 onKeyPress={(e) => e.key === 'Enter' && handleAddPatient()}
               />
+              <input
+                type="tel"
+                value={newPatientPhone}
+                onChange={(e) => setNewPatientPhone(e.target.value)}
+                placeholder="請輸入手機號碼 (0912345678)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md mb-3"
+                onKeyPress={(e) => e.key === 'Enter' && handleAddPatient()}
+              />
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-2 mb-3">
+                  <p className="text-sm text-red-600">{error}</p>
+                </div>
+              )}
               <div className="flex space-x-2">
                 <button
                   onClick={handleAddPatient}
-                  disabled={isAdding || !newPatientName.trim()}
+                  disabled={isAdding || !newPatientName.trim() || !newPatientPhone.trim()}
                   className="flex-1 bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 disabled:opacity-50"
                 >
                   {isAdding ? '新增中...' : '確認'}
@@ -183,6 +343,8 @@ const PatientManagement: React.FC = () => {
                   onClick={() => {
                     setShowAddForm(false);
                     setNewPatientName('');
+                    setNewPatientPhone('');
+                    setError(null);
                   }}
                   className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200"
                 >

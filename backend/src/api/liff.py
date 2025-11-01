@@ -24,6 +24,7 @@ from models import (
     LineUser, Clinic, Patient, AppointmentType
 )
 from services import PatientService, AppointmentService, AvailabilityService, PractitionerService
+from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
 from api.responses import (
     PatientResponse, PatientCreateResponse, PatientListResponse,
     AppointmentTypeResponse, AppointmentTypeListResponse,
@@ -60,9 +61,9 @@ class LiffLoginResponse(BaseModel):
 
 
 class PatientCreateRequest(BaseModel):
-    """Request model for creating first patient."""
+    """Request model for creating patient."""
     full_name: str
-    phone_number: Optional[str] = None
+    phone_number: str
 
     @field_validator('full_name')
     @classmethod
@@ -79,10 +80,41 @@ class PatientCreateRequest(BaseModel):
 
     @field_validator('phone_number')
     @classmethod
-    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
-        if v and not v.replace('-', '').replace(' ', '').replace('(', '').replace(')', '').replace('+', '').isdigit():
-            raise ValueError('Invalid phone number format')
+    def validate_phone(cls, v: str) -> str:
+        return validate_taiwanese_phone(v)
+
+
+class PatientUpdateRequest(BaseModel):
+    """Request model for updating patient."""
+    full_name: Optional[str] = None
+    phone_number: Optional[str] = None
+
+    @field_validator('full_name')
+    @classmethod
+    def validate_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        v = v.strip()
+        if not v:
+            raise ValueError('Name cannot be empty')
+        if len(v) > 255:
+            raise ValueError('Name too long')
+        # Basic XSS prevention
+        if '<' in v or '>' in v:
+            raise ValueError('Invalid characters in name')
         return v
+
+    @field_validator('phone_number')
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        return validate_taiwanese_phone_optional(v)
+
+    @model_validator(mode='after')
+    def validate_at_least_one_field(self):
+        """Ensure at least one field is provided for update."""
+        if self.full_name is None and self.phone_number is None:
+            raise ValueError('At least one field must be provided for update')
+        return self
 
 
 
@@ -318,6 +350,49 @@ async def list_patients(
 
     except HTTPException:
         raise
+
+
+@router.put("/patients/{patient_id}", response_model=PatientCreateResponse)
+async def update_patient(
+    patient_id: int,
+    request: PatientUpdateRequest,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """
+    Update a patient record for a LINE user.
+
+    Allows updating patient name and/or phone number.
+    Clinic isolation is enforced through LIFF token context.
+    """
+    line_user, clinic = line_user_clinic
+
+    try:
+        patient = PatientService.update_patient_for_line_user(
+            db=db,
+            patient_id=patient_id,
+            line_user_id=line_user.id,
+            clinic_id=clinic.id,
+            full_name=request.full_name,
+            phone_number=request.phone_number
+        )
+
+        return PatientCreateResponse(
+            patient_id=patient.id,
+            full_name=patient.full_name,
+            phone_number=patient.phone_number,
+            created_at=patient.created_at
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Patient update error: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update patient"
+        )
 
 
 @router.delete("/patients/{patient_id}")

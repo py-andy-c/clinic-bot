@@ -36,8 +36,8 @@ class Patient(Base):
     full_name: Mapped[str] = mapped_column(String(255))
     """Full name of the patient (first and last name)."""
 
-    phone_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    """Optional contact phone number for the patient, used for appointment confirmations and reminders."""
+    phone_number: Mapped[str] = mapped_column(String(50))
+    """Contact phone number for the patient, used for appointment confirmations and reminders."""
 
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
     """Timestamp when the patient was first created."""

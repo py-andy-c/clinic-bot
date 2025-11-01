@@ -6,13 +6,14 @@ between different API endpoints (LIFF, clinic admin, etc.).
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, date, time
 from typing import List, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import and_
 
-from models import Patient
+from models import Patient, Appointment, CalendarEvent
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class PatientService:
         db: Session,
         clinic_id: int,
         full_name: str,
-        phone_number: Optional[str] = None,
+        phone_number: str,
         line_user_id: Optional[int] = None
     ) -> Patient:
         """
@@ -40,7 +41,7 @@ class PatientService:
             db: Database session
             clinic_id: Clinic ID the patient belongs to
             full_name: Patient's full name
-            phone_number: Optional phone number
+            phone_number: Phone number (required)
             line_user_id: Optional LINE user ID for association
 
         Returns:
@@ -187,13 +188,21 @@ class PatientService:
         )
 
         # Check for future appointments
-        future_appointments = db.query(Patient).join(
-            Patient.appointments
-        ).join(
-            Patient.appointments[0].calendar_event
+        # Need to check if any appointment is in the future by comparing date and time
+        now = datetime.now()
+        today = now.date()
+        current_time = now.time()
+        
+        future_appointments = db.query(Appointment).join(
+            CalendarEvent
         ).filter(
-            Patient.id == patient_id,
-            Patient.appointments[0].calendar_event.start_time > datetime.now()
+            Appointment.patient_id == patient_id,
+            Appointment.status == "confirmed",
+            # Check if appointment is in the future: either future date, or today with future time
+            (
+                (CalendarEvent.date > today) |
+                and_(CalendarEvent.date == today, CalendarEvent.start_time > current_time)
+            )
         ).count()
 
         if future_appointments > 0:
@@ -219,4 +228,57 @@ class PatientService:
         db.commit()
 
         logger.info(f"Soft deleted patient {patient_id} for LINE user {line_user_id}")
+
+    @staticmethod
+    def update_patient_for_line_user(
+        db: Session,
+        patient_id: int,
+        line_user_id: int,
+        clinic_id: int,
+        full_name: Optional[str] = None,
+        phone_number: Optional[str] = None
+    ) -> Patient:
+        """
+        Update a patient record for a LINE user.
+
+        Args:
+            db: Database session
+            patient_id: Patient ID to update
+            line_user_id: LINE user ID for ownership validation
+            clinic_id: Clinic ID
+            full_name: Optional new full name
+            phone_number: Optional new phone number
+
+        Returns:
+            Updated Patient object
+
+        Raises:
+            HTTPException: If patient not found, access denied, or update fails
+        """
+        # Validate ownership
+        patient = PatientService.validate_patient_ownership(
+            db, patient_id, line_user_id, clinic_id
+        )
+
+        try:
+            # Update allowed fields
+            # Note: phone_number is already cleaned and validated by PatientUpdateRequest validator
+            if full_name is not None:
+                patient.full_name = full_name.strip()
+            if phone_number is not None:
+                patient.phone_number = phone_number
+
+            db.commit()
+            db.refresh(patient)
+
+            logger.info(f"Updated patient {patient_id} for LINE user {line_user_id}")
+            return patient
+
+        except Exception as e:
+            logger.error(f"Failed to update patient {patient_id}: {e}")
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update patient"
+            )
 

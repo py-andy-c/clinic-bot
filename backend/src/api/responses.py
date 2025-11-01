@@ -15,7 +15,7 @@ class PatientResponse(BaseModel):
     """Response model for patient information."""
     id: int
     full_name: str
-    phone_number: Optional[str]
+    phone_number: str
     created_at: datetime
 
 
@@ -23,7 +23,7 @@ class PatientCreateResponse(BaseModel):
     """Response model for patient creation."""
     patient_id: int
     full_name: str
-    phone_number: Optional[str]
+    phone_number: str
     created_at: datetime
 
 
