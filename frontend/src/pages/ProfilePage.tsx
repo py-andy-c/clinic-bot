@@ -47,9 +47,9 @@ const ProfilePage: React.FC = () => {
       };
 
       // Fetch availability schedule (only for practitioners)
-      if (user?.roles?.includes('practitioner') && user.id) {
+      if (user?.roles?.includes('practitioner') && user.user_id) {
         try {
-          const scheduleData = await apiService.getPractitionerDefaultSchedule(user.id);
+          const scheduleData = await apiService.getPractitionerDefaultSchedule(user.user_id);
           result.schedule = scheduleData;
         } catch (err) {
           console.warn('Could not fetch availability schedule:', err);
@@ -57,7 +57,7 @@ const ProfilePage: React.FC = () => {
 
         // Fetch practitioner's appointment types
         try {
-          const practitionerData = await apiService.getPractitionerAppointmentTypes(user.id);
+          const practitionerData = await apiService.getPractitionerAppointmentTypes(user.user_id);
           result.selectedAppointmentTypeIds = practitionerData.appointment_types.map((at: any) => at.id);
         } catch (err) {
           console.warn('Could not fetch practitioner appointment types:', err);
@@ -79,17 +79,17 @@ const ProfilePage: React.FC = () => {
       }
 
       // Save schedule and appointment types changes (only for practitioners)
-      if (user?.roles?.includes('practitioner') && user.id) {
+      if (user?.roles?.includes('practitioner') && user.user_id) {
         // Always save schedule and appointment types for practitioners
-        await apiService.updatePractitionerDefaultSchedule(user.id, data.schedule);
-        await apiService.updatePractitionerAppointmentTypes(user.id, data.selectedAppointmentTypeIds);
+        await apiService.updatePractitionerDefaultSchedule(user.user_id, data.schedule);
+        await apiService.updatePractitionerAppointmentTypes(user.user_id, data.selectedAppointmentTypeIds);
       }
     },
     validateData: validateProfileSettings,
     getSectionChanges: getProfileSectionChanges,
   });
 
-  const handleAddInterval = (dayKey: keyof typeof profileData.schedule) => {
+  const handleAddInterval = (dayKey: string) => {
     if (!profileData) return;
 
     const newInterval: TimeInterval = {
@@ -99,21 +99,22 @@ const ProfilePage: React.FC = () => {
 
     const updatedSchedule = {
       ...profileData.schedule,
-      [dayKey]: [...profileData.schedule[dayKey], newInterval],
+      [dayKey]: [...(profileData.schedule[dayKey] || []), newInterval],
     };
 
     updateData({ schedule: updatedSchedule });
   };
 
   const handleUpdateInterval = (
-    dayKey: keyof typeof profileData.schedule,
+    dayKey: string,
     index: number,
     field: keyof TimeInterval,
     value: string
   ) => {
     if (!profileData) return;
 
-    const updatedIntervals = profileData.schedule[dayKey].map((interval, i) =>
+    const daySchedule = profileData.schedule[dayKey] || [];
+    const updatedIntervals = daySchedule.map((interval: any, i: number) =>
       i === index ? { ...interval, [field]: value } : interval
     );
 
@@ -125,12 +126,13 @@ const ProfilePage: React.FC = () => {
     updateData({ schedule: updatedSchedule });
   };
 
-  const handleRemoveInterval = (dayKey: keyof typeof profileData.schedule, index: number) => {
+  const handleRemoveInterval = (dayKey: string, index: number) => {
     if (!profileData) return;
 
+    const daySchedule = profileData.schedule[dayKey] || [];
     const updatedSchedule = {
       ...profileData.schedule,
-      [dayKey]: profileData.schedule[dayKey].filter((_, i) => i !== index),
+      [dayKey]: daySchedule.filter((_: any, i: number) => i !== index),
     };
 
     updateData({ schedule: updatedSchedule });
@@ -171,7 +173,7 @@ const ProfilePage: React.FC = () => {
                 profile={profile}
                 fullName={profileData?.fullName || ''}
                 onFullNameChange={(name) => updateData({ fullName: name })}
-                showSaveButton={sectionChanges.profile}
+                showSaveButton={sectionChanges.profile || false}
                 onSave={saveData}
                 saving={uiState.saving}
               />
@@ -183,7 +185,7 @@ const ProfilePage: React.FC = () => {
                   onAddInterval={handleAddInterval}
                   onUpdateInterval={handleUpdateInterval}
                   onRemoveInterval={handleRemoveInterval}
-                  showSaveButton={sectionChanges.schedule}
+                  showSaveButton={sectionChanges.schedule || false}
                   onSave={saveData}
                   saving={uiState.saving}
                 />
@@ -195,7 +197,7 @@ const ProfilePage: React.FC = () => {
                   <PractitionerAppointmentTypes
                     selectedAppointmentTypeIds={profileData?.selectedAppointmentTypeIds || []}
                     onAppointmentTypeChange={(selectedTypeIds) => updateData({ selectedAppointmentTypeIds: selectedTypeIds })}
-                    showSaveButton={sectionChanges.appointmentTypes}
+                    showSaveButton={sectionChanges.appointmentTypes || false}
                     onSave={saveData}
                     saving={uiState.saving}
                   />

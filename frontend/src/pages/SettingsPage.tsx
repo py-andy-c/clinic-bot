@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { apiService } from '../services/api';
 import { ClinicSettings } from '../schemas/api';
 import { AppointmentType } from '../types';
@@ -138,7 +138,7 @@ const SettingsPage: React.FC = () => {
                 onAddType={addAppointmentType}
                 onUpdateType={updateAppointmentType}
                 onRemoveType={removeAppointmentType}
-                showSaveButton={sectionChanges.appointmentTypes}
+                showSaveButton={sectionChanges.appointmentTypes || false}
                 onSave={saveData}
                 saving={uiState.saving}
                 isClinicAdmin={isClinicAdmin}
@@ -155,7 +155,7 @@ const SettingsPage: React.FC = () => {
                     }
                   });
                 }}
-                showSaveButton={sectionChanges.reminderSettings}
+                showSaveButton={sectionChanges.reminderSettings || false}
                 onSave={saveData}
                 saving={uiState.saving}
                 isClinicAdmin={isClinicAdmin}

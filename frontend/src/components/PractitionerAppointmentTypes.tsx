@@ -20,7 +20,6 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
   const { user } = useAuth();
   const [availableTypes, setAvailableTypes] = React.useState<any[]>([]);
   const [selectedTypeIds, setSelectedTypeIds] = React.useState<number[]>(externalSelectedTypeIds || []);
-  const [hasAvailability, setHasAvailability] = React.useState<boolean>(true);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -56,8 +55,7 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
       }
 
       // Get practitioner's status (includes availability check)
-      const status = await apiService.getPractitionerStatus(user.user_id);
-      setHasAvailability(status.has_availability);
+      await apiService.getPractitionerStatus(user.user_id);
 
     } catch (err) {
       console.error('Error fetching practitioner appointment types:', err);
