@@ -207,16 +207,16 @@ const SettingsPage: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">診所設定</h1>
           {!isClinicAdmin && (
             <div className="mt-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-md inline-block">
-              🔒 唯讀模式 - 僅管理員可修改設定
-            </div>
-          )}
-        </div>
+            🔒 唯讀模式 - 僅管理員可修改設定
+          </div>
+        )}
+      </div>
 
         <div className="space-y-8">
           {/* Single Form */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <form onSubmit={(e) => { e.preventDefault(); handleSaveSettings(); }}>
-              {/* Appointment Types */}
+      {/* Appointment Types */}
               <ClinicAppointmentTypes
                 appointmentTypes={settings.appointment_types}
                 onAddType={addAppointmentType}
@@ -228,23 +228,23 @@ const SettingsPage: React.FC = () => {
                 isClinicAdmin={isClinicAdmin}
               />
 
-              {/* Reminder Settings */}
+      {/* Reminder Settings */}
               <ClinicReminderSettings
                 reminderHoursBefore={settings.notification_settings.reminder_hours_before}
                 onReminderHoursChange={(value) => {
-                  setSettings({
-                    ...settings,
-                    notification_settings: {
-                      ...settings.notification_settings,
+              setSettings({
+                ...settings,
+                notification_settings: {
+                  ...settings.notification_settings,
                       reminder_hours_before: value
-                    }
-                  });
-                }}
+                }
+              });
+            }}
                 showSaveButton={hasReminderSettingsChanges()}
                 onSave={handleSaveSettings}
                 saving={saving}
                 isClinicAdmin={isClinicAdmin}
-              />
+          />
 
               {/* Error Display */}
               {error && (

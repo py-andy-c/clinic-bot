@@ -144,16 +144,16 @@ export const useProfileForm = () => {
       }
 
       // Save schedule changes if needed (only for practitioners)
-      if (profile.roles?.includes('practitioner') && originalData.schedule &&
+      if (profile.roles?.includes('practitioner') && originalData.schedule && 
           JSON.stringify(formData.schedule) !== JSON.stringify(originalData.schedule)) {
-
+        
         // Validate all intervals first
         for (const dayKey of Object.keys(formData.schedule) as Array<keyof DefaultScheduleResponse>) {
           const validationError = validateIntervals(formData.schedule[dayKey]);
           if (validationError) {
-            setUiState(prev => ({
-              ...prev,
-              error: `${DAYS_OF_WEEK.find(d => d.labelEn.toLowerCase() === dayKey)?.label}: ${validationError}`
+            setUiState(prev => ({ 
+              ...prev, 
+              error: `${DAYS_OF_WEEK.find(d => d.labelEn.toLowerCase() === dayKey)?.label}: ${validationError}` 
             }));
             return;
           }
@@ -206,7 +206,7 @@ export const useProfileForm = () => {
 
   const hasUnsavedChanges = () => {
     const profileChanged = formData.fullName !== originalData.fullName;
-    const scheduleChanged = originalData.schedule ?
+    const scheduleChanged = originalData.schedule ? 
       JSON.stringify(formData.schedule) !== JSON.stringify(originalData.schedule) : false;
     const appointmentTypesChanged = JSON.stringify(formData.selectedAppointmentTypeIds) !== JSON.stringify(originalData.selectedAppointmentTypeIds);
     return profileChanged || scheduleChanged || appointmentTypesChanged;

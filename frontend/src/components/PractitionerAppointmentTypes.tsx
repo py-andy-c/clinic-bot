@@ -52,7 +52,7 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
       // Get practitioner's current appointment types (only set internal state if not using external)
       const practitionerData = await apiService.getPractitionerAppointmentTypes(user.user_id);
       if (externalSelectedTypeIds === undefined) {
-        setSelectedTypeIds(practitionerData.appointment_types.map((at: any) => at.id));
+      setSelectedTypeIds(practitionerData.appointment_types.map((at: any) => at.id));
       }
 
       // Get practitioner's status (includes availability check)
@@ -93,13 +93,13 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-gray-900">提供的預約類型</h2>
         {showSaveButton && onSave && (
-          <button
+        <button
             onClick={onSave}
-            disabled={saving}
-            className="btn-primary"
-          >
+          disabled={saving}
+          className="btn-primary"
+        >
             {saving ? '儲存中...' : '儲存更變'}
-          </button>
+        </button>
         )}
       </div>
 
