@@ -10,14 +10,15 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
 from sqlalchemy import and_
+from sqlalchemy.orm import Session
 
 from models import (
     Appointment, CalendarEvent, User, Patient, AppointmentType,
     PractitionerAppointmentTypes
 )
 from services.patient_service import PatientService
+from utils.query_helpers import filter_by_role
 
 logger = logging.getLogger(__name__)
 
@@ -173,12 +174,13 @@ class AppointmentService:
         """
         if requested_practitioner_id:
             # Specific practitioner requested - validate they offer this type and are available
-            practitioner = db.query(User).filter(
+            query = db.query(User).filter(
                 User.id == requested_practitioner_id,
                 User.clinic_id == clinic_id,
-                User.is_active == True,
-                User.roles.contains(['practitioner'])
-            ).join(PractitionerAppointmentTypes).filter(
+                User.is_active == True
+            )
+            query = filter_by_role(query, 'practitioner')
+            practitioner = query.join(PractitionerAppointmentTypes).filter(
                 PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
             ).first()
 
@@ -207,11 +209,12 @@ class AppointmentService:
 
         else:
             # Auto-assign to practitioner with least appointments that day
-            candidates: List[User] = db.query(User).filter(
+            query = db.query(User).filter(
                 User.clinic_id == clinic_id,
-                User.is_active == True,
-                User.roles.contains(['practitioner'])
-            ).join(PractitionerAppointmentTypes).filter(
+                User.is_active == True
+            )
+            query = filter_by_role(query, 'practitioner')
+            candidates: List[User] = query.join(PractitionerAppointmentTypes).filter(
                 PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
             ).all()
 

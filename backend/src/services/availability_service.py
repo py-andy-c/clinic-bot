@@ -16,6 +16,7 @@ from models import (
     User, AppointmentType, PractitionerAvailability, CalendarEvent,
     PractitionerAppointmentTypes
 )
+from utils.query_helpers import filter_by_role
 
 logger = logging.getLogger(__name__)
 
@@ -99,19 +100,21 @@ class AvailabilityService:
 
             # Get practitioners who offer this type
             if practitioner_ids:
-                practitioners = db.query(User).filter(
+                query = db.query(User).filter(
                     User.id.in_(practitioner_ids),
-                    User.is_active == True,
-                    User.roles.contains(['practitioner'])
-                ).join(PractitionerAppointmentTypes).filter(
+                    User.is_active == True
+                )
+                query = filter_by_role(query, 'practitioner')
+                practitioners = query.join(PractitionerAppointmentTypes).filter(
                     PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
                 ).all()
             else:
                 # All practitioners who offer this type
-                practitioners = db.query(User).filter(
-                    User.is_active == True,
-                    User.roles.contains(['practitioner'])
-                ).join(PractitionerAppointmentTypes).filter(
+                query = db.query(User).filter(
+                    User.is_active == True
+                )
+                query = filter_by_role(query, 'practitioner')
+                practitioners = query.join(PractitionerAppointmentTypes).filter(
                     PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
                 ).all()
 
@@ -367,9 +370,10 @@ class AvailabilityService:
             List of User objects (practitioners)
         """
         query = db.query(User).filter(
-            User.is_active == True,
-            User.roles.contains(['practitioner'])
-        ).join(PractitionerAppointmentTypes).filter(
+            User.is_active == True
+        )
+        query = filter_by_role(query, 'practitioner')
+        query = query.join(PractitionerAppointmentTypes).filter(
             PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
         )
 

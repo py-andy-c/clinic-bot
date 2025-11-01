@@ -11,6 +11,7 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 
 from models import User, AppointmentType, PractitionerAppointmentTypes
+from utils.query_helpers import filter_by_role
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +44,10 @@ class PractitionerService:
         # Base query for practitioners
         query = db.query(User).filter(
             User.clinic_id == clinic_id,
-            User.is_active == True,
-            User.roles.contains(['practitioner'])
+            User.is_active == True
         )
+        # Filter by practitioner role using JSON array check
+        query = filter_by_role(query, 'practitioner')
 
         if appointment_type_id:
             # Filter by practitioners who offer this appointment type
@@ -89,9 +91,11 @@ class PractitionerService:
             List of User objects (practitioners)
         """
         query = db.query(User).filter(
-            User.is_active == True,
-            User.roles.contains(['practitioner'])
-        ).join(PractitionerAppointmentTypes).filter(
+            User.is_active == True
+        )
+        # Filter by practitioner role using JSON array check
+        query = filter_by_role(query, 'practitioner')
+        query = query.join(PractitionerAppointmentTypes).filter(
             PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
         )
 
@@ -119,9 +123,10 @@ class PractitionerService:
         """
         query = db.query(User).filter(
             User.id == practitioner_id,
-            User.is_active == True,
-            User.roles.contains(['practitioner'])
+            User.is_active == True
         )
+        # Filter by practitioner role using JSON array check
+        query = filter_by_role(query, 'practitioner')
 
         if clinic_id:
             query = query.filter(User.clinic_id == clinic_id)
@@ -147,11 +152,13 @@ class PractitionerService:
         Returns:
             User object if valid, None otherwise
         """
-        practitioner = db.query(User).filter(
+        query = db.query(User).filter(
             User.id == practitioner_id,
-            User.is_active == True,
-            User.roles.contains(['practitioner'])
-        ).join(PractitionerAppointmentTypes).filter(
+            User.is_active == True
+        )
+        # Filter by practitioner role using JSON array check
+        query = filter_by_role(query, 'practitioner')
+        practitioner = query.join(PractitionerAppointmentTypes).filter(
             PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
         ).first()
 

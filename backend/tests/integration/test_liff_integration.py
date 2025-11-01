@@ -1130,8 +1130,9 @@ class TestLiffErrorHandling:
             # Create additional patient for testing
             response = client.post(
                 "/api/liff/patients",
-                json={"full_name": "郭小明"}
+                json={"full_name": "郭小明", "phone_number": "0912345679"}
             )
+            assert response.status_code == 200
             patient = response.json()
 
             # Try to book in the past
@@ -1206,8 +1207,9 @@ class TestLiffErrorHandling:
             # Try to book at the same time - should fail
             response = client.post(
                 "/api/liff/patients",
-                json={"full_name": "錢太太"}
+                json={"full_name": "錢太太", "phone_number": "0999999997"}
             )
+            assert response.status_code == 200
             patient2 = response.json()
 
             response = client.post(
@@ -1257,8 +1259,9 @@ class TestLiffErrorHandling:
             # Create additional patient for testing
             response = client.post(
                 "/api/liff/patients",
-                json={"full_name": "周小華"}
+                json={"full_name": "周小華", "phone_number": "0912345679"}
             )
+            assert response.status_code == 200
             patient = response.json()
 
             # Try to book more than 90 days in future

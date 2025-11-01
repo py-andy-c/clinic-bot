@@ -64,7 +64,7 @@ const PatientManagement: React.FC = () => {
     try {
       setIsAdding(true);
       setError(null);
-      const response = await liffApiService.createPatient({
+      await liffApiService.createPatient({
         full_name: newPatientName.trim(),
         phone_number: newPatientPhone.replace(/[\s\-\(\)]/g, ''),
       });

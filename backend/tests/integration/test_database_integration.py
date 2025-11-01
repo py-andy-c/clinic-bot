@@ -115,11 +115,14 @@ async def mock_create_appointment(db, therapist_id, appointment_type_id, start_t
     from datetime import timedelta
 
     # Load related entities
-    practitioner = db.query(User).filter(
+    from utils.query_helpers import filter_by_role
+    
+    query = db.query(User).filter(
         User.id == therapist_id,
-        User.roles.contains(['practitioner']),
         User.is_active == True
-    ).first()
+    )
+    query = filter_by_role(query, 'practitioner')
+    practitioner = query.first()
     patient = db.get(Patient, patient_id)
     apt_type = db.get(AppointmentType, appointment_type_id)
 
