@@ -6,13 +6,17 @@ particularly for handling JSON array containment checks that work correctly
 across different database backends (SQLite, PostgreSQL).
 """
 
+from typing import TypeVar
 from sqlalchemy import text
 from sqlalchemy.orm import Query
 
 from models import User
 
+# Type variable for Query generic type
+T = TypeVar('T')
 
-def filter_by_role(query: Query, role: str) -> Query:
+
+def filter_by_role(query: Query[T], role: str) -> Query[T]:
     """
     Filter a query to include only users with the specified role.
     
