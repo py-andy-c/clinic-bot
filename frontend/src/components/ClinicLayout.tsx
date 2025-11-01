@@ -136,7 +136,7 @@ const GlobalWarnings: React.FC = () => {
 };
 
 const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
-  const { user, logout, isClinicAdmin, isPractitioner, isReadOnlyUser } = useAuth();
+  const { user, logout, isPractitioner } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { hasUnsavedChanges } = useUnsavedChanges();
@@ -172,19 +172,6 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
     return location.pathname === href;
   };
 
-  const getUserRoleDisplay = () => {
-    if (isClinicAdmin && isPractitioner) {
-      return '管理員 & 治療師';
-    } else if (isClinicAdmin) {
-      return '診所管理員';
-    } else if (isPractitioner) {
-      return '治療師';
-    } else if (isReadOnlyUser) {
-      return '一般成員';
-    }
-    return '使用者';
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top Navigation */}
@@ -197,9 +184,6 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
                 <div className="flex items-center space-x-2">
                   <span className="text-2xl">🏥</span>
                   <span className="text-xl font-bold text-gray-900">Clinic Bot</span>
-                  <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                    {getUserRoleDisplay()}
-                  </span>
                 </div>
               </div>
 
@@ -290,7 +274,6 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
             <div className="pt-4 pb-3 border-t border-gray-200">
               <div className="flex items-center px-5">
                 <div className="text-base font-medium text-gray-800">{user?.full_name}</div>
-                <div className="text-sm text-gray-500 ml-2">({getUserRoleDisplay()})</div>
               </div>
               <div className="mt-3 space-y-1 px-2">
                 <button
