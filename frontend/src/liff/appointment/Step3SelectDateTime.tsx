@@ -39,7 +39,6 @@ const Step3SelectDateTime: React.FC = () => {
       setError(null);
 
       const response = await liffApiService.getAvailability({
-        clinic_id: clinicId,
         date,
         appointment_type_id: appointmentTypeId,
         practitioner_id: practitionerId ?? undefined,

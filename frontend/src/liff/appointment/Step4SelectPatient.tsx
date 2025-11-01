@@ -36,7 +36,6 @@ const Step4SelectPatient: React.FC = () => {
     try {
       setIsAdding(true);
       const response = await liffApiService.createPatient({
-        clinic_id: clinicId,
         full_name: newPatientName.trim(),
       });
 

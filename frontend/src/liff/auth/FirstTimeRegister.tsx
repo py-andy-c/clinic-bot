@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppointmentStore } from '../../stores/appointmentStore';
+import { useLineAuth } from '../../hooks/useLineAuth';
 import { liffApiService } from '../../services/liffApi';
 
 const FirstTimeRegister: React.FC = () => {
@@ -50,8 +51,14 @@ const FirstTimeRegister: React.FC = () => {
         phone_number: phoneNumber.replace(/[\s\-\(\)]/g, ''),
       });
 
-      // Registration successful, navigate to booking
-      navigate('?mode=book');
+      // Registration successful - update URL and trigger auth refresh
+      const newUrl = `${window.location.pathname}?mode=book`;
+      window.history.replaceState(null, '', newUrl);
+      console.log('📝 Registration successful - updated URL to:', newUrl);
+
+      // Dispatch custom event to trigger authentication refresh
+      console.log('📡 Dispatching auth-refresh event');
+      window.dispatchEvent(new CustomEvent('auth-refresh'));
     } catch (err) {
       console.error('Registration failed:', err);
       setError(err instanceof Error ? err.message : '註冊失敗，請稍後再試');

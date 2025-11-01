@@ -35,6 +35,7 @@ class PatientListResponse(BaseModel):
 class AppointmentTypeResponse(BaseModel):
     """Response model for appointment type."""
     id: int
+    clinic_id: int
     name: str
     duration_minutes: int
 

@@ -50,6 +50,20 @@ class PatientService:
             HTTPException: If creation fails
         """
         try:
+            # Check if LINE user already has a patient in this clinic
+            if line_user_id:
+                existing_patient = db.query(Patient).filter_by(
+                    line_user_id=line_user_id,
+                    clinic_id=clinic_id
+                ).first()
+
+                if existing_patient:
+                    logger.error(f"LINE user {line_user_id} already has patient {existing_patient.id} in clinic {clinic_id} - rejecting duplicate")
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="您已經在這個診所註冊過病患資料，請勿重複註冊"
+                    )
+
             patient = Patient(
                 clinic_id=clinic_id,
                 full_name=full_name,
@@ -67,10 +81,19 @@ class PatientService:
         except Exception as e:
             logger.error(f"Failed to create patient: {e}")
             db.rollback()
-            raise HTTPException(
+
+            # Handle unique constraint violations
+            error_message = str(e).lower()
+            if "unique constraint failed" in error_message:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="此資料已存在，請檢查是否重複註冊"
+                )
+            else:
+                raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create patient"
-            )
+                    detail="建立病患資料時發生錯誤，請稍後再試"
+                )
 
     @staticmethod
     def list_patients_for_line_user(

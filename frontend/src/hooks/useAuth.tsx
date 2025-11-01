@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo } from 'react';
 import { AuthUser, AuthState, UserRole } from '../types';
 
+// Get API base URL from environment variable
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || '/api';
+
 interface AuthContextType extends AuthState {
   user: AuthUser | null;
   login: (userType?: 'system_admin' | 'clinic_user') => Promise<void>;
@@ -57,7 +60,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       window.history.replaceState({}, document.title, newUrl);
 
       // Validate the token and get user info
-      fetch('/api/auth/verify', {
+      fetch(`${API_BASE_URL}/auth/verify`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -124,7 +127,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (token) {
         // Validate token with backend
         try {
-          const response = await fetch('/api/auth/verify', {
+          const response = await fetch(`${API_BASE_URL}/auth/verify`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -168,7 +171,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshToken = async (): Promise<void> => {
     try {
-      const response = await fetch('/api/auth/refresh', {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',
         credentials: 'include', // Send httpOnly refresh token cookie
       });
@@ -179,7 +182,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.setItem('access_token', data.access_token);
 
         // Validate the new token to get user data
-        const userResponse = await fetch('/api/auth/verify', {
+        const userResponse = await fetch(`${API_BASE_URL}/auth/verify`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${data.access_token}`,
@@ -222,7 +225,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Get the OAuth URL from backend first
       const params = userType ? `?user_type=${userType}` : '';
-      const response = await fetch(`/api/auth/google/login${params}`);
+      const response = await fetch(`${API_BASE_URL}/auth/google/login${params}`);
 
       if (!response.ok) {
         throw new Error(`Failed to get OAuth URL: ${response.status}`);
@@ -245,7 +248,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.removeItem('access_token');
 
       // Call logout endpoint to revoke refresh token
-      await fetch('/api/auth/logout', {
+      await fetch(`${API_BASE_URL}/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });

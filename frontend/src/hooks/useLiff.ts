@@ -11,6 +11,7 @@ interface LiffProfile {
 interface UseLiffReturn {
   isReady: boolean;
   profile: LiffProfile | null;
+  accessToken: string | null;
   liff: typeof liff;
   error: string | null;
 }
@@ -18,6 +19,7 @@ interface UseLiffReturn {
 export const useLiff = (): UseLiffReturn => {
   const [isReady, setIsReady] = useState(false);
   const [profile, setProfile] = useState<LiffProfile | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,6 +51,10 @@ export const useLiff = (): UseLiffReturn => {
           statusMessage: userProfile.statusMessage,
         });
 
+        // Get LIFF access token
+        const token = liff.getAccessToken();
+        setAccessToken(token);
+
         setIsReady(true);
       } catch (err) {
         console.error('LIFF initialization failed:', err);
@@ -59,5 +65,5 @@ export const useLiff = (): UseLiffReturn => {
     initLiff();
   }, []);
 
-  return { isReady, profile, liff, error };
+  return { isReady, profile, accessToken, liff, error };
 };

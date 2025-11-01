@@ -50,8 +50,8 @@ const InvalidAccess: React.FC = () => (
 );
 
 const LiffApp: React.FC = () => {
-  const { isReady, profile, error: liffError } = useLiff();
-  const { isFirstTime, isLoading: authLoading, clinicId, error: authError } = useLineAuth(profile);
+  const { isReady, profile, accessToken, error: liffError } = useLiff();
+  const { isFirstTime, isLoading: authLoading, clinicId, error: authError } = useLineAuth(profile, accessToken);
   const [searchParams] = useSearchParams();
 
   // Extract mode from URL parameters

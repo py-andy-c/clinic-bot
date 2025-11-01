@@ -410,6 +410,7 @@ async def get_settings(
         appointment_type_list = [
             AppointmentTypeResponse(
                 id=at.id,
+                clinic_id=at.clinic_id,
                 name=at.name,
                 duration_minutes=at.duration_minutes
             )

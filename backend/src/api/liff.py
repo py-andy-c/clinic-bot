@@ -370,6 +370,7 @@ async def list_appointment_types(
             appointment_types=[
                 AppointmentTypeResponse(
                     id=at.id,
+                    clinic_id=at.clinic_id,
                     name=at.name,
                     duration_minutes=at.duration_minutes
                 ) for at in appointment_types

@@ -41,7 +41,6 @@ const PatientManagement: React.FC = () => {
     try {
       setIsAdding(true);
       const response = await liffApiService.createPatient({
-        clinic_id: clinicId,
         full_name: newPatientName.trim(),
       });
 
@@ -54,9 +53,10 @@ const PatientManagement: React.FC = () => {
       setPatients(prev => [...prev, newPatient]);
       setNewPatientName('');
       setShowAddForm(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to add patient:', err);
-      alert('新增就診人失敗，請稍後再試');
+      const errorMessage = err?.response?.data?.detail || '新增就診人失敗，請稍後再試';
+      alert(errorMessage);
     } finally {
       setIsAdding(false);
     }

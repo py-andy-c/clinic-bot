@@ -56,9 +56,8 @@ class Patient(Base):
     """Optional relationship to the LINE user account managing this patient."""
 
     __table_args__ = (
-        # Partial unique index: allows multiple NULL values but enforces uniqueness for non-NULL values
-        # This prevents duplicate phone numbers per clinic while allowing multiple patients without phones
-        Index('uq_clinic_patient_phone', 'clinic_id', 'phone_number', unique=True, postgresql_where='phone_number IS NOT NULL'),
+        # Regular index for performance (no uniqueness constraint to allow phone number corrections)
+        Index('idx_patients_clinic_phone', 'clinic_id', 'phone_number'),
         Index('idx_patients_line_user', 'line_user_id'),
         Index('idx_patients_clinic', 'clinic_id'),
         Index('idx_patients_created_at', 'created_at'),

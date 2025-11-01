@@ -4,7 +4,7 @@ import axios, { AxiosInstance } from 'axios';
 export interface LiffLoginRequest {
   line_user_id: string;
   display_name: string;
-  liff_access_token?: string;
+  liff_access_token: string;
   clinic_id: number;
 }
 
@@ -19,7 +19,7 @@ export interface LiffLoginResponse {
 
 export interface PatientCreateRequest {
   full_name: string;
-  phone_number: string;
+  phone_number?: string;
 }
 
 export interface PatientResponse {
@@ -63,7 +63,6 @@ export interface AvailabilityResponse {
 }
 
 export interface AppointmentCreateRequest {
-  clinic_id: number;
   patient_id: number;
   appointment_type_id: number;
   practitioner_id: number | undefined; // undefined for "不指定"
@@ -136,7 +135,7 @@ class LiffApiService {
 
   // Authentication
   async liffLogin(request: LiffLoginRequest): Promise<LiffLoginResponse> {
-    const response = await this.client.post('/auth/liff-login', request);
+    const response = await this.client.post('/liff/auth/liff-login', request);
     const data = response.data;
 
     // Store the JWT token
@@ -149,69 +148,72 @@ class LiffApiService {
 
   // Patient Management
   async createPrimaryPatient(request: PatientCreateRequest): Promise<PatientResponse> {
-    const response = await this.client.post('/patients/primary', request);
+    // Primary patient uses the same endpoint as additional patients
+    const response = await this.client.post('/liff/patients', request);
     return response.data;
   }
 
   async getPatients(): Promise<PatientsResponse> {
-    const response = await this.client.get('/patients');
+    const response = await this.client.get('/liff/patients');
     return response.data;
   }
 
-  async createPatient(request: { clinic_id: number; full_name: string }): Promise<{ patient_id: number; full_name: string }> {
-    const response = await this.client.post('/patients', request);
+  async createPatient(request: { full_name: string; phone_number?: string }): Promise<{ patient_id: number; full_name: string }> {
+    const response = await this.client.post('/liff/patients', request);
     return response.data;
   }
 
   async deletePatient(patientId: number): Promise<{ success: boolean; message: string }> {
-    const response = await this.client.delete(`/patients/${patientId}`);
+    const response = await this.client.delete(`/liff/patients/${patientId}`);
     return response.data;
   }
 
   // Appointment Types
   async getAppointmentTypes(clinicId: number): Promise<{ appointment_types: Array<{ id: number; name: string; duration_minutes: number }> }> {
-    const response = await this.client.get(`/clinics/${clinicId}/appointment-types`);
+    // Clinic ID is already in the JWT token, don't need it in URL
+    const response = await this.client.get('/liff/appointment-types');
     return response.data;
   }
 
   // Practitioners
   async getPractitioners(clinicId: number, appointmentTypeId?: number): Promise<PractitionersResponse> {
+    // Clinic ID is already in the JWT token, don't need it in URL
     const params = appointmentTypeId ? { appointment_type_id: appointmentTypeId } : {};
-    const response = await this.client.get(`/clinics/${clinicId}/practitioners`, { params });
+    const response = await this.client.get('/liff/practitioners', { params });
     return response.data;
   }
 
   // Availability
   async getAvailability(params: {
-    clinic_id: number;
     date: string;
     appointment_type_id: number;
     practitioner_id: number | undefined;
   }): Promise<AvailabilityResponse> {
-    const response = await this.client.get('/availability', { params });
+    // Clinic ID is already in the JWT token, don't need it in params
+    const response = await this.client.get('/liff/availability', { params });
     return response.data;
   }
 
   // Appointments
   async createAppointment(request: AppointmentCreateRequest): Promise<AppointmentResponse> {
-    const response = await this.client.post('/appointments', request);
+    const response = await this.client.post('/liff/appointments', request);
     return response.data;
   }
 
   async getAppointments(upcomingOnly: boolean = true): Promise<AppointmentsResponse> {
     const params = { upcoming_only: upcomingOnly };
-    const response = await this.client.get('/appointments', { params });
+    const response = await this.client.get('/liff/appointments', { params });
     return response.data;
   }
 
   async cancelAppointment(appointmentId: number): Promise<{ success: boolean; message: string }> {
-    const response = await this.client.delete(`/appointments/${appointmentId}`);
+    const response = await this.client.delete(`/liff/appointments/${appointmentId}`);
     return response.data;
   }
 
   // ICS Download
   async getAppointmentICS(appointmentId: number): Promise<Blob> {
-    const response = await this.client.get(`/appointments/${appointmentId}/ics`, {
+    const response = await this.client.get(`/liff/appointments/${appointmentId}/ics`, {
       responseType: 'blob',
       headers: {
         'Accept': 'text/calendar',

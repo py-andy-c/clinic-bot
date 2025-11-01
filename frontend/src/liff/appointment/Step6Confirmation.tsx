@@ -17,7 +17,6 @@ const Step6Confirmation: React.FC = () => {
       const startDateTime = new Date(`${date}T${startTime}`);
 
       await liffApiService.createAppointment({
-        clinic_id: clinicId,
         patient_id: patient.id,
         appointment_type_id: appointmentType.id,
         practitioner_id: practitioner?.id ?? undefined,

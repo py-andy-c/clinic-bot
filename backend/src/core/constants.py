@@ -1,5 +1,7 @@
 """Application constants and configuration values."""
 
+from core.config import FRONTEND_URL
+
 # Database field lengths
 MAX_STRING_LENGTH = 255
 
@@ -19,6 +21,7 @@ DB_POOL_RECYCLE_SECONDS = 300  # 5 minutes
 CORS_ORIGINS = [
     "http://localhost:5173",      # React dev server (Vite) - localhost
     "http://10.0.0.25:5173",     # React dev server - local network IP
+    FRONTEND_URL,
 ]
 
 # Appointment reminders

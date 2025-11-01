@@ -292,8 +292,11 @@ def get_current_line_user(
 
     token = credentials.credentials
     try:
-        # Decode JWT directly without TokenPayload validation
-        payload = jwt_service.verify_token(token)
+        # Decode JWT directly - LIFF tokens have different structure than TokenPayload
+        import jwt
+        from core.config import JWT_SECRET_KEY
+        
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
         if not payload:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -301,7 +304,7 @@ def get_current_line_user(
             )
 
         # For LIFF users, we expect line_user_id in the payload
-        line_user_id = getattr(payload, 'line_user_id', None)
+        line_user_id = payload.get('line_user_id')
         if not line_user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -316,6 +319,18 @@ def get_current_line_user(
             )
 
         return line_user
+    except HTTPException:
+        raise
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expired"
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -342,8 +357,11 @@ def get_current_line_user_with_clinic(
     token = credentials.credentials
 
     try:
-        # Decode JWT directly without TokenPayload validation
-        payload = jwt_service.verify_token(token)
+        # Decode JWT directly - LIFF tokens have different structure than TokenPayload
+        import jwt
+        from core.config import JWT_SECRET_KEY
+        
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
         if not payload:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -351,7 +369,7 @@ def get_current_line_user_with_clinic(
             )
 
         # Extract clinic_id from JWT payload
-        clinic_id = getattr(payload, 'clinic_id', None)
+        clinic_id = payload.get('clinic_id')
         if not clinic_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -370,7 +388,7 @@ def get_current_line_user_with_clinic(
             )
 
         # For LIFF users, we expect line_user_id in the payload
-        line_user_id = getattr(payload, 'line_user_id', None)
+        line_user_id = payload.get('line_user_id')
         if not line_user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -380,7 +398,7 @@ def get_current_line_user_with_clinic(
         line_user = db.query(LineUser).filter(LineUser.line_user_id == line_user_id).first()
         if not line_user:
             # This shouldn't happen in normal flow, but handle gracefully
-            display_name = getattr(payload, 'display_name', None)
+            display_name = payload.get('display_name')
             line_user = LineUser(
                 line_user_id=line_user_id,
                 display_name=display_name
@@ -393,7 +411,20 @@ def get_current_line_user_with_clinic(
 
     except HTTPException:
         raise
-    except Exception:
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expired"
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Token validation error: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"
