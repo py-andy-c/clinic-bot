@@ -25,10 +25,16 @@ const SystemClinicsPage: React.FC = () => {
     try {
       setLoading(true);
       const data = await apiService.getClinics();
-      setClinics(data);
+
+      // Validate that we received an array
+      if (Array.isArray(data)) {
+        setClinics(data);
+      } else {
+        setClinics([]);
+      }
     } catch (err) {
-      // setError('Failed to load clinics');
-      console.error('Clinics error:', err);
+      console.error('Failed to load clinics:', err);
+      setClinics([]);
     } finally {
       setLoading(false);
     }

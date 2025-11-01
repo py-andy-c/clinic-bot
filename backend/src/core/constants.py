@@ -17,7 +17,8 @@ DB_POOL_RECYCLE_SECONDS = 300  # 5 minutes
 
 # CORS origins for development
 CORS_ORIGINS = [
-    "http://localhost:5173",  # React dev server (Vite)
+    "http://localhost:5173",      # React dev server (Vite) - localhost
+    "http://10.0.0.25:5173",     # React dev server - local network IP
 ]
 
 # Appointment reminders
