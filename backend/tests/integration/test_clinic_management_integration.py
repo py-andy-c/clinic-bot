@@ -866,3 +866,306 @@ class TestClinicAppointmentManagement:
             # Clean up overrides
             client.app.dependency_overrides.pop(get_current_user, None)
             client.app.dependency_overrides.pop(get_db, None)
+
+
+class TestPractitionerAppointmentTypes:
+    """Test practitioner appointment type management."""
+
+    def test_get_practitioner_appointment_types_success(self, db_session, test_clinic_with_therapist):
+        """Test getting practitioner's appointment types successfully."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist
+
+        # Create some practitioner appointment type associations
+        from models.practitioner_appointment_types import PractitionerAppointmentTypes
+
+        # Associate therapist with first appointment type
+        pat1 = PractitionerAppointmentTypes(
+            user_id=therapist.id,
+            appointment_type_id=appointment_types[0].id
+        )
+        db_session.add(pat1)
+        db_session.commit()
+
+        # Mock authentication for therapist
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=therapist.email,
+            roles=therapist.roles,
+            clinic_id=therapist.clinic_id,
+            google_subject_id=therapist.google_subject_id,
+            name=therapist.full_name,
+            user_id=therapist.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Get practitioner's appointment types
+            response = client.get(f"/api/clinic/practitioners/{therapist.id}/appointment-types")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["practitioner_id"] == therapist.id
+            assert len(data["appointment_types"]) == 1
+            assert data["appointment_types"][0]["id"] == appointment_types[0].id
+            assert data["appointment_types"][0]["name"] == appointment_types[0].name
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_get_practitioner_appointment_types_empty(self, db_session, test_clinic_with_therapist):
+        """Test getting practitioner's appointment types when none are configured."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist
+
+        # Mock authentication for therapist
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=therapist.email,
+            roles=therapist.roles,
+            clinic_id=therapist.clinic_id,
+            google_subject_id=therapist.google_subject_id,
+            name=therapist.full_name,
+            user_id=therapist.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Get practitioner's appointment types (should be empty)
+            response = client.get(f"/api/clinic/practitioners/{therapist.id}/appointment-types")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["practitioner_id"] == therapist.id
+            assert len(data["appointment_types"]) == 0
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_get_practitioner_appointment_types_permission_denied(self, db_session, test_clinic_with_therapist):
+        """Test that practitioners cannot view other practitioners' appointment types."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist
+
+        # Create another therapist
+        therapist2 = User(
+            clinic_id=clinic.id,
+            full_name="Dr. Test 2",
+            email="dr.test2@example.com",
+            google_subject_id="therapist_sub_456",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.add(therapist2)
+        db_session.commit()
+
+        # Mock authentication for therapist trying to view therapist2's types
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=therapist.email,
+            roles=therapist.roles,
+            clinic_id=therapist.clinic_id,
+            google_subject_id=therapist.google_subject_id,
+            name=therapist.full_name,
+            user_id=therapist.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Try to get therapist2's appointment types (should fail)
+            response = client.get(f"/api/clinic/practitioners/{therapist2.id}/appointment-types")
+
+            assert response.status_code == 403
+            assert "無權限查看其他治療師的設定" in response.json()["detail"]
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_update_practitioner_appointment_types_success(self, db_session, test_clinic_with_therapist):
+        """Test updating practitioner's appointment types successfully."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist
+
+        # Mock authentication for therapist
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=therapist.email,
+            roles=therapist.roles,
+            clinic_id=therapist.clinic_id,
+            google_subject_id=therapist.google_subject_id,
+            name=therapist.full_name,
+            user_id=therapist.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Update practitioner's appointment types
+            appointment_type_ids = [appointment_types[0].id, appointment_types[1].id]
+            response = client.put(
+                f"/api/clinic/practitioners/{therapist.id}/appointment-types",
+                json={"appointment_type_ids": appointment_type_ids}
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert "治療師預約類型已更新" in data["message"]
+
+            # Verify the associations were created
+            from models.practitioner_appointment_types import PractitionerAppointmentTypes
+            associations = db_session.query(PractitionerAppointmentTypes).filter_by(user_id=therapist.id).all()
+            assert len(associations) == 2
+            assert {a.appointment_type_id for a in associations} == set(appointment_type_ids)
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_update_practitioner_appointment_types_clear_all(self, db_session, test_clinic_with_therapist):
+        """Test clearing all practitioner's appointment types."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist
+
+        # First create some associations
+        from models.practitioner_appointment_types import PractitionerAppointmentTypes
+
+        pat1 = PractitionerAppointmentTypes(
+            user_id=therapist.id,
+            appointment_type_id=appointment_types[0].id
+        )
+        db_session.add(pat1)
+        db_session.commit()
+
+        # Mock authentication for therapist
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=therapist.email,
+            roles=therapist.roles,
+            clinic_id=therapist.clinic_id,
+            google_subject_id=therapist.google_subject_id,
+            name=therapist.full_name,
+            user_id=therapist.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Clear all appointment types
+            response = client.put(
+                f"/api/clinic/practitioners/{therapist.id}/appointment-types",
+                json={"appointment_type_ids": []}
+            )
+
+            assert response.status_code == 200
+
+            # Verify associations were cleared
+            associations = db_session.query(PractitionerAppointmentTypes).filter_by(user_id=therapist.id).all()
+            assert len(associations) == 0
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_update_practitioner_appointment_types_invalid_type_id(self, db_session, test_clinic_with_therapist):
+        """Test updating with invalid appointment type ID."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist
+
+        # Mock authentication for therapist
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=therapist.email,
+            roles=therapist.roles,
+            clinic_id=therapist.clinic_id,
+            google_subject_id=therapist.google_subject_id,
+            name=therapist.full_name,
+            user_id=therapist.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Try to update with invalid appointment type ID
+            response = client.put(
+                f"/api/clinic/practitioners/{therapist.id}/appointment-types",
+                json={"appointment_type_ids": [99999]}  # Non-existent ID
+            )
+
+            assert response.status_code == 400
+            assert "不存在或不屬於此診所" in response.json()["detail"]
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_update_practitioner_appointment_types_permission_denied(self, db_session, test_clinic_with_therapist):
+        """Test that practitioners cannot update other practitioners' appointment types."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist
+
+        # Create another therapist
+        therapist2 = User(
+            clinic_id=clinic.id,
+            full_name="Dr. Test 2",
+            email="dr.test2@example.com",
+            google_subject_id="therapist_sub_456",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.add(therapist2)
+        db_session.commit()
+
+        # Mock authentication for therapist trying to update therapist2's types
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=therapist.email,
+            roles=therapist.roles,
+            clinic_id=therapist.clinic_id,
+            google_subject_id=therapist.google_subject_id,
+            name=therapist.full_name,
+            user_id=therapist.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Try to update therapist2's appointment types (should fail)
+            response = client.put(
+                f"/api/clinic/practitioners/{therapist2.id}/appointment-types",
+                json={"appointment_type_ids": [appointment_types[0].id]}
+            )
+
+            assert response.status_code == 403
+            assert "無權限修改其他治療師的設定" in response.json()["detail"]
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)

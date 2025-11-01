@@ -286,7 +286,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
     try {
       await apiService.cancelClinicAppointment(modalState.data.resource.appointment_id);
-
+      
       // Refresh data
       await fetchCalendarData();
       setModalState({ type: null, data: null });

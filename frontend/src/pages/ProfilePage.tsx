@@ -4,6 +4,7 @@ import { useProfileForm } from '../hooks/useProfileForm';
 import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection';
 import ProfileForm from '../components/ProfileForm';
 import AvailabilitySettings from '../components/AvailabilitySettings';
+import PractitionerAppointmentTypes from '../components/PractitionerAppointmentTypes';
 import WarningDialog from '../components/WarningDialog';
 
 const ProfilePage: React.FC = () => {
@@ -100,6 +101,13 @@ const ProfilePage: React.FC = () => {
                   onUpdateInterval={handleUpdateInterval}
                   onRemoveInterval={handleRemoveInterval}
                 />
+              )}
+
+              {/* Practitioner Appointment Types (Only for practitioners) */}
+              {profile.roles?.includes('practitioner') && (
+                <div className="border-t pt-6">
+                  <PractitionerAppointmentTypes />
+                </div>
               )}
 
               {/* Error Display */}

@@ -265,6 +265,29 @@ class ApiService {
     return response.data;
   }
 
+  // Practitioner Appointment Type Management APIs
+  async getPractitionerAppointmentTypes(userId: number): Promise<{ practitioner_id: number; appointment_types: { id: number; clinic_id: number; name: string; duration_minutes: number }[] }> {
+    const response = await this.client.get(`/clinic/practitioners/${userId}/appointment-types`);
+    return response.data;
+  }
+
+  async updatePractitionerAppointmentTypes(userId: number, appointmentTypeIds: number[]): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.put(`/clinic/practitioners/${userId}/appointment-types`, {
+      appointment_type_ids: appointmentTypeIds
+    });
+    return response.data;
+  }
+
+  // Practitioner Status Check APIs (for admin warnings)
+  async getPractitionerStatus(userId: number): Promise<{
+    has_appointment_types: boolean;
+    has_availability: boolean;
+    appointment_types_count: number;
+  }> {
+    const response = await this.client.get(`/clinic/practitioners/${userId}/status`);
+    return response.data;
+  }
+
   // Profile Management APIs
   async getProfile(): Promise<any> {
     const response = await this.client.get('/profile');

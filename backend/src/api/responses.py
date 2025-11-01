@@ -158,6 +158,19 @@ class AvailableSlotResponse(BaseModel):
     end_time: str
 
 
+class PractitionerAppointmentTypesResponse(BaseModel):
+    """Response model for practitioner's appointment types."""
+    practitioner_id: int
+    appointment_types: List[AppointmentTypeResponse]
+
+
+class PractitionerStatusResponse(BaseModel):
+    """Response model for practitioner's configuration status."""
+    has_appointment_types: bool
+    has_availability: bool
+    appointment_types_count: int
+
+
 class AvailableSlotsResponse(BaseModel):
     """Response model for available slots query."""
     available_slots: List[AvailableSlotResponse]

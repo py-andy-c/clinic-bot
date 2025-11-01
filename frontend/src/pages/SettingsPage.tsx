@@ -6,6 +6,31 @@ import { useAuth } from '../hooks/useAuth';
 
 const SettingsPage: React.FC = () => {
   const { isClinicAdmin } = useAuth();
+
+  // Only clinic admins can access clinic settings
+  if (!isClinicAdmin) {
+    return (
+      <div className="space-y-8">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">診所設定</h1>
+          </div>
+        </div>
+
+        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-6 text-center">
+          <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-yellow-600 text-xl">⚠️</span>
+          </div>
+          <h3 className="text-lg font-medium text-yellow-800 mb-2">無權限存取設定</h3>
+          <p className="text-yellow-700">
+            只有診所管理員才能查看此頁面。如有需要，請聯絡管理員。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // For clinic admins, show clinic settings
   const [settings, setSettings] = useState<ClinicSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -282,3 +307,4 @@ const SettingsPage: React.FC = () => {
 };
 
 export default SettingsPage;
+

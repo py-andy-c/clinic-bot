@@ -19,14 +19,14 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
-from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability
-from services import PatientService, AppointmentService
+from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, PractitionerAppointmentTypes
+from services import PatientService, AppointmentService, PractitionerService
 from services.google_oauth import GoogleOAuthService
 from services.notification_service import NotificationService, CancellationSource
 from api.responses import (
     ClinicPatientResponse, ClinicPatientListResponse,
     ClinicAppointmentResponse, ClinicAppointmentsResponse,
-    AppointmentTypeResponse
+    AppointmentTypeResponse, PractitionerAppointmentTypesResponse, PractitionerStatusResponse
 )
 
 router = APIRouter()
@@ -82,6 +82,11 @@ class PractitionerAvailabilityRequest(BaseModel):
     day_of_week: int  # 0=Monday, 1=Tuesday, ..., 6=Sunday
     start_time: str  # HH:MM format
     end_time: str    # HH:MM format
+
+
+class PractitionerAppointmentTypesUpdateRequest(BaseModel):
+    """Request model for updating practitioner's appointment types."""
+    appointment_type_ids: List[int]
 
 
 class PractitionerAvailabilityResponse(BaseModel):
@@ -1087,6 +1092,185 @@ async def cancel_clinic_appointment(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="取消預約失敗"
+        )
+
+
+# ===== Practitioner Appointment Type Management =====
+
+@router.get("/practitioners/{user_id}/appointment-types", summary="Get practitioner's appointment types")
+async def get_practitioner_appointment_types(
+    user_id: int,
+    current_user: UserContext = Depends(require_clinic_member),
+    db: Session = Depends(get_db)
+) -> PractitionerAppointmentTypesResponse:
+    """
+    Get all appointment types offered by a practitioner.
+
+    Practitioners can view their own appointment types.
+    Clinic admins can view any practitioner's appointment types.
+    """
+    # Check permissions - practitioners can only view their own, admins can view anyone's
+    if not current_user.has_role('admin') and current_user.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="無權限查看其他治療師的設定"
+        )
+
+    try:
+        appointment_types = PractitionerService.get_practitioner_appointment_types(
+            db=db,
+            practitioner_id=user_id
+        )
+
+        return PractitionerAppointmentTypesResponse(
+            practitioner_id=user_id,
+            appointment_types=[
+                AppointmentTypeResponse(
+                    id=at.id,
+                    clinic_id=at.clinic_id,
+                    name=at.name,
+                    duration_minutes=at.duration_minutes
+                ) for at in appointment_types
+            ]
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to get practitioner appointment types for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="獲取治療師預約類型失敗"
+        )
+
+
+@router.put("/practitioners/{user_id}/appointment-types", summary="Update practitioner's appointment types")
+async def update_practitioner_appointment_types(
+    user_id: int,
+    request: PractitionerAppointmentTypesUpdateRequest,
+    current_user: UserContext = Depends(require_clinic_member),
+    db: Session = Depends(get_db)
+):
+    """
+    Update the appointment types offered by a practitioner.
+
+    Practitioners can only update their own appointment types.
+    Clinic admins can update any practitioner's appointment types.
+    """
+    # Check permissions - practitioners can only update their own, admins can update anyone's
+    if not current_user.has_role('admin') and current_user.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="無權限修改其他治療師的設定"
+        )
+
+    try:
+        # Validate that the practitioner exists and belongs to the same clinic
+        practitioner = db.query(User).filter(
+            User.id == user_id,
+            User.clinic_id == current_user.clinic_id
+        ).first()
+
+        if not practitioner:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="治療師不存在"
+            )
+
+        # Validate that all appointment type IDs exist and belong to the clinic
+        for type_id in request.appointment_type_ids:
+            appointment_type = db.query(AppointmentType).filter(
+                AppointmentType.id == type_id,
+                AppointmentType.clinic_id == current_user.clinic_id
+            ).first()
+
+            if not appointment_type:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"預約類型 ID {type_id} 不存在或不屬於此診所"
+                )
+
+        # Update the practitioner's appointment types
+        success = PractitionerService.update_practitioner_appointment_types(
+            db=db,
+            practitioner_id=user_id,
+            appointment_type_ids=request.appointment_type_ids
+        )
+
+        if success:
+            return {"success": True, "message": "治療師預約類型已更新"}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="更新治療師預約類型失敗"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to update practitioner appointment types for user {user_id}: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="更新治療師預約類型失敗"
+        )
+
+
+@router.get("/practitioners/{user_id}/status", summary="Get practitioner's configuration status")
+async def get_practitioner_status(
+    user_id: int,
+    current_user: UserContext = Depends(require_clinic_member),
+    db: Session = Depends(get_db)
+) -> PractitionerStatusResponse:
+    """
+    Get practitioner's configuration status for warnings.
+
+    This endpoint checks if a practitioner has configured appointment types
+    and availability settings, used for displaying warnings to admins.
+    """
+    # Check permissions - clinic members can view practitioner status
+    practitioner = db.query(User).filter(User.id == user_id).first()
+    if not practitioner or current_user.clinic_id != practitioner.clinic_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="無權限查看此治療師的狀態"
+        )
+
+    try:
+        practitioner = db.query(User).filter(
+            User.id == user_id,
+            User.clinic_id == current_user.clinic_id
+        ).first()
+
+        if not practitioner:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="治療師不存在"
+            )
+
+        # Check if practitioner has appointment types configured
+        appointment_types_count = db.query(PractitionerAppointmentTypes).filter(
+            PractitionerAppointmentTypes.user_id == user_id
+        ).count()
+
+        # Check if practitioner has availability configured
+        availability_count = db.query(PractitionerAvailability).filter(
+            PractitionerAvailability.user_id == user_id
+        ).count()
+
+        return PractitionerStatusResponse(
+            has_appointment_types=appointment_types_count > 0,
+            has_availability=availability_count > 0,
+            appointment_types_count=appointment_types_count
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to get practitioner status for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="獲取治療師狀態失敗"
         )
 
 

@@ -1,0 +1,161 @@
+import React from 'react';
+import { useAuth } from '../hooks/useAuth';
+import { apiService } from '../services/api';
+
+const PractitionerAppointmentTypes: React.FC = () => {
+  const { user } = useAuth();
+  const [availableTypes, setAvailableTypes] = React.useState<any[]>([]);
+  const [selectedTypeIds, setSelectedTypeIds] = React.useState<number[]>([]);
+  const [hasAvailability, setHasAvailability] = React.useState<boolean>(true);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [user]);
+
+  const fetchData = async () => {
+    if (!user?.user_id) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get clinic settings to get all available appointment types
+      const clinicSettings = await apiService.getClinicSettings();
+      setAvailableTypes(clinicSettings.appointment_types);
+
+      // Get practitioner's current appointment types
+      const practitionerData = await apiService.getPractitionerAppointmentTypes(user.user_id);
+      setSelectedTypeIds(practitionerData.appointment_types.map((at: any) => at.id));
+
+      // Get practitioner's status (includes availability check)
+      const status = await apiService.getPractitionerStatus(user.user_id);
+      setHasAvailability(status.has_availability);
+
+    } catch (err) {
+      console.error('Error fetching practitioner appointment types:', err);
+      setError('無法載入預約類型設定');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTypeToggle = (typeId: number) => {
+    setSelectedTypeIds(prev =>
+      prev.includes(typeId)
+        ? prev.filter(id => id !== typeId)
+        : [...prev, typeId]
+    );
+  };
+
+  const handleSave = async () => {
+    if (!user?.user_id) return;
+
+    try {
+      setSaving(true);
+      await apiService.updatePractitionerAppointmentTypes(user.user_id, selectedTypeIds);
+      alert('預約類型設定已儲存');
+    } catch (err) {
+      console.error('Error saving practitioner appointment types:', err);
+      alert('儲存失敗，請稍後再試');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold text-gray-900">提供的預約類型</h2>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="btn-primary"
+        >
+          {saving ? '儲存中...' : '儲存設定'}
+        </button>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <p className="text-red-800">{error}</p>
+        </div>
+      )}
+
+      {(selectedTypeIds.length === 0 || !hasAvailability) && (
+        <div className="space-y-3">
+          {selectedTypeIds.length === 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+              <div className="flex items-center">
+                <div className="w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center mr-3">
+                  <span className="text-white text-sm">⚠️</span>
+                </div>
+                <div>
+                  <p className="text-yellow-800 font-medium">尚未設定提供的預約類型</p>
+                  <p className="text-yellow-700 text-sm">患者將無法選擇您進行預約，請選擇您可以提供的服務類型。</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!hasAvailability && (
+            <div className="bg-orange-50 border border-orange-200 rounded-md p-4">
+              <div className="flex items-center">
+                <div className="w-5 h-5 bg-orange-400 rounded-full flex items-center justify-center mr-3">
+                  <span className="text-white text-sm">⚠️</span>
+                </div>
+                <div>
+                  <p className="text-orange-800 font-medium">尚未設定工作時間</p>
+                  <p className="text-orange-700 text-sm">請設定您的工作時間，這樣患者才能預約您的時段。</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {availableTypes.map((type) => (
+          <div key={type.id} className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-300">
+            <input
+              type="checkbox"
+              id={`type-${type.id}`}
+              checked={selectedTypeIds.includes(type.id)}
+              onChange={() => handleTypeToggle(type.id)}
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+            />
+            <label htmlFor={`type-${type.id}`} className="ml-3 flex-1 cursor-pointer">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="font-medium text-gray-900">{type.name}</span>
+                  <span className="ml-2 text-sm text-gray-500">({type.duration_minutes} 分鐘)</span>
+                </div>
+                {selectedTypeIds.includes(type.id) && (
+                  <span className="text-primary-600">✓</span>
+                )}
+              </div>
+            </label>
+          </div>
+        ))}
+
+        {availableTypes.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            診所尚未設定任何預約類型，請聯絡管理員。
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default PractitionerAppointmentTypes;

@@ -1,11 +1,140 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
+import { apiService } from '../services/api';
 
 interface ClinicLayoutProps {
   children: React.ReactNode;
 }
+
+// Global Warnings Component
+const GlobalWarnings: React.FC = () => {
+  const { user, isClinicAdmin, hasRole } = useAuth();
+  const [warnings, setWarnings] = useState<{
+    practitionerWarnings: { hasAppointmentTypes: boolean; hasAvailability: boolean };
+    adminWarnings: Array<{ id: number; full_name: string; hasAppointmentTypes: boolean; hasAvailability: boolean }>;
+  }>({
+    practitionerWarnings: { hasAppointmentTypes: true, hasAvailability: true },
+    adminWarnings: []
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchWarnings();
+  }, [user, isClinicAdmin]);
+
+  const fetchWarnings = async () => {
+    if (!user?.user_id) return;
+
+    try {
+      setLoading(true);
+
+      // Fetch practitioner's own warnings if they are a practitioner
+      let practitionerWarnings = { hasAppointmentTypes: true, hasAvailability: true };
+      if (hasRole && hasRole('practitioner')) {
+        const status = await apiService.getPractitionerStatus(user.user_id);
+        practitionerWarnings = {
+          hasAppointmentTypes: status.has_appointment_types,
+          hasAvailability: status.has_availability
+        };
+      }
+
+      // Fetch admin warnings if user is admin
+      let adminWarnings: Array<{ id: number; full_name: string; hasAppointmentTypes: boolean; hasAvailability: boolean }> = [];
+      if (isClinicAdmin) {
+        const members = await apiService.getMembers();
+        for (const member of members) {
+          if (member.roles.includes('practitioner') && member.is_active) {
+            try {
+              const status = await apiService.getPractitionerStatus(member.id);
+              if (!status.has_appointment_types || !status.has_availability) {
+                adminWarnings.push({
+                  id: member.id,
+                  full_name: member.full_name,
+                  hasAppointmentTypes: status.has_appointment_types,
+                  hasAvailability: status.has_availability
+                });
+              }
+            } catch (err) {
+              // Continue with other practitioners
+            }
+          }
+        }
+      }
+
+      setWarnings({
+        practitionerWarnings,
+        adminWarnings
+      });
+    } catch (err) {
+      console.error('Error fetching warnings:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const hasAnyWarnings = !warnings.practitionerWarnings.hasAppointmentTypes ||
+                         !warnings.practitionerWarnings.hasAvailability ||
+                         warnings.adminWarnings.length > 0;
+
+  if (loading || !hasAnyWarnings) {
+    return null;
+  }
+
+  return (
+    <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-start">
+          <div className="flex-shrink-0">
+            <span className="text-amber-600 text-lg">⚠️</span>
+          </div>
+          <div className="ml-3 flex-1">
+            <h3 className="text-sm font-medium text-amber-800">設定提醒</h3>
+            <div className="mt-2 space-y-2">
+              {/* Practitioner warnings */}
+              {(!warnings.practitionerWarnings.hasAppointmentTypes || !warnings.practitionerWarnings.hasAvailability) && (
+                <div className="text-sm text-amber-700">
+                  <strong>您的治療師設定：</strong>
+                  <ul className="mt-1 ml-4 list-disc">
+                    {!warnings.practitionerWarnings.hasAppointmentTypes && (
+                      <li>尚未設定提供的預約類型 - 患者將無法選擇您進行預約</li>
+                    )}
+                    {!warnings.practitionerWarnings.hasAvailability && (
+                      <li>尚未設定工作時間 - 請設定您的工作時間以便患者預約</li>
+                    )}
+                  </ul>
+                  <p className="mt-2">
+                    <a href="/profile" className="text-amber-800 underline hover:text-amber-900">
+                      前往個人設定頁面設定
+                    </a>
+                  </p>
+                </div>
+              )}
+
+              {/* Admin warnings */}
+              {warnings.adminWarnings.length > 0 && (
+                <div className="text-sm text-amber-700">
+                  <strong>治療師設定提醒：</strong>
+                  <ul className="mt-1 ml-4 list-disc">
+                    {warnings.adminWarnings.map(practitioner => (
+                      <li key={practitioner.id}>
+                        {practitioner.full_name}：
+                        {!practitioner.hasAppointmentTypes && !practitioner.hasAvailability && '未設定預約類型和工作時間'}
+                        {!practitioner.hasAppointmentTypes && practitioner.hasAvailability && '未設定預約類型'}
+                        {practitioner.hasAppointmentTypes && !practitioner.hasAvailability && '未設定工作時間'}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   const { user, logout, isClinicAdmin, isPractitioner, isReadOnlyUser } = useAuth();
@@ -176,6 +305,9 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
           </div>
         )}
       </nav>
+
+      {/* Global Warnings */}
+      <GlobalWarnings />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
