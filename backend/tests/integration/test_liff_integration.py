@@ -198,12 +198,12 @@ class TestLiffDatabaseOperations:
 
         try:
             # Book appointment
-            tomorrow = (datetime.now() + timedelta(days=1)).date().isoformat()
+            future_date = (datetime.now() + timedelta(days=3)).date().isoformat()
             appointment_data = {
                 "patient_id": patient.id,
                 "appointment_type_id": appt_types[0].id,
                 "practitioner_id": practitioner.id,
-                "start_time": f"{tomorrow}T10:00:00+08:00",
+                "start_time": f"{future_date}T10:00:00+08:00",
                 "notes": "Integration test appointment"
             }
 
@@ -217,7 +217,7 @@ class TestLiffDatabaseOperations:
 
             # Verify database state (time is stored in UTC)
             calendar_event = db_session.query(CalendarEvent).filter(
-                CalendarEvent.date == datetime.fromisoformat(tomorrow).date(),
+                CalendarEvent.date == datetime.fromisoformat(future_date).date(),
                 CalendarEvent.start_time == time(2, 0)  # 10:00 UTC+8 = 02:00 UTC
             ).first()
             assert calendar_event is not None
@@ -488,8 +488,8 @@ class TestLiffReturningUserFlow:
                 assert response.status_code == 200
 
             # Book appointment for first patient
-            tomorrow = (datetime.now() + timedelta(days=1)).date().isoformat()
-            start_time = f"{tomorrow}T10:00:00+08:00"
+            future_date = (datetime.now() + timedelta(days=3)).date().isoformat()
+            start_time = f"{future_date}T10:00:00+08:00"
 
             appointment_data = {
                 "patient_id": patients[0]["patient_id"],  # Use patient_id from creation response
@@ -505,7 +505,7 @@ class TestLiffReturningUserFlow:
 
             # Book appointment for second patient
             appointment_data["patient_id"] = patients[1]["patient_id"]  # Use patient_id from creation response
-            appointment_data["start_time"] = f"{tomorrow}T11:00:00+08:00"
+            appointment_data["start_time"] = f"{future_date}T11:00:00+08:00"
             appointment_data["notes"] = "女兒的預約"
 
             response = client.post("/api/liff/appointments", json=appointment_data)
@@ -749,8 +749,8 @@ class TestLiffAvailabilityAndScheduling:
             patient = response.json()
 
             # Book appointment
-            tomorrow = (datetime.now() + timedelta(days=1)).date()
-            start_time = f"{tomorrow.isoformat()}T10:30:00+08:00"
+            future_date = (datetime.now() + timedelta(days=3)).date()
+            start_time = f"{future_date.isoformat()}T10:30:00+08:00"
 
             response = client.post(
                 "/api/liff/appointments",
@@ -767,7 +767,7 @@ class TestLiffAvailabilityAndScheduling:
 
             # Verify CalendarEvent was created (time is stored in UTC)
             calendar_event = db_session.query(CalendarEvent).filter(
-                CalendarEvent.date == tomorrow,
+                CalendarEvent.date == future_date,
                 CalendarEvent.start_time == time(2, 30),  # 10:30 UTC+8 = 02:30 UTC
                 CalendarEvent.user_id == practitioner.id
             ).first()

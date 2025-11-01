@@ -12,10 +12,10 @@ All endpoints require JWT authentication from LIFF login flow.
 import logging
 import jwt
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -87,8 +87,28 @@ class PatientCreateRequest(BaseModel):
 
 
 
+def parse_datetime(v: str | datetime) -> datetime:
+    """Parse datetime from string or return datetime object."""
+    if isinstance(v, str):
+        # Parse ISO format datetime string
+        try:
+            # Try parsing with timezone info
+            return datetime.fromisoformat(v.replace('Z', '+00:00'))
+        except ValueError:
+            # If no timezone, assume UTC
+            dt = datetime.fromisoformat(v)
+            return dt.replace(tzinfo=timezone.utc)
+    return v
+
+
 class AppointmentCreateRequest(BaseModel):
     """Request model for creating appointment."""
+    model_config = {
+        "json_encoders": {
+            datetime: lambda v: v.isoformat()
+        }
+    }
+
     patient_id: int
     appointment_type_id: int
     practitioner_id: Optional[int] = None  # null for "不指定"
@@ -105,10 +125,18 @@ class AppointmentCreateRequest(BaseModel):
             raise ValueError('Invalid characters in notes')
         return v
 
+    @model_validator(mode='before')
+    @classmethod
+    def parse_datetime_fields(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse datetime strings before validation."""
+        if 'start_time' in values:
+            if isinstance(values['start_time'], str):
+                values['start_time'] = parse_datetime(values['start_time'])
+        return values
+
     @field_validator('start_time')
     @classmethod
     def validate_time(cls, v: datetime) -> datetime:
-        from datetime import timezone
         now = datetime.now(timezone.utc)
         # Ensure v is timezone-aware for comparison
         if v.tzinfo is None:
