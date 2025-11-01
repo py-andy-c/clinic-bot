@@ -14,9 +14,6 @@ const Step5AddNotes: React.FC = () => {
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
           備註（選填）
         </h2>
-        <p className="text-gray-600">
-          如有特殊需求或注意事項，請在此說明
-        </p>
       </div>
 
       <div className="mb-6">

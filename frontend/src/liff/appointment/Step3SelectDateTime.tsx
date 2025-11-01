@@ -85,9 +85,6 @@ const Step3SelectDateTime: React.FC = () => {
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
           選擇日期與時間
         </h2>
-        <p className="text-gray-600">
-          請選擇您方便的就診日期和時間
-        </p>
       </div>
 
       {/* Date Selection */}

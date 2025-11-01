@@ -62,9 +62,6 @@ const Step1SelectType: React.FC = () => {
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
           選擇預約類型
         </h2>
-        <p className="text-gray-600">
-          請選擇您想要預約的服務類型
-        </p>
       </div>
 
       <div className="space-y-3">

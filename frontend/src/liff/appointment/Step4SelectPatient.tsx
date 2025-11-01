@@ -109,9 +109,6 @@ const Step4SelectPatient: React.FC = () => {
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
           選擇就診人
         </h2>
-        <p className="text-gray-600">
-          請選擇本次預約的就診人
-        </p>
       </div>
 
       <div className="space-y-3">

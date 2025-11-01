@@ -51,11 +51,8 @@ const AppointmentFlow: React.FC = () => {
       {/* Header with progress */}
       <div className="bg-white shadow-sm">
         <div className="max-w-md mx-auto px-4 py-4">
-          <div className="flex items-center justify-between mb-2">
+          <div className="mb-2">
             <h1 className="text-lg font-semibold text-gray-900">線上約診</h1>
-            <span className="text-sm text-gray-500">
-              步驟 {step} / {steps.length}
-            </span>
           </div>
 
           {/* Progress bar */}

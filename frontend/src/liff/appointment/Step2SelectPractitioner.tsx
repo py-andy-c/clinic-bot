@@ -62,9 +62,6 @@ const Step2SelectPractitioner: React.FC = () => {
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
           選擇治療師
         </h2>
-        <p className="text-gray-600">
-          請選擇您偏好的治療師，或選擇「不指定治療師」
-        </p>
       </div>
 
       <div className="space-y-3">
@@ -112,9 +109,6 @@ const Step2SelectPractitioner: React.FC = () => {
                 )}
                 <div>
                   <h3 className="font-medium text-gray-900">{practitioner.full_name}</h3>
-                  <p className="text-sm text-gray-500">
-                    可提供 {practitioner.offered_types.length} 種服務
-                  </p>
                 </div>
               </div>
               <div className="text-primary-600">

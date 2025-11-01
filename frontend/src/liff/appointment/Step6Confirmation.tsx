@@ -54,9 +54,6 @@ const Step6Confirmation: React.FC = () => {
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
           確認預約
         </h2>
-        <p className="text-gray-600">
-          請確認預約資訊是否正確
-        </p>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
