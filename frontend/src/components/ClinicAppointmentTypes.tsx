@@ -29,6 +29,7 @@ const ClinicAppointmentTypes: React.FC<ClinicAppointmentTypesProps> = ({
         <div className="flex items-center space-x-3">
           {showSaveButton && onSave && (
             <button
+              type="button"
               onClick={onSave}
               disabled={saving}
               className="btn-primary"
@@ -38,6 +39,7 @@ const ClinicAppointmentTypes: React.FC<ClinicAppointmentTypesProps> = ({
           )}
           {isClinicAdmin && (
             <button
+              type="button"
               onClick={onAddType}
               className="btn-secondary text-sm"
             >
@@ -85,6 +87,7 @@ const ClinicAppointmentTypes: React.FC<ClinicAppointmentTypesProps> = ({
             {isClinicAdmin && (
               <div className="flex items-end">
                 <button
+                  type="button"
                   onClick={() => onRemoveType(index)}
                   className="text-red-600 hover:text-red-800 p-2"
                   title="刪除"

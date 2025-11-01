@@ -23,6 +23,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
         <h2 className="text-xl font-semibold text-gray-900">提醒設定</h2>
         {showSaveButton && onSave && (
           <button
+            type="button"
             onClick={onSave}
             disabled={saving}
             className="btn-primary"

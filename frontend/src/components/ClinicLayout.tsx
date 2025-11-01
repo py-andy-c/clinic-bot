@@ -151,7 +151,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   };
 
   const handleNavigation = (href: string) => {
-    if (hasUnsavedChanges && location.pathname === '/profile') {
+    if (hasUnsavedChanges && (location.pathname === '/profile' || location.pathname === '/clinic/settings')) {
       const confirmed = window.confirm('您有未儲存的變更，確定要離開嗎？');
       if (!confirmed) {
         return;
