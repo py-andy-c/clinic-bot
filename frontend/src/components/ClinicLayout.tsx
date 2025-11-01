@@ -165,7 +165,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   };
 
   const navigation = [
-    { name: '行事曆', href: '/clinic/availability', icon: '📅', show: isPractitioner },
+    { name: '行事曆', href: '/calendar', icon: '📅', show: isPractitioner },
     { name: '團隊成員', href: '/clinic/members', icon: '👥', show: true }, // All clinic members can view
     { name: '病患管理', href: '/clinic/patients', icon: '👥', show: true },
     { name: '診所設定', href: '/clinic/settings', icon: '⚙️', show: true }, // All clinic members can view settings

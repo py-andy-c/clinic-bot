@@ -94,7 +94,7 @@ const ProtectedRoutes: React.FC = () => {
     // Determine default route based on user role
     const getDefaultRoute = () => {
       if (user?.roles?.includes('practitioner')) {
-        return '/clinic/availability'; // Calendar for practitioners
+        return '/calendar'; // Calendar for practitioners
       }
       return '/clinic/members'; // Members page for admins and read-only users
     };
@@ -106,7 +106,7 @@ const ProtectedRoutes: React.FC = () => {
           <Route path="/clinic/members" element={<MembersPage />} />
           <Route path="/clinic/patients" element={<PatientsPage />} />
           <Route path="/clinic/settings" element={<SettingsPage />} />
-          <Route path="/clinic/availability" element={<AvailabilityPage />} />
+          <Route path="/calendar" element={<AvailabilityPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to={getDefaultRoute()} replace />} />
         </Routes>
