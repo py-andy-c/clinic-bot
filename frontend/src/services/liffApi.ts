@@ -66,9 +66,9 @@ export interface AppointmentCreateRequest {
   clinic_id: number;
   patient_id: number;
   appointment_type_id: number;
-  practitioner_id?: number; // null for "不指定"
+  practitioner_id: number | undefined; // undefined for "不指定"
   start_time: string;
-  notes?: string;
+  notes: string | undefined;
 }
 
 export interface AppointmentResponse {
@@ -186,7 +186,7 @@ class LiffApiService {
     clinic_id: number;
     date: string;
     appointment_type_id: number;
-    practitioner_id?: number;
+    practitioner_id: number | undefined;
   }): Promise<AvailabilityResponse> {
     const response = await this.client.get('/availability', { params });
     return response.data;

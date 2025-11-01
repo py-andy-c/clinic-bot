@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAppointmentStore } from '../../stores/appointmentStore';
-import { useLineAuth } from '../../hooks/useLineAuth';
 import { liffApiService } from '../../services/liffApi';
 
 const Step3SelectDateTime: React.FC = () => {
-  const { appointmentTypeId, practitionerId, setDateTime } = useAppointmentStore();
-  const { clinicId } = useLineAuth();
+  const { appointmentTypeId, practitionerId, setDateTime, clinicId } = useAppointmentStore();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -44,7 +42,7 @@ const Step3SelectDateTime: React.FC = () => {
         clinic_id: clinicId,
         date,
         appointment_type_id: appointmentTypeId,
-        practitioner_id: practitionerId || undefined,
+        practitioner_id: practitionerId ?? undefined,
       });
 
       // Extract time slots from response
@@ -60,7 +58,7 @@ const Step3SelectDateTime: React.FC = () => {
 
   const handleDateSelect = (date: Date) => {
     const dateString = date.toISOString().split('T')[0];
-    setSelectedDate(dateString);
+    setSelectedDate(dateString as string);
   };
 
   const handleTimeSelect = (time: string) => {

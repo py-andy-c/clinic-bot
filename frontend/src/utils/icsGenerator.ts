@@ -5,7 +5,7 @@ export interface AppointmentData {
   patient_name: string;
   start_time: string;
   end_time: string;
-  notes?: string;
+  notes: string | undefined;
   clinic_name?: string;
   clinic_address?: string;
 }
@@ -15,7 +15,6 @@ export const downloadAppointmentICS = (appointment: AppointmentData) => {
     id,
     appointment_type_name,
     practitioner_name,
-    patient_name,
     start_time,
     end_time,
     notes,
@@ -78,7 +77,6 @@ export const shareAppointmentICS = async (appointment: AppointmentData) => {
   const {
     id,
     appointment_type_name,
-    practitioner_name,
     start_time,
     clinic_name = '診所'
   } = appointment;
@@ -107,7 +105,6 @@ const createICSContent = (appointment: AppointmentData): string => {
     id,
     appointment_type_name,
     practitioner_name,
-    patient_name,
     start_time,
     end_time,
     notes,

@@ -4,8 +4,8 @@ import liff from '@line/liff';
 interface LiffProfile {
   userId: string;
   displayName: string;
-  pictureUrl?: string;
-  statusMessage?: string;
+  pictureUrl: string | undefined;
+  statusMessage: string | undefined;
 }
 
 interface UseLiffReturn {

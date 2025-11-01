@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAppointmentStore, Practitioner } from '../../stores/appointmentStore';
-import { useLineAuth } from '../../hooks/useLineAuth';
 import { liffApiService } from '../../services/liffApi';
 
 const Step2SelectPractitioner: React.FC = () => {
-  const { appointmentTypeId, setPractitioner } = useAppointmentStore();
-  const { clinicId } = useLineAuth();
+  const { appointmentTypeId, setPractitioner, clinicId } = useAppointmentStore();
   const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

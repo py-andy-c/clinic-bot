@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import { useAppointmentStore } from '../../stores/appointmentStore';
-import { useLineAuth } from '../../hooks/useLineAuth';
 import { liffApiService } from '../../services/liffApi';
 
 const Step6Confirmation: React.FC = () => {
-  const { appointmentType, practitioner, date, startTime, patient, notes, reset } = useAppointmentStore();
-  const { clinicId } = useLineAuth();
+  const { appointmentType, practitioner, date, startTime, patient, notes, clinicId } = useAppointmentStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,7 +20,7 @@ const Step6Confirmation: React.FC = () => {
         clinic_id: clinicId,
         patient_id: patient.id,
         appointment_type_id: appointmentType.id,
-        practitioner_id: practitioner?.id || null,
+        practitioner_id: practitioner?.id ?? undefined,
         start_time: startDateTime.toISOString(),
         notes: notes || undefined,
       });

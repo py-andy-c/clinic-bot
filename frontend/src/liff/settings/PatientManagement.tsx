@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLineAuth } from '../../hooks/useLineAuth';
+import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 
 interface Patient {
@@ -9,7 +9,7 @@ interface Patient {
 }
 
 const PatientManagement: React.FC = () => {
-  const { clinicId } = useLineAuth();
+  const { clinicId } = useAppointmentStore();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
