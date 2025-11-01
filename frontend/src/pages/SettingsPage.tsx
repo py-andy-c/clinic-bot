@@ -3,6 +3,9 @@ import { apiService } from '../services/api';
 import { ClinicSettings } from '../schemas/api';
 import { AppointmentType } from '../types';
 import { useAuth } from '../hooks/useAuth';
+import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection';
+import ClinicAppointmentTypes from '../components/ClinicAppointmentTypes';
+import ClinicReminderSettings from '../components/ClinicReminderSettings';
 
 const SettingsPage: React.FC = () => {
   const { isClinicAdmin, isClinicUser } = useAuth();
@@ -32,6 +35,7 @@ const SettingsPage: React.FC = () => {
 
   // For all clinic users, show clinic settings (read-only for non-admins)
   const [settings, setSettings] = useState<ClinicSettings | null>(null);
+  const [originalSettings, setOriginalSettings] = useState<ClinicSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +49,7 @@ const SettingsPage: React.FC = () => {
       setLoading(true);
       const data = await apiService.getClinicSettings();
       setSettings(data);
+      setOriginalSettings(JSON.parse(JSON.stringify(data))); // Deep clone for comparison
     } catch (err) {
       setError('無法載入設定');
       console.error('Fetch settings error:', err);
@@ -52,6 +57,26 @@ const SettingsPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = () => {
+    if (!settings || !originalSettings) return false;
+    return JSON.stringify(settings) !== JSON.stringify(originalSettings);
+  };
+
+  // Check for specific section changes
+  const hasAppointmentTypeChanges = () => {
+    if (!settings || !originalSettings) return false;
+    return JSON.stringify(settings.appointment_types) !== JSON.stringify(originalSettings.appointment_types);
+  };
+
+  const hasReminderSettingsChanges = () => {
+    if (!settings || !originalSettings) return false;
+    return settings.notification_settings.reminder_hours_before !== originalSettings.notification_settings.reminder_hours_before;
+  };
+
+  // Setup navigation warnings for unsaved changes
+  useUnsavedChangesDetection({ hasUnsavedChanges: () => hasUnsavedChanges() });
 
   const validateSettings = (): string | null => {
     if (!settings) return '設定資料不存在';
@@ -105,7 +130,9 @@ const SettingsPage: React.FC = () => {
     try {
       setSaving(true);
       await apiService.updateClinicSettings(settingsToSave);
-      alert('設定已儲存');
+      // Update original settings after successful save
+      setOriginalSettings(JSON.parse(JSON.stringify(settings)));
+      alert('設定已更新');
     } catch (err) {
       console.error('Save settings error:', err);
       alert('儲存設定失敗，請稍後再試');
@@ -173,135 +200,74 @@ const SettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">設定</h1>
-        </div>
-        {isClinicAdmin ? (
-          <button
-            onClick={handleSaveSettings}
-            disabled={saving}
-            className="btn-primary"
-          >
-            {saving ? '儲存中...' : '儲存設定'}
-          </button>
-        ) : (
-          <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-md">
-            🔒 唯讀模式 - 僅管理員可修改設定
-          </div>
-        )}
-      </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <p className="text-red-800">{error}</p>
-        </div>
-      )}
-
-      {/* Appointment Types */}
-      <div className="card">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-medium text-gray-900">預約類型</h2>
-          {isClinicAdmin && (
-            <button
-              onClick={addAppointmentType}
-              className="btn-secondary text-sm"
-            >
-              新增類型
-            </button>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">診所設定</h1>
+          {!isClinicAdmin && (
+            <div className="mt-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-md inline-block">
+              🔒 唯讀模式 - 僅管理員可修改設定
+            </div>
           )}
         </div>
 
-        <div className="space-y-4">
-          {settings.appointment_types.map((type, index) => (
-            <div key={type.id} className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  類型名稱
-                </label>
-                <input
-                  type="text"
-                  value={type.name}
-                  onChange={(e) => updateAppointmentType(index, 'name', e.target.value)}
-                  className="input"
-                  placeholder="例如：初診評估"
-                  disabled={!isClinicAdmin}
-                />
-              </div>
+        <div className="space-y-8">
+          {/* Single Form */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <form onSubmit={(e) => { e.preventDefault(); handleSaveSettings(); }}>
+              {/* Appointment Types */}
+              <ClinicAppointmentTypes
+                appointmentTypes={settings.appointment_types}
+                onAddType={addAppointmentType}
+                onUpdateType={updateAppointmentType}
+                onRemoveType={removeAppointmentType}
+                showSaveButton={hasAppointmentTypeChanges()}
+                onSave={handleSaveSettings}
+                saving={saving}
+                isClinicAdmin={isClinicAdmin}
+              />
 
-              <div className="w-32">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  時長 (分鐘)
-                </label>
-                <input
-                  type="number"
-                  value={type.duration_minutes}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    updateAppointmentType(index, 'duration_minutes', value);
-                  }}
-                  className="input"
-                  min="15"
-                  max="480"
-                  disabled={!isClinicAdmin}
-                />
-              </div>
+              {/* Reminder Settings */}
+              <ClinicReminderSettings
+                reminderHoursBefore={settings.notification_settings.reminder_hours_before}
+                onReminderHoursChange={(value) => {
+                  setSettings({
+                    ...settings,
+                    notification_settings: {
+                      ...settings.notification_settings,
+                      reminder_hours_before: value
+                    }
+                  });
+                }}
+                showSaveButton={hasReminderSettingsChanges()}
+                onSave={handleSaveSettings}
+                saving={saving}
+                isClinicAdmin={isClinicAdmin}
+              />
 
-              {isClinicAdmin && (
-                <div className="flex items-end">
-                  <button
-                    onClick={() => removeAppointmentType(index)}
-                    className="text-red-600 hover:text-red-800 p-2"
-                    title="刪除"
-                  >
-                    🗑️
-                  </button>
+              {/* Error Display */}
+              {error && (
+                <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-md">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-red-800">錯誤</h3>
+                      <div className="mt-2 text-sm text-red-700">
+                        <p>{error}</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
-            </div>
-          ))}
-
-          {settings.appointment_types.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              尚未設定任何預約類型
-            </div>
-          )}
+            </form>
+          </div>
         </div>
       </div>
-
-      {/* Reminder Settings */}
-      <div className="card">
-        <h2 className="text-lg font-medium text-gray-900 mb-6">提醒設定</h2>
-
-        <div className="max-w-md">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            預約前幾小時發送提醒
-          </label>
-          <input
-            type="number"
-            value={settings.notification_settings.reminder_hours_before}
-            onChange={(e) => {
-              const value = e.target.value;
-              setSettings({
-                ...settings,
-                notification_settings: {
-                  ...settings.notification_settings,
-                  reminder_hours_before: value // Allow any input during editing
-                }
-              });
-            }}
-            className="input"
-            min="1"
-            max="168"
-            disabled={!isClinicAdmin}
-          />
-          <p className="text-sm text-gray-500 mt-1">
-            預設為 24 小時前發送提醒
-          </p>
-        </div>
-      </div>
-
     </div>
   );
 };
