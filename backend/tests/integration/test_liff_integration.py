@@ -348,25 +348,25 @@ class TestLiffDatabaseOperations:
             appt_types_data = response.json()["appointment_types"]
             assert len(appt_types_data) == 3
 
-            # Step 3: Check availability for tomorrow
-            tomorrow = (datetime.now() + timedelta(days=1)).date().isoformat()
+            # Step 3: Check availability for 2 days from now (to ensure it's definitely in the future)
+            future_date = (datetime.now() + timedelta(days=2)).date().isoformat()
             appt_type_id = appt_types_data[0]["id"]
 
             response = client.get(
-                f"/api/liff/availability?date={tomorrow}&appointment_type_id={appt_type_id}"
+                f"/api/liff/availability?date={future_date}&appointment_type_id={appt_type_id}"
             )
             assert response.status_code == 200
             availability = response.json()
             assert "slots" in availability
             assert len(availability["slots"]) > 0  # Should have available slots
 
-            # Step 4: Book appointment
+            # Step 4: Book appointment using the first available slot
             slot = availability["slots"][0]
             appointment_data = {
-                "patient_id": 1,  # Primary patient
+                "patient_id": primary_patient.id,  # Use actual patient ID
                 "appointment_type_id": appt_type_id,
                 "practitioner_id": slot["practitioner_id"],
-                "start_time": f"{tomorrow}T{slot['start_time']}:00+08:00",
+                "start_time": f"{future_date}T{slot['start_time']}:00+08:00",
                 "notes": "First appointment booking"
             }
 
@@ -557,10 +557,10 @@ class TestLiffReturningUserFlow:
             )
             patient = response.json()
 
-            # Book multiple appointments at different times
+            # Book multiple appointments at different times - use dates definitely in the future
             appointments_data = [
-                (f"{(datetime.now() + timedelta(days=1)).date().isoformat()}T09:00:00+08:00", "第一次看診"),
-                (f"{(datetime.now() + timedelta(days=7)).date().isoformat()}T14:00:00+08:00", "第二次看診"),
+                (f"{(datetime.now() + timedelta(days=3)).date().isoformat()}T09:00:00+08:00", "第一次看診"),
+                (f"{(datetime.now() + timedelta(days=10)).date().isoformat()}T14:00:00+08:00", "第二次看診"),
             ]
 
             booked_appointments = []
