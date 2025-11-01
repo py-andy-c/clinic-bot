@@ -8,6 +8,7 @@ testing the complete LIFF-based appointment booking system.
 import pytest
 import jwt
 from datetime import datetime, timedelta, time
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -1078,6 +1079,25 @@ class TestLiffErrorHandling:
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
+
+    def test_invalid_line_user_id_returns_400(self, db_session: Session, test_clinic_with_liff):
+        """Test that creating patient with invalid line_user_id returns 400."""
+        clinic, practitioner, appt_types = test_clinic_with_liff
+
+        from services.patient_service import PatientService
+
+        # Try to create patient with non-existent line_user_id
+        with pytest.raises(HTTPException) as exc_info:
+            PatientService.create_patient(
+                db=db_session,
+                clinic_id=clinic.id,
+                full_name="Test Patient",
+                phone_number="0912345678",
+                line_user_id=99999  # Non-existent line_user_id
+            )
+        
+        assert exc_info.value.status_code == 400
+        assert "無效的 LINE 使用者 ID" in exc_info.value.detail
 
     def test_past_appointment_returns_validation_error(self, db_session: Session, test_clinic_with_liff):
         """Test that booking appointments in the past fails."""

@@ -6,14 +6,14 @@ between different API endpoints (LIFF, clinic admin, etc.).
 """
 
 import logging
-from datetime import datetime, date, time
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 
-from models import Patient, Appointment, CalendarEvent
+from models import Patient, Appointment, CalendarEvent, LineUser
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +48,17 @@ class PatientService:
             Created Patient object
 
         Raises:
-            HTTPException: If creation fails
+            HTTPException: If creation fails or line_user_id is invalid
         """
+        # Validate line_user_id if provided
+        if line_user_id is not None:
+            line_user = db.query(LineUser).filter(LineUser.id == line_user_id).first()
+            if not line_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="無效的 LINE 使用者 ID"
+                )
+
         try:
             patient = Patient(
                 clinic_id=clinic_id,
