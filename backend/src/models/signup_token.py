@@ -23,7 +23,7 @@ class SignupToken(Base):
     token: Mapped[str] = mapped_column(String(255), unique=True)
     clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"))
     default_roles: Mapped[list[str]] = mapped_column(JSON)  # Default roles for new user
-    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     used_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     used_by_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -40,6 +40,8 @@ class SignupToken(Base):
     @property
     def is_active(self) -> bool:
         """Check if token is still valid for use."""
+        # expires_at is guaranteed to be non-null by database constraint
+        assert self.expires_at is not None
         return (
             not self.is_revoked
             and self.used_at is None

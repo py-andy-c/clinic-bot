@@ -356,11 +356,42 @@ async def confirm_name(
         roles = temp_data.get("roles")
         clinic_id = temp_data.get("clinic_id")
         gcal_credentials = temp_data.get("gcal_credentials")
-        
-        if not all([signup_token_str, email, google_subject_id, roles, clinic_id, gcal_credentials]):
+
+        # Validate required fields (allow empty roles list)
+        # Data integrity issues are logged but user sees generic error message
+        missing_fields: list[str] = []
+        if not signup_token_str:
+            missing_fields.append("signup_token")
+        if not email:
+            missing_fields.append("email")
+        if not google_subject_id:
+            missing_fields.append("google_subject_id")
+        if not clinic_id:
+            missing_fields.append("clinic_id")
+        if not gcal_credentials:
+            missing_fields.append("gcal_credentials")
+        if roles is None:
+            missing_fields.append("roles")
+
+        if missing_fields:
+            logger.warning(
+                "Data integrity issue: Invalid signup confirmation token data - missing required fields",
+                extra={
+                    "missing_fields": missing_fields,
+                    "token_fields_present": {
+                        "signup_token": bool(signup_token_str),
+                        "email": bool(email),
+                        "google_subject_id": bool(google_subject_id),
+                        "clinic_id": bool(clinic_id),
+                        "gcal_credentials": bool(gcal_credentials),
+                        "roles": roles is not None
+                    }
+                }
+            )
+            # Return generic error message to user, don't expose internal data structure issues
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="無效的確認令牌數據"
+                detail="無效或過期的確認令牌"
             )
         
         # Validate signup token is still valid
