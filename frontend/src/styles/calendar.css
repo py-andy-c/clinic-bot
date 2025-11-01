@@ -3,7 +3,7 @@
 /* Main calendar container */
 .calendar-container {
   @apply bg-white rounded-lg shadow-sm;
-  height: 600px;
+  /* Height is set via style prop on Calendar component (required for react-big-calendar) */
 }
 
 /* Calendar header */
@@ -31,6 +31,7 @@
 /* Calendar grid */
 .rbc-month-view {
   @apply border border-gray-200 rounded-lg overflow-hidden;
+  /* Height is automatically calculated by react-big-calendar based on container */
 }
 
 .rbc-date-cell {

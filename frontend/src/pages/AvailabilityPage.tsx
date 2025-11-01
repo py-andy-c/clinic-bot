@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { View, Views } from 'react-big-calendar';
 import CalendarView from '../components/CalendarView';
@@ -15,10 +15,10 @@ const AvailabilityPage: React.FC = () => {
     }
   }, [user]);
 
-  const handleAddExceptionHandlerReady = (handler: () => void, view: View) => {
+  const handleAddExceptionHandlerReady = useCallback((handler: () => void, view: View) => {
     setAddExceptionHandler(() => handler);
     setCurrentView(view);
-  };
+  }, []);
 
   if (loading) {
     return (

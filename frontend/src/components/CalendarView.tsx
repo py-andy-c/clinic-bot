@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment-timezone';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -8,7 +8,7 @@ import {
   transformToCalendarEvents, 
   CalendarEvent 
 } from '../utils/calendarDataAdapter';
-import { CustomToolbar, CustomDateHeader, CustomEventComponent } from './CalendarComponents';
+import { CustomToolbar, CustomEventComponent } from './CalendarComponents';
 
 // Configure moment for Taiwan timezone
 moment.locale('zh-tw');
@@ -209,20 +209,20 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
 
   // Handle adding availability exception via button
-  const handleAddException = () => {
+  const handleAddException = useCallback(() => {
     setExceptionData({
       startTime: '',
       endTime: ''
     });
     setModalState({ type: 'exception', data: null });
-  };
+  }, []);
 
   // Expose handler to parent component
   useEffect(() => {
     if (onAddExceptionHandlerReady) {
       onAddExceptionHandlerReady(handleAddException, view);
     }
-  }, [view, onAddExceptionHandlerReady]);
+  }, [view, onAddExceptionHandlerReady, handleAddException]);
 
 
   // Create availability exception with conflict checking
@@ -349,9 +349,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           components={{
             toolbar: CustomToolbar,
             event: CustomEventComponent,
-            month: {
-              dateHeader: CustomDateHeader,
-            }
           }}
           eventPropGetter={eventStyleGetter}
           // Mobile optimizations
@@ -361,6 +358,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           // Timezone configuration
           culture="zh-TW"
           // Styling
+          style={{ height: 600 }}
           className="calendar-container"
         />
       </div>
