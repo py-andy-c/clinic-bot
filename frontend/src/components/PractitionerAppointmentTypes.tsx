@@ -92,37 +92,6 @@ const PractitionerAppointmentTypes: React.FC = () => {
         </div>
       )}
 
-      {(selectedTypeIds.length === 0 || !hasAvailability) && (
-        <div className="space-y-3">
-          {selectedTypeIds.length === 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-              <div className="flex items-center">
-                <div className="w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center mr-3">
-                  <span className="text-white text-sm">⚠️</span>
-                </div>
-                <div>
-                  <p className="text-yellow-800 font-medium">尚未設定提供的預約類型</p>
-                  <p className="text-yellow-700 text-sm">患者將無法選擇您進行預約，請選擇您可以提供的服務類型。</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {!hasAvailability && (
-            <div className="bg-orange-50 border border-orange-200 rounded-md p-4">
-              <div className="flex items-center">
-                <div className="w-5 h-5 bg-orange-400 rounded-full flex items-center justify-center mr-3">
-                  <span className="text-white text-sm">⚠️</span>
-                </div>
-                <div>
-                  <p className="text-orange-800 font-medium">尚未設定工作時間</p>
-                  <p className="text-orange-700 text-sm">請設定您的工作時間，這樣患者才能預約您的時段。</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       <div className="space-y-3">
         {availableTypes.map((type) => (

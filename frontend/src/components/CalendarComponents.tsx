@@ -83,7 +83,7 @@ export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
         </div>
         {isOutsideHours && (
           <div className="text-xs opacity-75">
-            超出工作時間
+            超出診療時段
           </div>
         )}
       </div>

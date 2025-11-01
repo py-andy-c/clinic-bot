@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
-import { User, DefaultScheduleResponse, TimeInterval, WarningResponse } from '../types';
+import { User, DefaultScheduleResponse, TimeInterval } from '../types';
 
 interface ProfileFormData {
   fullName: string;
@@ -51,8 +51,6 @@ export const useProfileForm = () => {
     saving: false,
     error: null,
   });
-  const [warning, setWarning] = useState<WarningResponse | null>(null);
-  const [showWarningDialog, setShowWarningDialog] = useState(false);
 
   const validateIntervals = (intervals: TimeInterval[]): string | null => {
     for (let i = 0; i < intervals.length; i++) {
@@ -119,7 +117,6 @@ export const useProfileForm = () => {
 
     try {
       setUiState(prev => ({ ...prev, saving: true, error: null }));
-      setWarning(null);
 
       let hasProfileChanges = false;
       let hasScheduleChanges = false;
@@ -148,15 +145,7 @@ export const useProfileForm = () => {
           }
         }
 
-        const response = await apiService.updatePractitionerDefaultSchedule(profile.id, formData.schedule);
-
-        // Check for warnings
-        if ((response as any).warning) {
-          setWarning(response as any);
-          setShowWarningDialog(true);
-          return;
-        }
-
+        await apiService.updatePractitionerDefaultSchedule(profile.id, formData.schedule);
         setOriginalData(prev => ({ ...prev, schedule: JSON.parse(JSON.stringify(formData.schedule)) }));
         hasScheduleChanges = true;
       }
@@ -167,15 +156,10 @@ export const useProfileForm = () => {
       }
     } catch (err: any) {
       console.error('Update settings error:', err);
-      if (err.response?.data?.warning) {
-        setWarning(err.response.data as WarningResponse);
-        setShowWarningDialog(true);
-      } else {
         setUiState(prev => ({ 
           ...prev, 
           error: err.response?.data?.message || '更新設定失敗' 
         }));
-      }
     } finally {
       setUiState(prev => ({ ...prev, saving: false }));
     }
@@ -196,26 +180,6 @@ export const useProfileForm = () => {
     });
   };
 
-  const confirmSaveWithWarning = async () => {
-    if (!profile?.id || !warning) return;
-
-    try {
-      setUiState(prev => ({ ...prev, saving: true }));
-      await apiService.updatePractitionerDefaultSchedule(profile.id, formData.schedule);
-      setOriginalData(prev => ({ ...prev, schedule: JSON.parse(JSON.stringify(formData.schedule)) }));
-      setShowWarningDialog(false);
-      setWarning(null);
-      alert('排班設定已儲存');
-    } catch (err: any) {
-      console.error('Save schedule error:', err);
-      setUiState(prev => ({ 
-        ...prev, 
-        error: err.response?.data?.message || '儲存失敗，請稍後再試' 
-      }));
-    } finally {
-      setUiState(prev => ({ ...prev, saving: false }));
-    }
-  };
 
   const hasUnsavedChanges = () => {
     const profileChanged = formData.fullName !== originalData.fullName;
@@ -247,13 +211,9 @@ export const useProfileForm = () => {
     formData,
     originalData,
     uiState,
-    warning,
-    showWarningDialog,
-    setShowWarningDialog,
     loadData,
     saveData,
     resetData,
-    confirmSaveWithWarning,
     hasUnsavedChanges,
     updateFormData,
     updateSchedule,

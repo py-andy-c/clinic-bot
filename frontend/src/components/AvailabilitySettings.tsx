@@ -31,7 +31,7 @@ const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
 
   return (
     <div className="mb-8">
-      <h2 className="text-xl font-semibold text-gray-900 mb-6">預設每週排班</h2>
+      <h2 className="text-xl font-semibold text-gray-900 mb-6">診療時段</h2>
       
       <div className="space-y-4">
         <div className="grid gap-4">
@@ -53,7 +53,7 @@ const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
                 </div>
 
                 {intervals.length === 0 ? (
-                  <p className="text-gray-500 text-sm">尚未設定工作時段</p>
+                  <p className="text-gray-500 text-sm">尚未設定診療時段</p>
                 ) : (
                   <div className="space-y-2">
                     {intervals.map((interval, index) => (

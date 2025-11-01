@@ -236,7 +236,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       });
 
       if (hasConflict) {
-        setModalState({ type: 'conflict', data: '此休診時段與現有預約衝突，預約將標記為「超出工作時間」' });
+        setModalState({ type: 'conflict', data: '此休診時段與現有預約衝突，預約將標記為「超出診療時段」' });
         return;
       }
 
@@ -273,7 +273,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       await fetchCalendarData();
       setModalState({ type: null, data: null });
       setExceptionData({ startTime: '', endTime: '' });
-      alert('休診時段已建立（有衝突的預約將標記為超出工作時間）');
+      alert('休診時段已建立（有衝突的預約將標記為超出診療時段）');
     } catch (error) {
       console.error('Error creating exception:', error);
       alert('建立休診時段失敗，請稍後再試');
@@ -380,7 +380,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               <p><strong>時間:</strong> {moment(modalState.data.start).format('HH:mm')} - {moment(modalState.data.end).format('HH:mm')}</p>
               <p><strong>類型:</strong> {modalState.data.resource.type === 'appointment' ? '預約' : '例外時段'}</p>
               {modalState.data.resource.isOutsideHours && (
-                <p className="text-orange-600"><strong>狀態:</strong> 超出工作時間</p>
+                <p className="text-orange-600"><strong>狀態:</strong> 超出診療時段</p>
               )}
             </div>
             <div className="flex justify-end space-x-2 mt-6">

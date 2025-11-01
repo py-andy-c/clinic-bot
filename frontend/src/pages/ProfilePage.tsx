@@ -5,18 +5,13 @@ import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection'
 import ProfileForm from '../components/ProfileForm';
 import AvailabilitySettings from '../components/AvailabilitySettings';
 import PractitionerAppointmentTypes from '../components/PractitionerAppointmentTypes';
-import WarningDialog from '../components/WarningDialog';
 
 const ProfilePage: React.FC = () => {
   const {
     profile,
     formData,
     uiState,
-    warning,
-    showWarningDialog,
-    setShowWarningDialog,
     saveData,
-    confirmSaveWithWarning,
     hasUnsavedChanges,
     updateFormData,
     updateSchedule,
@@ -151,14 +146,6 @@ const ProfilePage: React.FC = () => {
           )}
         </div>
 
-        {/* Warning Dialog */}
-        <WarningDialog
-          warning={warning}
-          show={showWarningDialog}
-          onClose={() => setShowWarningDialog(false)}
-          onConfirm={confirmSaveWithWarning}
-          saving={uiState.saving}
-        />
       </div>
     </div>
   );

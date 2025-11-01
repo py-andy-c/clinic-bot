@@ -95,14 +95,13 @@ const GlobalWarnings: React.FC = () => {
               {/* Practitioner warnings */}
               {(!warnings.practitionerWarnings.hasAppointmentTypes || !warnings.practitionerWarnings.hasAvailability) && (
                 <div className="text-sm text-amber-700">
-                  <strong>您的治療師設定：</strong>
+                  <strong>您的預約功能未啟用：</strong>
                   <ul className="mt-1 ml-4 list-disc">
-                    {!warnings.practitionerWarnings.hasAppointmentTypes && (
-                      <li>尚未設定提供的預約類型 - 患者將無法選擇您進行預約</li>
-                    )}
-                    {!warnings.practitionerWarnings.hasAvailability && (
-                      <li>尚未設定工作時間 - 請設定您的工作時間以便患者預約</li>
-                    )}
+                    <li>
+                      {!warnings.practitionerWarnings.hasAppointmentTypes && !warnings.practitionerWarnings.hasAvailability && '未設定預約類型和診療時段'}
+                      {!warnings.practitionerWarnings.hasAppointmentTypes && warnings.practitionerWarnings.hasAvailability && '未設定預約類型'}
+                      {warnings.practitionerWarnings.hasAppointmentTypes && !warnings.practitionerWarnings.hasAvailability && '未設定診療時段'}
+                    </li>
                   </ul>
                   <p className="mt-2">
                     <a href="/profile" className="text-amber-800 underline hover:text-amber-900">
@@ -115,14 +114,14 @@ const GlobalWarnings: React.FC = () => {
               {/* Admin warnings */}
               {warnings.adminWarnings.length > 0 && (
                 <div className="text-sm text-amber-700">
-                  <strong>治療師設定提醒：</strong>
+                  <strong>以下治療師的預約功能未啟用：</strong>
                   <ul className="mt-1 ml-4 list-disc">
                     {warnings.adminWarnings.map(practitioner => (
                       <li key={practitioner.id}>
                         {practitioner.full_name}：
-                        {!practitioner.hasAppointmentTypes && !practitioner.hasAvailability && '未設定預約類型和工作時間'}
+                        {!practitioner.hasAppointmentTypes && !practitioner.hasAvailability && '未設定預約類型和診療時段'}
                         {!practitioner.hasAppointmentTypes && practitioner.hasAvailability && '未設定預約類型'}
-                        {practitioner.hasAppointmentTypes && !practitioner.hasAvailability && '未設定工作時間'}
+                        {practitioner.hasAppointmentTypes && !practitioner.hasAvailability && '未設定診療時段'}
                       </li>
                     ))}
                   </ul>

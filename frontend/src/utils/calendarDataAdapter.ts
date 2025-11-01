@@ -64,7 +64,7 @@ export const transformMonthlyData = (monthlyData: MonthlyCalendarData): MonthlyC
 };
 
 /**
- * Check if an event is outside working hours
+ * Check if an event is outside consultation hours
  */
 export const isEventOutsideHours = (event: CalendarEvent, defaultSchedule: any[]): boolean => {
   if (!event.start || !event.end) return false;
