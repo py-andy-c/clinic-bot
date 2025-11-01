@@ -1,55 +1,139 @@
 import React from 'react';
 import { TimeInterval } from '../types';
-import { useProfileForm } from '../hooks/useProfileForm';
-import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection';
+import { useAuth } from '../hooks/useAuth';
+import { useSettingsPage } from '../hooks/useSettingsPage';
+import { validateProfileSettings, getProfileSectionChanges } from '../utils/profileSettings';
+import { apiService } from '../services/api';
 import ProfileForm from '../components/ProfileForm';
 import AvailabilitySettings from '../components/AvailabilitySettings';
 import PractitionerAppointmentTypes from '../components/PractitionerAppointmentTypes';
 
+interface ProfileData {
+  fullName: string;
+  schedule: any;
+  selectedAppointmentTypeIds: number[];
+}
+
 const ProfilePage: React.FC = () => {
+  const { user } = useAuth();
+
+  // Fetch user profile separately (needed for display)
+  const [profile, setProfile] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const profileData = await apiService.getProfile();
+        setProfile(profileData);
+      } catch (err) {
+        console.error('Error fetching profile:', err);
+      }
+    };
+    fetchProfile();
+  }, []);
+
   const {
-    profile,
-    formData,
-    originalData,
+    data: profileData,
     uiState,
+    sectionChanges,
     saveData,
-    hasUnsavedChanges,
-    updateFormData,
-    updateSchedule,
-    updateSelectedAppointmentTypeIds,
-  } = useProfileForm();
+    updateData,
+  } = useSettingsPage<ProfileData>({
+    fetchData: async () => {
+      const result: ProfileData = {
+        fullName: '',
+        schedule: {},
+        selectedAppointmentTypeIds: [],
+      };
 
-  // Setup navigation warnings
-  useUnsavedChangesDetection({ hasUnsavedChanges });
+      // Fetch availability schedule (only for practitioners)
+      if (user?.roles?.includes('practitioner') && user.id) {
+        try {
+          const scheduleData = await apiService.getPractitionerDefaultSchedule(user.id);
+          result.schedule = scheduleData;
+        } catch (err) {
+          console.warn('Could not fetch availability schedule:', err);
+        }
 
-  // Check which sections have changes
-  const hasProfileChanges = formData.fullName !== originalData.fullName;
-  const hasScheduleChanges = originalData.schedule ?
-    JSON.stringify(formData.schedule) !== JSON.stringify(originalData.schedule) : false;
-  const hasAppointmentTypeChanges = JSON.stringify(formData.selectedAppointmentTypeIds) !== JSON.stringify(originalData.selectedAppointmentTypeIds);
+        // Fetch practitioner's appointment types
+        try {
+          const practitionerData = await apiService.getPractitionerAppointmentTypes(user.id);
+          result.selectedAppointmentTypeIds = practitionerData.appointment_types.map((at: any) => at.id);
+        } catch (err) {
+          console.warn('Could not fetch practitioner appointment types:', err);
+        }
+      }
 
-  const handleAddInterval = (dayKey: keyof typeof formData.schedule) => {
+      // Set the full name from the profile we already fetched
+      if (profile) {
+        result.fullName = profile.full_name;
+      }
+
+      return result;
+    },
+    saveData: async (data: ProfileData) => {
+      // Save profile changes
+      if (data.fullName !== profile?.full_name) {
+        const updatedProfile = await apiService.updateProfile({ full_name: data.fullName });
+        setProfile(updatedProfile);
+      }
+
+      // Save schedule and appointment types changes (only for practitioners)
+      if (user?.roles?.includes('practitioner') && user.id) {
+        // Always save schedule and appointment types for practitioners
+        await apiService.updatePractitionerDefaultSchedule(user.id, data.schedule);
+        await apiService.updatePractitionerAppointmentTypes(user.id, data.selectedAppointmentTypeIds);
+      }
+    },
+    validateData: validateProfileSettings,
+    getSectionChanges: getProfileSectionChanges,
+  });
+
+  const handleAddInterval = (dayKey: keyof typeof profileData.schedule) => {
+    if (!profileData) return;
+
     const newInterval: TimeInterval = {
       start_time: '09:00',
       end_time: '18:00',
     };
-    updateSchedule(dayKey, [...formData.schedule[dayKey], newInterval]);
+
+    const updatedSchedule = {
+      ...profileData.schedule,
+      [dayKey]: [...profileData.schedule[dayKey], newInterval],
+    };
+
+    updateData({ schedule: updatedSchedule });
   };
 
   const handleUpdateInterval = (
-    dayKey: keyof typeof formData.schedule,
+    dayKey: keyof typeof profileData.schedule,
     index: number,
     field: keyof TimeInterval,
     value: string
   ) => {
-    const updatedIntervals = formData.schedule[dayKey].map((interval, i) =>
+    if (!profileData) return;
+
+    const updatedIntervals = profileData.schedule[dayKey].map((interval, i) =>
       i === index ? { ...interval, [field]: value } : interval
     );
-    updateSchedule(dayKey, updatedIntervals);
+
+    const updatedSchedule = {
+      ...profileData.schedule,
+      [dayKey]: updatedIntervals,
+    };
+
+    updateData({ schedule: updatedSchedule });
   };
 
-  const handleRemoveInterval = (dayKey: keyof typeof formData.schedule, index: number) => {
-    updateSchedule(dayKey, formData.schedule[dayKey].filter((_, i) => i !== index));
+  const handleRemoveInterval = (dayKey: keyof typeof profileData.schedule, index: number) => {
+    if (!profileData) return;
+
+    const updatedSchedule = {
+      ...profileData.schedule,
+      [dayKey]: profileData.schedule[dayKey].filter((_, i) => i !== index),
+    };
+
+    updateData({ schedule: updatedSchedule });
   };
 
   if (uiState.loading) {
@@ -85,33 +169,33 @@ const ProfilePage: React.FC = () => {
               {/* Profile Form */}
               <ProfileForm
                 profile={profile}
-                fullName={formData.fullName}
-                onFullNameChange={(name) => updateFormData({ fullName: name })}
-                showSaveButton={hasProfileChanges}
+                fullName={profileData?.fullName || ''}
+                onFullNameChange={(name) => updateData({ fullName: name })}
+                showSaveButton={sectionChanges.profile}
                 onSave={saveData}
                 saving={uiState.saving}
               />
 
               {/* Availability Settings (Only for practitioners) */}
-              {profile.roles?.includes('practitioner') && (
+              {profile?.roles?.includes('practitioner') && (
                 <AvailabilitySettings
-                  schedule={formData.schedule}
+                  schedule={profileData?.schedule || {}}
                   onAddInterval={handleAddInterval}
                   onUpdateInterval={handleUpdateInterval}
                   onRemoveInterval={handleRemoveInterval}
-                  showSaveButton={hasScheduleChanges}
+                  showSaveButton={sectionChanges.schedule}
                   onSave={saveData}
                   saving={uiState.saving}
                 />
               )}
 
               {/* Practitioner Appointment Types (Only for practitioners) */}
-              {profile.roles?.includes('practitioner') && (
+              {profile?.roles?.includes('practitioner') && (
                 <div className="pt-6">
                   <PractitionerAppointmentTypes
-                    selectedAppointmentTypeIds={formData.selectedAppointmentTypeIds}
-                    onAppointmentTypeChange={updateSelectedAppointmentTypeIds}
-                    showSaveButton={hasAppointmentTypeChanges}
+                    selectedAppointmentTypeIds={profileData?.selectedAppointmentTypeIds || []}
+                    onAppointmentTypeChange={(selectedTypeIds) => updateData({ selectedAppointmentTypeIds: selectedTypeIds })}
+                    showSaveButton={sectionChanges.appointmentTypes}
                     onSave={saveData}
                     saving={uiState.saving}
                   />
