@@ -100,7 +100,7 @@ const ProfilePage: React.FC = () => {
 
               {/* Practitioner Appointment Types (Only for practitioners) */}
               {profile.roles?.includes('practitioner') && (
-                <div className="border-t pt-6">
+                <div className="pt-6">
                   <PractitionerAppointmentTypes />
                 </div>
               )}
