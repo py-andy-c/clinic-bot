@@ -259,6 +259,12 @@ class ApiService {
     await this.client.delete(`/clinic/practitioners/${userId}/availability/${availabilityId}`);
   }
 
+  // Appointment Management APIs
+  async cancelClinicAppointment(appointmentId: number): Promise<{ success: boolean; message: string; appointment_id: number }> {
+    const response = await this.client.delete(`/clinic/appointments/${appointmentId}`);
+    return response.data;
+  }
+
   // Profile Management APIs
   async getProfile(): Promise<any> {
     const response = await this.client.get('/profile');

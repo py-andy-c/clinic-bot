@@ -87,6 +87,7 @@ class CalendarEventResponse(BaseModel):
     appointment_type_id: Optional[int] = None
     status: Optional[str] = None
     exception_id: Optional[int] = None
+    appointment_id: Optional[int] = None  # For appointment cancellation
 
 
 class CalendarDayDetailResponse(BaseModel):
@@ -425,7 +426,8 @@ async def get_calendar_data(
                             title=f"{appointment.patient.full_name} - {appointment.appointment_type.name}",
                             patient_id=appointment.patient_id,
                             appointment_type_id=appointment.appointment_type_id,
-                            status=appointment.status
+                            status=appointment.status,
+                            appointment_id=appointment.calendar_event_id
                         ))
                 elif event.event_type == 'availability_exception':
                     exception = db.query(AvailabilityException).filter(

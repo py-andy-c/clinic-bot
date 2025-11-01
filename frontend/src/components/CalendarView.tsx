@@ -282,16 +282,15 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Delete appointment
   const handleDeleteAppointment = async () => {
-    if (!modalState.data) return;
+    if (!modalState.data || !modalState.data.resource.appointment_id) return;
 
     try {
-      // TODO: Implement appointment cancellation API
-      console.log('Cancel appointment:', modalState.data.resource.calendar_event_id);
-      
+      await apiService.cancelClinicAppointment(modalState.data.resource.appointment_id);
+
       // Refresh data
       await fetchCalendarData();
       setModalState({ type: null, data: null });
-      alert('預約已取消');
+      alert('預約已取消，已通知患者');
     } catch (error) {
       console.error('Error deleting appointment:', error);
       alert('取消預約失敗，請稍後再試');

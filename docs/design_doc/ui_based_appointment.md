@@ -2600,16 +2600,16 @@ security_logger.info(
 
 **Tasks:**
 - [ ] Setup LIFF app in LINE Developers Console
-- [ ] Install `@line/liff` package
-- [ ] Build LIFF entry point (`LiffApp.tsx`)
-- [ ] Build multi-step appointment flow (Steps 1-7)
-- [ ] Build appointment query UI
-- [ ] Build patient management UI
-- [ ] Implement ICS file generation
-- [ ] **Update clinic admin dashboard:**
-  - [ ] Add appointment cancellation functionality to calendar view
-  - [ ] Update appointment details modal with cancel button
-  - [ ] Implement LINE notification integration for clinic cancellations
+- [x] Install `@line/liff` package
+- [x] Build LIFF entry point (`LiffApp.tsx`)
+- [x] Build multi-step appointment flow (Steps 1-7)
+- [x] Build appointment query UI
+- [x] Build patient management UI
+- [x] Implement ICS file generation
+- [x] **Update clinic admin dashboard:**
+  - [x] Add appointment cancellation functionality to calendar view
+  - [x] Update appointment details modal with cancel button
+  - [x] Implement LINE notification integration for clinic cancellations
 
 **Deliverables:**
 - Functional LIFF app for all three features

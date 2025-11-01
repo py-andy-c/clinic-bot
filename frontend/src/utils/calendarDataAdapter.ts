@@ -14,6 +14,7 @@ export interface CalendarEvent {
     appointment_type_id?: number;
     status?: string;
     exception_id?: number;
+    appointment_id?: number; // For appointment cancellation
   };
 }
 
@@ -45,7 +46,8 @@ export const transformToCalendarEvents = (apiEvents: (ApiCalendarEvent | any)[])
         patient_id: event.patient_id,
         appointment_type_id: event.appointment_type_id,
         status: event.status,
-        exception_id: event.exception_id
+        exception_id: event.exception_id,
+        appointment_id: event.appointment_id
       }
     };
   });
