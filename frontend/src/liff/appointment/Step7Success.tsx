@@ -59,9 +59,6 @@ const Step7Success: React.FC = () => {
         <h2 className="text-2xl font-semibold text-gray-900 mb-2">
           預約成功
         </h2>
-        <p className="text-gray-600">
-          您的預約已確認
-        </p>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
@@ -108,12 +105,6 @@ const Step7Success: React.FC = () => {
         >
           完成
         </button>
-      </div>
-
-      <div className="text-center mt-4">
-        <p className="text-xs text-gray-500">
-          預約確認簡訊將於就診前發送
-        </p>
       </div>
     </div>
   );
