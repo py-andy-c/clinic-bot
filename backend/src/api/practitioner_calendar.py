@@ -451,7 +451,7 @@ async def get_calendar_data(
                             type='availability_exception',
                             start_time=_format_time(event.start_time) if event.start_time else None,
                             end_time=_format_time(event.end_time) if event.end_time else None,
-                            title="Unavailable",
+                            title="休診",
                             exception_id=exception.id
                         ))
             

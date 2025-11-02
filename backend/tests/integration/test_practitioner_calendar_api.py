@@ -350,7 +350,7 @@ class TestPractitionerCalendarAPI:
         exception_event = next(e for e in data["events"] if e["type"] == "availability_exception")
         assert exception_event["start_time"] == "17:00"
         assert exception_event["end_time"] == "18:00"
-        assert exception_event["title"] == "Unavailable"
+        assert exception_event["title"] == "休診"
 
     def test_get_available_slots(self, client: TestClient, db_session: Session):
         """Test getting available slots for AI agent booking."""

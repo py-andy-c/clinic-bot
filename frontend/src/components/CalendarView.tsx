@@ -44,6 +44,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     data: any;
   }>({ type: null, data: null });
   const [exceptionData, setExceptionData] = useState({
+    date: '',
     startTime: '',
     endTime: ''
   });
@@ -62,7 +63,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
     const weekday = weekdayNames[startMoment.day()];
     const dateStr = `${startMoment.format('M/D')} (${weekday})`;
-    return `${dateStr} ${startMoment.format('HH:mm')} - ${endMoment.format('HH:mm')}`;
+    return `${dateStr} ${startMoment.format('h:mm A')} - ${endMoment.format('h:mm A')}`;
   };
 
   // Get date range for the current view (Taiwan timezone)
@@ -186,7 +187,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     } else if (event.resource.type === 'availability_exception') {
       style = {
         ...style,
-        backgroundColor: '#EF4444', // Red for exceptions
+        backgroundColor: '#E5E7EB', // Light gray for exceptions
+        color: '#1F2937', // Dark gray text for readability
         opacity: 1
       };
     }
@@ -231,11 +233,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       setView(Views.DAY);
     }
     setExceptionData({
+      date: getDateString(currentDate),
       startTime: '',
       endTime: ''
     });
     setModalState({ type: 'exception', data: null });
-  }, [view]);
+  }, [view, currentDate]);
 
   // Expose handler to parent component
   useEffect(() => {
@@ -247,15 +250,15 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Create availability exception with conflict checking
   const handleCreateException = async () => {
-    if (!exceptionData.startTime || !exceptionData.endTime) {
-      alert('請輸入開始和結束時間');
+    if (!exceptionData.date || !exceptionData.startTime || !exceptionData.endTime) {
+      alert('請輸入日期、開始和結束時間');
       return;
     }
 
-    const dateStr = getDateString(currentDate);
+    const dateStr = exceptionData.date;
     
     try {
-      // Simple conflict check - get today's events and check for overlaps
+      // Simple conflict check - get the selected date's events and check for overlaps
       const dailyData = await apiService.getDailyCalendar(userId, dateStr);
       const appointments = dailyData.events.filter((event: any) => event.type === 'appointment');
       
@@ -279,7 +282,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       // Refresh data
       await fetchCalendarData();
       setModalState({ type: null, data: null });
-      setExceptionData({ startTime: '', endTime: '' });
+      setExceptionData({ date: '', startTime: '', endTime: '' });
       alert('休診時段已建立');
     } catch (error) {
       console.error('Error creating exception:', error);
@@ -289,7 +292,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Confirm exception creation despite conflicts
   const handleConfirmExceptionWithConflicts = async () => {
-    const dateStr = getDateString(currentDate);
+    if (!exceptionData.date || !exceptionData.startTime || !exceptionData.endTime) {
+      alert('請輸入日期、開始和結束時間');
+      return;
+    }
+
+    const dateStr = exceptionData.date;
     
     try {
       await apiService.createAvailabilityException(userId, {
@@ -301,7 +309,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       // Refresh data
       await fetchCalendarData();
       setModalState({ type: null, data: null });
-      setExceptionData({ startTime: '', endTime: '' });
+      setExceptionData({ date: '', startTime: '', endTime: '' });
       alert('休診時段已建立（有衝突的預約將標記為超出診療時段）');
     } catch (error) {
       console.error('Error creating exception:', error);
@@ -443,11 +451,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               </>
             ) : (
               <>
-                <h3 className="text-lg font-semibold mb-4">事件詳情</h3>
+                <h3 className="text-lg font-semibold mb-4">休診</h3>
                 <div className="space-y-2">
-                  <p><strong>標題:</strong> {modalState.data.title}</p>
-                  <p><strong>時間:</strong> {moment(modalState.data.start).format('HH:mm')} - {moment(modalState.data.end).format('HH:mm')}</p>
-                  <p><strong>類型:</strong> 例外時段</p>
+                  <p><strong>時間:</strong> {formatAppointmentTime(modalState.data.start, modalState.data.end)}</p>
                 </div>
               </>
             )}
@@ -477,6 +483,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">新增休診時段</h3>
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  日期
+                </label>
+                <input
+                  type="date"
+                  className="input"
+                  value={exceptionData.date}
+                  onChange={(e) => setExceptionData(prev => ({ ...prev, date: e.target.value }))}
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   開始時間
