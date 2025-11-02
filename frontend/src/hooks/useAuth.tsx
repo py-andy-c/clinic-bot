@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from 'react';
 import { AuthUser, AuthState, UserRole } from '../types';
 import { logger } from '../utils/logger';
 import { config } from '../config/env';
@@ -40,6 +40,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: false,
     isLoading: true,
   });
+
+  const clearAuthState = useCallback(() => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('was_logged_in');
+    setAuthState({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+    });
+  }, []);
 
   useEffect(() => {
     // Skip authentication checks for signup pages
@@ -93,7 +103,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Check if user is already authenticated on app load
     checkAuthStatus();
-  }, []);
+
+    // Listen for storage events (e.g., when token is cleared by another tab)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'access_token' && !e.newValue) {
+        // Token was cleared (e.g., logout in another tab)
+        clearAuthState();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [clearAuthState]);
 
   // Enhanced user object with role helpers
   const enhancedUser = useMemo(() => {
@@ -200,25 +224,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             isAuthenticated: true,
             isLoading: false,
           });
+        } else {
+          // Token validation failed after refresh
+          clearAuthState();
         }
       } else {
-        // Refresh failed, clear auth state
+        // Refresh failed (401 or other error), clear auth state
         clearAuthState();
+        // Redirect to login if we're not already there
+        if (!window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login';
+        }
       }
     } catch (error) {
       logger.error('Token refresh failed:', error);
       clearAuthState();
+      // Redirect to login if we're not already there
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
     }
-  };
-
-  const clearAuthState = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('was_logged_in');
-    setAuthState({
-      user: null,
-      isAuthenticated: false,
-      isLoading: false,
-    });
   };
 
   const login = async (userType?: 'system_admin' | 'clinic_user') => {

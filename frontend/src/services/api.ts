@@ -84,8 +84,12 @@ class ApiService {
             return this.client.request(originalRequest);
           }
         } catch (refreshError) {
-          // Refresh failed, redirect to login
+          // Refresh failed, clear auth state and redirect to login
           this.isRefreshing = false;
+          // Clear localStorage to ensure auth state is cleared
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('was_logged_in');
+          // Redirect to login
           window.location.href = '/login';
           return Promise.reject(refreshError);
         }
@@ -102,9 +106,22 @@ class ApiService {
   }
 
   async refreshToken(): Promise<void> {
-    const response = await this.client.post('/auth/refresh', {}, { withCredentials: true });
-    if (response.data.access_token) {
-      localStorage.setItem('access_token', response.data.access_token);
+    try {
+      const response = await this.client.post('/auth/refresh', {}, { withCredentials: true });
+      if (response.status === 200 && response.data.access_token) {
+        localStorage.setItem('access_token', response.data.access_token);
+      } else {
+        // Refresh failed - throw error to be caught by interceptor
+        throw new Error('Token refresh failed');
+      }
+    } catch (error: any) {
+      // If refresh token is invalid (401), ensure we clear auth state
+      if (error.response?.status === 401) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('was_logged_in');
+        throw error;
+      }
+      throw error;
     }
   }
 
