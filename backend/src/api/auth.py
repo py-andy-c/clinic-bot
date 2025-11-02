@@ -7,7 +7,7 @@ system admins and clinic users.
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, Query
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -74,20 +74,39 @@ async def initiate_google_auth(user_type: str = "clinic_user") -> dict[str, str]
 
 @router.get("/google/callback", summary="Handle Google OAuth callback")
 async def google_auth_callback(
-    code: str,
-    state: str,
+    code: str = Query(None),
+    state: str = Query(...),
+    error: str = Query(None),
     db: Session = Depends(get_db)
 ):
     """
     Handle Google OAuth callback and create JWT tokens.
 
     Args:
-        code: Authorization code from Google
+        code: Authorization code from Google (optional if user cancelled)
         state: Signed JWT containing user type
+        error: Error code from Google OAuth (e.g., 'access_denied' if user cancelled)
 
     Returns:
         Redirect URL for frontend
     """
+    # Handle user cancellation or OAuth errors
+    if error:
+        logger.info(f"OAuth callback error: {error}")
+        from fastapi.responses import RedirectResponse
+        from urllib.parse import quote
+        error_message = "登入已取消" if error == "access_denied" else "認證失敗"
+        error_url = f"{FRONTEND_URL}/login?error=true&message={quote(error_message)}"
+        return RedirectResponse(url=error_url, status_code=302)
+    
+    # Ensure code is provided if no error
+    if not code:
+        logger.warning("OAuth callback missing code parameter")
+        from fastapi.responses import RedirectResponse
+        from urllib.parse import quote
+        error_url = f"{FRONTEND_URL}/login?error=true&message={quote('認證失敗：缺少授權碼')}"
+        return RedirectResponse(url=error_url, status_code=302)
+
     try:
         # Verify and parse signed state
         state_data = jwt_service.verify_oauth_state(state)
