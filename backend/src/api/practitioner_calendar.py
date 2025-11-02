@@ -25,7 +25,7 @@ from models import (
     User, AppointmentType,
     PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment
 )
-from services import AvailabilityService
+from services import AvailabilityService, AppointmentTypeService
 from api.responses import AvailableSlotsResponse, AvailableSlotResponse
 
 router = APIRouter()
@@ -563,14 +563,7 @@ async def get_available_slots(
             )
         
         # Verify appointment type exists
-        appointment_type = db.query(AppointmentType).filter(
-            AppointmentType.id == appointment_type_id
-        ).first()
-        if not appointment_type:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Appointment type not found"
-            )
+        AppointmentTypeService.get_appointment_type_by_id(db, appointment_type_id)
         
         # Get available slots using service
         slots_data = AvailabilityService.get_available_slots_for_practitioner(

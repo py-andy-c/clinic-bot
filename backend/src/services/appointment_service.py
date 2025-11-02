@@ -10,8 +10,8 @@ from datetime import datetime, timedelta, time, timezone
 from typing import List, Optional, Dict, Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, func
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from models import (
     Appointment, CalendarEvent, User, Patient, AppointmentType,
@@ -19,6 +19,7 @@ from models import (
 )
 from services.patient_service import PatientService
 from services.availability_service import AvailabilityService
+from services.appointment_type_service import AppointmentTypeService
 
 logger = logging.getLogger(__name__)
 
@@ -69,9 +70,9 @@ class AppointmentService:
                 )
 
             # Get appointment type and validate it belongs to clinic
-            appointment_type = AvailabilityService._get_appointment_type_by_id(
+            appointment_type = AppointmentTypeService.get_appointment_type_by_id(
                 db, appointment_type_id, clinic_id=clinic_id
-                )
+            )
 
             # Calculate end time (start_time is already in Taiwan timezone)
             end_time = start_time + timedelta(minutes=appointment_type.duration_minutes)
@@ -257,18 +258,30 @@ class AppointmentService:
                     detail="無可用治療師"
                 )
 
-            # Assign to practitioner with least appointments that day
-            # Only count confirmed appointments for load balancing (exclude cancelled ones)
+            # Batch fetch appointment counts for all candidates in one query
+            practitioner_ids = [p.id for p in available_candidates]
+            date_filter = start_time.date()
+
+            # Single query to get counts for all practitioners
+            counts_query = db.query(
+                CalendarEvent.user_id,
+                func.count(CalendarEvent.id).label('appointment_count')
+            ).join(
+                Appointment, CalendarEvent.id == Appointment.calendar_event_id
+            ).filter(
+                CalendarEvent.user_id.in_(practitioner_ids),
+                CalendarEvent.date == date_filter,
+                CalendarEvent.event_type == 'appointment',
+                Appointment.status == 'confirmed'
+            ).group_by(CalendarEvent.user_id).all()
+
+            # Create lookup dict
+            counts_map = {user_id: count for user_id, count in counts_query}
+
+            # Find practitioner with minimum count (default to 0 if not found)
             selected_practitioner = min(
                 available_candidates,
-                key=lambda p: db.query(CalendarEvent).join(
-                    Appointment, CalendarEvent.id == Appointment.calendar_event_id
-                ).filter(
-                    CalendarEvent.user_id == p.id,
-                    CalendarEvent.date == start_time.date(),
-                    CalendarEvent.event_type == 'appointment',
-                    Appointment.status == 'confirmed'
-                ).count()
+                key=lambda p: counts_map.get(p.id, 0)
             )
 
             return selected_practitioner.id
@@ -317,14 +330,20 @@ class AppointmentService:
                 and_(CalendarEvent.date == today, CalendarEvent.start_time > current_time)
             )
 
-        appointments: List[Appointment] = query.order_by(CalendarEvent.start_time).all()
+        # Eagerly load all relationships to avoid N+1 queries
+        appointments: List[Appointment] = query.options(
+            joinedload(Appointment.calendar_event).joinedload(CalendarEvent.user),
+            joinedload(Appointment.appointment_type),
+            joinedload(Appointment.patient)
+        ).order_by(CalendarEvent.start_time).all()
 
         # Format response
         result: List[Dict[str, Any]] = []
         for appointment in appointments:
-            practitioner = db.query(User).get(appointment.calendar_event.user_id)
-            appointment_type = db.query(AppointmentType).get(appointment.appointment_type_id)
-            patient = db.query(Patient).get(appointment.patient_id)
+            # All relationships are now eagerly loaded, no database queries needed
+            practitioner = appointment.calendar_event.user
+            appointment_type = appointment.appointment_type
+            patient = appointment.patient
 
             if not all([practitioner, appointment_type, patient]):
                 continue  # Skip if any related object not found
@@ -405,13 +424,18 @@ class AppointmentService:
                 )
             query = query.filter(Appointment.status == status_filter)
 
-        # Order by start time (most recent first)
-        appointments = query.order_by(CalendarEvent.start_time.desc()).all()
+        # Eagerly load all relationships to avoid N+1 queries
+        appointments = query.options(
+            joinedload(Appointment.calendar_event).joinedload(CalendarEvent.user),
+            joinedload(Appointment.appointment_type),
+            joinedload(Appointment.patient)
+        ).order_by(CalendarEvent.start_time.desc()).all()
 
         # Format response
         result: List[Dict[str, Any]] = []
         for appointment in appointments:
-            practitioner = db.query(User).get(appointment.calendar_event.user_id)
+            # All relationships are now eagerly loaded, no database queries needed
+            practitioner = appointment.calendar_event.user
             if not practitioner:
                 continue  # Skip if practitioner not found
 

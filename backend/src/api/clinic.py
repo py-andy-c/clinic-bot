@@ -20,7 +20,7 @@ from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
 from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, PractitionerAppointmentTypes, CalendarEvent
-from services import PatientService, AppointmentService, PractitionerService
+from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService
 from services.google_oauth import GoogleOAuthService
 from services.notification_service import NotificationService, CancellationSource
 from api.responses import (
@@ -408,9 +408,9 @@ async def get_settings(
                 detail="找不到診所"
             )
 
-        appointment_types = db.query(AppointmentType).filter(
-            AppointmentType.clinic_id == current_user.clinic_id
-        ).all()
+        appointment_types = AppointmentTypeService.list_appointment_types_for_clinic(
+            db, current_user.clinic_id
+        )
 
         appointment_type_list = [
             AppointmentTypeResponse(
@@ -1218,12 +1218,11 @@ async def update_practitioner_appointment_types(
 
         # Validate that all appointment type IDs exist and belong to the clinic
         for type_id in request.appointment_type_ids:
-            appointment_type = db.query(AppointmentType).filter(
-                AppointmentType.id == type_id,
-                AppointmentType.clinic_id == current_user.clinic_id
-            ).first()
-
-            if not appointment_type:
+            try:
+                AppointmentTypeService.get_appointment_type_by_id(
+                    db, type_id, clinic_id=current_user.clinic_id
+                )
+            except HTTPException:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"預約類型 ID {type_id} 不存在或不屬於此診所"

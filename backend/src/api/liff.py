@@ -23,7 +23,7 @@ from core.config import JWT_SECRET_KEY, JWT_ACCESS_TOKEN_EXPIRE_MINUTES
 from models import (
     LineUser, Clinic, Patient, AppointmentType
 )
-from services import PatientService, AppointmentService, AvailabilityService, PractitionerService
+from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
 from api.responses import (
     PatientResponse, PatientCreateResponse, PatientListResponse,
@@ -453,9 +453,9 @@ async def list_appointment_types(
 
     try:
         # Get appointment types for clinic
-        appointment_types = db.query(AppointmentType).filter_by(
-            clinic_id=clinic.id
-        ).all()
+        appointment_types = AppointmentTypeService.list_appointment_types_for_clinic(
+            db, clinic.id
+        )
 
         return AppointmentTypeListResponse(
             appointment_types=[

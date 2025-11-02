@@ -103,4 +103,7 @@ class Appointment(Base):
     # Table indexes for performance
     __table_args__ = (
         Index('idx_appointments_patient', 'patient_id'),
+        Index('idx_appointments_status', 'status'),
+        # Composite index for load balancing query (status + calendar_event_id for JOIN efficiency)
+        Index('idx_appointments_status_calendar_event', 'status', 'calendar_event_id'),
     )

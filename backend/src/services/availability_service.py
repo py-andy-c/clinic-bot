@@ -17,6 +17,7 @@ from models import (
     User, AppointmentType, PractitionerAvailability, CalendarEvent,
     PractitionerAppointmentTypes, Appointment
 )
+from services.appointment_type_service import AppointmentTypeService
 from utils.query_helpers import filter_by_role
 
 logger = logging.getLogger(__name__)
@@ -69,46 +70,6 @@ class AvailabilityService:
             )
 
         return requested_date
-
-    @staticmethod
-    def _get_appointment_type_by_id(
-        db: Session,
-        appointment_type_id: int,
-        clinic_id: Optional[int] = None
-    ) -> AppointmentType:
-        """
-        Get and validate appointment type by ID.
-        
-        Args:
-            db: Database session
-            appointment_type_id: Appointment type ID
-            clinic_id: Optional clinic ID to validate ownership
-            
-        Returns:
-            AppointmentType object
-            
-        Raises:
-            HTTPException: If appointment type not found or doesn't belong to clinic
-        """
-        # Query by primary key (id) only - more efficient than composite filter
-        appointment_type = db.query(AppointmentType).filter_by(
-            id=appointment_type_id
-        ).first()
-
-        if not appointment_type:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Appointment type not found"
-            )
-        
-        # Validate clinic ownership if clinic_id provided
-        if clinic_id is not None and appointment_type.clinic_id != clinic_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Appointment type not found"
-            )
-
-        return appointment_type
 
     @staticmethod
     def _get_practitioner_by_id(
@@ -180,7 +141,7 @@ class AvailabilityService:
         try:
             # Validate date and get appointment type
             requested_date = AvailabilityService._validate_date(date)
-            appointment_type = AvailabilityService._get_appointment_type_by_id(db, appointment_type_id)
+            appointment_type = AppointmentTypeService.get_appointment_type_by_id(db, appointment_type_id)
             
             # Verify practitioner exists, is active, and is a practitioner
             practitioner = AvailabilityService._get_practitioner_by_id(db, practitioner_id)
@@ -238,7 +199,7 @@ class AvailabilityService:
         try:
             # Validate date and get appointment type
             requested_date = AvailabilityService._validate_date(date)
-            appointment_type = AvailabilityService._get_appointment_type_by_id(db, appointment_type_id)
+            appointment_type = AppointmentTypeService.get_appointment_type_by_id(db, appointment_type_id)
             
             # Verify appointment type belongs to clinic
             if appointment_type.clinic_id != clinic_id:
