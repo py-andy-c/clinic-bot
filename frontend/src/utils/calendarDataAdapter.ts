@@ -8,7 +8,6 @@ export interface CalendarEvent {
   end: Date;
   resource: {
     type: 'appointment' | 'availability_exception' | 'availability';
-    isOutsideHours?: boolean;
     calendar_event_id: number;
     patient_id?: number;
     appointment_type_id?: number;
@@ -44,7 +43,6 @@ export const transformToCalendarEvents = (apiEvents: (ApiCalendarEvent | any)[])
       end: endDateTime.toDate(),
       resource: {
         type: event.type as 'appointment' | 'availability_exception' | 'availability',
-        isOutsideHours: false, // Will be calculated based on default schedule
         calendar_event_id: event.calendar_event_id,
         patient_id: event.patient_id,
         appointment_type_id: event.appointment_type_id,
@@ -67,34 +65,6 @@ export const transformMonthlyData = (monthlyData: MonthlyCalendarData): MonthlyC
     date: day.date,
     appointmentCount: day.appointment_count
   }));
-};
-
-/**
- * Check if an event is outside consultation hours
- */
-export const isEventOutsideHours = (event: CalendarEvent, defaultSchedule: any[]): boolean => {
-  if (!event.start || !event.end) return false;
-
-  const eventStart = event.start.toTimeString().substring(0, 5);
-  const eventEnd = event.end.toTimeString().substring(0, 5);
-
-  // Check if the event time overlaps with any default schedule interval
-  return !defaultSchedule.some(interval => {
-    const intervalStart = interval.start_time;
-    const intervalEnd = interval.end_time;
-
-    return eventStart >= intervalStart && eventEnd <= intervalEnd;
-  });
-};
-
-/**
- * Get event color based on type and outside hours status
- */
-export const getEventColor = (eventType: string, isOutsideHours: boolean): string => {
-  if (eventType === 'appointment') {
-    return isOutsideHours ? '#F59E0B' : '#3B82F6'; // Orange for outside hours, blue for normal
-  }
-  return '#EF4444'; // Red for availability exceptions
 };
 
 /**

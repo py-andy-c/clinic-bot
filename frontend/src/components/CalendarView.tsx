@@ -48,6 +48,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     startTime: '',
     endTime: ''
   });
+  const [isFullDay, setIsFullDay] = useState(false);
 
 
   // Generate date string in YYYY-MM-DD format (Taiwan timezone)
@@ -168,8 +169,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Event styling based on document requirements
   const eventStyleGetter = (event: CalendarEvent) => {
-    const isOutsideHours = event.resource.isOutsideHours;
-    
     let style: any = {
       borderRadius: '6px',
       color: 'white',
@@ -181,8 +180,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     if (event.resource.type === 'appointment') {
       style = {
         ...style,
-        backgroundColor: isOutsideHours ? '#F59E0B' : '#3B82F6', // Orange for outside hours, blue for normal
-        opacity: isOutsideHours ? 0.7 : 1
+        backgroundColor: '#3B82F6', // Blue for appointments
+        opacity: 1
       };
     } else if (event.resource.type === 'availability_exception') {
       style = {
@@ -237,6 +236,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       startTime: '',
       endTime: ''
     });
+    setIsFullDay(false);
     setModalState({ type: 'exception', data: null });
   }, [view, currentDate]);
 
@@ -258,17 +258,19 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     const dateStr = exceptionData.date;
     
     try {
-      // Simple conflict check - get the selected date's events and check for overlaps
+      // Conflict check - get the selected date's events and check for overlaps
       const dailyData = await apiService.getDailyCalendar(userId, dateStr);
       const appointments = dailyData.events.filter((event: any) => event.type === 'appointment');
       
-      const hasConflict = appointments.some((appointment: any) => {
+      // Collect all conflicting appointments
+      const conflictingAppointments = appointments.filter((appointment: any) => {
         if (!appointment.start_time || !appointment.end_time) return false;
         return appointment.start_time < exceptionData.endTime && appointment.end_time > exceptionData.startTime;
       });
 
-      if (hasConflict) {
-        setModalState({ type: 'conflict', data: '此休診時段與現有預約衝突，預約將標記為「超出診療時段」' });
+      if (conflictingAppointments.length > 0) {
+        // Show conflict modal with list of conflicting appointments
+        setModalState({ type: 'conflict', data: conflictingAppointments });
         return;
       }
 
@@ -283,6 +285,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       await fetchCalendarData();
       setModalState({ type: null, data: null });
       setExceptionData({ date: '', startTime: '', endTime: '' });
+      setIsFullDay(false);
       alert('休診時段已建立');
     } catch (error) {
       console.error('Error creating exception:', error);
@@ -290,31 +293,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
   };
 
-  // Confirm exception creation despite conflicts
-  const handleConfirmExceptionWithConflicts = async () => {
-    if (!exceptionData.date || !exceptionData.startTime || !exceptionData.endTime) {
-      alert('請輸入日期、開始和結束時間');
-      return;
-    }
-
-    const dateStr = exceptionData.date;
-    
-    try {
-      await apiService.createAvailabilityException(userId, {
-        date: dateStr,
-        start_time: exceptionData.startTime,
-        end_time: exceptionData.endTime
-      });
-
-      // Refresh data
-      await fetchCalendarData();
-      setModalState({ type: null, data: null });
-      setExceptionData({ date: '', startTime: '', endTime: '' });
-      alert('休診時段已建立（有衝突的預約將標記為超出診療時段）');
-    } catch (error) {
-      console.error('Error creating exception:', error);
-      alert('建立休診時段失敗，請稍後再試');
-    }
+  // Format time from time string (e.g., "09:00" -> "9:00 AM")
+  const formatTimeString = (timeStr: string): string => {
+    if (!timeStr) return '';
+    const parts = timeStr.split(':');
+    if (parts.length < 2 || !parts[0] || !parts[1]) return timeStr; // Invalid format, return as-is
+    const hour = parseInt(parts[0], 10);
+    const minutes = parts[1];
+    if (isNaN(hour)) return timeStr; // Invalid hour, return as-is
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${hour12}:${minutes} ${period}`;
   };
 
   // Show delete confirmation for appointments
@@ -473,9 +462,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                   {modalState.data.resource.line_display_name && (
                     <p><strong>LINE:</strong> {modalState.data.resource.line_display_name}</p>
                   )}
-                  {modalState.data.resource.isOutsideHours && (
-                    <p className="text-orange-600"><strong>狀態:</strong> 超出診療時段</p>
-                  )}
                 </div>
               </>
             ) : (
@@ -531,6 +517,24 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                   onChange={(e) => setExceptionData(prev => ({ ...prev, date: e.target.value }))}
                 />
               </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="fullDay"
+                  checked={isFullDay}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setIsFullDay(checked);
+                    if (checked) {
+                      setExceptionData(prev => ({ ...prev, startTime: '00:00', endTime: '23:59' }));
+                    }
+                  }}
+                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <label htmlFor="fullDay" className="ml-2 text-sm font-medium text-gray-700">
+                  全天
+                </label>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   開始時間
@@ -539,7 +543,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                   type="time"
                   className="input"
                   value={exceptionData.startTime}
-                  onChange={(e) => setExceptionData(prev => ({ ...prev, startTime: e.target.value }))}
+                  onChange={(e) => {
+                    setExceptionData(prev => ({ ...prev, startTime: e.target.value }));
+                    if (isFullDay) {
+                      setIsFullDay(false);
+                    }
+                  }}
+                  disabled={isFullDay}
                 />
               </div>
               <div>
@@ -550,13 +560,22 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                   type="time"
                   className="input"
                   value={exceptionData.endTime}
-                  onChange={(e) => setExceptionData(prev => ({ ...prev, endTime: e.target.value }))}
+                  onChange={(e) => {
+                    setExceptionData(prev => ({ ...prev, endTime: e.target.value }));
+                    if (isFullDay) {
+                      setIsFullDay(false);
+                    }
+                  }}
+                  disabled={isFullDay}
                 />
               </div>
             </div>
             <div className="flex justify-end space-x-2 mt-6">
               <button 
-                onClick={() => setModalState({ type: null, data: null })}
+                onClick={() => {
+                  setModalState({ type: null, data: null });
+                  setIsFullDay(false);
+                }}
                 className="btn-secondary"
               >
                 取消
@@ -573,30 +592,45 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       )}
 
       {/* Conflict Warning Modal */}
-      {modalState.type === 'conflict' && modalState.data && (
+      {modalState.type === 'conflict' && modalState.data && Array.isArray(modalState.data) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center mb-4">
-              <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center mr-3">
-                <svg className="w-5 h-5 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+              <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-orange-800">衝突警告</h3>
+              <h3 className="text-lg font-semibold text-red-800">無法建立休診時段</h3>
             </div>
-            <p className="text-gray-700 mb-4">{modalState.data}</p>
+            <p className="text-gray-700 mb-4">
+              此休診時段與現有預約衝突，請先刪除以下衝突的預約後再建立休診時段：
+            </p>
+            <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+              {modalState.data.map((appointment: any, index: number) => (
+                <div key={index} className="bg-red-50 border border-red-200 rounded-md p-3">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">
+                        {appointment.title || appointment.patient_name || '預約'}
+                      </p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {formatTimeString(appointment.start_time)} - {formatTimeString(appointment.end_time)}
+                      </p>
+                      {appointment.notes && (
+                        <p className="text-sm text-gray-500 mt-1">備註：{appointment.notes}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
             <div className="flex justify-end space-x-2">
               <button 
                 onClick={() => setModalState({ type: null, data: null })}
-                className="btn-secondary"
-              >
-                取消
-              </button>
-              <button 
-                onClick={handleConfirmExceptionWithConflicts}
                 className="btn-primary"
               >
-                確認建立
+                關閉
               </button>
             </div>
           </div>

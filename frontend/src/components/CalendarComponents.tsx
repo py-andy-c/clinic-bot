@@ -123,19 +123,12 @@ export const CustomDayHeader = ({ date }: any) => {
 
 // Custom Event Component
 export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
-  const isOutsideHours = event.resource.isOutsideHours;
-  
   return (
     <div className="flex items-center space-x-1">
       <div className="flex-1 min-w-0">
         <div className="font-medium text-sm">
           {event.title}
         </div>
-        {isOutsideHours && (
-          <div className="text-xs opacity-75">
-            超出診療時段
-          </div>
-        )}
       </div>
     </div>
   );
