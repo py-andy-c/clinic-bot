@@ -26,13 +26,19 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
     if (isNaN(date.getTime())) {
       return { date: '', time: '' };
     }
+    
+    // Format weekday as (日), (一), (二), etc.
+    const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+    const weekday = weekdayNames[date.getDay()];
+    
+    const dateStr = date.toLocaleDateString('zh-TW', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    
     return {
-      date: date.toLocaleDateString('zh-TW', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        weekday: 'short'
-      }),
+      date: `${dateStr} (${weekday})`,
       time: date.toLocaleTimeString('zh-TW', {
         hour: '2-digit',
         minute: '2-digit',

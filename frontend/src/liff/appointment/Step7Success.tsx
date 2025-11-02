@@ -95,15 +95,23 @@ const Step7Success: React.FC = () => {
       return '';
     }
     
-    return dateTime.toLocaleString('zh-TW', {
+    // Format weekday as (日), (一), (二), etc.
+    const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+    const weekday = weekdayNames[dateTime.getDay()];
+    
+    const dateStr = dateTime.toLocaleDateString('zh-TW', {
       year: 'numeric',
       month: '2-digit',
-      day: '2-digit',
-      weekday: 'short',
+      day: '2-digit'
+    });
+    
+    const timeStr = dateTime.toLocaleTimeString('zh-TW', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false
     });
+    
+    return `${dateStr} (${weekday}) ${timeStr}`;
   };
 
   const handleClose = () => {
