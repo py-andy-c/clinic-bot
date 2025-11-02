@@ -87,9 +87,6 @@ const AppointmentList: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             預約查詢
           </h1>
-          <p className="text-gray-600">
-            查看您的預約記錄
-          </p>
         </div>
 
         {appointments.length === 0 ? (
