@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
-from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, PractitionerAppointmentTypes
+from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, PractitionerAppointmentTypes, CalendarEvent
 from services import PatientService, AppointmentService, PractitionerService
 from services.google_oauth import GoogleOAuthService
 from services.notification_service import NotificationService, CancellationSource
@@ -1042,20 +1042,46 @@ async def list_clinic_appointments(
         )
 
 
-@router.delete("/appointments/{appointment_id}", summary="Cancel appointment by clinic admin")
+@router.delete("/appointments/{appointment_id}", summary="Cancel appointment by clinic admin or practitioner")
 async def cancel_clinic_appointment(
     appointment_id: int,
-    current_user: UserContext = Depends(require_admin_role),  # Only admins can cancel appointments
+    current_user: UserContext = Depends(require_practitioner_or_admin),
     db: Session = Depends(get_db)
 ):
     """
-    Cancel an appointment by clinic admin.
+    Cancel an appointment by clinic admin or practitioner.
 
+    Practitioners can only cancel their own appointments.
+    Admins can cancel any appointment in their clinic.
+    
     Updates appointment status to 'canceled_by_clinic', deletes Google Calendar event,
     and sends LINE notification to patient.
     """
     try:
-        # Cancel appointment using service
+        # Check permissions before calling service
+        # Practitioners can only cancel their own appointments; admins can cancel any in their clinic
+        if not current_user.has_role('admin'):
+            # For practitioners, verify they own this appointment
+            calendar_event = db.query(CalendarEvent).filter(
+                CalendarEvent.id == appointment_id,
+                CalendarEvent.user_id == current_user.user_id
+            ).first()
+            
+            if not calendar_event:
+                # Either appointment doesn't exist or practitioner doesn't own it
+                # Check if appointment exists but belongs to someone else
+                existing_event = db.query(CalendarEvent).filter(
+                    CalendarEvent.id == appointment_id
+                ).first()
+                
+                if existing_event:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="您只能取消自己的預約"
+                    )
+                # If event doesn't exist, let service handle 404
+        
+        # Cancel appointment using service (will verify appointment exists, clinic matches, etc.)
         assert current_user.clinic_id is not None, "Clinic ID required for clinic members"
         result = AppointmentService.cancel_appointment_by_clinic_admin(
             db=db,

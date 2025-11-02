@@ -801,8 +801,8 @@ class TestClinicAppointmentManagement:
             client.app.dependency_overrides.pop(get_current_user, None)
             client.app.dependency_overrides.pop(get_db, None)
 
-    def test_cancel_appointment_requires_admin_role(self, test_clinic_with_therapist, linked_patient, db_session):
-        """Test that only admins can cancel appointments."""
+    def test_practitioner_cannot_cancel_other_practitioner_appointment(self, test_clinic_with_therapist, linked_patient, db_session):
+        """Test that practitioners cannot cancel other practitioners' appointments."""
         clinic, therapist, appointment_types = test_clinic_with_therapist
 
         # Create practitioner user (not admin)
@@ -817,7 +817,7 @@ class TestClinicAppointmentManagement:
         db_session.add(practitioner)
         db_session.commit()
 
-        # Create an appointment
+        # Create an appointment for therapist (not the practitioner)
         start_time = datetime.now() + timedelta(days=1)
         end_time = start_time + timedelta(hours=1)
         calendar_event = CalendarEvent(
@@ -857,15 +857,92 @@ class TestClinicAppointmentManagement:
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
-            # Try to cancel appointment
+            # Try to cancel another practitioner's appointment
             response = client.delete(f"/api/clinic/appointments/{calendar_event.id}")
 
             assert response.status_code == 403
-            assert "Admin access required" in response.json()["detail"]
+            assert "您只能取消自己的預約" in response.json()["detail"]
         finally:
             # Clean up overrides
             client.app.dependency_overrides.pop(get_current_user, None)
             client.app.dependency_overrides.pop(get_db, None)
+
+    def test_practitioner_can_cancel_own_appointment(self, test_clinic_with_therapist, linked_patient, db_session):
+        """Test that practitioners can cancel their own appointments."""
+        clinic, therapist, appointment_types = test_clinic_with_therapist
+
+        # Create an appointment for therapist
+        start_time = datetime.now() + timedelta(days=1)
+        end_time = start_time + timedelta(hours=1)
+        calendar_event = CalendarEvent(
+            user_id=therapist.id,
+            event_type="appointment",
+            date=start_time.date(),
+            start_time=start_time.time(),
+            end_time=end_time.time(),
+            gcal_event_id="test_event_123"
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=linked_patient.id,
+            appointment_type_id=appointment_types[0].id,
+            status='confirmed'
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Override dependencies for testing
+        from auth.dependencies import get_current_user
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=therapist.email,
+            roles=["practitioner"],
+            clinic_id=therapist.clinic_id,
+            google_subject_id=therapist.google_subject_id,
+            name=therapist.full_name,
+            user_id=therapist.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        # Mock LINE service to avoid actual API calls
+        with patch('services.line_service.LINEService') as mock_line_service_class:
+            mock_line_service = Mock()
+            mock_line_service_class.return_value = mock_line_service
+
+            # Mock Google Calendar service
+            with patch('api.clinic.GoogleOAuthService') as mock_gcal_service_class:
+                mock_gcal_service = Mock()
+                mock_gcal_service_class.return_value = mock_gcal_service
+                mock_gcal_service.service = Mock()
+                mock_gcal_service.service.events.return_value.delete.return_value.execute.return_value = None
+
+                try:
+                    # Cancel own appointment
+                    response = client.delete(f"/api/clinic/appointments/{calendar_event.id}")
+
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert data["success"] is True
+                    assert "已取消" in data["message"]
+                    assert data["appointment_id"] == calendar_event.id
+
+                    # Verify appointment status updated
+                    updated_appointment = db_session.query(Appointment).filter(
+                        Appointment.calendar_event_id == calendar_event.id
+                    ).first()
+                    assert updated_appointment.status == 'canceled_by_clinic'
+                    assert updated_appointment.canceled_at is not None
+                finally:
+                    # Clean up overrides
+                    client.app.dependency_overrides.pop(get_current_user, None)
+                    client.app.dependency_overrides.pop(get_db, None)
 
 
 class TestPractitionerAppointmentTypes:
