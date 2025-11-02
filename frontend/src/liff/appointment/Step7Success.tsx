@@ -39,15 +39,15 @@ const Step7Success: React.FC = () => {
       const endDateTimeTaiwan = startDateTimeTaiwan.clone().add(appointmentType?.duration_minutes || 60, 'minutes');
 
       // Pass Taiwan time directly (ISO format with timezone indicator)
-      const appointmentData = {
-        id: Date.now(), // Temporary ID for ICS generation
-        appointment_type_name: appointmentType.name,
-        practitioner_name: practitioner?.full_name || '待安排',
-        patient_name: patient.full_name,
+    const appointmentData = {
+      id: Date.now(), // Temporary ID for ICS generation
+      appointment_type_name: appointmentType.name,
+      practitioner_name: practitioner?.full_name || '待安排',
+      patient_name: patient.full_name,
         start_time: startDateTimeTaiwan.format(), // Taiwan time with +08:00
         end_time: endDateTimeTaiwan.format(), // Taiwan time with +08:00
-        notes: notes || undefined,
-      };
+      notes: notes || undefined,
+    };
 
       // Use Google Calendar URL (works on all platforms - iOS, Android, Desktop)
       const googleCalendarURL = generateGoogleCalendarURL(appointmentData);
@@ -91,7 +91,7 @@ const Step7Success: React.FC = () => {
           end_time: endDateTimeTaiwan.format(), // Taiwan time with +08:00
           notes: notes || undefined,
         };
-        downloadAppointmentICS(appointmentData);
+    downloadAppointmentICS(appointmentData);
       } catch (fallbackError) {
         console.error('Failed to download ICS as fallback:', fallbackError);
         alert('無法加入行事曆，請稍後再試');

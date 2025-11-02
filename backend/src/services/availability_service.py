@@ -166,7 +166,7 @@ class AvailabilityService:
         available_slots: List[Dict[str, Any]] = []
         day_of_week = requested_date.weekday()
 
-        for practitioner in practitioners:
+                for practitioner in practitioners:
             # Get default schedule for this day of week
             default_intervals = db.query(PractitionerAvailability).filter(
                 PractitionerAvailability.user_id == practitioner.id,
@@ -198,12 +198,12 @@ class AvailabilityService:
 
             # Add practitioner info to each slot
             for slot in practitioner_slots:
-                available_slots.append({
+                    available_slots.append({
                     'start_time': slot['start_time'],
                     'end_time': slot['end_time'],
-                    'practitioner_id': practitioner.id,
-                    'practitioner_name': practitioner.full_name
-                })
+                        'practitioner_id': practitioner.id,
+                        'practitioner_name': practitioner.full_name
+                    })
 
         return available_slots
 
