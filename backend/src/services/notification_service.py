@@ -44,9 +44,13 @@ class NotificationService:
 
             clinic = patient.clinic
 
-            # Format datetime
+            # Format datetime - combine date and start_time
+            start_datetime = datetime.combine(
+                appointment.calendar_event.date,
+                appointment.calendar_event.start_time
+            )
             formatted_datetime = NotificationService._format_appointment_datetime(
-                appointment.calendar_event.start_datetime
+                start_datetime
             )
 
             # Generate message based on source
