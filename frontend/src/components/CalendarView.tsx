@@ -317,14 +317,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
   };
 
-  // Show delete confirmation
+  // Show delete confirmation for appointments
   const handleDeleteAppointment = () => {
     if (!modalState.data || !modalState.data.resource.appointment_id) return;
     // Show confirmation modal instead of deleting directly
     setModalState({ type: 'delete_confirmation', data: modalState.data });
   };
 
-  // Confirm and perform deletion
+  // Confirm and perform appointment deletion
   const handleConfirmDeleteAppointment = async () => {
     if (!modalState.data || !modalState.data.resource.appointment_id) return;
 
@@ -337,6 +337,29 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     } catch (error) {
       console.error('Error deleting appointment:', error);
       alert('取消預約失敗，請稍後再試');
+    }
+  };
+
+  // Show delete confirmation for availability exceptions
+  const handleDeleteException = () => {
+    if (!modalState.data || !modalState.data.resource.exception_id) return;
+    // Show confirmation modal instead of deleting directly
+    setModalState({ type: 'delete_confirmation', data: modalState.data });
+  };
+
+  // Confirm and perform exception deletion
+  const handleConfirmDeleteException = async () => {
+    if (!modalState.data || !modalState.data.resource.exception_id) return;
+
+    try {
+      await apiService.deleteAvailabilityException(userId, modalState.data.resource.exception_id);
+      
+      // Refresh data
+      await fetchCalendarData();
+      setModalState({ type: null, data: null });
+    } catch (error) {
+      console.error('Error deleting availability exception:', error);
+      alert('刪除休診時段失敗，請稍後再試');
     }
   };
 
@@ -472,6 +495,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                   刪除預約
                 </button>
               )}
+              {modalState.data.resource.type === 'availability_exception' && (
+                <button 
+                  onClick={handleDeleteException}
+                  className="btn-secondary"
+                >
+                  刪除
+                </button>
+              )}
               <button 
                 onClick={() => setModalState({ type: null, data: null })}
                 className="btn-primary"
@@ -582,17 +613,25 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                   <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-red-800">確認取消預約</h3>
+              <h3 className="text-lg font-semibold text-red-800">
+                {modalState.data.resource.type === 'appointment' 
+                  ? '確認取消預約' 
+                  : '確認刪除休診時段'}
+              </h3>
             </div>
             <div className="space-y-3 mb-4">
               <p className="text-gray-700">
-                您確定要取消此預約嗎？
+                {modalState.data.resource.type === 'appointment' 
+                  ? '您確定要取消此預約嗎？'
+                  : '您確定要刪除此休診時段嗎？'}
               </p>
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                <p className="text-sm text-blue-800">
-                  <strong>提醒：</strong>取消預約後，系統將會自動通知患者此預約已被取消。
-                </p>
-              </div>
+              {modalState.data.resource.type === 'appointment' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                  <p className="text-sm text-blue-800">
+                    <strong>提醒：</strong>取消預約後，系統將會自動通知患者此預約已被取消。
+                  </p>
+                </div>
+              )}
             </div>
             <div className="flex justify-end space-x-2">
               <button 
@@ -605,10 +644,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 取消
               </button>
               <button 
-                onClick={handleConfirmDeleteAppointment}
+                onClick={modalState.data.resource.type === 'appointment' 
+                  ? handleConfirmDeleteAppointment 
+                  : handleConfirmDeleteException}
                 className="btn-primary bg-red-600 hover:bg-red-700"
               >
-                確認取消
+                {modalState.data.resource.type === 'appointment' 
+                  ? '確認取消'
+                  : '確認刪除'}
               </button>
             </div>
           </div>
