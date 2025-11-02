@@ -420,7 +420,8 @@ async def get_calendar_data(
                         Appointment.calendar_event_id == event.id
                     ).first()
                     
-                    if appointment:
+                    # Only show confirmed appointments (filter out cancelled ones)
+                    if appointment and appointment.status == 'confirmed':
                         # Get LINE display name if patient has LINE user
                         line_display_name = None
                         if appointment.patient.line_user:
@@ -479,13 +480,14 @@ async def get_calendar_data(
                     detail="Invalid month format. Use YYYY-MM"
                 )
             
-            # Get appointment counts for each day
+            # Get appointment counts for each day (only count confirmed appointments)
             appointment_counts = db.query(
                 CalendarEvent.date,
                 func.count(CalendarEvent.id).label('count')
-            ).filter(
+            ).join(Appointment, CalendarEvent.id == Appointment.calendar_event_id).filter(
                 CalendarEvent.user_id == user_id,
                 CalendarEvent.event_type == 'appointment',
+                Appointment.status == 'confirmed',
                 CalendarEvent.date >= start_date,
                 CalendarEvent.date <= end_date
             ).group_by(CalendarEvent.date).all()

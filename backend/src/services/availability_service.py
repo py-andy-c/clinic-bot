@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from models import (
     User, AppointmentType, PractitionerAvailability, CalendarEvent,
-    PractitionerAppointmentTypes
+    PractitionerAppointmentTypes, Appointment
 )
 from utils.query_helpers import filter_by_role
 
@@ -184,10 +184,13 @@ class AvailabilityService:
                 CalendarEvent.date == requested_date
             ).all()
 
-            # Get existing appointments for this date
-            appointments = db.query(CalendarEvent).filter(
+            # Get existing confirmed appointments for this date (exclude cancelled ones)
+            appointments = db.query(CalendarEvent).join(
+                Appointment, CalendarEvent.id == Appointment.calendar_event_id
+            ).filter(
                 CalendarEvent.user_id == practitioner.id,
                 CalendarEvent.event_type == 'appointment',
+                Appointment.status == 'confirmed',
                 CalendarEvent.date == requested_date
             ).all()
 
@@ -275,10 +278,13 @@ class AvailabilityService:
                 CalendarEvent.date == target_date
             ).all()
 
-            # Get existing appointments for this date
-            appointments = db.query(CalendarEvent).filter(
+            # Get existing confirmed appointments for this date (exclude cancelled ones)
+            appointments = db.query(CalendarEvent).join(
+                Appointment, CalendarEvent.id == Appointment.calendar_event_id
+            ).filter(
                 CalendarEvent.user_id == practitioner_id,
                 CalendarEvent.event_type == 'appointment',
+                Appointment.status == 'confirmed',
                 CalendarEvent.date == target_date
             ).all()
 

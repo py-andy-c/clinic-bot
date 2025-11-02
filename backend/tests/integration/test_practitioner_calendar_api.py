@@ -715,3 +715,304 @@ class TestPractitionerCalendarAPI:
             CalendarEvent.id == calendar_event.id
         ).first()
         assert deleted_calendar_event is None
+
+    def test_daily_calendar_view_filters_cancelled_appointments(self, client: TestClient, db_session: Session):
+        """Test that daily calendar view only shows confirmed appointments."""
+        # Create test clinic and practitioner
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.flush()
+
+        practitioner = User(
+            clinic_id=clinic.id,
+            email="practitioner@example.com",
+            google_subject_id="practitioner_subject",
+            full_name="Dr. Test",
+            roles=["practitioner"]
+        )
+        db_session.add(practitioner)
+        db_session.flush()
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create patients
+        patient1 = Patient(
+            clinic_id=clinic.id,
+            full_name="Confirmed Patient",
+            phone_number="1234567890"
+        )
+        patient2 = Patient(
+            clinic_id=clinic.id,
+            full_name="Cancelled Patient",
+            phone_number="0987654321"
+        )
+        db_session.add(patient1)
+        db_session.add(patient2)
+        db_session.flush()
+
+        # Create confirmed appointment
+        confirmed_event = CalendarEvent(
+            user_id=practitioner.id,
+            event_type="appointment",
+            date=date(2025, 1, 15),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.add(confirmed_event)
+        db_session.flush()
+
+        confirmed_appointment = Appointment(
+            calendar_event_id=confirmed_event.id,
+            patient_id=patient1.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(confirmed_appointment)
+
+        # Create cancelled appointment
+        cancelled_event = CalendarEvent(
+            user_id=practitioner.id,
+            event_type="appointment",
+            date=date(2025, 1, 15),
+            start_time=time(11, 0),
+            end_time=time(12, 0)
+        )
+        db_session.add(cancelled_event)
+        db_session.flush()
+
+        cancelled_appointment = Appointment(
+            calendar_event_id=cancelled_event.id,
+            patient_id=patient2.id,
+            appointment_type_id=appointment_type.id,
+            status="canceled_by_patient"
+        )
+        db_session.add(cancelled_appointment)
+        db_session.commit()
+
+        # Use dev login endpoint to get authentication
+        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
+        assert response.status_code == 200
+        token = response.json()["access_token"]
+
+        # Test getting daily calendar data
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/calendar?date=2025-01-15",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should only show confirmed appointment, not cancelled one
+        appointment_events = [e for e in data["events"] if e["type"] == "appointment"]
+        assert len(appointment_events) == 1
+        assert appointment_events[0]["title"] == "Confirmed Patient - Test Appointment"
+        assert appointment_events[0]["status"] == "confirmed"
+
+    def test_monthly_calendar_view_excludes_cancelled_appointments(self, client: TestClient, db_session: Session):
+        """Test that monthly calendar view only counts confirmed appointments."""
+        # Create test clinic and practitioner
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.flush()
+
+        practitioner = User(
+            clinic_id=clinic.id,
+            email="practitioner@example.com",
+            google_subject_id="practitioner_subject",
+            full_name="Dr. Test",
+            roles=["practitioner"]
+        )
+        db_session.add(practitioner)
+        db_session.flush()
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create patients
+        patient1 = Patient(
+            clinic_id=clinic.id,
+            full_name="Confirmed Patient",
+            phone_number="1234567890"
+        )
+        patient2 = Patient(
+            clinic_id=clinic.id,
+            full_name="Cancelled Patient",
+            phone_number="0987654321"
+        )
+        db_session.add(patient1)
+        db_session.add(patient2)
+        db_session.flush()
+
+        # Create confirmed appointment on 2025-01-15
+        confirmed_event = CalendarEvent(
+            user_id=practitioner.id,
+            event_type="appointment",
+            date=date(2025, 1, 15),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.add(confirmed_event)
+        db_session.flush()
+
+        confirmed_appointment = Appointment(
+            calendar_event_id=confirmed_event.id,
+            patient_id=patient1.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(confirmed_appointment)
+
+        # Create cancelled appointment on same date
+        cancelled_event = CalendarEvent(
+            user_id=practitioner.id,
+            event_type="appointment",
+            date=date(2025, 1, 15),
+            start_time=time(11, 0),
+            end_time=time(12, 0)
+        )
+        db_session.add(cancelled_event)
+        db_session.flush()
+
+        cancelled_appointment = Appointment(
+            calendar_event_id=cancelled_event.id,
+            patient_id=patient2.id,
+            appointment_type_id=appointment_type.id,
+            status="canceled_by_clinic"
+        )
+        db_session.add(cancelled_appointment)
+        db_session.commit()
+
+        # Use dev login endpoint to get authentication
+        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
+        assert response.status_code == 200
+        token = response.json()["access_token"]
+
+        # Test getting monthly calendar data
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/calendar?month=2025-01",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should only count confirmed appointment, not cancelled one
+        day_data = next((d for d in data["days"] if d["date"] == "2025-01-15"), None)
+        assert day_data is not None
+        assert day_data["appointment_count"] == 1  # Only confirmed appointment
+
+    def test_available_slots_exclude_cancelled_appointments(self, client: TestClient, db_session: Session):
+        """Test that cancelled appointments don't block available slots."""
+        # Create test clinic and practitioner
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.flush()
+
+        practitioner = User(
+            clinic_id=clinic.id,
+            email="practitioner@example.com",
+            google_subject_id="practitioner_subject",
+            full_name="Dr. Test",
+            roles=["practitioner"]
+        )
+        db_session.add(practitioner)
+        db_session.flush()
+
+        # Create default availability
+        availability = PractitionerAvailability(
+            user_id=practitioner.id,
+            day_of_week=2,  # Wednesday
+            start_time=time(9, 0),
+            end_time=time(12, 0)
+        )
+        db_session.add(availability)
+        db_session.flush()
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create patients
+        patient1 = Patient(
+            clinic_id=clinic.id,
+            full_name="Cancelled Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient1)
+        db_session.flush()
+
+        # Create cancelled appointment at 10:00-11:00
+        cancelled_event = CalendarEvent(
+            user_id=practitioner.id,
+            event_type="appointment",
+            date=date(2025, 1, 15),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.add(cancelled_event)
+        db_session.flush()
+
+        cancelled_appointment = Appointment(
+            calendar_event_id=cancelled_event.id,
+            patient_id=patient1.id,
+            appointment_type_id=appointment_type.id,
+            status="canceled_by_patient"
+        )
+        db_session.add(cancelled_appointment)
+        db_session.commit()
+
+        # Use dev login endpoint to get authentication
+        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
+        assert response.status_code == 200
+        token = response.json()["access_token"]
+
+        # Test getting available slots
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/slots?date=2025-01-15&appointment_type_id={appointment_type.id}",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should have slots at 10:00-11:00 since the appointment is cancelled
+        slots = data["available_slots"]
+        assert len(slots) > 0
+        
+        # Check that 10:00 slot is available (cancelled appointment doesn't block it)
+        available_10am_slot = next((s for s in slots if s["start_time"] == "10:00"), None)
+        assert available_10am_slot is not None, "10:00 slot should be available since appointment is cancelled"
