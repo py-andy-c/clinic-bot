@@ -438,6 +438,10 @@ class AppointmentService:
 
         Raises:
             HTTPException: If appointment not found or access denied
+
+        Note:
+            This method is idempotent - if the appointment is already cancelled,
+            it returns success without making changes.
         """
         # Find appointment
         appointment = db.query(Appointment).filter(
@@ -462,6 +466,11 @@ class AppointmentService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="無權限取消此預約"
             )
+
+        # Check if appointment is already cancelled - if so, return success (idempotent)
+        if appointment.status in ['canceled_by_patient', 'canceled_by_clinic']:
+            logger.info(f"Appointment {appointment_id} already cancelled with status {appointment.status}, returning success")
+            return {"success": True, "message": "預約已取消"}
 
         # Update status
         appointment.status = 'canceled_by_patient'
@@ -492,7 +501,11 @@ class AppointmentService:
             Dict with appointment and practitioner details for notification
 
         Raises:
-            HTTPException: If appointment not found or already cancelled
+            HTTPException: If appointment not found
+
+        Note:
+            This method is idempotent - if the appointment is already cancelled,
+            it returns success without making changes.
         """
         # Find appointment
         appointment = db.query(Appointment).filter(
@@ -527,12 +540,15 @@ class AppointmentService:
                 detail="找不到相關治療師"
             )
 
-        # Check if appointment is already cancelled
+        # Check if appointment is already cancelled - if so, return success (idempotent)
         if appointment.status in ['canceled_by_patient', 'canceled_by_clinic']:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="預約已被取消"
-            )
+            logger.info(f"Appointment {appointment_id} already cancelled with status {appointment.status}, returning success")
+            return {
+                'appointment': appointment,
+                'practitioner': practitioner,
+                'gcal_deleted': False,  # Already cancelled, no GCal deletion needed
+                'already_cancelled': True
+            }
 
         # Update appointment status
         appointment.status = 'canceled_by_clinic'

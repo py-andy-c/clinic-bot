@@ -791,11 +791,14 @@ class TestClinicAppointmentManagement:
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
-            # Try to cancel already cancelled appointment
+            # Try to cancel already cancelled appointment (should succeed idempotently)
             response = client.delete(f"/api/clinic/appointments/{calendar_event.id}")
 
-            assert response.status_code == 409
-            assert "已被取消" in response.json()["detail"]
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert "已被取消" in data["message"] or "已取消" in data["message"]
+            assert data["appointment_id"] == calendar_event.id
         finally:
             # Clean up overrides
             client.app.dependency_overrides.pop(get_current_user, None)

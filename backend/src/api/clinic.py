@@ -1091,25 +1091,37 @@ async def cancel_clinic_appointment(
 
         appointment = result['appointment']
         practitioner = result['practitioner']
+        already_cancelled = result.get('already_cancelled', False)
 
         # Google Calendar event deletion is handled by the service
 
-        # Send LINE notification to patient
-        try:
-            NotificationService.send_appointment_cancellation(
-                db, appointment, practitioner, CancellationSource.CLINIC
-            )
-        except Exception as e:
-            logger.exception(f"Failed to send LINE notification for clinic cancellation of appointment {appointment_id}: {e}")
-            # Continue with cancellation even if LINE notification fails
+        # Send LINE notification to patient (skip if already cancelled to avoid duplicate notifications)
+        if not already_cancelled:
+            try:
+                NotificationService.send_appointment_cancellation(
+                    db, appointment, practitioner, CancellationSource.CLINIC
+                )
+            except Exception as e:
+                logger.exception(f"Failed to send LINE notification for clinic cancellation of appointment {appointment_id}: {e}")
+                # Continue with cancellation even if LINE notification fails
+        else:
+            logger.info(f"Skipping LINE notification for already-cancelled appointment {appointment_id}")
 
         db.commit()
 
-        return {
-            "success": True,
-            "message": "預約已取消，已通知患者",
-            "appointment_id": appointment_id
-        }
+        # Return appropriate message based on whether it was already cancelled
+        if already_cancelled:
+            return {
+                "success": True,
+                "message": "預約已被取消",
+                "appointment_id": appointment_id
+            }
+        else:
+            return {
+                "success": True,
+                "message": "預約已取消，已通知患者",
+                "appointment_id": appointment_id
+            }
 
     except HTTPException:
         raise
