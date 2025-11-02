@@ -8,7 +8,7 @@ import {
   transformToCalendarEvents, 
   CalendarEvent 
 } from '../utils/calendarDataAdapter';
-import { CustomToolbar, CustomEventComponent } from './CalendarComponents';
+import { CustomToolbar, CustomEventComponent, CustomDateHeader, CustomDayHeader, CustomWeekdayHeader } from './CalendarComponents';
 
 // Configure moment for Taiwan timezone
 moment.locale('zh-tw');
@@ -108,6 +108,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const fetchCalendarData = async () => {
     if (!userId) return;
 
+    // Monthly view is just for navigation - don't fetch events
+    if (view === Views.MONTH) {
+      setAllEvents([]);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -115,7 +121,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       const { start, end } = getDateRange(currentDate, view);
       const events: ApiCalendarEvent[] = [];
 
-      // Fetch events for each day in the range
+      // Fetch events for each day in the range (only for daily view)
       const current = moment(start);
       const endMoment = moment(end);
 
@@ -349,6 +355,41 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           components={{
             toolbar: CustomToolbar,
             event: CustomEventComponent,
+            month: {
+              dateHeader: CustomDateHeader,
+              header: CustomWeekdayHeader,
+            },
+            day: {
+              header: CustomDayHeader,
+            },
+          }}
+          formats={{
+            monthHeaderFormat: (date: Date) => {
+              const taiwanDate = moment(date).tz('Asia/Taipei');
+              return taiwanDate.format('YYYY年M月');
+            },
+            dayHeaderFormat: (date: Date) => {
+              const taiwanDate = moment(date).tz('Asia/Taipei');
+              const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+              const weekday = weekdayNames[taiwanDate.day()];
+              return `${taiwanDate.format('M月D日')} (${weekday})`;
+            },
+            // Note: weekday column headers in month view are handled by CustomWeekdayHeader component
+            // dayRangeHeaderFormat is not needed since we use CustomDayHeader component for day view
+            timeGutterFormat: (date: Date) => {
+              // Format for time slots in day view: "12 AM" instead of "12:00 AM"
+              const taiwanDate = moment(date).tz('Asia/Taipei');
+              const hours = taiwanDate.hour();
+              const minutes = taiwanDate.minute();
+              const period = hours >= 12 ? 'PM' : 'AM';
+              const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+              // Only show minutes if they're not zero
+              if (minutes === 0) {
+                return `${hours12} ${period}`;
+              } else {
+                return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+              }
+            },
           }}
           eventPropGetter={eventStyleGetter}
           // Mobile optimizations

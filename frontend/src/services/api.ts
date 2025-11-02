@@ -107,9 +107,9 @@ class ApiService {
 
   async refreshToken(): Promise<void> {
     try {
-      const response = await this.client.post('/auth/refresh', {}, { withCredentials: true });
+    const response = await this.client.post('/auth/refresh', {}, { withCredentials: true });
       if (response.status === 200 && response.data.access_token) {
-        localStorage.setItem('access_token', response.data.access_token);
+      localStorage.setItem('access_token', response.data.access_token);
       } else {
         // Refresh failed - throw error to be caught by interceptor
         throw new Error('Token refresh failed');
