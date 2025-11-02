@@ -6,7 +6,7 @@ between different API endpoints (LIFF, clinic admin, etc.).
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, time, timezone
 from typing import List, Optional, Dict, Any
 
 from fastapi import HTTPException, status
@@ -18,7 +18,7 @@ from models import (
     PractitionerAppointmentTypes
 )
 from services.patient_service import PatientService
-from utils.query_helpers import filter_by_role
+from services.availability_service import AvailabilityService
 
 logger = logging.getLogger(__name__)
 
@@ -68,16 +68,9 @@ class AppointmentService:
                     db, patient_id, line_user_id, clinic_id
                 )
 
-            # Get appointment type
-            appointment_type = db.query(AppointmentType).filter_by(
-                id=appointment_type_id,
-                clinic_id=clinic_id
-            ).first()
-
-            if not appointment_type:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Appointment type not found"
+            # Get appointment type and validate it belongs to clinic
+            appointment_type = AvailabilityService._get_appointment_type_by_id(
+                db, appointment_type_id, clinic_id=clinic_id
                 )
 
             # Calculate end time (start_time is already in Taiwan timezone)
@@ -146,6 +139,44 @@ class AppointmentService:
             )
 
     @staticmethod
+    def _is_practitioner_available_at_slot(
+        schedule_data: Dict[int, Dict[str, Any]],
+        practitioner_id: int,
+        start_time: time,
+        end_time: time
+    ) -> bool:
+        """
+        Check if a practitioner is available at the given time slot.
+        
+        Args:
+            schedule_data: Schedule data from fetch_practitioner_schedule_data
+            practitioner_id: Practitioner ID to check
+            start_time: Slot start time
+            end_time: Slot end time
+            
+        Returns:
+            True if practitioner is available, False otherwise
+        """
+        data = schedule_data.get(practitioner_id, {
+            'default_intervals': [],
+            'events': []
+        })
+        
+        # Check if slot is within default intervals
+        if not AvailabilityService._is_slot_within_default_intervals(
+            data['default_intervals'], start_time, end_time
+        ):
+            return False
+        
+        # Check if slot has conflicts
+        if AvailabilityService._has_slot_conflicts(
+            data['events'], start_time, end_time
+        ):
+            return False
+        
+        return True
+
+    @staticmethod
     def _assign_practitioner(
         db: Session,
         clinic_id: int,
@@ -173,20 +204,26 @@ class AppointmentService:
         Raises:
             HTTPException: If no available practitioner found
         """
-        # start_time and end_time are already in Taiwan timezone
-        # Extract date and time components for comparison with CalendarEvent
-        # CalendarEvent stores date and time as naive values, interpreted as Taiwan time
+        # Get all practitioners who offer this appointment type
+        practitioners = AvailabilityService._get_practitioners_for_appointment_type(
+            db, appointment_type_id, clinic_id
+        )
+        
+        # Batch fetch schedule data for all practitioners (2 queries total)
+        practitioner_ids = [p.id for p in practitioners]
+        schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
+            db, practitioner_ids, start_time.date()
+        )
+        
+        slot_start_time = start_time.time()
+        slot_end_time = end_time.time()
+        
         if requested_practitioner_id:
-            # Specific practitioner requested - validate they offer this type and are available
-            query = db.query(User).filter(
-                User.id == requested_practitioner_id,
-                User.clinic_id == clinic_id,
-                User.is_active == True
+            # Specific practitioner requested - validate they're in the list and available
+            practitioner = next(
+                (p for p in practitioners if p.id == requested_practitioner_id),
+                None
             )
-            query = filter_by_role(query, 'practitioner')
-            practitioner = query.join(PractitionerAppointmentTypes).filter(
-                PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
-            ).first()
 
             if not practitioner:
                 raise HTTPException(
@@ -194,55 +231,25 @@ class AppointmentService:
                     detail="Practitioner not found or doesn't offer this appointment type"
                 )
 
-            # Check availability (compare with Taiwan time components)
-            # Only check for confirmed appointments (exclude cancelled ones)
-            conflicts = db.query(CalendarEvent).join(
-                Appointment, CalendarEvent.id == Appointment.calendar_event_id
-            ).filter(
-                CalendarEvent.user_id == practitioner.id,
-                CalendarEvent.date == start_time.date(),
-                CalendarEvent.start_time < end_time.time(),
-                CalendarEvent.end_time > start_time.time(),
-                CalendarEvent.event_type == 'appointment',
-                Appointment.status == 'confirmed'
-            ).count()
-
-            if conflicts > 0:
+            if not AppointmentService._is_practitioner_available_at_slot(
+                schedule_data, practitioner.id, slot_start_time, slot_end_time
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="時段已被預約"
+                    detail="時段不可用"
                 )
 
             return practitioner.id
 
         else:
             # Auto-assign to practitioner with least appointments that day
-            query = db.query(User).filter(
-                User.clinic_id == clinic_id,
-                User.is_active == True
-            )
-            query = filter_by_role(query, 'practitioner')
-            candidates: List[User] = query.join(PractitionerAppointmentTypes).filter(
-                PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
-            ).all()
-
-            # Filter by availability at requested time (compare with Taiwan time components)
-            # Only check for confirmed appointments (exclude cancelled ones)
-            available_candidates: List[User] = []
-            for candidate in candidates:
-                conflicts = db.query(CalendarEvent).join(
-                    Appointment, CalendarEvent.id == Appointment.calendar_event_id
-                ).filter(
-                    CalendarEvent.user_id == candidate.id,
-                    CalendarEvent.date == start_time.date(),
-                    CalendarEvent.start_time < end_time.time(),
-                    CalendarEvent.end_time > start_time.time(),
-                    CalendarEvent.event_type == 'appointment',
-                    Appointment.status == 'confirmed'
-                ).count()
-
-                if conflicts == 0:
-                    available_candidates.append(candidate)
+            # Filter by availability at requested time
+            available_candidates = [
+                p for p in practitioners
+                if AppointmentService._is_practitioner_available_at_slot(
+                    schedule_data, p.id, slot_start_time, slot_end_time
+                )
+            ]
 
             if not available_candidates:
                 raise HTTPException(
@@ -250,7 +257,7 @@ class AppointmentService:
                     detail="無可用治療師"
                 )
 
-            # Assign to practitioner with least appointments that day (compare with Taiwan time date)
+            # Assign to practitioner with least appointments that day
             # Only count confirmed appointments for load balancing (exclude cancelled ones)
             selected_practitioner = min(
                 available_candidates,

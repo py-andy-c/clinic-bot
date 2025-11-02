@@ -532,16 +532,21 @@ async def get_availability(
     _, clinic = line_user_clinic
 
     try:
-        # Get practitioner IDs to check (if specific practitioner requested)
-        practitioner_ids = [practitioner_id] if practitioner_id else None
-
-        # Get available slots using service
-        slots_data = AvailabilityService.get_available_slots(
+        if practitioner_id:
+            # Specific practitioner requested
+            slots_data = AvailabilityService.get_available_slots_for_practitioner(
+                db=db,
+                practitioner_id=practitioner_id,
+                date=date,
+                appointment_type_id=appointment_type_id
+            )
+        else:
+            # All practitioners in clinic
+            slots_data = AvailabilityService.get_available_slots_for_clinic(
             db=db,
+                clinic_id=clinic.id,
             date=date,
-            appointment_type_id=appointment_type_id,
-            practitioner_ids=practitioner_ids,
-            clinic_id=clinic.id
+                appointment_type_id=appointment_type_id
         )
 
         # Convert dicts to response objects

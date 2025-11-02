@@ -580,9 +580,12 @@ async def get_available_slots(
             appointment_type_id=appointment_type_id
         )
 
-        # Convert dicts to response objects
+        # Strip practitioner info for response (not needed since it's always same practitioner)
         available_slots = [
-            AvailableSlotResponse(**slot)
+            AvailableSlotResponse(
+                start_time=slot['start_time'],
+                end_time=slot['end_time']
+            )
             for slot in slots_data
         ]
 
