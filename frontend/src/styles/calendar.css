@@ -140,4 +140,49 @@
   .rbc-toolbar button {
     @apply px-2 py-1 text-xs;
   }
+  
+  /* Day view mobile optimizations */
+  .rbc-time-view {
+    @apply overflow-x-auto;
+  }
+  
+  /* Increase time gutter width on mobile for better readability */
+  .rbc-time-gutter {
+    min-width: 60px !important;
+    padding: 0 8px !important;
+  }
+  
+  /* Increase spacing between time slots on mobile */
+  .rbc-time-slot {
+    @apply py-2;
+    min-height: 48px !important;
+  }
+  
+  /* Better padding for time slot labels */
+  .rbc-time-gutter .rbc-time-slot {
+    @apply pr-2;
+  }
+  
+  /* Increase event padding on mobile */
+  .rbc-day-view .rbc-event {
+    padding: 4px 6px !important;
+    margin: 2px 4px !important;
+    font-size: 0.75rem !important;
+    line-height: 1.4;
+  }
+  
+  /* More spacing in day slot */
+  .rbc-day-slot {
+    min-height: 48px !important;
+  }
+  
+  /* Increase time header content padding */
+  .rbc-time-header-content {
+    @apply px-3 py-2;
+  }
+  
+  /* Better spacing for time content */
+  .rbc-time-content {
+    padding-left: 8px !important;
+  }
 }

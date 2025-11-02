@@ -216,12 +216,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Handle adding availability exception via button
   const handleAddException = useCallback(() => {
+    // If in month view, switch to day view first
+    if (view === Views.MONTH) {
+      setView(Views.DAY);
+    }
     setExceptionData({
       startTime: '',
       endTime: ''
     });
     setModalState({ type: 'exception', data: null });
-  }, []);
+  }, [view]);
 
   // Expose handler to parent component
   useEffect(() => {
@@ -344,7 +348,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           events={calendarEvents}
           startAccessor="start"
           endAccessor="end"
-          view={isMobile ? Views.DAY : view}
+          view={view}
           views={[Views.MONTH, Views.DAY]}
           date={currentDate}
           onNavigate={handleNavigate}
@@ -399,7 +403,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           // Timezone configuration
           culture="zh-TW"
           // Styling
-          style={{ height: 600 }}
+          style={{ height: isMobile ? 'calc(100vh - 200px)' : 600 }}
           className="calendar-container"
         />
       </div>

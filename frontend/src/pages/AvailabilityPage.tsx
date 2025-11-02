@@ -33,7 +33,7 @@ const AvailabilityPage: React.FC = () => {
       {/* Header */}
       <div className="mb-8 flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">行事曆</h1>
-        {addExceptionHandler && currentView === Views.DAY && (
+        {addExceptionHandler && (
           <button
             onClick={addExceptionHandler}
             className="inline-flex items-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
