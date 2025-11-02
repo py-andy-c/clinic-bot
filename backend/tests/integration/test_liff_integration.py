@@ -401,10 +401,10 @@ class TestLiffDatabaseOperations:
             assert appointment_result["practitioner_name"] == practitioner.full_name
             assert appointment_result["notes"] == "Integration test appointment"
 
-            # Verify database state (time is stored in UTC)
+            # Verify database state (time is stored in Taiwan time)
             calendar_event = db_session.query(CalendarEvent).filter(
                 CalendarEvent.date == datetime.fromisoformat(future_date).date(),
-                CalendarEvent.start_time == time(2, 0)  # 10:00 UTC+8 = 02:00 UTC
+                CalendarEvent.start_time == time(10, 0)  # 10:00 Taiwan time
             ).first()
             assert calendar_event is not None
             assert calendar_event.user_id == practitioner.id
@@ -951,10 +951,10 @@ class TestLiffAvailabilityAndScheduling:
             print(f"Appointment creation response: {response.status_code} - {response.text}")
             assert response.status_code == 200
 
-            # Verify CalendarEvent was created (time is stored in UTC)
+            # Verify CalendarEvent was created (time is stored in Taiwan time)
             calendar_event = db_session.query(CalendarEvent).filter(
                 CalendarEvent.date == future_date,
-                CalendarEvent.start_time == time(2, 30),  # 10:30 UTC+8 = 02:30 UTC
+                CalendarEvent.start_time == time(10, 30),  # 10:30 Taiwan time
                 CalendarEvent.user_id == practitioner.id
             ).first()
             assert calendar_event is not None

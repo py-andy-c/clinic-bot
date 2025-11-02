@@ -1,3 +1,5 @@
+import moment from 'moment-timezone';
+
 export interface AppointmentData {
   id: number;
   appointment_type_name: string;
@@ -32,12 +34,14 @@ export const downloadAppointmentICS = (appointment: AppointmentData) => {
   }
 
   // Create ICS content
+  // DTSTAMP should be current UTC time
+  const nowUTC = moment().utc().format('YYYYMMDDTHHmmss') + 'Z';
   const icsContent = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Clinic Bot//Appointment//EN
 BEGIN:VEVENT
 UID:appointment-${id}@clinicbot.com
-DTSTAMP:${formatICSDate(new Date())}
+DTSTAMP:${nowUTC}
 DTSTART:${formatICSDate(start_time)}
 DTEND:${formatICSDate(end_time)}
 SUMMARY:${appointment_type_name} - ${practitioner_name}
@@ -70,10 +74,12 @@ END:VCALENDAR`;
 };
 
 // Helper function to format date for ICS format
+// Input is Taiwan time ISO string (with +08:00), convert to UTC for ICS format
 const formatICSDate = (date: Date | string): string => {
-  const d = new Date(date);
-  // Format as YYYYMMDDTHHMMSSZ
-  return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  // Parse as Taiwan time and convert to UTC for ICS format
+  const twMoment = moment(date);
+  // Format as YYYYMMDDTHHMMSSZ (UTC format required by ICS)
+  return twMoment.utc().format('YYYYMMDDTHHmmss') + 'Z';
 };
 
 // Alternative: Use Web Share API if available (for mobile)
@@ -130,12 +136,14 @@ const createICSContent = (appointment: AppointmentData): string => {
     description += `\\n\\n備註：\\n${notes}`;
   }
 
+  // DTSTAMP should be current UTC time
+  const nowUTC = moment().utc().format('YYYYMMDDTHHmmss') + 'Z';
   return `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Clinic Bot//Appointment//EN
 BEGIN:VEVENT
 UID:appointment-${id}@clinicbot.com
-DTSTAMP:${formatICSDate(new Date())}
+DTSTAMP:${nowUTC}
 DTSTART:${formatICSDate(start_time)}
 DTEND:${formatICSDate(end_time)}
 SUMMARY:${appointment_type_name} - ${practitioner_name}
@@ -171,10 +179,24 @@ export const generateGoogleCalendarURL = (appointment: AppointmentData): string 
     clinic_address
   } = appointment;
 
-  // Format dates for Google Calendar (YYYYMMDDTHHMMSSZ)
+  // Format dates for Google Calendar (YYYYMMDDTHHMMSS)
+  // Input is Taiwan time ISO string (with +08:00), use it directly
+  // Using ctz=Asia/Taipei parameter so Google Calendar handles timezone conversion correctly
+  // This avoids DST issues when converting to user's local timezone
   const formatGoogleCalendarDate = (date: Date | string): string => {
-    const d = new Date(date);
-    return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    // Parse Taiwan time ISO string (with timezone indicator)
+    let twMoment;
+    
+    if (typeof date === 'string') {
+      // Parse as Taiwan time (already in Taiwan timezone with +08:00)
+      twMoment = moment(date);
+    } else {
+      // If Date object, assume it's in Taiwan time (shouldn't happen with our flow)
+      twMoment = moment.tz(date, 'Asia/Taipei');
+    }
+    
+    // Format as YYYYMMDDTHHMMSS (no timezone suffix when using ctz parameter)
+    return twMoment.format('YYYYMMDDTHHmmss');
   };
 
   const start = formatGoogleCalendarDate(start_time);
@@ -193,6 +215,8 @@ export const generateGoogleCalendarURL = (appointment: AppointmentData): string 
   const location = encodeURIComponent(clinic_address || clinic_name);
   const details = encodeURIComponent(description);
 
-  // Google Calendar URL format
-  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`;
+  // Google Calendar URL format with timezone parameter
+  // Using ctz=Asia/Taipei so Google Calendar knows the event is in Taiwan time
+  // Google Calendar will convert from Taiwan time to user's local timezone (handles DST automatically)
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}&ctz=Asia/Taipei`;
 };

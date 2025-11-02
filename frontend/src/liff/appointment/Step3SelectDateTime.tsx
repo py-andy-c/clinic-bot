@@ -57,7 +57,9 @@ const Step3SelectDateTime: React.FC = () => {
           const date = new Date(year, month, day);
           // Skip past dates
           if (date >= today) {
-            datesToCheck.push(date.toISOString().split('T')[0]);
+            // Format date as YYYY-MM-DD using local date components (not UTC)
+            const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            datesToCheck.push(dateString);
     }
         }
 
@@ -123,7 +125,12 @@ const Step3SelectDateTime: React.FC = () => {
   };
 
   const handleDateSelect = (date: Date) => {
-    const dateString = date.toISOString().split('T')[0];
+    // Format date as YYYY-MM-DD using local date components (not UTC)
+    // This ensures the calendar date stays the same regardless of timezone
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateString = `${year}-${month}-${day}`;
     // Only allow selection if date has available slots
     if (datesWithSlots.has(dateString)) {
       setSelectedDate(dateString);
@@ -138,7 +145,9 @@ const Step3SelectDateTime: React.FC = () => {
 
   // Convert 24-hour time to 12-hour format
   const formatTo12Hour = (time24: string): { time12: string; period: 'AM' | 'PM' } => {
-    const [hours, minutes] = time24.split(':').map(Number);
+    const parts = time24.split(':').map(Number);
+    const hours = parts[0] ?? 0;
+    const minutes = parts[1] ?? 0;
     const period = hours >= 12 ? 'PM' : 'AM';
     const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
     return {
@@ -170,7 +179,11 @@ const Step3SelectDateTime: React.FC = () => {
   };
 
   const isDateAvailable = (date: Date): boolean => {
-    const dateString = date.toISOString().split('T')[0];
+    // Format date as YYYY-MM-DD using local date components (not UTC)
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const dateString = `${year}-${month}-${day}`;
     return datesWithSlots.has(dateString);
   };
 
@@ -248,7 +261,11 @@ const Step3SelectDateTime: React.FC = () => {
                 return <div key={`empty-${index}`} className="aspect-square" />;
               }
 
-              const dateString = date.toISOString().split('T')[0];
+              // Format date as YYYY-MM-DD using local date components (not UTC)
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, '0');
+              const day = String(date.getDate()).padStart(2, '0');
+              const dateString = `${year}-${month}-${day}`;
               const available = isDateAvailable(date);
               const selected = selectedDate === dateString;
               const today = isToday(date);

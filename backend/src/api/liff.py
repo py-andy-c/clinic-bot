@@ -120,16 +120,30 @@ class PatientUpdateRequest(BaseModel):
 
 
 def parse_datetime(v: str | datetime) -> datetime:
-    """Parse datetime from string or return datetime object."""
+    """Parse datetime from string or return datetime object.
+    
+    Expects Taiwan time (Asia/Taipei, UTC+8) with timezone indicator.
+    If no timezone provided, assumes Taiwan time.
+    """
     if isinstance(v, str):
         # Parse ISO format datetime string
         try:
-            # Try parsing with timezone info
-            return datetime.fromisoformat(v.replace('Z', '+00:00'))
+            # Parse the datetime string
+            dt = datetime.fromisoformat(v.replace('Z', '+00:00'))
+            
+            # If it has timezone info, convert to Taiwan time
+            if dt.tzinfo:
+                taiwan_tz = timezone(timedelta(hours=8))
+                return dt.astimezone(taiwan_tz)
+            else:
+                # No timezone, assume Taiwan time
+                taiwan_tz = timezone(timedelta(hours=8))
+                return dt.replace(tzinfo=taiwan_tz)
         except ValueError:
-            # If no timezone, assume UTC
+            # Fallback: parse and assume Taiwan time
             dt = datetime.fromisoformat(v)
-            return dt.replace(tzinfo=timezone.utc)
+            taiwan_tz = timezone(timedelta(hours=8))
+            return dt.replace(tzinfo=taiwan_tz)
     return v
 
 
@@ -169,14 +183,16 @@ class AppointmentCreateRequest(BaseModel):
     @field_validator('start_time')
     @classmethod
     def validate_time(cls, v: datetime) -> datetime:
-        now = datetime.now(timezone.utc)
-        # Ensure v is timezone-aware for comparison
+        # Use Taiwan time for all validations
+        taiwan_tz = timezone(timedelta(hours=8))
+        now = datetime.now(taiwan_tz)
+        # Ensure v is timezone-aware in Taiwan timezone
         if v.tzinfo is None:
-            # If naive, assume it's in UTC
-            v = v.replace(tzinfo=timezone.utc)
+            # If naive, assume it's in Taiwan time
+            v = v.replace(tzinfo=taiwan_tz)
         else:
-            # Convert to UTC for comparison
-            v = v.astimezone(timezone.utc)
+            # Convert to Taiwan timezone for comparison
+            v = v.astimezone(taiwan_tz)
         # Must be in future
         if v < now:
             raise ValueError('Cannot book appointments in the past')

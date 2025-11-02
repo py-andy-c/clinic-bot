@@ -80,7 +80,7 @@ class AppointmentService:
                     detail="Appointment type not found"
                 )
 
-            # Calculate end time
+            # Calculate end time (start_time is already in Taiwan timezone)
             end_time = start_time + timedelta(minutes=appointment_type.duration_minutes)
 
             # Handle practitioner assignment
@@ -89,7 +89,8 @@ class AppointmentService:
                 start_time, end_time
             )
 
-            # Create calendar event first
+            # Extract date and time components directly (start_time is already in Taiwan timezone)
+            # CalendarEvent stores date and time as naive values, interpreted as Taiwan time
             calendar_event = CalendarEvent(
                 user_id=assigned_practitioner_id,
                 event_type='appointment',
@@ -163,8 +164,8 @@ class AppointmentService:
             clinic_id: Clinic ID
             appointment_type_id: Appointment type ID
             requested_practitioner_id: Specific practitioner or None for auto-assignment
-            start_time: Appointment start time
-            end_time: Appointment end time
+            start_time: Appointment start time (Taiwan timezone datetime)
+            end_time: Appointment end time (Taiwan timezone datetime)
 
         Returns:
             Assigned practitioner ID
@@ -172,6 +173,9 @@ class AppointmentService:
         Raises:
             HTTPException: If no available practitioner found
         """
+        # start_time and end_time are already in Taiwan timezone
+        # Extract date and time components for comparison with CalendarEvent
+        # CalendarEvent stores date and time as naive values, interpreted as Taiwan time
         if requested_practitioner_id:
             # Specific practitioner requested - validate they offer this type and are available
             query = db.query(User).filter(
@@ -190,7 +194,7 @@ class AppointmentService:
                     detail="Practitioner not found or doesn't offer this appointment type"
                 )
 
-            # Check availability
+            # Check availability (compare with Taiwan time components)
             conflicts = db.query(CalendarEvent).filter(
                 CalendarEvent.user_id == practitioner.id,
                 CalendarEvent.date == start_time.date(),
@@ -218,7 +222,7 @@ class AppointmentService:
                 PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
             ).all()
 
-            # Filter by availability at requested time
+            # Filter by availability at requested time (compare with Taiwan time components)
             available_candidates: List[User] = []
             for candidate in candidates:
                 conflicts = db.query(CalendarEvent).filter(
@@ -238,7 +242,7 @@ class AppointmentService:
                     detail="無可用治療師"
                 )
 
-            # Assign to practitioner with least appointments that day
+            # Assign to practitioner with least appointments that day (compare with Taiwan time date)
             selected_practitioner = min(
                 available_candidates,
                 key=lambda p: db.query(CalendarEvent).filter(

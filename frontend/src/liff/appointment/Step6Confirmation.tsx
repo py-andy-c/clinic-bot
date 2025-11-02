@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import moment from 'moment-timezone';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 
@@ -14,13 +15,28 @@ const Step6Confirmation: React.FC = () => {
       setIsSubmitting(true);
       setError(null);
 
-      const startDateTime = new Date(`${date}T${startTime}`);
+      // Parse date and time as Taiwan time (Asia/Taipei)
+      // Treat the selected time as Taiwan time regardless of browser timezone
+      const taiwanTimezone = 'Asia/Taipei';
+      const timeWithSeconds = startTime.includes(':') && startTime.split(':').length === 2 
+        ? `${startTime}:00` 
+        : startTime;
+      
+      // Parse as Taiwan time using moment-timezone
+      const startDateTimeTaiwan = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
+      
+      if (!startDateTimeTaiwan.isValid()) {
+        setError('日期時間格式錯誤');
+        return;
+      }
 
+      // Send Taiwan time with timezone indicator to API
+      // Format as ISO string with timezone offset (e.g., 2024-11-03T11:00:00+08:00)
       await liffApiService.createAppointment({
         patient_id: patient.id,
         appointment_type_id: appointmentType.id,
         practitioner_id: practitioner?.id ?? undefined,
-        start_time: startDateTime.toISOString(),
+        start_time: startDateTimeTaiwan.format(),
         notes: notes || undefined,
       });
 
@@ -36,27 +52,24 @@ const Step6Confirmation: React.FC = () => {
 
   const formatDateTime = () => {
     if (!date || !startTime) return '';
-    const dateTime = new Date(`${date}T${startTime}`);
     
-    if (isNaN(dateTime.getTime())) {
+    // Parse as Taiwan time for display
+    const taiwanTimezone = 'Asia/Taipei';
+    const timeWithSeconds = startTime.includes(':') && startTime.split(':').length === 2 
+      ? `${startTime}:00` 
+      : startTime;
+    const dateTimeTaiwan = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
+    
+    if (!dateTimeTaiwan.isValid()) {
       return '';
     }
     
     // Format weekday as (日), (一), (二), etc.
     const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
-    const weekday = weekdayNames[dateTime.getDay()];
+    const weekday = weekdayNames[dateTimeTaiwan.day()]; // moment uses .day() instead of .getDay()
     
-    const dateStr = dateTime.toLocaleDateString('zh-TW', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-    
-    const timeStr = dateTime.toLocaleTimeString('zh-TW', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
+    const dateStr = dateTimeTaiwan.format('YYYY/MM/DD');
+    const timeStr = dateTimeTaiwan.format('HH:mm');
     
     return `${dateStr} (${weekday}) ${timeStr}`;
   };

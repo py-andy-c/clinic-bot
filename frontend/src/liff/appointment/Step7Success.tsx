@@ -1,4 +1,5 @@
 import React from 'react';
+import moment from 'moment-timezone';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { downloadAppointmentICS, generateGoogleCalendarURL } from '../../utils/icsGenerator';
 
@@ -17,26 +18,34 @@ const Step7Success: React.FC = () => {
     }
 
     try {
-      // Parse date and time, ensuring proper timezone handling
-      const startDateTime = new Date(`${date}T${startTime}:00`);
+      // Parse date and time as Taiwan time (Asia/Taipei)
+      // Convert to UTC only for Google Calendar URL generation (external API requirement)
+      // Treat the selected time as Taiwan time regardless of browser timezone
+      const taiwanTimezone = 'Asia/Taipei';
+      const timeWithSeconds = startTime.includes(':') && startTime.split(':').length === 2 
+        ? `${startTime}:00` 
+        : startTime;
       
-      // Check if date is valid
-      if (isNaN(startDateTime.getTime())) {
-        console.error('Invalid date/time:', `${date}T${startTime}`);
+      // Parse as Taiwan time using moment-timezone
+      const startDateTimeTaiwan = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
+      
+      if (!startDateTimeTaiwan.isValid()) {
+        console.error('Invalid date/time:', `${date}T${timeWithSeconds}`);
         alert('無法建立行事曆事件：日期時間格式錯誤');
         return;
       }
 
-      const endTime = new Date(startDateTime);
-      endTime.setMinutes(endTime.getMinutes() + (appointmentType?.duration_minutes || 60));
+      // Calculate end time in Taiwan timezone
+      const endDateTimeTaiwan = startDateTimeTaiwan.clone().add(appointmentType?.duration_minutes || 60, 'minutes');
 
+      // Pass Taiwan time directly (ISO format with timezone indicator)
       const appointmentData = {
         id: Date.now(), // Temporary ID for ICS generation
         appointment_type_name: appointmentType.name,
         practitioner_name: practitioner?.full_name || '待安排',
         patient_name: patient.full_name,
-        start_time: startDateTime.toISOString(),
-        end_time: endTime.toISOString(),
+        start_time: startDateTimeTaiwan.format(), // Taiwan time with +08:00
+        end_time: endDateTimeTaiwan.format(), // Taiwan time with +08:00
         notes: notes || undefined,
       };
 
@@ -66,13 +75,20 @@ const Step7Success: React.FC = () => {
       console.error('Failed to open Google Calendar:', error);
       // Fallback to ICS download if Google Calendar URL fails
       try {
+        const taiwanTimezone = 'Asia/Taipei';
+        const timeWithSeconds = startTime.includes(':') && startTime.split(':').length === 2 
+          ? `${startTime}:00` 
+          : startTime;
+        const startDateTimeTaiwan = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
+        const endDateTimeTaiwan = startDateTimeTaiwan.clone().add(appointmentType?.duration_minutes || 60, 'minutes');
+        
         const appointmentData = {
           id: Date.now(),
           appointment_type_name: appointmentType.name,
           practitioner_name: practitioner?.full_name || '待安排',
           patient_name: patient.full_name,
-          start_time: new Date(`${date}T${startTime}:00`).toISOString(),
-          end_time: new Date(new Date(`${date}T${startTime}:00`).getTime() + (appointmentType?.duration_minutes || 60) * 60000).toISOString(),
+          start_time: startDateTimeTaiwan.format(), // Taiwan time with +08:00
+          end_time: endDateTimeTaiwan.format(), // Taiwan time with +08:00
           notes: notes || undefined,
         };
         downloadAppointmentICS(appointmentData);
