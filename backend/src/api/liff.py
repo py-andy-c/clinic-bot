@@ -19,7 +19,7 @@ from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from core.config import JWT_SECRET_KEY
+from core.config import JWT_SECRET_KEY, JWT_ACCESS_TOKEN_EXPIRE_MINUTES
 from models import (
     LineUser, Clinic, Patient, AppointmentType
 )
@@ -268,7 +268,7 @@ async def liff_login(
         token_payload = {
             "line_user_id": line_user.line_user_id,
             "clinic_id": clinic.id,
-            "exp": now + timedelta(hours=1),
+            "exp": now + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES),
             "iat": now
         }
         access_token = jwt.encode(token_payload, JWT_SECRET_KEY, algorithm="HS256")

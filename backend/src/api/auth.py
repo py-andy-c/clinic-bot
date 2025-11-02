@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 from datetime import datetime, timezone
 from typing import Dict, Any
 from core.database import get_db
-from core.config import API_BASE_URL, SYSTEM_ADMIN_EMAILS, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, ENVIRONMENT
+from core.config import API_BASE_URL, SYSTEM_ADMIN_EMAILS, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, ENVIRONMENT, JWT_REFRESH_TOKEN_EXPIRE_DAYS
 from services.jwt_service import jwt_service, TokenPayload
 from models import RefreshToken, User, Clinic
 from auth.dependencies import UserContext, get_current_user
@@ -235,7 +235,8 @@ async def google_auth_callback(
             httponly=True,
             secure=ENVIRONMENT == "production",
             samesite="strict",
-            max_age=7 * 24 * 60 * 60  # 7 days
+            path="/",  # Ensure cookie is sent with all requests
+            max_age=JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60  # Use configurable expiration
         )
 
         return response
@@ -351,7 +352,8 @@ async def refresh_access_token(
         httponly=True,
         secure=ENVIRONMENT == "production",  # Secure in production
         samesite="strict",
-        max_age=jwt_service.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60  # days to seconds
+        path="/",  # Ensure cookie is sent with all requests
+        max_age=JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60  # Use configurable expiration
     )
 
     return {
