@@ -195,12 +195,16 @@ class AppointmentService:
                 )
 
             # Check availability (compare with Taiwan time components)
-            conflicts = db.query(CalendarEvent).filter(
+            # Only check for confirmed appointments (exclude cancelled ones)
+            conflicts = db.query(CalendarEvent).join(
+                Appointment, CalendarEvent.id == Appointment.calendar_event_id
+            ).filter(
                 CalendarEvent.user_id == practitioner.id,
                 CalendarEvent.date == start_time.date(),
                 CalendarEvent.start_time < end_time.time(),
                 CalendarEvent.end_time > start_time.time(),
-                CalendarEvent.event_type == 'appointment'
+                CalendarEvent.event_type == 'appointment',
+                Appointment.status == 'confirmed'
             ).count()
 
             if conflicts > 0:
@@ -223,14 +227,18 @@ class AppointmentService:
             ).all()
 
             # Filter by availability at requested time (compare with Taiwan time components)
+            # Only check for confirmed appointments (exclude cancelled ones)
             available_candidates: List[User] = []
             for candidate in candidates:
-                conflicts = db.query(CalendarEvent).filter(
+                conflicts = db.query(CalendarEvent).join(
+                    Appointment, CalendarEvent.id == Appointment.calendar_event_id
+                ).filter(
                     CalendarEvent.user_id == candidate.id,
                     CalendarEvent.date == start_time.date(),
                     CalendarEvent.start_time < end_time.time(),
                     CalendarEvent.end_time > start_time.time(),
-                    CalendarEvent.event_type == 'appointment'
+                    CalendarEvent.event_type == 'appointment',
+                    Appointment.status == 'confirmed'
                 ).count()
 
                 if conflicts == 0:
@@ -243,12 +251,16 @@ class AppointmentService:
                 )
 
             # Assign to practitioner with least appointments that day (compare with Taiwan time date)
+            # Only count confirmed appointments for load balancing (exclude cancelled ones)
             selected_practitioner = min(
                 available_candidates,
-                key=lambda p: db.query(CalendarEvent).filter(
+                key=lambda p: db.query(CalendarEvent).join(
+                    Appointment, CalendarEvent.id == Appointment.calendar_event_id
+                ).filter(
                     CalendarEvent.user_id == p.id,
                     CalendarEvent.date == start_time.date(),
-                    CalendarEvent.event_type == 'appointment'
+                    CalendarEvent.event_type == 'appointment',
+                    Appointment.status == 'confirmed'
                 ).count()
             )
 
