@@ -19,7 +19,13 @@ interface AppointmentCardProps {
 
 const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel }) => {
   const formatDateTime = (dateTime: string) => {
+    if (!dateTime) {
+      return { date: '', time: '' };
+    }
     const date = new Date(dateTime);
+    if (isNaN(date.getTime())) {
+      return { date: '', time: '' };
+    }
     return {
       date: date.toLocaleDateString('zh-TW', {
         year: 'numeric',

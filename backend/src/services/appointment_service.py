@@ -311,14 +311,19 @@ class AppointmentService:
             assert appointment_type is not None
             assert patient is not None
 
+            # Combine date and time into full datetime strings
+            event_date = appointment.calendar_event.date
+            start_datetime = datetime.combine(event_date, appointment.calendar_event.start_time) if appointment.calendar_event.start_time else None
+            end_datetime = datetime.combine(event_date, appointment.calendar_event.end_time) if appointment.calendar_event.end_time else None
+
             result.append({
                 "id": appointment.calendar_event_id,
                 "patient_id": appointment.patient_id,
                 "patient_name": patient.full_name,
                 "practitioner_name": practitioner.full_name,
                 "appointment_type_name": appointment_type.name,
-                "start_time": appointment.calendar_event.start_time.strftime("%H:%M"),
-                "end_time": appointment.calendar_event.end_time.strftime("%H:%M"),
+                "start_time": start_datetime.isoformat() if start_datetime else "",
+                "end_time": end_datetime.isoformat() if end_datetime else "",
                 "status": appointment.status,
                 "notes": appointment.notes
             })
