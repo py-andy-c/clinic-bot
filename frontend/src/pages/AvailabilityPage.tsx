@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { View, Views } from 'react-big-calendar';
+import { View } from 'react-big-calendar';
 import CalendarView from '../components/CalendarView';
 
 const AvailabilityPage: React.FC = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [addExceptionHandler, setAddExceptionHandler] = useState<(() => void) | null>(null);
-  const [currentView, setCurrentView] = useState<View>(Views.DAY);
 
   useEffect(() => {
     if (user?.user_id) {
@@ -15,9 +14,8 @@ const AvailabilityPage: React.FC = () => {
     }
   }, [user]);
 
-  const handleAddExceptionHandlerReady = useCallback((handler: () => void, view: View) => {
+  const handleAddExceptionHandlerReady = useCallback((handler: () => void, _view: View) => {
     setAddExceptionHandler(() => handler);
-    setCurrentView(view);
   }, []);
 
   if (loading) {
