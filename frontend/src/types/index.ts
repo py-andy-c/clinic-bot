@@ -234,6 +234,9 @@ export interface ApiCalendarEvent {
   status?: string;
   exception_id?: number;
   appointment_id?: number; // For appointment cancellation
+  notes?: string;
+  patient_phone?: string;
+  line_display_name?: string;
 }
 
 export interface ApiDailyCalendarData {

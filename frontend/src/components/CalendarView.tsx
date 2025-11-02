@@ -55,6 +55,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     return taiwanDate.format('YYYY-MM-DD');
   };
 
+  // Format appointment time with date and weekday
+  const formatAppointmentTime = (start: Date, end: Date): string => {
+    const startMoment = moment(start).tz(taiwanTimezone);
+    const endMoment = moment(end).tz(taiwanTimezone);
+    const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+    const weekday = weekdayNames[startMoment.day()];
+    const dateStr = `${startMoment.format('M/D')} (${weekday})`;
+    return `${dateStr} ${startMoment.format('HH:mm')} - ${endMoment.format('HH:mm')}`;
+  };
+
   // Get date range for the current view (Taiwan timezone)
   const getDateRange = (date: Date, view: View) => {
     const start = moment(date).tz(taiwanTimezone);
@@ -412,15 +422,35 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       {modalState.type === 'event' && modalState.data && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">事件詳情</h3>
-            <div className="space-y-2">
-              <p><strong>標題:</strong> {modalState.data.title}</p>
-              <p><strong>時間:</strong> {moment(modalState.data.start).format('HH:mm')} - {moment(modalState.data.end).format('HH:mm')}</p>
-              <p><strong>類型:</strong> {modalState.data.resource.type === 'appointment' ? '預約' : '例外時段'}</p>
-              {modalState.data.resource.isOutsideHours && (
-                <p className="text-orange-600"><strong>狀態:</strong> 超出診療時段</p>
-              )}
-            </div>
+            {modalState.data.resource.type === 'appointment' ? (
+              <>
+                <h3 className="text-lg font-semibold mb-4">{modalState.data.title}</h3>
+                <div className="space-y-2">
+                  <p><strong>時間:</strong> {formatAppointmentTime(modalState.data.start, modalState.data.end)}</p>
+                  {modalState.data.resource.notes && (
+                    <p><strong>備註:</strong> {modalState.data.resource.notes}</p>
+                  )}
+                  {modalState.data.resource.patient_phone && (
+                    <p><strong>電話:</strong> {modalState.data.resource.patient_phone}</p>
+                  )}
+                  {modalState.data.resource.line_display_name && (
+                    <p><strong>LINE:</strong> {modalState.data.resource.line_display_name}</p>
+                  )}
+                  {modalState.data.resource.isOutsideHours && (
+                    <p className="text-orange-600"><strong>狀態:</strong> 超出診療時段</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold mb-4">事件詳情</h3>
+                <div className="space-y-2">
+                  <p><strong>標題:</strong> {modalState.data.title}</p>
+                  <p><strong>時間:</strong> {moment(modalState.data.start).format('HH:mm')} - {moment(modalState.data.end).format('HH:mm')}</p>
+                  <p><strong>類型:</strong> 例外時段</p>
+                </div>
+              </>
+            )}
             <div className="flex justify-end space-x-2 mt-6">
               {modalState.data.resource.type === 'appointment' && (
                 <button 
