@@ -149,6 +149,11 @@ class AvailabilityService:
         """
         Calculate available time slots for the given date and practitioners.
 
+        Considers each practitioner's:
+        - Default availability schedule (PractitionerAvailability)
+        - Availability exceptions (CalendarEvent with event_type='availability_exception')
+        - Existing appointments (CalendarEvent with event_type='appointment')
+
         Args:
             db: Database session
             requested_date: Date to check availability for
@@ -156,38 +161,49 @@ class AvailabilityService:
             duration_minutes: Duration of appointment type
 
         Returns:
-            List of available slot dictionaries
+            List of available slot dictionaries with practitioner_id and practitioner_name
         """
         available_slots: List[Dict[str, Any]] = []
+        day_of_week = requested_date.weekday()
 
-        # Sample: 9 AM to 5 PM in 30-minute increments (simplified for MVP)
-        # TODO: Replace with proper practitioner availability logic
-        current_time = datetime.combine(requested_date, datetime.strptime("09:00", "%H:%M").time())
-        end_time = datetime.combine(requested_date, datetime.strptime("17:00", "%H:%M").time())
+        for practitioner in practitioners:
+            # Get default schedule for this day of week
+            default_intervals = db.query(PractitionerAvailability).filter(
+                PractitionerAvailability.user_id == practitioner.id,
+                PractitionerAvailability.day_of_week == day_of_week
+            ).order_by(PractitionerAvailability.start_time).all()
 
-        while current_time + timedelta(minutes=duration_minutes) <= end_time:
-            slot_end = current_time + timedelta(minutes=duration_minutes)
+            if not default_intervals:
+                # Practitioner has no availability for this day of week
+                continue
 
-            # Check if this slot conflicts with existing appointments for ANY practitioner
-            conflicts = db.query(CalendarEvent).filter(
-                CalendarEvent.user_id.in_([p.id for p in practitioners]),
-                CalendarEvent.date == requested_date,
-                CalendarEvent.start_time < slot_end.time(),
-                CalendarEvent.end_time > current_time.time(),
-                CalendarEvent.event_type == 'appointment'
-            ).count()
+            # Get availability exceptions for this date
+            exceptions = db.query(CalendarEvent).filter(
+                CalendarEvent.user_id == practitioner.id,
+                CalendarEvent.event_type == 'availability_exception',
+                CalendarEvent.date == requested_date
+            ).all()
 
-            if conflicts == 0:
-                # Slot is available - return all practitioner options
-                for practitioner in practitioners:
-                    available_slots.append({
-                        'start_time': current_time.strftime("%H:%M"),
-                        'end_time': slot_end.strftime("%H:%M"),
-                        'practitioner_id': practitioner.id,
-                        'practitioner_name': practitioner.full_name
-                    })
+            # Get existing appointments for this date
+            appointments = db.query(CalendarEvent).filter(
+                CalendarEvent.user_id == practitioner.id,
+                CalendarEvent.event_type == 'appointment',
+                CalendarEvent.date == requested_date
+            ).all()
 
-            current_time += timedelta(minutes=30)  # 30-minute increments
+            # Calculate available slots for this practitioner
+            practitioner_slots = AvailabilityService._calculate_slots_from_schedule(
+                default_intervals, exceptions, appointments, duration_minutes
+            )
+
+            # Add practitioner info to each slot
+            for slot in practitioner_slots:
+                available_slots.append({
+                    'start_time': slot['start_time'],
+                    'end_time': slot['end_time'],
+                    'practitioner_id': practitioner.id,
+                    'practitioner_name': practitioner.full_name
+                })
 
         return available_slots
 

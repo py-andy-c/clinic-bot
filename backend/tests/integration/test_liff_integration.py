@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from main import app
 from models import (
     Clinic, User, AppointmentType, PractitionerAppointmentTypes,
-    Patient, LineUser, Appointment, CalendarEvent
+    Patient, LineUser, Appointment, CalendarEvent, PractitionerAvailability
 )
 from core.config import JWT_SECRET_KEY
 from core.database import get_db
@@ -535,19 +535,34 @@ class TestLiffDatabaseOperations:
             assert len(appt_types_data) == 3
 
             # Step 3: Check availability for 2 days from now (to ensure it's definitely in the future)
-            future_date = (datetime.now() + timedelta(days=2)).date().isoformat()
+            future_date_obj = (datetime.now() + timedelta(days=2)).date()
+            future_date = future_date_obj.isoformat()
+            
+            # Get day of week (0=Monday, 6=Sunday)
+            day_of_week = future_date_obj.weekday()
+            
+            # Create practitioner availability for the future date's day of week
+            availability = PractitionerAvailability(
+                user_id=practitioner.id,
+                day_of_week=day_of_week,
+                start_time=time(9, 0),
+                end_time=time(17, 0)
+            )
+            db_session.add(availability)
+            db_session.commit()
+            
             appt_type_id = appt_types_data[0]["id"]
 
             response = client.get(
                 f"/api/liff/availability?date={future_date}&appointment_type_id={appt_type_id}"
             )
             assert response.status_code == 200
-            availability = response.json()
-            assert "slots" in availability
-            assert len(availability["slots"]) > 0  # Should have available slots
+            availability_data = response.json()
+            assert "slots" in availability_data
+            assert len(availability_data["slots"]) > 0  # Should have available slots
 
             # Step 4: Book appointment using the first available slot
-            slot = availability["slots"][0]
+            slot = availability_data["slots"][0]
             appointment_data = {
                 "patient_id": primary_patient.id,  # Use actual patient ID
                 "appointment_type_id": appt_type_id,
@@ -874,17 +889,32 @@ class TestLiffAvailabilityAndScheduling:
             db_session.add(primary_patient)
             db_session.commit()
 
-            tomorrow = (datetime.now() + timedelta(days=1)).date().isoformat()
+            tomorrow = (datetime.now() + timedelta(days=1)).date()
+            tomorrow_iso = tomorrow.isoformat()
+            
+            # Get day of week (0=Monday, 6=Sunday)
+            day_of_week = tomorrow.weekday()
+            
+            # Create practitioner availability for tomorrow's day of week
+            availability = PractitionerAvailability(
+                user_id=practitioner.id,
+                day_of_week=day_of_week,
+                start_time=time(9, 0),
+                end_time=time(17, 0)
+            )
+            db_session.add(availability)
+            db_session.commit()
+
             appt_type_id = appt_types[0].id  # 30-minute consultation
 
-            response = client.get(f"/api/liff/availability?date={tomorrow}&appointment_type_id={appt_type_id}")
+            response = client.get(f"/api/liff/availability?date={tomorrow_iso}&appointment_type_id={appt_type_id}")
             assert response.status_code == 200
 
             data = response.json()
-            assert data["date"] == tomorrow
+            assert data["date"] == tomorrow_iso
             assert "slots" in data
 
-            # Should have available slots (9 AM to 5 PM in 30-minute increments)
+            # Should have available slots based on practitioner's schedule (9 AM to 5 PM)
             slots = data["slots"]
             assert len(slots) > 0
 
@@ -894,6 +924,7 @@ class TestLiffAvailabilityAndScheduling:
                 assert "end_time" in slot
                 assert "practitioner_id" in slot
                 assert "practitioner_name" in slot
+                assert slot["practitioner_id"] == practitioner.id
 
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
