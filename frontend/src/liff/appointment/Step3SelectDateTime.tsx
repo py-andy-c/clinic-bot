@@ -58,7 +58,7 @@ const Step3SelectDateTime: React.FC = () => {
           // Skip past dates
           if (date >= today) {
             datesToCheck.push(date.toISOString().split('T')[0]);
-          }
+    }
         }
 
         // Load availability in parallel for all dates
@@ -216,7 +216,7 @@ const Step3SelectDateTime: React.FC = () => {
           <h3 className="text-lg font-semibold text-gray-900">
             {formatMonthYear(currentMonth)}
           </h3>
-          <button
+            <button
             onClick={handleNextMonth}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
             aria-label="Next month"
@@ -224,7 +224,7 @@ const Step3SelectDateTime: React.FC = () => {
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
-          </button>
+            </button>
         </div>
 
         {/* Days of Week Header */}
@@ -322,23 +322,23 @@ const Step3SelectDateTime: React.FC = () => {
                   {pmSlots.length > 0 && (
                     <div>
                       <h4 className="text-sm font-medium text-gray-700 mb-2">下午</h4>
-                      <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2">
                         {pmSlots.map((time) => {
                           const formatted = formatTo12Hour(time);
                           return (
-                            <button
-                              key={time}
-                              onClick={() => handleTimeSelect(time)}
+                <button
+                  key={time}
+                  onClick={() => handleTimeSelect(time)}
                               className="bg-white border border-gray-200 rounded-md py-2 px-2 hover:border-primary-300 hover:bg-primary-50 transition-colors text-sm font-medium text-gray-900"
-                            >
+                >
                               {formatted.time12}
-                            </button>
+                </button>
                           );
                         })}
                       </div>
                     </div>
                   )}
-                </div>
+            </div>
               );
             })()
           ) : (

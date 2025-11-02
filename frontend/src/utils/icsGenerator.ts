@@ -48,15 +48,25 @@ END:VEVENT
 END:VCALENDAR`;
 
   // Create and download the file
+  try {
   const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = `appointment-${id}.ics`;
+    link.style.display = 'none'; // Hide the link
   document.body.appendChild(link);
   link.click();
+    
+    // Clean up after a short delay
+    setTimeout(() => {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+    }, 100);
+  } catch (error) {
+    console.error('Failed to create ICS download:', error);
+    throw error;
+  }
 };
 
 // Helper function to format date for ICS format
@@ -147,4 +157,42 @@ const formatDateTime = (dateTime: string): string => {
     minute: '2-digit',
     hour12: false
   });
+};
+
+// Generate Google Calendar URL for adding event directly
+export const generateGoogleCalendarURL = (appointment: AppointmentData): string => {
+  const {
+    appointment_type_name,
+    practitioner_name,
+    start_time,
+    end_time,
+    notes,
+    clinic_name = '診所',
+    clinic_address
+  } = appointment;
+
+  // Format dates for Google Calendar (YYYYMMDDTHHMMSSZ)
+  const formatGoogleCalendarDate = (date: Date | string): string => {
+    const d = new Date(date);
+    return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  };
+
+  const start = formatGoogleCalendarDate(start_time);
+  const end = formatGoogleCalendarDate(end_time);
+
+  // Build description
+  let description = `${clinic_name}\\n`;
+  description += `治療師：${practitioner_name}\\n`;
+  description += `預約類型：${appointment_type_name}`;
+  if (notes) {
+    description += `\\n\\n備註：\\n${notes}`;
+  }
+
+  // Encode parameters
+  const title = encodeURIComponent(`${appointment_type_name} - ${practitioner_name}`);
+  const location = encodeURIComponent(clinic_address || clinic_name);
+  const details = encodeURIComponent(description);
+
+  // Google Calendar URL format
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&location=${location}`;
 };
