@@ -1213,6 +1213,18 @@ class TestLiffErrorHandling:
             db_session.add(primary_patient)
             db_session.commit()
 
+            # Set up practitioner availability for a future date (2 days from now to avoid timezone issues)
+            future_date = (datetime.now() + timedelta(days=2)).date()
+            future_weekday = future_date.weekday()
+            availability = PractitionerAvailability(
+                user_id=practitioner.id,
+                day_of_week=future_weekday,
+                start_time=time(9, 0),
+                end_time=time(17, 0)
+            )
+            db_session.add(availability)
+            db_session.commit()
+
             # Create additional patient for testing
             response = client.post(
                 "/api/liff/patients",
@@ -1221,8 +1233,7 @@ class TestLiffErrorHandling:
             patient = response.json()
 
             # Book first appointment
-            tomorrow = (datetime.now() + timedelta(days=1)).date().isoformat()
-            start_time = f"{tomorrow}T13:00:00+08:00"
+            start_time = f"{future_date.isoformat()}T13:00:00+08:00"
 
             response = client.post(
                 "/api/liff/appointments",

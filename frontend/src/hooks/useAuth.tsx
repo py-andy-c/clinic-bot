@@ -233,7 +233,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         clearAuthState();
         // Redirect to login if we're not already there
         if (!window.location.pathname.startsWith('/login')) {
-          window.location.href = '/login';
+          window.location.replace('/login');
         }
       }
     } catch (error) {
@@ -241,7 +241,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       clearAuthState();
       // Redirect to login if we're not already there
       if (!window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
+        window.location.replace('/login');
       }
     }
   };

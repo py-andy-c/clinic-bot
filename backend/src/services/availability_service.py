@@ -306,6 +306,11 @@ class AvailabilityService:
         """
         Calculate available slots from practitioner schedule data.
 
+        Algorithm:
+        1. Generate all possible candidate slots from default intervals
+           at quarter hours (00, 15, 30, 45) with the given duration
+        2. Filter out slots that overlap with exceptions or appointments
+
         Args:
             default_intervals: List of practitioner's default availability intervals
             exceptions: List of availability exceptions for the date
@@ -315,27 +320,16 @@ class AvailabilityService:
         Returns:
             List of available slot dictionaries
         """
-        available_slots: List[Dict[str, Any]] = []
+        # Step 1: Generate all candidate slots from default intervals
+        candidate_slots: List[tuple[time, time]] = []
 
         for interval in default_intervals:
-            # Check if this interval is blocked by an exception
-            blocked = False
-            for exception in exceptions:
-                if (exception.start_time and exception.end_time and
-                    AvailabilityService._check_time_overlap(
-                        interval.start_time, interval.end_time,
-                        exception.start_time, exception.end_time
-                    )):
-                    blocked = True
-                    break
-
-            if blocked:
-                continue
-
-            # Generate slots within this interval
-            current_time = interval.start_time
-            while True:
-                # Calculate end time for this slot
+            # Round up interval start to next quarter hour
+            current_time = AvailabilityService._round_up_to_quarter_hour(interval.start_time)
+            
+            # Generate slots at quarter-hour intervals within this interval
+            while current_time < interval.end_time:
+                # Calculate slot end time
                 slot_end_minutes = (current_time.hour * 60 + current_time.minute + duration_minutes)
                 slot_end_hour = slot_end_minutes // 60
                 slot_end_minute = slot_end_minutes % 60
@@ -345,26 +339,47 @@ class AvailabilityService:
                 if slot_end_time > interval.end_time:
                     break
 
-                # Check if slot conflicts with existing appointments
-                slot_conflicts = False
-                for appointment in appointments:
-                    if (appointment.start_time and appointment.end_time and
-                        AvailabilityService._check_time_overlap(
-                            current_time, slot_end_time,
-                            appointment.start_time, appointment.end_time
-                        )):
-                        slot_conflicts = True
-                        break
-
-                if not slot_conflicts:
-                    available_slots.append({
-                        'start_time': AvailabilityService._format_time(current_time),
-                        'end_time': AvailabilityService._format_time(slot_end_time)
-                    })
-
-                # Move to next slot (15-minute increments)
+                # Add candidate slot
+                candidate_slots.append((current_time, slot_end_time))
+                
+                # Move to next quarter hour
                 current_minutes = current_time.hour * 60 + current_time.minute + 15
                 current_time = time(current_minutes // 60, current_minutes % 60)
+        
+        # Step 2: Filter out slots that overlap with exceptions or appointments
+        available_slots: List[Dict[str, Any]] = []
+        
+        for slot_start, slot_end in candidate_slots:
+            # Check if slot overlaps with any exception
+            overlaps_exception = False
+            for exception in exceptions:
+                if (exception.start_time and exception.end_time and
+                    AvailabilityService._check_time_overlap(
+                        slot_start, slot_end,
+                        exception.start_time, exception.end_time
+                    )):
+                    overlaps_exception = True
+                    break
+            
+            if overlaps_exception:
+                continue
+            
+            # Check if slot overlaps with any appointment
+            overlaps_appointment = False
+            for appointment in appointments:
+                if (appointment.start_time and appointment.end_time and
+                    AvailabilityService._check_time_overlap(
+                        slot_start, slot_end,
+                        appointment.start_time, appointment.end_time
+                    )):
+                    overlaps_appointment = True
+                    break
+
+            if not overlaps_appointment:
+                available_slots.append({
+                    'start_time': AvailabilityService._format_time(slot_start),
+                    'end_time': AvailabilityService._format_time(slot_end)
+                })
 
         return available_slots
 
@@ -489,4 +504,38 @@ class AvailabilityService:
     def _parse_time(time_str: str) -> time:
         """Parse time string in HH:MM format to time object."""
         hour, minute = map(int, time_str.split(':'))
+        return time(hour, minute)
+
+    @staticmethod
+    def _round_up_to_quarter_hour(time_obj: time) -> time:
+        """
+        Round up time to the next quarter hour (00, 15, 30, 45).
+        
+        Args:
+            time_obj: Time object to round up
+            
+        Returns:
+            Time object rounded up to the next quarter hour
+            If rounding would exceed 23:59, returns 23:59 (max valid time)
+        """
+        total_minutes = time_obj.hour * 60 + time_obj.minute
+        
+        # Calculate minutes to add to reach next quarter hour
+        remainder = total_minutes % 15
+        if remainder == 0:
+            # Already on a quarter hour
+            return time_obj
+        
+        # Round up to next quarter hour
+        minutes_to_add = 15 - remainder
+        rounded_minutes = total_minutes + minutes_to_add
+        
+        hour = rounded_minutes // 60
+        minute = rounded_minutes % 60
+        
+        # Handle overflow past 23:59 (shouldn't happen in practice, but be defensive)
+        if hour >= 24:
+            # Clamp to max valid time (23:59)
+            return time(23, 59)
+        
         return time(hour, minute)

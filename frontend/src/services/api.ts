@@ -33,8 +33,15 @@ class ApiService {
   private client: AxiosInstance;
   private refreshTokenPromise: Promise<void> | null = null;
   private isRefreshing = false;
+  private sessionExpired = false; // Flag to prevent multiple redirects
 
   constructor() {
+    // Reset session expired flag if we have a token (user might have logged in before)
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      this.sessionExpired = false;
+    }
+
     this.client = axios.create({
       baseURL: config.apiBaseUrl,
       timeout: 10000,
@@ -49,6 +56,8 @@ class ApiService {
       const token = localStorage.getItem('access_token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+        // Reset session expired flag if we have a token
+        this.sessionExpired = false;
       }
       return config;
     });
@@ -59,8 +68,18 @@ class ApiService {
       async (error) => {
         const originalRequest = error.config;
 
-        // Prevent infinite loops
-        if (originalRequest._retry || error.response?.status !== 401) {
+        // If session already expired, immediately redirect without processing
+        if (this.sessionExpired) {
+          return Promise.reject(new Error('Session expired. Redirecting to login...'));
+        }
+
+        // Prevent infinite loops - don't retry refresh token requests
+        // Check if this is a refresh token endpoint request (works with both full URL and path)
+        const requestUrl = originalRequest.url || '';
+        const isRefreshRequest = requestUrl.includes('/auth/refresh');
+        
+        // Skip retry if already retried, if not a 401, or if this is a refresh request
+        if (originalRequest._retry || error.response?.status !== 401 || isRefreshRequest) {
           return Promise.reject(error);
         }
 
@@ -83,15 +102,21 @@ class ApiService {
             originalRequest.headers.Authorization = `Bearer ${token}`;
             return this.client.request(originalRequest);
           }
-        } catch (refreshError) {
-          // Refresh failed, clear auth state and redirect to login
+        } catch (refreshError: any) {
+          // Refresh failed (session expired), clear auth state and redirect to login
+          this.sessionExpired = true; // Mark session as expired to prevent further attempts
           this.isRefreshing = false;
           // Clear localStorage to ensure auth state is cleared
           localStorage.removeItem('access_token');
           localStorage.removeItem('was_logged_in');
-          // Redirect to login
-          window.location.href = '/login';
-          return Promise.reject(refreshError);
+          
+          // Use replace instead of href to prevent back navigation issues
+          // This immediately redirects without waiting for async operations
+          window.location.replace('/login');
+          
+          // Return a rejected promise with a special error that won't cause infinite loops
+          // The redirect happens immediately, so components won't be stuck loading
+          return Promise.reject(new Error('Session expired. Redirecting to login...'));
         }
 
         return Promise.reject(error);
@@ -105,11 +130,25 @@ class ApiService {
     return this.client.get('/auth/google/login', { params }).then(res => res.data);
   }
 
+  /**
+   * Reset the session expired flag - called when we successfully get a new token
+   * Can be called publicly when login succeeds from outside the service
+   */
+  resetSessionExpired(): void {
+    this.sessionExpired = false;
+  }
+
   async refreshToken(): Promise<void> {
     try {
-    const response = await this.client.post('/auth/refresh', {}, { withCredentials: true });
+      // Note: The interceptor checks the URL to prevent infinite refresh loops
+      // If /auth/refresh returns 401, the interceptor won't retry
+      const response = await this.client.post('/auth/refresh', {}, { 
+        withCredentials: true
+      });
       if (response.status === 200 && response.data.access_token) {
-      localStorage.setItem('access_token', response.data.access_token);
+        localStorage.setItem('access_token', response.data.access_token);
+        // Reset session expired flag on successful refresh
+        this.resetSessionExpired();
       } else {
         // Refresh failed - throw error to be caught by interceptor
         throw new Error('Token refresh failed');
