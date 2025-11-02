@@ -285,7 +285,6 @@ const Step3SelectDateTime: React.FC = () => {
       {selectedDate ? (
         <div className="mb-6">
           <h3 className="font-medium text-gray-900 mb-2">可預約時段</h3>
-          <p className="text-sm text-gray-500 mb-3">請選擇看診日期</p>
 
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
@@ -351,7 +350,6 @@ const Step3SelectDateTime: React.FC = () => {
       ) : (
         <div className="mb-6">
           <h3 className="font-medium text-gray-900 mb-2">可預約時段</h3>
-          <p className="text-sm text-gray-500">請選擇看診日期</p>
         </div>
       )}
 
