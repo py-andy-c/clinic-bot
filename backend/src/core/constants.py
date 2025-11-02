@@ -18,10 +18,11 @@ GOOGLE_OAUTH_SCOPES = [
 DB_POOL_RECYCLE_SECONDS = 300  # 5 minutes
 
 # CORS origins for development
+# Note: ngrok URLs should be added via FRONTEND_URL environment variable
 CORS_ORIGINS = [
     "http://localhost:5173",      # React dev server (Vite) - localhost
     "http://10.0.0.25:5173",     # React dev server - local network IP
-    FRONTEND_URL,
+    FRONTEND_URL,  # Includes ngrok URL if FRONTEND_URL is set accordingly
 ]
 
 # Appointment reminders

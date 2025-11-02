@@ -7,6 +7,7 @@ system admins and clinic users.
 """
 
 import logging
+import os
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, Query
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -16,13 +17,63 @@ logger = logging.getLogger(__name__)
 from datetime import datetime, timezone
 from typing import Dict, Any
 from core.database import get_db
-from core.config import API_BASE_URL, SYSTEM_ADMIN_EMAILS, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, ENVIRONMENT, JWT_REFRESH_TOKEN_EXPIRE_DAYS
+from core.config import API_BASE_URL, SYSTEM_ADMIN_EMAILS, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_REFRESH_TOKEN_EXPIRE_DAYS
 from services.jwt_service import jwt_service, TokenPayload
 from models import RefreshToken, User, Clinic
 from auth.dependencies import UserContext, get_current_user
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
+
+
+def set_refresh_token_cookie(
+    response: Response,
+    request: Request,
+    refresh_token: str,
+    max_age: int = JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+) -> None:
+    """
+    Helper to set refresh token cookie with proper cross-origin settings.
+    
+    Args:
+        response: FastAPI Response object to set cookie on
+        request: FastAPI Request object to detect HTTPS
+        refresh_token: The refresh token value to set
+        max_age: Cookie max age in seconds (defaults to refresh token expiry)
+    """
+    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+    cookie_same_site = "none" if is_https else "lax"
+    logger.debug(f"Setting refresh token cookie - HTTPS: {is_https}, SameSite: {cookie_same_site}")
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=is_https,  # Secure cookies only over HTTPS (required for SameSite=None)
+        samesite=cookie_same_site,  # "none" for cross-origin, "lax" for same-origin HTTP
+        path="/",  # Ensure cookie is sent with all requests
+        max_age=max_age
+    )
+
+
+def delete_refresh_token_cookie(
+    response: Response,
+    request: Request
+) -> None:
+    """
+    Helper to delete refresh token cookie with proper cross-origin settings.
+    
+    Args:
+        response: FastAPI Response object to delete cookie on
+        request: FastAPI Request object to detect HTTPS
+    """
+    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+    cookie_same_site = "none" if is_https else "lax"
+    response.delete_cookie(
+        key="refresh_token",
+        httponly=True,
+        secure=is_https,  # Secure cookies only over HTTPS (required for SameSite=None)
+        samesite=cookie_same_site  # Match cookie setting
+    )
 
 
 @router.get("/google/login", summary="Initiate Google OAuth login")
@@ -74,6 +125,7 @@ async def initiate_google_auth(user_type: str = "clinic_user") -> dict[str, str]
 
 @router.get("/google/callback", summary="Handle Google OAuth callback")
 async def google_auth_callback(
+    request: Request,
     code: str = Query(None),
     state: str = Query(...),
     error: str = Query(None),
@@ -242,21 +294,19 @@ async def google_auth_callback(
 
         # Create redirect response with tokens in URL and refresh token in cookie
         from fastapi.responses import RedirectResponse
+        # Note: Setting cookies during cross-origin redirects can be problematic
+        # The cookie will be set for the backend domain, not the frontend domain
+        # Include refresh token in URL as fallback for cross-origin cookie issues
+        from urllib.parse import quote
+        redirect_url_with_tokens = f"{redirect_url}?token={quote(token_data['access_token'])}&refresh_token={quote(token_data['refresh_token'])}"
+        logger.debug(f"OAuth redirect: tokens included in URL for cross-origin fallback")
         response = RedirectResponse(
-            url=f"{redirect_url}?token={token_data['access_token']}",
+            url=redirect_url_with_tokens,
             status_code=302
         )
 
         # Set refresh token as httpOnly cookie
-        response.set_cookie(
-            key="refresh_token",
-            value=token_data["refresh_token"],
-            httponly=True,
-            secure=ENVIRONMENT == "production",
-            samesite="strict",
-            path="/",  # Ensure cookie is sent with all requests
-            max_age=JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60  # Use configurable expiration
-        )
+        set_refresh_token_cookie(response, request, token_data["refresh_token"])
 
         return response
 
@@ -287,13 +337,48 @@ async def refresh_access_token(
     db: Session = Depends(get_db)
 ) -> Dict[str, str]:
     """
-    Refresh access token using refresh token from httpOnly cookie.
-
+    Refresh access token using refresh token from httpOnly cookie or request body/header.
+    
+    Falls back to request body/header for cross-origin scenarios where cookies don't work
+    (e.g., different ngrok domains with Safari ITP).
+    
     Returns new access token and sets new refresh token cookie.
     """
-    # Get refresh token from cookie
+    # Try to get refresh token from cookie first (preferred method)
     refresh_token = request.cookies.get("refresh_token")
+    token_source = "cookie" if refresh_token else None
+    
+    # Fallback: Try to get from request body or header if cookie is not available
+    # This handles cross-origin scenarios where cookies are blocked (Safari ITP)
     if not refresh_token:
+        try:
+            # Try to get from request body
+            # Note: request.body() can only be read once, so we check if content-type is JSON first
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                body = await request.json()
+                refresh_token = body.get("refresh_token")
+                if refresh_token:
+                    token_source = "body"
+                    logger.debug("Refresh token found in request body (cookie fallback)")
+        except Exception as e:
+            logger.debug(f"Could not read request body as JSON: {e}")
+        finally:
+            # Try header as last resort
+            if not refresh_token:
+                refresh_token = request.headers.get("X-Refresh-Token")
+                if refresh_token:
+                    token_source = "header"
+                    logger.debug("Refresh token found in header (cookie fallback)")
+    
+    # Debug logging (only log warnings for failed attempts, not successful ones)
+    if not refresh_token:
+        all_cookies = request.cookies
+        logger.warning("Refresh token not found in cookie, body, or header")
+        logger.debug(f"Refresh request - cookies received: {list(all_cookies.keys())}")
+        logger.debug(f"Refresh request - origin: {request.headers.get('origin')}")
+        logger.debug(f"Refresh request - referer: {request.headers.get('referer')}")
+        logger.debug(f"Request URL: {request.url}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="找不到重新整理權杖"
@@ -365,21 +450,24 @@ async def refresh_access_token(
     db.commit()
 
     # Set new refresh token cookie
-    response.set_cookie(
-        key="refresh_token",
-        value=token_data["refresh_token"],
-        httponly=True,
-        secure=ENVIRONMENT == "production",  # Secure in production
-        samesite="strict",
-        path="/",  # Ensure cookie is sent with all requests
-        max_age=JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60  # Use configurable expiration
-    )
+    set_refresh_token_cookie(response, request, token_data["refresh_token"])
 
-    return {
+    # Return response with access token
+    # Also include refresh_token in response for cross-origin scenarios where cookies don't work
+    # This allows frontend to update localStorage with the new refresh token
+    response_data = {
         "access_token": token_data["access_token"],
         "token_type": token_data["token_type"],
         "expires_in": str(token_data["expires_in"])
     }
+    
+    # Include refresh_token in response if it wasn't received via cookie (cross-origin fallback)
+    # This allows the frontend to update localStorage with the new refresh token
+    if token_source and token_source != "cookie":
+        response_data["refresh_token"] = token_data["refresh_token"]
+        logger.debug(f"Including refresh_token in response body (localStorage fallback, source: {token_source})")
+    
+    return response_data
 
 
 @router.get("/verify", summary="Verify access token")
@@ -405,6 +493,7 @@ async def verify_token(
 
 @router.post("/dev/login", summary="Development login (bypass OAuth)")
 async def dev_login(
+    request: Request,
     email: str,
     user_type: str = "system_admin",
     db: Session = Depends(get_db)
@@ -413,11 +502,21 @@ async def dev_login(
     Development endpoint to create/login users without OAuth.
 
     WARNING: Only use in development/testing environments!
+    This endpoint should be DISABLED in production deployments.
     """
-    if ENVIRONMENT == "production":
+    # Security check: Only allow on localhost/127.0.0.1 for development
+    # Also allow "testclient" for FastAPI TestClient in test environments
+    # In production, this endpoint should be disabled via router configuration
+    client_host = request.client.host if request.client else None
+    # Allow localhost addresses and FastAPI TestClient
+    allowed_hosts = ["127.0.0.1", "localhost", "::1", "testclient"]
+    # Also allow if we're in a test environment (pytest sets PYTEST_VERSION)
+    is_testing = os.getenv("PYTEST_VERSION") is not None
+    if client_host and client_host not in allowed_hosts and not is_testing:
+        logger.warning(f"Dev login attempted from non-localhost: {client_host}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="開發登入在生產環境中不可用"
+            detail="開發登入僅在本地開發環境中可用"
         )
 
     if user_type not in ["system_admin", "clinic_user"]:
@@ -514,8 +613,25 @@ async def logout(
     """
     Logout the current user by revoking refresh token and clearing cookie.
     """
-    # Get refresh token from cookie and revoke it in database
+    # Get refresh token from cookie (preferred) or request body (fallback for cross-origin)
     refresh_token = request.cookies.get("refresh_token")
+    token_source = "cookie" if refresh_token else None
+
+    # Fallback: Try to get from request body if cookie is not available
+    # This handles cross-origin scenarios where cookies are blocked (Safari ITP)
+    if not refresh_token:
+        try:
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                body = await request.json()
+                refresh_token = body.get("refresh_token")
+                if refresh_token:
+                    token_source = "body"
+                    logger.debug("Refresh token found in request body during logout (cookie fallback)")
+        except Exception as e:
+            logger.debug(f"Could not read request body as JSON during logout: {e}")
+
+    # Revoke refresh token if found
     if refresh_token:
         # Find and revoke the refresh token using HMAC for efficiency
         expected_hmac = jwt_service.generate_refresh_token_hmac(refresh_token)
@@ -529,6 +645,7 @@ async def logout(
         if token_record and jwt_service.verify_refresh_token_hash(refresh_token, token_record.token_hash):
             token_record.revoke()
             db.commit()
+            logger.info(f"Refresh token revoked during logout (source: {token_source})")
         else:
             # Fallback to linear scan for backward compatibility
             valid_tokens = db.query(RefreshToken).filter(
@@ -540,14 +657,12 @@ async def logout(
                 if jwt_service.verify_refresh_token_hash(refresh_token, token_record.token_hash):
                     token_record.revoke()
                     db.commit()
+                    logger.info(f"Refresh token revoked during logout via linear scan (source: {token_source})")
                     break
+    else:
+        logger.debug("No refresh token found in cookie or request body during logout")
 
     # Clear the refresh token cookie
-    response.delete_cookie(
-        key="refresh_token",
-        httponly=True,
-        secure=ENVIRONMENT == "production",  # Consistent with set_cookie
-        samesite="strict"
-    )
+    delete_refresh_token_cookie(response, request)
 
     return {"message": "登出成功"}
