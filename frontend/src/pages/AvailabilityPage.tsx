@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { View } from 'react-big-calendar';
 import CalendarView from '../components/CalendarView';
+import PageHeader from '../components/PageHeader';
 
 const AvailabilityPage: React.FC = () => {
   const { user } = useAuth();
@@ -29,17 +30,19 @@ const AvailabilityPage: React.FC = () => {
   return (
     <div className="max-w-full md:max-w-4xl mx-auto">
       {/* Header */}
-      <div className="mb-4 md:mb-8 flex flex-row justify-between items-center gap-3">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">行事曆</h1>
-        {addExceptionHandler && (
-          <button
-            onClick={addExceptionHandler}
-            className="inline-flex items-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
-          >
-            新增休診時段
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="行事曆"
+        action={
+          addExceptionHandler && (
+            <button
+              onClick={addExceptionHandler}
+              className="inline-flex items-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+            >
+              新增休診時段
+            </button>
+          )
+        }
+      />
 
       {/* Calendar View */}
       <div className="bg-white md:rounded-lg md:shadow-md p-2 md:p-6 -mx-4 md:mx-0">

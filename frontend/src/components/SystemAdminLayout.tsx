@@ -143,8 +143,8 @@ const SystemAdminLayout: React.FC<SystemAdminLayoutProps> = ({ children }) => {
       </nav>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
+      <main className="max-w-7xl mx-auto py-2 md:py-6 sm:px-6 lg:px-8">
+        <div className="px-4 py-2 md:py-6 sm:px-0">
           {children}
         </div>
       </main>

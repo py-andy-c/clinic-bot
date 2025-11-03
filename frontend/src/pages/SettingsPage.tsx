@@ -7,6 +7,7 @@ import { useSettingsPage } from '../hooks/useSettingsPage';
 import { validateClinicSettings, getClinicSectionChanges } from '../utils/clinicSettings';
 import ClinicAppointmentTypes from '../components/ClinicAppointmentTypes';
 import ClinicReminderSettings from '../components/ClinicReminderSettings';
+import PageHeader from '../components/PageHeader';
 
 const SettingsPage: React.FC = () => {
   const { isClinicAdmin, isClinicUser } = useAuth();
@@ -15,11 +16,7 @@ const SettingsPage: React.FC = () => {
   if (!isClinicUser) {
     return (
       <div className="space-y-8">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">診所設定</h1>
-          </div>
-        </div>
+        <PageHeader title="診所設定" />
 
         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-6 text-center">
           <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -118,14 +115,7 @@ const SettingsPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
-      <div className="mb-8 flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">診所設定</h1>
-        {!isClinicAdmin && (
-          <div className="text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-md inline-block">
-            🔒 唯讀模式 - 僅管理員可修改設定
-          </div>
-        )}
-      </div>
+      <PageHeader title="診所設定" />
 
       <div className="space-y-8">
         {/* Single Form */}

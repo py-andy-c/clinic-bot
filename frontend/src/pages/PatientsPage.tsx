@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { Patient } from '../types';
+import PageHeader from '../components/PageHeader';
 
 const PatientsPage: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -35,9 +36,7 @@ const PatientsPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">病患管理</h1>
-      </div>
+      <PageHeader title="病患管理" />
 
       <div className="space-y-8">
         {error && (
@@ -88,13 +87,8 @@ const PatientsPage: React.FC = () => {
                   {patients.map((patient) => (
                     <tr key={patient.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-                            <span className="text-sm">👤</span>
-                          </div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {patient.full_name}
-                          </div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {patient.full_name}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

@@ -4,6 +4,7 @@ import { useModal } from '../contexts/ModalContext';
 import { apiService } from '../services/api';
 import { Member, UserRole, MemberInviteData } from '../types';
 import { logger } from '../utils/logger';
+import PageHeader from '../components/PageHeader';
 
 const MembersPage: React.FC = () => {
   const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus } = useAuth();
@@ -171,10 +172,10 @@ const MembersPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">成員管理</h1>
-          {isClinicAdmin && (
+      <PageHeader
+        title="成員管理"
+        action={
+          isClinicAdmin && (
             <button
               onClick={() => setShowInviteModal(true)}
               className="inline-flex items-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
@@ -184,9 +185,9 @@ const MembersPage: React.FC = () => {
               </svg>
               邀請新成員
             </button>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       <div className="space-y-8">
         {/* Error Message */}
@@ -240,14 +241,7 @@ const MembersPage: React.FC = () => {
                 <div className={`px-4 py-4 sm:px-6 ${!member.is_active ? 'bg-gray-50 opacity-75' : ''}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${!member.is_active ? 'bg-gray-200' : 'bg-primary-100'}`}>
-                          <span className="text-lg">
-                            {member.roles.includes('admin') ? '👑' : member.roles.includes('practitioner') ? '👨‍⚕️' : '👤'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="ml-4">
+                      <div>
                         <div className={`text-sm font-medium ${!member.is_active ? 'text-gray-500' : 'text-gray-900'}`}>
                           {member.full_name}
                           {!member.is_active && ' (已停用)'}

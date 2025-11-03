@@ -7,6 +7,7 @@ import { apiService } from '../services/api';
 import ProfileForm from '../components/ProfileForm';
 import AvailabilitySettings from '../components/AvailabilitySettings';
 import PractitionerAppointmentTypes from '../components/PractitionerAppointmentTypes';
+import PageHeader from '../components/PageHeader';
 
 interface ProfileData {
   fullName: string;
@@ -170,9 +171,7 @@ const ProfilePage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">個人設定</h1>
-      </div>
+      <PageHeader title="個人設定" />
 
       <div className="space-y-8">
         {/* Single Form */}
