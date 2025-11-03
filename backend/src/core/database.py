@@ -82,7 +82,7 @@ def receive_before_update(mapper, connection, target):  # type: ignore
             setattr(target, "updated_at", taiwan_now())  # type: ignore
         except (AttributeError, TypeError):  # type: ignore
             # Skip if updated_at is a property without setter
-    pass
+            pass
 
 
 def get_db() -> Generator[Session, None, None]:
