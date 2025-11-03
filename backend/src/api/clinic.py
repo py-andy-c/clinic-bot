@@ -70,6 +70,12 @@ class NotificationSettings(BaseModel):
     reminder_hours_before: int = 24
 
 
+class BookingRestrictionSettings(BaseModel):
+    """Booking restriction settings for clinic."""
+    booking_restriction_type: str = "same_day_disallowed"
+    minimum_booking_hours_ahead: int = 24
+
+
 class SettingsResponse(BaseModel):
     """Response model for clinic settings."""
     clinic_id: int
@@ -77,6 +83,7 @@ class SettingsResponse(BaseModel):
     business_hours: Dict[str, Dict[str, Any]]
     appointment_types: List[AppointmentTypeResponse]
     notification_settings: NotificationSettings
+    booking_restriction_settings: BookingRestrictionSettings
 
 
 class PractitionerAvailabilityRequest(BaseModel):
@@ -453,6 +460,10 @@ async def get_settings(
             appointment_types=appointment_type_list,
            notification_settings=NotificationSettings(
                reminder_hours_before=clinic.reminder_hours_before
+           ),
+           booking_restriction_settings=BookingRestrictionSettings(
+               booking_restriction_type=clinic.booking_restriction_type,
+               minimum_booking_hours_ahead=clinic.minimum_booking_hours_ahead
            )
         )
 
@@ -648,6 +659,14 @@ async def update_settings(
             clinic = db.query(Clinic).get(clinic_id)
             if clinic:
                 clinic.reminder_hours_before = notification_settings.get("reminder_hours_before", clinic.reminder_hours_before)
+
+        # Update booking restriction settings
+        booking_restriction_settings = settings.get("booking_restriction_settings", {})
+        if booking_restriction_settings:
+            clinic = db.query(Clinic).get(clinic_id)
+            if clinic:
+                clinic.booking_restriction_type = booking_restriction_settings.get("booking_restriction_type", clinic.booking_restriction_type)
+                clinic.minimum_booking_hours_ahead = booking_restriction_settings.get("minimum_booking_hours_ahead", clinic.minimum_booking_hours_ahead)
 
         db.commit()
 

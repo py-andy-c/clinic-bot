@@ -8,6 +8,7 @@ import { useModal } from '../contexts/ModalContext';
 import { validateClinicSettings, getClinicSectionChanges } from '../utils/clinicSettings';
 import ClinicAppointmentTypes from '../components/ClinicAppointmentTypes';
 import ClinicReminderSettings from '../components/ClinicReminderSettings';
+import ClinicBookingRestrictionSettings from '../components/ClinicBookingRestrictionSettings';
 import PageHeader from '../components/PageHeader';
 
 const SettingsPage: React.FC = () => {
@@ -46,12 +47,16 @@ const SettingsPage: React.FC = () => {
       return data;
     },
     saveData: async (data: ClinicSettings) => {
-      // Convert reminder hours to number for backend
+      // Convert reminder hours and booking restriction hours to numbers for backend
       const settingsToSave = {
         ...data,
         notification_settings: {
           ...data.notification_settings,
           reminder_hours_before: parseInt(String(data.notification_settings.reminder_hours_before)) || 24
+        },
+        booking_restriction_settings: {
+          ...data.booking_restriction_settings,
+          minimum_booking_hours_ahead: parseInt(String(data.booking_restriction_settings.minimum_booking_hours_ahead)) || 24
         }
       };
       try {
@@ -198,6 +203,20 @@ const SettingsPage: React.FC = () => {
                   });
                 }}
                 showSaveButton={sectionChanges.reminderSettings || false}
+                onSave={saveData}
+                saving={uiState.saving}
+                isClinicAdmin={isClinicAdmin}
+              />
+
+              {/* Booking Restriction Settings */}
+              <ClinicBookingRestrictionSettings
+                bookingRestrictionSettings={settings.booking_restriction_settings}
+                onBookingRestrictionSettingsChange={(bookingSettings) => {
+                  updateData({
+                    booking_restriction_settings: bookingSettings
+                  });
+                }}
+                showSaveButton={sectionChanges.bookingRestrictionSettings || false}
                 onSave={saveData}
                 saving={uiState.saving}
                 isClinicAdmin={isClinicAdmin}
