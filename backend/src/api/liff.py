@@ -538,7 +538,8 @@ async def get_availability(
                 db=db,
                 practitioner_id=practitioner_id,
                 date=date,
-                appointment_type_id=appointment_type_id
+                appointment_type_id=appointment_type_id,
+                clinic_id=clinic.id
             )
         else:
             # All practitioners in clinic

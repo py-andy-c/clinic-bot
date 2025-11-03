@@ -566,11 +566,17 @@ async def get_available_slots(
         AppointmentTypeService.get_appointment_type_by_id(db, appointment_type_id)
         
         # Get available slots using service
+        if current_user.clinic_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Clinic ID is required"
+            )
         slots_data = AvailabilityService.get_available_slots_for_practitioner(
             db=db,
             practitioner_id=user_id,
             date=date,
-            appointment_type_id=appointment_type_id
+            appointment_type_id=appointment_type_id,
+            clinic_id=current_user.clinic_id
         )
 
         # Strip practitioner info for response (not needed since it's always same practitioner)

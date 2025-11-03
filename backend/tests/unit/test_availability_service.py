@@ -7,14 +7,18 @@ Comprehensive tests for the availability calculation logic, including:
 - Quarter-hour alignment
 - Multiple intervals
 - Various duration scenarios
+- Booking restriction filtering
 """
 
 import pytest
-from datetime import time
+from datetime import time, datetime, date, timedelta, timezone
+from unittest.mock import Mock, patch
 
 from models.practitioner_availability import PractitionerAvailability
 from models.calendar_event import CalendarEvent
+from models.clinic import Clinic
 from services.availability_service import AvailabilityService
+from utils.datetime_utils import taiwan_now
 
 
 class TestQuarterHourRounding:
@@ -912,4 +916,158 @@ class TestRealWorldScenarios:
             assert not (slot_start < '11:00' and slot_end > '10:00')  # Morning apt
             assert not (slot_start < '15:00' and slot_end > '14:00')  # Afternoon apt 1
             assert not (slot_start < '15:45' and slot_end > '15:15')  # Afternoon apt 2
+
+
+class TestBookingRestrictionFiltering:
+    """Test filtering of slots based on clinic booking restrictions."""
+
+    @pytest.fixture
+    def mock_slots_today(self):
+        """Mock available slots for today."""
+        return [
+            {'start_time': '09:00', 'end_time': '09:30', 'practitioner_id': 1, 'practitioner_name': 'Dr. Test'},
+            {'start_time': '10:00', 'end_time': '10:30', 'practitioner_id': 1, 'practitioner_name': 'Dr. Test'},
+            {'start_time': '14:00', 'end_time': '14:30', 'practitioner_id': 1, 'practitioner_name': 'Dr. Test'},
+        ]
+
+    @pytest.fixture
+    def mock_slots_tomorrow(self):
+        """Mock available slots for tomorrow."""
+        return [
+            {'start_time': '09:00', 'end_time': '09:30', 'practitioner_id': 1, 'practitioner_name': 'Dr. Test'},
+            {'start_time': '10:00', 'end_time': '10:30', 'practitioner_id': 1, 'practitioner_name': 'Dr. Test'},
+            {'start_time': '14:00', 'end_time': '14:30', 'practitioner_id': 1, 'practitioner_name': 'Dr. Test'},
+        ]
+
+    def test_same_day_disallowed_filters_today_slots(self, mock_slots_today):
+        """Test that same_day_disallowed restriction filters out today's slots."""
+        clinic = Mock(spec=Clinic)
+        clinic.booking_restriction_type = 'same_day_disallowed'
+        clinic.minimum_booking_hours_ahead = 24
+
+        today = taiwan_now().date()
+
+        filtered = AvailabilityService._filter_slots_by_booking_restrictions(
+            mock_slots_today, today, clinic
+        )
+
+        # All today's slots should be filtered out
+        assert len(filtered) == 0
+
+    def test_same_day_disallowed_allows_tomorrow_slots(self, mock_slots_tomorrow):
+        """Test that same_day_disallowed restriction allows tomorrow's slots."""
+        clinic = Mock(spec=Clinic)
+        clinic.booking_restriction_type = 'same_day_disallowed'
+        clinic.minimum_booking_hours_ahead = 24
+
+        tomorrow = taiwan_now().date() + timedelta(days=1)
+
+        filtered = AvailabilityService._filter_slots_by_booking_restrictions(
+            mock_slots_tomorrow, tomorrow, clinic
+        )
+
+        # All tomorrow's slots should be allowed
+        assert len(filtered) == len(mock_slots_tomorrow)
+
+    def test_minimum_hours_required_filters_recent_slots(self, mock_slots_today):
+        """Test that minimum_hours_required filters out slots that are too soon."""
+        clinic = Mock(spec=Clinic)
+        clinic.booking_restriction_type = 'minimum_hours_required'
+        clinic.minimum_booking_hours_ahead = 2  # 2 hours ahead required
+
+        today = taiwan_now().date()
+
+        # Mock taiwan_now to return a time where some slots are too soon
+        with patch('services.availability_service.taiwan_now') as mock_now:
+            # Set current time to 08:30 Taiwan time
+            current_time = datetime.combine(today, time(8, 30))
+            current_time = current_time.replace(tzinfo=timezone(timedelta(hours=8)))
+            mock_now.return_value = current_time
+
+            filtered = AvailabilityService._filter_slots_by_booking_restrictions(
+                mock_slots_today, today, clinic
+            )
+
+            # 09:00 slot: 09:00 - 08:30 = 0.5 hours < 2 hours, filtered out
+            # 10:00 slot: 10:00 - 08:30 = 1.5 hours < 2 hours, filtered out
+            # 14:00 slot: 14:00 - 08:30 = 5.5 hours > 2 hours, allowed
+            assert len(filtered) == 1  # Only 14:00 slot should be allowed
+
+    def test_minimum_hours_required_filters_too_soon_slots(self, mock_slots_today):
+        """Test that minimum_hours_required filters out slots that are within the minimum hours."""
+        clinic = Mock(spec=Clinic)
+        clinic.booking_restriction_type = 'minimum_hours_required'
+        clinic.minimum_booking_hours_ahead = 2  # 2 hours ahead required
+
+        today = taiwan_now().date()
+
+        # Mock taiwan_now to return a time where some slots are too soon
+        with patch('services.availability_service.taiwan_now') as mock_now:
+            # Set current time to 13:30 Taiwan time (2:30 PM)
+            current_time = datetime.combine(today, time(13, 30))
+            current_time = current_time.replace(tzinfo=timezone(timedelta(hours=8)))
+            mock_now.return_value = current_time
+
+            filtered = AvailabilityService._filter_slots_by_booking_restrictions(
+                mock_slots_today, today, clinic
+            )
+
+            # 09:00 and 10:00 slots are in the past or too soon, should be filtered out
+            # 14:00 slot should be allowed (14:00 is 30 minutes after 13:30, which is less than 2 hours)
+            # Actually, 14:00 - 13:30 = 30 minutes < 2 hours, so it should be filtered out
+            assert len(filtered) == 0  # All slots should be filtered out
+
+    def test_minimum_hours_required_allows_future_slots(self):
+        """Test that minimum_hours_required allows slots that are far enough in the future."""
+        clinic = Mock(spec=Clinic)
+        clinic.booking_restriction_type = 'minimum_hours_required'
+        clinic.minimum_booking_hours_ahead = 2  # 2 hours ahead required
+
+        today = taiwan_now().date()
+        slots = [
+            {'start_time': '16:00', 'end_time': '16:30', 'practitioner_id': 1, 'practitioner_name': 'Dr. Test'},
+        ]
+
+        # Mock taiwan_now to return a time where the slot is far enough ahead
+        with patch('services.availability_service.taiwan_now') as mock_now:
+            # Set current time to 13:30 Taiwan time (2:30 PM)
+            current_time = datetime.combine(today, time(13, 30))
+            current_time = current_time.replace(tzinfo=timezone(timedelta(hours=8)))
+            mock_now.return_value = current_time
+
+            filtered = AvailabilityService._filter_slots_by_booking_restrictions(
+                slots, today, clinic
+            )
+
+            # 16:00 slot is 2.5 hours ahead of 13:30, should be allowed
+            assert len(filtered) == 1
+
+    def test_unknown_restriction_type_allows_all_slots(self, mock_slots_today):
+        """Test that unknown restriction types allow all slots (backward compatibility)."""
+        clinic = Mock(spec=Clinic)
+        clinic.booking_restriction_type = 'unknown_type'
+        clinic.minimum_booking_hours_ahead = 24
+
+        today = taiwan_now().date()
+
+        filtered = AvailabilityService._filter_slots_by_booking_restrictions(
+            mock_slots_today, today, clinic
+        )
+
+        # All slots should be allowed for unknown restriction types
+        assert len(filtered) == len(mock_slots_today)
+
+    def test_empty_slots_list_returns_empty(self):
+        """Test that empty slots list returns empty result."""
+        clinic = Mock(spec=Clinic)
+        clinic.booking_restriction_type = 'same_day_disallowed'
+        clinic.minimum_booking_hours_ahead = 24
+
+        today = taiwan_now().date()
+
+        filtered = AvailabilityService._filter_slots_by_booking_restrictions(
+            [], today, clinic
+        )
+
+        assert filtered == []
 

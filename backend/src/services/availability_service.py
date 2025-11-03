@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from models import (
     User, PractitionerAvailability, CalendarEvent,
-    PractitionerAppointmentTypes, Appointment
+    PractitionerAppointmentTypes, Appointment, Clinic
 )
 from services.appointment_type_service import AppointmentTypeService
 from utils.query_helpers import filter_by_role
@@ -113,29 +113,31 @@ class AvailabilityService:
         db: Session,
         practitioner_id: int,
         date: str,
-        appointment_type_id: int
+        appointment_type_id: int,
+        clinic_id: int
     ) -> List[Dict[str, Any]]:
         """
         Get available time slots for a specific practitioner.
-        
+
         Validates that:
         - Practitioner exists and is active
         - Practitioner offers the appointment type
         - Appointment type belongs to the same clinic as the practitioner
-        
+
         Args:
             db: Database session
             practitioner_id: Practitioner user ID
             date: Date in YYYY-MM-DD format
             appointment_type_id: Appointment type ID
-            
+            clinic_id: Clinic ID (for booking restriction validation)
+
         Returns:
             List of available slot dictionaries with:
             - start_time: str (HH:MM)
             - end_time: str (HH:MM)
             - practitioner_id: int
             - practitioner_name: str
-            
+
         Raises:
             HTTPException: If validation fails
         """
@@ -143,10 +145,10 @@ class AvailabilityService:
             # Validate date and get appointment type
             requested_date = AvailabilityService._validate_date(date)
             appointment_type = AppointmentTypeService.get_appointment_type_by_id(db, appointment_type_id)
-            
+
             # Verify practitioner exists, is active, and is a practitioner
             practitioner = AvailabilityService._get_practitioner_by_id(db, practitioner_id)
-            
+
             # Verify appointment type belongs to practitioner's clinic
             if appointment_type.clinic_id != practitioner.clinic_id:
                 raise HTTPException(
@@ -154,9 +156,27 @@ class AvailabilityService:
                     detail="找不到預約類型"
                 )
 
+            # Verify clinic_id matches practitioner's clinic
+            if practitioner.clinic_id != clinic_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="找不到治療師"
+                )
+
+            # Get clinic for booking restrictions
+            clinic = db.query(Clinic).filter(
+                Clinic.id == clinic_id,
+                Clinic.is_active == True
+            ).first()
+            if not clinic:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="診所不存在或已停用"
+                )
+
             # Calculate available slots for this practitioner
             return AvailabilityService._calculate_available_slots(
-                db, requested_date, [practitioner], appointment_type.duration_minutes
+                db, requested_date, [practitioner], appointment_type.duration_minutes, clinic
             )
             
         except HTTPException:
@@ -218,9 +238,20 @@ class AvailabilityService:
             if not practitioners:
                 return []
 
+            # Get clinic for booking restrictions
+            clinic = db.query(Clinic).filter(
+                Clinic.id == clinic_id,
+                Clinic.is_active == True
+            ).first()
+            if not clinic:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="診所不存在或已停用"
+                )
+
             # Calculate available slots for all practitioners
             return AvailabilityService._calculate_available_slots(
-                db, requested_date, practitioners, appointment_type.duration_minutes
+                db, requested_date, practitioners, appointment_type.duration_minutes, clinic
             )
 
         except HTTPException:
@@ -237,7 +268,8 @@ class AvailabilityService:
         db: Session,
         requested_date: date_type,
         practitioners: List[User],
-        duration_minutes: int
+        duration_minutes: int,
+        clinic: Clinic
     ) -> List[Dict[str, Any]]:
         """
         Calculate available time slots for the given date and practitioners.
@@ -246,12 +278,14 @@ class AvailabilityService:
         - Default availability schedule (PractitionerAvailability)
         - Availability exceptions (CalendarEvent with event_type='availability_exception')
         - Existing appointments (CalendarEvent with event_type='appointment')
+        - Clinic booking restrictions (same day disallowed or minimum hours ahead)
 
         Args:
             db: Database session
             requested_date: Date to check availability for
             practitioners: List of practitioners to check
             duration_minutes: Duration of appointment type
+            clinic: Clinic object with booking restriction settings
 
         Returns:
             List of available slot dictionaries with practitioner_id and practitioner_name
@@ -302,7 +336,12 @@ class AvailabilityService:
                         'practitioner_name': practitioner.full_name
                     })
 
-        return available_slots
+        # Apply clinic booking restrictions
+        filtered_slots = AvailabilityService._filter_slots_by_booking_restrictions(
+            available_slots, requested_date, clinic
+        )
+
+        return filtered_slots
 
     @staticmethod
     def _generate_candidate_slots(
@@ -563,6 +602,63 @@ class AvailabilityService:
     ) -> bool:
         """Check if two time intervals overlap."""
         return start1 < end2 and start2 < end1
+
+    @staticmethod
+    def _filter_slots_by_booking_restrictions(
+        slots: List[Dict[str, Any]],
+        requested_date: date_type,
+        clinic: Clinic
+    ) -> List[Dict[str, Any]]:
+        """
+        Filter available slots based on clinic booking restrictions.
+
+        Args:
+            slots: List of available slot dictionaries
+            requested_date: Date for which slots are requested
+            clinic: Clinic object with booking restriction settings
+
+        Returns:
+            Filtered list of slots that meet booking restrictions
+        """
+        if not slots:
+            return []
+
+        # Get current Taiwan time for comparison
+        now: datetime = taiwan_now()
+        today = now.date()
+
+        filtered_slots: List[Dict[str, Any]] = []
+
+        for slot in slots:
+            # Parse slot time
+            slot_time_str = slot['start_time']
+            hour, minute = map(int, slot_time_str.split(':'))
+            slot_time = time(hour, minute)
+
+            # Create datetime for the slot
+            slot_datetime = datetime.combine(requested_date, slot_time)
+            # Ensure it's in Taiwan timezone
+            from utils.datetime_utils import ensure_taiwan
+            slot_datetime_tz = ensure_taiwan(slot_datetime)
+            # Since we know slot_datetime is not None, this should be safe
+            assert slot_datetime_tz is not None
+            slot_datetime: datetime = slot_datetime_tz
+
+            # Apply booking restrictions
+            if clinic.booking_restriction_type == 'same_day_disallowed':
+                # Disallow same-day booking, allow next day and later
+                if requested_date <= today:
+                    continue  # Skip this slot
+            elif clinic.booking_restriction_type == 'minimum_hours_required':
+                # Must be at least X hours from now
+                time_diff: timedelta = slot_datetime - now
+                if time_diff.total_seconds() < (clinic.minimum_booking_hours_ahead * 3600):
+                    continue  # Skip this slot
+            # If restriction type is unknown, allow the slot (backward compatibility)
+
+            filtered_slots.append(slot)
+
+        return filtered_slots
 
     @staticmethod
     def _format_time(time_obj: time) -> str:

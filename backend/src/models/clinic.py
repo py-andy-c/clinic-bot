@@ -109,6 +109,24 @@ class Clinic(Base):
     reminder_hours_before: Mapped[int] = mapped_column(Integer, default=24)
     """Number of hours before appointment to send reminders."""
 
+    # Appointment Booking Restrictions
+    booking_restriction_type: Mapped[str] = mapped_column(String(50), default="same_day_disallowed")
+    """
+    Type of restriction for appointment booking timing.
+
+    Options:
+    - 'same_day_disallowed': Disallow same-day booking, allow next day and later (default)
+    - 'minimum_hours_required': Require appointments to be at least X hours ahead
+    """
+
+    minimum_booking_hours_ahead: Mapped[int] = mapped_column(Integer, default=24)
+    """
+    Minimum hours ahead required for appointment booking.
+
+    Only used when booking_restriction_type is 'minimum_hours_required'.
+    Default is 24 hours.
+    """
+
     # Clinic Lifecycle Management
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     """
