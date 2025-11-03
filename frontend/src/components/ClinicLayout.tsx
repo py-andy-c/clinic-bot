@@ -12,9 +12,11 @@ interface ClinicLayoutProps {
 const GlobalWarnings: React.FC = () => {
   const { user, isClinicAdmin, hasRole } = useAuth();
   const [warnings, setWarnings] = useState<{
+    clinicWarnings: { hasAppointmentTypes: boolean };
     practitionerWarnings: { hasAppointmentTypes: boolean; hasAvailability: boolean };
     adminWarnings: Array<{ id: number; full_name: string; hasAppointmentTypes: boolean; hasAvailability: boolean }>;
   }>({
+    clinicWarnings: { hasAppointmentTypes: true },
     practitionerWarnings: { hasAppointmentTypes: true, hasAvailability: true },
     adminWarnings: []
   });
@@ -29,6 +31,19 @@ const GlobalWarnings: React.FC = () => {
 
     try {
       setLoading(true);
+
+      // Fetch clinic warnings if user is admin
+      let clinicWarnings = { hasAppointmentTypes: true };
+      if (isClinicAdmin) {
+        try {
+          const clinicSettings = await apiService.getClinicSettings();
+          clinicWarnings = {
+            hasAppointmentTypes: clinicSettings.appointment_types.length > 0
+          };
+        } catch (err) {
+          console.error('Error fetching clinic settings:', err);
+        }
+      }
 
       // Fetch practitioner's own warnings if they are a practitioner
       let practitionerWarnings = { hasAppointmentTypes: true, hasAvailability: true };
@@ -64,6 +79,7 @@ const GlobalWarnings: React.FC = () => {
       }
 
       setWarnings({
+        clinicWarnings,
         practitionerWarnings,
         adminWarnings
       });
@@ -74,7 +90,8 @@ const GlobalWarnings: React.FC = () => {
     }
   };
 
-  const hasAnyWarnings = !warnings.practitionerWarnings.hasAppointmentTypes ||
+  const hasAnyWarnings = !warnings.clinicWarnings.hasAppointmentTypes ||
+                         !warnings.practitionerWarnings.hasAppointmentTypes ||
                          !warnings.practitionerWarnings.hasAvailability ||
                          warnings.adminWarnings.length > 0;
 
@@ -88,49 +105,56 @@ const GlobalWarnings: React.FC = () => {
         <div className="px-4 py-0 sm:px-0">
           <div className="max-w-4xl mx-auto">
             <div className="flex items-start">
-          <div className="flex-shrink-0">
-            <span className="text-amber-600 text-lg">⚠️</span>
-          </div>
-          <div className="ml-3 flex-1">
-            <h3 className="text-sm font-medium text-amber-800">設定提醒</h3>
-            <div className="mt-2 space-y-2">
-              {/* Practitioner warnings */}
-              {(!warnings.practitionerWarnings.hasAppointmentTypes || !warnings.practitionerWarnings.hasAvailability) && (
-                <div className="text-sm text-amber-700">
-                  <strong>您的預約功能未啟用：</strong>
-                  <ul className="mt-1 ml-4 list-disc">
-                    <li>
-                      {!warnings.practitionerWarnings.hasAppointmentTypes && !warnings.practitionerWarnings.hasAvailability && '未設定預約類型和診療時段'}
-                      {!warnings.practitionerWarnings.hasAppointmentTypes && warnings.practitionerWarnings.hasAvailability && '未設定預約類型'}
-                      {warnings.practitionerWarnings.hasAppointmentTypes && !warnings.practitionerWarnings.hasAvailability && '未設定診療時段'}
-                    </li>
-                  </ul>
-                  <p className="mt-2">
-                    <a href="/profile" className="text-amber-800 underline hover:text-amber-900">
-                      前往個人設定頁面設定
-                    </a>
-                  </p>
-                </div>
-              )}
+              <div className="flex-shrink-0">
+                <span className="text-amber-600 text-lg">⚠️</span>
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className="text-sm font-medium text-amber-800">設定提醒</h3>
+                <div className="mt-2 space-y-2">
+                  {/* Clinic warnings */}
+                  {!warnings.clinicWarnings.hasAppointmentTypes && isClinicAdmin && (
+                    <div className="text-sm text-amber-700">
+                      <strong>診所的預約功能未啟用：</strong>請前往{' '}
+                      <a href="/clinic/settings" className="text-amber-800 underline hover:text-amber-900">
+                        診所設定頁面
+                      </a>
+                      {' '}設定診所提供的服務項目
+                    </div>
+                  )}
 
-              {/* Admin warnings */}
-              {warnings.adminWarnings.length > 0 && (
-                <div className="text-sm text-amber-700">
-                  <strong>以下治療師的預約功能未啟用：</strong>
-                  <ul className="mt-1 ml-4 list-disc">
-                    {warnings.adminWarnings.map(practitioner => (
-                      <li key={practitioner.id}>
-                        {practitioner.full_name}：
-                        {!practitioner.hasAppointmentTypes && !practitioner.hasAvailability && '未設定預約類型和診療時段'}
-                        {!practitioner.hasAppointmentTypes && practitioner.hasAvailability && '未設定預約類型'}
-                        {practitioner.hasAppointmentTypes && !practitioner.hasAvailability && '未設定診療時段'}
-                      </li>
-                    ))}
-                  </ul>
+                  {/* Practitioner warnings */}
+                  {(!warnings.practitionerWarnings.hasAppointmentTypes || !warnings.practitionerWarnings.hasAvailability) && (
+                    <div className="text-sm text-amber-700">
+                      <strong>您個人的預約功能未啟用：</strong>
+                      {!warnings.practitionerWarnings.hasAppointmentTypes && !warnings.practitionerWarnings.hasAvailability && '未設定個人的預約類型和診療時段'}
+                      {!warnings.practitionerWarnings.hasAppointmentTypes && warnings.practitionerWarnings.hasAvailability && '未設定個人的預約類型'}
+                      {warnings.practitionerWarnings.hasAppointmentTypes && !warnings.practitionerWarnings.hasAvailability && '未設定診療時段'}
+                      ，請前往{' '}
+                      <a href="/profile" className="text-amber-800 underline hover:text-amber-900">
+                        個人設定頁面
+                      </a>
+                      {' '}設定
+                    </div>
+                  )}
+
+                  {/* Admin warnings */}
+                  {warnings.adminWarnings.length > 0 && (
+                    <div className="text-sm text-amber-700">
+                      <strong>以下治療師的預約功能未啟用：</strong>
+                      <ul className="mt-1 ml-4 list-disc">
+                        {warnings.adminWarnings.map(practitioner => (
+                          <li key={practitioner.id}>
+                            {practitioner.full_name}：
+                            {!practitioner.hasAppointmentTypes && !practitioner.hasAvailability && '未設定個人的預約類型和診療時段'}
+                            {!practitioner.hasAppointmentTypes && practitioner.hasAvailability && '未設定個人的預約類型'}
+                            {practitioner.hasAppointmentTypes && !practitioner.hasAvailability && '未設定診療時段'}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
             </div>
           </div>
         </div>
