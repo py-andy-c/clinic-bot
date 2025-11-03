@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from main import app
 from core.database import get_db
-from models import Clinic, User, Patient, AppointmentType, Appointment, CalendarEvent
+from models import Clinic, User, Patient, AppointmentType, Appointment, CalendarEvent, PractitionerAppointmentTypes
 
 
 @pytest.fixture
@@ -159,5 +159,290 @@ class TestSettingsDestructiveUpdate:
             existing_type = db_session.get(AppointmentType, at.id)
             # If it's gone, we expose a bug in destructive settings updates
             assert existing_type is not None, "Settings update removed appointment types referenced by existing appointments (data corruption risk)"
+
+        app.dependency_overrides.pop(auth_deps.get_current_user, None)
+
+
+class TestAppointmentTypeDeletionPrevention:
+    def test_cannot_delete_appointment_type_with_practitioner_references(self, client, db_session, clinic_with_admin_and_practitioner):
+        """Test that appointment types referenced by practitioners cannot be deleted."""
+        c, admin, pract = clinic_with_admin_and_practitioner
+
+        # Create appointment type
+        at1 = AppointmentType(clinic_id=c.id, name="初診評估", duration_minutes=60)
+        at2 = AppointmentType(clinic_id=c.id, name="回診", duration_minutes=30)
+        db_session.add_all([at1, at2])
+        db_session.commit()
+
+        # Associate practitioner with appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=pract.id,
+            appointment_type_id=at1.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        from auth import dependencies as auth_deps
+        app.dependency_overrides[auth_deps.get_current_user] = lambda: _uc(user_id=admin.id, clinic_id=c.id, roles=["admin"])
+
+        # Attempt to delete appointment type that has practitioner reference
+        res = client.put("/api/clinic/settings", json={
+            "appointment_types": [
+                {"name": "回診", "duration_minutes": 30}  # Only keeping at2, deleting at1
+            ]
+        })
+
+        assert res.status_code == 400
+        assert "無法刪除某些預約類型" in res.text
+        assert "無法刪除某些預約類型，因為有治療師正在提供此服務" in res.text or "cannot_delete_appointment_types" in res.text
+        
+        # Verify error response structure
+        error_detail = res.json().get("detail", {})
+        if isinstance(error_detail, dict):
+            assert error_detail.get("error") == "cannot_delete_appointment_types"
+            assert "appointment_types" in error_detail
+            appointment_types_error = error_detail["appointment_types"]
+            assert len(appointment_types_error) > 0
+            assert appointment_types_error[0]["name"] == "初診評估"
+            assert "Doc" in appointment_types_error[0]["practitioners"]  # practitioner full_name
+
+        # Verify appointment type still exists
+        db_session.refresh(at1)
+        assert at1 is not None
+
+        app.dependency_overrides.pop(auth_deps.get_current_user, None)
+
+    def test_can_delete_appointment_type_without_practitioner_references(self, client, db_session, clinic_with_admin_and_practitioner):
+        """Test that appointment types without practitioner references can be deleted."""
+        c, admin, pract = clinic_with_admin_and_practitioner
+
+        # Create appointment types
+        at1 = AppointmentType(clinic_id=c.id, name="初診評估", duration_minutes=60)
+        at2 = AppointmentType(clinic_id=c.id, name="回診", duration_minutes=30)
+        db_session.add_all([at1, at2])
+        db_session.commit()
+
+        # No practitioner associations
+
+        from auth import dependencies as auth_deps
+        app.dependency_overrides[auth_deps.get_current_user] = lambda: _uc(user_id=admin.id, clinic_id=c.id, roles=["admin"])
+
+        # Delete appointment types - should succeed
+        res = client.put("/api/clinic/settings", json={
+            "appointment_types": [
+                {"name": "新類型", "duration_minutes": 45}
+            ]
+        })
+
+        assert res.status_code == 200
+        assert "設定更新成功" in res.text
+
+        # Verify old appointment types are deleted
+        db_session.expire_all()
+        existing_types = db_session.query(AppointmentType).filter_by(clinic_id=c.id).all()
+        assert len(existing_types) == 1
+        assert existing_types[0].name == "新類型"
+
+        app.dependency_overrides.pop(auth_deps.get_current_user, None)
+
+    def test_deletion_prevention_with_multiple_practitioners(self, client, db_session, clinic_with_admin_and_practitioner):
+        """Test that deletion prevention works with multiple practitioners referencing the same type."""
+        c, admin, pract = clinic_with_admin_and_practitioner
+
+        # Create second practitioner
+        pract2 = User(clinic_id=c.id, full_name="Doc2", email="doc2@ex.com", google_subject_id="subP2", roles=["practitioner"], is_active=True)
+        db_session.add(pract2)
+        db_session.commit()
+
+        # Create appointment type
+        at1 = AppointmentType(clinic_id=c.id, name="初診評估", duration_minutes=60)
+        db_session.add(at1)
+        db_session.commit()
+
+        # Associate both practitioners with appointment type
+        pat1 = PractitionerAppointmentTypes(user_id=pract.id, appointment_type_id=at1.id)
+        pat2 = PractitionerAppointmentTypes(user_id=pract2.id, appointment_type_id=at1.id)
+        db_session.add_all([pat1, pat2])
+        db_session.commit()
+
+        from auth import dependencies as auth_deps
+        app.dependency_overrides[auth_deps.get_current_user] = lambda: _uc(user_id=admin.id, clinic_id=c.id, roles=["admin"])
+
+        # Attempt to delete appointment type
+        res = client.put("/api/clinic/settings", json={
+            "appointment_types": [
+                {"name": "回診", "duration_minutes": 30}
+            ]
+        })
+
+        assert res.status_code == 400
+        error_detail = res.json().get("detail", {})
+        if isinstance(error_detail, dict):
+            appointment_types_error = error_detail.get("appointment_types", [])
+            assert len(appointment_types_error) > 0
+            practitioners = appointment_types_error[0].get("practitioners", [])
+            assert len(practitioners) == 2
+            assert "Doc" in practitioners
+            assert "Doc2" in practitioners
+
+        app.dependency_overrides.pop(auth_deps.get_current_user, None)
+
+    def test_deletion_prevention_with_mixed_types(self, client, db_session, clinic_with_admin_and_practitioner):
+        """Test that deletion is blocked when trying to delete all types even if keeping one by name+duration."""
+        c, admin, pract = clinic_with_admin_and_practitioner
+
+        # Create appointment types
+        at1 = AppointmentType(clinic_id=c.id, name="初診評估", duration_minutes=60)
+        at2 = AppointmentType(clinic_id=c.id, name="回診", duration_minutes=30)
+        at3 = AppointmentType(clinic_id=c.id, name="檢查", duration_minutes=45)
+        db_session.add_all([at1, at2, at3])
+        db_session.commit()
+
+        # Associate practitioner only with at1
+        pat = PractitionerAppointmentTypes(user_id=pract.id, appointment_type_id=at1.id)
+        db_session.add(pat)
+        db_session.commit()
+
+        from auth import dependencies as auth_deps
+        app.dependency_overrides[auth_deps.get_current_user] = lambda: _uc(user_id=admin.id, clinic_id=c.id, roles=["admin"])
+
+        # Attempt to delete at2 and at3 but keep at1 by name+duration
+        # However, the delete-all-then-recreate pattern will try to delete ALL types first,
+        # which will fail due to FK constraint or be prevented by our check
+        res = client.put("/api/clinic/settings", json={
+            "appointment_types": [
+                {"name": "初診評估", "duration_minutes": 60},  # Keep at1 by name+duration
+                {"name": "新類型", "duration_minutes": 20}
+            ]
+        })
+
+        # The deletion should be blocked because at1 has practitioner references
+        # even though we're trying to keep it by name+duration, the delete-all-then-recreate
+        # pattern attempts to delete all types first
+        assert res.status_code == 400
+        assert "無法刪除某些預約類型" in res.text
+
+        # Verify original appointment types still exist
+        db_session.expire_all()
+        existing_types = db_session.query(AppointmentType).filter_by(clinic_id=c.id).all()
+        assert len(existing_types) == 3
+
+        app.dependency_overrides.pop(auth_deps.get_current_user, None)
+
+
+class TestAppointmentTypeDeletionValidation:
+    def test_validate_deletion_blocks_when_practitioners_reference_type(self, client, db_session, clinic_with_admin_and_practitioner):
+        """Test that validation endpoint correctly identifies blocked deletions."""
+        c, admin, pract = clinic_with_admin_and_practitioner
+
+        # Create appointment type
+        at1 = AppointmentType(clinic_id=c.id, name="初診評估", duration_minutes=60)
+        db_session.add(at1)
+        db_session.commit()
+
+        # Associate practitioner with appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=pract.id,
+            appointment_type_id=at1.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        from auth import dependencies as auth_deps
+        app.dependency_overrides[auth_deps.get_current_user] = lambda: _uc(user_id=admin.id, clinic_id=c.id, roles=["admin"])
+
+        # Validate deletion - should be blocked
+        res = client.post("/api/clinic/appointment-types/validate-deletion", json={
+            "appointment_type_ids": [at1.id]
+        })
+
+        assert res.status_code == 200
+        data = res.json()
+        assert data["can_delete"] == False
+        assert "error" in data
+        assert data["error"]["error"] == "cannot_delete_appointment_types"
+        assert len(data["error"]["appointment_types"]) > 0
+        assert data["error"]["appointment_types"][0]["name"] == "初診評估"
+        assert "Doc" in data["error"]["appointment_types"][0]["practitioners"]
+
+        app.dependency_overrides.pop(auth_deps.get_current_user, None)
+
+    def test_validate_deletion_allows_when_no_practitioners_reference_type(self, client, db_session, clinic_with_admin_and_practitioner):
+        """Test that validation endpoint allows deletion when no practitioners reference type."""
+        c, admin, pract = clinic_with_admin_and_practitioner
+
+        # Create appointment type
+        at1 = AppointmentType(clinic_id=c.id, name="初診評估", duration_minutes=60)
+        db_session.add(at1)
+        db_session.commit()
+
+        # No practitioner associations
+
+        from auth import dependencies as auth_deps
+        app.dependency_overrides[auth_deps.get_current_user] = lambda: _uc(user_id=admin.id, clinic_id=c.id, roles=["admin"])
+
+        # Validate deletion - should be allowed
+        res = client.post("/api/clinic/appointment-types/validate-deletion", json={
+            "appointment_type_ids": [at1.id]
+        })
+
+        assert res.status_code == 200
+        data = res.json()
+        assert data["can_delete"] == True
+        assert "message" in data
+        assert "可以刪除" in data["message"]
+
+        app.dependency_overrides.pop(auth_deps.get_current_user, None)
+
+    def test_validate_deletion_with_multiple_types(self, client, db_session, clinic_with_admin_and_practitioner):
+        """Test that validation endpoint handles multiple appointment types correctly."""
+        c, admin, pract = clinic_with_admin_and_practitioner
+
+        # Create appointment types
+        at1 = AppointmentType(clinic_id=c.id, name="初診評估", duration_minutes=60)
+        at2 = AppointmentType(clinic_id=c.id, name="回診", duration_minutes=30)
+        db_session.add_all([at1, at2])
+        db_session.commit()
+
+        # Associate practitioner only with at1
+        pat = PractitionerAppointmentTypes(
+            user_id=pract.id,
+            appointment_type_id=at1.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        from auth import dependencies as auth_deps
+        app.dependency_overrides[auth_deps.get_current_user] = lambda: _uc(user_id=admin.id, clinic_id=c.id, roles=["admin"])
+
+        # Validate deletion of both types
+        res = client.post("/api/clinic/appointment-types/validate-deletion", json={
+            "appointment_type_ids": [at1.id, at2.id]
+        })
+
+        assert res.status_code == 200
+        data = res.json()
+        assert data["can_delete"] == False  # Because at1 is blocked
+        assert "error" in data
+        assert len(data["error"]["appointment_types"]) == 1  # Only at1 is blocked
+        assert data["error"]["appointment_types"][0]["name"] == "初診評估"
+
+        app.dependency_overrides.pop(auth_deps.get_current_user, None)
+
+    def test_validate_deletion_skips_nonexistent_types(self, client, db_session, clinic_with_admin_and_practitioner):
+        """Test that validation endpoint gracefully handles non-existent appointment type IDs."""
+        c, admin, pract = clinic_with_admin_and_practitioner
+
+        from auth import dependencies as auth_deps
+        app.dependency_overrides[auth_deps.get_current_user] = lambda: _uc(user_id=admin.id, clinic_id=c.id, roles=["admin"])
+
+        # Validate deletion of non-existent type
+        res = client.post("/api/clinic/appointment-types/validate-deletion", json={
+            "appointment_type_ids": [99999]
+        })
+
+        assert res.status_code == 200
+        data = res.json()
+        assert data["can_delete"] == True  # Non-existent types don't block deletion
 
         app.dependency_overrides.pop(auth_deps.get_current_user, None)

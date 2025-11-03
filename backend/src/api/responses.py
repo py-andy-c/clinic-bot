@@ -212,3 +212,10 @@ class ConflictWarningResponse(BaseModel):
     success: bool
     message: str
     conflicts: List[Dict[str, Any]]
+
+
+class AppointmentTypeDeletionErrorResponse(BaseModel):
+    """Response model for appointment type deletion error."""
+    error: str
+    message: str
+    appointment_types: List[Dict[str, Any]]  # List of {id, name, practitioners: [str]}

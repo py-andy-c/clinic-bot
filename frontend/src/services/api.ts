@@ -260,6 +260,13 @@ class ApiService {
     return response.data;
   }
 
+  async validateAppointmentTypeDeletion(appointmentTypeIds: number[]): Promise<{ can_delete: boolean; error?: any; message?: string }> {
+    const response = await this.client.post('/clinic/appointment-types/validate-deletion', {
+      appointment_type_ids: appointmentTypeIds
+    });
+    return response.data;
+  }
+
   // Practitioner Availability APIs (Updated for new schema)
   async getPractitionerDefaultSchedule(userId: number): Promise<DefaultScheduleResponse> {
     const response = await this.client.get(`/clinic/practitioners/${userId}/availability/default`);

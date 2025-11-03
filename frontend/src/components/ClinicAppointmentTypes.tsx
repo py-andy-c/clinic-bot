@@ -5,7 +5,7 @@ interface ClinicAppointmentTypesProps {
   appointmentTypes: AppointmentType[];
   onAddType: () => void;
   onUpdateType: (index: number, field: keyof AppointmentType, value: string | number) => void;
-  onRemoveType: (index: number) => void;
+  onRemoveType: (index: number) => Promise<void> | void;
   showSaveButton?: boolean;
   onSave?: () => void;
   saving?: boolean;

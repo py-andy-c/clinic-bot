@@ -76,7 +76,7 @@ export const useSettingsPage = <T extends Record<string, any>>(config: SettingsP
       console.error('Save settings error:', err);
       setUiState(prev => ({
         ...prev,
-        error: err.response?.data?.message || '儲存設定失敗，請稍後再試'
+        error: err.message || err.response?.data?.message || err.response?.data?.detail || '儲存設定失敗，請稍後再試'
       }));
     } finally {
       setUiState(prev => ({ ...prev, saving: false }));

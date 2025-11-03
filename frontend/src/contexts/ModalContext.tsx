@@ -118,7 +118,7 @@ const ModalDialog: React.FC<ModalDialogProps> = ({ modal, onClose }) => {
           </h3>
         )}
 
-        <p className="text-gray-700 mb-6">{modal.message}</p>
+        <p className="text-gray-700 mb-6 whitespace-pre-line">{modal.message}</p>
 
         <div className="flex justify-end space-x-3">
           {modal.type === 'confirm' && modal.onCancel && (

@@ -21,12 +21,14 @@ from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
 from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, PractitionerAppointmentTypes, CalendarEvent
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService
+from services.availability_service import AvailabilityService
 from services.google_oauth import GoogleOAuthService
 from services.notification_service import NotificationService, CancellationSource
 from api.responses import (
     ClinicPatientResponse, ClinicPatientListResponse,
     ClinicAppointmentResponse, ClinicAppointmentsResponse,
-    AppointmentTypeResponse, PractitionerAppointmentTypesResponse, PractitionerStatusResponse
+    AppointmentTypeResponse, PractitionerAppointmentTypesResponse, PractitionerStatusResponse,
+    AppointmentTypeDeletionErrorResponse
 )
 
 router = APIRouter()
@@ -462,6 +464,87 @@ async def get_settings(
         )
 
 
+class AppointmentTypeDeletionValidationRequest(BaseModel):
+    """Request model for validating appointment type deletion."""
+    appointment_type_ids: List[int]
+
+
+@router.post("/appointment-types/validate-deletion", summary="Validate appointment type deletion")
+async def validate_appointment_type_deletion(
+    request: AppointmentTypeDeletionValidationRequest,
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Validate if appointment types can be deleted.
+    
+    Checks if any practitioners reference the appointment types.
+    Returns list of appointment types that cannot be deleted with their practitioner names.
+    Only clinic admins can validate deletion.
+    """
+    try:
+        # Ensure clinic_id is set
+        if current_user.clinic_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="需要診所存取權限"
+            )
+        clinic_id = current_user.clinic_id
+
+        # Check for practitioner references
+        blocked_types: List[Dict[str, Any]] = []
+        for appointment_type_id in request.appointment_type_ids:
+            # Verify appointment type exists and belongs to clinic
+            appointment_type = db.query(AppointmentType).filter(
+                AppointmentType.id == appointment_type_id,
+                AppointmentType.clinic_id == clinic_id
+            ).first()
+
+            if not appointment_type:
+                continue  # Skip non-existent types
+
+            # Check for practitioner references
+            practitioners = AvailabilityService.get_practitioners_for_appointment_type(
+                db=db,
+                appointment_type_id=appointment_type_id,
+                clinic_id=clinic_id
+            )
+
+            if practitioners:
+                practitioner_names = [p.full_name for p in practitioners]
+                blocked_types.append({
+                    "id": appointment_type.id,
+                    "name": appointment_type.name,
+                    "practitioners": practitioner_names
+                })
+
+        # If any appointment types cannot be deleted, return error
+        if blocked_types:
+            error_response = AppointmentTypeDeletionErrorResponse(
+                error="cannot_delete_appointment_types",
+                message="無法刪除某些預約類型，因為有治療師正在提供此服務",
+                appointment_types=blocked_types
+            )
+            return {
+                "can_delete": False,
+                "error": error_response.model_dump()
+            }
+
+        return {
+            "can_delete": True,
+            "message": "可以刪除"
+        }
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error validating appointment type deletion")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="驗證刪除失敗"
+        )
+
+
 @router.put("/settings", summary="Update clinic settings")
 async def update_settings(
     settings: Dict[str, Any],
@@ -472,21 +555,88 @@ async def update_settings(
     Update clinic settings including appointment types.
 
     Only clinic admins can update settings.
+    Prevents deletion of appointment types that are referenced by practitioners.
     """
     try:
+        # Ensure clinic_id is set
+        if current_user.clinic_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="需要診所存取權限"
+            )
+        clinic_id = current_user.clinic_id
+
         # Update appointment types
         appointment_types_data = settings.get("appointment_types", [])
 
+        # Get existing appointment types before deletion
+        existing_appointment_types = AppointmentTypeService.list_appointment_types_for_clinic(
+            db, clinic_id
+        )
+
+        # Determine which appointment types are being deleted
+        # Match by name + duration_minutes (since IDs change with delete-all-then-recreate pattern)
+        incoming_types = {
+            (at_data.get("name"), at_data.get("duration_minutes"))
+            for at_data in appointment_types_data
+            if at_data.get("name") and at_data.get("duration_minutes")
+        }
+
+        types_to_delete = [
+            at for at in existing_appointment_types
+            if (at.name, at.duration_minutes) not in incoming_types
+        ]
+
+        # Check for practitioner references before deletion
+        # Note: Since we use delete-all-then-recreate pattern, we need to check ALL existing types
+        # that have practitioner references, not just ones being deleted, because the delete operation
+        # will attempt to delete ALL types first (including ones we're recreating)
+        blocked_types: List[Dict[str, Any]] = []
+        for appointment_type in existing_appointment_types:
+            practitioners = AvailabilityService.get_practitioners_for_appointment_type(
+                db=db,
+                appointment_type_id=appointment_type.id,
+                clinic_id=clinic_id
+            )
+            
+            if practitioners:
+                # Check if this type is being kept (same name + duration) or deleted
+                is_being_kept = (appointment_type.name, appointment_type.duration_minutes) in incoming_types
+                
+                # If being kept, we still need to prevent deletion because delete-all-then-recreate
+                # will delete ALL types first before recreating, which violates FK constraints
+                # Only allow if NO types are being deleted (just additions/modifications)
+                if not is_being_kept or types_to_delete:
+                    practitioner_names = [p.full_name for p in practitioners]
+                    blocked_types.append({
+                        "id": appointment_type.id,
+                        "name": appointment_type.name,
+                        "practitioners": practitioner_names
+                    })
+
+        # If any appointment types cannot be deleted, return error
+        if blocked_types:
+            error_response = AppointmentTypeDeletionErrorResponse(
+                error="cannot_delete_appointment_types",
+                message="無法刪除某些預約類型，因為有治療師正在提供此服務",
+                appointment_types=blocked_types
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_response.model_dump()
+            )
+
+        # Safe to delete - no practitioner references
         # Delete existing appointment types
         db.query(AppointmentType).filter(
-            AppointmentType.clinic_id == current_user.clinic_id
+            AppointmentType.clinic_id == clinic_id
         ).delete()
 
         # Add new appointment types
         for at_data in appointment_types_data:
             if at_data.get("name") and at_data.get("duration_minutes"):
                 appointment_type = AppointmentType(
-                    clinic_id=current_user.clinic_id,
+                    clinic_id=clinic_id,
                     name=at_data["name"],
                     duration_minutes=at_data["duration_minutes"]
                 )
@@ -495,7 +645,7 @@ async def update_settings(
         # Update notification settings
         notification_settings = settings.get("notification_settings", {})
         if notification_settings:
-            clinic = db.query(Clinic).get(current_user.clinic_id)
+            clinic = db.query(Clinic).get(clinic_id)
             if clinic:
                 clinic.reminder_hours_before = notification_settings.get("reminder_hours_before", clinic.reminder_hours_before)
 
@@ -503,6 +653,8 @@ async def update_settings(
 
         return {"message": "設定更新成功"}
 
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("Error updating clinic settings")
         db.rollback()

@@ -51,8 +51,14 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
 
       // Get practitioner's current appointment types (only set internal state if not using external)
       const practitionerData = await apiService.getPractitionerAppointmentTypes(user.user_id);
+      const selectedIds = practitionerData.appointment_types.map((at: any) => at.id);
+      
+      // Defensive filtering: only include IDs that exist in available types
+      const availableTypeIds = new Set(clinicSettings.appointment_types.map((at: any) => at.id));
+      const validSelectedIds = selectedIds.filter((id: number) => availableTypeIds.has(id));
+      
       if (externalSelectedTypeIds === undefined) {
-      setSelectedTypeIds(practitionerData.appointment_types.map((at: any) => at.id));
+        setSelectedTypeIds(validSelectedIds);
       }
 
       // Get practitioner's status (includes availability check)
@@ -110,23 +116,27 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
 
 
       <div className="space-y-3">
-        {availableTypes.map((type) => (
-          <div key={type.id} className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-300">
-            <input
-              type="checkbox"
-              id={`type-${type.id}`}
-              checked={currentSelectedTypeIds.includes(type.id)}
-              onChange={() => handleTypeToggle(type.id)}
-              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-            />
-            <label htmlFor={`type-${type.id}`} className="ml-3 flex-1 cursor-pointer">
-              <div>
-                <span className="font-medium text-gray-900">{type.name}</span>
-                <span className="ml-2 text-sm text-gray-500">({type.duration_minutes} 分鐘)</span>
-              </div>
-            </label>
-          </div>
-        ))}
+        {availableTypes.map((type) => {
+          // Defensive check: ensure type ID is valid
+          const isSelected = currentSelectedTypeIds.includes(type.id);
+          return (
+            <div key={type.id} className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-300">
+              <input
+                type="checkbox"
+                id={`type-${type.id}`}
+                checked={isSelected}
+                onChange={() => handleTypeToggle(type.id)}
+                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+              />
+              <label htmlFor={`type-${type.id}`} className="ml-3 flex-1 cursor-pointer">
+                <div>
+                  <span className="font-medium text-gray-900">{type.name}</span>
+                  <span className="ml-2 text-sm text-gray-500">({type.duration_minutes} 分鐘)</span>
+                </div>
+              </label>
+            </div>
+          );
+        })}
 
         {availableTypes.length === 0 && (
           <div className="text-center py-8 text-gray-500">
