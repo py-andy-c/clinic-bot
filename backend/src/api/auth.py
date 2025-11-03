@@ -287,7 +287,10 @@ async def google_auth_callback(
             user_id=dummy_user_id,
             token_hash=refresh_token_hash,
             hmac_key=hmac_key,
-            expires_at=jwt_service.get_token_expiry("refresh")
+            expires_at=jwt_service.get_token_expiry("refresh"),
+            email=email if actual_user_type == "system_admin" else None,  # Store email for system admins
+            google_subject_id=google_subject_id if actual_user_type == "system_admin" else None,  # Store google_subject_id for system admins
+            name=name if actual_user_type == "system_admin" else None  # Store name for system admins
         )
         db.add(refresh_token_record)
         db.commit()
@@ -418,34 +421,78 @@ async def refresh_access_token(
 
     # Get the user associated with this refresh token
     user = refresh_token_record.user
-    if not user or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="找不到使用者或使用者已停用"
+    
+    # Handle system admins - check if email is stored (system admin indicator)
+    # Note: In tests, we may create dummy User records for FK constraint,
+    # but we can still identify system admins by the email field in RefreshToken
+    is_system_admin = refresh_token_record.email is not None and refresh_token_record.email in SYSTEM_ADMIN_EMAILS
+    
+    if is_system_admin:
+        # For system admin, create token payload from stored fields
+        assert refresh_token_record.email is not None, "System admin refresh token must have email"
+        system_admin_email = refresh_token_record.email
+        system_admin_subject_id = refresh_token_record.google_subject_id or system_admin_email  # Fallback to email if not stored
+        system_admin_name = refresh_token_record.name or system_admin_email.split('@')[0].title()  # Fallback name
+        
+        # Create new token pair for system admin
+        payload = TokenPayload(
+            sub=system_admin_subject_id,  # Use stored google_subject_id
+            email=system_admin_email,
+            user_type="system_admin",
+            roles=[],  # System admins don't have clinic roles
+            clinic_id=None,
+            name=system_admin_name
         )
-
-    # Create new token pair
-    payload = TokenPayload(
-        sub=str(user.google_subject_id),
-        email=user.email,
-        user_type="clinic_user",
-        roles=user.roles,
-        clinic_id=user.clinic_id,
-        name=user.full_name
-    )
-
-    token_data = jwt_service.create_token_pair(payload)
-
-    # Revoke old refresh token
-    refresh_token_record.revoke()
-
-    # Create new refresh token record
-    new_refresh_token_record = RefreshToken(
-        user_id=user.id,
-        token_hash=token_data["refresh_token_hash"],
-        hmac_key=token_data["refresh_token_hmac"],
-        expires_at=jwt_service.get_token_expiry("refresh")
-    )
+        
+        token_data = jwt_service.create_token_pair(payload)
+        
+        # Revoke old refresh token
+        refresh_token_record.revoke()
+        
+        # Create new refresh token record for system admin
+        dummy_user_id = hash(system_admin_email) % 1000000  # Same hash calculation as OAuth callback
+        new_refresh_token_record = RefreshToken(
+            user_id=dummy_user_id,
+            token_hash=token_data["refresh_token_hash"],
+            hmac_key=token_data["refresh_token_hmac"],
+            expires_at=jwt_service.get_token_expiry("refresh"),
+            email=system_admin_email,  # Store email for system admin
+            google_subject_id=system_admin_subject_id,  # Store google_subject_id for system admin
+            name=system_admin_name  # Store name for system admin
+        )
+    else:
+        # Clinic user - normal flow
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="找不到使用者或使用者已停用"
+            )
+        
+        # Create new token pair
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            email=user.email,
+            user_type="clinic_user",
+            roles=user.roles,
+            clinic_id=user.clinic_id,
+            name=user.full_name
+        )
+        
+        token_data = jwt_service.create_token_pair(payload)
+        
+        # Revoke old refresh token
+        refresh_token_record.revoke()
+        
+        # Create new refresh token record
+        new_refresh_token_record = RefreshToken(
+            user_id=user.id,
+            token_hash=token_data["refresh_token_hash"],
+            hmac_key=token_data["refresh_token_hmac"],
+            expires_at=jwt_service.get_token_expiry("refresh"),
+            email=None,  # Clinic users don't need email in RefreshToken
+            google_subject_id=None,  # Clinic users don't need google_subject_id in RefreshToken
+            name=None  # Clinic users don't need name in RefreshToken
+        )
     db.add(new_refresh_token_record)
     db.commit()
 
@@ -552,13 +599,28 @@ async def dev_login(
                 is_active=True
             )
         else:
-            # System admin doesn't need a clinic
+            # System admin - in dev mode, still create a User record but use a dummy clinic
+            # This is different from OAuth where system admins use dummy user_id and no User record
+            # NOTE: For consistency in dev/testing, dev_login system admins have User records
+            # and will go through clinic user refresh path (not system admin path)
+            clinic = db.query(Clinic).first()
+            if not clinic:
+                # Create a default clinic for dev system admins
+                clinic = Clinic(
+                    name="Development Clinic",
+                    line_channel_id="dev_channel",
+                    line_channel_secret="dev_secret",
+                    line_channel_access_token="dev_token"
+                )
+                db.add(clinic)
+                db.commit()
+            
             user = User(
+                clinic_id=clinic.id,
                 email=email,
                 google_subject_id=f"dev_{email.replace('@', '_').replace('.', '_')}",
                 full_name=email.split('@')[0].title(),
-                user_type="system_admin",
-                roles=[],
+                roles=[],  # System admins don't have clinic roles
                 is_active=True
             )
         db.add(user)
@@ -584,7 +646,10 @@ async def dev_login(
         user_id=user.id,
         token_hash=refresh_token_hash,
         hmac_key=hmac_key,
-        expires_at=jwt_service.get_token_expiry("refresh")
+        expires_at=jwt_service.get_token_expiry("refresh"),
+        email=email if email in SYSTEM_ADMIN_EMAILS else None,  # Store email for system admins
+        google_subject_id=str(user.google_subject_id) if email in SYSTEM_ADMIN_EMAILS else None,  # Store google_subject_id for system admins
+        name=user.full_name if email in SYSTEM_ADMIN_EMAILS else None  # Store name for system admins
     )
     db.add(refresh_token_record)
     db.commit()

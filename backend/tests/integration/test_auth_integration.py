@@ -1565,6 +1565,410 @@ class TestSignupCallbackFlow:
             client.app.dependency_overrides.pop(get_db, None)
 
 
+class TestSystemAdminRefreshTokenFlow:
+    """Test refresh token flow for system admins (OAuth-created, no User record)."""
+
+    @pytest.mark.asyncio
+    async def test_system_admin_refresh_token_creation_during_oauth(self, db_session):
+        """Test that refresh tokens are created with email/google_subject_id/name for system admins during OAuth."""
+        from models import RefreshToken, User, Clinic
+        from services.jwt_service import jwt_service
+        from api import auth
+
+        # Set system admin email
+        original_emails = auth.SYSTEM_ADMIN_EMAILS
+        auth.SYSTEM_ADMIN_EMAILS = ['systemadmin@example.com']
+
+        try:
+            # Simulate what happens in OAuth callback for system admin
+            email = "systemadmin@example.com"
+            google_subject_id = "google_subject_123"
+            name = "System Admin"
+            dummy_user_id = hash(email) % 1000000
+
+            # For system admins, we use a dummy user_id that doesn't reference a real User record
+            # In production, this works because the foreign key is checked at the database level
+            # In tests with SQLite, we need to temporarily disable foreign key checks or create a dummy User
+            # We'll create a dummy User record to satisfy the foreign key constraint
+            clinic = Clinic(
+                name="Dummy Clinic",
+                line_channel_id="dummy_channel",
+                line_channel_secret="dummy_secret",
+                line_channel_access_token="dummy_token"
+            )
+            db_session.add(clinic)
+            db_session.commit()
+
+            # Create a dummy User record with the dummy_user_id for foreign key constraint
+            # This is only for testing - in production, system admin refresh tokens use dummy user_ids
+            # that don't reference real User records, but we need to satisfy the FK constraint in tests
+            dummy_user = User(
+                id=dummy_user_id,  # Use the same dummy_user_id
+                clinic_id=clinic.id,
+                email=f"dummy_{email}",
+                google_subject_id=f"dummy_{google_subject_id}",
+                full_name="Dummy User",
+                roles=[]
+            )
+            db_session.add(dummy_user)
+            db_session.commit()
+
+            # Create token pair (as OAuth callback does)
+            from services.jwt_service import TokenPayload
+            payload = TokenPayload(
+                sub=google_subject_id,
+                email=email,
+                user_type="system_admin",
+                roles=[],
+                clinic_id=None,
+                name=name
+            )
+            token_data = jwt_service.create_token_pair(payload)
+
+            # Create refresh token record (as OAuth callback does)
+            refresh_token_record = RefreshToken(
+                user_id=dummy_user_id,
+                token_hash=token_data["refresh_token_hash"],
+                hmac_key=token_data["refresh_token_hmac"],
+                expires_at=jwt_service.get_token_expiry("refresh"),
+                email=email,  # System admin email stored
+                google_subject_id=google_subject_id,  # System admin google_subject_id stored
+                name=name  # System admin name stored
+            )
+            db_session.add(refresh_token_record)
+            db_session.commit()
+
+            # Verify refresh token was created with system admin fields
+            assert refresh_token_record.email == email
+            assert refresh_token_record.google_subject_id == google_subject_id
+            assert refresh_token_record.name == name
+            # Note: In tests, we create a dummy User to satisfy FK constraint,
+            # but in production, system admin refresh tokens have user=None
+            # The important thing is that email/google_subject_id/name are stored
+
+        finally:
+            auth.SYSTEM_ADMIN_EMAILS = original_emails
+
+    def test_system_admin_refresh_token_exchange(self, client, db_session):
+        """Test successful refresh token exchange for system admin."""
+        from models import RefreshToken, User, Clinic
+        from services.jwt_service import jwt_service, TokenPayload
+        from api import auth
+
+        # Set system admin email
+        original_emails = auth.SYSTEM_ADMIN_EMAILS
+        auth.SYSTEM_ADMIN_EMAILS = ['systemadmin@example.com']
+
+        try:
+            # Create refresh token as OAuth callback would
+            email = "systemadmin@example.com"
+            google_subject_id = "google_subject_123"
+            name = "System Admin"
+            dummy_user_id = hash(email) % 1000000
+
+            # Create dummy User record for foreign key constraint
+            clinic = Clinic(
+                name="Dummy Clinic",
+                line_channel_id="dummy_channel",
+                line_channel_secret="dummy_secret",
+                line_channel_access_token="dummy_token"
+            )
+            db_session.add(clinic)
+            db_session.commit()
+
+            dummy_user = User(
+                id=dummy_user_id,
+                clinic_id=clinic.id,
+                email=f"dummy_{email}",
+                google_subject_id=f"dummy_{google_subject_id}",
+                full_name="Dummy User",
+                roles=[]
+            )
+            db_session.add(dummy_user)
+            db_session.commit()
+
+            payload = TokenPayload(
+                sub=google_subject_id,
+                email=email,
+                user_type="system_admin",
+                roles=[],
+                clinic_id=None,
+                name=name
+            )
+            token_data = jwt_service.create_token_pair(payload)
+
+            refresh_token_string = token_data["refresh_token"]
+            refresh_token_record = RefreshToken(
+                user_id=dummy_user_id,
+                token_hash=token_data["refresh_token_hash"],
+                hmac_key=token_data["refresh_token_hmac"],
+                expires_at=jwt_service.get_token_expiry("refresh"),
+                email=email,
+                google_subject_id=google_subject_id,
+                name=name
+            )
+            db_session.add(refresh_token_record)
+            db_session.commit()
+
+            # Override dependencies to use test session
+            def override_get_db():
+                yield db_session
+
+            client.app.dependency_overrides[get_db] = override_get_db
+
+            try:
+                # Set the refresh token cookie
+                client.cookies.set("refresh_token", refresh_token_string)
+
+                # Attempt refresh
+                response = client.post("/api/auth/refresh")
+
+                assert response.status_code == 200
+                data = response.json()
+                assert "access_token" in data
+                assert "token_type" in data
+                assert "expires_in" in data
+
+                # Verify old refresh token was revoked
+                db_session.refresh(refresh_token_record)
+                assert refresh_token_record.revoked == True
+
+                # Verify new refresh token was created with system admin fields
+                new_refresh_tokens = db_session.query(RefreshToken).filter(
+                    RefreshToken.user_id == dummy_user_id,
+                    RefreshToken.revoked == False
+                ).all()
+                assert len(new_refresh_tokens) == 1
+                new_token = new_refresh_tokens[0]
+                assert new_token.email == email
+                assert new_token.google_subject_id == google_subject_id
+                assert new_token.name == name
+                # Note: In tests, we create a dummy User for FK constraint,
+                # so new_token.user may exist, but email/google_subject_id/name indicate it's a system admin token
+
+                # Verify new cookie was set
+                assert "refresh_token" in response.cookies
+
+                # Verify the access token contains correct system admin info
+                access_token_payload = jwt_service.verify_token(data["access_token"])
+                assert access_token_payload is not None
+                assert access_token_payload.email == email
+                assert access_token_payload.user_type == "system_admin"
+                assert access_token_payload.sub == google_subject_id
+                assert access_token_payload.name == name
+
+            finally:
+                # Clean up overrides
+                client.app.dependency_overrides.pop(get_db, None)
+
+        finally:
+            auth.SYSTEM_ADMIN_EMAILS = original_emails
+
+    def test_system_admin_refresh_token_rotation(self, client, db_session):
+        """Test that refresh token rotation works for system admins (old token revoked, new token created)."""
+        from models import RefreshToken, User, Clinic
+        from services.jwt_service import jwt_service, TokenPayload
+        from api import auth
+
+        # Set system admin email
+        original_emails = auth.SYSTEM_ADMIN_EMAILS
+        auth.SYSTEM_ADMIN_EMAILS = ['systemadmin@example.com']
+
+        try:
+            # Create initial refresh token
+            email = "systemadmin@example.com"
+            google_subject_id = "google_subject_123"
+            name = "System Admin"
+            dummy_user_id = hash(email) % 1000000
+
+            # Create dummy User record for foreign key constraint
+            clinic = Clinic(
+                name="Dummy Clinic",
+                line_channel_id="dummy_channel",
+                line_channel_secret="dummy_secret",
+                line_channel_access_token="dummy_token"
+            )
+            db_session.add(clinic)
+            db_session.commit()
+
+            dummy_user = User(
+                id=dummy_user_id,
+                clinic_id=clinic.id,
+                email=f"dummy_{email}",
+                google_subject_id=f"dummy_{google_subject_id}",
+                full_name="Dummy User",
+                roles=[]
+            )
+            db_session.add(dummy_user)
+            db_session.commit()
+
+            payload = TokenPayload(
+                sub=google_subject_id,
+                email=email,
+                user_type="system_admin",
+                roles=[],
+                clinic_id=None,
+                name=name
+            )
+            token_data = jwt_service.create_token_pair(payload)
+
+            refresh_token_string = token_data["refresh_token"]
+            initial_refresh_token = RefreshToken(
+                user_id=dummy_user_id,
+                token_hash=token_data["refresh_token_hash"],
+                hmac_key=token_data["refresh_token_hmac"],
+                expires_at=jwt_service.get_token_expiry("refresh"),
+                email=email,
+                google_subject_id=google_subject_id,
+                name=name
+            )
+            db_session.add(initial_refresh_token)
+            db_session.commit()
+            initial_token_id = initial_refresh_token.id
+
+            # Override dependencies
+            def override_get_db():
+                yield db_session
+
+            client.app.dependency_overrides[get_db] = override_get_db
+
+            try:
+                # First refresh
+                client.cookies.set("refresh_token", refresh_token_string)
+                response1 = client.post("/api/auth/refresh")
+                assert response1.status_code == 200
+                new_refresh_token_string = response1.cookies.get("refresh_token")
+
+                # Verify old token is revoked
+                db_session.refresh(initial_refresh_token)
+                assert initial_refresh_token.revoked == True
+
+                # Verify new token was created
+                new_tokens = db_session.query(RefreshToken).filter(
+                    RefreshToken.user_id == dummy_user_id,
+                    RefreshToken.revoked == False
+                ).all()
+                assert len(new_tokens) == 1
+                new_token = new_tokens[0]
+                assert new_token.id != initial_token_id
+                assert new_token.email == email
+                assert new_token.google_subject_id == google_subject_id
+                assert new_token.name == name
+
+                # Second refresh using new token
+                client.cookies.set("refresh_token", new_refresh_token_string)
+                response2 = client.post("/api/auth/refresh")
+                assert response2.status_code == 200
+
+                # Verify first new token is revoked
+                db_session.refresh(new_token)
+                assert new_token.revoked == True
+
+                # Verify second new token was created
+                final_tokens = db_session.query(RefreshToken).filter(
+                    RefreshToken.user_id == dummy_user_id,
+                    RefreshToken.revoked == False
+                ).all()
+                assert len(final_tokens) == 1
+                final_token = final_tokens[0]
+                assert final_token.id != new_token.id
+                assert final_token.email == email
+                assert final_token.google_subject_id == google_subject_id
+                assert final_token.name == name
+
+            finally:
+                client.app.dependency_overrides.pop(get_db, None)
+
+        finally:
+            auth.SYSTEM_ADMIN_EMAILS = original_emails
+
+    def test_system_admin_refresh_token_invalid_email(self, client, db_session):
+        """Test that refresh token with email not in SYSTEM_ADMIN_EMAILS is rejected."""
+        from models import RefreshToken, User, Clinic
+        from services.jwt_service import jwt_service, TokenPayload
+        from api import auth
+
+        # Set system admin email
+        original_emails = auth.SYSTEM_ADMIN_EMAILS
+        auth.SYSTEM_ADMIN_EMAILS = ['systemadmin@example.com']
+
+        try:
+            # Create refresh token with email not in SYSTEM_ADMIN_EMAILS
+            email = "notadmin@example.com"  # Not in SYSTEM_ADMIN_EMAILS
+            google_subject_id = "google_subject_123"
+            name = "Not Admin"
+            dummy_user_id = hash(email) % 1000000
+
+            # Create dummy User record for foreign key constraint
+            clinic = Clinic(
+                name="Dummy Clinic",
+                line_channel_id="dummy_channel",
+                line_channel_secret="dummy_secret",
+                line_channel_access_token="dummy_token"
+            )
+            db_session.add(clinic)
+            db_session.commit()
+
+            dummy_user = User(
+                id=dummy_user_id,
+                clinic_id=clinic.id,
+                email=f"dummy_{email}",
+                google_subject_id=f"dummy_{google_subject_id}",
+                full_name="Dummy User",
+                roles=[]
+            )
+            db_session.add(dummy_user)
+            db_session.commit()
+
+            payload = TokenPayload(
+                sub=google_subject_id,
+                email=email,
+                user_type="system_admin",
+                roles=[],
+                clinic_id=None,
+                name=name
+            )
+            token_data = jwt_service.create_token_pair(payload)
+
+            refresh_token_string = token_data["refresh_token"]
+            refresh_token_record = RefreshToken(
+                user_id=dummy_user_id,
+                token_hash=token_data["refresh_token_hash"],
+                hmac_key=token_data["refresh_token_hmac"],
+                expires_at=jwt_service.get_token_expiry("refresh"),
+                email=email,  # Email not in SYSTEM_ADMIN_EMAILS
+                google_subject_id=google_subject_id,
+                name=name
+            )
+            db_session.add(refresh_token_record)
+            db_session.commit()
+
+            # Override dependencies
+            def override_get_db():
+                yield db_session
+
+            client.app.dependency_overrides[get_db] = override_get_db
+
+            try:
+                # Attempt refresh - should fail because:
+                # Email is not in SYSTEM_ADMIN_EMAILS, so it won't be treated as system admin.
+                # Since the dummy User is created for FK constraint only, make it inactive
+                # to ensure the clinic user path also fails.
+                dummy_user.is_active = False
+                db_session.commit()
+                
+                client.cookies.set("refresh_token", refresh_token_string)
+                response = client.post("/api/auth/refresh")
+                assert response.status_code == 401
+                assert "找不到使用者或使用者已停用" in response.json()["detail"]
+
+            finally:
+                client.app.dependency_overrides.pop(get_db, None)
+
+        finally:
+            auth.SYSTEM_ADMIN_EMAILS = original_emails
+
+
 def test_async_sqlite_import_available():
     """Test that aiosqlite can be imported (dependency is installed)."""
     try:

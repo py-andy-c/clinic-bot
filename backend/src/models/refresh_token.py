@@ -26,6 +26,10 @@ class RefreshToken(Base):
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     last_used_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Fields for system admins (nullable since clinic users have User records)
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    google_subject_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Relationships
     user = relationship("User", back_populates="refresh_tokens")
