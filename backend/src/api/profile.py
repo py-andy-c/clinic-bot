@@ -77,7 +77,7 @@ async def get_profile(
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                detail="找不到使用者"
             )
         
         return ProfileResponse(
@@ -120,7 +120,7 @@ async def update_profile(
         if current_user.is_system_admin():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="System admins cannot update profile information"
+                detail="系統管理員無法更新個人資料"
             )
         
         # Find user
@@ -132,7 +132,7 @@ async def update_profile(
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                detail="找不到使用者"
             )
         
         # Update allowed fields only

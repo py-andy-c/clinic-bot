@@ -415,7 +415,7 @@ async def get_settings(
         if current_user.clinic_id is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Clinic access required"
+                detail="需要診所存取權限"
             )
         clinic_id = current_user.clinic_id
         

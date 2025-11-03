@@ -70,7 +70,7 @@ class ApiService {
 
         // If session already expired, immediately redirect without processing
         if (this.sessionExpired) {
-          return Promise.reject(new Error('Session expired. Redirecting to login...'));
+          return Promise.reject(new Error('會話已過期，正在重新導向至登入頁面...'));
         }
 
         // Prevent infinite loops - don't retry refresh token requests
@@ -123,7 +123,7 @@ class ApiService {
           
           // Return a rejected promise with a special error that won't cause infinite loops
           // The redirect happens immediately, so components won't be stuck loading
-          return Promise.reject(new Error('Session expired. Redirecting to login...'));
+          return Promise.reject(new Error('會話已過期，正在重新導向至登入頁面...'));
         }
 
         return Promise.reject(error);
@@ -162,7 +162,7 @@ class ApiService {
         this.resetSessionExpired();
       } else {
         // Refresh failed - throw error to be caught by interceptor
-        throw new Error('Token refresh failed');
+          throw new Error('權杖更新失敗');
       }
     } catch (error: any) {
       // If refresh token is invalid (401), ensure we clear auth state

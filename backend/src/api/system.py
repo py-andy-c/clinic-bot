@@ -67,7 +67,7 @@ async def create_clinic(
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="LINE channel ID already exists"
+                detail="LINE 頻道 ID 已存在"
             )
 
         # Create clinic
@@ -99,7 +99,7 @@ async def create_clinic(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create clinic"
+            detail="建立診所失敗"
         )
 
 
@@ -129,7 +129,7 @@ async def list_clinics(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch clinics"
+            detail="無法取得診所列表"
         )
 
 
@@ -148,7 +148,7 @@ async def get_clinic(
         if not clinic:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Clinic not found"
+                detail="找不到診所"
             )
 
         # Get clinic statistics
@@ -176,7 +176,7 @@ async def get_clinic(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch clinic details"
+            detail="無法取得診所詳情"
         )
 
 
@@ -196,7 +196,7 @@ async def update_clinic(
         if not clinic:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Clinic not found"
+                detail="找不到診所"
             )
 
         # Update allowed fields
@@ -223,7 +223,7 @@ async def update_clinic(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update clinic"
+            detail="更新診所失敗"
         )
 
 
@@ -242,7 +242,7 @@ async def generate_clinic_signup_link(
         if not clinic:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Clinic not found"
+                detail="找不到診所"
             )
 
         # Create signup token for clinic admin (admin + practitioner roles)
@@ -301,7 +301,7 @@ async def check_clinic_health(
         if not clinic:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Clinic not found"
+                detail="找不到診所"
             )
 
         from datetime import datetime, timezone, timedelta

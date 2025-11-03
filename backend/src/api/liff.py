@@ -70,12 +70,12 @@ class PatientCreateRequest(BaseModel):
     def validate_name(cls, v: str) -> str:
         v = v.strip()
         if not v:
-            raise ValueError('Name cannot be empty')
+            raise ValueError('姓名不能為空')
         if len(v) > 255:
-            raise ValueError('Name too long')
+            raise ValueError('姓名長度過長')
         # Basic XSS prevention
         if '<' in v or '>' in v:
-            raise ValueError('Invalid characters in name')
+            raise ValueError('姓名包含無效字元')
         return v
 
     @field_validator('phone_number')
@@ -96,12 +96,12 @@ class PatientUpdateRequest(BaseModel):
             return v
         v = v.strip()
         if not v:
-            raise ValueError('Name cannot be empty')
+            raise ValueError('姓名不能為空')
         if len(v) > 255:
-            raise ValueError('Name too long')
+            raise ValueError('姓名長度過長')
         # Basic XSS prevention
         if '<' in v or '>' in v:
-            raise ValueError('Invalid characters in name')
+            raise ValueError('姓名包含無效字元')
         return v
 
     @field_validator('phone_number')
@@ -113,7 +113,7 @@ class PatientUpdateRequest(BaseModel):
     def validate_at_least_one_field(self):
         """Ensure at least one field is provided for update."""
         if self.full_name is None and self.phone_number is None:
-            raise ValueError('At least one field must be provided for update')
+            raise ValueError('至少需提供一個欄位進行更新')
         return self
 
 
@@ -165,10 +165,10 @@ class AppointmentCreateRequest(BaseModel):
     @classmethod
     def validate_notes(cls, v: Optional[str]) -> Optional[str]:
         if v and len(v) > 500:
-            raise ValueError('Notes too long (max 500 characters)')
+            raise ValueError('備註過長（最多 500 字元）')
         # Basic XSS prevention
         if v and ('<' in v or '>' in v):
-            raise ValueError('Invalid characters in notes')
+            raise ValueError('備註包含無效字元')
         return v
 
     @model_validator(mode='before')
@@ -195,10 +195,10 @@ class AppointmentCreateRequest(BaseModel):
             v = v.astimezone(taiwan_tz)
         # Must be in future
         if v < now:
-            raise ValueError('Cannot book appointments in the past')
+            raise ValueError('無法預約過去的時間')
         # Must be within 90 days
         if v > now + timedelta(days=90):
-            raise ValueError('Cannot book more than 90 days in advance')
+            raise ValueError('最多只能預約 90 天內的時段')
         return v
 
 
@@ -252,7 +252,7 @@ async def liff_login(
         if not clinic:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Clinic not found or inactive"
+                detail="診所不存在或已停用"
             )
 
         # Check if patient exists for this clinic
@@ -286,7 +286,7 @@ async def liff_login(
         logger.error(f"LIFF login error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Authentication failed"
+            detail="認證失敗"
         )
 
 
@@ -328,7 +328,7 @@ async def create_patient(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create patient"
+            detail="建立病患失敗"
         )
 
 
@@ -407,7 +407,7 @@ async def update_patient(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update patient"
+            detail="更新病患失敗"
         )
 
 
@@ -434,7 +434,7 @@ async def delete_patient(
             clinic_id=clinic.id
         )
 
-        return {"success": True, "message": "Patient removed"}
+        return {"success": True, "message": "已移除病患"}
 
     except HTTPException:
         raise
@@ -474,7 +474,7 @@ async def list_appointment_types(
         logger.error(f"Appointment types list error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve appointment types"
+            detail="無法取得預約類型"
         )
 
 

@@ -136,7 +136,7 @@ class AppointmentService:
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create appointment"
+                detail="建立預約失敗"
             )
 
     @staticmethod
@@ -229,7 +229,7 @@ class AppointmentService:
             if not practitioner:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Practitioner not found or doesn't offer this appointment type"
+                    detail="找不到治療師或該治療師不提供此預約類型"
                 )
 
             if not AppointmentService._is_practitioner_available_at_slot(
@@ -422,7 +422,7 @@ class AppointmentService:
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid date format. Use YYYY-MM-DD"
+                    detail="無效的日期格式，請使用 YYYY-MM-DD"
                 )
 
         # Filter by practitioner if provided
@@ -434,7 +434,7 @@ class AppointmentService:
             if status_filter not in ['confirmed', 'canceled_by_patient', 'canceled_by_clinic']:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid status. Must be 'confirmed', 'canceled_by_patient', or 'canceled_by_clinic'"
+                    detail="無效的狀態。必須是 'confirmed'、'canceled_by_patient' 或 'canceled_by_clinic'"
                 )
             query = query.filter(Appointment.status == status_filter)
 

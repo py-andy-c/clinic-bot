@@ -52,7 +52,7 @@ class AvailabilityService:
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid date format (use YYYY-MM-DD)"
+                detail="無效的日期格式（請使用 YYYY-MM-DD）"
             )
 
         # Validate date range (using Taiwan timezone)
@@ -62,7 +62,7 @@ class AvailabilityService:
         if requested_date < today:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot book appointments in the past"
+                detail="無法預約過去的時間"
             )
         if requested_date > max_date:
             raise HTTPException(
@@ -102,7 +102,7 @@ class AvailabilityService:
         if not practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Practitioner not found"
+                detail="找不到治療師"
             )
         
         return practitioner
@@ -151,7 +151,7 @@ class AvailabilityService:
             if appointment_type.clinic_id != practitioner.clinic_id:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Appointment type not found"
+                    detail="找不到預約類型"
                 )
 
             # Calculate available slots for this practitioner
@@ -165,7 +165,7 @@ class AvailabilityService:
             logger.error(f"Availability query error: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to retrieve availability"
+                detail="無法取得可用時間"
             )
 
     @staticmethod
@@ -206,7 +206,7 @@ class AvailabilityService:
             if appointment_type.clinic_id != clinic_id:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Appointment type not found"
+                    detail="找不到預約類型"
                 )
 
             # Get all active practitioners in clinic who offer this type
@@ -229,7 +229,7 @@ class AvailabilityService:
             logger.error(f"Availability query error: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to retrieve availability"
+                detail="無法取得可用時間"
             )
 
     @staticmethod

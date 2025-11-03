@@ -225,7 +225,7 @@ async def get_default_schedule(
             if current_user.user_id != user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You can only view your own availability"
+                    detail="您只能查看自己的可用時間"
                 )
         
         # Verify user exists and is a practitioner
@@ -233,7 +233,7 @@ async def get_default_schedule(
         if not user or not user.is_practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Practitioner not found"
+                detail="找不到治療師"
             )
         
         # Get schedule for each day
@@ -250,7 +250,7 @@ async def get_default_schedule(
         logger.exception(f"Failed to fetch default schedule for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch default schedule"
+            detail="無法取得預設排程"
         )
 
 
@@ -277,7 +277,7 @@ async def update_default_schedule(
             if current_user.user_id != user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You can only modify your own availability"
+                    detail="您只能修改自己的可用時間"
                 )
         
         # Verify user exists and is a practitioner
@@ -285,7 +285,7 @@ async def update_default_schedule(
         if not user or not user.is_practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Practitioner not found"
+                detail="找不到治療師"
             )
         
         # Validate intervals for each day
@@ -301,7 +301,7 @@ async def update_default_schedule(
                 if start1 >= end1:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Invalid time range for {day_name}: {interval1.start_time}-{interval1.end_time}"
+                        detail=f"無效的時間範圍 {day_name}: {interval1.start_time}-{interval1.end_time}"
                     )
                 
                 for j, interval2 in enumerate(intervals):
@@ -312,7 +312,7 @@ async def update_default_schedule(
                         if _check_time_overlap(start1, end1, start2, end2):
                             raise HTTPException(
                                 status_code=status.HTTP_400_BAD_REQUEST,
-                                detail=f"Overlapping intervals on {day_name}: {interval1.start_time}-{interval1.end_time} and {interval2.start_time}-{interval2.end_time}"
+                                detail=f"{day_name} 的時段重疊: {interval1.start_time}-{interval1.end_time} 和 {interval2.start_time}-{interval2.end_time}"
                             )
         
         # TODO: Implement future appointment conflict checking
@@ -355,7 +355,7 @@ async def update_default_schedule(
         logger.exception(f"Failed to update default schedule for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update default schedule"
+            detail="無法更新預設排程"
         )
 
 
@@ -382,7 +382,7 @@ async def get_calendar_data(
             if current_user.user_id != user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You can only view your own calendar"
+                    detail="您只能查看自己的行事曆"
                 )
         
         # Verify user exists and is a practitioner
@@ -390,7 +390,7 @@ async def get_calendar_data(
         if not user or not user.is_practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Practitioner not found"
+                detail="找不到治療師"
             )
         
         if date:
@@ -400,7 +400,7 @@ async def get_calendar_data(
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid date format. Use YYYY-MM-DD"
+                    detail="無效的日期格式，請使用 YYYY-MM-DD"
                 )
             
             # Get default schedule for this day of week
@@ -477,7 +477,7 @@ async def get_calendar_data(
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid month format. Use YYYY-MM"
+                    detail="無效的月份格式，請使用 YYYY-MM"
                 )
             
             # Get appointment counts for each day (only count confirmed appointments)
@@ -511,7 +511,7 @@ async def get_calendar_data(
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Either 'month' or 'date' parameter is required"
+                detail="必須提供 'month' 或 'date' 參數"
             )
         
     except HTTPException:
@@ -520,7 +520,7 @@ async def get_calendar_data(
         logger.exception(f"Failed to fetch calendar data for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch calendar data"
+            detail="無法取得行事曆資料"
         )
 
 
@@ -551,7 +551,7 @@ async def get_available_slots(
             if current_user.user_id != user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You can only view your own availability"
+                    detail="您只能查看自己的可用時間"
                 )
         
         # Verify user exists and is a practitioner
@@ -559,7 +559,7 @@ async def get_available_slots(
         if not user or not user.is_practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Practitioner not found"
+                detail="找不到治療師"
             )
         
         # Verify appointment type exists
@@ -590,7 +590,7 @@ async def get_available_slots(
         logger.exception(f"Failed to fetch available slots for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to fetch available slots"
+            detail="無法取得可用時段"
         )
 
 
@@ -618,7 +618,7 @@ async def create_availability_exception(
             if current_user.user_id != user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You can only create your own availability exceptions"
+                    detail="您只能建立自己的可用時間例外"
                 )
         
         # Verify user exists and is a practitioner
@@ -626,7 +626,7 @@ async def create_availability_exception(
         if not user or not user.is_practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Practitioner not found"
+                detail="找不到治療師"
             )
         
         try:
@@ -634,7 +634,7 @@ async def create_availability_exception(
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid date format. Use YYYY-MM-DD"
+                detail="無效的日期格式，請使用 YYYY-MM-DD"
             )
         
         # Validate time range
@@ -645,12 +645,12 @@ async def create_availability_exception(
             if start_time >= end_time:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Start time must be before end time"
+                    detail="開始時間必須早於結束時間"
                 )
         elif exception_data.start_time or exception_data.end_time:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Both start_time and end_time must be provided or both must be None for all-day events"
+                detail="全天事件必須同時提供或同時省略 start_time 和 end_time"
             )
         
         # Check for appointment conflicts
@@ -695,7 +695,7 @@ async def create_availability_exception(
         if conflicts:
             return ConflictWarningResponse(
                 warning="appointment_conflicts",
-                message="This availability exception conflicts with existing appointments. The appointments will remain valid but marked as 'outside hours'.",
+                message="此可用時間例外與現有預約衝突。預約將保持有效，但標記為「非工作時間」。",
                 details={'conflicting_appointments': conflicts}
             )
         
@@ -708,7 +708,7 @@ async def create_availability_exception(
         logger.exception(f"Failed to create availability exception for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create availability exception"
+            detail="無法建立可用時間例外"
         )
 
 
@@ -732,7 +732,7 @@ async def update_availability_exception(
             if current_user.user_id != user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You can only update your own availability exceptions"
+                    detail="您只能更新自己的可用時間例外"
                 )
         
         # Find the exception
@@ -744,7 +744,7 @@ async def update_availability_exception(
         if not exception:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Availability exception not found"
+                detail="找不到可用時間例外"
             )
         
         try:
@@ -752,7 +752,7 @@ async def update_availability_exception(
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid date format. Use YYYY-MM-DD"
+                detail="無效的日期格式，請使用 YYYY-MM-DD"
             )
         
         # Validate time range
@@ -763,12 +763,12 @@ async def update_availability_exception(
             if start_time >= end_time:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Start time must be before end time"
+                    detail="開始時間必須早於結束時間"
                 )
         elif exception_data.start_time or exception_data.end_time:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Both start_time and end_time must be provided or both must be None for all-day events"
+                detail="全天事件必須同時提供或同時省略 start_time 和 end_time"
             )
         
         # Update calendar event
@@ -796,7 +796,7 @@ async def update_availability_exception(
         logger.exception(f"Failed to update availability exception {exception_id} for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update availability exception"
+            detail="無法更新可用時間例外"
         )
 
 
@@ -820,7 +820,7 @@ async def delete_availability_exception(
             if current_user.user_id != user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You can only delete your own availability exceptions"
+                    detail="您只能刪除自己的可用時間例外"
                 )
         
         # Find the exception
@@ -832,7 +832,7 @@ async def delete_availability_exception(
         if not exception:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Availability exception not found"
+                detail="找不到可用時間例外"
             )
         
         # Delete the calendar event first, then the exception
@@ -848,5 +848,5 @@ async def delete_availability_exception(
         logger.exception(f"Failed to delete availability exception {exception_id} for user {user_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete availability exception"
+            detail="無法刪除可用時間例外"
         )

@@ -304,7 +304,7 @@ class TestLiffDatabaseOperations:
             # Test updating with empty request (no fields provided)
             response = client.put(f"/api/liff/patients/{primary_patient.id}", json={})
             assert response.status_code == 422
-            assert "At least one field must be provided" in str(response.json())
+            assert "至少需提供一個欄位進行更新" in str(response.json())
 
             # Test updating with invalid phone format (not 09xxxxxxxx)
             update_data = {
@@ -334,7 +334,7 @@ class TestLiffDatabaseOperations:
             }
             response = client.put(f"/api/liff/patients/{primary_patient.id}", json=update_data)
             assert response.status_code == 422
-            assert "cannot be empty" in str(response.json())
+            assert "姓名不能為空" in str(response.json())
 
             # Test updating with invalid patient ID (not owned by user)
             other_line_user = LineUser(
@@ -1191,7 +1191,7 @@ class TestLiffErrorHandling:
                 }
             )
             assert response.status_code == 422
-            assert "Cannot book appointments in the past" in str(response.json())
+            assert "無法預約過去的時間" in str(response.json())
 
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
@@ -1331,7 +1331,7 @@ class TestLiffErrorHandling:
                 }
             )
             assert response.status_code == 422
-            assert "Cannot book more than 90 days in advance" in str(response.json())
+            assert "最多只能預約 90 天內的時段" in str(response.json())
 
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
