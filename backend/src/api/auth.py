@@ -43,7 +43,15 @@ def set_refresh_token_cookie(
     """
     is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
     cookie_same_site = "none" if is_https else "lax"
-    logger.debug(f"Setting refresh token cookie - HTTPS: {is_https}, SameSite: {cookie_same_site}")
+    
+    # Enhanced logging for cookie setting (consensus recommendation)
+    logger.info(
+        f"Setting refresh token cookie - domain: {request.url.hostname}, "
+        f"HTTPS: {is_https}, SameSite: {cookie_same_site}, "
+        f"max_age: {max_age}s ({max_age/86400:.1f} days), "
+        f"secure: {is_https}, path: /"
+    )
+    
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
@@ -374,14 +382,26 @@ async def refresh_access_token(
                     token_source = "header"
                     logger.debug("Refresh token found in header (cookie fallback)")
     
-    # Debug logging (only log warnings for failed attempts, not successful ones)
-    if not refresh_token:
+    # Enhanced logging for refresh token request (consensus recommendation)
+    if refresh_token:
+        logger.info(
+            f"Refresh token request received - source: {token_source}, "
+            f"origin: {request.headers.get('origin')}, "
+            f"referer: {request.headers.get('referer')}, "
+            f"cookies: {list(request.cookies.keys())}, "
+            f"hostname: {request.url.hostname}"
+        )
+    else:
+        # Log warning with detailed context when refresh token is not found
         all_cookies = request.cookies
-        logger.warning("Refresh token not found in cookie, body, or header")
-        logger.debug(f"Refresh request - cookies received: {list(all_cookies.keys())}")
-        logger.debug(f"Refresh request - origin: {request.headers.get('origin')}")
-        logger.debug(f"Refresh request - referer: {request.headers.get('referer')}")
-        logger.debug(f"Request URL: {request.url}")
+        logger.warning(
+            f"Refresh token not found in cookie, body, or header - "
+            f"cookies received: {list(all_cookies.keys())}, "
+            f"origin: {request.headers.get('origin')}, "
+            f"referer: {request.headers.get('referer')}, "
+            f"hostname: {request.url.hostname}, "
+            f"URL: {request.url}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="找不到重新整理權杖"
@@ -389,6 +409,7 @@ async def refresh_access_token(
 
     # First, try fast lookup using HMAC key
     expected_hmac = jwt_service.generate_refresh_token_hmac(refresh_token)
+    logger.debug(f"Looking up refresh token - HMAC: {expected_hmac[:8]}...")
 
     refresh_token_record = db.query(RefreshToken).filter(
         RefreshToken.hmac_key == expected_hmac,
@@ -399,9 +420,11 @@ async def refresh_access_token(
     # If HMAC lookup succeeds, verify with bcrypt for final security
     if refresh_token_record and jwt_service.verify_refresh_token_hash(refresh_token, refresh_token_record.token_hash):
         # HMAC match + bcrypt verification successful
-        pass
+        logger.debug(f"Refresh token found via HMAC lookup - user_id: {refresh_token_record.user_id}, "
+                    f"expires_at: {refresh_token_record.expires_at}")
     else:
         # Fallback to original linear scan for backward compatibility or if HMAC lookup failed
+        logger.debug("HMAC lookup failed or token not found, falling back to linear scan")
         valid_tokens = db.query(RefreshToken).filter(
             RefreshToken.revoked == False,
             RefreshToken.expires_at > datetime.now(timezone.utc)
@@ -411,9 +434,15 @@ async def refresh_access_token(
         for token_record in valid_tokens:
             if jwt_service.verify_refresh_token_hash(refresh_token, token_record.token_hash):
                 refresh_token_record = token_record
+                logger.debug(f"Refresh token found via linear scan - user_id: {token_record.user_id}, "
+                            f"expires_at: {token_record.expires_at}")
                 break
 
     if not refresh_token_record:
+        logger.warning(
+            f"Refresh token validation failed - token source: {token_source}, "
+            f"HMAC: {expected_hmac[:8]}..., token not found in database or expired/revoked"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="無效的重新整理權杖"
@@ -509,7 +538,14 @@ async def refresh_access_token(
         "refresh_token": token_data["refresh_token"]  # Always include for localStorage fallback
     }
     
-    logger.debug(f"Including refresh_token in response body (token_source: {token_source})")
+    # Enhanced logging for successful refresh (consensus recommendation)
+    user_email = refresh_token_record.email if is_system_admin else (user.email if user else "unknown")
+    logger.info(
+        f"Token refresh successful - user: {user_email}, "
+        f"token_source: {token_source}, "
+        f"new_refresh_token_included: True, "
+        f"cookie_set: True"
+    )
     
     return response_data
 

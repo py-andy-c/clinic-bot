@@ -70,9 +70,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('was_logged_in', 'true');
       
       // Store refresh token in localStorage as fallback (for cross-origin cookie issues)
+      // Enhanced logging for OAuth callback (consensus recommendation)
       if (refreshToken) {
         localStorage.setItem('refresh_token', refreshToken);
-        logger.log('Refresh token stored in localStorage (fallback for cookie issues)');
+        logger.log('OAuth callback - refresh token stored in localStorage', {
+          hasAccessToken: !!localStorage.getItem('access_token'),
+          hasRefreshToken: !!localStorage.getItem('refresh_token'),
+          urlHasRefreshToken: !!refreshToken,
+          currentOrigin: window.location.origin
+        });
+      } else {
+        logger.warn('OAuth callback - refresh token missing from URL parameters', {
+          hasAccessToken: !!token,
+          urlParams: Array.from(urlParams.keys())
+        });
       }
 
       // Clean up URL (remove token and refresh_token from query params)
@@ -163,7 +174,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshToken = useCallback(async (): Promise<void> => {
     try {
-      logger.log('Attempting to refresh token...');
+      // Enhanced logging for refresh attempt (consensus recommendation)
+      const hasCookie = document.cookie.includes('refresh_token');
+      const hasLocalStorage = !!localStorage.getItem('refresh_token');
+      logger.log('Attempting to refresh token...', {
+        hasCookie,
+        hasLocalStorage,
+        apiBaseUrl: API_BASE_URL,
+        currentOrigin: window.location.origin
+      });
       
       // Try cookie-based refresh first (preferred)
       let response = await fetch(`${API_BASE_URL}/auth/refresh`, {
@@ -212,9 +231,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // This ensures localStorage stays in sync with cookie and provides fallback if cookies fail
         if (data.refresh_token) {
           localStorage.setItem('refresh_token', data.refresh_token);
-          logger.log('New refresh token stored in localStorage');
+          const hasCookieNow = document.cookie.includes('refresh_token');
+          logger.log('Token refresh successful - new refresh token stored in localStorage', {
+            hasAccessToken: !!localStorage.getItem('access_token'),
+            hasRefreshToken: !!localStorage.getItem('refresh_token'),
+            tokenSource: hasCookieNow ? 'cookie' : 'localStorage'
+          });
         } else {
-          logger.warn('Refresh response missing refresh_token - this should not happen');
+          logger.warn('Refresh response missing refresh_token - this should not happen', {
+            responseData: data
+          });
         }
 
         // Validate the new token to get user data
