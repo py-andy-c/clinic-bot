@@ -80,10 +80,41 @@ else
     exit 1
 fi
 
+# Run frontend unit tests (if Vitest is available)
+print_status "Checking for frontend unit tests..."
+cd "$PROJECT_ROOT/frontend"
+# Check if vitest is installed without failing script
+if [ -f "node_modules/.bin/vitest" ] || npm list vitest &> /dev/null 2>&1; then
+    print_status "Running frontend unit tests..."
+    # Check if test script exists in package.json
+    if grep -q '"test"' package.json; then
+        # Temporarily disable exit on error for this check
+        set +e
+        npm test -- --run
+        TEST_EXIT_CODE=$?
+        set -e
+        if [ $TEST_EXIT_CODE -eq 0 ]; then
+            print_success "Frontend unit tests passed!"
+        else
+            print_error "Frontend unit tests failed!"
+            exit 1
+        fi
+    else
+        print_warning "Test script not found in package.json"
+        print_warning "Add 'test' script: \"test\": \"vitest\""
+    fi
+else
+    print_warning "Vitest not found - skipping frontend unit tests"
+    print_warning "To enable frontend tests, run: cd frontend && npm install --save-dev vitest @vitest/ui jsdom"
+fi
+
 # Final success message
 echo ""
 print_success "🎉 All Tests Passed Successfully!"
 echo ""
 print_success "📁 Coverage report: backend/htmlcov/index.html"
 print_success "🔍 TypeScript: All type checks passed"
+if [ -f "node_modules/.bin/vitest" ] || npm list vitest &> /dev/null 2>&1; then
+    print_success "✅ Frontend unit tests: All passed"
+fi
 exit 0

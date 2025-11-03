@@ -33,6 +33,45 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
     return clinicIdParam ? parseInt(clinicIdParam, 10) : null;
   };
 
+  // Extract clinic_id from JWT token payload
+  const getClinicIdFromToken = (token: string): number | null => {
+    try {
+      // Decode JWT to get clinic_id (token already contains it from backend)
+      const parts = token.split('.');
+      if (parts.length < 2 || !parts[1]) {
+        return null;
+      }
+      const payload = JSON.parse(atob(parts[1]));
+      return payload.clinic_id ? parseInt(payload.clinic_id, 10) : null;
+    } catch (e) {
+      logger.error('Failed to decode JWT token:', e);
+      return null;
+    }
+  };
+
+  // Get clinic_id with fallback: URL first, then JWT token
+  const getClinicId = (token?: string | null): number | null => {
+    // Try URL first
+    const urlClinicId = getClinicIdFromUrl();
+    if (urlClinicId) return urlClinicId;
+
+    // Fallback to JWT token if provided
+    if (token) {
+      const tokenClinicId = getClinicIdFromToken(token);
+      if (tokenClinicId) return tokenClinicId;
+    }
+
+    // Try localStorage token as last resort
+    // Optimize: avoid decoding the same token twice if provided token matches localStorage token
+    const storedToken = localStorage.getItem('liff_jwt_token');
+    if (storedToken && storedToken !== token) {
+      const storedClinicId = getClinicIdFromToken(storedToken);
+      if (storedClinicId) return storedClinicId;
+    }
+
+    return null;
+  };
+
   // Function to check authentication status
 
   // Consolidated authentication effect - handles all auth logic in one place
@@ -56,9 +95,10 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
             logger.log('JWT token validated - user is authenticated');
             setIsAuthenticated(true);
             setIsFirstTime(false);
-            const urlClinicId = getClinicIdFromUrl();
-            if (urlClinicId) {
-              setClinicId(urlClinicId);
+            // Try URL first, then JWT token as fallback
+            const clinicIdValue = getClinicId(token);
+            if (clinicIdValue) {
+              setClinicId(clinicIdValue);
             }
             setIsLoading(false);
             return;
@@ -89,7 +129,9 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
         setIsLoading(true);
         setError(null);
 
-        const clinicId = getClinicIdFromUrl();
+        // Try URL first, then JWT token as fallback
+        const storedToken = localStorage.getItem('liff_jwt_token');
+        const clinicId = getClinicId(storedToken);
         if (!clinicId) {
           throw new Error('診所ID無效，請從診所的LINE官方帳號進入');
         }
@@ -146,7 +188,9 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
         setIsLoading(true);
         setError(null);
 
-        const clinicId = getClinicIdFromUrl();
+        // Try URL first, then JWT token as fallback
+        const storedToken = localStorage.getItem('liff_jwt_token');
+        const clinicId = getClinicId(storedToken);
         if (!clinicId) {
           throw new Error('診所ID無效，請從診所的LINE官方帳號進入');
         }
@@ -203,9 +247,10 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
         if (response.ok) {
           setIsAuthenticated(true);
           setIsFirstTime(false);
-          const urlClinicId = getClinicIdFromUrl();
-          if (urlClinicId) {
-            setClinicId(urlClinicId);
+          // Try URL first, then JWT token as fallback
+          const clinicIdValue = getClinicId(token);
+          if (clinicIdValue) {
+            setClinicId(clinicIdValue);
           }
         } else {
           localStorage.removeItem('liff_jwt_token');

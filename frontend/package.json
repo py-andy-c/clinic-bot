@@ -8,7 +8,10 @@
     "build": "tput setaf 3 && echo '🔨 Building for production...' && tput sgr0 && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "generate-types": "openapi-typescript http://localhost:8000/openapi.json --output src/types/api.ts"
+    "generate-types": "openapi-typescript http://localhost:8000/openapi.json --output src/types/api.ts",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@line/liff": "^2.27.2",

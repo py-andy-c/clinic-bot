@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
+import { preserveQueryParams } from '../../utils/urlUtils';
 
 const FirstTimeRegister: React.FC = () => {
   const { clinicId } = useAppointmentStore();
@@ -49,7 +50,8 @@ const FirstTimeRegister: React.FC = () => {
       });
 
       // Registration successful - update URL and trigger auth refresh
-      const newUrl = `${window.location.pathname}?mode=book`;
+      // Preserve clinic_id and other query parameters while updating mode
+      const newUrl = preserveQueryParams(window.location.pathname, { mode: 'book' });
       window.history.replaceState(null, '', newUrl);
       console.log('📝 Registration successful - updated URL to:', newUrl);
 
