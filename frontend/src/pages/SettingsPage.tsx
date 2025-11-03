@@ -72,6 +72,9 @@ const SettingsPage: React.FC = () => {
     },
     validateData: validateClinicSettings,
     getSectionChanges: getClinicSectionChanges,
+    onValidationError: async (error: string) => {
+      await alert(error, '錯誤');
+    },
   });
 
   const addAppointmentType = () => {

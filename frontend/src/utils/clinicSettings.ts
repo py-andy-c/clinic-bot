@@ -11,13 +11,13 @@ export const validateClinicSettings = (settings: ClinicSettings): string | null 
 
     // Check name
     if (!type.name || type.name.trim().length === 0) {
-      return `預約類型 ${i + 1} 的名稱不能為空`;
+      return `預約類型的名稱不能為空`;
     }
 
     // Check duration
     const duration = Number(type.duration_minutes);
     if (isNaN(duration) || duration < 15 || duration > 480) {
-      return `預約類型 ${i + 1} 的時長必須在 15-480 分鐘之間`;
+      return `預約類型的時長必須在 15-480 分鐘之間`;
     }
   }
 

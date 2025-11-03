@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
@@ -11,6 +11,7 @@ interface ClinicLayoutProps {
 // Global Warnings Component
 const GlobalWarnings: React.FC = () => {
   const { user, isClinicAdmin, hasRole } = useAuth();
+  const location = useLocation();
   const [warnings, setWarnings] = useState<{
     clinicWarnings: { hasAppointmentTypes: boolean };
     practitionerWarnings: { hasAppointmentTypes: boolean; hasAvailability: boolean };
@@ -21,12 +22,10 @@ const GlobalWarnings: React.FC = () => {
     adminWarnings: []
   });
   const [loading, setLoading] = useState(true);
+  const previousPathnameRef = useRef<string | null>(null);
+  const handleFocusRef = useRef<() => void>();
 
-  useEffect(() => {
-    fetchWarnings();
-  }, [user, isClinicAdmin]);
-
-  const fetchWarnings = async () => {
+  const fetchWarnings = useCallback(async () => {
     if (!user?.user_id) return;
 
     try {
@@ -88,7 +87,47 @@ const GlobalWarnings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, isClinicAdmin, hasRole]);
+
+  // Initial fetch on mount
+  useEffect(() => {
+    fetchWarnings();
+  }, [fetchWarnings]);
+
+  // Refresh warnings when navigating away from settings/profile pages
+  useEffect(() => {
+    const previousPathname = previousPathnameRef.current;
+    const currentPathname = location.pathname;
+
+    // Settings pages that might affect warnings
+    const settingsPages = ['/clinic/settings', '/profile'];
+
+    // Only refresh if navigating away from settings pages
+    if (previousPathname && settingsPages.includes(previousPathname) && !settingsPages.includes(currentPathname)) {
+      fetchWarnings();
+    }
+
+    // Update previous pathname for next navigation
+    previousPathnameRef.current = currentPathname;
+  }, [location.pathname, fetchWarnings]);
+
+  // Refresh warnings when window regains focus (e.g., user returns to tab after saving settings)
+  // Update ref with latest fetchWarnings function whenever it changes
+  useEffect(() => {
+    handleFocusRef.current = fetchWarnings;
+  }, [fetchWarnings]);
+
+  // Set up stable event listener that always calls the latest fetchWarnings via ref
+  useEffect(() => {
+    const handleFocus = () => {
+      handleFocusRef.current?.();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []); // Empty deps - stable handler that reads from ref
 
   const hasAnyWarnings = !warnings.clinicWarnings.hasAppointmentTypes ||
                          !warnings.practitionerWarnings.hasAppointmentTypes ||

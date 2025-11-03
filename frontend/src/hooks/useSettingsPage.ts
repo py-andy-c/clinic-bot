@@ -12,6 +12,7 @@ interface SettingsPageConfig<T> {
   saveData: (data: T) => Promise<void>;
   validateData: (data: T) => string | null;
   getSectionChanges: (current: T, original: T) => Record<string, boolean>;
+  onValidationError?: (error: string) => Promise<void>;
 }
 
 export const useSettingsPage = <T extends Record<string, any>>(config: SettingsPageConfig<T>) => {
@@ -63,6 +64,12 @@ export const useSettingsPage = <T extends Record<string, any>>(config: SettingsP
       // Validate before saving
       const validationError = config.validateData(data);
       if (validationError) {
+        // Use custom validation error handler if provided, otherwise set inline error
+        if (config.onValidationError) {
+          await config.onValidationError(validationError);
+          setUiState(prev => ({ ...prev, saving: false }));
+          return;
+        }
         setUiState(prev => ({ ...prev, error: validationError }));
         return;
       }
