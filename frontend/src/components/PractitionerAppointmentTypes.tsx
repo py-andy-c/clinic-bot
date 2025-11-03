@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
 
@@ -129,7 +130,7 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
 
         {availableTypes.length === 0 && (
           <div className="text-center py-8 text-gray-500">
-            診所尚未設定任何預約類型，請聯絡管理員。
+            診所尚未設定任何預約類型，請至<Link to="/clinic/settings" className="text-primary-600 hover:text-primary-700 underline">診所設定頁面</Link>設定。
           </div>
         )}
       </div>
