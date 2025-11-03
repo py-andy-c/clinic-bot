@@ -61,10 +61,13 @@ async def initiate_clinic_admin_signup(token: str, db: Session = Depends(get_db)
         from urllib.parse import urlencode
 
         # OAuth scopes for clinic admins
+        # NOTE: Calendar scopes removed - requiring calendar access would need Google App verification.
+        # Calendar sync features are currently disabled.
         scopes = [
-            "openid", "profile", "email",
-            "https://www.googleapis.com/auth/calendar.events",
-            "https://www.googleapis.com/auth/calendar.settings.readonly"
+            "openid", "profile", "email"
+            # Calendar scopes disabled - would require Google App verification:
+            # "https://www.googleapis.com/auth/calendar.events",
+            # "https://www.googleapis.com/auth/calendar.settings.readonly"
         ]
 
         # Create signed state containing signup token
@@ -123,10 +126,13 @@ async def initiate_member_signup(token: str, db: Session = Depends(get_db)) -> d
         from urllib.parse import urlencode
 
         # OAuth scopes for team members
+        # NOTE: Calendar scopes removed - requiring calendar access would need Google App verification.
+        # Calendar sync features are currently disabled.
         scopes = [
-            "openid", "profile", "email",
-            "https://www.googleapis.com/auth/calendar.events",
-            "https://www.googleapis.com/auth/calendar.settings.readonly"
+            "openid", "profile", "email"
+            # Calendar scopes disabled - would require Google App verification:
+            # "https://www.googleapis.com/auth/calendar.events",
+            # "https://www.googleapis.com/auth/calendar.settings.readonly"
         ]
 
         # Create signed state containing signup token
