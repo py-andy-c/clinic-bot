@@ -216,6 +216,19 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     // In daily view, clicking blank space does nothing
   };
 
+  // Create a dateHeader component that handles clicks on the date number to navigate to day view
+  const DateHeaderWithClick = useCallback(({ date }: any) => {
+    const handleClick = () => {
+      handleSelectSlot({
+        start: date,
+        end: moment(date).tz(taiwanTimezone).endOf('day').toDate(),
+        slots: [date],
+      });
+    };
+    
+    return <CustomDateHeader date={date} onClick={handleClick} />;
+  }, [handleSelectSlot, taiwanTimezone]);
+
   // Handle navigation
   const handleNavigate = (date: Date) => {
     setCurrentDate(date);
@@ -396,7 +409,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             toolbar: CustomToolbar,
             event: CustomEventComponent,
             month: {
-              dateHeader: CustomDateHeader,
+              dateHeader: DateHeaderWithClick,
               header: CustomWeekdayHeader,
             },
             day: {

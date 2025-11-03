@@ -1,3 +1,4 @@
+import React from 'react';
 import moment from 'moment-timezone';
 import { CalendarEvent } from '../utils/calendarDataAdapter';
 
@@ -91,12 +92,21 @@ export const CustomWeekdayHeader = ({ date }: any) => {
 };
 
 // Custom Date Header Component for Month View
-export const CustomDateHeader = ({ date }: any) => {
+// Accepts optional onClick handler for date navigation
+export const CustomDateHeader = ({ date, onClick }: any) => {
   const taiwanDate = moment(date).tz('Asia/Taipei');
   
+  const handleClick = (e: React.MouseEvent) => {
+    if (onClick) {
+      e.preventDefault();
+      e.stopPropagation();
+      onClick();
+    }
+  };
+  
   return (
-    <div className="text-center">
-      <div className="text-sm font-medium text-gray-900">
+    <div className="text-center" onClick={onClick ? handleClick : undefined}>
+      <div className={`text-sm font-medium text-gray-900 ${onClick ? 'cursor-pointer hover:text-primary-600 inline-block' : ''}`}>
         {taiwanDate.format('D')}
       </div>
     </div>
