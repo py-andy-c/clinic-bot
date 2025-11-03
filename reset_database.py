@@ -26,6 +26,10 @@ from models.patient import Patient
 from models.appointment import Appointment
 from models.appointment_type import AppointmentType
 from models.line_user import LineUser
+from models.practitioner_availability import PractitionerAvailability
+from models.calendar_event import CalendarEvent
+from models.availability_exception import AvailabilityException
+from models.practitioner_appointment_types import PractitionerAppointmentTypes
 
 
 def reset_database():
@@ -60,6 +64,15 @@ def reset_database():
         Base.metadata.create_all(bind=fresh_engine)
         print("✅ All tables created")
 
+        # Stamp database with latest migration version
+        print("📝 Stamping database with latest Alembic version...")
+        from alembic.config import Config
+        from alembic import command
+        alembic_cfg = Config("alembic.ini")
+        alembic_cfg.set_main_option("sqlalchemy.url", DATABASE_URL)
+        command.stamp(alembic_cfg, "head")
+        print("✅ Database stamped with latest migration")
+
         # Verify tables exist
         with fresh_engine.connect() as conn:
             result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table';"))
@@ -73,7 +86,9 @@ def reset_database():
 
         expected_tables = [
             'clinics', 'users', 'signup_tokens', 'refresh_tokens', 'patients',
-            'appointment_types', 'appointments', 'line_users'
+            'appointment_types', 'appointments', 'line_users',
+            'practitioner_availability', 'calendar_events', 'availability_exceptions',
+            'practitioner_appointment_types'
         ]
 
         print("📋 Created tables:")
