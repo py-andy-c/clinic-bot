@@ -29,7 +29,7 @@ const AvailabilityPage: React.FC = () => {
   return (
     <div className="max-w-full md:max-w-4xl mx-auto">
       {/* Header */}
-      <div className="mb-4 md:mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+      <div className="mb-4 md:mb-8 flex flex-row justify-between items-center gap-3">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">行事曆</h1>
         {addExceptionHandler && (
           <button
