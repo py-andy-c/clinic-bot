@@ -42,7 +42,7 @@ const AvailabilityPage: React.FC = () => {
       </div>
 
       {/* Calendar View */}
-      <div className="bg-white md:rounded-lg md:shadow-md p-2 md:p-6">
+      <div className="bg-white md:rounded-lg md:shadow-md p-2 md:p-6 -mx-4 md:mx-0">
         {user?.user_id && (
           <CalendarView 
             userId={user.user_id} 
