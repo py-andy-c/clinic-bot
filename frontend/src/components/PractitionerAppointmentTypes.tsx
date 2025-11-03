@@ -119,14 +119,9 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
               className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
             />
             <label htmlFor={`type-${type.id}`} className="ml-3 flex-1 cursor-pointer">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-medium text-gray-900">{type.name}</span>
-                  <span className="ml-2 text-sm text-gray-500">({type.duration_minutes} 分鐘)</span>
-                </div>
-                {currentSelectedTypeIds.includes(type.id) && (
-                  <span className="text-primary-600">✓</span>
-                )}
+              <div>
+                <span className="font-medium text-gray-900">{type.name}</span>
+                <span className="ml-2 text-sm text-gray-500">({type.duration_minutes} 分鐘)</span>
               </div>
             </label>
           </div>

@@ -85,6 +85,10 @@
   @apply bg-gray-50 border-b border-gray-200;
 }
 
+.rbc-time-header.rbc-overflowing {
+  display: none;
+}
+
 .rbc-time-header-content {
   @apply text-sm font-medium text-gray-700;
 }
@@ -100,6 +104,24 @@
 
 .rbc-time-slot {
   @apply text-xs text-gray-500 py-1;
+}
+
+/* Right-align time gutter labels using flexbox */
+.rbc-time-view .rbc-time-gutter,
+.rbc-time-content > .rbc-time-gutter {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+}
+
+.rbc-time-view .rbc-time-gutter .rbc-time-slot,
+.rbc-time-content > .rbc-time-gutter .rbc-time-slot {
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  width: 100% !important;
+  padding-right: 4px !important;
+  box-sizing: border-box !important;
 }
 
 /* Day slot styles */
@@ -122,6 +144,7 @@
 @media (max-width: 768px) {
   .calendar-container {
     height: 500px;
+    @apply rounded-none shadow-none;
   }
   
   .rbc-date-cell {
@@ -146,21 +169,18 @@
     @apply overflow-x-auto;
   }
   
-  /* Increase time gutter width on mobile for better readability */
-  .rbc-time-gutter {
-    min-width: 60px !important;
-    padding: 0 8px !important;
+  /* Reduce time gutter width on mobile to save space */
+  .rbc-time-gutter,
+  .rbc-time-gutter.rbc-time-column {
+    min-width: 45px !important;
+    max-width: 45px !important;
+    padding: 0 4px !important;
   }
   
   /* Increase spacing between time slots on mobile */
   .rbc-time-slot {
     @apply py-2;
     min-height: 48px !important;
-  }
-  
-  /* Better padding for time slot labels */
-  .rbc-time-gutter .rbc-time-slot {
-    @apply pr-2;
   }
   
   /* Increase event padding on mobile */

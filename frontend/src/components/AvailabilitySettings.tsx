@@ -75,9 +75,8 @@ const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
                   <div className="space-y-2">
                     {intervals.map((interval, index) => (
                       <div key={index} className="flex items-center space-x-3 bg-gray-50 p-3 rounded">
-                        <div className="flex items-center space-x-2 flex-1">
-                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                          <div className="grid grid-cols-2 gap-2 flex-1">
+                        <div className="flex items-center flex-1">
+                          <div className="grid grid-cols-2 gap-2 max-w-xs">
                             <div>
                               <label className="block text-xs text-gray-600 mb-1">開始時間</label>
                               <input
