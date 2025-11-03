@@ -208,11 +208,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.setItem('access_token', data.access_token);
         logger.log('New access token stored');
 
-        // Update refresh token in localStorage if provided (for cross-origin fallback)
-        // The backend includes refresh_token in response when cookies don't work
+        // Always update refresh token in localStorage (backend now always includes it)
+        // This ensures localStorage stays in sync with cookie and provides fallback if cookies fail
         if (data.refresh_token) {
           localStorage.setItem('refresh_token', data.refresh_token);
           logger.log('New refresh token stored in localStorage');
+        } else {
+          logger.warn('Refresh response missing refresh_token - this should not happen');
         }
 
         // Validate the new token to get user data
@@ -280,11 +282,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // If we have a token and user was logged in, check if it's expired or expiring soon
       if (token && wasLoggedIn) {
-        // Refresh if token expires within 5 minutes (300 seconds)
-        // This ensures we refresh before expiry even with longer-lived tokens
-        // For 60-minute tokens, this refreshes at ~55 minutes
-        const EXPIRY_BUFFER_SECONDS = 300; // 5 minutes
-        const isExpiringSoon = isTokenExpiredOrExpiringSoon(token, EXPIRY_BUFFER_SECONDS);
+        // Calculate adaptive buffer based on token lifetime
+        // Buffer is 50% of remaining token lifetime, with minimum 30 seconds and maximum 30 minutes
+        // This ensures we refresh before expiry for any token length
+        let bufferSeconds = 30; // Default minimum buffer
+        
+        try {
+          // Decode token to get expiry time
+          const parts = token.split('.');
+          if (parts.length === 3 && parts[1]) {
+            const base64Url = parts[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(
+              atob(base64)
+                .split('')
+                .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                .join('')
+            );
+            const payload = JSON.parse(jsonPayload);
+            const exp = payload.exp;
+            
+            if (exp) {
+              const now = Math.floor(Date.now() / 1000);
+              const remainingSeconds = exp - now;
+              
+              if (remainingSeconds > 0) {
+                // Buffer is 50% of remaining time, capped between 30s and 30 minutes (1800s)
+                bufferSeconds = Math.max(30, Math.min(1800, Math.floor(remainingSeconds * 0.5)));
+              }
+            }
+          }
+        } catch (error) {
+          // If we can't decode, use default buffer
+          logger.log('Could not calculate adaptive buffer, using default:', error);
+        }
+        
+        const isExpiringSoon = isTokenExpiredOrExpiringSoon(token, bufferSeconds);
         const hasRefreshToken = !!localStorage.getItem('refresh_token');
         logger.log('Proactive refresh check:', {
           hasToken: !!token,
@@ -294,15 +327,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
         
         if (isExpiringSoon) {
+          // Check if a refresh is already in progress (e.g., from api.ts interceptor)
+          // Use a simple flag in localStorage to coordinate between refresh mechanisms
+          const refreshInProgress = localStorage.getItem('_refresh_in_progress') === 'true';
+          
+          if (refreshInProgress) {
+            logger.log('Refresh already in progress, skipping proactive refresh to avoid race condition');
+            return; // Skip proactive refresh if reactive refresh is already happening
+          }
+          
           // Token is expired or will expire within the buffer time, refresh it
-          logger.log(`Token expiring soon (within 300s), refreshing proactively...`);
+          logger.log(`Token expiring soon (within ${bufferSeconds}s), refreshing proactively...`);
           try {
+            // Set flag to prevent concurrent refreshes
+            localStorage.setItem('_refresh_in_progress', 'true');
             await refreshToken();
             logger.log('Proactive refresh successful');
           } catch (error) {
             // Error is already logged in refreshToken
             logger.error('Proactive refresh failed:', error);
             // Don't clear state here as refreshToken handles that
+          } finally {
+            // Clear flag after refresh completes (success or failure)
+            localStorage.removeItem('_refresh_in_progress');
           }
         } else {
           logger.log('Token still valid, no refresh needed');

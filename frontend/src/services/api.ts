@@ -86,14 +86,20 @@ class ApiService {
         originalRequest._retry = true;
 
         try {
+          // Check if refresh is already in progress (either from api.ts or useAuth.tsx)
+          const refreshInProgress = this.isRefreshing || localStorage.getItem('_refresh_in_progress') === 'true';
+          
           // Queue requests if refresh is already in progress
-          if (this.isRefreshing) {
+          if (refreshInProgress && this.refreshTokenPromise) {
             await this.refreshTokenPromise;
           } else {
             this.isRefreshing = true;
-            this.refreshTokenPromise = this.refreshToken();
+            localStorage.setItem('_refresh_in_progress', 'true');
+            this.refreshTokenPromise = this.refreshToken().finally(() => {
+              this.isRefreshing = false;
+              localStorage.removeItem('_refresh_in_progress');
+            });
             await this.refreshTokenPromise;
-            this.isRefreshing = false;
           }
 
           // Retry with new token
@@ -109,6 +115,7 @@ class ApiService {
           // Clear localStorage to ensure auth state is cleared
           localStorage.removeItem('access_token');
           localStorage.removeItem('was_logged_in');
+          localStorage.removeItem('_refresh_in_progress'); // Clear refresh flag to prevent blocking future refreshes
           
           // Use replace instead of href to prevent back navigation issues
           // This immediately redirects without waiting for async operations
@@ -147,6 +154,10 @@ class ApiService {
       });
       if (response.status === 200 && response.data.access_token) {
         localStorage.setItem('access_token', response.data.access_token);
+        // Always update refresh token in localStorage (backend now always includes it)
+        if (response.data.refresh_token) {
+          localStorage.setItem('refresh_token', response.data.refresh_token);
+        }
         // Reset session expired flag on successful refresh
         this.resetSessionExpired();
       } else {

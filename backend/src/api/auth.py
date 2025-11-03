@@ -500,19 +500,16 @@ async def refresh_access_token(
     set_refresh_token_cookie(response, request, token_data["refresh_token"])
 
     # Return response with access token
-    # Also include refresh_token in response for cross-origin scenarios where cookies don't work
-    # This allows frontend to update localStorage with the new refresh token
+    # Always include refresh_token in response to ensure localStorage fallback works
+    # even if cookies fail (cross-origin, SameSite issues, Safari ITP, etc.)
     response_data = {
         "access_token": token_data["access_token"],
         "token_type": token_data["token_type"],
-        "expires_in": str(token_data["expires_in"])
+        "expires_in": str(token_data["expires_in"]),
+        "refresh_token": token_data["refresh_token"]  # Always include for localStorage fallback
     }
     
-    # Include refresh_token in response if it wasn't received via cookie (cross-origin fallback)
-    # This allows the frontend to update localStorage with the new refresh token
-    if token_source and token_source != "cookie":
-        response_data["refresh_token"] = token_data["refresh_token"]
-        logger.debug(f"Including refresh_token in response body (localStorage fallback, source: {token_source})")
+    logger.debug(f"Including refresh_token in response body (token_source: {token_source})")
     
     return response_data
 

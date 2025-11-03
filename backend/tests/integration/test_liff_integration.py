@@ -20,6 +20,7 @@ from models import (
 from core.config import JWT_SECRET_KEY
 from core.database import get_db
 from auth.dependencies import get_current_line_user_with_clinic
+from utils.datetime_utils import taiwan_now
 
 
 client = TestClient(app)
@@ -460,9 +461,10 @@ class TestLiffDatabaseOperations:
 
         # Create appointments for both patients
         appointments_data = []
+        # Use Taiwan timezone for date consistency with service logic
         for i, patient in enumerate(patients):
-            # Create calendar event
-            event_date = (datetime.now() + timedelta(days=i+1)).date()
+            # Create calendar event with dates in the future (using Taiwan timezone)
+            event_date = (taiwan_now() + timedelta(days=i+1)).date()
             calendar_event = CalendarEvent(
                 user_id=practitioner.id,
                 event_type="appointment",
