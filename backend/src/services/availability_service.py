@@ -47,28 +47,28 @@ class AvailabilityService:
             HTTPException: If validation fails
         """
         # Validate date format
-            try:
-                requested_date = datetime.strptime(date, '%Y-%m-%d').date()
-            except ValueError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid date format (use YYYY-MM-DD)"
-                )
+        try:
+            requested_date = datetime.strptime(date, '%Y-%m-%d').date()
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid date format (use YYYY-MM-DD)"
+            )
 
         # Validate date range (using Taiwan timezone)
         today = taiwan_now().date()
-            max_date = today + timedelta(days=90)
+        max_date = today + timedelta(days=90)
 
-            if requested_date < today:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Cannot book appointments in the past"
-                )
-            if requested_date > max_date:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="最多只能預約 90 天內的時段"
-                )
+        if requested_date < today:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot book appointments in the past"
+            )
+        if requested_date > max_date:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="最多只能預約 90 天內的時段"
+            )
 
         return requested_date
 
@@ -295,12 +295,12 @@ class AvailabilityService:
                 if not AvailabilityService.has_slot_conflicts(
                     events, slot_start, slot_end
                 ):
-                available_slots.append({
+                    available_slots.append({
                         'start_time': AvailabilityService._format_time(slot_start),
                         'end_time': AvailabilityService._format_time(slot_end),
-                    'practitioner_id': practitioner.id,
-                    'practitioner_name': practitioner.full_name
-                })
+                        'practitioner_id': practitioner.id,
+                        'practitioner_name': practitioner.full_name
+                    })
 
         return available_slots
 
