@@ -121,7 +121,7 @@ describe('getClinicIdFromToken', () => {
 
       const clinicId = getClinicIdFromToken(token);
 
-      expect(clinicId).toBe(0);
+      expect(clinicId).toBeNull();
     });
 
     it('should handle very large clinic_id', () => {

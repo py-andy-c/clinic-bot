@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { liffApiService, LiffLoginResponse } from '../services/liffApi';
 import { logger } from '../utils/logger';
 import { config } from '../config/env';
@@ -56,7 +56,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
     if (urlClinicId) return urlClinicId;
 
     // Fallback to JWT token if provided
-    if (token) {
+      if (token) {
       const tokenClinicId = getClinicIdFromToken(token);
       if (tokenClinicId) return tokenClinicId;
     }
@@ -72,16 +72,8 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
     return null;
   };
 
-  // Function to check authentication status
-
-  // Consolidated authentication effect - handles all auth logic in one place
-  useEffect(() => {
-    let cancelled = false;
-
-    const handleAuth = async () => {
-      // First check for existing JWT token
-      const token = localStorage.getItem('liff_jwt_token');
-      if (token) {
+  // Shared helper: Validate existing JWT token
+  const validateExistingToken = async (token: string, checkCancelled?: () => boolean): Promise<boolean> => {
         try {
           const response = await fetch(`${API_BASE_URL}/liff/patients`, {
             method: 'GET',
@@ -90,48 +82,47 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
             },
           });
 
-          if (response.ok && !cancelled) {
+      if (checkCancelled?.()) return false;
+
+      if (response.ok) {
             // Token is valid - user is authenticated
             logger.log('JWT token validated - user is authenticated');
             setIsAuthenticated(true);
             setIsFirstTime(false);
-            // Try URL first, then JWT token as fallback
-            const clinicIdValue = getClinicId(token);
-            if (clinicIdValue) {
-              setClinicId(clinicIdValue);
+        // Try URL first, then JWT token as fallback
+        const clinicIdValue = getClinicId(token);
+        if (clinicIdValue) {
+          setClinicId(clinicIdValue);
             }
             setIsLoading(false);
-            return;
+        return true;
           } else {
             // Token invalid, clear it
             localStorage.removeItem('liff_jwt_token');
+        return false;
           }
         } catch (error) {
           // API error, clear token
           localStorage.removeItem('liff_jwt_token');
+      return false;
         }
-      }
+  };
 
-      // If no valid token and we have LIFF credentials, authenticate
-      if (lineProfile && liffAccessToken && !cancelled) {
-        await performAuthentication(lineProfile.userId, lineProfile.displayName, liffAccessToken);
-      } else if (!cancelled) {
-        // No existing auth and no LIFF profile - user needs to authenticate
-        setIsFirstTime(true);
-        setIsLoading(false);
-      }
-    };
-
-    const performAuthentication = async (lineUserId: string, displayName: string, accessToken: string) => {
-      try {
-        if (cancelled) return;
+  // Shared helper: Authenticate with LINE profile
+  const performAuthentication = async (
+    lineUserId: string,
+    displayName: string,
+    accessToken: string,
+    checkCancelled?: () => boolean
+  ): Promise<void> => {
+    if (checkCancelled?.()) return;
 
         setIsLoading(true);
         setError(null);
 
-        // Try URL first, then JWT token as fallback
-        const storedToken = localStorage.getItem('liff_jwt_token');
-        const clinicId = getClinicId(storedToken);
+    // Try URL first, then JWT token as fallback
+    const storedToken = localStorage.getItem('liff_jwt_token');
+    const clinicId = getClinicId(storedToken);
         if (!clinicId) {
           throw new Error('診所ID無效，請從診所的LINE官方帳號進入');
         }
@@ -145,30 +136,56 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
 
         const response: LiffLoginResponse = await liffApiService.liffLogin(request);
 
-        if (!cancelled) {
+    if (checkCancelled?.()) return;
+
           setIsAuthenticated(true);
           setIsFirstTime(response.is_first_time);
           setClinicId(response.clinic_id);
           setDisplayName(response.display_name);
-        }
+    setIsLoading(false);
+  };
 
+  // Shared helper: Handle authentication flow (reusable by useEffect and refreshAuth)
+  const handleAuth = useCallback(async (checkCancelled?: () => boolean) => {
+    // First check for existing JWT token
+    const token = localStorage.getItem('liff_jwt_token');
+    if (token) {
+      const isValid = await validateExistingToken(token, checkCancelled);
+      if (isValid) {
+        return; // Authentication successful via token
+      }
+    }
+
+    // If no valid token and we have LIFF credentials, authenticate
+    if (lineProfile && liffAccessToken) {
+      if (checkCancelled?.()) return;
+
+      try {
+        await performAuthentication(lineProfile.userId, lineProfile.displayName, liffAccessToken, checkCancelled);
       } catch (err) {
-        if (!cancelled) {
+        if (checkCancelled?.()) return;
           logger.error('LINE authentication failed:', err);
           setError(err instanceof Error ? err.message : '認證失敗');
           setIsAuthenticated(false);
-        }
-      } finally {
-        if (!cancelled) {
           setIsLoading(false);
         }
+    } else {
+      // No existing auth and no LIFF profile - user needs to authenticate
+      if (checkCancelled?.()) return;
+      setIsFirstTime(true);
+      setIsLoading(false);
       }
-    };
+  }, [lineProfile, liffAccessToken]);
 
-    handleAuth();
+  // Consolidated authentication effect - handles all auth logic in one place
+  useEffect(() => {
+    let cancelled = false;
+    const checkCancelled = () => cancelled;
+
+    handleAuth(checkCancelled);
 
     return () => { cancelled = true; };
-  }, [lineProfile, liffAccessToken]); // Only depend on external inputs
+  }, [handleAuth]); // handleAuth already depends on lineProfile and liffAccessToken
 
   // Listen for authentication refresh events
   useEffect(() => {
@@ -183,42 +200,14 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
   }, []);
 
   const authenticate = async (lineUserId: string, displayName: string, accessToken: string) => {
-    const performAuthentication = async (userId: string, dispName: string, token: string) => {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        // Try URL first, then JWT token as fallback
-        const storedToken = localStorage.getItem('liff_jwt_token');
-        const clinicId = getClinicId(storedToken);
-        if (!clinicId) {
-          throw new Error('診所ID無效，請從診所的LINE官方帳號進入');
-        }
-
-        const request = {
-          line_user_id: userId,
-          display_name: dispName,
-          liff_access_token: token,
-          clinic_id: clinicId,
-        };
-
-        const response: LiffLoginResponse = await liffApiService.liffLogin(request);
-
-        setIsAuthenticated(true);
-        setIsFirstTime(response.is_first_time);
-        setClinicId(response.clinic_id);
-        setDisplayName(response.display_name);
-
+    try {
+      await performAuthentication(lineUserId, displayName, accessToken);
       } catch (err) {
         logger.error('LINE authentication failed:', err);
         setError(err instanceof Error ? err.message : '認證失敗');
         setIsAuthenticated(false);
-      } finally {
         setIsLoading(false);
       }
-    };
-
-    await performAuthentication(lineUserId, displayName, accessToken);
   };
 
   const logout = () => {
@@ -232,36 +221,20 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
 
   const refreshAuth = async () => {
     logger.log('Auth refresh event received');
+    
+    // Clear error state first
+    setError(null);
     setIsLoading(true);
 
-    const token = localStorage.getItem('liff_jwt_token');
-    if (token) {
-      try {
-        const response = await fetch(`${API_BASE_URL}/liff/patients`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          setIsAuthenticated(true);
-          setIsFirstTime(false);
-          // Try URL first, then JWT token as fallback
-          const clinicIdValue = getClinicId(token);
-          if (clinicIdValue) {
-            setClinicId(clinicIdValue);
-          }
-        } else {
-          localStorage.removeItem('liff_jwt_token');
+    try {
+      // Re-run the full authentication flow
+      await handleAuth();
+    } catch (err) {
+      logger.error('Auth refresh failed:', err);
+      setError(err instanceof Error ? err.message : '認證失敗');
           setIsAuthenticated(false);
-        }
-      } catch (error) {
-        localStorage.removeItem('liff_jwt_token');
-        setIsAuthenticated(false);
-      }
-    }
     setIsLoading(false);
+    }
   };
 
   return {

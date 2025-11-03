@@ -25,11 +25,12 @@ export const preserveQueryParams = (
   paramsToSet: Record<string, string>,
   paramsToPreserve: string[] = ['clinic_id']
 ): string => {
-  const urlParams = new URLSearchParams(window.location.search);
+  const urlParams = new URLSearchParams();
   
-  // Preserve specified params
+  // Preserve specified params from current URL
+  const currentParams = new URLSearchParams(window.location.search);
   paramsToPreserve.forEach(param => {
-    const value = urlParams.get(param);
+    const value = currentParams.get(param);
     if (value) {
       urlParams.set(param, value);
     }
