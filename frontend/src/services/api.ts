@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { config } from '../config/env';
 import { logger } from '../utils/logger';
+import { isSafari, getRecommendedTokenStorage } from '../utils/browser';
 import {
   // AuthUser,
   Clinic,
@@ -147,68 +148,169 @@ export class ApiService {
   }
 
   async refreshToken(): Promise<void> {
+    // Browser detection variables needed in both try and catch blocks
+    const browserIsSafari = isSafari();
+    const recommendedStorage = getRecommendedTokenStorage();
+
     try {
       // Enhanced logging for refresh attempt (consensus recommendation)
       const hasCookie = document.cookie.includes('refresh_token');
       const hasLocalStorage = !!localStorage.getItem('refresh_token');
+      const refreshTokenValue = localStorage.getItem('refresh_token');
+      const accessTokenValue = localStorage.getItem('access_token');
+      const wasLoggedIn = localStorage.getItem('was_logged_in') === 'true';
+
       logger.log('ApiService: Attempting to refresh token...', {
         hasCookie,
         hasLocalStorage,
-        apiBaseUrl: this.client.defaults.baseURL
+        hasRefreshTokenValue: !!refreshTokenValue,
+        hasAccessTokenValue: !!accessTokenValue,
+        wasLoggedIn,
+        refreshTokenLength: refreshTokenValue?.length || 0,
+        browserIsSafari,
+        recommendedStorage,
+        apiBaseUrl: this.client.defaults.baseURL,
+        currentOrigin: window.location.origin,
+        userAgent: navigator.userAgent
       });
 
-      // Try cookie-based refresh first (preferred)
+      // Storage strategy: Safari prefers localStorage, others prefer cookies
       let response;
-      try {
-        response = await this.client.post('/auth/refresh', {}, { 
-          withCredentials: true
+      const shouldTryLocalStorageFirst = browserIsSafari;
+
+      if (shouldTryLocalStorageFirst && refreshTokenValue) {
+        // Safari: Try localStorage first
+        logger.log('ApiService: Safari detected - trying localStorage first...', {
+          hasRefreshToken: !!refreshTokenValue,
+          tokenLength: refreshTokenValue.length
         });
-      } catch (cookieError: any) {
-        // If cookie fails (401), try localStorage fallback
-        if (cookieError.response?.status === 401) {
-          const refreshTokenFromStorage = localStorage.getItem('refresh_token');
-          if (refreshTokenFromStorage) {
-            logger.log('ApiService: Cookie-based refresh failed (401), trying localStorage fallback...', {
-              hasRefreshToken: !!refreshTokenFromStorage,
-              tokenLength: refreshTokenFromStorage.length
-            });
-            
-            // Retry with localStorage token in request body
-            try {
-              response = await this.client.post('/auth/refresh', 
-                { refresh_token: refreshTokenFromStorage },
-                { withCredentials: true }
-              );
-              logger.log('ApiService: localStorage fallback attempt - status:', response.status);
-            } catch (localStorageError: any) {
-              // Both cookie and localStorage failed
-              logger.error('ApiService: Both cookie and localStorage fallback failed:', {
+
+        try {
+          response = await this.client.post('/auth/refresh',
+            { refresh_token: refreshTokenValue },
+            { withCredentials: true }
+          );
+          logger.log('ApiService: localStorage attempt - status:', {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers
+          });
+        } catch (localStorageError: any) {
+          logger.log('ApiService: localStorage attempt failed, trying cookie fallback...', {
+            error: localStorageError.message,
+            hasCookie
+          });
+          // Fall through to cookie attempt
+        }
+      }
+
+      // Try cookie-based refresh (either as primary method or fallback)
+      // Only retry if: no response (localStorage failed) or response is 401 (unauthorized)
+      const needsCookieRetry = !response || response.status === 401;
+      if (needsCookieRetry) {
+        try {
+          logger.log('ApiService: Trying cookie-based refresh...', {
+            hasCookie,
+            previousAttemptFailed: !!response
+          });
+
+          response = await this.client.post('/auth/refresh', {}, {
+            withCredentials: true
+          });
+        } catch (cookieError: any) {
+          // Fallback logic: depends on which method was tried first
+          if (cookieError.response?.status === 401) {
+            const refreshTokenFromStorage = localStorage.getItem('refresh_token');
+            const accessTokenFromStorage = localStorage.getItem('access_token');
+
+            if (shouldTryLocalStorageFirst) {
+              // Safari: Already tried localStorage first, now cookie failed too
+              logger.error('ApiService: Both localStorage and cookie attempts failed for Safari:', {
+                localStorageError: 'Already failed',
                 cookieStatus: cookieError.response?.status,
-                localStorageStatus: localStorageError.response?.status
+                hasRefreshTokenInStorage: !!refreshTokenFromStorage
               });
-              throw localStorageError;
+              throw cookieError;
+            } else {
+              // Non-Safari: Try localStorage as fallback after cookie failure
+              logger.log('ApiService: Non-Safari: Cookie failed (401), trying localStorage fallback...', {
+                hasRefreshTokenInStorage: !!refreshTokenFromStorage,
+                refreshTokenLength: refreshTokenFromStorage?.length || 0,
+                hasAccessTokenInStorage: !!accessTokenFromStorage,
+                accessTokenLength: accessTokenFromStorage?.length || 0,
+                wasLoggedIn,
+                browserIsSafari,
+                localStorageKeys: Object.keys(localStorage)
+              });
+
+              if (refreshTokenFromStorage) {
+                logger.log('ApiService: Attempting localStorage fallback with refresh token...', {
+                  hasRefreshToken: !!refreshTokenFromStorage,
+                  tokenLength: refreshTokenFromStorage.length,
+                  tokenPrefix: refreshTokenFromStorage.substring(0, 20) + '...'
+                });
+
+                try {
+                  response = await this.client.post('/auth/refresh',
+                    { refresh_token: refreshTokenFromStorage },
+                    { withCredentials: true }
+                  );
+                  logger.log('ApiService: localStorage fallback attempt - status:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers
+                  });
+                } catch (localStorageError: any) {
+                  // Both cookie and localStorage failed
+                  logger.error('ApiService: Both cookie and localStorage fallback failed:', {
+                    cookieStatus: cookieError.response?.status,
+                    localStorageStatus: localStorageError.response?.status,
+                    hasRefreshToken: !!refreshTokenFromStorage,
+                    tokenLength: refreshTokenFromStorage.length,
+                    browserIsSafari
+                  });
+                  throw localStorageError;
+                }
+              } else {
+                // No localStorage token available
+                logger.warn('ApiService: No refresh token in localStorage for fallback', {
+                  localStorageKeys: Object.keys(localStorage),
+                  wasLoggedIn,
+                  browserIsSafari
+                });
+                throw cookieError;
+              }
             }
           } else {
-            // No localStorage token available
-            logger.warn('ApiService: No refresh token in localStorage for fallback');
+            // Non-401 error, rethrow
             throw cookieError;
           }
-        } else {
-          // Non-401 error, rethrow
-          throw cookieError;
         }
       }
 
       // Handle successful response
       if (response && response.status === 200 && response.data.access_token) {
-        localStorage.setItem('access_token', response.data.access_token);
+        try {
+          localStorage.setItem('access_token', response.data.access_token);
+          logger.log('ApiService: Access token stored successfully');
+        } catch (storageError) {
+          logger.error('ApiService: Failed to store access token in localStorage:', storageError);
+          throw new Error('Failed to persist authentication token');
+        }
+
         // Always update refresh token in localStorage (backend now always includes it)
         if (response.data.refresh_token) {
-          localStorage.setItem('refresh_token', response.data.refresh_token);
-          logger.log('ApiService: Token refresh successful - new tokens stored in localStorage', {
-            hasAccessToken: !!localStorage.getItem('access_token'),
-            hasRefreshToken: !!localStorage.getItem('refresh_token')
-          });
+          try {
+            localStorage.setItem('refresh_token', response.data.refresh_token);
+            logger.log('ApiService: Token refresh successful - new tokens stored in localStorage', {
+              hasAccessToken: !!localStorage.getItem('access_token'),
+              hasRefreshToken: !!localStorage.getItem('refresh_token')
+            });
+          } catch (storageError) {
+            logger.error('ApiService: Failed to store refresh token in localStorage:', storageError);
+            // Don't throw here as access token was stored successfully
+            logger.warn('ApiService: Refresh token storage failed, but access token was stored');
+          }
         }
         // Reset session expired flag on successful refresh
         this.resetSessionExpired();
@@ -220,7 +322,27 @@ export class ApiService {
       // If refresh token is invalid (401), ensure we clear auth state
       // Only clear if both cookie and localStorage attempts failed
       if (error.response?.status === 401) {
-        logger.error('ApiService: Token refresh failed (401) - both cookie and localStorage attempts failed');
+        logger.error('ApiService: Token refresh failed (401) - both cookie and localStorage attempts failed', {
+          browserIsSafari,
+          recommendedStorage,
+          hasCookieAtFailure: !!document.cookie.includes('refresh_token'),
+          hasLocalStorageAtFailure: !!localStorage.getItem('refresh_token'),
+          localStorageKeysAtFailure: Object.keys(localStorage)
+        });
+
+        // Safari-specific: Log additional context for debugging
+        if (browserIsSafari) {
+          logger.error('Safari authentication failure - both localStorage and cookie methods failed', {
+            browserIsSafari,
+            recommendedStorage,
+            hasCookieAtFailure: !!document.cookie.includes('refresh_token'),
+            hasLocalStorageAtFailure: !!localStorage.getItem('refresh_token'),
+            localStorageKeys: Object.keys(localStorage),
+            userAgent: navigator.userAgent,
+            suggestion: 'Safari users may need to disable ITP or use a different browser'
+          });
+        }
+
         localStorage.removeItem('access_token');
         localStorage.removeItem('was_logged_in');
         throw error;

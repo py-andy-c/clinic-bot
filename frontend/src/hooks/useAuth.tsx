@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode, useMe
 import { AuthUser, AuthState, UserRole } from '../types';
 import { logger } from '../utils/logger';
 import { config } from '../config/env';
+import { isSafari, getRecommendedTokenStorage, getAuthenticationGuidance } from '../utils/browser';
 
 // Get API base URL from environment variable
 const API_BASE_URL = config.apiBaseUrl;
@@ -69,19 +70,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('access_token', token);
       localStorage.setItem('was_logged_in', 'true');
       
-      // Store refresh token in localStorage as fallback (for cross-origin cookie issues)
-      // Enhanced logging for OAuth callback (consensus recommendation)
+      const browserIsSafari = isSafari();
+
+      // Store refresh token in localStorage
+      // Safari: Always store in localStorage (primary method)
+      // Non-Safari: Store in localStorage as fallback for cross-origin scenarios
       if (refreshToken) {
         localStorage.setItem('refresh_token', refreshToken);
         logger.log('OAuth callback - refresh token stored in localStorage', {
           hasAccessToken: !!localStorage.getItem('access_token'),
           hasRefreshToken: !!localStorage.getItem('refresh_token'),
           urlHasRefreshToken: !!refreshToken,
+          browserIsSafari,
+          storageStrategy: browserIsSafari ? 'localStorage (primary)' : 'localStorage (fallback)',
           currentOrigin: window.location.origin
         });
       } else {
         logger.warn('OAuth callback - refresh token missing from URL parameters', {
           hasAccessToken: !!token,
+          browserIsSafari,
           urlParams: Array.from(urlParams.keys())
         });
       }
@@ -106,6 +113,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         })
         .then(userData => {
           logger.log('OAuth callback - User data received');
+
+          // Show Safari-specific guidance if needed
+          const browserIsSafari = isSafari();
+          if (browserIsSafari && !localStorage.getItem('safari_auth_warning_shown')) {
+            const guidance = getAuthenticationGuidance();
+            logger.log('Showing Safari authentication guidance', guidance);
+
+            // Mark that we've shown the warning
+            localStorage.setItem('safari_auth_warning_shown', 'true');
+
+            // You could show a toast notification or modal here
+            // For now, we'll just log it and rely on the console for debugging
+            console.warn(`${guidance.title}: ${guidance.message}`);
+            guidance.suggestions.forEach(suggestion => console.warn(`• ${suggestion}`));
+          }
+
           setAuthState({
             user: userData,
             isAuthenticated: true,
@@ -177,66 +200,253 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Enhanced logging for refresh attempt (consensus recommendation)
       const hasCookie = document.cookie.includes('refresh_token');
       const hasLocalStorage = !!localStorage.getItem('refresh_token');
+      const refreshTokenValue = localStorage.getItem('refresh_token');
+      const accessTokenValue = localStorage.getItem('access_token');
+      const wasLoggedIn = localStorage.getItem('was_logged_in') === 'true';
+      const browserIsSafari = isSafari();
+      const recommendedStorage = getRecommendedTokenStorage();
+
       logger.log('Attempting to refresh token...', {
         hasCookie,
         hasLocalStorage,
+        hasRefreshTokenValue: !!refreshTokenValue,
+        hasAccessTokenValue: !!accessTokenValue,
+        wasLoggedIn,
+        refreshTokenLength: refreshTokenValue?.length || 0,
+        browserIsSafari,
+        recommendedStorage,
         apiBaseUrl: API_BASE_URL,
-        currentOrigin: window.location.origin
-      });
-      
-      // Try cookie-based refresh first (preferred)
-      let response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include', // Send httpOnly refresh token cookie
+        currentOrigin: window.location.origin,
+        userAgent: navigator.userAgent
       });
 
-      logger.log('Refresh response status (cookie attempt):', response.status);
+      // Storage strategy: Safari prefers localStorage, others prefer cookies
+      let response;
+      const shouldTryLocalStorageFirst = browserIsSafari;
+      const authStrategy = shouldTryLocalStorageFirst ? 'Safari (localStorage → cookie)' : 'Standard (cookie → localStorage)';
 
-      // If cookie-based refresh fails (401), fall back to localStorage-based refresh
-      if (!response.ok && response.status === 401) {
-        const refreshTokenFromStorage = localStorage.getItem('refresh_token');
-        if (refreshTokenFromStorage) {
-          logger.log('Cookie-based refresh failed, trying localStorage fallback...', {
-            hasRefreshToken: !!refreshTokenFromStorage,
-            tokenLength: refreshTokenFromStorage.length
-          });
+      logger.log('Authentication strategy selected:', {
+        browserIsSafari,
+        shouldTryLocalStorageFirst,
+        authStrategy,
+        hasRefreshTokenValue: !!refreshTokenValue,
+        hasCookie,
+        wasLoggedIn
+      });
+
+      if (shouldTryLocalStorageFirst && refreshTokenValue) {
+        // Safari: Try localStorage first
+        logger.log('Safari strategy: Step 1 - attempting localStorage refresh', {
+          hasRefreshToken: !!refreshTokenValue,
+          tokenLength: refreshTokenValue.length,
+          tokenPrefix: refreshTokenValue.substring(0, 10) + '...',
+          apiBaseUrl: API_BASE_URL
+        });
+
+        try {
+          const localStorageStartTime = Date.now();
           response = await fetch(`${API_BASE_URL}/auth/refresh`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ refresh_token: refreshTokenFromStorage }),
+            body: JSON.stringify({ refresh_token: refreshTokenValue }),
             credentials: 'include',
           });
-          logger.log('Refresh response status (localStorage attempt):', response.status);
+          const localStorageEndTime = Date.now();
+
+          logger.log('Safari strategy: Step 1 result - localStorage attempt completed', {
+            status: response.status,
+            statusText: response.statusText,
+            responseTime: localStorageEndTime - localStorageStartTime,
+            headers: Object.fromEntries(response.headers.entries()),
+            ok: response.ok
+          });
+
           if (!response.ok) {
-            const errorText = await response.text().catch(() => 'Unknown error');
-            logger.error('LocalStorage fallback also failed:', {
+            logger.warn('Safari strategy: localStorage failed, proceeding to cookie fallback', {
               status: response.status,
-              error: errorText
+              statusText: response.statusText,
+              hasCookie
             });
           }
+        } catch (localStorageError) {
+          logger.error('Safari strategy: Step 1 failed with exception', {
+            error: localStorageError instanceof Error ? localStorageError.message : String(localStorageError),
+            errorType: localStorageError instanceof Error && localStorageError.constructor ? localStorageError.constructor.name : 'Unknown',
+            hasCookie,
+            willAttemptCookieFallback: hasCookie
+          });
+          // Fall through to cookie attempt
+        }
+      }
+
+      // Try cookie-based refresh (either as primary method or fallback)
+      if (!response || !response.ok) {
+        const stepNumber = shouldTryLocalStorageFirst ? 'Step 2' : 'Step 1';
+        const strategy = shouldTryLocalStorageFirst ? 'Safari cookie fallback' : 'Standard cookie primary';
+
+        logger.log(`${strategy}: ${stepNumber} - attempting cookie refresh`, {
+          hasCookie,
+          previousAttemptFailed: !!response,
+          previousAttemptWasLocalStorage: shouldTryLocalStorageFirst,
+          cookieNames: document.cookie.split(';').map(c => c.trim().split('=')[0]).filter(name => name && name.includes('token')),
+          apiBaseUrl: API_BASE_URL
+        });
+
+        const cookieStartTime = Date.now();
+        try {
+          response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            credentials: 'include', // Send httpOnly refresh token cookie
+          });
+          const cookieEndTime = Date.now();
+
+          logger.log(`${strategy}: ${stepNumber} result - cookie attempt completed`, {
+            status: response.status,
+            statusText: response.statusText,
+            responseTime: cookieEndTime - cookieStartTime,
+            headers: Object.fromEntries(response.headers.entries()),
+            ok: response.ok,
+            finalAuthStrategy: authStrategy
+          });
+        } catch (cookieError) {
+          logger.error(`${strategy}: ${stepNumber} failed with exception`, {
+            error: cookieError instanceof Error ? cookieError.message : String(cookieError),
+            errorType: cookieError instanceof Error && cookieError.constructor ? cookieError.constructor.name : 'Unknown',
+            responseTime: Date.now() - cookieStartTime
+          });
+          throw cookieError;
+        }
+      } else {
+        logger.log('Cookie refresh skipped - previous attempt succeeded', {
+          status: response.status,
+          statusText: response.statusText,
+          authStrategy
+        });
+      }
+
+      // Fallback logic: depends on which method was tried first
+      if (!response.ok && response.status === 401) {
+        const refreshTokenFromStorage = localStorage.getItem('refresh_token');
+        const accessTokenFromStorage = localStorage.getItem('access_token');
+
+        if (shouldTryLocalStorageFirst) {
+          // Safari: localStorage failed, and we already tried cookie as primary method
+          // Since both methods failed, throw error (no duplicate cookie attempt)
+          logger.error('Safari authentication failed - both localStorage and cookie methods failed', {
+            authStrategy,
+            localStorageAttempted: true,
+            localStorageFailed: true,
+            cookieAttempted: true,
+            cookieFailed: true,
+            finalResponseStatus: response.status,
+            finalResponseStatusText: response.statusText,
+            hasCookie,
+            localStorageKeys: Object.keys(localStorage),
+            localStorageTokenLength: localStorage.getItem('refresh_token')?.length || 0,
+            wasLoggedIn,
+            browserIsSafari,
+            recommendedStorage,
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString(),
+            sessionInfo: {
+              hasAccessToken: !!localStorage.getItem('access_token'),
+              hasRefreshToken: !!localStorage.getItem('refresh_token'),
+              hasSafariWarningShown: !!localStorage.getItem('safari_auth_warning_shown')
+            }
+          });
+          throw new Error(`Safari authentication failed - both storage methods failed (status: ${response.status})`);
         } else {
-          logger.warn('No refresh token in localStorage for fallback');
+          // Non-Safari: Try localStorage as fallback after cookie failure
+          logger.log('Non-Safari: Cookie failed (401), trying localStorage fallback...', {
+            hasRefreshTokenInStorage: !!refreshTokenFromStorage,
+            refreshTokenLength: refreshTokenFromStorage?.length || 0,
+            hasAccessTokenInStorage: !!accessTokenFromStorage,
+            accessTokenLength: accessTokenFromStorage?.length || 0,
+            wasLoggedIn,
+            browserIsSafari,
+            localStorageKeys: Object.keys(localStorage)
+          });
+
+          if (refreshTokenFromStorage) {
+            logger.log('Attempting localStorage fallback with refresh token...', {
+              hasRefreshToken: !!refreshTokenFromStorage,
+              tokenLength: refreshTokenFromStorage.length,
+              tokenPrefix: refreshTokenFromStorage.substring(0, 20) + '...'
+            });
+
+            try {
+              response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ refresh_token: refreshTokenFromStorage }),
+                credentials: 'include',
+              });
+              logger.log('Refresh response status (localStorage attempt):', {
+                status: response.status,
+                statusText: response.statusText,
+                headers: Object.fromEntries(response.headers.entries())
+              });
+
+              if (!response.ok) {
+                const errorText = await response.text().catch(() => 'Unknown error');
+                logger.error('LocalStorage fallback failed:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                  error: errorText,
+                  hasRefreshToken: !!refreshTokenFromStorage,
+                  tokenLength: refreshTokenFromStorage.length,
+                  browserIsSafari
+                });
+              }
+            } catch (fetchError) {
+              logger.error('LocalStorage fallback fetch error:', {
+                error: fetchError,
+                hasRefreshToken: !!refreshTokenFromStorage,
+                browserIsSafari
+              });
+              throw fetchError;
+            }
+          } else {
+            logger.warn('No refresh token in localStorage for fallback', {
+              localStorageKeys: Object.keys(localStorage),
+              wasLoggedIn,
+              browserIsSafari
+            });
+          }
         }
       }
 
       if (response.ok) {
         const data = await response.json();
-        // Store new access token
-        localStorage.setItem('access_token', data.access_token);
-        logger.log('New access token stored');
+        // Store new access token with error handling
+        try {
+          localStorage.setItem('access_token', data.access_token);
+          logger.log('New access token stored');
+        } catch (storageError) {
+          logger.error('Failed to store access token in localStorage:', storageError);
+          throw new Error('Failed to persist authentication token');
+        }
 
         // Always update refresh token in localStorage (backend now always includes it)
         // This ensures localStorage stays in sync with cookie and provides fallback if cookies fail
         if (data.refresh_token) {
-          localStorage.setItem('refresh_token', data.refresh_token);
-          const hasCookieNow = document.cookie.includes('refresh_token');
-          logger.log('Token refresh successful - new refresh token stored in localStorage', {
-            hasAccessToken: !!localStorage.getItem('access_token'),
-            hasRefreshToken: !!localStorage.getItem('refresh_token'),
-            tokenSource: hasCookieNow ? 'cookie' : 'localStorage'
-          });
+          try {
+            localStorage.setItem('refresh_token', data.refresh_token);
+            const hasCookieNow = document.cookie.includes('refresh_token');
+            logger.log('Token refresh successful - new refresh token stored in localStorage', {
+              hasAccessToken: !!localStorage.getItem('access_token'),
+              hasRefreshToken: !!localStorage.getItem('refresh_token'),
+              tokenSource: hasCookieNow ? 'cookie' : 'localStorage'
+            });
+          } catch (storageError) {
+            logger.error('Failed to store refresh token in localStorage:', storageError);
+            // Don't throw here as access token was stored successfully
+            logger.warn('Refresh token storage failed, but access token was stored');
+          }
         } else {
           logger.warn('Refresh response missing refresh_token - this should not happen', {
             responseData: data
@@ -275,6 +485,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           error: errorText,
         });
         clearAuthState();
+        // Safari-specific: If both storage methods failed, provide better error context
+        if (browserIsSafari) {
+          logger.error('Safari authentication failure - both localStorage and cookie methods failed', {
+            browserIsSafari,
+            recommendedStorage,
+            hasCookie,
+            hasLocalStorage,
+            localStorageKeys: Object.keys(localStorage),
+            userAgent: navigator.userAgent
+          });
+        }
+
         // Redirect to login if we're not already there
         if (!window.location.pathname.startsWith('/login')) {
           window.location.replace('/login');

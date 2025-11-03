@@ -386,13 +386,29 @@ async def refresh_access_token(
                     logger.debug("Refresh token found in header (cookie fallback)")
     
     # Enhanced logging for refresh token request (consensus recommendation)
+    user_agent = request.headers.get('user-agent', '')
+
+    # Handle both string and Mock objects for testing
+    user_agent_str = str(user_agent) if user_agent else ''
+
+    # Safari detection for backend logging: More robust than simple string check
+    # Matches Safari user agent pattern, excludes Chrome and other WebKit browsers
+    is_safari = ('Safari' in user_agent_str and
+                 'Chrome' not in user_agent_str and
+                 'Version/' in user_agent_str)  # iOS Safari includes Version/
+
+    # Note: Backend Safari detection is for logging only and may have some false positives/negatives
+    # compared to frontend detection which can use navigator.vendor
+
     if refresh_token:
         logger.info(
             f"Refresh token request received - source: {token_source}, "
             f"origin: {request.headers.get('origin')}, "
             f"referer: {request.headers.get('referer')}, "
             f"cookies: {list(request.cookies.keys())}, "
-            f"hostname: {request.url.hostname}"
+            f"hostname: {request.url.hostname}, "
+            f"is_safari: {is_safari}, "
+            f"user_agent: {user_agent_str[:100]}..."
         )
     else:
         # Log warning with detailed context when refresh token is not found
@@ -403,7 +419,9 @@ async def refresh_access_token(
             f"origin: {request.headers.get('origin')}, "
             f"referer: {request.headers.get('referer')}, "
             f"hostname: {request.url.hostname}, "
-            f"URL: {request.url}"
+            f"URL: {request.url}, "
+            f"is_safari: {is_safari}, "
+            f"user_agent: {user_agent_str[:100]}..."
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
