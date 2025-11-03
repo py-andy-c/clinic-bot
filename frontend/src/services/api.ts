@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import { config } from '../config/env';
+import { logger } from '../utils/logger';
 import {
   // AuthUser,
   Clinic,
@@ -29,7 +30,7 @@ import {
   PractitionerAvailability
 } from '../types';
 
-class ApiService {
+export class ApiService {
   private client: AxiosInstance;
   private refreshTokenPromise: Promise<void> | null = null;
   private isRefreshing = false;
@@ -147,26 +148,79 @@ class ApiService {
 
   async refreshToken(): Promise<void> {
     try {
-      // Note: The interceptor checks the URL to prevent infinite refresh loops
-      // If /auth/refresh returns 401, the interceptor won't retry
-      const response = await this.client.post('/auth/refresh', {}, { 
-        withCredentials: true
+      // Enhanced logging for refresh attempt (consensus recommendation)
+      const hasCookie = document.cookie.includes('refresh_token');
+      const hasLocalStorage = !!localStorage.getItem('refresh_token');
+      logger.log('ApiService: Attempting to refresh token...', {
+        hasCookie,
+        hasLocalStorage,
+        apiBaseUrl: this.client.defaults.baseURL
       });
-      if (response.status === 200 && response.data.access_token) {
+
+      // Try cookie-based refresh first (preferred)
+      let response;
+      try {
+        response = await this.client.post('/auth/refresh', {}, { 
+          withCredentials: true
+        });
+      } catch (cookieError: any) {
+        // If cookie fails (401), try localStorage fallback
+        if (cookieError.response?.status === 401) {
+          const refreshTokenFromStorage = localStorage.getItem('refresh_token');
+          if (refreshTokenFromStorage) {
+            logger.log('ApiService: Cookie-based refresh failed (401), trying localStorage fallback...', {
+              hasRefreshToken: !!refreshTokenFromStorage,
+              tokenLength: refreshTokenFromStorage.length
+            });
+            
+            // Retry with localStorage token in request body
+            try {
+              response = await this.client.post('/auth/refresh', 
+                { refresh_token: refreshTokenFromStorage },
+                { withCredentials: true }
+              );
+              logger.log('ApiService: localStorage fallback attempt - status:', response.status);
+            } catch (localStorageError: any) {
+              // Both cookie and localStorage failed
+              logger.error('ApiService: Both cookie and localStorage fallback failed:', {
+                cookieStatus: cookieError.response?.status,
+                localStorageStatus: localStorageError.response?.status
+              });
+              throw localStorageError;
+            }
+          } else {
+            // No localStorage token available
+            logger.warn('ApiService: No refresh token in localStorage for fallback');
+            throw cookieError;
+          }
+        } else {
+          // Non-401 error, rethrow
+          throw cookieError;
+        }
+      }
+
+      // Handle successful response
+      if (response && response.status === 200 && response.data.access_token) {
         localStorage.setItem('access_token', response.data.access_token);
         // Always update refresh token in localStorage (backend now always includes it)
         if (response.data.refresh_token) {
           localStorage.setItem('refresh_token', response.data.refresh_token);
+          logger.log('ApiService: Token refresh successful - new tokens stored in localStorage', {
+            hasAccessToken: !!localStorage.getItem('access_token'),
+            hasRefreshToken: !!localStorage.getItem('refresh_token')
+          });
         }
         // Reset session expired flag on successful refresh
         this.resetSessionExpired();
       } else {
         // Refresh failed - throw error to be caught by interceptor
-          throw new Error('權杖更新失敗');
+        throw new Error('權杖更新失敗');
       }
     } catch (error: any) {
       // If refresh token is invalid (401), ensure we clear auth state
+      // Only clear if both cookie and localStorage attempts failed
       if (error.response?.status === 401) {
+        logger.error('ApiService: Token refresh failed (401) - both cookie and localStorage attempts failed');
         localStorage.removeItem('access_token');
         localStorage.removeItem('was_logged_in');
         throw error;
