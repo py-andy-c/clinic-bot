@@ -151,10 +151,12 @@
     @apply overflow-x-auto;
   }
   
-  /* Increase time gutter width on mobile for better readability */
-  .rbc-time-gutter {
-    min-width: 60px !important;
-    padding: 0 8px !important;
+  /* Reduce time gutter width on mobile to save space */
+  .rbc-time-gutter,
+  .rbc-time-gutter.rbc-time-column {
+    min-width: 45px !important;
+    max-width: 45px !important;
+    padding: 0 4px !important;
   }
   
   /* Increase spacing between time slots on mobile */
@@ -163,9 +165,9 @@
     min-height: 48px !important;
   }
   
-  /* Better padding for time slot labels */
+  /* Reduced padding for time slot labels */
   .rbc-time-gutter .rbc-time-slot {
-    @apply pr-2;
+    @apply pr-1;
   }
   
   /* Increase event padding on mobile */
