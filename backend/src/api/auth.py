@@ -104,13 +104,16 @@ async def initiate_google_auth(user_type: str = "clinic_user") -> dict[str, str]
     from urllib.parse import urlencode
 
     # Different scopes based on user type
+    # NOTE: Calendar scopes removed - requiring calendar access would need Google App verification.
+    # Calendar sync features are currently disabled.
     if user_type == "system_admin":
         scopes = ["openid", "profile", "email"]
     else:  # clinic_user
         scopes = [
-            "openid", "profile", "email",
-            "https://www.googleapis.com/auth/calendar.events",
-            "https://www.googleapis.com/auth/calendar.settings.readonly"
+            "openid", "profile", "email"
+            # Calendar scopes disabled - would require Google App verification:
+            # "https://www.googleapis.com/auth/calendar.events",
+            # "https://www.googleapis.com/auth/calendar.settings.readonly"
         ]
 
     # Sign the state parameter for security

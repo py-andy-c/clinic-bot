@@ -205,7 +205,8 @@ class TestGoogleOAuthService:
 
                 assert result == mock_therapist
                 assert mock_therapist.gcal_credentials is not None
-                assert mock_therapist.gcal_sync_enabled is True
+                # Calendar sync is disabled - scopes removed to avoid Google App verification
+                assert mock_therapist.gcal_sync_enabled is False
 
                 # Commit is called twice: once for credentials, once for sync status
                 assert mock_db.commit.call_count == 2

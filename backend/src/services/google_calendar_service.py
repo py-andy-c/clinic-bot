@@ -5,6 +5,11 @@ Google Calendar service for appointment synchronization.
 This module handles all Google Calendar API interactions for appointment management,
 including creating, updating, and deleting calendar events to keep appointments
 synchronized between the database and therapists' Google Calendars.
+
+NOTE: Google Calendar sync is currently DISABLED. Calendar scopes were removed from
+OAuth because requiring calendar access would need Google App verification.
+The service remains in the codebase for future re-enablement once Google App
+verification is completed.
 """
 
 import json

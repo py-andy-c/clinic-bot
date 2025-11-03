@@ -610,30 +610,11 @@ class AppointmentService:
         appointment.status = 'canceled_by_clinic'
         appointment.canceled_at = taiwan_now()
 
-        # Delete Google Calendar event if it exists
+        # NOTE: Google Calendar sync disabled - calendar scopes were removed because
+        # requiring calendar access would need Google App verification.
+        # Google Calendar event deletion is disabled. See git history for the original
+        # implementation if re-enabling calendar sync after Google App verification.
         gcal_deleted = False
-        if calendar_event.gcal_event_id and practitioner.gcal_credentials:
-            try:
-                from services.encryption_service import get_encryption_service
-                from services.google_calendar_service import GoogleCalendarService
-                import asyncio
-                import json
-
-                decrypted_credentials = get_encryption_service().decrypt_data(practitioner.gcal_credentials)
-                gcal_service = GoogleCalendarService(json.dumps(decrypted_credentials))
-
-                # Delete event from Google Calendar
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(gcal_service.delete_event(calendar_event.gcal_event_id))
-                    gcal_deleted = True
-                    logger.info(f"Deleted Google Calendar event {calendar_event.gcal_event_id} for appointment {appointment_id}")
-                finally:
-                    loop.close()
-            except Exception as e:
-                logger.exception(f"Failed to delete Google Calendar event: {e}")
-                # Continue with cancellation even if GCal deletion fails
 
         db.commit()
 

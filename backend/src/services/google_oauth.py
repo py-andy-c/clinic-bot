@@ -164,8 +164,15 @@ class GoogleOAuthService:
         db.commit()
 
     def _enable_calendar_sync(self, db: Session, user: User) -> None:
-        """Enable Google Calendar synchronization for the user."""
-        user.gcal_sync_enabled = True
+        """
+        Enable Google Calendar synchronization for the user.
+        
+        NOTE: Calendar sync is currently disabled - calendar scopes were removed
+        because requiring calendar access would need Google App verification.
+        """
+        # Calendar sync disabled - scopes removed to avoid Google App verification requirement
+        # user.gcal_sync_enabled = True
+        user.gcal_sync_enabled = False
         db.commit()
         db.refresh(user)
 

@@ -6,9 +6,11 @@ from core.config import FRONTEND_URL
 MAX_STRING_LENGTH = 255
 
 # OAuth and authentication
+# NOTE: Calendar scopes removed - requiring calendar access would need Google App verification.
+# Calendar sync features are currently disabled. Re-enable calendar scopes when ready for verification:
+# - "https://www.googleapis.com/auth/calendar"
+# - "https://www.googleapis.com/auth/calendar.events"
 GOOGLE_OAUTH_SCOPES = [
-    "https://www.googleapis.com/auth/calendar",
-    "https://www.googleapis.com/auth/calendar.events",
     "openid",
     "profile",
     "email"

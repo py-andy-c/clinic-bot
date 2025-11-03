@@ -626,14 +626,16 @@ async def handle_member_gcal_callback(
                 detail="存取被拒絕：使用者不屬於您的診所"
             )
 
-        # Update user's calendar sync settings
-        updated_user.gcal_sync_enabled = True
+        # NOTE: Calendar sync disabled - calendar scopes were removed because
+        # requiring calendar access would need Google App verification.
+        # Update user's calendar sync settings (disabled)
+        updated_user.gcal_sync_enabled = False
         db.commit()
 
         return {
             "message": "Google 日曆整合啟用成功",
             "user_id": updated_user.id,
-            "gcal_sync_enabled": True
+            "gcal_sync_enabled": False  # Calendar sync disabled - scopes removed
         }
 
     except HTTPException:

@@ -1417,7 +1417,8 @@ class TestSignupCallbackFlow:
 
                 # Verify user was updated with Google Calendar credentials
                 db_session.refresh(user)
-                assert user.gcal_sync_enabled is True
+                # Calendar sync is disabled - scopes removed to avoid Google App verification
+                assert user.gcal_sync_enabled is False
                 assert user.gcal_credentials is not None
 
         finally:
