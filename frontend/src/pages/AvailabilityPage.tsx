@@ -27,10 +27,10 @@ const AvailabilityPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-full md:max-w-4xl mx-auto">
       {/* Header */}
-      <div className="mb-8 flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">行事曆</h1>
+      <div className="mb-4 md:mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">行事曆</h1>
         {addExceptionHandler && (
           <button
             onClick={addExceptionHandler}
@@ -42,7 +42,7 @@ const AvailabilityPage: React.FC = () => {
       </div>
 
       {/* Calendar View */}
-      <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="bg-white md:rounded-lg md:shadow-md p-2 md:p-6">
         {user?.user_id && (
           <CalendarView 
             userId={user.user_id} 

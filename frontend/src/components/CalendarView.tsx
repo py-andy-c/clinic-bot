@@ -378,7 +378,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Calendar Component */}
-      <div className="card">
+      <div className="bg-white md:rounded-lg md:shadow-sm md:border md:border-gray-200 p-0 md:p-6">
         <Calendar
           localizer={localizer}
           events={calendarEvents}

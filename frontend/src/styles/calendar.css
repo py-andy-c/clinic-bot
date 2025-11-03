@@ -122,6 +122,7 @@
 @media (max-width: 768px) {
   .calendar-container {
     height: 500px;
+    @apply rounded-none shadow-none;
   }
   
   .rbc-date-cell {
