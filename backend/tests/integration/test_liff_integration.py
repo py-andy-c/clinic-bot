@@ -79,6 +79,16 @@ def test_clinic_with_liff(db_session: Session):
         )
         db_session.add(pat)
 
+    # Set up default availability for practitioner (Monday-Sunday, 9:00-17:00)
+    for day_of_week in range(7):  # 0=Monday, 6=Sunday
+        availability = PractitionerAvailability(
+            user_id=practitioner.id,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.add(availability)
+
     db_session.commit()
 
     return clinic, practitioner, appt_types
@@ -1264,7 +1274,7 @@ class TestLiffErrorHandling:
                 }
             )
             assert response.status_code == 409
-            assert "時段已被預約" in response.json()["detail"]
+            assert "時段不可用" in response.json()["detail"]
 
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)

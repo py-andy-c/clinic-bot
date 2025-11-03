@@ -7,7 +7,7 @@ and can optionally be linked to a LINE user account for communication and appoin
 management through the LIFF app.
 """
 
-from sqlalchemy import String, ForeignKey, TIMESTAMP, func, Index
+from sqlalchemy import String, ForeignKey, TIMESTAMP, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from typing import Optional
@@ -39,7 +39,7 @@ class Patient(Base):
     phone_number: Mapped[str] = mapped_column(String(50))
     """Contact phone number for the patient, used for appointment confirmations and reminders."""
 
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     """Timestamp when the patient was first created."""
 
     line_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("line_users.id"), nullable=True)

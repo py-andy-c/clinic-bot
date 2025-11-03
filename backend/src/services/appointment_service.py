@@ -6,20 +6,20 @@ between different API endpoints (LIFF, clinic admin, etc.).
 """
 
 import logging
-from datetime import datetime, timedelta, time, timezone
+from datetime import datetime, timedelta, time
 from typing import List, Optional, Dict, Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy import and_, func, or_
+from sqlalchemy.orm import Session, joinedload
 
 from models import (
-    Appointment, CalendarEvent, User, Patient, AppointmentType,
-    PractitionerAppointmentTypes
+    Appointment, CalendarEvent, User, Patient
 )
 from services.patient_service import PatientService
 from services.availability_service import AvailabilityService
 from services.appointment_type_service import AppointmentTypeService
+from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class AppointmentService:
             # Get appointment type and validate it belongs to clinic
             appointment_type = AppointmentTypeService.get_appointment_type_by_id(
                 db, appointment_type_id, clinic_id=clinic_id
-            )
+                )
 
             # Calculate end time (start_time is already in Taiwan timezone)
             end_time = start_time + timedelta(minutes=appointment_type.duration_minutes)
@@ -164,13 +164,13 @@ class AppointmentService:
         })
         
         # Check if slot is within default intervals
-        if not AvailabilityService._is_slot_within_default_intervals(
+        if not AvailabilityService.is_slot_within_default_intervals(
             data['default_intervals'], start_time, end_time
         ):
             return False
         
         # Check if slot has conflicts
-        if AvailabilityService._has_slot_conflicts(
+        if AvailabilityService.has_slot_conflicts(
             data['events'], start_time, end_time
         ):
             return False
@@ -206,7 +206,7 @@ class AppointmentService:
             HTTPException: If no available practitioner found
         """
         # Get all practitioners who offer this appointment type
-        practitioners = AvailabilityService._get_practitioners_for_appointment_type(
+        practitioners = AvailabilityService.get_practitioners_for_appointment_type(
             db, appointment_type_id, clinic_id
         )
         
@@ -316,26 +316,34 @@ class AppointmentService:
 
         patient_ids = [p.id for p in patients]
 
-        # Build query
-        query = db.query(Appointment).join(CalendarEvent).filter(
+        # Build query - explicitly join CalendarEvent for filtering and ordering
+        query = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).filter(
             Appointment.patient_id.in_(patient_ids)
         )
 
         if upcoming_only:
             # Filter for upcoming appointments: future dates or today with future times
-            today = datetime.now().date()
-            current_time = datetime.now().time()
+            # Use Taiwan timezone for consistent comparison
+            taiwan_current = taiwan_now()
+            today = taiwan_current.date()
+            current_time = taiwan_current.time()
             query = query.filter(
-                (CalendarEvent.date > today) |
+                or_(
+                    CalendarEvent.date > today,
                 and_(CalendarEvent.date == today, CalendarEvent.start_time > current_time)
+            )
             )
 
         # Eagerly load all relationships to avoid N+1 queries
+        # Since we already joined CalendarEvent, use contains_eager for it
+        from sqlalchemy.orm import contains_eager
         appointments: List[Appointment] = query.options(
-            joinedload(Appointment.calendar_event).joinedload(CalendarEvent.user),
+            contains_eager(Appointment.calendar_event).joinedload(CalendarEvent.user),
             joinedload(Appointment.appointment_type),
             joinedload(Appointment.patient)
-        ).order_by(CalendarEvent.start_time).all()
+        ).order_by(CalendarEvent.date, CalendarEvent.start_time).all()
 
         # Format response
         result: List[Dict[str, Any]] = []
@@ -353,10 +361,16 @@ class AppointmentService:
             assert appointment_type is not None
             assert patient is not None
 
-            # Combine date and time into full datetime strings
+            # Combine date and time into full datetime strings (Taiwan timezone)
             event_date = appointment.calendar_event.date
-            start_datetime = datetime.combine(event_date, appointment.calendar_event.start_time) if appointment.calendar_event.start_time else None
-            end_datetime = datetime.combine(event_date, appointment.calendar_event.end_time) if appointment.calendar_event.end_time else None
+            if appointment.calendar_event.start_time:
+                start_datetime = datetime.combine(event_date, appointment.calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+            else:
+                start_datetime = None
+            if appointment.calendar_event.end_time:
+                end_datetime = datetime.combine(event_date, appointment.calendar_event.end_time).replace(tzinfo=TAIWAN_TZ)
+            else:
+                end_datetime = None
 
             result.append({
                 "id": appointment.calendar_event_id,
@@ -439,10 +453,9 @@ class AppointmentService:
             if not practitioner:
                 continue  # Skip if practitioner not found
 
-            # Construct datetime from date and time
-            from datetime import datetime
-            start_datetime = datetime.combine(appointment.calendar_event.date, appointment.calendar_event.start_time)
-            end_datetime = datetime.combine(appointment.calendar_event.date, appointment.calendar_event.end_time)
+            # Construct datetime from date and time (Taiwan timezone)
+            start_datetime = datetime.combine(appointment.calendar_event.date, appointment.calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+            end_datetime = datetime.combine(appointment.calendar_event.date, appointment.calendar_event.end_time).replace(tzinfo=TAIWAN_TZ)
 
             result.append({
                 'appointment_id': appointment.calendar_event_id,
@@ -517,7 +530,7 @@ class AppointmentService:
 
         # Update status
         appointment.status = 'canceled_by_patient'
-        appointment.canceled_at = datetime.now(timezone.utc)
+        appointment.canceled_at = taiwan_now()
 
         db.commit()
 
@@ -595,7 +608,7 @@ class AppointmentService:
 
         # Update appointment status
         appointment.status = 'canceled_by_clinic'
-        appointment.canceled_at = datetime.now(timezone.utc)
+        appointment.canceled_at = taiwan_now()
 
         # Delete Google Calendar event if it exists
         gcal_deleted = False

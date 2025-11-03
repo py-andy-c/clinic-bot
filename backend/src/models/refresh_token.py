@@ -9,7 +9,6 @@ from typing import Optional
 from datetime import datetime, timezone
 from sqlalchemy import String, TIMESTAMP, Boolean, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.sql import func
 
 from core.database import Base
 
@@ -24,7 +23,7 @@ class RefreshToken(Base):
     token_hash: Mapped[str] = mapped_column(String(255), unique=True)  # bcrypt hashed
     hmac_key: Mapped[str] = mapped_column(String(64), index=True)  # HMAC for fast lookups
     expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     last_used_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
 

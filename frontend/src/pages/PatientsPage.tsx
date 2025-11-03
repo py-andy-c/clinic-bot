@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import moment from 'moment-timezone';
 import { apiService } from '../services/api';
 import { Patient } from '../types';
 
@@ -106,7 +107,7 @@ const PatientsPage: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(patient.created_at).toLocaleDateString('zh-TW')}
+                        {moment.tz(patient.created_at, 'Asia/Taipei').format('YYYY/MM/DD')}
                       </td>
                     </tr>
                   ))}

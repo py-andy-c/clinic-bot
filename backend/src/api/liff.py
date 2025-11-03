@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from core.config import JWT_SECRET_KEY, JWT_ACCESS_TOKEN_EXPIRE_MINUTES
 from models import (
-    LineUser, Clinic, Patient, AppointmentType
+    LineUser, Clinic, Patient
 )
 from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional

@@ -7,18 +7,19 @@ between different API endpoints (LIFF, clinic admin, practitioner calendar).
 
 import logging
 from datetime import datetime, date as date_type, time, timedelta
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import or_, and_
 from sqlalchemy.orm import Session
 
 from models import (
-    User, AppointmentType, PractitionerAvailability, CalendarEvent,
+    User, PractitionerAvailability, CalendarEvent,
     PractitionerAppointmentTypes, Appointment
 )
 from services.appointment_type_service import AppointmentTypeService
 from utils.query_helpers import filter_by_role
+from utils.datetime_utils import taiwan_now
 
 logger = logging.getLogger(__name__)
 
@@ -46,28 +47,28 @@ class AvailabilityService:
             HTTPException: If validation fails
         """
         # Validate date format
-        try:
-            requested_date = datetime.strptime(date, '%Y-%m-%d').date()
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid date format (use YYYY-MM-DD)"
-            )
+            try:
+                requested_date = datetime.strptime(date, '%Y-%m-%d').date()
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid date format (use YYYY-MM-DD)"
+                )
 
-        # Validate date range
-        today = datetime.now().date()
-        max_date = today + timedelta(days=90)
+        # Validate date range (using Taiwan timezone)
+        today = taiwan_now().date()
+            max_date = today + timedelta(days=90)
 
-        if requested_date < today:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot book appointments in the past"
-            )
-        if requested_date > max_date:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="最多只能預約 90 天內的時段"
-            )
+            if requested_date < today:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot book appointments in the past"
+                )
+            if requested_date > max_date:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="最多只能預約 90 天內的時段"
+                )
 
         return requested_date
 
@@ -210,7 +211,7 @@ class AvailabilityService:
 
             # Get all active practitioners in clinic who offer this type
             # clinic_id already validated to match appointment_type.clinic_id above
-            practitioners = AvailabilityService._get_practitioners_for_appointment_type(
+            practitioners = AvailabilityService.get_practitioners_for_appointment_type(
                 db, appointment_type_id, clinic_id
             )
 
@@ -291,15 +292,15 @@ class AvailabilityService:
             # Note: candidate_slots are already guaranteed to be within default_intervals,
             # so we only need to check for conflicts (exceptions and appointments)
             for slot_start, slot_end in candidate_slots:
-                if not AvailabilityService._has_slot_conflicts(
+                if not AvailabilityService.has_slot_conflicts(
                     events, slot_start, slot_end
                 ):
-                    available_slots.append({
+                available_slots.append({
                         'start_time': AvailabilityService._format_time(slot_start),
                         'end_time': AvailabilityService._format_time(slot_end),
-                        'practitioner_id': practitioner.id,
-                        'practitioner_name': practitioner.full_name
-                    })
+                    'practitioner_id': practitioner.id,
+                    'practitioner_name': practitioner.full_name
+                })
 
         return available_slots
 
@@ -390,7 +391,7 @@ class AvailabilityService:
         return time(hour, minute)
 
     @staticmethod
-    def _get_practitioners_for_appointment_type(
+    def get_practitioners_for_appointment_type(
         db: Session,
         appointment_type_id: int,
         clinic_id: int
@@ -398,7 +399,7 @@ class AvailabilityService:
         """
         Get all practitioners who offer a specific appointment type.
         
-        Private helper method for use within AvailabilityService.
+        Public method used by AppointmentService for practitioner assignment.
         
         Note: Caller must validate that clinic_id matches appointment_type.clinic_id
         before calling this method. This method trusts the clinic_id parameter.
@@ -425,7 +426,7 @@ class AvailabilityService:
         return query.all()
 
     @staticmethod
-    def _is_slot_within_default_intervals(
+    def is_slot_within_default_intervals(
         default_intervals: List[PractitionerAvailability],
         start_time: time,
         end_time: time
@@ -434,12 +435,12 @@ class AvailabilityService:
         Check if a time slot is within at least one default availability interval.
         
         Pure function - no database queries. Uses pre-fetched data.
-        
+
         Args:
             default_intervals: Practitioner's default availability for the day
             start_time: Slot start time
             end_time: Slot end time
-            
+
         Returns:
             True if slot is within at least one default interval, False otherwise
         """
@@ -449,7 +450,7 @@ class AvailabilityService:
         return False
 
     @staticmethod
-    def _has_slot_conflicts(
+    def has_slot_conflicts(
         events: List[CalendarEvent],
         start_time: time,
         end_time: time

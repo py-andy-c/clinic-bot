@@ -101,31 +101,25 @@ const Step7Success: React.FC = () => {
 
   const formatDateTime = () => {
     if (!date || !startTime) return '';
-    // Ensure time format includes seconds for proper parsing
+    
+    // Parse as Taiwan timezone explicitly
+    const taiwanTimezone = 'Asia/Taipei';
     const timeWithSeconds = startTime.includes(':') && startTime.split(':').length === 2 
       ? `${startTime}:00` 
       : startTime;
-    const dateTime = new Date(`${date}T${timeWithSeconds}`);
+    const taiwanMoment = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
     
-    if (isNaN(dateTime.getTime())) {
+    if (!taiwanMoment.isValid()) {
       return '';
     }
     
     // Format weekday as (日), (一), (二), etc.
     const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
-    const weekday = weekdayNames[dateTime.getDay()];
+    const weekday = weekdayNames[taiwanMoment.day()];
     
-    const dateStr = dateTime.toLocaleDateString('zh-TW', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-    
-    const timeStr = dateTime.toLocaleTimeString('zh-TW', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
+    // Format using Taiwan timezone
+    const dateStr = taiwanMoment.format('YYYY/MM/DD');
+    const timeStr = taiwanMoment.format('HH:mm');
     
     return `${dateStr} (${weekday}) ${timeStr}`;
   };

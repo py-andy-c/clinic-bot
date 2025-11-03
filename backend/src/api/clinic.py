@@ -408,8 +408,19 @@ async def get_settings(
                 detail="找不到診所"
             )
 
+        # require_clinic_member ensures clinic_user or system_admin
+        # For clinic members, clinic_id should be set
+        # Type narrowing for clinic_id
+        clinic_id: int
+        if current_user.clinic_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Clinic access required"
+            )
+        clinic_id = current_user.clinic_id
+        
         appointment_types = AppointmentTypeService.list_appointment_types_for_clinic(
-            db, current_user.clinic_id
+            db, clinic_id
         )
 
         appointment_type_list = [

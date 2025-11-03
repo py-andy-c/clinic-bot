@@ -11,10 +11,9 @@ from contextlib import contextmanager
 from typing import Generator
 
 from fastapi import HTTPException
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import DeclarativeBase
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from core.config import DATABASE_URL
 from core.constants import DB_POOL_RECYCLE_SECONDS
@@ -41,6 +40,48 @@ SessionLocal = sessionmaker(
 # Create Base class for declarative models
 class Base(DeclarativeBase):
     """Base class for all database models."""
+    pass
+
+
+# SQLAlchemy event listeners to automatically set created_at and updated_at using Taiwan timezone
+@event.listens_for(Base, "before_insert", propagate=True)  # type: ignore
+def receive_before_insert(mapper, connection, target):  # type: ignore
+    """Set created_at and updated_at on insert using Taiwan timezone."""
+    # Import here to avoid circular import
+    from utils.datetime_utils import taiwan_now
+    now = taiwan_now()
+    # Only set created_at if it's a mapped column (exists in mapper.columns)
+    # Properties won't be in mapper.columns
+    if hasattr(mapper, "columns") and "created_at" in mapper.columns:  # type: ignore
+        try:
+            current_value = getattr(target, "created_at", None)  # type: ignore
+            if current_value is None:  # type: ignore
+                setattr(target, "created_at", now)  # type: ignore
+        except (AttributeError, TypeError):  # type: ignore
+            # Skip if created_at is a property without setter
+            pass
+    # Only set updated_at if it's a mapped column (exists in mapper.columns)
+    if hasattr(mapper, "columns") and "updated_at" in mapper.columns:  # type: ignore
+        try:
+            current_value = getattr(target, "updated_at", None)  # type: ignore
+            if current_value is None:  # type: ignore
+                setattr(target, "updated_at", now)  # type: ignore
+        except (AttributeError, TypeError):  # type: ignore
+            # Skip if updated_at is a property without setter
+            pass
+
+
+@event.listens_for(Base, "before_update", propagate=True)  # type: ignore
+def receive_before_update(mapper, connection, target):  # type: ignore
+    """Set updated_at on update using Taiwan timezone."""
+    # Import here to avoid circular import
+    from utils.datetime_utils import taiwan_now
+    # Only update updated_at if it's a mapped column (exists in mapper.columns)
+    if hasattr(mapper, "columns") and "updated_at" in mapper.columns:  # type: ignore
+        try:
+            setattr(target, "updated_at", taiwan_now())  # type: ignore
+        except (AttributeError, TypeError):  # type: ignore
+            # Skip if updated_at is a property without setter
     pass
 
 

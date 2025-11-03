@@ -9,7 +9,6 @@ from typing import Optional
 from datetime import datetime, timezone
 from sqlalchemy import String, TIMESTAMP, Boolean, JSON, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.sql import func
 
 from core.database import Base
 
@@ -27,7 +26,7 @@ class SignupToken(Base):
     used_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     used_by_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
 
     # Relationships
     clinic = relationship("Clinic", back_populates="signup_tokens")

@@ -9,7 +9,7 @@ with its own LINE Official Account and Google Calendar integrations.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, TIMESTAMP, func, Integer, Text, Boolean
+from sqlalchemy import String, TIMESTAMP, Integer, Text, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -86,10 +86,10 @@ class Clinic(Base):
     management and payment processing.
     """
 
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     """Timestamp when the clinic was first created."""
 
-    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     """Timestamp when the clinic was last updated."""
 
     # LINE Integration Health Tracking

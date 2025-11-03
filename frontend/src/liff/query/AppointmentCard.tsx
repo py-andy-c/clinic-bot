@@ -1,4 +1,5 @@
 import React from 'react';
+import moment from 'moment-timezone';
 
 interface Appointment {
   id: number;
@@ -22,28 +23,26 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
     if (!dateTime) {
       return { date: '', time: '' };
     }
-    const date = new Date(dateTime);
-    if (isNaN(date.getTime())) {
+    
+    // Parse as Taiwan timezone explicitly
+    const taiwanTimezone = 'Asia/Taipei';
+    const taiwanMoment = moment.tz(dateTime, taiwanTimezone);
+    
+    if (!taiwanMoment.isValid()) {
       return { date: '', time: '' };
     }
     
     // Format weekday as (日), (一), (二), etc.
     const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
-    const weekday = weekdayNames[date.getDay()];
+    const weekday = weekdayNames[taiwanMoment.day()];
     
-    const dateStr = date.toLocaleDateString('zh-TW', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
+    // Format using Taiwan timezone
+    const dateStr = taiwanMoment.format('YYYY/MM/DD');
+    const timeStr = taiwanMoment.format('HH:mm');
     
     return {
       date: `${dateStr} (${weekday})`,
-      time: date.toLocaleTimeString('zh-TW', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      })
+      time: timeStr
     };
   };
 

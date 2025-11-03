@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from auth.dependencies import require_clinic_member, UserContext
 from models import (
-    User, AppointmentType,
+    User,
     PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment
 )
 from services import AvailabilityService, AppointmentTypeService

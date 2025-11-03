@@ -9,7 +9,7 @@ Tests the new calendar management functionality including:
 """
 
 import pytest
-from datetime import date, time, datetime
+from datetime import date, time, datetime, timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -374,10 +374,12 @@ class TestPractitionerCalendarAPI:
         db_session.add(practitioner)
         db_session.flush()
 
-        # Create default availability
+        # Create default availability for future date
+        future_date = (datetime.now() + timedelta(days=5)).date()
+        day_of_week = future_date.weekday()
         availability = PractitionerAvailability(
             user_id=practitioner.id,
-            day_of_week=2,  # Wednesday
+            day_of_week=day_of_week,
             start_time=time(9, 0),
             end_time=time(12, 0)
         )
@@ -402,11 +404,11 @@ class TestPractitionerCalendarAPI:
         db_session.add(patient)
         db_session.flush()
 
-        # Create existing appointment
+        # Create existing appointment (use future date)
         calendar_event = CalendarEvent(
             user_id=practitioner.id,
             event_type="appointment",
-            date=date(2025, 1, 15),
+            date=future_date,
             start_time=time(10, 0),
             end_time=time(11, 0)
         )
@@ -427,9 +429,10 @@ class TestPractitionerCalendarAPI:
         assert response.status_code == 200
         token = response.json()["access_token"]
 
-        # Test getting available slots
+        # Test getting available slots (use same future date)
+        future_date_str = future_date.isoformat()
         response = client.get(
-            f"/api/clinic/practitioners/{practitioner.id}/availability/slots?date=2025-01-15&appointment_type_id={appointment_type.id}",
+            f"/api/clinic/practitioners/{practitioner.id}/availability/slots?date={future_date_str}&appointment_type_id={appointment_type.id}",
             headers={"Authorization": f"Bearer {token}"}
         )
 
@@ -762,11 +765,12 @@ class TestPractitionerCalendarAPI:
         db_session.add(patient2)
         db_session.flush()
 
-        # Create confirmed appointment
+        # Create confirmed appointment (use future date)
+        future_date = (datetime.now() + timedelta(days=5)).date()
         confirmed_event = CalendarEvent(
             user_id=practitioner.id,
             event_type="appointment",
-            date=date(2025, 1, 15),
+            date=future_date,
             start_time=time(10, 0),
             end_time=time(11, 0)
         )
@@ -785,7 +789,7 @@ class TestPractitionerCalendarAPI:
         cancelled_event = CalendarEvent(
             user_id=practitioner.id,
             event_type="appointment",
-            date=date(2025, 1, 15),
+            date=future_date,
             start_time=time(11, 0),
             end_time=time(12, 0)
         )
@@ -806,9 +810,10 @@ class TestPractitionerCalendarAPI:
         assert response.status_code == 200
         token = response.json()["access_token"]
 
-        # Test getting daily calendar data
+        # Test getting daily calendar data (use same future date)
+        future_date_str = future_date.isoformat()
         response = client.get(
-            f"/api/clinic/practitioners/{practitioner.id}/availability/calendar?date=2025-01-15",
+            f"/api/clinic/practitioners/{practitioner.id}/availability/calendar?date={future_date_str}",
             headers={"Authorization": f"Bearer {token}"}
         )
 
@@ -947,10 +952,12 @@ class TestPractitionerCalendarAPI:
         db_session.add(practitioner)
         db_session.flush()
 
-        # Create default availability
+        # Create default availability for future date
+        future_date = (datetime.now() + timedelta(days=5)).date()
+        day_of_week = future_date.weekday()
         availability = PractitionerAvailability(
             user_id=practitioner.id,
-            day_of_week=2,  # Wednesday
+            day_of_week=day_of_week,
             start_time=time(9, 0),
             end_time=time(12, 0)
         )
@@ -975,11 +982,11 @@ class TestPractitionerCalendarAPI:
         db_session.add(patient1)
         db_session.flush()
 
-        # Create cancelled appointment at 10:00-11:00
+        # Create cancelled appointment at 10:00-11:00 (use future date)
         cancelled_event = CalendarEvent(
             user_id=practitioner.id,
             event_type="appointment",
-            date=date(2025, 1, 15),
+            date=future_date,
             start_time=time(10, 0),
             end_time=time(11, 0)
         )
@@ -1000,9 +1007,10 @@ class TestPractitionerCalendarAPI:
         assert response.status_code == 200
         token = response.json()["access_token"]
 
-        # Test getting available slots
+        # Test getting available slots (use same future date)
+        future_date_str = future_date.isoformat()
         response = client.get(
-            f"/api/clinic/practitioners/{practitioner.id}/availability/slots?date=2025-01-15&appointment_type_id={appointment_type.id}",
+            f"/api/clinic/practitioners/{practitioner.id}/availability/slots?date={future_date_str}&appointment_type_id={appointment_type.id}",
             headers={"Authorization": f"Bearer {token}"}
         )
 

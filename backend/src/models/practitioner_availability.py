@@ -10,7 +10,6 @@ from datetime import time, datetime
 from typing import Optional
 from sqlalchemy import Time, TIMESTAMP, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.sql import func
 
 from core.database import Base
 
@@ -52,10 +51,10 @@ class PractitionerAvailability(Base):
     """End time of the working period."""
 
     # Metadata
-    created_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+    created_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     """Timestamp when the availability record was created."""
 
-    updated_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     """Timestamp when the availability record was last updated."""
 
     # Relationships

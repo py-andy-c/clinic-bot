@@ -4,6 +4,7 @@ from enum import Enum
 from sqlalchemy.orm import Session
 import logging
 from models import Appointment, User, Clinic
+from utils.datetime_utils import TAIWAN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +45,11 @@ class NotificationService:
 
             clinic = patient.clinic
 
-            # Format datetime - combine date and start_time
+            # Format datetime - combine date and start_time (Taiwan timezone)
             start_datetime = datetime.combine(
                 appointment.calendar_event.date,
                 appointment.calendar_event.start_time
-            )
+            ).replace(tzinfo=TAIWAN_TZ)
             formatted_datetime = NotificationService._format_appointment_datetime(
                 start_datetime
             )

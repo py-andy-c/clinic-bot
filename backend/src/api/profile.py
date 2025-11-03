@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from auth.dependencies import get_current_user, UserContext
 from models import User
+from utils.datetime_utils import taiwan_now
 
 router = APIRouter()
 
@@ -63,7 +64,7 @@ async def get_profile(
                 roles=[],  # System admins don't have clinic roles
                 gcal_sync_enabled=False,
                 clinic_id=0,  # System admins don't belong to clinics
-                created_at=datetime.now(),
+                created_at=taiwan_now(),
                 last_login_at=None
             )
         
@@ -138,8 +139,8 @@ async def update_profile(
         if profile_data.full_name is not None:
             user.full_name = profile_data.full_name
         
-        # Update timestamp
-        user.updated_at = datetime.now()
+        # Update timestamp (Taiwan timezone)
+        user.updated_at = taiwan_now()
         
         db.commit()
         db.refresh(user)

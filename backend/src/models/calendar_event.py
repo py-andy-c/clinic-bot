@@ -8,7 +8,7 @@ providing a unified calendar view while maintaining type safety through speciali
 from datetime import datetime, date as date_type, time
 from typing import Optional
 
-from sqlalchemy import String, TIMESTAMP, ForeignKey, Date, Time, Index, func, CheckConstraint
+from sqlalchemy import String, TIMESTAMP, ForeignKey, Date, Time, Index, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -87,10 +87,10 @@ class CalendarEvent(Base):
     retry_count: Mapped[int] = mapped_column(default=0)
     """Number of retry attempts for failed sync operations."""
 
-    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     """Timestamp when the calendar event was created."""
 
-    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     """Timestamp when the calendar event was last updated."""
 
     # Relationships

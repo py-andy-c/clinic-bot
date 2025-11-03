@@ -6,7 +6,7 @@ and appointment types they are qualified to provide. This enables clinics to
 configure which services each practitioner offers.
 """
 
-from sqlalchemy import ForeignKey, TIMESTAMP, func, Index
+from sqlalchemy import ForeignKey, TIMESTAMP, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -33,7 +33,7 @@ class PractitionerAppointmentTypes(Base):
     appointment_type_id: Mapped[int] = mapped_column(ForeignKey("appointment_types.id"))
     """Reference to the appointment type this practitioner can offer."""
 
-    created_at: Mapped[TIMESTAMP] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+    created_at: Mapped[TIMESTAMP] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     """Timestamp when the mapping was created."""
 
     # Relationships

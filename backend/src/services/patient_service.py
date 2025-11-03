@@ -6,7 +6,6 @@ between different API endpoints (LIFF, clinic admin, etc.).
 """
 
 import logging
-from datetime import datetime
 from typing import List, Optional
 
 from fastapi import HTTPException, status
@@ -14,6 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 
 from models import Patient, Appointment, CalendarEvent, LineUser
+from utils.datetime_utils import taiwan_now
 
 logger = logging.getLogger(__name__)
 
@@ -199,9 +199,9 @@ class PatientService:
             db, patient_id, line_user_id, clinic_id
         )
 
-        # Check for future appointments
+        # Check for future appointments (using Taiwan timezone)
         # Need to check if any appointment is in the future by comparing date and time
-        now = datetime.now()
+        now = taiwan_now()
         today = now.date()
         current_time = now.time()
         
