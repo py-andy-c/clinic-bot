@@ -145,6 +145,25 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
     setIsLoading(false);
   };
 
+  // Critical Security: Validate clinic isolation
+  const validateClinicIsolation = (token: string): boolean => {
+    const urlClinicId = getClinicIdFromUrl();
+    const tokenClinicId = getClinicIdFromToken(token);
+
+    if (!urlClinicId || !tokenClinicId) {
+      // If either is missing, we can't validate - err on side of caution
+      logger.warn('Missing clinic_id in URL or token - potential security issue');
+      return false;
+    }
+
+    if (urlClinicId !== tokenClinicId) {
+      logger.error(`CRITICAL SECURITY: Clinic ID mismatch! URL: ${urlClinicId}, Token: ${tokenClinicId}`);
+      return false;
+    }
+
+    return true;
+  };
+
   // Shared helper: Handle authentication flow (reusable by useEffect and refreshAuth)
   const handleAuth = useCallback(async (checkCancelled?: () => boolean) => {
     // First check for existing JWT token
@@ -152,6 +171,16 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
     if (token) {
       const isValid = await validateExistingToken(token, checkCancelled);
       if (isValid) {
+        // CRITICAL SECURITY CHECK: Ensure clinic isolation
+        if (!validateClinicIsolation(token)) {
+          logger.log('Clinic isolation validation failed - clearing token and re-authenticating');
+          localStorage.removeItem('liff_jwt_token');
+          setClinicId(null);
+          setError('診所驗證失敗，請重新登入');
+          setIsAuthenticated(false);
+          setIsLoading(false);
+          return;
+        }
         return; // Authentication successful via token
       }
     }
