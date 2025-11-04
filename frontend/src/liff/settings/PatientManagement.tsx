@@ -173,9 +173,21 @@ const PatientManagement: React.FC = () => {
     try {
       await liffApiService.deletePatient(patientId);
       setPatients(prev => prev.filter(p => p.id !== patientId));
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to delete patient:', err);
-      alert('刪除就診人失敗，請稍後再試');
+
+      // Handle specific error cases
+      if (err?.response?.status === 409) {
+        if (err?.response?.data?.detail === "Cannot delete patient with future appointments") {
+          alert('無法刪除此就診人，因為該就診人尚有未來的預約記錄。\n\n請先刪除或取消相關預約後再試。');
+        } else if (err?.response?.data?.detail === "至少需保留一位就診人") {
+          alert('至少需保留一位就診人');
+        } else {
+          alert('刪除就診人失敗，請稍後再試');
+        }
+      } else {
+        alert('刪除就診人失敗，請稍後再試');
+      }
     }
   };
 
@@ -214,17 +226,11 @@ const PatientManagement: React.FC = () => {
       <div className="max-w-md mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            個人設定
+            就診人管理
           </h1>
-          <p className="text-gray-600">
-            管理您的就診人資訊
-          </p>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            就診人管理
-          </h2>
 
           <div className="space-y-3 mb-6">
             {patients.map((patient) => (
