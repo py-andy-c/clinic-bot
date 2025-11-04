@@ -26,10 +26,9 @@ const ClinicBookingRestrictionSettings: React.FC<ClinicBookingRestrictionSetting
   };
 
   const handleMinimumHoursChange = (hours: string) => {
-    const numHours = parseInt(hours) || 24;
     onBookingRestrictionSettingsChange({
       ...bookingRestrictionSettings,
-      minimum_booking_hours_ahead: numHours,
+      minimum_booking_hours_ahead: hours,
     });
   };
 

@@ -8,11 +8,6 @@ interface ClinicReminderSettingsProps {
   onSave?: () => void;
   saving?: boolean;
   isClinicAdmin?: boolean;
-  clinicInfoSettings: {
-    display_name?: string | null | undefined;
-    address?: string | null | undefined;
-    phone_number?: string | null | undefined;
-  };
   refreshTrigger?: number;
 }
 
@@ -23,14 +18,13 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
   onSave,
   saving = false,
   isClinicAdmin = false,
-  clinicInfoSettings,
   refreshTrigger = 0,
 }) => {
   const [previewMessage, setPreviewMessage] = useState<string>('');
   const [previewLoading, setPreviewLoading] = useState<boolean>(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
-  // Generate preview when clinic info changes
+  // Generate preview when settings are saved (refreshTrigger changes)
   useEffect(() => {
     const generatePreview = async () => {
       setPreviewLoading(true);
@@ -54,7 +48,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
     };
 
     generatePreview();
-  }, [clinicInfoSettings, refreshTrigger]);
+  }, [refreshTrigger]);
   return (
     <div className="mb-8">
       <div className="flex justify-between items-center mb-6">
@@ -99,6 +93,9 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
                 {previewMessage}
               </div>
             )}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            * 預約類型、時間及治療師姓名為範例資料，實際訊息將使用真實預約資訊
           </div>
         </div>
       </div>

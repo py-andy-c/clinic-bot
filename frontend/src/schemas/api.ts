@@ -14,7 +14,7 @@ export const NotificationSettingsSchema = z.object({
 
 export const BookingRestrictionSettingsSchema = z.object({
   booking_restriction_type: z.string(),
-  minimum_booking_hours_ahead: z.number(),
+  minimum_booking_hours_ahead: z.union([z.number(), z.string()]),
 });
 
 export const ClinicInfoSettingsSchema = z.object({

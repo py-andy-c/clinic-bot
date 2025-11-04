@@ -30,7 +30,8 @@ export const validateClinicSettings = (settings: ClinicSettings): string | null 
 
   // Validate booking restriction settings
   if (settings.booking_restriction_settings.booking_restriction_type === 'minimum_hours_required') {
-    const minHours = settings.booking_restriction_settings.minimum_booking_hours_ahead;
+    const minHoursValue = settings.booking_restriction_settings.minimum_booking_hours_ahead;
+    const minHours = typeof minHoursValue === 'string' ? parseFloat(minHoursValue) : minHoursValue;
     if (isNaN(minHours) || minHours < 1 || minHours > 168) {
       return '預約前至少需幾小時必須在 1-168 小時之間';
     }

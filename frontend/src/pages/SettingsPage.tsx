@@ -235,7 +235,6 @@ const SettingsPage: React.FC = () => {
                 onSave={saveData}
                 saving={uiState.saving}
                 isClinicAdmin={isClinicAdmin}
-                clinicInfoSettings={settings.clinic_info_settings}
                 refreshTrigger={clinicInfoRefreshTrigger}
               />
 

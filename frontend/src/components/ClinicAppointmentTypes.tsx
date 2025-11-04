@@ -52,7 +52,7 @@ const ClinicAppointmentTypes: React.FC<ClinicAppointmentTypesProps> = ({
       <div className="space-y-4">
         {appointmentTypes.map((type, index) => (
           <div key={type.id} className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg">
-            <div className="flex-1">
+            <div className="flex-[2]">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 類型名稱
               </label>
@@ -66,7 +66,7 @@ const ClinicAppointmentTypes: React.FC<ClinicAppointmentTypesProps> = ({
               />
             </div>
 
-            <div className="w-32">
+            <div className="w-24">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 時長 (分鐘)
               </label>
