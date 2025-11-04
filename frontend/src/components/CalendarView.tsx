@@ -57,23 +57,27 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Lock body scroll when modal is open (prevents background scrolling on mobile)
   useEffect(() => {
-    if (modalState.type !== null) {
+    let wasModalOpen = modalState.type !== null;
+
+    if (wasModalOpen) {
       // Save current scroll position using ref to avoid closure issues
       scrollYRef.current = window.scrollY;
       document.body.style.position = 'fixed';
       document.body.style.top = `-${scrollYRef.current}px`;
       document.body.style.width = '100%';
       document.body.style.overflow = 'hidden';
-      
-      return () => {
+    }
+
+    return () => {
+      if (wasModalOpen) {
         // Restore scroll position
         document.body.style.position = '';
         document.body.style.top = '';
         document.body.style.width = '';
         document.body.style.overflow = '';
         window.scrollTo(0, scrollYRef.current);
-      };
-    }
+      }
+    };
   }, [modalState.type]);
 
   // Generate date string in YYYY-MM-DD format (Taiwan timezone)
@@ -123,6 +127,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Check for mobile view
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
+  // Set scroll position to 8 AM for day view
+  const scrollToTime = useMemo(() => {
+    const scrollDate = moment(currentDate).tz(taiwanTimezone);
+    scrollDate.set({ hour: 8, minute: 0, second: 0, millisecond: 0 });
+    return scrollDate.toDate();
+  }, [currentDate, taiwanTimezone]);
 
   useEffect(() => {
     fetchCalendarData();
@@ -453,6 +464,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           view={view}
           views={[Views.MONTH, Views.DAY]}
           date={currentDate}
+          scrollToTime={scrollToTime}
           onNavigate={handleNavigate}
           onView={setView}
           onSelectEvent={handleSelectEvent}
