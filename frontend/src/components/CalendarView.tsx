@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment-timezone';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -52,7 +53,28 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [cancellationPreviewMessage, setCancellationPreviewMessage] = useState('');
   const [cancellationPreviewLoading, setCancellationPreviewLoading] = useState(false);
   const [isFullDay, setIsFullDay] = useState(false);
+  const scrollYRef = useRef(0);
 
+  // Lock body scroll when modal is open (prevents background scrolling on mobile)
+  useEffect(() => {
+    if (modalState.type !== null) {
+      // Save current scroll position using ref to avoid closure issues
+      scrollYRef.current = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollYRef.current}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+      
+      return () => {
+        // Restore scroll position
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        window.scrollTo(0, scrollYRef.current);
+      };
+    }
+  }, [modalState.type]);
 
   // Generate date string in YYYY-MM-DD format (Taiwan timezone)
   const getDateString = (date: Date) => {
@@ -489,8 +511,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       </div>
 
       {/* Event Modal */}
-      {modalState.type === 'event' && modalState.data && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      {modalState.type === 'event' && modalState.data && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]" style={{ width: '100vw', height: '100vh' }}>
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             {modalState.data.resource.type === 'appointment' ? (
               <>
@@ -541,12 +563,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Exception Modal */}
-      {modalState.type === 'exception' && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      {modalState.type === 'exception' && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]" style={{ width: '100vw', height: '100vh' }}>
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">新增休診時段</h3>
             <div className="space-y-4">
@@ -632,12 +655,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Conflict Warning Modal */}
-      {modalState.type === 'conflict' && modalState.data && Array.isArray(modalState.data) && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      {modalState.type === 'conflict' && modalState.data && Array.isArray(modalState.data) && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]" style={{ width: '100vw', height: '100vh' }}>
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center mb-4">
               <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
@@ -678,12 +702,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Cancellation Note Input Modal */}
-      {modalState.type === 'cancellation_note' && modalState.data && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      {modalState.type === 'cancellation_note' && modalState.data && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]" style={{ width: '100vw', height: '100vh' }}>
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex items-center mb-4">
               <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
@@ -725,12 +750,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Cancellation Preview Modal */}
-      {modalState.type === 'cancellation_preview' && modalState.data && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      {modalState.type === 'cancellation_preview' && modalState.data && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]" style={{ width: '100vw', height: '100vh' }}>
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex items-center mb-4">
               <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
@@ -769,12 +795,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Delete Confirmation Modal */}
-      {modalState.type === 'delete_confirmation' && modalState.data && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      {modalState.type === 'delete_confirmation' && modalState.data && createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]" style={{ width: '100vw', height: '100vh' }}>
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex items-center mb-4">
               <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
@@ -824,7 +851,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
