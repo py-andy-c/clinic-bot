@@ -91,6 +91,9 @@ class CalendarEventResponse(BaseModel):
     notes: Optional[str] = None  # Appointment notes
     patient_phone: Optional[str] = None  # Patient phone number
     line_display_name: Optional[str] = None  # LINE display name
+    patient_name: Optional[str] = None  # Patient full name for cancellation preview
+    practitioner_name: Optional[str] = None  # Practitioner full name for cancellation preview
+    appointment_type_name: Optional[str] = None  # Appointment type name for cancellation preview
 
 
 class CalendarDayDetailResponse(BaseModel):
@@ -438,7 +441,10 @@ async def get_calendar_data(
                             appointment_id=appointment.calendar_event_id,
                             notes=appointment.notes,
                             patient_phone=appointment.patient.phone_number,
-                            line_display_name=line_display_name
+                            line_display_name=line_display_name,
+                            patient_name=appointment.patient.full_name,
+                            practitioner_name=user.full_name,
+                            appointment_type_name=appointment.appointment_type.name
                         ))
                 elif event.event_type == 'availability_exception':
                     exception = db.query(AvailabilityException).filter(

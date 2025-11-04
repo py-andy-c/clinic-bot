@@ -40,7 +40,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modalState, setModalState] = useState<{
-    type: 'event' | 'exception' | 'conflict' | 'delete_confirmation' | null;
+    type: 'event' | 'exception' | 'conflict' | 'delete_confirmation' | 'cancellation_note' | 'cancellation_preview' | null;
     data: any;
   }>({ type: null, data: null });
   const [exceptionData, setExceptionData] = useState({
@@ -48,6 +48,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     startTime: '',
     endTime: ''
   });
+  const [cancellationNote, setCancellationNote] = useState('');
+  const [cancellationPreviewMessage, setCancellationPreviewMessage] = useState('');
+  const [cancellationPreviewLoading, setCancellationPreviewLoading] = useState(false);
   const [isFullDay, setIsFullDay] = useState(false);
 
 
@@ -322,8 +325,34 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Show delete confirmation for appointments
   const handleDeleteAppointment = () => {
     if (!modalState.data || !modalState.data.resource.appointment_id) return;
-    // Show confirmation modal instead of deleting directly
-    setModalState({ type: 'delete_confirmation', data: modalState.data });
+    // Reset cancellation note and show note input modal
+    setCancellationNote('');
+    setCancellationPreviewMessage('');
+    setModalState({ type: 'cancellation_note', data: modalState.data });
+  };
+
+  // Handle cancellation note submission and generate preview
+  const handleCancellationNoteSubmit = async () => {
+    if (!modalState.data) return;
+
+    setCancellationPreviewLoading(true);
+    try {
+      const response = await apiService.generateCancellationPreview({
+        appointment_type: modalState.data.resource.appointment_type_name,
+        appointment_time: formatAppointmentTime(modalState.data.start, modalState.data.end),
+        therapist_name: modalState.data.resource.practitioner_name,
+        patient_name: modalState.data.resource.patient_name,
+        ...(cancellationNote.trim() && { note: cancellationNote.trim() }),
+      });
+
+      setCancellationPreviewMessage(response.preview_message);
+      setModalState({ type: 'cancellation_preview', data: modalState.data });
+    } catch (error) {
+      console.error('Error generating cancellation preview:', error);
+      alert('無法產生預覽訊息，請稍後再試');
+    } finally {
+      setCancellationPreviewLoading(false);
+    }
   };
 
   // Confirm and perform appointment deletion
@@ -331,11 +360,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     if (!modalState.data || !modalState.data.resource.appointment_id) return;
 
     try {
-      await apiService.cancelClinicAppointment(modalState.data.resource.appointment_id);
-      
+      await apiService.cancelClinicAppointment(modalState.data.resource.appointment_id, cancellationNote.trim() || undefined);
+
       // Refresh data
       await fetchCalendarData();
       setModalState({ type: null, data: null });
+      setCancellationNote('');
+      setCancellationPreviewMessage('');
     } catch (error) {
       console.error('Error deleting appointment:', error);
       alert('取消預約失敗，請稍後再試');
@@ -486,28 +517,28 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               </>
             )}
             <div className="flex justify-end space-x-2 mt-6">
+              <button
+                onClick={() => setModalState({ type: null, data: null })}
+                className="btn-secondary"
+              >
+                關閉
+              </button>
               {modalState.data.resource.type === 'appointment' && (
-                <button 
+                <button
                   onClick={handleDeleteAppointment}
-                  className="btn-secondary"
+                  className="btn-primary"
                 >
                   刪除預約
                 </button>
               )}
               {modalState.data.resource.type === 'availability_exception' && (
-                <button 
+                <button
                   onClick={handleDeleteException}
-                  className="btn-secondary"
+                  className="btn-primary"
                 >
                   刪除
                 </button>
               )}
-              <button 
-                onClick={() => setModalState({ type: null, data: null })}
-                className="btn-primary"
-              >
-                關閉
-              </button>
             </div>
           </div>
         </div>
@@ -644,6 +675,97 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 className="btn-primary"
               >
                 關閉
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Note Input Modal */}
+      {modalState.type === 'cancellation_note' && modalState.data && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-blue-800">
+                取消預約備註(選填)
+              </h3>
+            </div>
+            <div className="space-y-4 mb-6">
+              <textarea
+                id="cancellation-note"
+                value={cancellationNote}
+                onChange={(e) => setCancellationNote(e.target.value)}
+                placeholder="例如：臨時休診"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={3}
+                maxLength={200}
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                {cancellationNote.length}/200 字元
+              </p>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => setModalState({ type: 'event', data: modalState.data })}
+                className="btn-secondary"
+              >
+                返回
+              </button>
+              <button
+                onClick={handleCancellationNoteSubmit}
+                disabled={cancellationPreviewLoading}
+                className="btn-primary"
+              >
+                {cancellationPreviewLoading ? '產生預覽中...' : '下一步'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Preview Modal */}
+      {modalState.type === 'cancellation_preview' && modalState.data && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-blue-800">
+                LINE訊息預覽
+              </h3>
+            </div>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  病患將收到此LINE訊息
+                </label>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="text-sm text-gray-700 whitespace-pre-line">
+                    {cancellationPreviewMessage}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => setModalState({ type: 'cancellation_note', data: modalState.data })}
+                className="btn-secondary"
+              >
+                返回修改
+              </button>
+              <button
+                onClick={handleConfirmDeleteAppointment}
+                className="btn-primary bg-red-600 hover:bg-red-700"
+              >
+                確認取消預約
               </button>
             </div>
           </div>

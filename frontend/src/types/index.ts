@@ -232,6 +232,9 @@ export interface ApiCalendarEvent {
   notes?: string;
   patient_phone?: string;
   line_display_name?: string;
+  patient_name?: string;
+  practitioner_name?: string;
+  appointment_type_name?: string;
 }
 
 export interface ApiDailyCalendarData {

@@ -708,6 +708,15 @@ class ReminderPreviewRequest(BaseModel):
     therapist_name: str
 
 
+class CancellationPreviewRequest(BaseModel):
+    """Request model for generating cancellation message preview."""
+    appointment_type: str
+    appointment_time: str
+    therapist_name: str
+    patient_name: str
+    note: str | None = None
+
+
 @router.post("/reminder-preview", summary="Generate reminder message preview")
 async def generate_reminder_preview(
     request: ReminderPreviewRequest,
@@ -753,6 +762,57 @@ async def generate_reminder_preview(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法產生預覽訊息"
+        )
+
+
+@router.post("/cancellation-preview", summary="Generate cancellation message preview")
+async def generate_cancellation_preview(
+    request: CancellationPreviewRequest,
+    current_user: UserContext = Depends(require_clinic_member),
+    db: Session = Depends(get_db)
+) -> Dict[str, str]:
+    """
+    Generate a preview of what a LINE cancellation message would look like.
+
+    This endpoint allows clinic admins to see exactly how their cancellation
+    messages will appear to patients before they are sent.
+    """
+    try:
+        clinic_id = current_user.clinic_id
+        if not clinic_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="使用者不屬於任何診所"
+            )
+
+        clinic = db.query(Clinic).get(clinic_id)
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="診所不存在"
+            )
+
+        # Generate preview using the same service that sends actual cancellations
+        from services.notification_service import NotificationService, CancellationSource
+        preview_message = NotificationService.generate_cancellation_preview(
+            appointment_type=request.appointment_type,
+            appointment_time=request.appointment_time,
+            therapist_name=request.therapist_name,
+            patient_name=request.patient_name,
+            source=CancellationSource.CLINIC,  # Always clinic-initiated for preview
+            clinic=clinic,
+            note=request.note
+        )
+
+        return {"preview_message": preview_message}
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error generating cancellation preview")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法產生取消預覽訊息"
         )
 
 
@@ -1206,6 +1266,7 @@ async def list_clinic_appointments(
 @router.delete("/appointments/{appointment_id}", summary="Cancel appointment by clinic admin or practitioner")
 async def cancel_clinic_appointment(
     appointment_id: int,
+    note: str | None = None,
     current_user: UserContext = Depends(require_practitioner_or_admin),
     db: Session = Depends(get_db)
 ):
@@ -1259,7 +1320,7 @@ async def cancel_clinic_appointment(
         if not already_cancelled:
             try:
                 NotificationService.send_appointment_cancellation(
-                    db, appointment, practitioner, CancellationSource.CLINIC
+                    db, appointment, practitioner, CancellationSource.CLINIC, note
                 )
             except Exception as e:
                 logger.exception(f"Failed to send LINE notification for clinic cancellation of appointment {appointment_id}: {e}")

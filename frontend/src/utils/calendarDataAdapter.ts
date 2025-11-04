@@ -17,6 +17,9 @@ export interface CalendarEvent {
     notes?: string;
     patient_phone?: string;
     line_display_name?: string;
+    patient_name?: string;
+    practitioner_name?: string;
+    appointment_type_name?: string;
   };
 }
 
@@ -51,7 +54,10 @@ export const transformToCalendarEvents = (apiEvents: (ApiCalendarEvent | any)[])
         appointment_id: event.appointment_id,
         notes: event.notes,
         patient_phone: event.patient_phone,
-        line_display_name: event.line_display_name
+        line_display_name: event.line_display_name,
+        patient_name: event.patient_name,
+        practitioner_name: event.practitioner_name,
+        appointment_type_name: event.appointment_type_name
       }
     };
   });

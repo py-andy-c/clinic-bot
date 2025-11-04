@@ -369,6 +369,17 @@ export class ApiService {
     return response.data;
   }
 
+  async generateCancellationPreview(data: {
+    appointment_type: string;
+    appointment_time: string;
+    therapist_name: string;
+    patient_name: string;
+    note?: string;
+  }): Promise<{ preview_message: string }> {
+    const response = await this.client.post('/clinic/cancellation-preview', data);
+    return response.data;
+  }
+
   async validateAppointmentTypeDeletion(appointmentTypeIds: number[]): Promise<{ can_delete: boolean; error?: any; message?: string }> {
     const response = await this.client.post('/clinic/appointment-types/validate-deletion', {
       appointment_type_ids: appointmentTypeIds
@@ -443,8 +454,9 @@ export class ApiService {
   }
 
   // Appointment Management APIs
-  async cancelClinicAppointment(appointmentId: number): Promise<{ success: boolean; message: string; appointment_id: number }> {
-    const response = await this.client.delete(`/clinic/appointments/${appointmentId}`);
+  async cancelClinicAppointment(appointmentId: number, note?: string): Promise<{ success: boolean; message: string; appointment_id: number }> {
+    const params = note ? { note } : {};
+    const response = await this.client.delete(`/clinic/appointments/${appointmentId}`, { params });
     return response.data;
   }
 

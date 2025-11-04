@@ -22,7 +22,8 @@ class NotificationService:
         db: Session,
         appointment: Appointment,
         practitioner: User,
-        source: CancellationSource
+        source: CancellationSource,
+        note: str | None = None
     ) -> bool:
         """
         Send appointment cancellation notification to patient.
@@ -62,7 +63,8 @@ class NotificationService:
                 practitioner.full_name,
                 appointment_type_name,
                 patient.full_name,
-                source
+                source,
+                note
             )
 
             # Send notification
@@ -122,12 +124,50 @@ class NotificationService:
         return f"{local_datetime.strftime('%m/%d')} ({weekday_cn}) {time_str}"
 
     @staticmethod
+    def generate_cancellation_preview(
+        appointment_type: str,
+        appointment_time: str,
+        therapist_name: str,
+        patient_name: str,
+        source: CancellationSource,
+        clinic: "Clinic",
+        note: str | None = None
+    ) -> str:
+        """
+        Generate a preview of what a LINE cancellation message would look like.
+
+        This method can be used by API endpoints to show users what their
+        cancellation messages will look like before they are sent.
+
+        Args:
+            appointment_type: Name of the appointment type
+            appointment_time: Formatted appointment time (e.g., "12/25 (三) 14:30")
+            therapist_name: Name of the therapist/practitioner
+            patient_name: Name of the patient
+            source: Source of cancellation (clinic/patient)
+            clinic: Clinic object with display information
+            note: Optional note to include in the message
+
+        Returns:
+            Formatted cancellation message string
+        """
+        return NotificationService._get_cancellation_message(
+            appointment_time,
+            therapist_name,
+            appointment_type,
+            patient_name,
+            source,
+            note
+        )
+
+    @staticmethod
     def _get_cancellation_message(
         formatted_datetime: str,
         practitioner_name: str,
         appointment_type_name: str | None,
         patient_name: str,
-        source: CancellationSource
+        source: CancellationSource,
+        note: str | None = None
     ) -> str:
         """Generate appropriate cancellation message."""
         # Build base message with appointment type if available
@@ -136,10 +176,15 @@ class NotificationService:
         else:
             base = f"{formatted_datetime} - {practitioner_name}治療師"
 
+        # Add note if provided
+        note_str = ""
+        if note and note.strip():
+            note_str = f"\n\n備註：{note.strip()}"
+
         if source == CancellationSource.CLINIC:
-            return f"{patient_name}，您的預約已被診所取消：{base}。\n\n如有需要，可透過Line重新預約。"
+            return f"{patient_name}，您的預約已被診所取消：{base}。{note_str}\n\n如有需要，可透過Line重新預約。"
         else:
-            return f"{patient_name}，您的預約已取消：{base}。"
+            return f"{patient_name}，您的預約已取消：{base}。{note_str}"
 
     @staticmethod
     def _get_line_service(clinic: Clinic):
