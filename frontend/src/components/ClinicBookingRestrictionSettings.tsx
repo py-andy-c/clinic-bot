@@ -63,12 +63,9 @@ const ClinicBookingRestrictionSettings: React.FC<ClinicBookingRestrictionSetting
                 disabled={!isClinicAdmin}
               />
               <label htmlFor="same_day_disallowed" className="ml-3 block text-sm font-medium text-gray-700">
-                不允許同一天預約
+                患者能預約明天及之後的時段
               </label>
             </div>
-            <p className="text-sm text-gray-500 ml-7">
-              患者只能預約明天及之後的時段
-            </p>
 
             <div className="flex items-center">
               <input

@@ -97,11 +97,10 @@ const ClinicInfoSettings: React.FC<ClinicInfoSettingsProps> = ({
               </svg>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">使用說明</h3>
-              <div className="mt-2 text-sm text-blue-700">
-                <p>以上資訊將會顯示在：</p>
+              <div className="text-sm text-blue-700">
+                <p>地址及電話資訊將顯示在</p>
                 <ul className="list-disc list-inside mt-1 space-y-1">
-                  <li>Google Calendar 等行事曆應用程式中的預約事件</li>
+                  <li>病患端 Google Calendar 等行事曆中的預約事件</li>
                   <li>發送給病患的LINE預約提醒訊息</li>
                 </ul>
               </div>

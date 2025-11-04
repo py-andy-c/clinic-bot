@@ -58,7 +58,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
   return (
     <div className="mb-8">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">提醒設定</h2>
+        <h2 className="text-xl font-semibold text-gray-900">LINE提醒設定</h2>
         {showSaveButton && onSave && (
           <button
             type="button"
@@ -84,28 +84,23 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
           max="168"
           disabled={!isClinicAdmin}
         />
-        <p className="text-sm text-gray-500 mt-1">
-          預設為 24 小時前發送提醒
-        </p>
-      </div>
 
-      {/* Message Preview */}
-      <div className="mt-8">
-        <h3 className="text-lg font-medium text-gray-900 mb-3">LINE提醒訊息預覽</h3>
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          {previewLoading ? (
-            <div className="text-sm text-gray-500">載入中...</div>
-          ) : previewError ? (
-            <div className="text-sm text-red-600">{previewError}</div>
-          ) : (
-            <div className="text-sm text-gray-700 whitespace-pre-line">
-              {previewMessage}
-            </div>
-          )}
+        <div className="mt-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            訊息預覽
+          </label>
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            {previewLoading ? (
+              <div className="text-sm text-gray-500">載入中...</div>
+            ) : previewError ? (
+              <div className="text-sm text-red-600">{previewError}</div>
+            ) : (
+              <div className="text-sm text-gray-700 whitespace-pre-line">
+                {previewMessage}
+              </div>
+            )}
+          </div>
         </div>
-        <p className="text-sm text-gray-500 mt-2">
-          這是發送給病患的LINE提醒訊息格式，使用目前診所資訊設定
-        </p>
       </div>
     </div>
   );
