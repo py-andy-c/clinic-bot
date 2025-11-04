@@ -49,7 +49,7 @@ const AppRoutes: React.FC = () => {
     }>
       <Routes>
         {/* LIFF routes */}
-        <Route path="/liff/*" element={<LiffApp />} />
+        <Route path="/liff/*" element={<ModalProvider><LiffApp /></ModalProvider>} />
 
         {/* Public signup routes */}
         <Route path="/signup/clinic" element={<ClinicSignupPage />} />

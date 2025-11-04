@@ -2,6 +2,7 @@ import React from 'react';
 import moment from 'moment-timezone';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { downloadAppointmentICS, generateGoogleCalendarURL } from '../../utils/icsGenerator';
+import { useModal } from '../../contexts/ModalContext';
 
 const Step7Success: React.FC = () => {
   const {
@@ -15,6 +16,7 @@ const Step7Success: React.FC = () => {
     clinicDisplayName,
     clinicAddress
   } = useAppointmentStore();
+  const { alert: showAlert } = useModal();
 
   const handleAddToCalendar = () => {
     if (!appointmentType || !date || !startTime || !patient) {
@@ -41,7 +43,7 @@ const Step7Success: React.FC = () => {
       
       if (!startDateTimeTaiwan.isValid()) {
         console.error('Invalid date/time:', `${date}T${timeWithSeconds}`);
-        alert('無法建立行事曆事件：日期時間格式錯誤');
+        showAlert('無法建立行事曆事件：日期時間格式錯誤', '日期時間錯誤');
         return;
       }
 
@@ -108,7 +110,7 @@ const Step7Success: React.FC = () => {
     downloadAppointmentICS(appointmentData);
       } catch (fallbackError) {
         console.error('Failed to download ICS as fallback:', fallbackError);
-        alert('無法加入行事曆，請稍後再試');
+        showAlert('無法加入行事曆，請稍後再試', '行事曆錯誤');
       }
     }
   };

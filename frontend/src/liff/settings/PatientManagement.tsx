@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
+import { useModal } from '../../contexts/ModalContext';
 
 interface Patient {
   id: number;
@@ -11,6 +12,7 @@ interface Patient {
 
 const PatientManagement: React.FC = () => {
   const { clinicId } = useAppointmentStore();
+  const { alert: showAlert, confirm: showConfirm } = useModal();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -162,13 +164,16 @@ const PatientManagement: React.FC = () => {
   const handleDeletePatient = async (patientId: number, patientName: string) => {
     // Check if this is the last patient
     if (patients.length <= 1) {
-      alert('至少需保留一位就診人');
+      await showAlert('至少需保留一位就診人', '無法刪除');
       return;
     }
 
-    const confirmMessage = `確定要刪除就診人「${patientName}」？\n\n刪除後該就診人的所有預約記錄將無法查詢。`;
+    const confirmed = await showConfirm(
+      `確定要刪除就診人「${patientName}」？\n\n刪除後該就診人的所有預約記錄將無法查詢。`,
+      '確認刪除'
+    );
 
-    if (!confirm(confirmMessage)) return;
+    if (!confirmed) return;
 
     try {
       await liffApiService.deletePatient(patientId);
@@ -179,14 +184,14 @@ const PatientManagement: React.FC = () => {
       // Handle specific error cases
       if (err?.response?.status === 409) {
         if (err?.response?.data?.detail === "Cannot delete patient with future appointments") {
-          alert('無法刪除此就診人，因為該就診人尚有未來的預約記錄。\n\n請先刪除或取消相關預約後再試。');
+          await showAlert('無法刪除此就診人，因為該就診人尚有未來的預約記錄。\n\n請先刪除或取消相關預約後再試。', '無法刪除');
         } else if (err?.response?.data?.detail === "至少需保留一位就診人") {
-          alert('至少需保留一位就診人');
+          await showAlert('至少需保留一位就診人', '無法刪除');
         } else {
-          alert('刪除就診人失敗，請稍後再試');
+          await showAlert('刪除就診人失敗，請稍後再試', '刪除失敗');
         }
       } else {
-        alert('刪除就診人失敗，請稍後再試');
+        await showAlert('刪除就診人失敗，請稍後再試', '刪除失敗');
       }
     }
   };

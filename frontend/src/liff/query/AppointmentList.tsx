@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { liffApiService } from '../../services/liffApi';
 import AppointmentCard from './AppointmentCard';
+import { useModal } from '../../contexts/ModalContext';
 
 interface Appointment {
   id: number;
@@ -15,6 +16,7 @@ interface Appointment {
 }
 
 const AppointmentList: React.FC = () => {
+  const { alert: showAlert, confirm: showConfirm } = useModal();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +40,9 @@ const AppointmentList: React.FC = () => {
   };
 
   const handleCancelAppointment = async (appointmentId: number) => {
-    if (!confirm('確定要取消此預約嗎？')) return;
+    const confirmed = await showConfirm('確定要取消此預約嗎？', '確認取消');
+
+    if (!confirmed) return;
 
     try {
       await liffApiService.cancelAppointment(appointmentId);
@@ -46,7 +50,7 @@ const AppointmentList: React.FC = () => {
       loadAppointments();
     } catch (err) {
       console.error('Failed to cancel appointment:', err);
-      alert('取消預約失敗，請稍後再試');
+      await showAlert('取消預約失敗，請稍後再試', '取消失敗');
     }
   };
 
