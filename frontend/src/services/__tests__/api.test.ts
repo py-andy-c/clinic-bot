@@ -298,7 +298,7 @@ describe('ApiService.refreshToken', () => {
   });
 
   describe('non-401 errors', () => {
-    it('should not attempt localStorage fallback for non-401 errors', async () => {
+    it('should attempt localStorage fallback for non-401 errors', async () => {
       document.cookie = 'refresh_token=test-refresh-token';
       localStorageMock.setItem('refresh_token', 'localStorage-refresh-token');
 
@@ -310,29 +310,49 @@ describe('ApiService.refreshToken', () => {
         },
       };
 
-      mockAxiosInstance.post.mockRejectedValueOnce(serverError);
+      // Mock cookie attempt to fail, then localStorage to succeed
+      mockAxiosInstance.post
+        .mockRejectedValueOnce(serverError)
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            access_token: 'new-access-token',
+            refresh_token: 'new-refresh-token',
+            token_type: 'bearer',
+            expires_in: 3600,
+          },
+        });
 
-      // Should throw error without attempting localStorage fallback
-      await expect(apiService.refreshToken()).rejects.toEqual(serverError);
+      await apiService.refreshToken();
 
-      // Verify only one attempt was made
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      // Verify both cookie and localStorage attempts were made
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
     });
 
-    it('should not attempt localStorage fallback for network errors', async () => {
+    it('should attempt localStorage fallback for network errors', async () => {
       document.cookie = 'refresh_token=test-refresh-token';
       localStorageMock.setItem('refresh_token', 'localStorage-refresh-token');
 
       // Mock network error (no response)
       const networkError = new Error('Network error');
 
-      mockAxiosInstance.post.mockRejectedValueOnce(networkError);
+      // Mock cookie attempt to fail, then localStorage to succeed
+      mockAxiosInstance.post
+        .mockRejectedValueOnce(networkError)
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            access_token: 'new-access-token',
+            refresh_token: 'new-refresh-token',
+            token_type: 'bearer',
+            expires_in: 3600,
+          },
+        });
 
-      // Should throw error without attempting localStorage fallback
-      await expect(apiService.refreshToken()).rejects.toEqual(networkError);
+      await apiService.refreshToken();
 
-      // Verify only one attempt was made
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      // Verify both cookie and localStorage attempts were made
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -389,8 +409,8 @@ describe('ApiService.refreshToken', () => {
         },
       });
 
-      // Should throw error
-      await expect(apiService.refreshToken()).rejects.toThrow('權杖更新失敗');
+      // Should throw error when trying to store undefined access_token
+      await expect(apiService.refreshToken()).rejects.toThrow('Failed to persist authentication token');
     });
   });
 

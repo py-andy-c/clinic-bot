@@ -6,7 +6,7 @@ Handles secure token-based user onboarding for clinic admins and team members.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from core.config import API_BASE_URL, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_REFRESH_TOKEN_EXPIRE_DAYS
+from core.config import API_BASE_URL, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 from services.jwt_service import jwt_service, TokenPayload
 from models import User, SignupToken, RefreshToken
 
