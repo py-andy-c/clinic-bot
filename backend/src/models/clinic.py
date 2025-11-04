@@ -34,6 +34,7 @@ class ClinicInfoSettings(BaseModel):
     display_name: Optional[str] = Field(default=None)
     address: Optional[str] = Field(default=None)
     phone_number: Optional[str] = Field(default=None)
+    appointment_type_instructions: Optional[str] = Field(default=None, description="Instructions to guide patients when selecting appointment types")
 
 
 class ClinicSettings(BaseModel):
@@ -271,6 +272,18 @@ class Clinic(Base):
         """Set phone number setting."""
         clinic_info = self.settings.get("clinic_info_settings", {})
         clinic_info["phone_number"] = value
+        self.settings["clinic_info_settings"] = clinic_info
+
+    @property
+    def appointment_type_instructions(self) -> Optional[str]:
+        """Get appointment type instructions setting."""
+        return self.settings.get("clinic_info_settings", {}).get("appointment_type_instructions")
+
+    @appointment_type_instructions.setter
+    def appointment_type_instructions(self, value: Optional[str]):
+        """Set appointment type instructions setting."""
+        clinic_info = self.settings.get("clinic_info_settings", {})
+        clinic_info["appointment_type_instructions"] = value
         self.settings["clinic_info_settings"] = clinic_info
 
     @property

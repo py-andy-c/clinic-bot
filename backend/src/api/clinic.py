@@ -81,6 +81,7 @@ class ClinicInfoSettings(BaseModel):
     display_name: Optional[str] = None
     address: Optional[str] = None
     phone_number: Optional[str] = None
+    appointment_type_instructions: Optional[str] = None
 
 
 class SettingsResponse(BaseModel):
@@ -474,7 +475,8 @@ async def get_settings(
            clinic_info_settings=ClinicInfoSettings(
                display_name=clinic.display_name,
                address=clinic.address,
-               phone_number=clinic.phone_number
+               phone_number=clinic.phone_number,
+               appointment_type_instructions=clinic.appointment_type_instructions
            )
         )
 

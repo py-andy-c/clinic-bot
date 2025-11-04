@@ -21,6 +21,7 @@ export const ClinicInfoSettingsSchema = z.object({
   display_name: z.string().nullable().optional(),
   address: z.string().nullable().optional(),
   phone_number: z.string().nullable().optional(),
+  appointment_type_instructions: z.string().nullable().optional(),
 });
 
 export const BusinessHoursSchema = z.record(z.string(), z.object({

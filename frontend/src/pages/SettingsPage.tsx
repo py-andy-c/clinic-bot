@@ -7,6 +7,7 @@ import { useSettingsPage } from '../hooks/useSettingsPage';
 import { useModal } from '../contexts/ModalContext';
 import { validateClinicSettings, getClinicSectionChanges } from '../utils/clinicSettings';
 import ClinicAppointmentTypes from '../components/ClinicAppointmentTypes';
+import ClinicAppointmentTypeInstructions from '../components/ClinicAppointmentTypeInstructions';
 import ClinicReminderSettings from '../components/ClinicReminderSettings';
 import ClinicBookingRestrictionSettings from '../components/ClinicBookingRestrictionSettings';
 import ClinicInfoSettings from '../components/ClinicInfoSettings';
@@ -247,6 +248,23 @@ const SettingsPage: React.FC = () => {
                   });
                 }}
                 showSaveButton={sectionChanges.bookingRestrictionSettings || false}
+                onSave={saveData}
+                saving={uiState.saving}
+                isClinicAdmin={isClinicAdmin}
+              />
+
+              {/* Appointment Type Instructions */}
+              <ClinicAppointmentTypeInstructions
+                appointmentTypeInstructions={settings.clinic_info_settings.appointment_type_instructions ?? null}
+                onAppointmentTypeInstructionsChange={(instructions) => {
+                  updateData({
+                    clinic_info_settings: {
+                      ...settings.clinic_info_settings,
+                      appointment_type_instructions: instructions
+                    }
+                  });
+                }}
+                showSaveButton={sectionChanges.appointmentTypeInstructions || false}
                 onSave={saveData}
                 saving={uiState.saving}
                 isClinicAdmin={isClinicAdmin}

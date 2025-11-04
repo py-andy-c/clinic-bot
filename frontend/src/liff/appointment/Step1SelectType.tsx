@@ -3,7 +3,7 @@ import { useAppointmentStore, AppointmentType } from '../../stores/appointmentSt
 import { liffApiService } from '../../services/liffApi';
 
 const Step1SelectType: React.FC = () => {
-  const { setAppointmentType, clinicId } = useAppointmentStore();
+  const { setAppointmentType, setAppointmentTypeInstructions, appointmentTypeInstructions, clinicId } = useAppointmentStore();
   const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,6 +17,7 @@ const Step1SelectType: React.FC = () => {
         setError(null);
         const response = await liffApiService.getAppointmentTypes(clinicId);
         setAppointmentTypes(response.appointment_types);
+        setAppointmentTypeInstructions(response.appointment_type_instructions || null);
       } catch (err) {
         console.error('Failed to load appointment types:', err);
         setError('無法載入預約類型，請稍後再試');
@@ -65,6 +66,22 @@ const Step1SelectType: React.FC = () => {
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
           選擇預約類型
         </h2>
+        {appointmentTypeInstructions && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-blue-700 whitespace-pre-line">
+                  {appointmentTypeInstructions}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="space-y-3">

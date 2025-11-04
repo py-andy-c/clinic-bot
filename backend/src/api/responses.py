@@ -43,6 +43,7 @@ class AppointmentTypeResponse(BaseModel):
 class AppointmentTypeListResponse(BaseModel):
     """Response model for listing appointment types."""
     appointment_types: List[AppointmentTypeResponse]
+    appointment_type_instructions: Optional[str] = None
 
 
 class PractitionerResponse(BaseModel):

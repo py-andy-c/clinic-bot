@@ -26,6 +26,7 @@ interface AppointmentState {
   // Step 1: Appointment Type
   appointmentTypeId: number | null;
   appointmentType: AppointmentType | null;
+  appointmentTypeInstructions: string | null;
 
   // Step 2: Practitioner
   practitionerId: number | null; // null means "不指定治療師"
@@ -61,6 +62,7 @@ interface AppointmentState {
   // Actions
   setStep: (step: number) => void;
   setAppointmentType: (id: number, type: AppointmentType) => void;
+  setAppointmentTypeInstructions: (instructions: string | null) => void;
   setPractitioner: (id: number | null, practitioner?: Practitioner, isAutoAssigned?: boolean) => void;
   updateAssignedPractitioner: (id: number, practitioner: Practitioner, isAutoAssigned?: boolean) => void; // Updates assigned practitioner without resetting date/time
   setDateTime: (date: string, time: string) => void;
@@ -80,6 +82,7 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
   step: 1,
   appointmentTypeId: null,
   appointmentType: null,
+  appointmentTypeInstructions: null,
   practitionerId: null,
   practitioner: null,
   isAutoAssigned: false,
@@ -106,6 +109,10 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     practitioner: null,
     date: null,
     startTime: null,
+  }),
+
+  setAppointmentTypeInstructions: (instructions) => set({
+    appointmentTypeInstructions: instructions,
   }),
 
   setPractitioner: (id, practitioner, isAutoAssigned = false) => set({

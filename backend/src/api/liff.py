@@ -465,7 +465,8 @@ async def list_appointment_types(
                     name=at.name,
                     duration_minutes=at.duration_minutes
                 ) for at in appointment_types
-            ]
+            ],
+            appointment_type_instructions=clinic.appointment_type_instructions
         )
 
     except HTTPException:
