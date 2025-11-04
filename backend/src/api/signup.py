@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from core.config import API_BASE_URL, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+from core.config import API_BASE_URL, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_REFRESH_TOKEN_EXPIRE_DAYS
 from services.jwt_service import jwt_service, TokenPayload
 from models import User, SignupToken, RefreshToken
 
@@ -438,12 +438,11 @@ async def confirm_name(
         
         # Store refresh token in database
         refresh_token_hash = token_data["refresh_token_hash"]
-        refresh_token_expiry = datetime.now(timezone.utc) + timedelta(days=7)
+        refresh_token_expiry = jwt_service.get_token_expiry("refresh")
         
         refresh_token_record = RefreshToken(
             user_id=user.id,
             token_hash=refresh_token_hash,
-            hmac_key=token_data["refresh_token_hmac"],
             expires_at=refresh_token_expiry
         )
         db.add(refresh_token_record)

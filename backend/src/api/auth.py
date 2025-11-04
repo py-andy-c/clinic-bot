@@ -291,12 +291,10 @@ async def google_auth_callback(
             dummy_user_id = existing_user.id
 
         refresh_token_hash = token_data["refresh_token_hash"]
-        hmac_key = token_data["refresh_token_hmac"]
 
         refresh_token_record = RefreshToken(
             user_id=dummy_user_id,
             token_hash=refresh_token_hash,
-            hmac_key=hmac_key,
             expires_at=jwt_service.get_token_expiry("refresh"),
             email=email if actual_user_type == "system_admin" else None,  # Store email for system admins
             google_subject_id=google_subject_id if actual_user_type == "system_admin" else None,  # Store google_subject_id for system admins
@@ -427,41 +425,24 @@ async def refresh_access_token(
             detail="找不到重新整理權杖"
         )
 
-    # First, try fast lookup using HMAC key
-    expected_hmac = jwt_service.generate_refresh_token_hmac(refresh_token)
-    logger.debug(f"Looking up refresh token - HMAC: {expected_hmac[:8]}...")
-
-    refresh_token_record = db.query(RefreshToken).filter(
-        RefreshToken.hmac_key == expected_hmac,
+    # Find refresh token by verifying against all valid tokens
+    # Since refresh tokens are sent via HttpOnly cookies, we verify by checking all valid tokens
+    valid_tokens = db.query(RefreshToken).filter(
         RefreshToken.revoked == False,
         RefreshToken.expires_at > datetime.now(timezone.utc)
-    ).first()
+    ).all()
 
-    # If HMAC lookup succeeds, verify with bcrypt for final security
-    if refresh_token_record and jwt_service.verify_refresh_token_hash(refresh_token, refresh_token_record.token_hash):
-        # HMAC match + bcrypt verification successful
-        logger.debug(f"Refresh token found via HMAC lookup - user_id: {refresh_token_record.user_id}, "
-                    f"expires_at: {refresh_token_record.expires_at}")
-    else:
-        # Fallback to original linear scan for backward compatibility or if HMAC lookup failed
-        logger.debug("HMAC lookup failed or token not found, falling back to linear scan")
-        valid_tokens = db.query(RefreshToken).filter(
-            RefreshToken.revoked == False,
-            RefreshToken.expires_at > datetime.now(timezone.utc)
-        ).all()
-
-        refresh_token_record = None
-        for token_record in valid_tokens:
-            if jwt_service.verify_refresh_token_hash(refresh_token, token_record.token_hash):
-                refresh_token_record = token_record
-                logger.debug(f"Refresh token found via linear scan - user_id: {token_record.user_id}, "
-                            f"expires_at: {token_record.expires_at}")
-                break
+    refresh_token_record = None
+    for token_record in valid_tokens:
+        if jwt_service.verify_refresh_token_hash(refresh_token, token_record.token_hash):
+            refresh_token_record = token_record
+            logger.debug(f"Refresh token validated - user_id: {token_record.user_id}, "
+                        f"expires_at: {token_record.expires_at}")
+            break
 
     if not refresh_token_record:
         logger.warning(
-            f"Refresh token validation failed - token source: {token_source}, "
-            f"HMAC: {expected_hmac[:8]}..., token not found in database or expired/revoked"
+            f"Refresh token validation failed - token not found in database or expired/revoked"
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -503,7 +484,6 @@ async def refresh_access_token(
         new_refresh_token_record = RefreshToken(
             user_id=dummy_user_id,
             token_hash=token_data["refresh_token_hash"],
-            hmac_key=token_data["refresh_token_hmac"],
             expires_at=jwt_service.get_token_expiry("refresh"),
             email=system_admin_email,  # Store email for system admin
             google_subject_id=system_admin_subject_id,  # Store google_subject_id for system admin
@@ -547,7 +527,6 @@ async def refresh_access_token(
             new_refresh_token_record = RefreshToken(
                 user_id=user.id,
                 token_hash=token_data["refresh_token_hash"],
-                hmac_key=token_data["refresh_token_hmac"],
                 expires_at=jwt_service.get_token_expiry("refresh"),
                 email=None,  # Clinic users don't need email in RefreshToken
                 google_subject_id=None,  # Clinic users don't need google_subject_id in RefreshToken
@@ -725,12 +704,10 @@ async def dev_login(
 
     # Store refresh token
     refresh_token_hash = token_data["refresh_token_hash"]
-    hmac_key = token_data["refresh_token_hmac"]
 
     refresh_token_record = RefreshToken(
         user_id=user.id,
         token_hash=refresh_token_hash,
-        hmac_key=hmac_key,
         expires_at=jwt_service.get_token_expiry("refresh"),
         email=email if email in SYSTEM_ADMIN_EMAILS else None,  # Store email for system admins
         google_subject_id=str(user.google_subject_id) if email in SYSTEM_ADMIN_EMAILS else None,  # Store google_subject_id for system admins
@@ -783,32 +760,18 @@ async def logout(
 
     # Revoke refresh token if found
     if refresh_token:
-        # Find and revoke the refresh token using HMAC for efficiency
-        expected_hmac = jwt_service.generate_refresh_token_hmac(refresh_token)
-
-        token_record = db.query(RefreshToken).filter(
-            RefreshToken.hmac_key == expected_hmac,
+        # Find and revoke the refresh token by checking all valid tokens
+        valid_tokens = db.query(RefreshToken).filter(
             RefreshToken.revoked == False,
             RefreshToken.expires_at > datetime.now(timezone.utc)
-        ).first()
+        ).all()
 
-        if token_record and jwt_service.verify_refresh_token_hash(refresh_token, token_record.token_hash):
-            token_record.revoke()
-            db.commit()
-            logger.info(f"Refresh token revoked during logout (source: {token_source})")
-        else:
-            # Fallback to linear scan for backward compatibility
-            valid_tokens = db.query(RefreshToken).filter(
-                RefreshToken.revoked == False,
-                RefreshToken.expires_at > datetime.now(timezone.utc)
-            ).all()
-
-            for token_record in valid_tokens:
-                if jwt_service.verify_refresh_token_hash(refresh_token, token_record.token_hash):
-                    token_record.revoke()
-                    db.commit()
-                    logger.info(f"Refresh token revoked during logout via linear scan (source: {token_source})")
-                    break
+        for token_record in valid_tokens:
+            if jwt_service.verify_refresh_token_hash(refresh_token, token_record.token_hash):
+                token_record.revoke()
+                db.commit()
+                logger.info(f"Refresh token revoked during logout (source: {token_source})")
+                break
     else:
         logger.debug("No refresh token found in cookie or request body during logout")
 

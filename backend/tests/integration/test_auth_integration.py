@@ -516,7 +516,6 @@ class TestRefreshTokenFlow:
         refresh_token_record = RefreshToken(
             user_id=user.id,
             token_hash=refresh_token_hash,
-            hmac_key=jwt_service.generate_refresh_token_hmac(refresh_token_string),
             expires_at=datetime.now(timezone.utc) + timedelta(days=7)
         )
         db_session.add(refresh_token_record)
@@ -588,7 +587,6 @@ class TestRefreshTokenFlow:
         refresh_token_record = RefreshToken(
             user_id=user.id,
             token_hash=refresh_token_hash,
-            hmac_key=jwt_service.generate_refresh_token_hmac(refresh_token_string),
             expires_at=datetime.now(timezone.utc) + timedelta(days=7)
         )
         db_session.add(refresh_token_record)
@@ -684,7 +682,6 @@ class TestRefreshTokenFlow:
         expired_token = RefreshToken(
             user_id=user.id,
             token_hash=expired_token_hash,
-            hmac_key=jwt_service.generate_refresh_token_hmac(expired_token_string),
             expires_at=datetime.now(timezone.utc) - timedelta(hours=1)  # Already expired
         )
         db_session.add(expired_token)
@@ -734,7 +731,6 @@ class TestRefreshTokenFlow:
         refresh_token_record = RefreshToken(
             user_id=user.id,
             token_hash=refresh_token_hash,
-            hmac_key=jwt_service.generate_refresh_token_hmac(refresh_token_string),
             expires_at=datetime.now(timezone.utc) + timedelta(days=7)
         )
         db_session.add(refresh_token_record)
@@ -1548,7 +1544,6 @@ class TestSystemAdminRefreshTokenFlow:
             refresh_token_record = RefreshToken(
                 user_id=dummy_user_id,
                 token_hash=token_data["refresh_token_hash"],
-                hmac_key=token_data["refresh_token_hmac"],
                 expires_at=jwt_service.get_token_expiry("refresh"),
                 email=email,  # System admin email stored
                 google_subject_id=google_subject_id,  # System admin google_subject_id stored
@@ -1620,7 +1615,6 @@ class TestSystemAdminRefreshTokenFlow:
             refresh_token_record = RefreshToken(
                 user_id=dummy_user_id,
                 token_hash=token_data["refresh_token_hash"],
-                hmac_key=token_data["refresh_token_hmac"],
                 expires_at=jwt_service.get_token_expiry("refresh"),
                 email=email,
                 google_subject_id=google_subject_id,
@@ -1735,7 +1729,6 @@ class TestSystemAdminRefreshTokenFlow:
             initial_refresh_token = RefreshToken(
                 user_id=dummy_user_id,
                 token_hash=token_data["refresh_token_hash"],
-                hmac_key=token_data["refresh_token_hmac"],
                 expires_at=jwt_service.get_token_expiry("refresh"),
                 email=email,
                 google_subject_id=google_subject_id,
@@ -1853,7 +1846,6 @@ class TestSystemAdminRefreshTokenFlow:
             refresh_token_record = RefreshToken(
                 user_id=dummy_user_id,
                 token_hash=token_data["refresh_token_hash"],
-                hmac_key=token_data["refresh_token_hmac"],
                 expires_at=jwt_service.get_token_expiry("refresh"),
                 email=email,  # Email not in SYSTEM_ADMIN_EMAILS
                 google_subject_id=google_subject_id,

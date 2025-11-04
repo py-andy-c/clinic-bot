@@ -73,16 +73,6 @@ class JWTService:
         except Exception:
             return False
 
-    @classmethod
-    def generate_refresh_token_hmac(cls, token: str) -> str:
-        """Generate an HMAC key for fast refresh token lookups."""
-        # Use HMAC-SHA256 with the JWT secret as the key
-        import hmac
-        secret_key = cls._get_secret_key().encode('utf-8')
-        token_bytes = token.encode('utf-8')
-        hmac_digest = hmac.new(secret_key, token_bytes, hashlib.sha256).digest()
-        # Return first 32 bytes as hex for database storage (64 characters)
-        return hmac_digest[:32].hex()
 
     @classmethod
     def get_token_expiry(cls, token_type: str) -> datetime:
@@ -138,13 +128,11 @@ class JWTService:
         import secrets
         refresh_token = secrets.token_urlsafe(64)
         refresh_token_hash = cls.create_refresh_token_hash(refresh_token)
-        refresh_token_hmac = cls.generate_refresh_token_hmac(refresh_token)
 
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
             "refresh_token_hash": refresh_token_hash,
-            "refresh_token_hmac": refresh_token_hmac,
             "token_type": "bearer",
             "expires_in": cls.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # seconds
             "expires_at": int(cls.get_token_expiry("access").timestamp()),

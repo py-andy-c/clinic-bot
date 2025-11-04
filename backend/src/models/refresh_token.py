@@ -21,7 +21,6 @@ class RefreshToken(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     token_hash: Mapped[str] = mapped_column(String(255), unique=True)  # bcrypt hashed
-    hmac_key: Mapped[str] = mapped_column(String(64), index=True)  # HMAC for fast lookups
     expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     last_used_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
@@ -37,7 +36,6 @@ class RefreshToken(Base):
     __table_args__ = (
         Index('idx_refresh_tokens_user_id', 'user_id'),
         Index('idx_refresh_tokens_token_hash', 'token_hash'),
-        Index('idx_refresh_tokens_hmac_key', 'hmac_key'),
         Index('idx_refresh_tokens_expires_at', 'expires_at'),
     )
 
