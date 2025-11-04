@@ -128,10 +128,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Check for mobile view
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
-  // Set scroll position to 8 AM for day view
+  // Set scroll position to 9 AM for day view
   const scrollToTime = useMemo(() => {
     const scrollDate = moment(currentDate).tz(taiwanTimezone);
-    scrollDate.set({ hour: 8, minute: 0, second: 0, millisecond: 0 });
+    scrollDate.set({ hour: 9, minute: 0, second: 0, millisecond: 0 });
     return scrollDate.toDate();
   }, [currentDate, taiwanTimezone]);
 
