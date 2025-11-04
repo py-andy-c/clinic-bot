@@ -8,7 +8,7 @@ Handles secure token-based user onboarding for clinic admins and team members.
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
@@ -162,20 +162,38 @@ async def initiate_member_signup(token: str, db: Session = Depends(get_db)) -> d
 
 @router.get("/callback", summary="Handle signup OAuth callback")
 async def signup_oauth_callback(
-    code: str,
-    state: str,
+    request: Request,
+    code: str = Query(None),
+    state: str = Query(...),
+    error: str = Query(None),
     db: Session = Depends(get_db)
 ) -> RedirectResponse:
     """
     Handle OAuth callback for user signup and account creation.
 
     Args:
-        code: Authorization code from Google
+        code: Authorization code from Google (optional if user cancelled)
         state: Signed JWT containing signup type and token
+        error: Error code from Google OAuth (e.g., 'access_denied' if user cancelled)
 
     Returns:
         Redirect URL for appropriate dashboard
     """
+    # Handle user cancellation or OAuth errors
+    if error:
+        logger.info(f"OAuth callback error: {error}")
+        from urllib.parse import quote
+        error_message = "註冊已取消" if error == "access_denied" else "認證失敗"
+        error_url = f"{FRONTEND_URL}/login?error=true&message={quote(error_message)}"
+        return RedirectResponse(url=error_url, status_code=302)
+
+    # Ensure code is provided if no error
+    if not code:
+        logger.warning("OAuth callback missing code parameter")
+        from urllib.parse import quote
+        error_url = f"{FRONTEND_URL}/login?error=true&message={quote('認證失敗：缺少授權碼')}"
+        return RedirectResponse(url=error_url, status_code=302)
+
     try:
         # Verify and parse signed state
         state_data = jwt_service.verify_oauth_state(state)
@@ -261,9 +279,11 @@ async def signup_oauth_callback(
         ).first()
 
         if existing_user:
-            # User already exists, redirect to login
+            # User already exists, redirect to login with proper error message
+            from urllib.parse import quote
+            error_message = "此 Google 帳號已經註冊過，請直接登入"
             return RedirectResponse(
-                url=f"{FRONTEND_URL}/login?error=user_exists",
+                url=f"{FRONTEND_URL}/login?error=true&message={quote(error_message)}",
                 status_code=302
             )
 
@@ -276,8 +296,10 @@ async def signup_oauth_callback(
 
         if existing_email:
             # Email already used, redirect with error
+            from urllib.parse import quote
+            error_message = "此 email 已在診所中註冊，請直接登入或聯繫管理員"
             return RedirectResponse(
-                url=f"{FRONTEND_URL}/login?error=email_taken",
+                url=f"{FRONTEND_URL}/login?error=true&message={quote(error_message)}",
                 status_code=302
             )
 
