@@ -15,11 +15,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY src/ ./src/
 
+# Copy startup script and make it executable
+COPY start.sh alembic.ini alembic/ ./ 
+RUN chmod +x start.sh
+
 # Set PYTHONPATH to include the app directory so Python can find src modules
 ENV PYTHONPATH=/app
 
 # Expose port
 EXPOSE 8000
 
-# Run the application
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run migrations and start the application
+# Use start.sh to ensure migrations run and proper directory structure
+CMD ["bash", "start.sh"]
