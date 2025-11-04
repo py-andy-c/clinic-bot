@@ -64,7 +64,7 @@ const LoginPage: React.FC = () => {
             <span className="text-2xl">🏥</span>
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Clinic Bot 管理系統
+            診所小幫手 管理系統
           </h2>
         </div>
 

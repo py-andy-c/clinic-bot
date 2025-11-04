@@ -38,7 +38,7 @@ export const downloadAppointmentICS = (appointment: AppointmentData) => {
   const nowUTC = moment().utc().format('YYYYMMDDTHHmmss') + 'Z';
   const icsContent = `BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//Clinic Bot//Appointment//EN
+PRODID:-//診所小幫手//Appointment//EN
 BEGIN:VEVENT
 UID:appointment-${id}@clinicbot.com
 DTSTAMP:${nowUTC}
@@ -140,7 +140,7 @@ const createICSContent = (appointment: AppointmentData): string => {
   const nowUTC = moment().utc().format('YYYYMMDDTHHmmss') + 'Z';
   return `BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//Clinic Bot//Appointment//EN
+PRODID:-//診所小幫手//Appointment//EN
 BEGIN:VEVENT
 UID:appointment-${id}@clinicbot.com
 DTSTAMP:${nowUTC}

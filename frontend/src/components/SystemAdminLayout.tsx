@@ -39,7 +39,7 @@ const SystemAdminLayout: React.FC<SystemAdminLayoutProps> = ({ children }) => {
               <div className="flex-shrink-0 flex items-center">
                 <div className="flex items-center space-x-2">
                   <span className="text-2xl">🏥</span>
-                  <span className="text-xl font-bold text-gray-900">Clinic Bot Admin</span>
+                  <span className="text-xl font-bold text-gray-900">診所小幫手</span>
                   <span className="text-sm bg-red-100 text-red-800 px-2 py-1 rounded-full">系統管理員</span>
                 </div>
               </div>

@@ -263,7 +263,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
               <div className="flex-shrink-0 flex items-center">
                 <div className="flex items-center space-x-2">
                   <span className="text-2xl">🏥</span>
-                  <span className="text-xl font-bold text-gray-900">Clinic Bot</span>
+                  <span className="text-xl font-bold text-gray-900">診所小幫手</span>
                 </div>
               </div>
 
