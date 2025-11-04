@@ -7,7 +7,7 @@ import { logger } from '../utils/logger';
 import PageHeader from '../components/PageHeader';
 
 const MembersPage: React.FC = () => {
-  const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus } = useAuth();
+  const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus, isLoading } = useAuth();
   const { alert, confirm } = useModal();
   
   
@@ -31,8 +31,11 @@ const MembersPage: React.FC = () => {
   const [updatingRoles, setUpdatingRoles] = useState(false);
 
   useEffect(() => {
-    fetchMembers();
-  }, []);
+    // Wait for auth to complete before fetching data
+    if (!isLoading && isAuthenticated) {
+      fetchMembers();
+    }
+  }, [isLoading, isAuthenticated]);
 
   const fetchMembers = async () => {
     try {

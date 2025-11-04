@@ -530,24 +530,42 @@ async def refresh_access_token(
         
         token_data = jwt_service.create_token_pair(payload)
         
-        # Revoke old refresh token
-        refresh_token_record.revoke()
-        
-        # Create new refresh token record
-        new_refresh_token_record = RefreshToken(
-            user_id=user.id,
-            token_hash=token_data["refresh_token_hash"],
-            hmac_key=token_data["refresh_token_hmac"],
-            expires_at=jwt_service.get_token_expiry("refresh"),
-            email=None,  # Clinic users don't need email in RefreshToken
-            google_subject_id=None,  # Clinic users don't need google_subject_id in RefreshToken
-            name=None  # Clinic users don't need name in RefreshToken
-        )
-    db.add(new_refresh_token_record)
-    db.commit()
-
-    # Set new refresh token cookie
-    set_refresh_token_cookie(response, request, token_data["refresh_token"])
+        # IMPORTANT: Only rotate refresh token if cookies are working
+        # If token comes from body (not cookie), it means Safari ITP is blocking cookies
+        # In this case, if CORS blocks the response, frontend can't read new tokens
+        # So we reuse the same refresh token to allow retry
+        if token_source == "cookie":
+            # Cookies are working - safe to rotate (frontend can use cookie for retry)
+            # Revoke old refresh token
+            refresh_token_record.revoke()
+            
+            # Create new refresh token record
+            new_refresh_token_record = RefreshToken(
+                user_id=user.id,
+                token_hash=token_data["refresh_token_hash"],
+                hmac_key=token_data["refresh_token_hmac"],
+                expires_at=jwt_service.get_token_expiry("refresh"),
+                email=None,  # Clinic users don't need email in RefreshToken
+                google_subject_id=None,  # Clinic users don't need google_subject_id in RefreshToken
+                name=None  # Clinic users don't need name in RefreshToken
+            )
+            db.add(new_refresh_token_record)
+            db.commit()
+            
+            # Set new refresh token cookie
+            set_refresh_token_cookie(response, request, token_data["refresh_token"])
+        else:
+            # Cookies are NOT working (Safari ITP blocking) - don't rotate yet
+            # Reuse the same refresh token in response so frontend can retry if CORS blocks
+            # Only rotate when cookies work OR after successful response confirmed
+            logger.info(
+                f"Cookies not working (token from {token_source}) - "
+                f"reusing same refresh token to allow retry if CORS blocks response"
+            )
+            # Use the SAME refresh token in response (don't rotate)
+            token_data["refresh_token"] = refresh_token  # Reuse existing token
+            # Don't set cookie - it won't work anyway
+            # Don't revoke old token - frontend needs it for retry
 
     # Return response with access token
     # Always include refresh_token in response to ensure localStorage fallback works
@@ -559,14 +577,23 @@ async def refresh_access_token(
         "refresh_token": token_data["refresh_token"]  # Always include for localStorage fallback
     }
     
-    # Enhanced logging for successful refresh (consensus recommendation)
+    # Enhanced logging for successful refresh
     user_email = refresh_token_record.email if is_system_admin else (user.email if user else "unknown")
-    logger.info(
-        f"Token refresh successful - user: {user_email}, "
-        f"token_source: {token_source}, "
-        f"new_refresh_token_included: True, "
-        f"cookie_set: True"
-    )
+    if token_source == "cookie":
+        logger.info(
+            f"Token refresh successful - user: {user_email}, "
+            f"token_source: {token_source}, "
+            f"token_rotated: True, "
+            f"new_refresh_token_included: True, "
+            f"cookie_set: True"
+        )
+    else:
+        logger.info(
+            f"Token refresh successful - user: {user_email}, "
+            f"token_source: {token_source}, "
+            f"token_rotated: False (cookies not working, allowing retry if CORS blocks), "
+            f"refresh_token_reused: True"
+        )
     
     return response_data
 

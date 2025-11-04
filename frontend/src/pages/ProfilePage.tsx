@@ -16,22 +16,25 @@ interface ProfileData {
 }
 
 const ProfilePage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
 
   // Fetch user profile separately (needed for display)
   const [profile, setProfile] = React.useState<any>(null);
 
   React.useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const profileData = await apiService.getProfile();
-        setProfile(profileData);
-      } catch (err) {
-        console.error('Error fetching profile:', err);
-      }
-    };
-    fetchProfile();
-  }, []);
+    // Wait for auth to complete before fetching profile
+    if (!isLoading) {
+      const fetchProfile = async () => {
+        try {
+          const profileData = await apiService.getProfile();
+          setProfile(profileData);
+        } catch (err) {
+          console.error('Error fetching profile:', err);
+        }
+      };
+      fetchProfile();
+    }
+  }, [isLoading]);
 
   const {
     data: profileData,
@@ -99,7 +102,7 @@ const ProfilePage: React.FC = () => {
     },
     validateData: validateProfileSettings,
     getSectionChanges: getProfileSectionChanges,
-  });
+  }, { isLoading });
 
   const handleAddInterval = (dayKey: string) => {
     if (!profileData) return;

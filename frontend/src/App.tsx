@@ -69,8 +69,21 @@ const AppRoutes: React.FC = () => {
 const ProtectedRoutes: React.FC = () => {
   const { isAuthenticated, isSystemAdmin, isClinicUser, user } = useAuth();
 
+  // Debug: Log when ProtectedRoutes renders
+  logger.log('DEBUG: ProtectedRoutes render', {
+    isAuthenticated,
+    isSystemAdmin,
+    isClinicUser,
+    hasUser: !!user,
+    userEmail: user?.email,
+    timestamp: new Date().toISOString()
+  });
+
   // If not authenticated, redirect to login
   if (!isAuthenticated) {
+    logger.log('DEBUG: ProtectedRoutes - not authenticated, redirecting to login', {
+      timestamp: new Date().toISOString()
+    });
     return <Navigate to="/login" replace />;
   }
 

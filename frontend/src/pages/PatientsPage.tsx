@@ -2,16 +2,21 @@ import React, { useState, useEffect } from 'react';
 import moment from 'moment-timezone';
 import { apiService } from '../services/api';
 import { Patient } from '../types';
+import { useAuth } from '../hooks/useAuth';
 import PageHeader from '../components/PageHeader';
 
 const PatientsPage: React.FC = () => {
+  const { isLoading, isAuthenticated } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchPatients();
-  }, []);
+    // Wait for auth to complete before fetching data
+    if (!isLoading && isAuthenticated) {
+      fetchPatients();
+    }
+  }, [isLoading, isAuthenticated]);
 
   const fetchPatients = async () => {
     try {

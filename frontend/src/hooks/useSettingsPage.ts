@@ -15,7 +15,15 @@ interface SettingsPageConfig<T> {
   onValidationError?: (error: string) => Promise<void>;
 }
 
-export const useSettingsPage = <T extends Record<string, any>>(config: SettingsPageConfig<T>) => {
+interface UseSettingsPageOptions {
+  isLoading?: boolean;
+}
+
+export const useSettingsPage = <T extends Record<string, any>>(
+  config: SettingsPageConfig<T>,
+  options?: UseSettingsPageOptions
+) => {
+  const { isLoading: authLoading = false } = options || {};
   const [data, setData] = useState<T | null>(null);
   const [originalData, setOriginalData] = useState<T | null>(null);
   const [uiState, setUiState] = useState<UIState>({
@@ -24,10 +32,14 @@ export const useSettingsPage = <T extends Record<string, any>>(config: SettingsP
     error: null,
   });
 
-  // Fetch data on mount
+  // Fetch data on mount - wait for auth to complete before fetching
   useEffect(() => {
-    fetchData();
-  }, []);
+    // Wait for auth to complete before fetching data
+    if (!authLoading) {
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading]);
 
   const fetchData = async () => {
     try {

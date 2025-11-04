@@ -12,7 +12,7 @@ import ClinicBookingRestrictionSettings from '../components/ClinicBookingRestric
 import PageHeader from '../components/PageHeader';
 
 const SettingsPage: React.FC = () => {
-  const { isClinicAdmin, isClinicUser } = useAuth();
+  const { isClinicAdmin, isClinicUser, isLoading } = useAuth();
   const { alert } = useModal();
 
   // Only clinic users can access clinic settings
@@ -80,7 +80,7 @@ const SettingsPage: React.FC = () => {
     onValidationError: async (error: string) => {
       await alert(error, '錯誤');
     },
-  });
+  }, { isLoading });
 
   const addAppointmentType = () => {
     if (!settings) return;

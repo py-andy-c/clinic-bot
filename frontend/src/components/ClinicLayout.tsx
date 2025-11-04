@@ -10,7 +10,7 @@ interface ClinicLayoutProps {
 
 // Global Warnings Component
 const GlobalWarnings: React.FC = () => {
-  const { user, isClinicAdmin, hasRole } = useAuth();
+  const { user, isClinicAdmin, hasRole, isLoading } = useAuth();
   const location = useLocation();
   const [warnings, setWarnings] = useState<{
     clinicWarnings: { hasAppointmentTypes: boolean };
@@ -82,17 +82,30 @@ const GlobalWarnings: React.FC = () => {
         practitionerWarnings,
         adminWarnings
       });
-    } catch (err) {
-      console.error('Error fetching warnings:', err);
+    } catch (err: any) {
+      // Silently handle network/CORS errors during auth recovery
+      // These are expected when returning to tab after being in background
+      const isNetworkError = err?.code === 'ERR_NETWORK' || 
+                            err?.message?.includes('Network Error') ||
+                            err?.message?.includes('Load failed') ||
+                            err?.message?.includes('CORS');
+      
+      if (!isNetworkError) {
+        // Only log non-network errors (actual API failures)
+        console.error('Error fetching warnings:', err);
+      }
     } finally {
       setLoading(false);
     }
   }, [user, isClinicAdmin, hasRole]);
 
-  // Initial fetch on mount
+  // Initial fetch on mount - wait for auth to complete before fetching
   useEffect(() => {
-    fetchWarnings();
-  }, [fetchWarnings]);
+    // Wait for auth to complete before fetching data
+    if (!isLoading && user) {
+      fetchWarnings();
+    }
+  }, [isLoading, user, fetchWarnings]);
 
   // Refresh warnings when navigating away from settings/profile pages
   useEffect(() => {

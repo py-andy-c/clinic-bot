@@ -87,6 +87,9 @@ export class ApiService {
 
         originalRequest._retry = true;
 
+        // Capture current token before refresh attempt
+        const accessTokenBeforeRefresh = localStorage.getItem('access_token');
+
         try {
           // Check if refresh is already in progress (either from api.ts or useAuth.tsx)
           const refreshInProgress = this.isRefreshing || localStorage.getItem('_refresh_in_progress') === 'true';
@@ -111,6 +114,72 @@ export class ApiService {
             return this.client.request(originalRequest);
           }
         } catch (refreshError: any) {
+          // Check if this is a CORS/network error (refresh might have succeeded on backend)
+          const isCorsError = !refreshError.response && 
+            (refreshError.code === 'ERR_NETWORK' || 
+             refreshError.message?.includes('CORS') ||
+             refreshError.message?.includes('access control') ||
+             refreshError.message?.includes('Load failed'));
+          
+          if (isCorsError) {
+            logger.log('ApiService: CORS error during refresh - checking if current token is still valid', {
+              hasAccessToken: !!localStorage.getItem('access_token'),
+              accessTokenBeforeRefresh: !!accessTokenBeforeRefresh,
+              timestamp: new Date().toISOString()
+            });
+            
+            // When CORS blocks the response, we can't get the new token
+            // But the backend might have refreshed successfully
+            // Check if our current token is still valid (might have been refreshed by another request)
+            const currentToken = localStorage.getItem('access_token');
+            if (currentToken) {
+              try {
+                // Try to validate the current token - it might have been refreshed by another request
+                const verifyResponse = await this.client.get('/auth/verify', {
+                  headers: { Authorization: `Bearer ${currentToken}` }
+                });
+                if (verifyResponse.status === 200) {
+                  logger.log('ApiService: Current token is still valid after CORS error - refresh may have succeeded', {
+                    timestamp: new Date().toISOString()
+                  });
+                  this.resetSessionExpired();
+                  // Retry the original request with the current token
+                  originalRequest.headers.Authorization = `Bearer ${currentToken}`;
+                  return this.client.request(originalRequest);
+                }
+              } catch (verifyError: any) {
+                logger.warn('ApiService: Current token validation failed after CORS error', {
+                  error: verifyError.message,
+                  timestamp: new Date().toISOString()
+                });
+              }
+            }
+            
+            // Wait a moment and check again - another request might have refreshed the token
+            await new Promise(resolve => setTimeout(resolve, 100)); // Reduced from 300ms
+            const tokenAfterWait = localStorage.getItem('access_token');
+            if (tokenAfterWait && tokenAfterWait !== currentToken) {
+              logger.log('ApiService: New token appeared after wait - refresh succeeded via another request', {
+                timestamp: new Date().toISOString()
+              });
+              try {
+                const verifyResponse = await this.client.get('/auth/verify', {
+                  headers: { Authorization: `Bearer ${tokenAfterWait}` }
+                });
+                if (verifyResponse.status === 200) {
+                  this.resetSessionExpired();
+                  originalRequest.headers.Authorization = `Bearer ${tokenAfterWait}`;
+                  return this.client.request(originalRequest);
+                }
+              } catch (verifyError) {
+                logger.warn('ApiService: New token validation failed', {
+                  error: verifyError instanceof Error ? verifyError.message : String(verifyError),
+                  timestamp: new Date().toISOString()
+                });
+              }
+            }
+          }
+          
           // Refresh failed (session expired), clear auth state and redirect to login
           this.sessionExpired = true; // Mark session as expired to prevent further attempts
           this.isRefreshing = false;
@@ -196,10 +265,44 @@ export class ApiService {
             headers: response.headers
           });
         } catch (localStorageError: any) {
+          const isCorsError = !localStorageError.response && 
+            (localStorageError.code === 'ERR_NETWORK' || 
+             localStorageError.message?.includes('CORS') ||
+             localStorageError.message?.includes('access control') ||
+             localStorageError.message?.includes('Load failed'));
+          
           logger.log('ApiService: localStorage attempt failed, trying cookie fallback...', {
             error: localStorageError.message,
+            isCorsError,
             hasCookie
           });
+          
+          // If it's a CORS error, check if refresh actually succeeded
+          if (isCorsError) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+            const newAccessToken = localStorage.getItem('access_token');
+            if (newAccessToken && newAccessToken !== accessTokenValue) {
+              logger.log('ApiService: New access token found after localStorage CORS error', {
+                timestamp: new Date().toISOString()
+              });
+              try {
+                const verifyResponse = await this.client.get('/auth/verify');
+                if (verifyResponse.status === 200) {
+                  logger.log('ApiService: Token validation succeeded after localStorage CORS error', {
+                    timestamp: new Date().toISOString()
+                  });
+                  this.resetSessionExpired();
+                  return; // Success - exit early
+                }
+              } catch (verifyError) {
+                logger.warn('ApiService: Token validation failed after localStorage CORS error', {
+                  error: verifyError instanceof Error ? verifyError.message : String(verifyError),
+                  timestamp: new Date().toISOString()
+                });
+              }
+            }
+          }
+          
           // Fall through to cookie attempt
         }
       }
@@ -319,15 +422,57 @@ export class ApiService {
         throw new Error('權杖更新失敗');
       }
     } catch (error: any) {
-      // If refresh token is invalid (401), ensure we clear auth state
-      // Only clear if both cookie and localStorage attempts failed
+      // If refresh token is invalid (401), check if it's a "token not found" error
+      // This might be a refresh token rotation race condition
       if (error.response?.status === 401) {
+        const errorText = error.response?.data?.detail || error.response?.data?.error || '';
+        const isTokenNotFoundError = typeof errorText === 'string' && 
+          (errorText.includes('not found') || errorText.includes('expired/revoked'));
+        
+        if (isTokenNotFoundError) {
+          logger.log('ApiService: Refresh failed with "token not found" - might be rotation race condition', {
+            error: errorText,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Wait a moment - another refresh might have succeeded and updated localStorage
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Check if we have a new token (another refresh might have succeeded)
+          const newToken = localStorage.getItem('access_token');
+          const newRefreshToken = localStorage.getItem('refresh_token');
+          
+          if (newToken && newToken !== accessTokenValue) {
+            logger.log('ApiService: New token found after "token not found" error - another refresh succeeded', {
+              timestamp: new Date().toISOString()
+            });
+            try {
+              const verifyResponse = await this.client.get('/auth/verify', {
+                headers: { Authorization: `Bearer ${newToken}` }
+              });
+              if (verifyResponse.status === 200) {
+                logger.log('ApiService: Token validation succeeded after rotation recovery', {
+                  timestamp: new Date().toISOString()
+                });
+                this.resetSessionExpired();
+                return; // Success - exit early
+              }
+            } catch (verifyError: any) {
+              logger.warn('ApiService: Token validation failed after rotation recovery', {
+                error: verifyError.message
+              });
+            }
+          }
+        }
+        
         logger.error('ApiService: Token refresh failed (401) - both cookie and localStorage attempts failed', {
           browserIsSafari,
           recommendedStorage,
           hasCookieAtFailure: !!document.cookie.includes('refresh_token'),
           hasLocalStorageAtFailure: !!localStorage.getItem('refresh_token'),
-          localStorageKeysAtFailure: Object.keys(localStorage)
+          localStorageKeysAtFailure: Object.keys(localStorage),
+          isTokenNotFoundError,
+          errorText
         });
 
         // Safari-specific: Log additional context for debugging
