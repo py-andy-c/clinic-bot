@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
-from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, Appointment
+from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
 from services.availability_service import AvailabilityService
 from services.notification_service import NotificationService, CancellationSource
@@ -532,25 +532,16 @@ async def validate_appointment_type_deletion(
             )
 
             # Check for future appointments (warnings)
-            from utils.datetime_utils import taiwan_now
-            current_time = taiwan_now()
-
-            future_appointment_count = db.query(Appointment).join(
-                CalendarEvent,
-                Appointment.calendar_event_id == CalendarEvent.id
-            ).filter(
-                Appointment.appointment_type_id == appointment_type_id,
-                CalendarEvent.start_time >= current_time
-            ).count()
+            from utils.appointment_queries import count_future_appointments_for_appointment_type
+            future_appointment_count = count_future_appointments_for_appointment_type(
+                db, appointment_type_id
+            )
 
             # Check for past appointments (just informational)
-            past_appointment_count = db.query(Appointment).join(
-                CalendarEvent,
-                Appointment.calendar_event_id == CalendarEvent.id
-            ).filter(
-                Appointment.appointment_type_id == appointment_type_id,
-                CalendarEvent.start_time < current_time
-            ).count()
+            from utils.appointment_queries import count_past_appointments_for_appointment_type
+            past_appointment_count = count_past_appointments_for_appointment_type(
+                db, appointment_type_id
+            )
 
             # Practitioners block deletion, future appointments are warnings
             has_blocking_issues = bool(practitioners)

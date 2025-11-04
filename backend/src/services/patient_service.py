@@ -10,10 +10,7 @@ from typing import List, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
-
-from models import Patient, Appointment, CalendarEvent, LineUser
-from utils.datetime_utils import taiwan_now
+from models import Patient, LineUser
 
 logger = logging.getLogger(__name__)
 
@@ -189,23 +186,9 @@ class PatientService:
             db, patient_id, line_user_id, clinic_id
         )
 
-        # Check for future appointments (using Taiwan timezone)
-        # Need to check if any appointment is in the future by comparing date and time
-        now = taiwan_now()
-        today = now.date()
-        current_time = now.time()
-        
-        future_appointments = db.query(Appointment).join(
-            CalendarEvent
-        ).filter(
-            Appointment.patient_id == patient_id,
-            Appointment.status == "confirmed",
-            # Check if appointment is in the future: either future date, or today with future time
-            (
-                (CalendarEvent.date > today) |
-                and_(CalendarEvent.date == today, CalendarEvent.start_time > current_time)
-            )
-        ).count()
+        # Check for future appointments
+        from utils.appointment_queries import count_future_appointments_for_patient
+        future_appointments = count_future_appointments_for_patient(db, patient_id)
 
         if future_appointments > 0:
             raise HTTPException(

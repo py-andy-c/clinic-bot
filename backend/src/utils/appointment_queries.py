@@ -1,0 +1,216 @@
+"""
+Utility functions for consistent appointment queries.
+
+This module contains reusable query functions that ensure common appointment
+query patterns (like future/upcoming appointment filtering) are applied
+consistently across all services and APIs.
+"""
+
+from typing import List, Optional
+from sqlalchemy.orm import Session, Query
+from sqlalchemy import or_, and_
+
+from models import Appointment, CalendarEvent
+from utils.datetime_utils import taiwan_now
+
+
+def filter_future_appointments(query: Query[Appointment]) -> Query[Appointment]:
+    """
+    Apply filter to only include future/upcoming appointments.
+
+    An appointment is considered "future" if:
+    - Its date is after today, OR
+    - Its date is today AND its start time is after the current time
+
+    Uses Taiwan timezone for consistent time comparisons.
+
+    Args:
+        query: Base query for Appointment (must be joined with CalendarEvent)
+
+    Returns:
+        Query filtered to only include future/upcoming appointments
+    """
+    # Use Taiwan timezone for consistent comparison
+    taiwan_current = taiwan_now()
+    today = taiwan_current.date()
+    current_time = taiwan_current.time()
+
+    return query.filter(
+        or_(
+            CalendarEvent.date > today,
+            and_(CalendarEvent.date == today, CalendarEvent.start_time > current_time)
+        )
+    )
+
+
+def count_future_appointments_for_patient(
+    db: Session,
+    patient_id: int,
+    status: str = "confirmed"
+) -> int:
+    """
+    Count future/upcoming appointments for a specific patient.
+
+    Args:
+        db: Database session
+        patient_id: Patient ID
+        status: Appointment status to filter by (default: "confirmed")
+
+    Returns:
+        Count of future appointments for the patient
+    """
+    query = db.query(Appointment).join(
+        CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+    ).filter(
+        Appointment.patient_id == patient_id,
+        Appointment.status == status
+    )
+
+    return filter_future_appointments(query).count()
+
+
+def get_future_appointments_for_patients(
+    db: Session,
+    patient_ids: List[int],
+    status: str = "confirmed"
+) -> List[Appointment]:
+    """
+    Get all future/upcoming appointments for multiple patients.
+
+    Args:
+        db: Database session
+        patient_ids: List of patient IDs
+        status: Appointment status to filter by (default: "confirmed")
+
+    Returns:
+        List of future Appointment objects for the patients
+    """
+    query = db.query(Appointment).join(
+        CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+    ).filter(
+        Appointment.patient_id.in_(patient_ids),
+        Appointment.status == status
+    )
+
+    return filter_future_appointments(query).all()
+
+
+def count_future_appointments_for_practitioner(
+    db: Session,
+    practitioner_id: int,
+    status: str = "confirmed"
+) -> int:
+    """
+    Count future/upcoming appointments for a specific practitioner.
+
+    Args:
+        db: Database session
+        practitioner_id: Practitioner (user) ID
+        status: Appointment status to filter by (default: "confirmed")
+
+    Returns:
+        Count of future appointments for the practitioner
+    """
+    query = db.query(Appointment).join(
+        CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+    ).filter(
+        CalendarEvent.user_id == practitioner_id,
+        Appointment.status == status
+    )
+
+    return filter_future_appointments(query).count()
+
+
+def get_future_appointments_for_practitioner(
+    db: Session,
+    practitioner_id: int,
+    status: str = "confirmed",
+    limit: Optional[int] = None
+) -> List[Appointment]:
+    """
+    Get future/upcoming appointments for a specific practitioner.
+
+    Args:
+        db: Database session
+        practitioner_id: Practitioner (user) ID
+        status: Appointment status to filter by (default: "confirmed")
+        limit: Optional limit on number of results
+
+    Returns:
+        List of future Appointment objects for the practitioner
+    """
+    query = db.query(Appointment).join(
+        CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+    ).filter(
+        CalendarEvent.user_id == practitioner_id,
+        Appointment.status == status
+    )
+
+    query = filter_future_appointments(query)
+
+    if limit:
+        query = query.limit(limit)
+
+    return query.all()
+
+
+def count_future_appointments_for_appointment_type(
+    db: Session,
+    appointment_type_id: int,
+    status: str = "confirmed"
+) -> int:
+    """
+    Count future/upcoming appointments for a specific appointment type.
+
+    Args:
+        db: Database session
+        appointment_type_id: Appointment type ID
+        status: Appointment status to filter by (default: "confirmed")
+
+    Returns:
+        Count of future appointments for the appointment type
+    """
+    query = db.query(Appointment).join(
+        CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+    ).filter(
+        Appointment.appointment_type_id == appointment_type_id,
+        Appointment.status == status
+    )
+
+    return filter_future_appointments(query).count()
+
+
+def count_past_appointments_for_appointment_type(
+    db: Session,
+    appointment_type_id: int,
+    status: str = "confirmed"
+) -> int:
+    """
+    Count past/completed appointments for a specific appointment type.
+
+    Args:
+        db: Database session
+        appointment_type_id: Appointment type ID
+        status: Appointment status to filter by (default: "confirmed")
+
+    Returns:
+        Count of past appointments for the appointment type
+    """
+    query = db.query(Appointment).join(
+        CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+    ).filter(
+        Appointment.appointment_type_id == appointment_type_id,
+        Appointment.status == status
+    )
+
+    # Use Taiwan timezone for consistent comparison
+    taiwan_current = taiwan_now()
+    today = taiwan_current.date()
+    current_time = taiwan_current.time()
+
+    return query.filter(
+        or_(
+            CalendarEvent.date < today,
+            and_(CalendarEvent.date == today, CalendarEvent.start_time < current_time)
+        )
+    ).count()

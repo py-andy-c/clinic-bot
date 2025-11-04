@@ -246,12 +246,15 @@ async def get_default_schedule(
                     detail="您只能查看自己的可用時間"
                 )
         
-        # Verify user exists and is a practitioner
-        user = db.query(User).filter(User.id == user_id).first()
+        # Verify user exists, is active, and is a practitioner
+        user = db.query(User).filter(
+            User.id == user_id,
+            User.is_active == True
+        ).first()
         if not user or not user.is_practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到治療師"
+                detail="找不到治療師或治療師已停用"
             )
         
         # Get schedule for each day
@@ -298,12 +301,15 @@ async def update_default_schedule(
                     detail="您只能修改自己的可用時間"
                 )
         
-        # Verify user exists and is a practitioner
-        user = db.query(User).filter(User.id == user_id).first()
+        # Verify user exists, is active, and is a practitioner
+        user = db.query(User).filter(
+            User.id == user_id,
+            User.is_active == True
+        ).first()
         if not user or not user.is_practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到治療師"
+                detail="找不到治療師或治療師已停用"
             )
         
         # Validate intervals for each day
@@ -403,12 +409,15 @@ async def get_calendar_data(
                     detail="您只能查看自己的行事曆"
                 )
         
-        # Verify user exists and is a practitioner
-        user = db.query(User).filter(User.id == user_id).first()
+        # Verify user exists, is active, and is a practitioner
+        user = db.query(User).filter(
+            User.id == user_id,
+            User.is_active == True
+        ).first()
         if not user or not user.is_practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到治療師"
+                detail="找不到治療師或治療師已停用"
             )
         
         if date:
@@ -578,12 +587,15 @@ async def get_available_slots(
                     detail="您只能查看自己的可用時間"
                 )
         
-        # Verify user exists and is a practitioner
-        user = db.query(User).filter(User.id == user_id).first()
+        # Verify user exists, is active, and is a practitioner
+        user = db.query(User).filter(
+            User.id == user_id,
+            User.is_active == True
+        ).first()
         if not user or not user.is_practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到治療師"
+                detail="找不到治療師或治療師已停用"
             )
         
         # Verify appointment type exists
@@ -651,12 +663,15 @@ async def create_availability_exception(
                     detail="您只能建立自己的可用時間例外"
                 )
         
-        # Verify user exists and is a practitioner
-        user = db.query(User).filter(User.id == user_id).first()
+        # Verify user exists, is active, and is a practitioner
+        user = db.query(User).filter(
+            User.id == user_id,
+            User.is_active == True
+        ).first()
         if not user or not user.is_practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到治療師"
+                detail="找不到治療師或治療師已停用"
             )
         
         try:

@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, time
 from typing import List, Optional, Dict, Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, or_
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -354,17 +354,9 @@ class AppointmentService:
         )
 
         if upcoming_only:
-            # Filter for upcoming appointments: future dates or today with future times
-            # Use Taiwan timezone for consistent comparison
-            taiwan_current = taiwan_now()
-            today = taiwan_current.date()
-            current_time = taiwan_current.time()
-            query = query.filter(
-                or_(
-                    CalendarEvent.date > today,
-                and_(CalendarEvent.date == today, CalendarEvent.start_time > current_time)
-            )
-            )
+            # Filter for upcoming appointments using utility function
+            from utils.appointment_queries import filter_future_appointments
+            query = filter_future_appointments(query)
 
         # Eagerly load all relationships to avoid N+1 queries
         # Since we already joined CalendarEvent, use contains_eager for it

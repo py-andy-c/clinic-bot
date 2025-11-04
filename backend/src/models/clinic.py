@@ -184,8 +184,8 @@ class Clinic(Base):
 
     @property
     def practitioners(self):
-        """Get all practitioner users for this clinic."""
-        return [u for u in self.users if 'practitioner' in u.roles]
+        """Get all active practitioner users for this clinic."""
+        return [u for u in self.users if 'practitioner' in u.roles and u.is_active]
 
     @property
     def effective_display_name(self) -> str:
