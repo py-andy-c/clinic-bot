@@ -10,9 +10,9 @@ interface ClinicReminderSettingsProps {
   isClinicAdmin?: boolean;
   clinicName: string;
   clinicInfoSettings: {
-    display_name?: string | null;
-    address?: string | null;
-    phone_number?: string | null;
+    display_name?: string | null | undefined;
+    address?: string | null | undefined;
+    phone_number?: string | null | undefined;
   };
 }
 

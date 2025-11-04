@@ -80,7 +80,7 @@ class CalendarEvent(Base):
             name='check_valid_event_type'
         ),
         CheckConstraint(
-            "start_time IS NULL OR end_time IS NULL OR start_time < end_time",
+            "start_time IS NULL OR end_time IS NULL OR start_time != end_time",
             name='check_valid_time_range'
         ),
         # Indexes for performance

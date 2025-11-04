@@ -5,9 +5,9 @@
 
 export interface ClinicInfo {
   name: string;
-  display_name?: string | null;
-  address?: string | null;
-  phone_number?: string | null;
+  display_name?: string | null | undefined;
+  address?: string | null | undefined;
+  phone_number?: string | null | undefined;
 }
 
 export interface ReminderMessageData {
@@ -22,7 +22,7 @@ export interface ReminderMessageData {
  * Format a LINE reminder message - matches backend reminder_service.py format
  */
 export const formatReminderMessage = (data: ReminderMessageData): string => {
-  const { patient_name, appointment_type, appointment_time, therapist_name, clinic } = data;
+  const { appointment_type, appointment_time, therapist_name, clinic } = data;
 
   // Add clinic information if available (matches backend logic)
   const clinic_info: string[] = [];

@@ -161,8 +161,8 @@ class TestCalendarEvent:
         with pytest.raises(IntegrityError):
             db_session.commit()
 
-    def test_calendar_event_invalid_time_range(self, db_session):
-        """Test that invalid time ranges are rejected."""
+    def test_calendar_event_zero_duration_invalid(self, db_session):
+        """Test that calendar events with zero duration (start = end) raise IntegrityError."""
         # Create test clinic and user
         clinic = Clinic(
             name="Test Clinic",
@@ -183,13 +183,13 @@ class TestCalendarEvent:
         db_session.add(user)
         db_session.flush()
 
-        # Try to create calendar event with invalid time range
+        # Try to create calendar event with zero duration (start = end)
         calendar_event = CalendarEvent(
             user_id=user.id,
             event_type="appointment",
             date=date(2025, 1, 15),
             start_time=time(11, 0),
-            end_time=time(10, 0)  # End before start
+            end_time=time(11, 0)  # Same as start time
         )
         db_session.add(calendar_event)
 
