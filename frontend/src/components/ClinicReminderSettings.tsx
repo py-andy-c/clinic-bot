@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatReminderMessage, generateDummyReminderData, ClinicInfo } from '../utils/messageFormatting';
 
 interface ClinicReminderSettingsProps {
   reminderHoursBefore: string | number;
@@ -7,6 +8,12 @@ interface ClinicReminderSettingsProps {
   onSave?: () => void;
   saving?: boolean;
   isClinicAdmin?: boolean;
+  clinicName: string;
+  clinicInfoSettings: {
+    display_name?: string | null;
+    address?: string | null;
+    phone_number?: string | null;
+  };
 }
 
 const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
@@ -16,7 +23,18 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
   onSave,
   saving = false,
   isClinicAdmin = false,
+  clinicName,
+  clinicInfoSettings,
 }) => {
+  // Generate dummy data for preview
+  const clinicInfo: ClinicInfo = {
+    name: clinicName,
+    display_name: clinicInfoSettings.display_name,
+    address: clinicInfoSettings.address,
+    phone_number: clinicInfoSettings.phone_number,
+  };
+  const dummyData = generateDummyReminderData(clinicInfo);
+  const previewMessage = formatReminderMessage(dummyData);
   return (
     <div className="mb-8">
       <div className="flex justify-between items-center mb-6">
@@ -48,6 +66,19 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
         />
         <p className="text-sm text-gray-500 mt-1">
           預設為 24 小時前發送提醒
+        </p>
+      </div>
+
+      {/* Message Preview */}
+      <div className="mt-8">
+        <h3 className="text-lg font-medium text-gray-900 mb-3">LINE提醒訊息預覽</h3>
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="text-sm text-gray-700 whitespace-pre-line">
+            {previewMessage}
+          </div>
+        </div>
+        <p className="text-sm text-gray-500 mt-2">
+          這是發送給病患的LINE提醒訊息格式，使用目前診所資訊設定
         </p>
       </div>
     </div>

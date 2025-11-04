@@ -222,6 +222,8 @@ const SettingsPage: React.FC = () => {
                 onSave={saveData}
                 saving={uiState.saving}
                 isClinicAdmin={isClinicAdmin}
+                clinicName={settings.clinic_name}
+                clinicInfoSettings={settings.clinic_info_settings}
               />
 
               {/* Booking Restriction Settings */}
