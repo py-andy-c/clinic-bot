@@ -136,6 +136,28 @@ class Clinic(Base):
     Active clinics can still view existing data but cannot book new appointments.
     """
 
+    # Display Information for Calendar Events and LINE Reminders
+    display_name: Mapped[Optional[str]] = mapped_column(String(MAX_STRING_LENGTH), nullable=True)
+    """
+    Display name used in calendar events and LINE reminders.
+
+    If not set, defaults to the clinic name. Can be customized by clinic admins.
+    """
+
+    address: Mapped[Optional[str]] = mapped_column(String(MAX_STRING_LENGTH), nullable=True)
+    """
+    Clinic address used in calendar events and LINE reminders.
+
+    Optional field for clinic location information.
+    """
+
+    phone_number: Mapped[Optional[str]] = mapped_column(String(MAX_STRING_LENGTH), nullable=True)
+    """
+    Clinic phone number used in calendar events and LINE reminders.
+
+    Optional field for clinic contact information.
+    """
+
     # Relationships
     users = relationship("User", back_populates="clinic")
     """All clinic personnel (admins, practitioners)"""
@@ -164,3 +186,8 @@ class Clinic(Base):
     def practitioners(self):
         """Get all practitioner users for this clinic."""
         return [u for u in self.users if 'practitioner' in u.roles]
+
+    @property
+    def effective_display_name(self) -> str:
+        """Get the effective display name, falling back to clinic name if not set."""
+        return self.display_name if self.display_name else self.name

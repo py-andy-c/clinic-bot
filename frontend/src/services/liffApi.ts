@@ -99,6 +99,14 @@ export interface AppointmentsResponse {
   appointments: AppointmentSummary[];
 }
 
+export interface ClinicInfoResponse {
+  clinic_id: number;
+  clinic_name: string;
+  display_name: string;
+  address: string | null;
+  phone_number: string | null;
+}
+
 class LiffApiService {
   private client: AxiosInstance;
 
@@ -226,6 +234,12 @@ class LiffApiService {
         'Accept': 'text/calendar',
       },
     });
+    return response.data;
+  }
+
+  // Clinic Info
+  async getClinicInfo(): Promise<ClinicInfoResponse> {
+    const response = await this.client.get('/liff/clinic-info');
     return response.data;
   }
 }

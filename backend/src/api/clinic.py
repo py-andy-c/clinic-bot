@@ -74,6 +74,13 @@ class BookingRestrictionSettings(BaseModel):
     minimum_booking_hours_ahead: int = 24
 
 
+class ClinicInfoSettings(BaseModel):
+    """Clinic information settings for display in calendar events and LINE reminders."""
+    display_name: Optional[str] = None
+    address: Optional[str] = None
+    phone_number: Optional[str] = None
+
+
 class SettingsResponse(BaseModel):
     """Response model for clinic settings."""
     clinic_id: int
@@ -82,6 +89,7 @@ class SettingsResponse(BaseModel):
     appointment_types: List[AppointmentTypeResponse]
     notification_settings: NotificationSettings
     booking_restriction_settings: BookingRestrictionSettings
+    clinic_info_settings: ClinicInfoSettings
 
 
 class PractitionerAvailabilityRequest(BaseModel):
@@ -460,6 +468,11 @@ async def get_settings(
            booking_restriction_settings=BookingRestrictionSettings(
                booking_restriction_type=clinic.booking_restriction_type,
                minimum_booking_hours_ahead=clinic.minimum_booking_hours_ahead
+           ),
+           clinic_info_settings=ClinicInfoSettings(
+               display_name=clinic.display_name,
+               address=clinic.address,
+               phone_number=clinic.phone_number
            )
         )
 
@@ -663,6 +676,15 @@ async def update_settings(
             if clinic:
                 clinic.booking_restriction_type = booking_restriction_settings.get("booking_restriction_type", clinic.booking_restriction_type)
                 clinic.minimum_booking_hours_ahead = booking_restriction_settings.get("minimum_booking_hours_ahead", clinic.minimum_booking_hours_ahead)
+
+        # Update clinic info settings
+        clinic_info_settings = settings.get("clinic_info_settings", {})
+        if clinic_info_settings:
+            clinic = db.query(Clinic).get(clinic_id)
+            if clinic:
+                clinic.display_name = clinic_info_settings.get("display_name", clinic.display_name)
+                clinic.address = clinic_info_settings.get("address", clinic.address)
+                clinic.phone_number = clinic_info_settings.get("phone_number", clinic.phone_number)
 
         db.commit()
 

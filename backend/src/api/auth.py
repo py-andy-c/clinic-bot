@@ -647,6 +647,7 @@ async def dev_login(
                 # Create a default clinic
                 clinic = Clinic(
                     name="Development Clinic",
+                    display_name="Development Clinic",
                     line_channel_id="dev_channel",
                     line_channel_secret="dev_secret",
                     line_channel_access_token="dev_token"
@@ -672,6 +673,7 @@ async def dev_login(
                 # Create a default clinic for dev system admins
                 clinic = Clinic(
                     name="Development Clinic",
+                    display_name="Development Clinic",
                     line_channel_id="dev_channel",
                     line_channel_secret="dev_secret",
                     line_channel_access_token="dev_token"

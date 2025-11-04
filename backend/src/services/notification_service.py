@@ -137,9 +137,9 @@ class NotificationService:
             base = f"{formatted_datetime} - {practitioner_name}治療師"
 
         if source == CancellationSource.CLINIC:
-            return f"{patient_name}，您的預約已被診所取消：{base}。如有需要，可透過Line重新預約。"
+            return f"{patient_name}，您的預約已被診所取消：{base}。\n\n如有需要，可透過Line重新預約。"
         else:
-            return f"{patient_name}，您的預約已取消：{base}"
+            return f"{patient_name}，您的預約已取消：{base}。"
 
     @staticmethod
     def _get_line_service(clinic: Clinic):

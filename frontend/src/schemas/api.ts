@@ -17,6 +17,12 @@ export const BookingRestrictionSettingsSchema = z.object({
   minimum_booking_hours_ahead: z.number(),
 });
 
+export const ClinicInfoSettingsSchema = z.object({
+  display_name: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
+  phone_number: z.string().nullable().optional(),
+});
+
 export const BusinessHoursSchema = z.record(z.string(), z.object({
   start: z.string(),
   end: z.string(),
@@ -37,6 +43,7 @@ export const ClinicSettingsSchema = z.object({
   appointment_types: z.array(AppointmentTypeSchema),
   notification_settings: NotificationSettingsSchema,
   booking_restriction_settings: BookingRestrictionSettingsSchema,
+  clinic_info_settings: ClinicInfoSettingsSchema,
 });
 
 
@@ -77,6 +84,7 @@ export const SignupResponseSchema = z.object({
 export type ClinicSettings = z.infer<typeof ClinicSettingsSchema>;
 export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
 export type BookingRestrictionSettings = z.infer<typeof BookingRestrictionSettingsSchema>;
+export type ClinicInfoSettings = z.infer<typeof ClinicInfoSettingsSchema>;
 export type User = z.infer<typeof UserSchema>;
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 export type SignupResponse = z.infer<typeof SignupResponseSchema>;

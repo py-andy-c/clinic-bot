@@ -199,10 +199,23 @@ class ReminderService:
             appointment_time = appointment_datetime.strftime("%m/%d (%a) %H:%M")
             appointment_type = appointment.appointment_type.name
 
+            # Add clinic information if available
+            clinic_info: list[str] = []
+            if clinic.effective_display_name != clinic.name:
+                clinic_info.append(f"診所：{clinic.effective_display_name}")
+            if clinic.address:
+                clinic_info.append(f"地址：{clinic.address}")
+            if clinic.phone_number:
+                clinic_info.append(f"電話：{clinic.phone_number}")
+
+            clinic_info_str = ""
+            if clinic_info:
+                clinic_info_str = "\n\n" + "\n".join(clinic_info)
+
             message = (
                 f"提醒您，您預約的【{appointment_type}】預計於【{appointment_time}】"
-                f"開始，由【{therapist_name}治療師】為您服務。"
-                f"請準時前往診所，期待為您服務！"
+                f"開始，由【{therapist_name}治療師】為您服務。{clinic_info_str}"
+                f"\n\n請準時前往診所，期待為您服務！"
             )
 
             # Send reminder via LINE

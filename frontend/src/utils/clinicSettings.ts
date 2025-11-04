@@ -42,6 +42,10 @@ export const validateClinicSettings = (settings: ClinicSettings): string | null 
 // Get section-specific changes for clinic settings
 export const getClinicSectionChanges = (current: ClinicSettings, original: ClinicSettings): Record<string, boolean> => {
   return {
+    clinicInfoSettings:
+      current.clinic_info_settings.display_name !== original.clinic_info_settings.display_name ||
+      current.clinic_info_settings.address !== original.clinic_info_settings.address ||
+      current.clinic_info_settings.phone_number !== original.clinic_info_settings.phone_number,
     appointmentTypes: JSON.stringify(current.appointment_types) !== JSON.stringify(original.appointment_types),
     reminderSettings: current.notification_settings.reminder_hours_before !== original.notification_settings.reminder_hours_before,
     bookingRestrictionSettings:

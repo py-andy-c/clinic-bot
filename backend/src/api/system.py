@@ -73,6 +73,7 @@ async def create_clinic(
         # Create clinic
         clinic = Clinic(
             name=clinic_data.name,
+            display_name=clinic_data.name,  # Set display_name to clinic name by default
             line_channel_id=clinic_data.line_channel_id,
             line_channel_secret=clinic_data.line_channel_secret,
             line_channel_access_token=clinic_data.line_channel_access_token,

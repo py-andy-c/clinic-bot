@@ -656,3 +656,31 @@ async def cancel_appointment(
 
     except HTTPException:
         raise
+
+
+@router.get("/clinic-info", summary="Get clinic information for LIFF app")
+async def get_clinic_info(
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+) -> Dict[str, Any]:
+    """
+    Get clinic information including display name, address, and phone number.
+
+    Used by LIFF app to populate calendar events with clinic information.
+    """
+    try:
+        _, clinic = line_user_clinic
+
+        return {
+            "clinic_id": clinic.id,
+            "clinic_name": clinic.name,
+            "display_name": clinic.effective_display_name,
+            "address": clinic.address,
+            "phone_number": clinic.phone_number,
+        }
+
+    except Exception:
+        logger.exception("Error getting clinic info")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得診所資訊"
+        )

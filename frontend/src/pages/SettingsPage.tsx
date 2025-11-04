@@ -9,6 +9,7 @@ import { validateClinicSettings, getClinicSectionChanges } from '../utils/clinic
 import ClinicAppointmentTypes from '../components/ClinicAppointmentTypes';
 import ClinicReminderSettings from '../components/ClinicReminderSettings';
 import ClinicBookingRestrictionSettings from '../components/ClinicBookingRestrictionSettings';
+import ClinicInfoSettings from '../components/ClinicInfoSettings';
 import PageHeader from '../components/PageHeader';
 
 const SettingsPage: React.FC = () => {
@@ -186,6 +187,21 @@ const SettingsPage: React.FC = () => {
                 onUpdateType={updateAppointmentType}
                 onRemoveType={removeAppointmentType}
                 showSaveButton={sectionChanges.appointmentTypes || false}
+                onSave={saveData}
+                saving={uiState.saving}
+                isClinicAdmin={isClinicAdmin}
+              />
+
+              {/* Clinic Info Settings */}
+              <ClinicInfoSettings
+                clinicInfoSettings={settings.clinic_info_settings}
+                clinicName={settings.clinic_name}
+                onClinicInfoSettingsChange={(clinicInfoSettings) => {
+                  updateData({
+                    clinic_info_settings: clinicInfoSettings
+                  });
+                }}
+                showSaveButton={sectionChanges.clinicInfoSettings || false}
                 onSave={saveData}
                 saving={uiState.saving}
                 isClinicAdmin={isClinicAdmin}

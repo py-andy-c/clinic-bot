@@ -4,7 +4,17 @@ import { useAppointmentStore } from '../../stores/appointmentStore';
 import { downloadAppointmentICS, generateGoogleCalendarURL } from '../../utils/icsGenerator';
 
 const Step7Success: React.FC = () => {
-  const { appointmentType, practitioner, date, startTime, patient, notes, reset } = useAppointmentStore();
+  const {
+    appointmentType,
+    practitioner,
+    date,
+    startTime,
+    patient,
+    notes,
+    reset,
+    clinicDisplayName,
+    clinicAddress
+  } = useAppointmentStore();
 
   const handleAddToCalendar = () => {
     if (!appointmentType || !date || !startTime || !patient) {
@@ -47,6 +57,8 @@ const Step7Success: React.FC = () => {
         start_time: startDateTimeTaiwan.format(), // Taiwan time with +08:00
         end_time: endDateTimeTaiwan.format(), // Taiwan time with +08:00
       notes: notes || undefined,
+      clinic_name: clinicDisplayName || '診所',
+      ...(clinicAddress && { clinic_address: clinicAddress }),
     };
 
       // Use Google Calendar URL (works on all platforms - iOS, Android, Desktop)
@@ -90,6 +102,8 @@ const Step7Success: React.FC = () => {
           start_time: startDateTimeTaiwan.format(), // Taiwan time with +08:00
           end_time: endDateTimeTaiwan.format(), // Taiwan time with +08:00
           notes: notes || undefined,
+          clinic_name: clinicDisplayName || '診所',
+          ...(clinicAddress && { clinic_address: clinicAddress }),
         };
     downloadAppointmentICS(appointmentData);
       } catch (fallbackError) {

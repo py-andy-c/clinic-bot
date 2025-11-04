@@ -44,6 +44,10 @@ interface AppointmentState {
 
   // Clinic context
   clinicId: number | null;
+  clinicName: string | null;
+  clinicDisplayName: string | null;
+  clinicAddress: string | null;
+  clinicPhoneNumber: string | null;
 
   // Actions
   setStep: (step: number) => void;
@@ -54,6 +58,7 @@ interface AppointmentState {
   setNotes: (notes: string) => void;
   updateNotesOnly: (notes: string) => void; // Updates notes without changing step
   setClinicId: (clinicId: number) => void;
+  setClinicInfo: (clinicName: string, clinicDisplayName: string, clinicAddress: string | null, clinicPhoneNumber: string | null) => void;
   reset: () => void;
 
   // Computed properties
@@ -72,6 +77,10 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
   patient: null,
   notes: '',
   clinicId: null,
+  clinicName: null,
+  clinicDisplayName: null,
+  clinicAddress: null,
+  clinicPhoneNumber: null,
 
   setStep: (step) => set({ step }),
 
@@ -118,6 +127,13 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
 
   setClinicId: (clinicId) => set({ clinicId }),
 
+  setClinicInfo: (clinicName, clinicDisplayName, clinicAddress, clinicPhoneNumber) => set({
+    clinicName,
+    clinicDisplayName,
+    clinicAddress,
+    clinicPhoneNumber,
+  }),
+
   reset: () => set({
     step: 1,
     appointmentTypeId: null,
@@ -129,7 +145,7 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     patientId: null,
     patient: null,
     notes: '',
-    // Keep clinicId as it doesn't change during the flow
+    // Keep clinicId and clinic info as they don't change during the flow
   }),
 
   canProceedToStep: (targetStep) => {
