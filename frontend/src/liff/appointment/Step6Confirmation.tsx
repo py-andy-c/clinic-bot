@@ -4,7 +4,7 @@ import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 
 const Step6Confirmation: React.FC = () => {
-  const { appointmentType, practitioner, date, startTime, patient, notes, clinicId, step, setStep } = useAppointmentStore();
+  const { appointmentType, practitioner, practitionerId, isAutoAssigned, date, startTime, patient, notes, clinicId, step, setStep, updateAssignedPractitioner, setCreatedAppointment } = useAppointmentStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,12 +32,31 @@ const Step6Confirmation: React.FC = () => {
 
       // Send Taiwan time with timezone indicator to API
       // Format as ISO string with timezone offset (e.g., 2024-11-03T11:00:00+08:00)
-      await liffApiService.createAppointment({
+      const response = await liffApiService.createAppointment({
         patient_id: patient.id,
         appointment_type_id: appointmentType.id,
         practitioner_id: practitioner?.id ?? undefined,
         start_time: startDateTimeTaiwan.format(),
         notes: notes || undefined,
+      });
+
+      // Update UI with assigned practitioner info if auto-assigned
+      const wasAutoAssigned = practitionerId === null;
+      if (wasAutoAssigned && response.practitioner_name) {
+        // Update store with assigned practitioner and mark as auto-assigned
+        updateAssignedPractitioner(response.practitioner_id, {
+          id: response.practitioner_id,
+          full_name: response.practitioner_name,
+          offered_types: [] // We don't have this info, but it's not critical for display
+        }, true);
+      }
+
+      // Store created appointment data for Step 7
+      setCreatedAppointment({
+        appointment_id: response.appointment_id,
+        calendar_event_id: response.calendar_event_id,
+        start_time: response.start_time,
+        end_time: response.end_time,
       });
 
       // Success - move to step 7
@@ -90,7 +109,10 @@ const Step6Confirmation: React.FC = () => {
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">治療師：</span>
-            <span className="font-medium">{practitioner?.full_name || '不指定'}</span>
+            <span className="font-medium">
+              {practitioner?.full_name || '不指定'}
+              {isAutoAssigned && <span className="text-sm text-blue-600 ml-2">(系統安排)</span>}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">日期時間：</span>

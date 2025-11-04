@@ -29,7 +29,7 @@ const Step2SelectPractitioner: React.FC = () => {
   }, [clinicId, appointmentTypeId]);
 
   const handlePractitionerSelect = (practitionerId: number | null, practitioner?: Practitioner) => {
-    setPractitioner(practitionerId, practitioner);
+    setPractitioner(practitionerId, practitioner, false); // false because user explicitly selected
   };
 
   if (isLoading) {

@@ -8,8 +8,8 @@ const Step7Success: React.FC = () => {
   const {
     appointmentType,
     practitioner,
-    date,
-    startTime,
+    isAutoAssigned,
+    createdAppointment,
     patient,
     notes,
     reset,
@@ -19,36 +19,25 @@ const Step7Success: React.FC = () => {
   const { alert: showAlert } = useModal();
 
   const handleAddToCalendar = () => {
-    if (!appointmentType || !date || !startTime || !patient) {
+    if (!appointmentType || !createdAppointment || !patient) {
       console.error('Missing appointment data for calendar:', {
         appointmentType,
-        date,
-        startTime,
+        createdAppointment,
         patient
       });
       return;
     }
 
     try {
-      // Parse date and time as Taiwan time (Asia/Taipei)
-      // Convert to UTC only for Google Calendar URL generation (external API requirement)
-      // Treat the selected time as Taiwan time regardless of browser timezone
-      const taiwanTimezone = 'Asia/Taipei';
-      const timeWithSeconds = startTime.includes(':') && startTime.split(':').length === 2 
-        ? `${startTime}:00` 
-        : startTime;
-      
-      // Parse as Taiwan time using moment-timezone
-      const startDateTimeTaiwan = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
-      
-      if (!startDateTimeTaiwan.isValid()) {
-        console.error('Invalid date/time:', `${date}T${timeWithSeconds}`);
+      // Use the created appointment's start_time and end_time
+      const startDateTimeTaiwan = moment(createdAppointment.start_time);
+      const endDateTimeTaiwan = moment(createdAppointment.end_time);
+
+      if (!startDateTimeTaiwan.isValid() || !endDateTimeTaiwan.isValid()) {
+        console.error('Invalid date/time from created appointment:', createdAppointment);
         showAlert('無法建立行事曆事件：日期時間格式錯誤', '日期時間錯誤');
         return;
       }
-
-      // Calculate end time in Taiwan timezone
-      const endDateTimeTaiwan = startDateTimeTaiwan.clone().add(appointmentType?.duration_minutes || 60, 'minutes');
 
       // Pass Taiwan time directly (ISO format with timezone indicator)
     const appointmentData = {
@@ -89,20 +78,13 @@ const Step7Success: React.FC = () => {
       console.error('Failed to open Google Calendar:', error);
       // Fallback to ICS download if Google Calendar URL fails
       try {
-        const taiwanTimezone = 'Asia/Taipei';
-        const timeWithSeconds = startTime.includes(':') && startTime.split(':').length === 2 
-          ? `${startTime}:00` 
-          : startTime;
-        const startDateTimeTaiwan = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
-        const endDateTimeTaiwan = startDateTimeTaiwan.clone().add(appointmentType?.duration_minutes || 60, 'minutes');
-        
         const appointmentData = {
-          id: Date.now(),
+          id: createdAppointment.appointment_id,
           appointment_type_name: appointmentType.name,
           practitioner_name: practitioner?.full_name || '待安排',
           patient_name: patient.full_name,
-          start_time: startDateTimeTaiwan.format(), // Taiwan time with +08:00
-          end_time: endDateTimeTaiwan.format(), // Taiwan time with +08:00
+          start_time: createdAppointment.start_time,
+          end_time: createdAppointment.end_time,
           notes: notes || undefined,
           clinic_name: clinicDisplayName || '診所',
           ...(clinicAddress && { clinic_address: clinicAddress }),
@@ -116,27 +98,23 @@ const Step7Success: React.FC = () => {
   };
 
   const formatDateTime = () => {
-    if (!date || !startTime) return '';
-    
-    // Parse as Taiwan timezone explicitly
-    const taiwanTimezone = 'Asia/Taipei';
-    const timeWithSeconds = startTime.includes(':') && startTime.split(':').length === 2 
-      ? `${startTime}:00` 
-      : startTime;
-    const taiwanMoment = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
-    
+    if (!createdAppointment) return '';
+
+    // Parse the start_time from created appointment (already in Taiwan timezone)
+    const taiwanMoment = moment(createdAppointment.start_time);
+
     if (!taiwanMoment.isValid()) {
       return '';
     }
-    
+
     // Format weekday as (日), (一), (二), etc.
     const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
     const weekday = weekdayNames[taiwanMoment.day()];
-    
+
     // Format using Taiwan timezone
     const dateStr = taiwanMoment.format('YYYY/MM/DD');
     const timeStr = taiwanMoment.format('HH:mm');
-    
+
     return `${dateStr} (${weekday}) ${timeStr}`;
   };
 
@@ -171,7 +149,10 @@ const Step7Success: React.FC = () => {
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">治療師：</span>
-            <span className="font-medium">{practitioner?.full_name || '不指定'}</span>
+            <span className="font-medium">
+              {practitioner?.full_name || '不指定'}
+              {isAutoAssigned && <span className="text-sm text-blue-600 ml-2">(系統安排)</span>}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">日期時間：</span>

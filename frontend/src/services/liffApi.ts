@@ -77,9 +77,11 @@ export interface AppointmentResponse {
   calendar_event_id: number;
   patient_name: string;
   practitioner_name: string;
+  practitioner_id: number;
   appointment_type_name: string;
   start_time: string;
   end_time: string;
+  status: string;
   notes?: string;
 }
 

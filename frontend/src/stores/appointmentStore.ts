@@ -30,6 +30,7 @@ interface AppointmentState {
   // Step 2: Practitioner
   practitionerId: number | null; // null means "不指定治療師"
   practitioner: Practitioner | null;
+  isAutoAssigned: boolean; // true if practitioner was auto-assigned by system
 
   // Step 3: Date & Time
   date: string | null;
@@ -42,6 +43,14 @@ interface AppointmentState {
   // Step 5: Notes
   notes: string;
 
+  // Created appointment data (for Step 7 display)
+  createdAppointment: {
+    appointment_id: number;
+    calendar_event_id: number;
+    start_time: string;
+    end_time: string;
+  } | null;
+
   // Clinic context
   clinicId: number | null;
   clinicName: string | null;
@@ -52,11 +61,13 @@ interface AppointmentState {
   // Actions
   setStep: (step: number) => void;
   setAppointmentType: (id: number, type: AppointmentType) => void;
-  setPractitioner: (id: number | null, practitioner?: Practitioner) => void;
+  setPractitioner: (id: number | null, practitioner?: Practitioner, isAutoAssigned?: boolean) => void;
+  updateAssignedPractitioner: (id: number, practitioner: Practitioner, isAutoAssigned?: boolean) => void; // Updates assigned practitioner without resetting date/time
   setDateTime: (date: string, time: string) => void;
   setPatient: (id: number, patient: Patient) => void;
   setNotes: (notes: string) => void;
   updateNotesOnly: (notes: string) => void; // Updates notes without changing step
+  setCreatedAppointment: (appointment: { appointment_id: number; calendar_event_id: number; start_time: string; end_time: string }) => void;
   setClinicId: (clinicId: number) => void;
   setClinicInfo: (clinicName: string, clinicDisplayName: string, clinicAddress: string | null, clinicPhoneNumber: string | null) => void;
   reset: () => void;
@@ -71,11 +82,13 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
   appointmentType: null,
   practitionerId: null,
   practitioner: null,
+  isAutoAssigned: false,
   date: null,
   startTime: null,
   patientId: null,
   patient: null,
   notes: '',
+  createdAppointment: null,
   clinicId: null,
   clinicName: null,
   clinicDisplayName: null,
@@ -95,13 +108,21 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     startTime: null,
   }),
 
-  setPractitioner: (id, practitioner) => set({
+  setPractitioner: (id, practitioner, isAutoAssigned = false) => set({
     practitionerId: id,
     practitioner: practitioner || null,
+    isAutoAssigned,
     step: 3,
     // Reset dependent fields
     date: null,
     startTime: null,
+  }),
+
+  updateAssignedPractitioner: (id, practitioner, isAutoAssigned = false) => set({
+    practitionerId: id,
+    practitioner: practitioner || null,
+    isAutoAssigned,
+    // Don't reset date/time or change step
   }),
 
   setDateTime: (date, time) => set({
@@ -125,6 +146,10 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     notes,
   }),
 
+  setCreatedAppointment: (appointment) => set({
+    createdAppointment: appointment,
+  }),
+
   setClinicId: (clinicId) => set({ clinicId }),
 
   setClinicInfo: (clinicName, clinicDisplayName, clinicAddress, clinicPhoneNumber) => set({
@@ -140,11 +165,13 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     appointmentType: null,
     practitionerId: null,
     practitioner: null,
+    isAutoAssigned: false,
     date: null,
     startTime: null,
     patientId: null,
     patient: null,
     notes: '',
+    createdAppointment: null,
     // Keep clinicId and clinic info as they don't change during the flow
   }),
 
