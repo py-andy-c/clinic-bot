@@ -20,8 +20,31 @@ from services.patient_service import PatientService
 from services.availability_service import AvailabilityService
 from services.appointment_type_service import AppointmentTypeService
 from utils.datetime_utils import taiwan_now, TAIWAN_TZ
+from utils.appointment_type_queries import get_appointment_type_by_id_with_soft_delete_check
 
 logger = logging.getLogger(__name__)
+
+
+def get_appointment_type_name_safe(appointment_type_id: int, db: Session) -> str:
+    """
+    Get appointment type name safely, handling deleted types.
+
+    Args:
+        appointment_type_id: The appointment type ID
+        db: Database session
+
+    Returns:
+        Appointment type name or fallback for deleted types
+    """
+    try:
+        appointment_type = get_appointment_type_by_id_with_soft_delete_check(
+            db, appointment_type_id, include_deleted=True
+        )
+        if appointment_type.is_deleted:
+            return "已刪除服務類型"
+        return appointment_type.name
+    except ValueError:
+        return "未知服務類型"
 
 
 class AppointmentService:
@@ -120,7 +143,7 @@ class AppointmentService:
                 'calendar_event_id': calendar_event.id,
                 'patient_name': patient.full_name if patient else '',
                 'practitioner_name': practitioner.full_name if practitioner else '',
-                'appointment_type_name': appointment_type.name,
+                'appointment_type_name': get_appointment_type_name_safe(appointment_type_id, db),
                 'start_time': start_time,
                 'end_time': end_time,
                 'status': appointment.status,
@@ -376,7 +399,7 @@ class AppointmentService:
                 "patient_id": appointment.patient_id,
                 "patient_name": patient.full_name,
                 "practitioner_name": practitioner.full_name,
-                "appointment_type_name": appointment_type.name,
+                "appointment_type_name": get_appointment_type_name_safe(appointment.appointment_type_id, db),
                 "start_time": start_datetime.isoformat() if start_datetime else "",
                 "end_time": end_datetime.isoformat() if end_datetime else "",
                 "status": appointment.status,
@@ -462,7 +485,7 @@ class AppointmentService:
                 'patient_name': appointment.patient.full_name,
                 'patient_phone': appointment.patient.phone_number,
                 'practitioner_name': practitioner.full_name,
-                'appointment_type_name': appointment.appointment_type.name,
+                'appointment_type_name': get_appointment_type_name_safe(appointment.appointment_type_id, db),
                 'start_time': start_datetime,
                 'end_time': end_datetime,
                 'status': appointment.status,

@@ -19,10 +19,11 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
-from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, PractitionerAppointmentTypes, CalendarEvent, Appointment
+from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, Appointment
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
 from services.availability_service import AvailabilityService
 from services.notification_service import NotificationService, CancellationSource
+from utils.appointment_type_queries import count_active_appointment_types_for_practitioner
 from api.responses import (
     ClinicPatientResponse, ClinicPatientListResponse,
     ClinicAppointmentResponse, ClinicAppointmentsResponse,
@@ -530,40 +531,75 @@ async def validate_appointment_type_deletion(
                 clinic_id=clinic_id
             )
 
-            # Check for existing appointments
-            appointment_count = db.query(Appointment).filter(
-                Appointment.appointment_type_id == appointment_type_id
+            # Check for future appointments (warnings)
+            from utils.datetime_utils import taiwan_now
+            current_time = taiwan_now()
+
+            future_appointment_count = db.query(Appointment).join(
+                CalendarEvent,
+                Appointment.calendar_event_id == CalendarEvent.id
+            ).filter(
+                Appointment.appointment_type_id == appointment_type_id,
+                CalendarEvent.start_time >= current_time
             ).count()
 
-            if practitioners or appointment_count > 0:
-                blocking_info = {}
+            # Check for past appointments (just informational)
+            past_appointment_count = db.query(Appointment).join(
+                CalendarEvent,
+                Appointment.calendar_event_id == CalendarEvent.id
+            ).filter(
+                Appointment.appointment_type_id == appointment_type_id,
+                CalendarEvent.start_time < current_time
+            ).count()
+
+            # Practitioners block deletion, future appointments are warnings
+            has_blocking_issues = bool(practitioners)
+            has_warnings = future_appointment_count > 0
+
+            if has_blocking_issues or has_warnings:
+                warning_info = {}
                 if practitioners:
-                    blocking_info["practitioners"] = [p.full_name for p in practitioners]
-                if appointment_count > 0:
-                    blocking_info["appointment_count"] = appointment_count
+                    warning_info["practitioners"] = [p.full_name for p in practitioners]
+                if future_appointment_count > 0:
+                    warning_info["future_appointment_count"] = future_appointment_count
+                if past_appointment_count > 0:
+                    warning_info["past_appointment_count"] = past_appointment_count
 
                 blocked_types.append({
                     "id": appointment_type.id,
                     "name": appointment_type.name,
-                    **blocking_info
+                    "is_blocked": has_blocking_issues,
+                    "has_warnings": has_warnings,
+                    **warning_info
                 })
 
-        # If any appointment types cannot be deleted, return error
-        if blocked_types:
+        # Separate blocked types from types with warnings
+        blocked_types_list = [t for t in blocked_types if t["is_blocked"]]
+        warning_types_list = [t for t in blocked_types if not t["is_blocked"] and t["has_warnings"]]
+
+        # If any appointment types are blocked by practitioners, return error
+        if blocked_types_list:
             error_response = AppointmentTypeDeletionErrorResponse(
                 error="cannot_delete_appointment_types",
-                message="無法刪除某些預約類型，因為有治療師正在提供此服務或存在相關預約",
-                appointment_types=blocked_types
+                message="無法刪除某些預約類型，因為有治療師正在提供此服務",
+                appointment_types=blocked_types_list
             )
             return {
                 "can_delete": False,
                 "error": error_response.model_dump()
             }
 
-        return {
+        # Return warnings for future appointments
+        response: Dict[str, Any] = {
             "can_delete": True,
-            "message": "可以刪除"
+            "warnings": []
         }
+
+        if warning_types_list:
+            response["warnings"] = warning_types_list
+            response["message"] = f"有{len(warning_types_list)}個預約類型有即將到來的預約，確認要刪除嗎？"
+
+        return response
 
     except HTTPException:
         raise
@@ -656,19 +692,55 @@ async def update_settings(
                 detail=error_response.model_dump()
             )
 
-        # Safe to delete - no practitioner references
-        # Delete existing appointment types
-        db.query(AppointmentType).filter(
-            AppointmentType.clinic_id == clinic_id
-        ).delete()
+        # Process appointment types: update existing, create new, soft delete removed ones
+        incoming_types_dict = {
+            (at_data.get("name"), at_data.get("duration_minutes")): at_data
+            for at_data in appointment_types_data
+            if at_data.get("name") and at_data.get("duration_minutes")
+        }
 
-        # Add new appointment types
-        for at_data in appointment_types_data:
-            if at_data.get("name") and at_data.get("duration_minutes"):
+        # Update existing appointment types or mark for soft deletion
+        for existing_type in existing_appointment_types:
+            key = (existing_type.name, existing_type.duration_minutes)
+            if key in incoming_types_dict:
+                # Type exists in incoming data - ensure it's not soft deleted
+                if existing_type.is_deleted:
+                    existing_type.is_deleted = False
+                    existing_type.deleted_at = None
+                # Could update other fields here if needed
+            elif not existing_type.is_deleted:
+                # Type not in incoming data and not already deleted - check if safe to soft delete
+                practitioners = AvailabilityService.get_practitioners_for_appointment_type(
+                    db=db,
+                    appointment_type_id=existing_type.id,
+                    clinic_id=clinic_id
+                )
+                if not practitioners:
+                    # Safe to soft delete
+                    from datetime import datetime, timezone
+                    existing_type.is_deleted = True
+                    existing_type.deleted_at = datetime.now(timezone.utc)
+
+        # Create new appointment types
+        for (name, duration), _ in incoming_types_dict.items():
+            # Check if this type already exists (maybe was soft deleted)
+            existing = db.query(AppointmentType).filter(
+                AppointmentType.clinic_id == clinic_id,
+                AppointmentType.name == name,
+                AppointmentType.duration_minutes == duration
+            ).first()
+
+            if existing:
+                # Reactivate if it was soft deleted
+                if existing.is_deleted:
+                    existing.is_deleted = False
+                    existing.deleted_at = None
+            else:
+                # Create new
                 appointment_type = AppointmentType(
                     clinic_id=clinic_id,
-                    name=at_data["name"],
-                    duration_minutes=at_data["duration_minutes"]
+                    name=name,
+                    duration_minutes=duration
                 )
                 db.add(appointment_type)
 
@@ -1518,13 +1590,7 @@ async def get_practitioner_status(
             )
 
         # Check if practitioner has appointment types configured
-        # Join with appointment_types to ensure referenced types still exist
-        appointment_types_count = db.query(PractitionerAppointmentTypes).join(
-            AppointmentType,
-            PractitionerAppointmentTypes.appointment_type_id == AppointmentType.id
-        ).filter(
-            PractitionerAppointmentTypes.user_id == user_id
-        ).count()
+        appointment_types_count = count_active_appointment_types_for_practitioner(db, user_id)
 
         # Check if practitioner has availability configured
         availability_count = db.query(PractitionerAvailability).filter(

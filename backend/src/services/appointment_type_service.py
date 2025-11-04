@@ -12,6 +12,11 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from models import AppointmentType
+from utils.appointment_type_queries import (
+    get_active_appointment_types_for_clinic,
+    get_appointment_type_by_id_with_soft_delete_check,
+    soft_delete_appointment_type
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,37 +37,30 @@ class AppointmentTypeService:
     ) -> AppointmentType:
         """
         Get and validate appointment type by ID.
-        
+
+        Note: This method only returns active (non-deleted) appointment types.
+        For admin operations that need to access deleted types, use the utility functions directly.
+
         Args:
             db: Database session
             appointment_type_id: Appointment type ID
             clinic_id: Optional clinic ID to validate ownership
-            
+
         Returns:
             AppointmentType object
-            
+
         Raises:
             HTTPException: If appointment type not found or doesn't belong to clinic
         """
-        # Query by primary key (id) only - more efficient than composite filter
-        appointment_type = db.query(AppointmentType).filter_by(
-            id=appointment_type_id
-        ).first()
-
-        if not appointment_type:
+        try:
+            return get_appointment_type_by_id_with_soft_delete_check(
+                db, appointment_type_id, clinic_id, include_deleted=False
+            )
+        except ValueError as e:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Appointment type not found"
+                detail=str(e)
             )
-        
-        # Validate clinic ownership if clinic_id provided
-        if clinic_id is not None and appointment_type.clinic_id != clinic_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Appointment type not found"
-            )
-
-        return appointment_type
 
     @staticmethod
     def list_appointment_types_for_clinic(
@@ -70,16 +68,42 @@ class AppointmentTypeService:
         clinic_id: int
     ) -> List[AppointmentType]:
         """
-        List all appointment types for a clinic.
-        
+        List all active (non-deleted) appointment types for a clinic.
+
         Args:
             db: Database session
             clinic_id: Clinic ID
-            
+
         Returns:
-            List of AppointmentType objects
+            List of active AppointmentType objects
         """
-        return db.query(AppointmentType).filter_by(
-            clinic_id=clinic_id
-        ).all()
+        return get_active_appointment_types_for_clinic(db, clinic_id)
+
+    @staticmethod
+    def soft_delete_appointment_type(
+        db: Session,
+        appointment_type_id: int,
+        clinic_id: Optional[int] = None
+    ) -> AppointmentType:
+        """
+        Soft delete an appointment type.
+
+        Args:
+            db: Database session
+            appointment_type_id: Appointment type ID
+            clinic_id: Clinic ID for validation
+
+        Returns:
+            The soft-deleted AppointmentType object
+
+        Raises:
+            HTTPException: If appointment type not found or doesn't belong to clinic
+        """
+        try:
+            return soft_delete_appointment_type(db, appointment_type_id, clinic_id)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e)
+            )
 

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from models import User, AppointmentType, PractitionerAppointmentTypes
 from utils.query_helpers import filter_by_role
+from utils.appointment_type_queries import get_active_appointment_types_for_practitioner
 
 logger = logging.getLogger(__name__)
 
@@ -216,22 +217,16 @@ class PractitionerService:
         practitioner_id: int
     ) -> List[AppointmentType]:
         """
-        Get all appointment types offered by a practitioner.
+        Get all active (non-deleted) appointment types offered by a practitioner.
 
         Args:
             db: Database session
             practitioner_id: Practitioner user ID
 
         Returns:
-            List of AppointmentType objects
+            List of active AppointmentType objects
         """
-        appointment_types = db.query(AppointmentType).join(
-            PractitionerAppointmentTypes
-        ).filter(
-            PractitionerAppointmentTypes.user_id == practitioner_id
-        ).all()
-
-        return appointment_types
+        return get_active_appointment_types_for_practitioner(db, practitioner_id)
 
     @staticmethod
     def update_practitioner_appointment_types(

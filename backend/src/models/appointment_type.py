@@ -6,7 +6,9 @@ such as "Initial Consultation", "Follow-up Treatment", "Physical Therapy Session
 Each type has a specific duration and belongs to a particular clinic.
 """
 
-from sqlalchemy import String, ForeignKey
+from datetime import datetime
+from typing import Optional
+from sqlalchemy import String, ForeignKey, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -34,6 +36,12 @@ class AppointmentType(Base):
 
     duration_minutes: Mapped[int] = mapped_column()
     """Expected duration of appointments of this type in minutes (e.g., 30, 60, 90)."""
+
+    is_deleted: Mapped[bool] = mapped_column(default=False)
+    """Soft delete flag. True if this appointment type has been deleted."""
+
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    """Timestamp when the appointment type was soft deleted (if applicable)."""
 
     # Relationships
     clinic = relationship("Clinic", back_populates="appointment_types")

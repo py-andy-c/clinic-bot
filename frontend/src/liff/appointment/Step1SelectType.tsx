@@ -32,6 +32,9 @@ const Step1SelectType: React.FC = () => {
     setAppointmentType(type.id, type);
   };
 
+  // Backend already filters out deleted appointment types
+  const activeAppointmentTypes = appointmentTypes;
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -65,7 +68,7 @@ const Step1SelectType: React.FC = () => {
       </div>
 
       <div className="space-y-3">
-        {appointmentTypes.map((type) => (
+        {activeAppointmentTypes.map((type) => (
           <button
             key={type.id}
             onClick={() => handleTypeSelect(type)}

@@ -236,11 +236,19 @@ class TestAppointmentTypeDeletionPrevention:
         assert res.status_code == 200
         assert "設定更新成功" in res.text
 
-        # Verify old appointment types are deleted
+        # Verify old appointment types are soft deleted, new one is active
         db_session.expire_all()
         existing_types = db_session.query(AppointmentType).filter_by(clinic_id=c.id).all()
-        assert len(existing_types) == 1
-        assert existing_types[0].name == "新類型"
+        assert len(existing_types) == 3  # 2 soft deleted + 1 new active
+
+        # Check soft delete status
+        active_types = [t for t in existing_types if not t.is_deleted]
+        deleted_types = [t for t in existing_types if t.is_deleted]
+
+        assert len(active_types) == 1
+        assert len(deleted_types) == 2
+        assert active_types[0].name == "新類型"
+        assert all(t.deleted_at is not None for t in deleted_types)
 
         app.dependency_overrides.pop(auth_deps.get_current_user, None)
 
@@ -388,8 +396,8 @@ class TestAppointmentTypeDeletionValidation:
         assert res.status_code == 200
         data = res.json()
         assert data["can_delete"] == True
-        assert "message" in data
-        assert "可以刪除" in data["message"]
+        assert "warnings" in data
+        assert data["warnings"] == []
 
         app.dependency_overrides.pop(auth_deps.get_current_user, None)
 

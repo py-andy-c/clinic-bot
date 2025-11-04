@@ -61,6 +61,7 @@ export interface AppointmentType {
   clinic_id: number;
   name: string;
   duration_minutes: number;
+  is_deleted?: boolean;
 }
 
 // Appointment types
