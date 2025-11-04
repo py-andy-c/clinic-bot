@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
-from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, PractitionerAppointmentTypes, CalendarEvent
+from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, PractitionerAppointmentTypes, CalendarEvent, Appointment
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
 from services.availability_service import AvailabilityService
 from services.notification_service import NotificationService, CancellationSource
@@ -530,19 +530,29 @@ async def validate_appointment_type_deletion(
                 clinic_id=clinic_id
             )
 
-            if practitioners:
-                practitioner_names = [p.full_name for p in practitioners]
+            # Check for existing appointments
+            appointment_count = db.query(Appointment).filter(
+                Appointment.appointment_type_id == appointment_type_id
+            ).count()
+
+            if practitioners or appointment_count > 0:
+                blocking_info = {}
+                if practitioners:
+                    blocking_info["practitioners"] = [p.full_name for p in practitioners]
+                if appointment_count > 0:
+                    blocking_info["appointment_count"] = appointment_count
+
                 blocked_types.append({
                     "id": appointment_type.id,
                     "name": appointment_type.name,
-                    "practitioners": practitioner_names
+                    **blocking_info
                 })
 
         # If any appointment types cannot be deleted, return error
         if blocked_types:
             error_response = AppointmentTypeDeletionErrorResponse(
                 error="cannot_delete_appointment_types",
-                message="無法刪除某些預約類型，因為有治療師正在提供此服務",
+                message="無法刪除某些預約類型，因為有治療師正在提供此服務或存在相關預約",
                 appointment_types=blocked_types
             )
             return {
@@ -638,7 +648,7 @@ async def update_settings(
         if blocked_types:
             error_response = AppointmentTypeDeletionErrorResponse(
                 error="cannot_delete_appointment_types",
-                message="無法刪除某些預約類型，因為有治療師正在提供此服務",
+                message="無法刪除某些預約類型，因為有治療師正在提供此服務或存在相關預約",
                 appointment_types=blocked_types
             )
             raise HTTPException(
