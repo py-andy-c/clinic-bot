@@ -95,6 +95,23 @@ export const formatTime = (timeStr: string): string => {
 };
 
 /**
+ * Format event time range for display (e.g., "10:30 AM - 11:00 AM")
+ * Uses Taiwan timezone for consistent formatting.
+ * 
+ * @param start - Start date/time of the event
+ * @param end - End date/time of the event
+ * @returns Formatted time range string
+ */
+export const formatEventTimeRange = (start: Date, end: Date): string => {
+  const taiwanTimezone = 'Asia/Taipei';
+  const startMoment = moment(start).tz(taiwanTimezone);
+  const endMoment = moment(end).tz(taiwanTimezone);
+  const startStr = startMoment.format('h:mm A');
+  const endStr = endMoment.format('h:mm A');
+  return `${startStr} - ${endStr}`;
+};
+
+/**
  * Get events for a specific time slot
  */
 export const getEventsForSlot = (slotTime: string, events: CalendarEvent[]): CalendarEvent[] => {

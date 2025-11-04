@@ -158,6 +158,22 @@ def _check_time_overlap(start1: time, end1: time, start2: time, end2: time) -> b
     return start1 < end2 and start2 < end1
 
 
+def _get_appointment_type_name(appointment: Appointment) -> Optional[str]:
+    """
+    Safely get appointment type name, returning None if appointment_type is not set.
+    
+    This handles cases where an appointment may not have an associated appointment_type,
+    which can occur when appointment types are deleted or when data integrity issues exist.
+    
+    Args:
+        appointment: The Appointment object to get the type name from
+        
+    Returns:
+        The appointment type name if available, None otherwise
+    """
+    return appointment.appointment_type.name if appointment.appointment_type else None
+
+
 def _get_default_schedule_for_day(db: Session, user_id: int, day_of_week: int) -> List[TimeInterval]:
     """Get default schedule intervals for a specific day."""
     availability = db.query(PractitionerAvailability).filter(
@@ -200,7 +216,7 @@ def _check_appointment_conflicts(
             'start_time': _format_time(appointment.calendar_event.start_time),
             'end_time': _format_time(appointment.calendar_event.end_time),
             'patient': appointment.patient.full_name,
-            'appointment_type': appointment.appointment_type.name
+            'appointment_type': _get_appointment_type_name(appointment)
         })
     
     return conflicts
@@ -429,12 +445,15 @@ async def get_calendar_data(
                         if appointment.patient.line_user:
                             line_display_name = appointment.patient.line_user.display_name
                         
+                        # Get appointment type name safely (handles cases where appointment_type may be None)
+                        appointment_type_name = _get_appointment_type_name(appointment)
+                        
                         event_responses.append(CalendarEventResponse(
                             calendar_event_id=event.id,
                             type='appointment',
                             start_time=_format_time(event.start_time) if event.start_time else None,
                             end_time=_format_time(event.end_time) if event.end_time else None,
-                            title=f"{appointment.patient.full_name} - {appointment.appointment_type.name}",
+                            title=f"{appointment.patient.full_name} - {appointment_type_name or '未設定'}",
                             patient_id=appointment.patient_id,
                             appointment_type_id=appointment.appointment_type_id,
                             status=appointment.status,
@@ -444,7 +463,7 @@ async def get_calendar_data(
                             line_display_name=line_display_name,
                             patient_name=appointment.patient.full_name,
                             practitioner_name=user.full_name,
-                            appointment_type_name=appointment.appointment_type.name
+                            appointment_type_name=appointment_type_name
                         ))
                 elif event.event_type == 'availability_exception':
                     exception = db.query(AvailabilityException).filter(

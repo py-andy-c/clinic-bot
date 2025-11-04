@@ -75,6 +75,11 @@
   @apply opacity-90;
 }
 
+/* Hide react-big-calendar's automatic time display - we show it in our custom component */
+.rbc-event-label {
+  display: none !important;
+}
+
 
 /* Time slots for day/week view */
 .rbc-time-view {

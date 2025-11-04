@@ -1,6 +1,6 @@
 import React from 'react';
 import moment from 'moment-timezone';
-import { CalendarEvent } from '../utils/calendarDataAdapter';
+import { CalendarEvent, formatEventTimeRange } from '../utils/calendarDataAdapter';
 
 // Format date in Traditional Chinese
 const formatChineseDate = (date: Date, view: string) => {
@@ -133,11 +133,16 @@ export const CustomDayHeader = ({ date }: any) => {
 
 // Custom Event Component
 export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
+  const timeStr = formatEventTimeRange(event.start, event.end);
+
   return (
     <div className="flex items-center space-x-1">
-      <div className="flex-1 min-w-0">
-        <div className="font-medium text-sm">
-          {event.title}
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="text-xs leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
+          <span className="font-medium">{timeStr}</span>
+          {event.title && (
+            <span className="ml-1">{event.title}</span>
+          )}
         </div>
       </div>
     </div>
