@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from models import AppointmentType
 from utils.appointment_type_queries import (
     get_active_appointment_types_for_clinic,
+    get_active_appointment_types_for_clinic_with_active_practitioners,
     get_appointment_type_by_id_with_soft_delete_check,
     soft_delete_appointment_type
 )
@@ -69,15 +70,35 @@ class AppointmentTypeService:
     ) -> List[AppointmentType]:
         """
         List all active (non-deleted) appointment types for a clinic.
-        
+
         Args:
             db: Database session
             clinic_id: Clinic ID
-            
+
         Returns:
             List of active AppointmentType objects
         """
         return get_active_appointment_types_for_clinic(db, clinic_id)
+
+    @staticmethod
+    def list_appointment_types_for_booking(
+        db: Session,
+        clinic_id: int
+    ) -> List[AppointmentType]:
+        """
+        List appointment types available for booking at a clinic.
+
+        Only includes appointment types that have at least one active practitioner
+        who can perform them. Used for LIFF appointment booking flow.
+
+        Args:
+            db: Database session
+            clinic_id: Clinic ID
+
+        Returns:
+            List of active AppointmentType objects available for booking
+        """
+        return get_active_appointment_types_for_clinic_with_active_practitioners(db, clinic_id)
 
     @staticmethod
     def soft_delete_appointment_type(

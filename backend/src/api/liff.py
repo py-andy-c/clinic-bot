@@ -452,8 +452,8 @@ async def list_appointment_types(
     _, clinic = line_user_clinic
 
     try:
-        # Get appointment types for clinic
-        appointment_types = AppointmentTypeService.list_appointment_types_for_clinic(
+        # Get appointment types available for booking (only those with active practitioners)
+        appointment_types = AppointmentTypeService.list_appointment_types_for_booking(
             db, clinic.id
         )
 

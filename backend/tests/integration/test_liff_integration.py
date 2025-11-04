@@ -1791,6 +1791,109 @@ class TestClinicIsolationSecurity:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
+    def test_appointment_types_only_show_with_active_practitioners(self, db_session: Session):
+        """Test that appointment types are only shown if they have active practitioners."""
+        # Create a clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            booking_restriction_type="none"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create a LINE user
+        line_user = LineUser(
+            line_user_id="U_test_patient",
+            display_name="Test Patient"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create appointment types
+        appt_type_with_practitioner = AppointmentType(
+            clinic_id=clinic.id,
+            name="Consultation with Practitioner",
+            duration_minutes=30
+        )
+        appt_type_without_practitioner = AppointmentType(
+            clinic_id=clinic.id,
+            name="Consultation without Practitioner",
+            duration_minutes=30
+        )
+        appt_type_with_inactive_practitioner = AppointmentType(
+            clinic_id=clinic.id,
+            name="Consultation with Inactive Practitioner",
+            duration_minutes=30
+        )
+        db_session.add(appt_type_with_practitioner)
+        db_session.add(appt_type_without_practitioner)
+        db_session.add(appt_type_with_inactive_practitioner)
+        db_session.commit()
+
+        # Create practitioners
+        active_practitioner = User(
+            clinic_id=clinic.id,
+            email="active@clinic.com",
+            google_subject_id="google_active",
+            full_name="Active Practitioner",
+            roles=["practitioner"],
+            is_active=True
+        )
+        inactive_practitioner = User(
+            clinic_id=clinic.id,
+            email="inactive@clinic.com",
+            google_subject_id="google_inactive",
+            full_name="Inactive Practitioner",
+            roles=["practitioner"],
+            is_active=False
+        )
+        db_session.add(active_practitioner)
+        db_session.add(inactive_practitioner)
+        db_session.commit()
+
+        # Associate practitioners with appointment types
+        # Active practitioner with first appointment type
+        pat1 = PractitionerAppointmentTypes(
+            user_id=active_practitioner.id,
+            appointment_type_id=appt_type_with_practitioner.id
+        )
+        db_session.add(pat1)
+
+        # Inactive practitioner with third appointment type
+        pat2 = PractitionerAppointmentTypes(
+            user_id=inactive_practitioner.id,
+            appointment_type_id=appt_type_with_inactive_practitioner.id
+        )
+        db_session.add(pat2)
+
+        db_session.commit()
+
+        try:
+            # Test that only appointment types with active practitioners are returned
+            client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+            client.app.dependency_overrides[get_db] = lambda: db_session
+
+            response = client.get("/api/liff/appointment-types")
+            assert response.status_code == 200
+            data = response.json()
+
+            appointment_names = {appt['name'] for appt in data['appointment_types']}
+
+            # Should only include the appointment type with active practitioner
+            assert "Consultation with Practitioner" in appointment_names
+            assert len(appointment_names) == 1
+
+            # Should not include appointment types without practitioners or with only inactive practitioners
+            assert "Consultation without Practitioner" not in appointment_names
+            assert "Consultation with Inactive Practitioner" not in appointment_names
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
     def test_patients_clinic_isolation(self, db_session: Session, multiple_clinics_setup):
         """Test that patients are properly isolated by clinic."""
         setup = multiple_clinics_setup

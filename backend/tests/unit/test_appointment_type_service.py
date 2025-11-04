@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 
 from models.appointment_type import AppointmentType
 from models.clinic import Clinic
+from models.user import User
+from models.practitioner_appointment_types import PractitionerAppointmentTypes
 from services.appointment_type_service import AppointmentTypeService
 
 
@@ -233,4 +235,94 @@ class TestAppointmentTypeService:
         )
         assert len(result2) == 1
         assert result2[0].name == "Clinic 2 Type"
+
+    def test_list_appointment_types_for_booking_with_active_practitioners(
+        self, db_session: Session
+    ):
+        """Test that list_appointment_types_for_booking only returns types with active practitioners."""
+        # Create a clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create appointment types
+        appt_type_with_practitioner = AppointmentType(
+            clinic_id=clinic.id,
+            name="Type with Practitioner",
+            duration_minutes=30
+        )
+        appt_type_without_practitioner = AppointmentType(
+            clinic_id=clinic.id,
+            name="Type without Practitioner",
+            duration_minutes=30
+        )
+        appt_type_with_inactive_practitioner = AppointmentType(
+            clinic_id=clinic.id,
+            name="Type with Inactive Practitioner",
+            duration_minutes=30
+        )
+        db_session.add(appt_type_with_practitioner)
+        db_session.add(appt_type_without_practitioner)
+        db_session.add(appt_type_with_inactive_practitioner)
+        db_session.commit()
+
+        # Create practitioners
+        active_practitioner = User(
+            clinic_id=clinic.id,
+            email="active@clinic.com",
+            google_subject_id="google_active",
+            full_name="Active Practitioner",
+            roles=["practitioner"],
+            is_active=True
+        )
+        inactive_practitioner = User(
+            clinic_id=clinic.id,
+            email="inactive@clinic.com",
+            google_subject_id="google_inactive",
+            full_name="Inactive Practitioner",
+            roles=["practitioner"],
+            is_active=False
+        )
+        db_session.add(active_practitioner)
+        db_session.add(inactive_practitioner)
+        db_session.commit()
+
+        # Associate practitioners with appointment types
+        from models import PractitionerAppointmentTypes
+
+        # Active practitioner with first appointment type
+        pat1 = PractitionerAppointmentTypes(
+            user_id=active_practitioner.id,
+            appointment_type_id=appt_type_with_practitioner.id
+        )
+        db_session.add(pat1)
+
+        # Inactive practitioner with third appointment type
+        pat2 = PractitionerAppointmentTypes(
+            user_id=inactive_practitioner.id,
+            appointment_type_id=appt_type_with_inactive_practitioner.id
+        )
+        db_session.add(pat2)
+        db_session.commit()
+
+        # Test the booking method - should only return types with active practitioners
+        result = AppointmentTypeService.list_appointment_types_for_booking(
+            db_session, clinic.id
+        )
+
+        # Should only include the appointment type with active practitioner
+        assert len(result) == 1
+        assert result[0].id == appt_type_with_practitioner.id
+        assert result[0].name == "Type with Practitioner"
+
+        # Test the regular method - should return all active types
+        all_result = AppointmentTypeService.list_appointment_types_for_clinic(
+            db_session, clinic.id
+        )
+        assert len(all_result) == 3  # All appointment types are active (not soft deleted)
 

@@ -158,3 +158,41 @@ def count_active_appointment_types_for_practitioner(
         PractitionerAppointmentTypes.user_id == practitioner_id,
         AppointmentType.is_deleted == False
     ).count()
+
+
+def get_active_appointment_types_for_clinic_with_active_practitioners(
+    db: Session,
+    clinic_id: int
+) -> List[AppointmentType]:
+    """
+    Get all active (non-deleted) appointment types for a clinic that have at least one active practitioner.
+
+    This function filters appointment types to only include those that can actually be booked,
+    i.e., those that have active practitioners who can perform them.
+
+    Args:
+        db: Database session
+        clinic_id: Clinic ID
+
+    Returns:
+        List of active AppointmentType objects that have active practitioners
+    """
+    from models import PractitionerAppointmentTypes, User
+    from utils.query_helpers import filter_by_role
+
+    # Get appointment types that have active practitioners associated
+    subquery = db.query(PractitionerAppointmentTypes.appointment_type_id).join(
+        User,
+        PractitionerAppointmentTypes.user_id == User.id
+    ).filter(
+        User.clinic_id == clinic_id,
+        User.is_active == True
+    )
+    subquery = filter_by_role(subquery, 'practitioner').distinct()
+
+    query = db.query(AppointmentType).filter(
+        AppointmentType.clinic_id == clinic_id,
+        AppointmentType.id.in_(subquery)
+    )
+
+    return filter_active_appointment_types(query).all()
