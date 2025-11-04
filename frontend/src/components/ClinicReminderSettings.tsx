@@ -1,5 +1,5 @@
-import React from 'react';
-import { formatReminderMessage, generateDummyReminderData, ClinicInfo } from '../utils/messageFormatting';
+import React, { useState, useEffect } from 'react';
+import { apiService } from '../services/api';
 
 interface ClinicReminderSettingsProps {
   reminderHoursBefore: string | number;
@@ -8,12 +8,12 @@ interface ClinicReminderSettingsProps {
   onSave?: () => void;
   saving?: boolean;
   isClinicAdmin?: boolean;
-  clinicName: string;
   clinicInfoSettings: {
     display_name?: string | null | undefined;
     address?: string | null | undefined;
     phone_number?: string | null | undefined;
   };
+  refreshTrigger?: number;
 }
 
 const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
@@ -23,18 +23,38 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
   onSave,
   saving = false,
   isClinicAdmin = false,
-  clinicName,
   clinicInfoSettings,
+  refreshTrigger = 0,
 }) => {
-  // Generate dummy data for preview
-  const clinicInfo: ClinicInfo = {
-    name: clinicName,
-    display_name: clinicInfoSettings.display_name,
-    address: clinicInfoSettings.address,
-    phone_number: clinicInfoSettings.phone_number,
-  };
-  const dummyData = generateDummyReminderData(clinicInfo);
-  const previewMessage = formatReminderMessage(dummyData);
+  const [previewMessage, setPreviewMessage] = useState<string>('');
+  const [previewLoading, setPreviewLoading] = useState<boolean>(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  // Generate preview when clinic info changes
+  useEffect(() => {
+    const generatePreview = async () => {
+      setPreviewLoading(true);
+      setPreviewError(null);
+
+      try {
+        const response = await apiService.generateReminderPreview({
+          appointment_type: '一般診療',
+          appointment_time: '12/25 (三) 14:30',
+          therapist_name: '王大明',
+        });
+        setPreviewMessage(response.preview_message);
+      } catch (error) {
+        console.error('Failed to generate reminder preview:', error);
+        setPreviewError('無法載入預覽');
+        // Fallback to a basic message
+        setPreviewMessage('提醒您，您預約的【一般診療】預計於【12/25 (三) 14:30】開始，由【王大明治療師】為您服務。\n\n請準時前往診所，期待為您服務！');
+      } finally {
+        setPreviewLoading(false);
+      }
+    };
+
+    generatePreview();
+  }, [clinicInfoSettings, refreshTrigger]);
   return (
     <div className="mb-8">
       <div className="flex justify-between items-center mb-6">
@@ -73,9 +93,15 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
       <div className="mt-8">
         <h3 className="text-lg font-medium text-gray-900 mb-3">LINE提醒訊息預覽</h3>
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <div className="text-sm text-gray-700 whitespace-pre-line">
-            {previewMessage}
-          </div>
+          {previewLoading ? (
+            <div className="text-sm text-gray-500">載入中...</div>
+          ) : previewError ? (
+            <div className="text-sm text-red-600">{previewError}</div>
+          ) : (
+            <div className="text-sm text-gray-700 whitespace-pre-line">
+              {previewMessage}
+            </div>
+          )}
         </div>
         <p className="text-sm text-gray-500 mt-2">
           這是發送給病患的LINE提醒訊息格式，使用目前診所資訊設定

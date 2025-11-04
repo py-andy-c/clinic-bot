@@ -360,6 +360,15 @@ export class ApiService {
     return response.data;
   }
 
+  async generateReminderPreview(data: {
+    appointment_type: string;
+    appointment_time: string;
+    therapist_name: string;
+  }): Promise<{ preview_message: string }> {
+    const response = await this.client.post('/clinic/reminder-preview', data);
+    return response.data;
+  }
+
   async validateAppointmentTypeDeletion(appointmentTypeIds: number[]): Promise<{ can_delete: boolean; error?: any; message?: string }> {
     const response = await this.client.post('/clinic/appointment-types/validate-deletion', {
       appointment_type_ids: appointmentTypeIds

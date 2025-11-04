@@ -20,7 +20,7 @@ from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
 from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, PractitionerAppointmentTypes, CalendarEvent
-from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService
+from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
 from services.availability_service import AvailabilityService
 from services.notification_service import NotificationService, CancellationSource
 from api.responses import (
@@ -698,6 +698,61 @@ async def update_settings(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法更新設定"
+        )
+
+
+class ReminderPreviewRequest(BaseModel):
+    """Request model for generating reminder message preview."""
+    appointment_type: str
+    appointment_time: str
+    therapist_name: str
+
+
+@router.post("/reminder-preview", summary="Generate reminder message preview")
+async def generate_reminder_preview(
+    request: ReminderPreviewRequest,
+    current_user: UserContext = Depends(require_clinic_member),
+    db: Session = Depends(get_db)
+) -> Dict[str, str]:
+    """
+    Generate a preview of what a LINE reminder message would look like.
+
+    This endpoint allows clinic admins to see exactly how their reminder
+    messages will appear to patients before they are sent.
+    """
+    try:
+        clinic_id = current_user.clinic_id
+        if not clinic_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="使用者不屬於任何診所"
+            )
+
+        clinic = db.query(Clinic).get(clinic_id)
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="診所不存在"
+            )
+
+        # Generate preview using the same service that sends actual reminders
+        reminder_service = ReminderService(db)
+        preview_message = reminder_service.generate_reminder_preview(
+            appointment_type=request.appointment_type,
+            appointment_time=request.appointment_time,
+            therapist_name=request.therapist_name,
+            clinic=clinic
+        )
+
+        return {"preview_message": preview_message}
+
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Error generating reminder preview")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法產生預覽訊息"
         )
 
 

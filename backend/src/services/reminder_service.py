@@ -165,6 +165,69 @@ class ReminderService:
 
         return appointments_needing_reminders
 
+    def _format_reminder_message(
+        self,
+        appointment_type: str,
+        appointment_time: str,
+        therapist_name: str,
+        clinic: "Clinic"
+    ) -> str:
+        """
+        Format a LINE reminder message with clinic information.
+
+        This method ensures consistent message formatting between actual reminders
+        and preview messages.
+        """
+        # Add clinic information if available
+        clinic_info: list[str] = []
+        if clinic.effective_display_name != clinic.name:
+            clinic_info.append(f"診所：{clinic.effective_display_name}")
+        if clinic.address:
+            clinic_info.append(f"地址：{clinic.address}")
+        if clinic.phone_number:
+            clinic_info.append(f"電話：{clinic.phone_number}")
+
+        clinic_info_str = ""
+        if clinic_info:
+            clinic_info_str = "\n\n" + "\n".join(clinic_info)
+
+        message = (
+            f"提醒您，您預約的【{appointment_type}】預計於【{appointment_time}】"
+            f"開始，由【{therapist_name}治療師】為您服務。{clinic_info_str}"
+            f"\n\n請準時前往診所，期待為您服務！"
+        )
+
+        return message
+
+    def generate_reminder_preview(
+        self,
+        appointment_type: str,
+        appointment_time: str,
+        therapist_name: str,
+        clinic: "Clinic"
+    ) -> str:
+        """
+        Generate a preview of what a LINE reminder message would look like.
+
+        This method can be used by API endpoints to show users what their
+        reminder messages will look like before they are sent.
+
+        Args:
+            appointment_type: Name of the appointment type
+            appointment_time: Formatted appointment time (e.g., "12/25 (三) 14:30")
+            therapist_name: Name of the therapist/practitioner
+            clinic: Clinic object with display information
+
+        Returns:
+            Formatted reminder message string
+        """
+        return self._format_reminder_message(
+            appointment_type=appointment_type,
+            appointment_time=appointment_time,
+            therapist_name=therapist_name,
+            clinic=clinic
+        )
+
     async def _send_reminder_for_appointment(self, appointment: Appointment) -> bool:
         """
         Send a reminder for a specific appointment.
@@ -199,23 +262,11 @@ class ReminderService:
             appointment_time = appointment_datetime.strftime("%m/%d (%a) %H:%M")
             appointment_type = appointment.appointment_type.name
 
-            # Add clinic information if available
-            clinic_info: list[str] = []
-            if clinic.effective_display_name != clinic.name:
-                clinic_info.append(f"診所：{clinic.effective_display_name}")
-            if clinic.address:
-                clinic_info.append(f"地址：{clinic.address}")
-            if clinic.phone_number:
-                clinic_info.append(f"電話：{clinic.phone_number}")
-
-            clinic_info_str = ""
-            if clinic_info:
-                clinic_info_str = "\n\n" + "\n".join(clinic_info)
-
-            message = (
-                f"提醒您，您預約的【{appointment_type}】預計於【{appointment_time}】"
-                f"開始，由【{therapist_name}治療師】為您服務。{clinic_info_str}"
-                f"\n\n請準時前往診所，期待為您服務！"
+            message = self._format_reminder_message(
+                appointment_type=appointment_type,
+                appointment_time=appointment_time,
+                therapist_name=therapist_name,
+                clinic=clinic
             )
 
             # Send reminder via LINE

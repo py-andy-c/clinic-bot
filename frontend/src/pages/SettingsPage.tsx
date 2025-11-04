@@ -15,6 +15,7 @@ import PageHeader from '../components/PageHeader';
 const SettingsPage: React.FC = () => {
   const { isClinicAdmin, isClinicUser, isLoading } = useAuth();
   const { alert } = useModal();
+  const [clinicInfoRefreshTrigger, setClinicInfoRefreshTrigger] = React.useState(0);
 
   // Only clinic users can access clinic settings
   if (!isClinicUser) {
@@ -38,6 +39,7 @@ const SettingsPage: React.FC = () => {
   // Use generic settings page hook
   const {
     data: settings,
+    originalData,
     uiState,
     sectionChanges,
     saveData,
@@ -80,6 +82,17 @@ const SettingsPage: React.FC = () => {
     getSectionChanges: getClinicSectionChanges,
     onValidationError: async (error: string) => {
       await alert(error, '錯誤');
+    },
+    onSuccess: () => {
+      // Check if clinic info was changed and saved by comparing with the data before save
+      // We need to check if clinic info settings changed from before the save
+      if (settings && originalData) {
+        const changes = getClinicSectionChanges(settings, originalData);
+        if (changes.clinicInfoSettings) {
+          // Clinic info was saved, refresh the preview
+          setClinicInfoRefreshTrigger(prev => prev + 1);
+        }
+      }
     },
   }, { isLoading });
 
@@ -222,8 +235,8 @@ const SettingsPage: React.FC = () => {
                 onSave={saveData}
                 saving={uiState.saving}
                 isClinicAdmin={isClinicAdmin}
-                clinicName={settings.clinic_name}
                 clinicInfoSettings={settings.clinic_info_settings}
+                refreshTrigger={clinicInfoRefreshTrigger}
               />
 
               {/* Booking Restriction Settings */}

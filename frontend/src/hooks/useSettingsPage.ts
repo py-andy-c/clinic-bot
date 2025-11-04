@@ -13,6 +13,7 @@ interface SettingsPageConfig<T> {
   validateData: (data: T) => string | null;
   getSectionChanges: (current: T, original: T) => Record<string, boolean>;
   onValidationError?: (error: string) => Promise<void>;
+  onSuccess?: (data: T) => void;
 }
 
 interface UseSettingsPageOptions {
@@ -90,6 +91,12 @@ export const useSettingsPage = <T extends Record<string, any>>(
 
       // Update original data after successful save
       setOriginalData(JSON.parse(JSON.stringify(data)));
+
+      // Call onSuccess callback if provided
+      if (config.onSuccess) {
+        config.onSuccess(data);
+      }
+
       alert('設定已更新');
     } catch (err: any) {
       console.error('Save settings error:', err);
