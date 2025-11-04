@@ -220,13 +220,14 @@ export class ApiService {
     // Browser detection variables needed in both try and catch blocks
     const browserIsSafari = isSafari();
     const recommendedStorage = getRecommendedTokenStorage();
+    // Store old access token for comparison in catch block
+    const accessTokenValue = localStorage.getItem('access_token');
 
     try {
       // Enhanced logging for refresh attempt (consensus recommendation)
       const hasCookie = document.cookie.includes('refresh_token');
       const hasLocalStorage = !!localStorage.getItem('refresh_token');
       const refreshTokenValue = localStorage.getItem('refresh_token');
-      const accessTokenValue = localStorage.getItem('access_token');
       const wasLoggedIn = localStorage.getItem('was_logged_in') === 'true';
 
       logger.log('ApiService: Attempting to refresh token...', {
@@ -440,7 +441,6 @@ export class ApiService {
           
           // Check if we have a new token (another refresh might have succeeded)
           const newToken = localStorage.getItem('access_token');
-          const newRefreshToken = localStorage.getItem('refresh_token');
           
           if (newToken && newToken !== accessTokenValue) {
             logger.log('ApiService: New token found after "token not found" error - another refresh succeeded', {

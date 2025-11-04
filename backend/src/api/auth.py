@@ -510,6 +510,11 @@ async def refresh_access_token(
             google_subject_id=system_admin_subject_id,  # Store google_subject_id for system admin
             name=system_admin_name  # Store name for system admin
         )
+        db.add(new_refresh_token_record)
+        db.commit()
+        
+        # Set new refresh token cookie for system admin
+        set_refresh_token_cookie(response, request, token_data["refresh_token"])
     else:
         # Clinic user - normal flow
         if not user.is_active:
