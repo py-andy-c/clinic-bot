@@ -20,13 +20,11 @@ class Appointment(Base):
     Appointment entity representing a scheduled session between a patient and therapist.
 
     This model extends CalendarEvent to represent patient appointments. The timing
-    and Google Calendar sync information is stored in the associated CalendarEvent,
-    while this model contains appointment-specific data like patient, appointment type,
-    and status.
+    is stored in the associated CalendarEvent, while this model contains
+    appointment-specific data like patient, appointment type, and status.
 
     The hybrid approach allows for:
     - Unified calendar queries with availability exceptions
-    - Consistent Google Calendar synchronization
     - Appointment-specific data and relationships
     - Conflict prevention with availability exceptions
     """
@@ -85,10 +83,6 @@ class Appointment(Base):
         """Get the date from the associated calendar event."""
         return self.calendar_event.date
 
-    @property
-    def gcal_event_id(self):
-        """Get the Google Calendar event ID from the associated calendar event."""
-        return self.calendar_event.gcal_event_id
 
     @property
     def created_at(self):

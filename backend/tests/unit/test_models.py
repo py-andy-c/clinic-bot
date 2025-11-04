@@ -77,23 +77,18 @@ class TestUserModel:
         assert user.clinic_id == 1
         assert user.roles == ["practitioner"]
         # is_active has default=True, but defaults aren't applied in memory-only objects
-        # gcal_sync_enabled has default=False, but defaults aren't applied in memory-only objects
         # Note: created_at is a server default and may be None in tests
 
     def test_user_google_calendar_fields(self, sample_user_data):
-        """Test user Google Calendar related fields."""
+        """Test user fields (Google Calendar fields removed)."""
         user = User(
             clinic_id=1,
             google_subject_id="google_123",
-            gcal_credentials="encrypted_credentials",
-            gcal_sync_enabled=True,
-            gcal_watch_resource_id="resource_123",
             **sample_user_data
         )
 
-        assert user.gcal_credentials == "encrypted_credentials"
-        assert user.gcal_sync_enabled is True
-        assert user.gcal_watch_resource_id == "resource_123"
+        # Google Calendar fields have been removed
+        assert user.google_subject_id == "google_123"
 
     def test_user_relationships(self, sample_user_data):
         """Test user model relationships."""
@@ -204,7 +199,6 @@ class TestAppointmentModel:
             date=start_time.date(),
             start_time=start_time.time(),
             end_time=end_time.time(),
-            gcal_event_id=None
         )
 
         appointment = Appointment(
@@ -223,7 +217,6 @@ class TestAppointmentModel:
         assert appointment.start_time == start_time.time()
         assert appointment.end_time == end_time.time()
         assert appointment.status == "confirmed"
-        assert appointment.gcal_event_id is None
 
     def test_appointment_statuses(self):
         """Test different appointment statuses."""
@@ -237,7 +230,6 @@ class TestAppointmentModel:
                 date=datetime.now(timezone.utc).date(),
                 start_time=datetime.now(timezone.utc).time(),
                 end_time=datetime.now(timezone.utc).time(),
-                gcal_event_id=None
             )
 
             appointment = Appointment(
@@ -252,15 +244,14 @@ class TestAppointmentModel:
             assert appointment.status == status
 
     def test_appointment_with_google_calendar(self):
-        """Test appointment with Google Calendar integration."""
+        """Test appointment (Google Calendar integration removed)."""
         # Create CalendarEvent first
         calendar_event = CalendarEvent(
             user_id=2,
             event_type='appointment',
             date=datetime.now(timezone.utc).date(),
             start_time=datetime.now(timezone.utc).time(),
-            end_time=datetime.now(timezone.utc).time(),
-            gcal_event_id="gcal_event_12345"
+            end_time=datetime.now(timezone.utc).time()
         )
 
         appointment = Appointment(
@@ -273,7 +264,8 @@ class TestAppointmentModel:
         # Set the relationship manually for testing
         appointment.calendar_event = calendar_event
 
-        assert appointment.gcal_event_id == "gcal_event_12345"
+        # Google Calendar integration has been removed
+        assert appointment.status == "confirmed"
 
     def test_appointment_relationships(self):
         """Test appointment model relationships."""
@@ -284,7 +276,6 @@ class TestAppointmentModel:
             date=datetime.now(timezone.utc).date(),
             start_time=datetime.now(timezone.utc).time(),
             end_time=datetime.now(timezone.utc).time(),
-            gcal_event_id=None
         )
 
         appointment = Appointment(

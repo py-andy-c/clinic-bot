@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 class CancellationSource(Enum):
     CLINIC = "clinic"
-    GCAL = "gcal"
     PATIENT = "patient"
 
 
@@ -32,7 +31,7 @@ class NotificationService:
             db: Database session
             appointment: Cancelled appointment
             practitioner: Practitioner who had the appointment
-            source: Source of cancellation (clinic/gcal/patient)
+            source: Source of cancellation (clinic/patient)
 
         Returns:
             True if notification sent successfully, False otherwise
@@ -139,8 +138,6 @@ class NotificationService:
 
         if source == CancellationSource.CLINIC:
             return f"{patient_name}，您的預約已被診所取消：{base}。如有需要，可透過Line重新預約。"
-        elif source == CancellationSource.GCAL:
-            return f"{patient_name}，您的預約已被取消：{base}。如有需要，可透過Line重新預約。"
         else:
             return f"{patient_name}，您的預約已取消：{base}"
 

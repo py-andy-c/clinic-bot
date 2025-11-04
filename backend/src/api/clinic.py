@@ -22,7 +22,6 @@ from auth.dependencies import require_admin_role, require_clinic_member, require
 from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, PractitionerAppointmentTypes, CalendarEvent
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService
 from services.availability_service import AvailabilityService
-from services.google_oauth import GoogleOAuthService
 from services.notification_service import NotificationService, CancellationSource
 from api.responses import (
     ClinicPatientResponse, ClinicPatientListResponse,
@@ -40,7 +39,6 @@ class MemberResponse(BaseModel):
     email: str
     full_name: str
     roles: List[str]
-    gcal_sync_enabled: bool
     is_active: bool
     created_at: datetime
 
@@ -145,7 +143,6 @@ async def list_members(
                 email=member.email,
                 full_name=member.full_name,
                 roles=member.roles,
-                gcal_sync_enabled=member.gcal_sync_enabled,
                 is_active=member.is_active,
                 created_at=member.created_at
             )
@@ -280,7 +277,6 @@ async def update_member_roles(
             email=member.email,
             full_name=member.full_name,
             roles=member.roles,
-            gcal_sync_enabled=member.gcal_sync_enabled,
             is_active=member.is_active,
             created_at=member.created_at
         )
@@ -724,102 +720,6 @@ async def get_patients(
         )
 
 
-@router.get("/members/{user_id}/gcal/auth", summary="Initiate member Google Calendar OAuth")
-async def initiate_member_gcal_oauth(
-    user_id: int,
-    current_user: UserContext = Depends(require_admin_role),
-    db: Session = Depends(get_db)
-) -> Dict[str, Any]:
-    """
-    Initiate Google Calendar OAuth flow for a team member.
-
-    Returns authorization URL for the member to authenticate with Google.
-    """
-    try:
-        # Verify user exists and belongs to current clinic
-        user = db.query(User).filter(
-            User.id == user_id,
-            User.clinic_id == current_user.clinic_id,
-            User.is_active == True
-        ).first()
-
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到團隊成員"
-            )
-
-        # Check if user has practitioner role
-        if not user.is_practitioner:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="使用者必須具有治療師角色才能設定 Google 日曆"
-            )
-
-        # Generate OAuth URL
-        oauth_service = GoogleOAuthService()
-        assert current_user.clinic_id is not None  # Should always be set for clinic users
-        auth_url = oauth_service.get_authorization_url(user_id, current_user.clinic_id)
-
-        return {"auth_url": auth_url}
-
-    except HTTPException:
-        raise
-    except Exception:
-        logger.exception("Error initiating Google Calendar OAuth")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="無法啟動 Google 日曆 OAuth"
-        )
-
-
-@router.get("/members/gcal/callback", summary="Handle member calendar OAuth callback")
-async def handle_member_gcal_callback(
-    code: str = Query(..., description="Authorization code from Google"),
-    state: str = Query(..., description="State parameter"),
-    current_user: UserContext = Depends(require_admin_role),
-    db: Session = Depends(get_db)
-) -> Dict[str, Any]:
-    """
-    Handle Google Calendar OAuth callback for team member.
-
-    Exchanges authorization code for tokens and stores encrypted credentials.
-    """
-    try:
-        # Handle OAuth callback (user validation is done inside the service)
-        oauth_service = GoogleOAuthService()
-        updated_user = await oauth_service.handle_oauth_callback(db, code, state)
-
-        # Verify the updated user belongs to current clinic (additional security check)
-        if updated_user.clinic_id != current_user.clinic_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="存取被拒絕：使用者不屬於您的診所"
-            )
-
-        # NOTE: Calendar sync disabled - calendar scopes were removed because
-        # requiring calendar access would need Google App verification.
-        # Update user's calendar sync settings (disabled)
-        updated_user.gcal_sync_enabled = False
-        db.commit()
-
-        return {
-            "message": "Google 日曆整合啟用成功",
-            "user_id": updated_user.id,
-            "gcal_sync_enabled": False  # Calendar sync disabled - scopes removed
-        }
-
-    except HTTPException:
-        raise
-    except Exception:
-        logger.exception("Error completing Google Calendar OAuth")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="無法完成 Google 日曆 OAuth"
-        )
-
-
-
 
 @router.get("/practitioners/{user_id}/availability", summary="Get practitioner availability")
 async def get_practitioner_availability(
@@ -1238,7 +1138,7 @@ async def cancel_clinic_appointment(
     Practitioners can only cancel their own appointments.
     Admins can cancel any appointment in their clinic.
     
-    Updates appointment status to 'canceled_by_clinic', deletes Google Calendar event,
+    Updates appointment status to 'canceled_by_clinic'
     and sends LINE notification to patient.
     """
     try:
@@ -1277,7 +1177,6 @@ async def cancel_clinic_appointment(
         practitioner = result['practitioner']
         already_cancelled = result.get('already_cancelled', False)
 
-        # Google Calendar event deletion is handled by the service
 
         # Send LINE notification to patient (skip if already cancelled to avoid duplicate notifications)
         if not already_cancelled:

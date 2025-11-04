@@ -147,20 +147,7 @@ async def mock_create_appointment(db, therapist_id, appointment_type_id, start_t
     if existing_conflicts:
         return {"error": "預約時間衝突，請選擇其他時段"}
 
-    # Check if practitioner has Google Calendar credentials
-    if not practitioner.gcal_credentials:
-        return {"error": "治療師未設定 Google Calendar 認證"}
-
-    # For testing, skip actual encryption/decryption and just check format
-    try:
-        if practitioner.gcal_credentials.startswith("encrypted_"):
-            # Extract the JSON part for testing
-            credentials_json = practitioner.gcal_credentials[10:]  # Remove "encrypted_" prefix
-            credentials_dict = eval(credentials_json)  # Simple dict for testing
-        else:
-            return {"error": "Google Calendar 認證無效"}
-    except Exception:
-        return {"error": "Google Calendar 認證無效"}
+    # Google Calendar credentials removed - no longer needed
 
     # Create CalendarEvent first
     calendar_event = CalendarEvent(
@@ -169,7 +156,6 @@ async def mock_create_appointment(db, therapist_id, appointment_type_id, start_t
         date=start_time.date(),
         start_time=start_time.time(),
         end_time=end_time.time(),
-        gcal_event_id=None
     )
     db.add(calendar_event)
     db.commit()

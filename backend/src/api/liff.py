@@ -571,8 +571,8 @@ async def create_appointment(
     """
     Create a new appointment booking.
 
-    Handles the complex booking logic including practitioner assignment,
-    availability checking, and Google Calendar synchronization.
+    Handles the complex booking logic including practitioner assignment
+    and availability checking.
     Clinic isolation is enforced through LIFF token context.
     """
     line_user, clinic = line_user_clinic
@@ -640,7 +640,6 @@ async def cancel_appointment(
 
     Verifies ownership and updates appointment status.
     Clinic isolation is enforced through LIFF token context.
-    Google Calendar event deletion handled asynchronously.
     """
     line_user, clinic = line_user_clinic
 

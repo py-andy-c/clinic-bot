@@ -105,7 +105,6 @@ async def initiate_google_auth(user_type: str = "clinic_user") -> dict[str, str]
 
     # Different scopes based on user type
     # NOTE: Calendar scopes removed - requiring calendar access would need Google App verification.
-    # Calendar sync features are currently disabled.
     if user_type == "system_admin":
         scopes = ["openid", "profile", "email"]
     else:  # clinic_user

@@ -315,7 +315,7 @@ class TestAppointmentLifecycleIntegration:
 
         # Set up therapist with Google Calendar credentials
         test_credentials = '{"access_token": "test_token", "refresh_token": "test_refresh"}'
-        therapist.gcal_credentials = f"encrypted_{test_credentials}"
+        # Google Calendar credentials removed
         db_session.add(therapist)
         db_session.commit()
 
@@ -330,7 +330,6 @@ class TestAppointmentLifecycleIntegration:
             date=original_start.date(),
             start_time=original_start.time(),
             end_time=original_end.time(),
-            gcal_event_id='gcal_original_123'
         )
         db_session.add(original_calendar_event)
         db_session.commit()
@@ -352,14 +351,13 @@ class TestAppointmentLifecycleIntegration:
         # Update calendar event (simulating reschedule)
         original_calendar_event.start_time = new_start.time()
         original_calendar_event.end_time = new_end.time()
-        original_calendar_event.gcal_event_id = 'gcal_rescheduled_456'  # Would be updated by Google Calendar
         db_session.commit()
 
         # Verify reschedule maintained data integrity
         updated_appointment = db_session.query(Appointment).filter(Appointment.calendar_event_id == original_calendar_event.id).first()
         assert updated_appointment.calendar_event.start_time == new_start.time()
         assert updated_appointment.calendar_event.end_time == new_end.time()
-        assert updated_appointment.calendar_event.gcal_event_id == 'gcal_rescheduled_456'
+        # Google Calendar integration removed
         assert updated_appointment.patient_id == linked_patient.id
         assert updated_appointment.user_id == therapist.id
         assert updated_appointment.appointment_type_id == apt_type.id
@@ -383,7 +381,7 @@ class TestAppointmentLifecycleIntegration:
 
         # Set up therapist with Google Calendar credentials
         test_credentials = '{"access_token": "test_token", "refresh_token": "test_refresh"}'
-        therapist.gcal_credentials = f"encrypted_{test_credentials}"
+        # Google Calendar credentials removed
         db_session.add(therapist)
         db_session.commit()
 
@@ -398,7 +396,6 @@ class TestAppointmentLifecycleIntegration:
             date=start_time.date(),
             start_time=start_time.time(),
             end_time=end_time.time(),
-            gcal_event_id='gcal_event_123'
         )
         db_session.add(calendar_event)
         db_session.commit()
@@ -414,13 +411,12 @@ class TestAppointmentLifecycleIntegration:
 
         # Simulate cancellation (this would be handled by the cancellation tool)
         appointment.status = 'canceled_by_patient'
-        appointment.calendar_event.gcal_event_id = None  # Would be removed from Google Calendar
         db_session.commit()
 
         # Verify cancellation maintained data integrity
         canceled_appointment = db_session.query(Appointment).filter(Appointment.calendar_event_id == appointment.calendar_event_id).first()
         assert canceled_appointment.status == 'canceled_by_patient'
-        assert canceled_appointment.calendar_event.gcal_event_id is None
+        # Google Calendar integration removed
         assert canceled_appointment.calendar_event.start_time == start_time.time()
         assert canceled_appointment.calendar_event.end_time == end_time.time()
         assert canceled_appointment.patient_id == linked_patient.id
@@ -462,7 +458,6 @@ class TestClinicAppointmentManagement:
             date=start_time.date(),
             start_time=start_time.time(),
             end_time=end_time.time(),
-            gcal_event_id="test_event_123"
         )
         db_session.add(calendar_event)
         db_session.flush()
@@ -627,7 +622,6 @@ class TestClinicAppointmentManagement:
             date=start_time.date(),
             start_time=start_time.time(),
             end_time=end_time.time(),
-            gcal_event_id="test_event_123"
         )
         db_session.add(calendar_event)
         db_session.flush()
@@ -663,33 +657,24 @@ class TestClinicAppointmentManagement:
             mock_line_service = Mock()
             mock_line_service_class.return_value = mock_line_service
 
-            # Mock Google Calendar service
-            with patch('api.clinic.GoogleOAuthService') as mock_gcal_service_class:
-                mock_gcal_service = Mock()
-                mock_gcal_service_class.return_value = mock_gcal_service
-                mock_gcal_service.service = Mock()
-                mock_gcal_service.service.events.return_value.delete.return_value.execute.return_value = None
+            try:
+                # Cancel appointment
+                response = client.delete(f"/api/clinic/appointments/{calendar_event.id}")
 
-                try:
-                    # Cancel appointment
-                    response = client.delete(f"/api/clinic/appointments/{calendar_event.id}")
+                assert response.status_code == 200
+                data = response.json()
+                assert data["success"] is True
+                assert "已取消" in data["message"]
+                assert data["appointment_id"] == calendar_event.id
 
-                    assert response.status_code == 200
-                    data = response.json()
-                    assert data["success"] is True
-                    assert "已取消" in data["message"]
-                    assert data["appointment_id"] == calendar_event.id
-
-                    # Verify appointment status updated
-                    updated_appointment = db_session.query(Appointment).filter(
-                        Appointment.calendar_event_id == calendar_event.id
-                    ).first()
-                    assert updated_appointment.status == 'canceled_by_clinic'
-                    assert updated_appointment.canceled_at is not None
-                finally:
-                    # Clean up overrides
-                    client.app.dependency_overrides.pop(get_current_user, None)
-                    client.app.dependency_overrides.pop(get_db, None)
+                # Verify appointment status updated
+                db_session.refresh(appointment)
+                assert appointment.status == 'canceled_by_clinic'
+                assert appointment.canceled_at is not None
+            finally:
+                # Clean up overrides
+                client.app.dependency_overrides.pop(get_current_user, None)
+                client.app.dependency_overrides.pop(get_db, None)
 
     def test_cancel_appointment_nonexistent(self, test_clinic_with_therapist, db_session):
         """Test cancelling a non-existent appointment."""
@@ -883,7 +868,6 @@ class TestClinicAppointmentManagement:
             date=start_time.date(),
             start_time=start_time.time(),
             end_time=end_time.time(),
-            gcal_event_id="test_event_123"
         )
         db_session.add(calendar_event)
         db_session.flush()
@@ -919,33 +903,24 @@ class TestClinicAppointmentManagement:
             mock_line_service = Mock()
             mock_line_service_class.return_value = mock_line_service
 
-            # Mock Google Calendar service
-            with patch('api.clinic.GoogleOAuthService') as mock_gcal_service_class:
-                mock_gcal_service = Mock()
-                mock_gcal_service_class.return_value = mock_gcal_service
-                mock_gcal_service.service = Mock()
-                mock_gcal_service.service.events.return_value.delete.return_value.execute.return_value = None
+            try:
+                # Cancel appointment
+                response = client.delete(f"/api/clinic/appointments/{calendar_event.id}")
 
-                try:
-                    # Cancel own appointment
-                    response = client.delete(f"/api/clinic/appointments/{calendar_event.id}")
+                assert response.status_code == 200
+                data = response.json()
+                assert data["success"] is True
+                assert "已取消" in data["message"]
+                assert data["appointment_id"] == calendar_event.id
 
-                    assert response.status_code == 200
-                    data = response.json()
-                    assert data["success"] is True
-                    assert "已取消" in data["message"]
-                    assert data["appointment_id"] == calendar_event.id
-
-                    # Verify appointment status updated
-                    updated_appointment = db_session.query(Appointment).filter(
-                        Appointment.calendar_event_id == calendar_event.id
-                    ).first()
-                    assert updated_appointment.status == 'canceled_by_clinic'
-                    assert updated_appointment.canceled_at is not None
-                finally:
-                    # Clean up overrides
-                    client.app.dependency_overrides.pop(get_current_user, None)
-                    client.app.dependency_overrides.pop(get_db, None)
+                # Verify appointment status updated
+                db_session.refresh(appointment)
+                assert appointment.status == 'canceled_by_clinic'
+                assert appointment.canceled_at is not None
+            finally:
+                # Clean up overrides
+                client.app.dependency_overrides.pop(get_current_user, None)
+                client.app.dependency_overrides.pop(get_db, None)
 
 
 class TestPractitionerAppointmentTypes:

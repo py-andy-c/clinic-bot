@@ -30,7 +30,6 @@ class ProfileResponse(BaseModel):
     email: str  # Read-only, cannot be changed
     full_name: str
     roles: list[str]
-    gcal_sync_enabled: bool
     clinic_id: int
     created_at: datetime
     last_login_at: Optional[datetime]
@@ -62,7 +61,6 @@ async def get_profile(
                 email=current_user.email,
                 full_name=current_user.name,
                 roles=[],  # System admins don't have clinic roles
-                gcal_sync_enabled=False,
                 clinic_id=0,  # System admins don't belong to clinics
                 created_at=taiwan_now(),
                 last_login_at=None
@@ -85,7 +83,6 @@ async def get_profile(
             email=user.email,
             full_name=user.full_name,
             roles=user.roles,
-            gcal_sync_enabled=user.gcal_sync_enabled,
             clinic_id=user.clinic_id,
             created_at=user.created_at,
             last_login_at=user.last_login_at
@@ -150,7 +147,6 @@ async def update_profile(
             email=user.email,  # Email cannot be changed
             full_name=user.full_name,
             roles=user.roles,
-            gcal_sync_enabled=user.gcal_sync_enabled,
             clinic_id=user.clinic_id,
             created_at=user.created_at,
             last_login_at=user.last_login_at

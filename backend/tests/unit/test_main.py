@@ -161,17 +161,13 @@ class TestApplicationSetup:
 
     def test_router_inclusion(self):
         """Test that API routers are properly included."""
-        # Check that webhook router is included
-        webhook_route = None
+        # Check that API routers are included
         admin_route = None
 
         for route in app.routes:
-            if hasattr(route, 'path') and route.path.startswith('/webhook'):
-                webhook_route = route
-            elif hasattr(route, 'path') and '/api' in str(route.path):
+            if hasattr(route, 'path') and '/api' in str(route.path):
                 admin_route = route
 
-        assert webhook_route is not None
         assert admin_route is not None
 
 

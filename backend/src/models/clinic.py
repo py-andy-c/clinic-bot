@@ -3,7 +3,7 @@ Clinic model representing a physical therapy clinic.
 
 A clinic is the top-level entity that owns all therapists, patients,
 appointment types, and administrators. Each clinic operates independently
-with its own LINE Official Account and Google Calendar integrations.
+with its own LINE Official Account.
 """
 
 from datetime import datetime
@@ -22,7 +22,7 @@ class Clinic(Base):
 
     Represents a clinic that uses the system. Each clinic has:
     - Unique LINE Official Account for patient communication
-    - Multiple therapists with Google Calendar integration
+    - Multiple therapists
     - Registered patients
     - Subscription and billing information
     """

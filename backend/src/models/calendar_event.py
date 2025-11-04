@@ -19,13 +19,12 @@ class CalendarEvent(Base):
     Base calendar event entity for unified calendar management.
 
     This model serves as the foundation for all calendar-related events including
-    appointments and availability exceptions. It provides common fields for timing,
-    Google Calendar sync, and metadata while allowing specialized tables to extend
-    functionality for specific event types.
+    appointments and availability exceptions. It provides common fields for timing
+    and metadata while allowing specialized tables to extend functionality for
+    specific event types.
 
     The hybrid approach allows for:
     - Unified calendar queries across all event types
-    - Consistent Google Calendar synchronization
     - Type safety through specialized tables
     - Extensibility for future event types
     """
@@ -58,35 +57,6 @@ class CalendarEvent(Base):
     End time of the event. Null indicates an all-day event.
     """
 
-    gcal_event_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True)
-    """
-    Google Calendar event ID for events that have been synced with Google Calendar.
-    Null indicates the event has not been synced yet.
-    """
-
-    gcal_watch_resource_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    """
-    Google Calendar watch resource ID for webhook notifications.
-    Used to identify which calendar watch triggered a webhook notification.
-    """
-
-    # Google Calendar sync status
-    sync_status: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    """
-    Status of Google Calendar synchronization.
-    - 'synced': Successfully synced to Google Calendar
-    - 'auth_failed': Practitioner needs to reconnect Google Calendar
-    - 'pending_retry': Temporary failure, will retry
-    - 'failed': Permanent failure after max retries
-    - null: Not yet attempted
-    """
-
-    sync_error: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    """Error message from last Google Calendar sync attempt."""
-
-    retry_count: Mapped[int] = mapped_column(default=0)
-    """Number of retry attempts for failed sync operations."""
-
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     """Timestamp when the calendar event was created."""
 
@@ -116,7 +86,6 @@ class CalendarEvent(Base):
         # Indexes for performance
         Index('idx_calendar_events_user_date', 'user_id', 'date'),
         Index('idx_calendar_events_type', 'event_type'),
-        Index('idx_calendar_events_gcal_sync', 'gcal_event_id'),
         Index('idx_calendar_events_user_date_type', 'user_id', 'date', 'event_type'),
     )
 

@@ -36,9 +36,6 @@ export interface User {
   clinic_id?: number;
   user_type: UserType;
   is_active: boolean;
-  gcal_sync_enabled?: boolean;
-  gcal_credentials?: any;
-  gcal_watch_resource_id?: string;
   created_at: string;
   updated_at: string;
   last_login_at?: string;
@@ -75,7 +72,6 @@ export interface Appointment {
   start_time: string;
   end_time: string;
   status: 'confirmed' | 'canceled_by_patient' | 'canceled_by_clinic';
-  gcal_event_id?: string;
   created_at: string;
   updated_at: string;
 
@@ -199,7 +195,6 @@ export interface CalendarEvent {
   date: string;
   start_time?: string;
   end_time?: string;
-  gcal_event_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -280,7 +275,6 @@ export interface AvailabilityExceptionResponse {
   date: string;
   start_time: string;
   end_time: string;
-  gcal_event_id?: string;
   created_at: string;
 }
 

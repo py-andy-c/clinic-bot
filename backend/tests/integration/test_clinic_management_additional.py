@@ -121,7 +121,6 @@ class TestSettingsDestructiveUpdate:
             date=start.date(),
             start_time=start.time(),
             end_time=end.time(),
-            gcal_event_id=None
         )
         db_session.add(calendar_event)
         db_session.commit()

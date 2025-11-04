@@ -114,7 +114,6 @@ class AvailabilityExceptionResponse(BaseModel):
     date: str
     start_time: Optional[str]
     end_time: Optional[str]
-    gcal_event_id: Optional[str]
     created_at: datetime
 
 
@@ -693,7 +692,6 @@ async def create_availability_exception(
             date=exception_data.date,
             start_time=exception_data.start_time,
             end_time=exception_data.end_time,
-            gcal_event_id=calendar_event.gcal_event_id,
             created_at=calendar_event.created_at
         )
         
@@ -791,7 +789,6 @@ async def update_availability_exception(
             date=exception_data.date,
             start_time=exception_data.start_time,
             end_time=exception_data.end_time,
-            gcal_event_id=calendar_event.gcal_event_id,
             created_at=calendar_event.created_at
         )
         

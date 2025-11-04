@@ -77,21 +77,6 @@ class TestWebhookProcessing:
         }
         assert unfollow_event["type"] == "unfollow"
 
-    def test_google_calendar_webhook_headers(self):
-        """Test Google Calendar webhook headers are properly structured."""
-        headers = {
-            "X-Goog-Resource-State": "exists",
-            "X-Goog-Resource-ID": "calendar_id_123",
-            "X-Goog-Channel-ID": "channel_456",
-            "X-Goog-Message-Number": "1"
-        }
-
-        # Verify required headers are present
-        assert headers.get("X-Goog-Resource-State") == "exists"
-        assert headers.get("X-Goog-Resource-ID") == "calendar_id_123"
-        assert headers.get("X-Goog-Channel-ID") == "channel_456"
-        assert headers.get("X-Goog-Message-Number") == "1"
-
     def test_webhook_payload_validation(self):
         """Test webhook payload structure validation."""
         # Valid LINE webhook payload

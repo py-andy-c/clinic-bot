@@ -62,7 +62,6 @@ async def initiate_clinic_admin_signup(token: str, db: Session = Depends(get_db)
 
         # OAuth scopes for clinic admins
         # NOTE: Calendar scopes removed - requiring calendar access would need Google App verification.
-        # Calendar sync features are currently disabled.
         scopes = [
             "openid", "profile", "email"
             # Calendar scopes disabled - would require Google App verification:
@@ -127,7 +126,6 @@ async def initiate_member_signup(token: str, db: Session = Depends(get_db)) -> d
 
         # OAuth scopes for team members
         # NOTE: Calendar scopes removed - requiring calendar access would need Google App verification.
-        # Calendar sync features are currently disabled.
         scopes = [
             "openid", "profile", "email"
             # Calendar scopes disabled - would require Google App verification:
@@ -233,10 +231,14 @@ async def signup_oauth_callback(
             token_response.raise_for_status()
             token_info = token_response.json()
 
-        # Get user info from Google using OAuth service
-        from services.google_oauth import GoogleOAuthService
-        oauth_service = GoogleOAuthService()
-        user_info = await oauth_service.get_user_info(token_info["access_token"])
+        # Get user info from Google
+        userinfo_url = "https://www.googleapis.com/oauth2/v2/userinfo"
+        headers = {"Authorization": f"Bearer {token_info['access_token']}"}
+        
+        async with httpx.AsyncClient() as client:
+            userinfo_response = await client.get(userinfo_url, headers=headers)
+            userinfo_response.raise_for_status()
+            user_info = userinfo_response.json()
 
         if not user_info or not user_info.get("email"):
             raise HTTPException(
@@ -279,19 +281,6 @@ async def signup_oauth_callback(
                 status_code=302
             )
 
-        # Encrypt Google Calendar credentials
-        gcal_credentials = {
-            "access_token": token_info["access_token"],
-            "refresh_token": token_info.get("refresh_token"),
-            "expires_at": token_info.get("expires_in"),
-            "token_type": token_info.get("token_type", "Bearer"),
-            "scope": token_info.get("scope"),
-            "user_email": email,
-            "user_name": name
-        }
-        from services.encryption_service import get_encryption_service
-        encrypted_credentials = get_encryption_service().encrypt_data(gcal_credentials)
-
         # Store OAuth data temporarily for name confirmation
         # Create a temporary state with user data for name confirmation
         temp_state_data = {
@@ -301,8 +290,7 @@ async def signup_oauth_callback(
             "google_subject_id": google_subject_id,
             "google_name": name,
             "roles": signup_token.default_roles,
-            "clinic_id": signup_token.clinic_id,
-            "gcal_credentials": encrypted_credentials
+            "clinic_id": signup_token.clinic_id
         }
         
         # Create a temporary JWT token for name confirmation
@@ -361,7 +349,6 @@ async def confirm_name(
         google_subject_id = temp_data.get("google_subject_id")
         roles = temp_data.get("roles")
         clinic_id = temp_data.get("clinic_id")
-        gcal_credentials = temp_data.get("gcal_credentials")
 
         # Validate required fields (allow empty roles list)
         # Data integrity issues are logged but user sees generic error message
@@ -374,8 +361,6 @@ async def confirm_name(
             missing_fields.append("google_subject_id")
         if not clinic_id:
             missing_fields.append("clinic_id")
-        if not gcal_credentials:
-            missing_fields.append("gcal_credentials")
         if roles is None:
             missing_fields.append("roles")
 
@@ -389,7 +374,6 @@ async def confirm_name(
                         "email": bool(email),
                         "google_subject_id": bool(google_subject_id),
                         "clinic_id": bool(clinic_id),
-                        "gcal_credentials": bool(gcal_credentials),
                         "roles": roles is not None
                     }
                 }
@@ -427,9 +411,7 @@ async def confirm_name(
             email=email,
             google_subject_id=google_subject_id,
             full_name=request.full_name.strip(),
-            roles=roles,
-            gcal_credentials=gcal_credentials,
-            gcal_sync_enabled=False  # Don't enable sync until they actually connect calendar
+            roles=roles
         )
         
         db.add(user)

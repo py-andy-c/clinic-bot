@@ -43,8 +43,7 @@ class TestCalendarEvent:
             event_type="appointment",
             date=date(2025, 1, 15),
             start_time=time(10, 0),
-            end_time=time(11, 0),
-            gcal_event_id="test_gcal_id"
+            end_time=time(11, 0)
         )
         db_session.add(calendar_event)
         db_session.commit()
@@ -55,7 +54,6 @@ class TestCalendarEvent:
         assert calendar_event.date == date(2025, 1, 15)
         assert calendar_event.start_time == time(10, 0)
         assert calendar_event.end_time == time(11, 0)
-        assert calendar_event.gcal_event_id == "test_gcal_id"
 
     def test_calendar_event_all_day(self, db_session):
         """Test all-day calendar event creation."""
@@ -352,7 +350,7 @@ class TestAppointmentWithCalendarEvent:
             date=date(2025, 1, 15),
             start_time=time(10, 0),
             end_time=time(11, 0),
-            gcal_event_id="test_gcal_id"
+
         )
         db_session.add(calendar_event)
         db_session.flush()
@@ -377,7 +375,6 @@ class TestAppointmentWithCalendarEvent:
         assert appointment.start_time == time(10, 0)
         assert appointment.end_time == time(11, 0)
         assert appointment.date == date(2025, 1, 15)
-        assert appointment.gcal_event_id == "test_gcal_id"
 
     def test_appointment_relationships(self, db_session):
         """Test appointment relationships work correctly."""

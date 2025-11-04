@@ -1,8 +1,8 @@
 """
 Encryption service for sensitive data storage.
 
-Provides secure encryption/decryption for Google Calendar credentials
-and other sensitive data using Fernet symmetric encryption.
+Provides secure encryption/decryption for sensitive data
+using Fernet symmetric encryption.
 """
 
 import json

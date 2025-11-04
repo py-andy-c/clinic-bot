@@ -90,8 +90,7 @@ class AppointmentService:
                 event_type='appointment',
                 date=start_time.date(),
                 start_time=start_time.time(),
-                end_time=end_time.time(),
-                sync_status='pending'  # Will be synced to Google Calendar later
+                end_time=end_time.time()
             )
 
             db.add(calendar_event)
@@ -546,7 +545,7 @@ class AppointmentService:
         """
         Cancel an appointment by clinic admin.
 
-        Updates status, deletes Google Calendar event, and prepares for LINE notification.
+        Updates status and prepares for LINE notification.
 
         Args:
             db: Database session
@@ -602,7 +601,6 @@ class AppointmentService:
             return {
                 'appointment': appointment,
                 'practitioner': practitioner,
-                'gcal_deleted': False,  # Already cancelled, no GCal deletion needed
                 'already_cancelled': True
             }
 
@@ -610,18 +608,11 @@ class AppointmentService:
         appointment.status = 'canceled_by_clinic'
         appointment.canceled_at = taiwan_now()
 
-        # NOTE: Google Calendar sync disabled - calendar scopes were removed because
-        # requiring calendar access would need Google App verification.
-        # Google Calendar event deletion is disabled. See git history for the original
-        # implementation if re-enabling calendar sync after Google App verification.
-        gcal_deleted = False
-
         db.commit()
 
         logger.info(f"Clinic admin cancelled appointment {appointment_id}")
 
         return {
             'appointment': appointment,
-            'practitioner': practitioner,
-            'gcal_deleted': gcal_deleted
+            'practitioner': practitioner
         }

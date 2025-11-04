@@ -559,10 +559,6 @@ export class ApiService {
     await this.client.post(`/clinic/members/${userId}/reactivate`);
   }
 
-  async initiateMemberGcalAuth(userId: number): Promise<OAuthResponse> {
-    const response = await this.client.get(`/clinic/members/${userId}/gcal/auth`);
-    return response.data;
-  }
 
   async getPatients(signal?: AbortSignal): Promise<Patient[]> {
     const config = signal ? { signal } : {};

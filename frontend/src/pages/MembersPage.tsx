@@ -415,7 +415,7 @@ const InviteMemberModal: React.FC<InviteMemberModalProps> = ({ onClose, onInvite
                             className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                           />
                           <label htmlFor="role-practitioner" className="ml-3 text-sm text-gray-700">
-                            <span className="font-medium">治療師</span> - 預約管理和 Google Calendar 同步
+                            <span className="font-medium">治療師</span> - 預約管理
                           </label>
                         </div>
                         <div className="mt-2 text-xs text-gray-500">
@@ -585,7 +585,7 @@ const EditRolesModal: React.FC<EditRolesModalProps> = ({ member, onClose, onUpda
                         className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
                       />
                       <label htmlFor="edit-role-practitioner" className="ml-3 text-sm text-gray-700">
-                        <span className="font-medium">治療師</span> - 預約管理和 Google Calendar 同步
+                        <span className="font-medium">治療師</span> - 預約管理
                       </label>
                     </div>
                   </div>

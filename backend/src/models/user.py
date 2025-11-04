@@ -29,11 +29,6 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     roles: Mapped[list[str]] = mapped_column(JSON, default=list)  # ['admin'], ['practitioner'], or ['admin', 'practitioner']
 
-    # Practitioner-specific fields (nullable, only for users with 'practitioner' role)
-    gcal_credentials: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # Encrypted JSON
-    gcal_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    gcal_watch_resource_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-
     # Metadata
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)

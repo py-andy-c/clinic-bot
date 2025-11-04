@@ -1036,8 +1036,7 @@ class TestSignupCallbackFlow:
         client.app.dependency_overrides[get_db] = override_get_db
 
         try:
-            with patch("httpx.AsyncClient", autospec=True) as mock_client_class, \
-                 patch("services.google_oauth.GoogleOAuthService.get_user_info", autospec=True, return_value=mock_user_info):
+            with patch("httpx.AsyncClient", autospec=True) as mock_client_class:
                 instance = AsyncMock()
 
                 from unittest.mock import Mock
@@ -1045,6 +1044,11 @@ class TestSignupCallbackFlow:
                 mock_token_resp.json.return_value = mock_token_response
                 mock_token_resp.raise_for_status = Mock()
                 instance.post = AsyncMock(return_value=mock_token_resp)
+                
+                mock_userinfo_resp = Mock(spec=httpx.Response)
+                mock_userinfo_resp.json.return_value = mock_user_info
+                mock_userinfo_resp.raise_for_status = Mock()
+                instance.get = AsyncMock(return_value=mock_userinfo_resp)
 
                 mock_client_class.return_value.__aenter__.return_value = instance
 
@@ -1125,8 +1129,7 @@ class TestSignupCallbackFlow:
         client.app.dependency_overrides[get_db] = override_get_db
 
         try:
-            with patch("httpx.AsyncClient", autospec=True) as mock_client_class, \
-                 patch("services.google_oauth.GoogleOAuthService.get_user_info", autospec=True, return_value=mock_user_info):
+            with patch("httpx.AsyncClient", autospec=True) as mock_client_class:
                 instance = AsyncMock()
 
                 from unittest.mock import Mock
@@ -1134,6 +1137,11 @@ class TestSignupCallbackFlow:
                 mock_token_resp.json.return_value = mock_token_response
                 mock_token_resp.raise_for_status = Mock()
                 instance.post = AsyncMock(return_value=mock_token_resp)
+                
+                mock_userinfo_resp = Mock(spec=httpx.Response)
+                mock_userinfo_resp.json.return_value = mock_user_info
+                mock_userinfo_resp.raise_for_status = Mock()
+                instance.get = AsyncMock(return_value=mock_userinfo_resp)
 
                 mock_client_class.return_value.__aenter__.return_value = instance
 
@@ -1191,89 +1199,6 @@ class TestSignupCallbackFlow:
 
         finally:
             client.app.dependency_overrides.pop(get_db, None)
-
-    def test_google_calendar_oauth_fixed_redirect_uri(self, client, db_session):
-        """Test Google Calendar OAuth uses fixed redirect URI without user_id."""
-        from unittest.mock import AsyncMock, patch
-
-        # Create test clinic and user
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel_gcal",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.commit()
-
-        user = User(
-            clinic_id=clinic.id,
-            email="gcal@example.com",
-            google_subject_id="gcal_sub",
-            full_name="GCal User",
-            roles=["practitioner"],
-            is_active=True
-        )
-        db_session.add(user)
-        db_session.commit()
-
-        # Mock Google Calendar OAuth
-        mock_token_response = {
-            "access_token": "gcal_access_token",
-            "refresh_token": "gcal_refresh_token",
-            "expires_in": 3600,
-            "token_type": "Bearer"
-        }
-
-        mock_user_info = {
-            "sub": "gcal_user_sub",
-            "email": "gcal@example.com",
-            "name": "GCal User"
-        }
-
-        mock_client = AsyncMock()
-
-        mock_token_resp = Mock(spec=httpx.Response)
-        mock_token_resp.json.return_value = mock_token_response
-        mock_token_resp.raise_for_status = Mock(spec_set=True)
-        mock_client.post = AsyncMock(return_value=mock_token_resp)
-
-        with patch("httpx.AsyncClient", autospec=True, return_value=mock_client), \
-             patch("services.google_oauth.GoogleOAuthService.get_user_info", autospec=True, return_value=mock_user_info):
-
-            # Mock authentication
-            from auth.dependencies import UserContext, get_current_user
-            admin_user = UserContext(
-                user_type="clinic_user",
-                email="admin@test.com",
-                roles=["admin"],
-                clinic_id=clinic.id,
-                google_subject_id="admin_sub",
-                name="Test Admin"
-            )
-
-            def override_get_db():
-                yield db_session
-
-            client.app.dependency_overrides[get_db] = override_get_db
-            client.app.dependency_overrides[get_current_user] = lambda: admin_user
-
-            try:
-                # Call Google Calendar auth endpoint
-                response = client.get(f"/api/clinic/members/{user.id}/gcal/auth")
-                assert response.status_code == 200
-                data = response.json()
-                assert "auth_url" in data
-
-                # Verify the auth URL uses the fixed redirect URI (not dynamic with user_id)
-                auth_url = data["auth_url"]
-                assert "redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fapi%2Fclinic%2Fmembers%2Fgcal%2Fcallback" in auth_url
-                # Should NOT contain the user_id in the redirect URI
-                assert f"members%2F{user.id}%2Fgcal%2Fcallback" not in auth_url
-
-            finally:
-                client.app.dependency_overrides.pop(get_db, None)
-                client.app.dependency_overrides.pop(get_current_user, None)
 
     def test_role_based_access_control(self, client, db_session):
         """Test role-based access control across different endpoints."""
@@ -1402,6 +1327,8 @@ class TestSignupCallbackFlow:
                 state_data = {"user_id": user.id, "clinic_id": clinic.id}
                 signed_state = jwt_service.sign_oauth_state(state_data)
 
+                # Google Calendar OAuth endpoints have been removed
+                # The endpoint should return 404
                 response = client.get(
                     "/api/clinic/members/gcal/callback",
                     params={
@@ -1410,16 +1337,7 @@ class TestSignupCallbackFlow:
                     }
                 )
 
-                assert response.status_code == 200
-                data = response.json()
-                assert "message" in data
-                assert "Google 日曆整合啟用成功" in data["message"]
-
-                # Verify user was updated with Google Calendar credentials
-                db_session.refresh(user)
-                # Calendar sync is disabled - scopes removed to avoid Google App verification
-                assert user.gcal_sync_enabled is False
-                assert user.gcal_credentials is not None
+                assert response.status_code == 404
 
         finally:
             # Clean up overrides

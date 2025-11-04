@@ -7,7 +7,6 @@ for an LLM-powered LINE bot system for physical therapy clinics.
 
 Features:
 - LINE messaging webhook integration
-- Google Calendar synchronization for therapists
 - Admin management interface
 - PostgreSQL database with SQLAlchemy ORM
 """
@@ -19,7 +18,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api import webhooks, auth, signup, system, clinic, profile, practitioner_calendar, liff
+from api import auth, signup, system, clinic, profile, practitioner_calendar, liff
 from core.constants import CORS_ORIGINS
 from services.reminder_service import start_reminder_scheduler, stop_reminder_scheduler
 from core.database import get_db
@@ -80,14 +79,6 @@ app.add_middleware(
 )
 
 # Include API routers
-app.include_router(
-    webhooks.router,
-    prefix="/webhook",
-    tags=["webhooks"],
-    responses={
-        500: {"description": "Internal server error"},
-    },
-)
 app.include_router(
     auth.router,
     prefix="/api/auth",
