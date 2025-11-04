@@ -40,15 +40,15 @@ class AppointmentTypeService:
 
         Note: This method only returns active (non-deleted) appointment types.
         For admin operations that need to access deleted types, use the utility functions directly.
-
+        
         Args:
             db: Database session
             appointment_type_id: Appointment type ID
             clinic_id: Optional clinic ID to validate ownership
-
+            
         Returns:
             AppointmentType object
-
+            
         Raises:
             HTTPException: If appointment type not found or doesn't belong to clinic
         """
@@ -69,11 +69,11 @@ class AppointmentTypeService:
     ) -> List[AppointmentType]:
         """
         List all active (non-deleted) appointment types for a clinic.
-
+        
         Args:
             db: Database session
             clinic_id: Clinic ID
-
+            
         Returns:
             List of active AppointmentType objects
         """

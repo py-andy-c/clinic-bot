@@ -9,7 +9,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from models import Patient, Appointment, CalendarEvent, LineUser
@@ -98,7 +98,7 @@ class PatientService:
         clinic_id: int
     ) -> List[Patient]:
         """
-        List all patients associated with a LINE user for a specific clinic.
+        List all active patients associated with a LINE user for a specific clinic.
 
         Args:
             db: Database session
@@ -106,35 +106,25 @@ class PatientService:
             clinic_id: Clinic ID
 
         Returns:
-            List of Patient objects, sorted by creation time
+            List of active Patient objects, sorted by creation time
         """
-        patients = db.query(Patient).filter_by(
-            line_user_id=line_user_id,
-            clinic_id=clinic_id
-        ).order_by(Patient.created_at).all()
-
-        return patients
+        from utils.patient_queries import get_active_patients_for_line_user
+        return get_active_patients_for_line_user(db, line_user_id, clinic_id)
 
     @staticmethod
     def list_patients_for_clinic(db: Session, clinic_id: int) -> List[Patient]:
         """
-        List all patients for a clinic (admin view).
+        List all active patients for a clinic (admin view).
 
         Args:
             db: Database session
             clinic_id: Clinic ID
 
         Returns:
-            List of all Patient objects for the clinic
+            List of active Patient objects for the clinic
         """
-        # Eager load line_user to avoid N+1 queries when accessing display_name
-        patients = db.query(Patient).options(
-            joinedload(Patient.line_user)
-        ).filter(
-            Patient.clinic_id == clinic_id
-        ).all()
-
-        return patients
+        from utils.patient_queries import get_active_patients_for_clinic
+        return get_active_patients_for_clinic(db, clinic_id)
 
     @staticmethod
     def validate_patient_ownership(
@@ -235,8 +225,12 @@ class PatientService:
                 detail="至少需保留一位就診人"
             )
 
-        # Soft delete by unlinking from LINE user (preserves appointment history)
-        patient.line_user_id = None
+        # Soft delete by marking as deleted and unlinking from LINE user (preserves appointment history)
+        from datetime import datetime, timezone
+
+        patient.is_deleted = True
+        patient.deleted_at = datetime.now(timezone.utc)
+        patient.line_user_id = None  # Also unlink for backward compatibility
         db.commit()
 
         logger.info(f"Soft deleted patient {patient_id} for LINE user {line_user_id}")

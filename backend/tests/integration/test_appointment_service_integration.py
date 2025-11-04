@@ -628,6 +628,198 @@ class TestAppointmentServiceIntegration:
         ).all()
         assert len(appointments) == 2
 
+    def test_patient_soft_delete_and_utility_functions(
+        self, db_session: Session
+    ):
+        """Test patient soft delete functionality and utility functions."""
+        from utils.patient_queries import (
+            get_active_patients_for_line_user,
+            get_active_patients_for_clinic,
+            get_patient_by_id_with_soft_delete_check,
+            soft_delete_patient
+        )
+        from services.patient_service import PatientService
+
+        # Create clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="test_line_user_123",
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create patients
+        patient1 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient One",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        patient2 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient Two",
+            phone_number="0912345679",
+            line_user_id=line_user.id
+        )
+        patient3 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient Three",
+            phone_number="0912345680"
+            # No line_user_id - represents unlinked patient
+        )
+        patient4 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient Four",
+            phone_number="0912345681",
+            line_user_id=line_user.id  # Another patient for the LINE user
+        )
+        db_session.add_all([patient1, patient2, patient3, patient4])
+        db_session.commit()
+
+        # Test: Initially all patients are active
+        active_patients_line = get_active_patients_for_line_user(
+            db_session, line_user.id, clinic.id
+        )
+        assert len(active_patients_line) == 3
+        assert patient1 in active_patients_line
+        assert patient2 in active_patients_line
+        assert patient4 in active_patients_line
+
+        active_patients_clinic = get_active_patients_for_clinic(db_session, clinic.id)
+        assert len(active_patients_clinic) == 4  # All patients are active (patient1, patient2, patient3, patient4)
+
+        # Test: Soft delete patient1 using the service method
+        PatientService.delete_patient_for_line_user(
+            db_session, patient1.id, line_user.id, clinic.id
+        )
+
+        # Refresh patient1 from database
+        db_session.refresh(patient1)
+        assert patient1.is_deleted == True
+        assert patient1.deleted_at is not None
+        assert patient1.line_user_id is None  # Also unlinked
+
+        # Test: After soft delete, patient1 should not appear in active queries
+        active_patients_line_after = get_active_patients_for_line_user(
+            db_session, line_user.id, clinic.id
+        )
+        assert len(active_patients_line_after) == 2  # patient2 and patient4 remain
+        assert patient2 in active_patients_line_after
+        assert patient4 in active_patients_line_after
+        assert patient1 not in active_patients_line_after
+
+        active_patients_clinic_after = get_active_patients_for_clinic(db_session, clinic.id)
+        assert len(active_patients_clinic_after) == 3  # patient1 removed, patient2, patient3, patient4 remain
+        assert patient1 not in active_patients_clinic_after
+
+        # Test: Can still retrieve deleted patient with include_deleted=True
+        deleted_patient_retrieved = get_patient_by_id_with_soft_delete_check(
+            db_session, patient1.id, clinic.id, include_deleted=True
+        )
+        assert deleted_patient_retrieved.is_deleted == True
+
+        # Test: Cannot retrieve deleted patient with include_deleted=False (default)
+        with pytest.raises(ValueError, match="Patient not found"):
+            get_patient_by_id_with_soft_delete_check(
+                db_session, patient1.id, clinic.id, include_deleted=False
+            )
+
+        # Test: Patient service still works with the updated soft delete logic
+        # Create a future appointment for patient2 to test deletion prevention
+        from utils.datetime_utils import taiwan_now
+        from models import CalendarEvent, Appointment, User
+        from datetime import timedelta, time
+
+        # Create practitioner for appointment
+        practitioner = User(
+            clinic_id=clinic.id,
+            email="practitioner@test.com",
+            google_subject_id="practitioner_123",
+            full_name="Dr. Test Practitioner",
+            roles=["practitioner"]
+        )
+        db_session.add(practitioner)
+        db_session.commit()
+
+        # Create appointment type
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Consultation",
+            duration_minutes=30
+        )
+        db_session.add(appt_type)
+        db_session.commit()
+
+        # Associate practitioner with appointment type
+        from models import PractitionerAppointmentTypes
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appt_type.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        # Create future appointment for patient2
+        future_time = taiwan_now() + timedelta(days=1)
+        calendar_event = CalendarEvent(
+            user_id=practitioner.id,
+            event_type='appointment',
+            date=future_time.date(),
+            start_time=future_time.time(),
+            end_time=(future_time + timedelta(minutes=30)).time()
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        future_appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient2.id,
+            appointment_type_id=appt_type.id,
+            status='confirmed'
+        )
+        db_session.add(future_appointment)
+        db_session.commit()
+
+        # Test: Cannot delete patient2 due to future appointment
+        from fastapi import HTTPException
+        with pytest.raises(HTTPException) as exc_info:
+            PatientService.delete_patient_for_line_user(
+                db_session, patient2.id, line_user.id, clinic.id
+            )
+        assert "Cannot delete patient with future appointments" in exc_info.value.detail
+
+        # Test: Can delete patient2 after canceling the appointment
+        future_appointment.status = 'canceled_by_patient'
+        db_session.commit()
+
+        # Now deletion should work
+        PatientService.delete_patient_for_line_user(
+            db_session, patient2.id, line_user.id, clinic.id
+        )
+
+        # Verify patient2 is now soft deleted
+        patient2_retrieved = get_patient_by_id_with_soft_delete_check(
+            db_session, patient2.id, clinic.id, include_deleted=True
+        )
+        assert patient2_retrieved.is_deleted == True
+        assert patient2_retrieved.line_user_id is None
+
+        # Test: Active patients for LINE user now shows patient1 and patient4 only
+        final_active_patients = get_active_patients_for_line_user(
+            db_session, line_user.id, clinic.id
+        )
+        assert len(final_active_patients) == 1  # only patient4 remains
+
     def test_appointment_booking_allows_same_practitioner_different_times(
         self, db_session: Session
     ):
@@ -732,6 +924,198 @@ class TestAppointmentServiceIntegration:
             Appointment.patient_id.in_([patient1.id, patient2.id])
         ).all()
         assert len(appointments) == 2
+
+    def test_patient_soft_delete_and_utility_functions(
+        self, db_session: Session
+    ):
+        """Test patient soft delete functionality and utility functions."""
+        from utils.patient_queries import (
+            get_active_patients_for_line_user,
+            get_active_patients_for_clinic,
+            get_patient_by_id_with_soft_delete_check,
+            soft_delete_patient
+        )
+        from services.patient_service import PatientService
+
+        # Create clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="test_line_user_123",
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create patients
+        patient1 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient One",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        patient2 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient Two",
+            phone_number="0912345679",
+            line_user_id=line_user.id
+        )
+        patient3 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient Three",
+            phone_number="0912345680"
+            # No line_user_id - represents unlinked patient
+        )
+        patient4 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient Four",
+            phone_number="0912345681",
+            line_user_id=line_user.id  # Another patient for the LINE user
+        )
+        db_session.add_all([patient1, patient2, patient3, patient4])
+        db_session.commit()
+
+        # Test: Initially all patients are active
+        active_patients_line = get_active_patients_for_line_user(
+            db_session, line_user.id, clinic.id
+        )
+        assert len(active_patients_line) == 3
+        assert patient1 in active_patients_line
+        assert patient2 in active_patients_line
+        assert patient4 in active_patients_line
+
+        active_patients_clinic = get_active_patients_for_clinic(db_session, clinic.id)
+        assert len(active_patients_clinic) == 4  # All patients are active (patient1, patient2, patient3, patient4)
+
+        # Test: Soft delete patient1 using the service method
+        PatientService.delete_patient_for_line_user(
+            db_session, patient1.id, line_user.id, clinic.id
+        )
+
+        # Refresh patient1 from database
+        db_session.refresh(patient1)
+        assert patient1.is_deleted == True
+        assert patient1.deleted_at is not None
+        assert patient1.line_user_id is None  # Also unlinked
+
+        # Test: After soft delete, patient1 should not appear in active queries
+        active_patients_line_after = get_active_patients_for_line_user(
+            db_session, line_user.id, clinic.id
+        )
+        assert len(active_patients_line_after) == 2  # patient2 and patient4 remain
+        assert patient2 in active_patients_line_after
+        assert patient4 in active_patients_line_after
+        assert patient1 not in active_patients_line_after
+
+        active_patients_clinic_after = get_active_patients_for_clinic(db_session, clinic.id)
+        assert len(active_patients_clinic_after) == 3  # patient1 removed, patient2, patient3, patient4 remain
+        assert patient1 not in active_patients_clinic_after
+
+        # Test: Can still retrieve deleted patient with include_deleted=True
+        deleted_patient_retrieved = get_patient_by_id_with_soft_delete_check(
+            db_session, patient1.id, clinic.id, include_deleted=True
+        )
+        assert deleted_patient_retrieved.is_deleted == True
+
+        # Test: Cannot retrieve deleted patient with include_deleted=False (default)
+        with pytest.raises(ValueError, match="Patient not found"):
+            get_patient_by_id_with_soft_delete_check(
+                db_session, patient1.id, clinic.id, include_deleted=False
+            )
+
+        # Test: Patient service still works with the updated soft delete logic
+        # Create a future appointment for patient2 to test deletion prevention
+        from utils.datetime_utils import taiwan_now
+        from models import CalendarEvent, Appointment, User
+        from datetime import timedelta, time
+
+        # Create practitioner for appointment
+        practitioner = User(
+            clinic_id=clinic.id,
+            email="practitioner@test.com",
+            google_subject_id="practitioner_123",
+            full_name="Dr. Test Practitioner",
+            roles=["practitioner"]
+        )
+        db_session.add(practitioner)
+        db_session.commit()
+
+        # Create appointment type
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Consultation",
+            duration_minutes=30
+        )
+        db_session.add(appt_type)
+        db_session.commit()
+
+        # Associate practitioner with appointment type
+        from models import PractitionerAppointmentTypes
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appt_type.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        # Create future appointment for patient2
+        future_time = taiwan_now() + timedelta(days=1)
+        calendar_event = CalendarEvent(
+            user_id=practitioner.id,
+            event_type='appointment',
+            date=future_time.date(),
+            start_time=future_time.time(),
+            end_time=(future_time + timedelta(minutes=30)).time()
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        future_appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient2.id,
+            appointment_type_id=appt_type.id,
+            status='confirmed'
+        )
+        db_session.add(future_appointment)
+        db_session.commit()
+
+        # Test: Cannot delete patient2 due to future appointment
+        from fastapi import HTTPException
+        with pytest.raises(HTTPException) as exc_info:
+            PatientService.delete_patient_for_line_user(
+                db_session, patient2.id, line_user.id, clinic.id
+            )
+        assert "Cannot delete patient with future appointments" in exc_info.value.detail
+
+        # Test: Can delete patient2 after canceling the appointment
+        future_appointment.status = 'canceled_by_patient'
+        db_session.commit()
+
+        # Now deletion should work
+        PatientService.delete_patient_for_line_user(
+            db_session, patient2.id, line_user.id, clinic.id
+        )
+
+        # Verify patient2 is now soft deleted
+        patient2_retrieved = get_patient_by_id_with_soft_delete_check(
+            db_session, patient2.id, clinic.id, include_deleted=True
+        )
+        assert patient2_retrieved.is_deleted == True
+        assert patient2_retrieved.line_user_id is None
+
+        # Test: Active patients for LINE user now shows patient1 and patient4 only
+        final_active_patients = get_active_patients_for_line_user(
+            db_session, line_user.id, clinic.id
+        )
+        assert len(final_active_patients) == 1  # only patient4 remains
 
     def test_appointment_booking_allows_same_practitioner_different_days(
         self, db_session: Session
@@ -843,4 +1227,196 @@ class TestAppointmentServiceIntegration:
             Appointment.patient_id.in_([patient1.id, patient2.id])
         ).all()
         assert len(appointments) == 2
+
+    def test_patient_soft_delete_and_utility_functions(
+        self, db_session: Session
+    ):
+        """Test patient soft delete functionality and utility functions."""
+        from utils.patient_queries import (
+            get_active_patients_for_line_user,
+            get_active_patients_for_clinic,
+            get_patient_by_id_with_soft_delete_check,
+            soft_delete_patient
+        )
+        from services.patient_service import PatientService
+
+        # Create clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="test_line_user_123",
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create patients
+        patient1 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient One",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        patient2 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient Two",
+            phone_number="0912345679",
+            line_user_id=line_user.id
+        )
+        patient3 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient Three",
+            phone_number="0912345680"
+            # No line_user_id - represents unlinked patient
+        )
+        patient4 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient Four",
+            phone_number="0912345681",
+            line_user_id=line_user.id  # Another patient for the LINE user
+        )
+        db_session.add_all([patient1, patient2, patient3, patient4])
+        db_session.commit()
+
+        # Test: Initially all patients are active
+        active_patients_line = get_active_patients_for_line_user(
+            db_session, line_user.id, clinic.id
+        )
+        assert len(active_patients_line) == 3
+        assert patient1 in active_patients_line
+        assert patient2 in active_patients_line
+        assert patient4 in active_patients_line
+
+        active_patients_clinic = get_active_patients_for_clinic(db_session, clinic.id)
+        assert len(active_patients_clinic) == 4  # All patients are active (patient1, patient2, patient3, patient4)
+
+        # Test: Soft delete patient1 using the service method
+        PatientService.delete_patient_for_line_user(
+            db_session, patient1.id, line_user.id, clinic.id
+        )
+
+        # Refresh patient1 from database
+        db_session.refresh(patient1)
+        assert patient1.is_deleted == True
+        assert patient1.deleted_at is not None
+        assert patient1.line_user_id is None  # Also unlinked
+
+        # Test: After soft delete, patient1 should not appear in active queries
+        active_patients_line_after = get_active_patients_for_line_user(
+            db_session, line_user.id, clinic.id
+        )
+        assert len(active_patients_line_after) == 2  # patient2 and patient4 remain
+        assert patient2 in active_patients_line_after
+        assert patient4 in active_patients_line_after
+        assert patient1 not in active_patients_line_after
+
+        active_patients_clinic_after = get_active_patients_for_clinic(db_session, clinic.id)
+        assert len(active_patients_clinic_after) == 3  # patient1 removed, patient2, patient3, patient4 remain
+        assert patient1 not in active_patients_clinic_after
+
+        # Test: Can still retrieve deleted patient with include_deleted=True
+        deleted_patient_retrieved = get_patient_by_id_with_soft_delete_check(
+            db_session, patient1.id, clinic.id, include_deleted=True
+        )
+        assert deleted_patient_retrieved.is_deleted == True
+
+        # Test: Cannot retrieve deleted patient with include_deleted=False (default)
+        with pytest.raises(ValueError, match="Patient not found"):
+            get_patient_by_id_with_soft_delete_check(
+                db_session, patient1.id, clinic.id, include_deleted=False
+            )
+
+        # Test: Patient service still works with the updated soft delete logic
+        # Create a future appointment for patient2 to test deletion prevention
+        from utils.datetime_utils import taiwan_now
+        from models import CalendarEvent, Appointment, User
+        from datetime import timedelta, time
+
+        # Create practitioner for appointment
+        practitioner = User(
+            clinic_id=clinic.id,
+            email="practitioner@test.com",
+            google_subject_id="practitioner_123",
+            full_name="Dr. Test Practitioner",
+            roles=["practitioner"]
+        )
+        db_session.add(practitioner)
+        db_session.commit()
+
+        # Create appointment type
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Consultation",
+            duration_minutes=30
+        )
+        db_session.add(appt_type)
+        db_session.commit()
+
+        # Associate practitioner with appointment type
+        from models import PractitionerAppointmentTypes
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appt_type.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        # Create future appointment for patient2
+        future_time = taiwan_now() + timedelta(days=1)
+        calendar_event = CalendarEvent(
+            user_id=practitioner.id,
+            event_type='appointment',
+            date=future_time.date(),
+            start_time=future_time.time(),
+            end_time=(future_time + timedelta(minutes=30)).time()
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        future_appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient2.id,
+            appointment_type_id=appt_type.id,
+            status='confirmed'
+        )
+        db_session.add(future_appointment)
+        db_session.commit()
+
+        # Test: Cannot delete patient2 due to future appointment
+        from fastapi import HTTPException
+        with pytest.raises(HTTPException) as exc_info:
+            PatientService.delete_patient_for_line_user(
+                db_session, patient2.id, line_user.id, clinic.id
+            )
+        assert "Cannot delete patient with future appointments" in exc_info.value.detail
+
+        # Test: Can delete patient2 after canceling the appointment
+        future_appointment.status = 'canceled_by_patient'
+        db_session.commit()
+
+        # Now deletion should work
+        PatientService.delete_patient_for_line_user(
+            db_session, patient2.id, line_user.id, clinic.id
+        )
+
+        # Verify patient2 is now soft deleted
+        patient2_retrieved = get_patient_by_id_with_soft_delete_check(
+            db_session, patient2.id, clinic.id, include_deleted=True
+        )
+        assert patient2_retrieved.is_deleted == True
+        assert patient2_retrieved.line_user_id is None
+
+        # Test: Active patients for LINE user now shows patient1 and patient4 only
+        final_active_patients = get_active_patients_for_line_user(
+            db_session, line_user.id, clinic.id
+        )
+        assert len(final_active_patients) == 1  # only patient4 remains
 

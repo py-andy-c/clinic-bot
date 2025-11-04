@@ -45,6 +45,13 @@ class Patient(Base):
     line_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("line_users.id"), nullable=True)
     """Optional reference to the LINE user account managing this patient."""
 
+    # Soft delete support
+    is_deleted: Mapped[bool] = mapped_column(default=False)
+    """Soft delete flag. True if this patient has been deleted."""
+
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    """Timestamp when the patient was soft deleted (if applicable)."""
+
     # Relationships
     clinic = relationship("Clinic", back_populates="patients")
     """Relationship to the Clinic entity where this patient receives treatment."""
