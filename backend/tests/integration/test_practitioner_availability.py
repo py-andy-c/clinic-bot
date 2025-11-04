@@ -33,7 +33,8 @@ def test_clinic(db_session: Session):
         name="Test Clinic",
         line_channel_id="test_channel_123",
         line_channel_secret="test_secret_456",
-        line_channel_access_token="test_access_token_789"
+        line_channel_access_token="test_access_token_789",
+        settings={}
     )
     db_session.add(clinic)
     db_session.commit()

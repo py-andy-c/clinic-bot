@@ -60,6 +60,87 @@ class TestClinicModel:
         clinic = Clinic(**special_name_data)
         assert "測試診所" in clinic.name
 
+    def test_clinic_settings_initialization(self, sample_clinic_data):
+        """Test clinic settings are properly initialized."""
+        clinic = Clinic(**sample_clinic_data)
+
+        # Settings should be initialized as empty dict when provided
+        assert clinic.settings == {}
+        assert isinstance(clinic.settings, dict)
+
+    def test_clinic_settings_properties_with_empty_settings(self, sample_clinic_data):
+        """Test settings properties return defaults when settings is empty."""
+        clinic = Clinic(**sample_clinic_data)
+
+        # Test default values
+        assert clinic.reminder_hours_before == 24
+        assert clinic.booking_restriction_type == "same_day_disallowed"
+        assert clinic.minimum_booking_hours_ahead == 24
+        assert clinic.display_name is None
+        assert clinic.address is None
+        assert clinic.phone_number is None
+
+    def test_clinic_settings_properties_with_populated_settings(self, sample_clinic_data):
+        """Test settings properties work with populated settings."""
+        # Set up clinic with populated settings
+        sample_clinic_data['settings'] = {
+            "notification_settings": {
+                "reminder_hours_before": 48
+            },
+            "booking_restriction_settings": {
+                "booking_restriction_type": "minimum_hours_required",
+                "minimum_booking_hours_ahead": 12
+            },
+            "clinic_info_settings": {
+                "display_name": "Test Display Name",
+                "address": "123 Test Street",
+                "phone_number": "02-1234-5678"
+            }
+        }
+        clinic = Clinic(**sample_clinic_data)
+
+        # Test that properties return the configured values
+        assert clinic.reminder_hours_before == 48
+        assert clinic.booking_restriction_type == "minimum_hours_required"
+        assert clinic.minimum_booking_hours_ahead == 12
+        assert clinic.display_name == "Test Display Name"
+        assert clinic.address == "123 Test Street"
+        assert clinic.phone_number == "02-1234-5678"
+
+    def test_clinic_settings_property_setters(self, sample_clinic_data):
+        """Test settings property setters modify the underlying JSON."""
+        clinic = Clinic(**sample_clinic_data)
+
+        # Test setting notification properties
+        clinic.reminder_hours_before = 36
+        assert clinic.settings["notification_settings"]["reminder_hours_before"] == 36
+        assert clinic.reminder_hours_before == 36
+
+        # Test setting booking restriction properties
+        clinic.booking_restriction_type = "minimum_hours_required"
+        clinic.minimum_booking_hours_ahead = 8
+        assert clinic.settings["booking_restriction_settings"]["booking_restriction_type"] == "minimum_hours_required"
+        assert clinic.settings["booking_restriction_settings"]["minimum_booking_hours_ahead"] == 8
+
+        # Test setting clinic info properties
+        clinic.display_name = "Updated Clinic Name"
+        clinic.address = "456 Updated Street"
+        clinic.phone_number = "03-9876-5432"
+        assert clinic.settings["clinic_info_settings"]["display_name"] == "Updated Clinic Name"
+        assert clinic.settings["clinic_info_settings"]["address"] == "456 Updated Street"
+        assert clinic.settings["clinic_info_settings"]["phone_number"] == "03-9876-5432"
+
+    def test_clinic_effective_display_name(self, sample_clinic_data):
+        """Test effective_display_name property."""
+        clinic = Clinic(**sample_clinic_data)
+
+        # Without display_name set, should fall back to clinic name
+        assert clinic.effective_display_name == "Test Clinic"
+
+        # With display_name set, should use display_name
+        clinic.display_name = "Custom Display Name"
+        assert clinic.effective_display_name == "Custom Display Name"
+
 
 class TestUserModel:
     """Test cases for User model."""

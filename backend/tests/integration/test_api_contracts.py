@@ -29,7 +29,8 @@ def api_contract_client(db_session):
         name="API Contract Test Clinic",
         line_channel_id="test_contract_channel",
         line_channel_secret="test_contract_secret",
-        line_channel_access_token="test_contract_token"
+        line_channel_access_token="test_contract_token",
+        settings={}
     )
     db_session.add(test_clinic)
     db_session.commit()

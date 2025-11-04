@@ -7,13 +7,40 @@ with its own LINE Official Account.
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 
-from sqlalchemy import String, TIMESTAMP, Integer, Text, Boolean
+from pydantic import BaseModel, Field
+from sqlalchemy import String, TIMESTAMP, Integer, Text, Boolean, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
 from core.constants import MAX_STRING_LENGTH
+
+
+# Settings schema validation models
+class NotificationSettings(BaseModel):
+    """Schema for notification settings."""
+    reminder_hours_before: int = Field(default=24, ge=1, le=168)
+
+
+class BookingRestrictionSettings(BaseModel):
+    """Schema for booking restriction settings."""
+    booking_restriction_type: str = Field(default="same_day_disallowed")
+    minimum_booking_hours_ahead: int = Field(default=24, ge=1, le=168)
+
+
+class ClinicInfoSettings(BaseModel):
+    """Schema for clinic information settings."""
+    display_name: Optional[str] = Field(default=None)
+    address: Optional[str] = Field(default=None)
+    phone_number: Optional[str] = Field(default=None)
+
+
+class ClinicSettings(BaseModel):
+    """Schema for all clinic settings."""
+    notification_settings: NotificationSettings = Field(default_factory=NotificationSettings)
+    booking_restriction_settings: BookingRestrictionSettings = Field(default_factory=BookingRestrictionSettings)
+    clinic_info_settings: ClinicInfoSettings = Field(default_factory=ClinicInfoSettings)
 
 
 class Clinic(Base):
@@ -105,27 +132,35 @@ class Clinic(Base):
     health_check_errors: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     """JSON string containing recent health check errors."""
 
-    # Notification Settings
-    reminder_hours_before: Mapped[int] = mapped_column(Integer, default=24)
-    """Number of hours before appointment to send reminders."""
-
-    # Appointment Booking Restrictions
-    booking_restriction_type: Mapped[str] = mapped_column(String(50), default="same_day_disallowed")
+    # Clinic Settings (JSON column for all configurable settings)
+    settings: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     """
-    Type of restriction for appointment booking timing.
+    JSON column containing all clinic settings with validated schema.
 
-    Options:
-    - 'same_day_disallowed': Disallow same-day booking, allow next day and later (default)
-    - 'minimum_hours_required': Require appointments to be at least X hours ahead
+    Structure (matches ClinicSettings Pydantic model):
+    {
+        "notification_settings": {
+            "reminder_hours_before": 24
+        },
+        "booking_restriction_settings": {
+            "booking_restriction_type": "same_day_disallowed",
+            "minimum_booking_hours_ahead": 24
+        },
+        "clinic_info_settings": {
+            "display_name": null,
+            "address": null,
+            "phone_number": null
+        }
+    }
     """
 
-    minimum_booking_hours_ahead: Mapped[int] = mapped_column(Integer, default=24)
-    """
-    Minimum hours ahead required for appointment booking.
+    def get_validated_settings(self) -> ClinicSettings:
+        """Get settings with schema validation."""
+        return ClinicSettings.model_validate(self.settings)
 
-    Only used when booking_restriction_type is 'minimum_hours_required'.
-    Default is 24 hours.
-    """
+    def set_validated_settings(self, settings: ClinicSettings):
+        """Set settings with schema validation."""
+        self.settings = settings.model_dump()
 
     # Clinic Lifecycle Management
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -134,28 +169,6 @@ class Clinic(Base):
 
     Set to false during maintenance, billing issues, or clinic closure.
     Active clinics can still view existing data but cannot book new appointments.
-    """
-
-    # Display Information for Calendar Events and LINE Reminders
-    display_name: Mapped[Optional[str]] = mapped_column(String(MAX_STRING_LENGTH), nullable=True)
-    """
-    Display name used in calendar events and LINE reminders.
-
-    If not set, defaults to the clinic name. Can be customized by clinic admins.
-    """
-
-    address: Mapped[Optional[str]] = mapped_column(String(MAX_STRING_LENGTH), nullable=True)
-    """
-    Clinic address used in calendar events and LINE reminders.
-
-    Optional field for clinic location information.
-    """
-
-    phone_number: Mapped[Optional[str]] = mapped_column(String(MAX_STRING_LENGTH), nullable=True)
-    """
-    Clinic phone number used in calendar events and LINE reminders.
-
-    Optional field for clinic contact information.
     """
 
     # Relationships
@@ -186,6 +199,79 @@ class Clinic(Base):
     def practitioners(self):
         """Get all active practitioner users for this clinic."""
         return [u for u in self.users if 'practitioner' in u.roles and u.is_active]
+
+    # Settings convenience properties (match API keys)
+    @property
+    def reminder_hours_before(self) -> int:
+        """Get reminder hours before setting with default."""
+        return self.settings.get("notification_settings", {}).get("reminder_hours_before", 24)
+
+    @reminder_hours_before.setter
+    def reminder_hours_before(self, value: int):
+        """Set reminder hours before setting."""
+        notification_settings = self.settings.get("notification_settings", {})
+        notification_settings["reminder_hours_before"] = value
+        self.settings["notification_settings"] = notification_settings
+
+    @property
+    def booking_restriction_type(self) -> str:
+        """Get booking restriction type with default."""
+        return self.settings.get("booking_restriction_settings", {}).get("booking_restriction_type", "same_day_disallowed")
+
+    @booking_restriction_type.setter
+    def booking_restriction_type(self, value: str):
+        """Set booking restriction type."""
+        booking_settings = self.settings.get("booking_restriction_settings", {})
+        booking_settings["booking_restriction_type"] = value
+        self.settings["booking_restriction_settings"] = booking_settings
+
+    @property
+    def minimum_booking_hours_ahead(self) -> int:
+        """Get minimum booking hours ahead with default."""
+        return self.settings.get("booking_restriction_settings", {}).get("minimum_booking_hours_ahead", 24)
+
+    @minimum_booking_hours_ahead.setter
+    def minimum_booking_hours_ahead(self, value: int):
+        """Set minimum booking hours ahead."""
+        booking_settings = self.settings.get("booking_restriction_settings", {})
+        booking_settings["minimum_booking_hours_ahead"] = value
+        self.settings["booking_restriction_settings"] = booking_settings
+
+    @property
+    def display_name(self) -> Optional[str]:
+        """Get display name setting."""
+        return self.settings.get("clinic_info_settings", {}).get("display_name")
+
+    @display_name.setter
+    def display_name(self, value: Optional[str]):
+        """Set display name setting."""
+        clinic_info = self.settings.get("clinic_info_settings", {})
+        clinic_info["display_name"] = value
+        self.settings["clinic_info_settings"] = clinic_info
+
+    @property
+    def address(self) -> Optional[str]:
+        """Get address setting."""
+        return self.settings.get("clinic_info_settings", {}).get("address")
+
+    @address.setter
+    def address(self, value: Optional[str]):
+        """Set address setting."""
+        clinic_info = self.settings.get("clinic_info_settings", {})
+        clinic_info["address"] = value
+        self.settings["clinic_info_settings"] = clinic_info
+
+    @property
+    def phone_number(self) -> Optional[str]:
+        """Get phone number setting."""
+        return self.settings.get("clinic_info_settings", {}).get("phone_number")
+
+    @phone_number.setter
+    def phone_number(self, value: Optional[str]):
+        """Set phone number setting."""
+        clinic_info = self.settings.get("clinic_info_settings", {})
+        clinic_info["phone_number"] = value
+        self.settings["clinic_info_settings"] = clinic_info
 
     @property
     def effective_display_name(self) -> str:

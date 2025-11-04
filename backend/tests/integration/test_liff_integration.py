@@ -46,8 +46,11 @@ def test_clinic_with_liff(db_session: Session):
         line_channel_id="test_liff_channel",
         line_channel_secret="test_secret",
         line_channel_access_token="test_token",
-        booking_restriction_type="minimum_hours_required",
-        minimum_booking_hours_ahead=0  # Allow bookings at any time for testing
+        settings={
+            "notification_settings": {"reminder_hours_before": 24},
+            "booking_restriction_settings": {"booking_restriction_type": "same_day_disallowed", "minimum_booking_hours_ahead": 24},
+            "clinic_info_settings": {"display_name": None, "address": None, "phone_number": None}
+        }
     )
     db_session.add(clinic)
     db_session.commit()
@@ -904,7 +907,8 @@ class TestLiffAvailabilityAndScheduling:
             db_session.add(primary_patient)
             db_session.commit()
 
-            tomorrow = (datetime.now() + timedelta(days=1)).date()
+            # Use Taiwan timezone to calculate tomorrow (consistent with booking restriction filter)
+            tomorrow = (taiwan_now() + timedelta(days=1)).date()
             tomorrow_iso = tomorrow.isoformat()
             
             # Get day of week (0=Monday, 6=Sunday)
@@ -928,6 +932,7 @@ class TestLiffAvailabilityAndScheduling:
             data = response.json()
             assert data["date"] == tomorrow_iso
             assert "slots" in data
+
 
             # Should have available slots based on practitioner's schedule (9 AM to 5 PM)
             slots = data["slots"]
@@ -1353,8 +1358,7 @@ class TestLiffAvailabilityBookingRestrictions:
             line_channel_id="test_same_day_restricted",
             line_channel_secret="test_secret",
             line_channel_access_token="test_token",
-            booking_restriction_type="same_day_disallowed",
-            minimum_booking_hours_ahead=24
+            settings={}
         )
         db_session.add(clinic)
         db_session.commit()
@@ -1408,8 +1412,14 @@ class TestLiffAvailabilityBookingRestrictions:
             line_channel_id="test_hours_restricted",
             line_channel_secret="test_secret",
             line_channel_access_token="test_token",
-            booking_restriction_type="minimum_hours_required",
-            minimum_booking_hours_ahead=4  # 4 hours ahead required
+            settings={
+                "notification_settings": {"reminder_hours_before": 24},
+                "booking_restriction_settings": {
+                    "booking_restriction_type": "minimum_hours_required",
+                    "minimum_booking_hours_ahead": 4  # 4 hours ahead required for this test
+                },
+                "clinic_info_settings": {"display_name": None, "address": None, "phone_number": None}
+            }
         )
         db_session.add(clinic)
         db_session.commit()
@@ -1640,8 +1650,7 @@ class TestClinicIsolationSecurity:
             line_channel_id="clinic1_channel",
             line_channel_secret="clinic1_secret",
             line_channel_access_token="clinic1_token",
-            booking_restriction_type="minimum_hours_required",
-            minimum_booking_hours_ahead=0
+            settings={}
         )
         db_session.add(clinic1)
 
@@ -1651,8 +1660,7 @@ class TestClinicIsolationSecurity:
             line_channel_id="clinic2_channel",
             line_channel_secret="clinic2_secret",
             line_channel_access_token="clinic2_token",
-            booking_restriction_type="minimum_hours_required",
-            minimum_booking_hours_ahead=0
+            settings={}
         )
         db_session.add(clinic2)
         db_session.commit()
@@ -1799,7 +1807,7 @@ class TestClinicIsolationSecurity:
             line_channel_id="test_channel",
             line_channel_secret="test_secret",
             line_channel_access_token="test_token",
-            booking_restriction_type="none"
+            settings={}
         )
         db_session.add(clinic)
         db_session.commit()

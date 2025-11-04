@@ -20,6 +20,7 @@ from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
 from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent
+from models.clinic import ClinicSettings
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
 from services.availability_service import AvailabilityService
 from services.notification_service import NotificationService, CancellationSource
@@ -735,29 +736,19 @@ async def update_settings(
                 )
                 db.add(appointment_type)
 
-        # Update notification settings
-        notification_settings = settings.get("notification_settings", {})
-        if notification_settings:
-            clinic = db.query(Clinic).get(clinic_id)
-            if clinic:
-                clinic.reminder_hours_before = notification_settings.get("reminder_hours_before", clinic.reminder_hours_before)
-
-        # Update booking restriction settings
-        booking_restriction_settings = settings.get("booking_restriction_settings", {})
-        if booking_restriction_settings:
-            clinic = db.query(Clinic).get(clinic_id)
-            if clinic:
-                clinic.booking_restriction_type = booking_restriction_settings.get("booking_restriction_type", clinic.booking_restriction_type)
-                clinic.minimum_booking_hours_ahead = booking_restriction_settings.get("minimum_booking_hours_ahead", clinic.minimum_booking_hours_ahead)
-
-        # Update clinic info settings
-        clinic_info_settings = settings.get("clinic_info_settings", {})
-        if clinic_info_settings:
-            clinic = db.query(Clinic).get(clinic_id)
-            if clinic:
-                clinic.display_name = clinic_info_settings.get("display_name", clinic.display_name)
-                clinic.address = clinic_info_settings.get("address", clinic.address)
-                clinic.phone_number = clinic_info_settings.get("phone_number", clinic.phone_number)
+        # Get clinic and update settings with validation
+        clinic = db.query(Clinic).get(clinic_id)
+        if clinic:
+            try:
+                # Validate incoming settings data
+                validated_settings = ClinicSettings.model_validate(settings)
+                # Set the validated settings on the clinic
+                clinic.set_validated_settings(validated_settings)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid settings format: {str(e)}"
+                )
 
         db.commit()
 
