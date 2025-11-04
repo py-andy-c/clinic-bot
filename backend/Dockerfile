@@ -15,6 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY src/ ./src/
 
+# Set PYTHONPATH to include the app directory so Python can find src modules
+ENV PYTHONPATH=/app
+
 # Expose port
 EXPOSE 8000
 
