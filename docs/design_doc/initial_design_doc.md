@@ -16,7 +16,7 @@ The project will be structured as a monorepo, containing both the backend and fr
 *   To build a robust webhook service to process incoming messages from the LINE Platform.
 *   To integrate a Large Language Model (LLM) for natural language understanding and conversation management using a tool-based approach.
 *   To provide seamless, bi-directional synchronization with practitioners' Google Calendars.
-*   To develop a secure, multi-tenant web application for clinic administration with Google OAuth for login.
+*   To develop a secure, multi-tenant web application for clinic administration.
 *   To design a database schema that is normalized and efficient for core operations.
 
 ### 2.2. Non-Goals (for this version)
@@ -40,7 +40,7 @@ The system is composed of several key services that work in concert.
     *   **Google Calendar Service:** A dedicated module for all Google Calendar API interactions.
     *   **LLM Service:** A module that manages the interaction with an external LLM, including prompt construction and tool/function call handling.
 4.  **PostgreSQL Database (Railway):** A managed PostgreSQL instance provided by Railway, co-located with the backend service.
-5.  **External Services:** Google Calendar API, Google AI Platform (Gemini API), Google Identity Services (for admin login).
+5.  **External Services:** Google Calendar API, Google AI Platform (Gemini API).
 
 ## 4. API Design
 
@@ -51,17 +51,10 @@ The system is composed of several key services that work in concert.
 
 ### 4.2. Admin REST API
 
-All endpoints are prefixed with `/api/admin` and require an authenticated session established via Google OAuth.
-
-*   **Authentication**
-    *   `GET /auth/google/login`: Initiates Google OAuth login (all user types).
-    *   `GET /auth/google/callback`: Handles OAuth callback with automatic role detection and routing.
-    *   `POST /auth/refresh`: Refreshes access token using httpOnly refresh cookie.
-    *   `POST /auth/logout`: Invalidates current session.
+All endpoints are prefixed with `/api/admin` and require an authenticated session.
 
 *   **Signup Endpoints** (public, token-based)
-    *   `GET /signup/clinic?token={token}`: Clinic admin signup page.
-    *   `GET /signup/member?token={token}`: Team member signup page.
+    *   `POST /signup/confirm-name?token={token}`: Confirm user name and complete signup.
     
 *   **System Endpoints** (prefix: `/api/system`, requires system admin role)
     *   `GET /dashboard`: Get system-wide metrics and statistics.
@@ -829,7 +822,6 @@ This design document has been significantly enhanced to address major gaps in au
 - ✅ Secure token-based onboarding with expiration and revocation
 - ✅ JWT + refresh token session management with XSS/CSRF protection
 - ✅ Role-based access control (provider admin vs clinic admin)
-- ✅ Google OAuth integration for all user types
 - ✅ Provider-led clinic onboarding (addresses LINE credential challenge)
 
 ### Trade-offs Acknowledged:

@@ -6,7 +6,6 @@ import { ModalProvider } from './contexts/ModalContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { logger } from './utils/logger';
 // Lazy load page components for code splitting
-const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SystemAdminLayout = lazy(() => import('./components/SystemAdminLayout'));
 const ClinicLayout = lazy(() => import('./components/ClinicLayout'));
 const SystemClinicsPage = lazy(() => import('./pages/SystemClinicsPage'));
@@ -56,9 +55,6 @@ const AppRoutes: React.FC = () => {
         <Route path="/signup/member" element={<MemberSignupPage />} />
         <Route path="/signup/confirm-name" element={<NameConfirmationPage />} />
 
-        {/* Login route */}
-        <Route path="/login" element={<LoginPage />} />
-
         {/* Protected routes */}
         <Route path="/*" element={<ProtectedRoutes />} />
       </Routes>
@@ -79,12 +75,18 @@ const ProtectedRoutes: React.FC = () => {
     timestamp: new Date().toISOString()
   });
 
-  // If not authenticated, redirect to login
   if (!isAuthenticated) {
-    logger.log('DEBUG: ProtectedRoutes - not authenticated, redirecting to login', {
+    logger.log('DEBUG: ProtectedRoutes - not authenticated', {
       timestamp: new Date().toISOString()
     });
-    return <Navigate to="/login" replace />;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">需要認證</h1>
+          <p className="text-gray-600 mb-4">請透過註冊連結進行註冊。</p>
+        </div>
+      </div>
+    );
   }
 
   // System Admin Routes
@@ -133,12 +135,7 @@ const ProtectedRoutes: React.FC = () => {
       <div className="text-center">
         <h1 className="text-2xl font-bold text-gray-900 mb-4">存取被拒絕</h1>
         <p className="text-gray-600 mb-4">您沒有權限存取此應用程式。</p>
-        <button
-          onClick={() => window.location.href = '/login'}
-          className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-        >
-          返回登入
-        </button>
+        <p className="text-gray-500">請透過註冊連結進行註冊。</p>
       </div>
     </div>
   );

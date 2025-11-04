@@ -12,14 +12,11 @@ import {
   ClinicHealth,
   SignupTokenInfo,
   MemberInviteData,
-  OAuthResponse,
   UserRole
 } from '../types';
 import {
   validateClinicSettings,
-  validateSignupResponse,
-  ClinicSettings,
-  SignupResponse
+  ClinicSettings
 } from '../schemas/api';
 import {
   DefaultScheduleResponse,
@@ -133,55 +130,30 @@ export class ApiService {
             // Check if our current token is still valid (might have been refreshed by another request)
             const currentToken = localStorage.getItem('access_token');
             if (currentToken) {
-              try {
-                // Try to validate the current token - it might have been refreshed by another request
-                const verifyResponse = await this.client.get('/auth/verify', {
-                  headers: { Authorization: `Bearer ${currentToken}` }
-                });
-                if (verifyResponse.status === 200) {
-                  logger.log('ApiService: Current token is still valid after CORS error - refresh may have succeeded', {
-                    timestamp: new Date().toISOString()
-                  });
-                  this.resetSessionExpired();
-                  // Retry the original request with the current token
-                  originalRequest.headers.Authorization = `Bearer ${currentToken}`;
-                  return this.client.request(originalRequest);
-                }
-              } catch (verifyError: any) {
-                logger.warn('ApiService: Current token validation failed after CORS error', {
-                  error: verifyError.message,
-                  timestamp: new Date().toISOString()
-                });
-              }
+              logger.log('ApiService: Current token exists after CORS error - refresh may have succeeded', {
+                timestamp: new Date().toISOString()
+              });
+              this.resetSessionExpired();
+              // Retry the original request with the current token
+              originalRequest.headers.Authorization = `Bearer ${currentToken}`;
+              return this.client.request(originalRequest);
             }
             
             // Wait a moment and check again - another request might have refreshed the token
-            await new Promise(resolve => setTimeout(resolve, 100)); // Reduced from 300ms
+            await new Promise(resolve => setTimeout(resolve, 100));
             const tokenAfterWait = localStorage.getItem('access_token');
             if (tokenAfterWait && tokenAfterWait !== currentToken) {
               logger.log('ApiService: New token appeared after wait - refresh succeeded via another request', {
                 timestamp: new Date().toISOString()
               });
-              try {
-                const verifyResponse = await this.client.get('/auth/verify', {
-                  headers: { Authorization: `Bearer ${tokenAfterWait}` }
-                });
-                if (verifyResponse.status === 200) {
-                  this.resetSessionExpired();
-                  originalRequest.headers.Authorization = `Bearer ${tokenAfterWait}`;
-                  return this.client.request(originalRequest);
-                }
-              } catch (verifyError) {
-                logger.warn('ApiService: New token validation failed', {
-                  error: verifyError instanceof Error ? verifyError.message : String(verifyError),
-                  timestamp: new Date().toISOString()
-                });
-              }
+              this.resetSessionExpired();
+              originalRequest.headers.Authorization = `Bearer ${tokenAfterWait}`;
+              return this.client.request(originalRequest);
             }
           }
           
-          // Refresh failed (session expired), clear auth state and redirect to login
-          this.sessionExpired = true; // Mark session as expired to prevent further attempts
+          // Refresh failed (session expired), clear auth state
+          this.sessionExpired = true;
           this.isRefreshing = false;
           // Clear localStorage to ensure auth state is cleared
           localStorage.removeItem('access_token');
@@ -202,15 +174,8 @@ export class ApiService {
     );
   }
 
-  // Authentication methods
-  async initiateGoogleAuth(userType?: 'system_admin' | 'clinic_user'): Promise<OAuthResponse> {
-    const params = userType ? { user_type: userType } : {};
-    return this.client.get('/auth/google/login', { params }).then(res => res.data);
-  }
-
   /**
    * Reset the session expired flag - called when we successfully get a new token
-   * Can be called publicly when login succeeds from outside the service
    */
   resetSessionExpired(): void {
     this.sessionExpired = false;
@@ -285,21 +250,11 @@ export class ApiService {
               logger.log('ApiService: New access token found after localStorage CORS error', {
                 timestamp: new Date().toISOString()
               });
-              try {
-                const verifyResponse = await this.client.get('/auth/verify');
-                if (verifyResponse.status === 200) {
-                  logger.log('ApiService: Token validation succeeded after localStorage CORS error', {
-                    timestamp: new Date().toISOString()
-                  });
-                  this.resetSessionExpired();
-                  return; // Success - exit early
-                }
-              } catch (verifyError) {
-                logger.warn('ApiService: Token validation failed after localStorage CORS error', {
-                  error: verifyError instanceof Error ? verifyError.message : String(verifyError),
-                  timestamp: new Date().toISOString()
-                });
-              }
+              logger.log('ApiService: Token exists after localStorage CORS error - assuming refresh succeeded', {
+                timestamp: new Date().toISOString()
+              });
+              this.resetSessionExpired();
+              return; // Success - exit early
             }
           }
           
@@ -440,28 +395,16 @@ export class ApiService {
           
           // Check if we have a new token (another refresh might have succeeded)
           const newToken = localStorage.getItem('access_token');
-          const newRefreshToken = localStorage.getItem('refresh_token');
           
-          if (newToken && newToken !== accessTokenValue) {
+          if (newToken) {
             logger.log('ApiService: New token found after "token not found" error - another refresh succeeded', {
               timestamp: new Date().toISOString()
             });
-            try {
-              const verifyResponse = await this.client.get('/auth/verify', {
-                headers: { Authorization: `Bearer ${newToken}` }
-              });
-              if (verifyResponse.status === 200) {
-                logger.log('ApiService: Token validation succeeded after rotation recovery', {
-                  timestamp: new Date().toISOString()
-                });
-                this.resetSessionExpired();
-                return; // Success - exit early
-              }
-            } catch (verifyError: any) {
-              logger.warn('ApiService: Token validation failed after rotation recovery', {
-                error: verifyError.message
-              });
-            }
+            logger.log('ApiService: New token found after rotation recovery - assuming refresh succeeded', {
+              timestamp: new Date().toISOString()
+            });
+            this.resetSessionExpired();
+            return; // Success - exit early
           }
         }
         
@@ -496,10 +439,6 @@ export class ApiService {
     }
   }
 
-  async logout(): Promise<void> {
-    await this.client.post('/auth/logout', {}, { withCredentials: true });
-    localStorage.removeItem('access_token');
-  }
 
   // System Admin APIs
 
@@ -559,7 +498,7 @@ export class ApiService {
     await this.client.post(`/clinic/members/${userId}/reactivate`);
   }
 
-  async initiateMemberGcalAuth(userId: number): Promise<OAuthResponse> {
+  async initiateMemberGcalAuth(userId: number): Promise<{ auth_url: string }> {
     const response = await this.client.get(`/clinic/members/${userId}/gcal/auth`);
     return response.data;
   }
@@ -695,30 +634,10 @@ export class ApiService {
   }
 
 
-  // Signup APIs (public)
+  // Signup APIs
   async validateSignupToken(token: string, type: 'clinic' | 'member'): Promise<SignupTokenInfo> {
     const response = await this.client.get(`/signup/${type}`, { params: { token } });
     return response.data;
-  }
-
-  async initiateClinicSignup(token: string): Promise<OAuthResponse> {
-    const response = await this.client.get(`/signup/clinic?token=${token}`);
-    return response.data;
-  }
-
-  async initiateMemberSignup(token: string): Promise<OAuthResponse> {
-    const response = await this.client.get(`/signup/member?token=${token}`);
-    return response.data;
-  }
-
-  async completeClinicSignup(token: string): Promise<SignupResponse> {
-    const response = await this.client.post('/signup/callback', { token, type: 'clinic' });
-    return validateSignupResponse(response.data);
-  }
-
-  async completeMemberSignup(token: string): Promise<SignupResponse> {
-    const response = await this.client.post('/signup/callback', { token, type: 'member' });
-    return validateSignupResponse(response.data);
   }
 
   async confirmName(token: string, fullName: string): Promise<{ redirect_url: string; refresh_token: string }> {

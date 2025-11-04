@@ -19,7 +19,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api import webhooks, auth, signup, system, clinic, profile, practitioner_calendar, liff
+from api import webhooks, signup, system, clinic, profile, practitioner_calendar, liff
 from core.constants import CORS_ORIGINS
 from services.reminder_service import start_reminder_scheduler, stop_reminder_scheduler
 from core.database import get_db
@@ -85,15 +85,6 @@ app.include_router(
     prefix="/webhook",
     tags=["webhooks"],
     responses={
-        500: {"description": "Internal server error"},
-    },
-)
-app.include_router(
-    auth.router,
-    prefix="/api/auth",
-    tags=["authentication"],
-    responses={
-        401: {"description": "Unauthorized"},
         500: {"description": "Internal server error"},
     },
 )

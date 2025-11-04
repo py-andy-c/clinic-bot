@@ -146,10 +146,6 @@ export interface MemberInviteData {
   default_roles: UserRole[];
 }
 
-// OAuth types
-export interface OAuthResponse {
-  auth_url: string;
-}
 
 export interface SignupResponse {
   access_token: string;
