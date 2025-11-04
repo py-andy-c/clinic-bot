@@ -83,6 +83,8 @@ class CalendarEvent(Base):
             "start_time IS NULL OR end_time IS NULL OR start_time != end_time",
             name='check_valid_time_range'
         ),
+        # Prevent overlapping appointments: unique constraint on appointment time slots
+        # Note: Partial unique index for appointments only will be added via migration
         # Indexes for performance
         Index('idx_calendar_events_user_date', 'user_id', 'date'),
         Index('idx_calendar_events_type', 'event_type'),

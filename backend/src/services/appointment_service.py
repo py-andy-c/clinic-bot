@@ -11,6 +11,7 @@ from typing import List, Optional, Dict, Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import and_, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from models import (
@@ -153,6 +154,13 @@ class AppointmentService:
 
         except HTTPException:
             raise
+        except IntegrityError as e:
+            logger.warning(f"Appointment booking conflict: {e}")
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="此時段已被預約，請選擇其他時間"
+            )
         except Exception as e:
             logger.error(f"Failed to create appointment: {e}")
             db.rollback()
