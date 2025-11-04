@@ -32,7 +32,22 @@ ls -la src/api/ | head -5 || echo "ERROR: src/api directory not found!"
 # Run database migrations (must be run from backend directory where alembic.ini is)
 echo ""
 echo "=== Running database migrations ==="
-alembic upgrade head || echo "WARNING: Migration failed, continuing anyway..."
+if [ -d "alembic" ] && [ -f "alembic.ini" ]; then
+    echo "Alembic directory and config found, running migrations..."
+    alembic upgrade head
+    if [ $? -eq 0 ]; then
+        echo "✅ Migrations completed successfully"
+    else
+        echo "⚠️  Migration failed, but continuing with application startup..."
+    fi
+else
+    echo "⚠️  Alembic directory or config not found:"
+    echo "   - alembic directory exists: $([ -d "alembic" ] && echo "YES" || echo "NO")"
+    echo "   - alembic.ini exists: $([ -f "alembic.ini" ] && echo "YES" || echo "NO")"
+    echo "   Current directory contents:"
+    ls -la | grep -E "(alembic|\.ini)" || echo "   (no alembic files found)"
+    echo "   Continuing without migrations (database may already be set up)"
+fi
 
 # Change to src directory and run uvicorn from there
 # This makes imports work naturally since we're in the src directory
