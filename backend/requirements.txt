@@ -32,3 +32,9 @@ apscheduler>=3.10.0
 
 # Encryption
 cryptography>=41.0.0
+
+# Password hashing
+bcrypt>=4.0.0
+
+# JWT token handling
+PyJWT>=2.8.0
