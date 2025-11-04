@@ -1508,7 +1508,11 @@ async def get_practitioner_status(
             )
 
         # Check if practitioner has appointment types configured
-        appointment_types_count = db.query(PractitionerAppointmentTypes).filter(
+        # Join with appointment_types to ensure referenced types still exist
+        appointment_types_count = db.query(PractitionerAppointmentTypes).join(
+            AppointmentType,
+            PractitionerAppointmentTypes.appointment_type_id == AppointmentType.id
+        ).filter(
             PractitionerAppointmentTypes.user_id == user_id
         ).count()
 

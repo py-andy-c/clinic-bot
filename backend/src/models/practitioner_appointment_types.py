@@ -30,7 +30,7 @@ class PractitionerAppointmentTypes(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     """Reference to the practitioner (user) who can offer this appointment type."""
 
-    appointment_type_id: Mapped[int] = mapped_column(ForeignKey("appointment_types.id"))
+    appointment_type_id: Mapped[int] = mapped_column(ForeignKey("appointment_types.id", ondelete="CASCADE"))
     """Reference to the appointment type this practitioner can offer."""
 
     created_at: Mapped[TIMESTAMP] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
