@@ -1580,13 +1580,14 @@ async def get_practitioner_status(
     try:
         practitioner = db.query(User).filter(
             User.id == user_id,
-            User.clinic_id == current_user.clinic_id
+            User.clinic_id == current_user.clinic_id,
+            User.is_active == True
         ).first()
 
         if not practitioner:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="治療師不存在"
+                detail="治療師不存在或已停用"
             )
 
         # Check if practitioner has appointment types configured
