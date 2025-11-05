@@ -33,22 +33,11 @@ if not is_testing:
 # Configuration constants with defaults
 # These match the environment variables defined in .env.example
 def get_database_url():
-    """Get the resolved database URL with proper path handling."""
-    raw_url = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/clinic_bot")
-
-    # Handle SQLite database path resolution
-    if raw_url.startswith("sqlite:///") and not raw_url.startswith("sqlite:////"):
-        # Relative SQLite path - resolve it relative to the backend directory
-        db_path = raw_url[10:]  # Remove "sqlite:///"
-        if not os.path.isabs(db_path):
-            # Find the backend directory
-            backend_dir = pathlib.Path(__file__).parent.parent.parent
-            resolved_path = backend_dir / db_path
-            return f"sqlite:///{resolved_path}"
-        else:
-            return raw_url
-    else:
-        return raw_url
+    """Get the database URL from environment."""
+    return os.getenv(
+        "DATABASE_URL",
+        "postgresql://localhost/clinic_bot_dev"
+    )
 
 DATABASE_URL = get_database_url()
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
