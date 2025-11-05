@@ -50,6 +50,27 @@ fi
 print_status "Activating virtual environment..."
 source venv/bin/activate
 
+# Check PostgreSQL is running
+print_status "Checking PostgreSQL availability..."
+if ! pg_isready -h localhost &> /dev/null; then
+    print_error "PostgreSQL is not running!"
+    print_error "Start it with: brew services start postgresql@14"
+    exit 1
+fi
+print_success "PostgreSQL is running"
+
+# Ensure test database exists
+print_status "Checking test database..."
+if ! psql -lqt | cut -d \| -f 1 | grep -qw clinic_bot_test; then
+    print_status "Creating test database..."
+    createdb clinic_bot_test 2>/dev/null || {
+        print_error "Failed to create test database"
+        print_error "Try: createdb clinic_bot_test"
+        exit 1
+    }
+    print_success "Test database created"
+fi
+
 # Run pyright type checking
 print_status "Running Pyright type checking..."
 if pyright; then

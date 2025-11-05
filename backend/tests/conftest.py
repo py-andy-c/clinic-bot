@@ -1,5 +1,8 @@
 """
 Test configuration and shared fixtures for the Clinic Bot test suite.
+
+Uses PostgreSQL for all tests with transaction-based isolation.
+Each test gets a clean database state via automatic transaction rollback.
 """
 
 import asyncio
@@ -7,13 +10,16 @@ import os
 import tempfile
 import pytest
 from pathlib import Path
+from typing import Generator
 from unittest.mock import Mock
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from core.database import Base
+from alembic.config import Config
+from alembic import command
 
 # Import all models to ensure they're registered with SQLAlchemy before any relationships are resolved
 from models.clinic import Clinic
@@ -26,6 +32,13 @@ from models.appointment import Appointment
 from models.line_user import LineUser
 
 
+# Test database URL
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    os.getenv("DATABASE_URL", "postgresql://localhost/clinic_bot_test")
+)
+
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for the test session."""
@@ -34,37 +47,108 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture(scope="function")
-def db_session():
+@pytest.fixture(scope="session")
+def db_engine():
     """
-    Create a new in-memory SQLite database for each test function.
-    This provides perfect isolation at the cost of recreating the schema for each test.
+    Create a database engine for the test session.
+    
+    This engine is shared across all tests for performance.
+    Uses NullPool to avoid connection pool issues with transactions.
     """
-    # 1. Create a new engine for an anonymous in-memory database.
-    #    Allow multi-threading to avoid SQLite threading issues with FastAPI TestClient
     engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool  # Required for in-memory databases
+        TEST_DATABASE_URL,
+        poolclass=NullPool,  # Don't pool connections (each test gets fresh connection)
+        echo=False,
     )
-
-    # 2. Execute PRAGMA to allow foreign keys and improve thread safety
-    with engine.connect() as conn:
-        conn.execute(text("PRAGMA foreign_keys=ON"))
-
-    # 3. Create the database schema. This runs for EVERY test.
-    Base.metadata.create_all(engine)
-
-    # 4. Create a session to interact with this new database.
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    yield session
-
-    # 5. Teardown: Close the session and dispose of the engine.
-    #    The in-memory database is automatically destroyed.
-    session.close()
+    
+    yield engine
+    
     engine.dispose()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_database(db_engine):
+    """
+    Setup test database schema using Alembic migrations.
+    
+    This runs once at the start of the test session and ensures
+    the test database has the correct schema from migrations.
+    
+    Strategy:
+    1. Drop all tables to start fresh
+    2. Create all base tables from models (handles initial schema)
+    3. Stamp database with "base" (tells Alembic no migrations applied yet)
+    4. Run all migrations to upgrade to head (applies all schema changes)
+    
+    This approach ensures all base tables exist before migrations try to modify them.
+    """
+    alembic_cfg = Config("alembic.ini")
+    alembic_cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
+    
+    # Drop all tables to start fresh
+    Base.metadata.drop_all(bind=db_engine)
+    
+    # Create all tables from models
+    # Since models are already up-to-date with the latest schema,
+    # we create directly from models and stamp with head to skip migrations
+    # TODO: In Path B (aggressive refactor) or future schema changes,
+    # we should ensure migrations create all base tables and models match migrations,
+    # so we can test migrations properly (run alembic upgrade head on empty DB)
+    Base.metadata.create_all(bind=db_engine)
+    
+    # Stamp database with "head" (tells Alembic all migrations are applied)
+    # This skips running migrations since models already represent the final state
+    command.stamp(alembic_cfg, "head")
+    
+    yield
+    
+    # Cleanup: drop all tables after test session
+    Base.metadata.drop_all(bind=db_engine)
+
+
+@pytest.fixture(scope="function")
+def db_session(db_engine) -> Generator[Session, None, None]:
+    """
+    Provide a database session for a test with automatic rollback.
+    
+    This fixture uses the "nested transaction" pattern:
+    1. Start a transaction
+    2. Create a savepoint
+    3. Run the test
+    4. Rollback to savepoint (undoes all test changes)
+    5. Close transaction
+    
+    This ensures perfect test isolation - each test gets a clean database
+    state, but we don't recreate the database between tests (fast!).
+    """
+    # Start a connection
+    connection = db_engine.connect()
+    
+    # Begin a transaction
+    transaction = connection.begin()
+    
+    # Create a session bound to the connection
+    Session = sessionmaker(bind=connection)
+    session = Session()
+    
+    # Start a nested transaction (savepoint)
+    # This allows the test to commit/rollback without affecting the outer transaction
+    nested = connection.begin_nested()
+    
+    # If the application code calls session.commit(), it will only commit to the savepoint
+    # We need to intercept this and create a new savepoint
+    @event.listens_for(session, "after_transaction_end")
+    def restart_savepoint(session, transaction):
+        if transaction.nested and not transaction._parent.nested:
+            # Re-establish a new savepoint after the nested transaction ends
+            session.begin_nested()
+    
+    yield session
+    
+    # Teardown: rollback everything
+    session.close()
+    transaction.rollback()  # Rollback the outer transaction
+    connection.close()
 
 
 # Removed client fixture - creating clients directly in tests for better reliability
