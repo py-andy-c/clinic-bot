@@ -5,14 +5,22 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Check if alembic directory exists and run migrations
+# Fix alembic directory structure if files are in wrong location
+# Railway/Nixpacks sometimes copies alembic/ contents to root instead of into alembic/
+if [ ! -d "alembic" ] && [ -f "alembic.ini" ] && [ -f "env.py" ] && [ -d "versions" ]; then
+    echo "Fixing alembic directory structure..."
+    mkdir -p alembic
+    mv env.py script.py.mako alembic/ 2>/dev/null || true
+    if [ -d "versions" ] && [ ! -d "alembic/versions" ]; then
+        mv versions alembic/ 2>/dev/null || true
+    fi
+fi
+
+# Run migrations if alembic directory exists
 if [ -d "alembic" ] && [ -f "alembic.ini" ]; then
     alembic upgrade head
 else
     echo "Warning: Alembic directory not found, skipping migrations"
-    echo "Current directory: $(pwd)"
-    echo "Directory contents:"
-    ls -la | head -10
 fi
 
 # Start the app from src directory
