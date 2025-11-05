@@ -50,6 +50,9 @@ export class ApiService {
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': 'true',
       },
+      // Enable credentials (cookies) for cross-origin requests
+      // Required for refresh token cookies when frontend is on Vercel and backend on Railway
+      withCredentials: true,
     });
 
     // Add request interceptor to include auth token
