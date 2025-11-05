@@ -1,0 +1,22 @@
+# Railway Config as Code
+# This file configures the build and deployment for Railway
+# See: https://docs.railway.com/guides/config-as-code
+# Configuration defined here overrides dashboard settings
+
+[build]
+# Use Railpack (default) - Railway's modern buildpack
+# Railway will auto-detect Python from runtime.txt and dependencies from requirements.txt
+builder = "RAILPACK"
+
+[deploy]
+# Start command - runs migrations and starts the app via start.sh
+# start.sh handles: alembic directory fix, migrations, and app startup
+startCommand = "bash start.sh"
+
+# Health check configuration
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+
+# Restart policy - restart on failure
+restartPolicyType = "ALWAYS"
+
