@@ -1,9 +1,8 @@
 [phases.setup]
-nixPkgs = ["python312"]
-
 # Explicitly set Python version to 3.12 for compatibility
-# SQLAlchemy 2.0.23 does not support Python 3.13
-# Railway should use runtime.txt if available, otherwise use nixpacks
+# psycopg2-binary 2.9.9 and SQLAlchemy 2.0.23 do not fully support Python 3.13
+# Railway will use runtime.txt if available, otherwise use nixpacks
+nixPkgs = ["python312"]
 
 [phases.install]
 cmds = [
