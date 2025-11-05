@@ -5,8 +5,18 @@
 
 [build]
 # Use Railpack (default) - Railway's modern buildpack
-# Railway will auto-detect Python from runtime.txt and dependencies from requirements.txt
+# Railway will auto-detect dependencies from requirements.txt
 builder = "RAILPACK"
+
+# Specify Python version via nixpacksPlan (Railpack respects this)
+# This replaces runtime.txt for Python version specification
+nixpacksPlan = {
+  phases = {
+    setup = {
+      nixPkgs = ["python312"]
+    }
+  }
+}
 
 [deploy]
 # Start command - runs migrations and starts the app via start.sh
