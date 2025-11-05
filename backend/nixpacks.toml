@@ -1,6 +1,10 @@
 [phases.setup]
 nixPkgs = ["python312"]
 
+# Explicitly set Python version to 3.12 for compatibility
+# SQLAlchemy 2.0.23 does not support Python 3.13
+# Railway should use runtime.txt if available, otherwise use nixpacks
+
 [phases.install]
 cmds = [
   "pip install --upgrade pip",
