@@ -28,12 +28,20 @@ if [ -d "alembic" ] && [ -f "alembic.ini" ]; then
         echo "Fresh database detected - creating initial schema..."
         cd src
         # Create tables from models - exit on failure
+        # IMPORTANT: Must import all models before calling create_all()
         if ! python -c "
 from core.database import Base, engine
 from core.config import DATABASE_URL
+# Import all models to register them with Base.metadata
+from models import (
+    Clinic, User, SignupToken, RefreshToken, Patient, LineUser,
+    Appointment, AppointmentType, PractitionerAvailability,
+    CalendarEvent, AvailabilityException, PractitionerAppointmentTypes
+)
 import sys
 print(f'Creating tables in: {DATABASE_URL}')
 try:
+    # Now all models are registered, create_all() will create all tables
     Base.metadata.create_all(bind=engine)
     print('Tables created successfully')
 except Exception as e:
