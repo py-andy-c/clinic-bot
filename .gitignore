@@ -272,6 +272,8 @@ Thumbs.db
 # Backup files
 *.bak
 *.backup
+.env.bak
+.env.backup
 
 # Cursor specific
 .cursor/
