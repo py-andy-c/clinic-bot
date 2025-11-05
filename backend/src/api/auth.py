@@ -281,19 +281,18 @@ async def google_auth_callback(
 
         # Store refresh token in database
         if actual_user_type == "system_admin":
-            # For system admins, we don't have a user record, so we'll store by email
-            # In a real implementation, you might want a separate table for system admin sessions
-            # For now, we'll create a dummy user ID based on email
-            dummy_user_id = hash(email) % 1000000  # Simple hash for demo
+            # For system admins, we don't have a user record, so user_id is None
+            # System admin identity is stored in email, google_subject_id, and name fields
+            user_id_for_token = None
         else:
             # For clinic users, use the actual user ID
             assert existing_user is not None, "existing_user should not be None for clinic users"
-            dummy_user_id = existing_user.id
+            user_id_for_token = existing_user.id
 
         refresh_token_hash = token_data["refresh_token_hash"]
 
         refresh_token_record = RefreshToken(
-            user_id=dummy_user_id,
+            user_id=user_id_for_token,  # None for system admins, actual user_id for clinic users
             token_hash=refresh_token_hash,
             expires_at=jwt_service.get_token_expiry("refresh"),
             email=email if actual_user_type == "system_admin" else None,  # Store email for system admins
@@ -449,13 +448,11 @@ async def refresh_access_token(
             detail="無效的重新整理權杖"
         )
 
-    # Get the user associated with this refresh token
-    user = refresh_token_record.user
-    
     # Handle system admins - check if email is stored (system admin indicator)
-    # Note: In tests, we may create dummy User records for FK constraint,
-    # but we can still identify system admins by the email field in RefreshToken
-    is_system_admin = refresh_token_record.email is not None and refresh_token_record.email in SYSTEM_ADMIN_EMAILS
+    # System admins have user_id=None and email/google_subject_id/name stored in RefreshToken
+    is_system_admin = refresh_token_record.user_id is None or (
+        refresh_token_record.email is not None and refresh_token_record.email in SYSTEM_ADMIN_EMAILS
+    )
     
     if is_system_admin:
         # For system admin, create token payload from stored fields
@@ -480,9 +477,9 @@ async def refresh_access_token(
         refresh_token_record.revoke()
         
         # Create new refresh token record for system admin
-        dummy_user_id = hash(system_admin_email) % 1000000  # Same hash calculation as OAuth callback
+        # System admins have user_id=None (no User record exists)
         new_refresh_token_record = RefreshToken(
-            user_id=dummy_user_id,
+            user_id=None,  # System admins don't have User records
             token_hash=token_data["refresh_token_hash"],
             expires_at=jwt_service.get_token_expiry("refresh"),
             email=system_admin_email,  # Store email for system admin
@@ -496,6 +493,13 @@ async def refresh_access_token(
         set_refresh_token_cookie(response, request, token_data["refresh_token"])
     else:
         # Clinic user - normal flow
+        # Get the user associated with this refresh token (must exist for clinic users)
+        user = refresh_token_record.user
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="找不到使用者或使用者已停用"
+            )
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -561,7 +565,9 @@ async def refresh_access_token(
     }
     
     # Enhanced logging for successful refresh
-    user_email = refresh_token_record.email if is_system_admin else (user.email if user else "unknown")
+    user_email = refresh_token_record.email if is_system_admin else (
+        refresh_token_record.user.email if refresh_token_record.user else "unknown"
+    )
     if token_source == "cookie":
         logger.info(
             f"Token refresh successful - user: {user_email}, "

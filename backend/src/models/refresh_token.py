@@ -19,7 +19,7 @@ class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)  # Nullable for system admins
     token_hash: Mapped[str] = mapped_column(String(255), unique=True)  # bcrypt hashed
     expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
@@ -31,7 +31,7 @@ class RefreshToken(Base):
     name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Relationships
-    user = relationship("User", back_populates="refresh_tokens")
+    user = relationship("User", back_populates="refresh_tokens", foreign_keys=[user_id])
 
     __table_args__ = (
         Index('idx_refresh_tokens_user_id', 'user_id'),
@@ -56,4 +56,4 @@ class RefreshToken(Base):
         self.revoked = True
 
     def __repr__(self) -> str:
-        return f"<RefreshToken(id={self.id}, user_id={self.user_id}, is_valid={self.is_valid})>"
+        return f"<RefreshToken(id={self.id}, user_id={self.user_id}, email={self.email}, is_valid={self.is_valid})>"
