@@ -18,7 +18,26 @@ fi
 
 # Run migrations if alembic directory exists
 if [ -d "alembic" ] && [ -f "alembic.ini" ]; then
-    alembic upgrade head
+    # Check if database is empty (no alembic_version table)
+    # If empty, create all tables first, then stamp with current migration
+    if ! alembic current 2>/dev/null | grep -q "alembic_version"; then
+        echo "Fresh database detected - creating initial schema..."
+        cd src
+        python -c "
+from core.database import Base, engine
+from core.config import DATABASE_URL
+print(f'Creating tables in: {DATABASE_URL}')
+Base.metadata.create_all(bind=engine)
+print('Tables created successfully')
+"
+        cd ..
+        # Stamp database with latest migration
+        echo "Stamping database with latest migration version..."
+        alembic stamp head
+    else
+        echo "Running migrations..."
+        alembic upgrade head
+    fi
 else
     echo "Warning: Alembic directory not found, skipping migrations"
 fi
