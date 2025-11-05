@@ -53,10 +53,11 @@ except Exception as e:
         fi
         cd ..
         
-        # Stamp database with latest migration version - exit on failure
-        echo "Stamping database with latest migration version..."
-        if ! alembic stamp head; then
-            echo "ERROR: Failed to stamp database with migration version. Aborting startup." >&2
+        # Run migrations to ensure schema is up to date with all migrations
+        # This ensures any migrations that modify existing tables are applied
+        echo "Running migrations to ensure schema is up to date..."
+        if ! alembic upgrade head; then
+            echo "ERROR: Failed to run migrations. Aborting startup." >&2
             exit 1
         fi
     else

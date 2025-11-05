@@ -21,9 +21,21 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     # Make user_id nullable in refresh_tokens table to support system admins
     # System admins don't have User records, so user_id must be nullable
-    op.alter_column('refresh_tokens', 'user_id',
-                    existing_type=sa.Integer(),
-                    nullable=True)
+    # Check if column is already nullable (idempotent migration)
+    from sqlalchemy import inspect
+    from sqlalchemy.engine import Connection
+    
+    conn: Connection = op.get_bind()
+    inspector = inspect(conn)
+    columns = inspector.get_columns('refresh_tokens')
+    user_id_col = next((col for col in columns if col['name'] == 'user_id'), None)
+    
+    if user_id_col and not user_id_col['nullable']:
+        # Column exists and is NOT NULL, so make it nullable
+        op.alter_column('refresh_tokens', 'user_id',
+                        existing_type=sa.Integer(),
+                        nullable=True)
+    # If column is already nullable, no action needed
 
 
 def downgrade() -> None:
