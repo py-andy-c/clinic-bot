@@ -7,6 +7,8 @@ cmds = [
   "pip install -r requirements.txt"
 ]
 
+# Note: Railpack may prefer Procfile over nixpacks.toml start command
+# If Procfile exists, it will be used instead
 [start]
 cmd = "bash start.sh"
 
