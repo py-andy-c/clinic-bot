@@ -1,3 +1,5 @@
+# Optional: For local Docker builds only
+# Railway uses nixpacks.toml for deployment, not this Dockerfile
 # Simple single-stage build for development/demo
 FROM python:3.12-slim
 
