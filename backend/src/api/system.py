@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from auth.dependencies import require_system_admin, UserContext
 from models import Clinic, SignupToken
+from models.clinic import ClinicSettings
 
 logger = logging.getLogger(__name__)
 
@@ -74,16 +75,15 @@ async def create_clinic(
             )
 
         # Create clinic
-        # Ensure settings is initialized (required field with default empty dict)
+        # Use ClinicSettings with all defaults - display_name will be None, and effective_display_name will fallback to clinic.name on read
         clinic = Clinic(
             name=clinic_data.name,
-            display_name=clinic_data.name,  # Set display_name to clinic name by default
             line_channel_id=clinic_data.line_channel_id,
             line_channel_secret=clinic_data.line_channel_secret,
             line_channel_access_token=clinic_data.line_channel_access_token,
             subscription_status=clinic_data.subscription_status,
             trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14) if clinic_data.subscription_status == "trial" else None,
-            settings={}  # Initialize settings with empty dict (required field)
+            settings=ClinicSettings().model_dump()  # Use all defaults from Pydantic model
         )
 
         db.add(clinic)

@@ -20,6 +20,7 @@ from core.database import get_db
 from core.config import API_BASE_URL, SYSTEM_ADMIN_EMAILS, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_REFRESH_TOKEN_EXPIRE_DAYS
 from services.jwt_service import jwt_service, TokenPayload
 from models import RefreshToken, User, Clinic
+from models.clinic import ClinicSettings
 from auth.dependencies import UserContext, get_current_user
 
 router = APIRouter()
@@ -447,7 +448,7 @@ async def refresh_access_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="無效的重新整理權杖"
         )
-
+    
     # Handle system admins - check if email is stored (system admin indicator)
     # System admins have user_id=None and email/google_subject_id/name stored in RefreshToken
     is_system_admin = refresh_token_record.user_id is None or (
@@ -650,13 +651,13 @@ async def dev_login(
             # Need a clinic for clinic users
             clinic = db.query(Clinic).first()
             if not clinic:
-                # Create a default clinic
+                # Create default clinic using ClinicSettings with all defaults
                 clinic = Clinic(
                     name="Development Clinic",
-                    display_name="Development Clinic",
                     line_channel_id="dev_channel",
                     line_channel_secret="dev_secret",
-                    line_channel_access_token="dev_token"
+                    line_channel_access_token="dev_token",
+                    settings=ClinicSettings().model_dump()  # Use all defaults from Pydantic model
                 )
                 db.add(clinic)
                 db.commit()
@@ -677,12 +678,13 @@ async def dev_login(
             clinic = db.query(Clinic).first()
             if not clinic:
                 # Create a default clinic for dev system admins
+                # Create default clinic using ClinicSettings with all defaults
                 clinic = Clinic(
                     name="Development Clinic",
-                    display_name="Development Clinic",
                     line_channel_id="dev_channel",
                     line_channel_secret="dev_secret",
-                    line_channel_access_token="dev_token"
+                    line_channel_access_token="dev_token",
+                    settings=ClinicSettings().model_dump()  # Use all defaults from Pydantic model
                 )
                 db.add(clinic)
                 db.commit()

@@ -180,7 +180,7 @@ class ReminderService:
         """
         # Add clinic information if available
         clinic_info: list[str] = []
-        if clinic.effective_display_name != clinic.name:
+        if clinic.effective_display_name:
             clinic_info.append(f"診所：{clinic.effective_display_name}")
         if clinic.address:
             clinic_info.append(f"地址：{clinic.address}")
