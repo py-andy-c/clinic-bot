@@ -283,7 +283,7 @@ async def liff_login(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"LIFF login error: {e}")
+        logger.exception(f"LIFF login error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="認證失敗"
@@ -324,7 +324,7 @@ async def create_patient(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Patient creation error: {e}")
+        logger.exception(f"Patient creation error: {e}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -403,7 +403,7 @@ async def update_patient(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Patient update error: {e}")
+        logger.exception(f"Patient update error: {e}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -472,7 +472,7 @@ async def list_appointment_types(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Appointment types list error: {e}")
+        logger.exception(f"Appointment types list error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得預約類型"
@@ -679,8 +679,8 @@ async def get_clinic_info(
             "phone_number": clinic.phone_number,
         }
 
-    except Exception:
-        logger.exception("Error getting clinic info")
+    except Exception as e:
+        logger.exception(f"Error getting clinic info: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得診所資訊"

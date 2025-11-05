@@ -162,7 +162,7 @@ class AppointmentService:
                 detail="此時段已被預約，請選擇其他時間"
             )
         except Exception as e:
-            logger.error(f"Failed to create appointment: {e}")
+            logger.exception(f"Failed to create appointment: {e}")
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

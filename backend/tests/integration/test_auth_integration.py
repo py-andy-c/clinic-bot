@@ -1541,8 +1541,9 @@ class TestSystemAdminRefreshTokenFlow:
             token_data = jwt_service.create_token_pair(payload)
 
             # Create refresh token record (as OAuth callback does)
+            # System admin refresh tokens have user_id=None (no User record)
             refresh_token_record = RefreshToken(
-                user_id=dummy_user_id,
+                user_id=None,  # System admins don't have User records
                 token_hash=token_data["refresh_token_hash"],
                 expires_at=jwt_service.get_token_expiry("refresh"),
                 email=email,  # System admin email stored
@@ -1556,9 +1557,7 @@ class TestSystemAdminRefreshTokenFlow:
             assert refresh_token_record.email == email
             assert refresh_token_record.google_subject_id == google_subject_id
             assert refresh_token_record.name == name
-            # Note: In tests, we create a dummy User to satisfy FK constraint,
-            # but in production, system admin refresh tokens have user=None
-            # The important thing is that email/google_subject_id/name are stored
+            assert refresh_token_record.user_id is None  # System admins don't have User records
 
         finally:
             auth.SYSTEM_ADMIN_EMAILS = original_emails
@@ -1612,8 +1611,9 @@ class TestSystemAdminRefreshTokenFlow:
             token_data = jwt_service.create_token_pair(payload)
 
             refresh_token_string = token_data["refresh_token"]
+            # System admin refresh tokens have user_id=None (no User record)
             refresh_token_record = RefreshToken(
-                user_id=dummy_user_id,
+                user_id=None,  # System admins don't have User records
                 token_hash=token_data["refresh_token_hash"],
                 expires_at=jwt_service.get_token_expiry("refresh"),
                 email=email,
@@ -1647,8 +1647,9 @@ class TestSystemAdminRefreshTokenFlow:
                 assert refresh_token_record.revoked == True
 
                 # Verify new refresh token was created with system admin fields
+                # System admin refresh tokens have user_id=None
                 new_refresh_tokens = db_session.query(RefreshToken).filter(
-                    RefreshToken.user_id == dummy_user_id,
+                    RefreshToken.user_id == None,  # System admins have user_id=None
                     RefreshToken.revoked == False
                 ).all()
                 assert len(new_refresh_tokens) == 1
@@ -1656,8 +1657,7 @@ class TestSystemAdminRefreshTokenFlow:
                 assert new_token.email == email
                 assert new_token.google_subject_id == google_subject_id
                 assert new_token.name == name
-                # Note: In tests, we create a dummy User for FK constraint,
-                # so new_token.user may exist, but email/google_subject_id/name indicate it's a system admin token
+                assert new_token.user_id is None  # System admins don't have User records
 
                 # Verify new cookie was set
                 assert "refresh_token" in response.cookies
@@ -1726,8 +1726,9 @@ class TestSystemAdminRefreshTokenFlow:
             token_data = jwt_service.create_token_pair(payload)
 
             refresh_token_string = token_data["refresh_token"]
+            # System admin refresh tokens have user_id=None (no User record)
             initial_refresh_token = RefreshToken(
-                user_id=dummy_user_id,
+                user_id=None,  # System admins don't have User records
                 token_hash=token_data["refresh_token_hash"],
                 expires_at=jwt_service.get_token_expiry("refresh"),
                 email=email,
@@ -1756,8 +1757,9 @@ class TestSystemAdminRefreshTokenFlow:
                 assert initial_refresh_token.revoked == True
 
                 # Verify new token was created
+                # System admin refresh tokens have user_id=None
                 new_tokens = db_session.query(RefreshToken).filter(
-                    RefreshToken.user_id == dummy_user_id,
+                    RefreshToken.user_id == None,  # System admins have user_id=None
                     RefreshToken.revoked == False
                 ).all()
                 assert len(new_tokens) == 1
@@ -1766,6 +1768,7 @@ class TestSystemAdminRefreshTokenFlow:
                 assert new_token.email == email
                 assert new_token.google_subject_id == google_subject_id
                 assert new_token.name == name
+                assert new_token.user_id is None  # System admins don't have User records
 
                 # Second refresh using new token
                 client.cookies.set("refresh_token", new_refresh_token_string)
@@ -1777,8 +1780,9 @@ class TestSystemAdminRefreshTokenFlow:
                 assert new_token.revoked == True
 
                 # Verify second new token was created
+                # System admin refresh tokens have user_id=None
                 final_tokens = db_session.query(RefreshToken).filter(
-                    RefreshToken.user_id == dummy_user_id,
+                    RefreshToken.user_id == None,  # System admins have user_id=None
                     RefreshToken.revoked == False
                 ).all()
                 assert len(final_tokens) == 1
@@ -1787,6 +1791,7 @@ class TestSystemAdminRefreshTokenFlow:
                 assert final_token.email == email
                 assert final_token.google_subject_id == google_subject_id
                 assert final_token.name == name
+                assert final_token.user_id is None  # System admins don't have User records
 
             finally:
                 client.app.dependency_overrides.pop(get_db, None)

@@ -88,8 +88,8 @@ async def initiate_clinic_admin_signup(token: str, db: Session = Depends(get_db)
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error initiating clinic admin signup")
+    except Exception as e:
+        logger.exception(f"Error initiating clinic admin signup: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="註冊流程初始化失敗"
@@ -152,8 +152,8 @@ async def initiate_member_signup(token: str, db: Session = Depends(get_db)) -> d
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error initiating member signup")
+    except Exception as e:
+        logger.exception(f"Error initiating member signup: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="註冊流程初始化失敗"
@@ -326,9 +326,9 @@ async def signup_oauth_callback(
 
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
         db.rollback()
-        logger.exception("Error in signup OAuth callback")
+        logger.exception(f"Error in signup OAuth callback: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="註冊失敗"
@@ -478,9 +478,9 @@ async def confirm_name(
         
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
         db.rollback()
-        logger.exception("Error in name confirmation and signup completion")
+        logger.exception(f"Error in name confirmation and signup completion: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="註冊完成失敗"

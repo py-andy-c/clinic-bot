@@ -162,8 +162,8 @@ async def list_members(
 
         return {"members": member_list}
 
-    except Exception:
-        logger.exception("Error getting members list")
+    except Exception as e:
+        logger.exception(f"Error getting members list: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得成員列表"
@@ -217,8 +217,8 @@ async def invite_member(
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error inviting member")
+    except Exception as e:
+        logger.exception(f"Error inviting member: {e}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -294,8 +294,8 @@ async def update_member_roles(
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error updating member roles")
+    except Exception as e:
+        logger.exception(f"Error updating member roles for user {user_id}: {e}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -352,8 +352,8 @@ async def remove_member(
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error removing member")
+    except Exception as e:
+        logger.exception(f"Error removing member {user_id}: {e}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -394,8 +394,8 @@ async def reactivate_member(
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error reactivating member")
+    except Exception as e:
+        logger.exception(f"Error reactivating member {user_id}: {e}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -480,8 +480,8 @@ async def get_settings(
            )
         )
 
-    except Exception:
-        logger.exception("Error getting clinic settings")
+    except Exception as e:
+        logger.exception(f"Error getting clinic settings: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得設定"
@@ -597,8 +597,8 @@ async def validate_appointment_type_deletion(
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error validating appointment type deletion")
+    except Exception as e:
+        logger.exception(f"Error validating appointment type deletion: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="驗證刪除失敗"
@@ -758,8 +758,8 @@ async def update_settings(
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error updating clinic settings")
+    except Exception as e:
+        logger.exception(f"Error updating clinic settings: {e}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -823,8 +823,8 @@ async def generate_reminder_preview(
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error generating reminder preview")
+    except Exception as e:
+        logger.exception(f"Error generating reminder preview: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法產生預覽訊息"
@@ -874,8 +874,8 @@ async def generate_cancellation_preview(
 
     except HTTPException:
         raise
-    except Exception:
-        logger.exception("Error generating cancellation preview")
+    except Exception as e:
+        logger.exception(f"Error generating cancellation preview: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法產生取消預覽訊息"
@@ -915,8 +915,8 @@ async def get_patients(
 
         return ClinicPatientListResponse(patients=patient_list)
 
-    except Exception:
-        logger.exception("Error getting patients list")
+    except Exception as e:
+        logger.exception(f"Error getting patients list: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得病患列表"

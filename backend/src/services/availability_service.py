@@ -182,7 +182,7 @@ class AvailabilityService:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Availability query error: {e}")
+            logger.exception(f"Availability query error: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="無法取得可用時間"
@@ -257,7 +257,7 @@ class AvailabilityService:
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Availability query error: {e}")
+            logger.exception(f"Availability query error: {e}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="無法取得可用時間"

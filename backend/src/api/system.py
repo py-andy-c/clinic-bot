@@ -6,6 +6,7 @@ Provides system-wide management capabilities for platform administrators,
 including clinic creation, monitoring, and billing management.
 """
 
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
@@ -17,6 +18,8 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from auth.dependencies import require_system_admin, UserContext
 from models import Clinic, SignupToken
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -71,6 +74,7 @@ async def create_clinic(
             )
 
         # Create clinic
+        # Ensure settings is initialized (required field with default empty dict)
         clinic = Clinic(
             name=clinic_data.name,
             display_name=clinic_data.name,  # Set display_name to clinic name by default
@@ -78,7 +82,8 @@ async def create_clinic(
             line_channel_secret=clinic_data.line_channel_secret,
             line_channel_access_token=clinic_data.line_channel_access_token,
             subscription_status=clinic_data.subscription_status,
-            trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14) if clinic_data.subscription_status == "trial" else None
+            trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14) if clinic_data.subscription_status == "trial" else None,
+            settings={}  # Initialize settings with empty dict (required field)
         )
 
         db.add(clinic)
@@ -96,8 +101,9 @@ async def create_clinic(
 
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
         db.rollback()
+        logger.exception(f"Failed to create clinic: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="建立診所失敗"
@@ -127,7 +133,8 @@ async def list_clinics(
             for clinic in clinics
         ]
 
-    except Exception:
+    except Exception as e:
+        logger.exception(f"Failed to list clinics: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得診所列表"
@@ -174,7 +181,8 @@ async def get_clinic(
 
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
+        logger.exception(f"Failed to get clinic {clinic_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得診所詳情"
@@ -220,8 +228,9 @@ async def update_clinic(
 
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
         db.rollback()
+        logger.exception(f"Failed to update clinic {clinic_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="更新診所失敗"
@@ -272,8 +281,9 @@ async def generate_clinic_signup_link(
 
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
         db.rollback()
+        logger.exception(f"Failed to generate signup link for clinic {clinic_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法產生註冊連結"
@@ -358,6 +368,7 @@ async def check_clinic_health(
             signature_test_passed = not line_service.verify_signature(test_payload, test_signature)  # Should return False
 
         except Exception as e:
+            logger.exception(f"Signature verification setup failed for clinic {clinic_id}: {e}")
             errors.append(f"Signature verification setup failed: {str(e)}")
             if health_status == "healthy":
                 health_status = "error"
@@ -375,6 +386,7 @@ async def check_clinic_health(
                 errors.append("LINE API credentials not configured")
 
         except Exception as e:
+            logger.exception(f"LINE API connectivity test failed for clinic {clinic_id}: {e}")
             api_connectivity = "error"
             health_status = "error"
             errors.append(f"LINE API connectivity test failed: {str(e)}")
@@ -402,7 +414,8 @@ async def check_clinic_health(
 
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
+        logger.exception(f"Failed to check clinic {clinic_id} health: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法檢查診所健康狀態"

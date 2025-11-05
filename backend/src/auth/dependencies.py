@@ -6,6 +6,7 @@ Provides dependency injection functions for user authentication,
 role-based access control, and clinic isolation enforcement.
 """
 
+import logging
 from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -16,6 +17,8 @@ from core.database import get_db
 from core.config import SYSTEM_ADMIN_EMAILS
 from services.jwt_service import jwt_service, TokenPayload
 from models import User, LineUser, Clinic
+
+logger = logging.getLogger(__name__)
 
 
 class UserContext:
@@ -331,7 +334,8 @@ def get_current_line_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"
         )
-    except Exception:
+    except Exception as e:
+        logger.exception(f"Unexpected token validation error: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"
@@ -421,9 +425,7 @@ def get_current_line_user_with_clinic(
             detail="Invalid token"
         )
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"Token validation error: {e}")
+        logger.exception(f"Token validation error: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"

@@ -263,6 +263,6 @@ class PractitionerService:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to update practitioner appointment types: {e}")
+            logger.exception(f"Failed to update practitioner appointment types: {e}")
             db.rollback()
             return False

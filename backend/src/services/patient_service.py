@@ -72,7 +72,7 @@ class PatientService:
             return patient
 
         except Exception as e:
-            logger.error(f"Failed to create patient: {e}")
+            logger.exception(f"Failed to create patient: {e}")
             db.rollback()
 
             # Handle unique constraint violations
@@ -264,7 +264,7 @@ class PatientService:
             return patient
 
         except Exception as e:
-            logger.error(f"Failed to update patient {patient_id}: {e}")
+            logger.exception(f"Failed to update patient {patient_id}: {e}")
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
