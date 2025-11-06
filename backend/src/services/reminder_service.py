@@ -6,7 +6,7 @@ Reminders are sent via LINE messaging and scheduled using APScheduler.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore
@@ -15,9 +15,9 @@ from sqlalchemy.orm import Session
 
 from models.appointment import Appointment
 from models.calendar_event import CalendarEvent
-from models.line_user import LineUser
 from models.clinic import Clinic
 from services.line_service import LINEService
+from utils.datetime_utils import taiwan_now, ensure_taiwan, format_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -94,9 +94,8 @@ class ReminderService:
 
             for clinic in clinics:
                 # Calculate reminder window for this clinic using Taiwan time
-                taiwan_tz = timezone(timedelta(hours=8))
-                taiwan_now = datetime.now(taiwan_tz)
-                reminder_time = taiwan_now + timedelta(hours=clinic.reminder_hours_before)
+                current_time = taiwan_now()
+                reminder_time = current_time + timedelta(hours=clinic.reminder_hours_before)
                 reminder_window_start = reminder_time - timedelta(minutes=30)  # 30-minute window
                 reminder_window_end = reminder_time + timedelta(minutes=30)
 
@@ -106,7 +105,7 @@ class ReminderService:
                 )
 
                 if appointments_needing_reminders:
-                    logger.info(f"Found {len(appointments_needing_reminders)} appointments for clinic {clinic.id} needing reminders")
+                    logger.info(f"Found {len(appointments_needing_reminders)} appointment(s) for clinic {clinic.id} needing reminders")
 
                     # Send reminders for each appointment
                     for appointment in appointments_needing_reminders:
@@ -118,7 +117,7 @@ class ReminderService:
             if total_appointments_found == 0:
                 logger.info("No appointments found that need reminders")
             else:
-                logger.info(f"Successfully sent {total_sent} appointment reminders")
+                logger.info(f"Successfully sent {total_sent} appointment reminder(s)")
 
         except Exception as e:
             logger.exception(f"Error sending pending reminders: {e}")
@@ -154,13 +153,13 @@ class ReminderService:
         appointments_needing_reminders: List[Appointment] = []
         for appointment in appointments:
             # Combine appointment date and time to get full datetime
-            appointment_datetime = datetime.combine(
+            appointment_datetime = ensure_taiwan(datetime.combine(
                 appointment.calendar_event.date,
                 appointment.calendar_event.start_time
-            ).replace(tzinfo=window_start.tzinfo)  # Add timezone info
+            ))
 
             # Check if appointment falls within reminder window
-            if window_start <= appointment_datetime <= window_end:
+            if appointment_datetime and window_start <= appointment_datetime <= window_end:
                 appointments_needing_reminders.append(appointment)
 
         return appointments_needing_reminders
@@ -214,7 +213,7 @@ class ReminderService:
 
         Args:
             appointment_type: Name of the appointment type
-            appointment_time: Formatted appointment time (e.g., "12/25 (三) 14:30")
+            appointment_time: Formatted appointment time (e.g., "12/25 (三) 1:30 PM")
             therapist_name: Name of the therapist/practitioner
             clinic: Clinic object with display information
 
@@ -242,15 +241,17 @@ class ReminderService:
             # Get the clinic and LINE service
             clinic = appointment.patient.clinic
 
+            if not clinic.line_channel_secret or not clinic.line_channel_access_token:
+                logger.error(f"Clinic {clinic.id} missing LINE credentials")
+                return False
+
             line_service = LINEService(
                 channel_secret=clinic.line_channel_secret,
                 channel_access_token=clinic.line_channel_access_token
             )
 
-            # Get patient's LINE user ID
-            line_user = self.db.query(LineUser).filter_by(
-                patient_id=appointment.patient_id
-            ).first()
+            # Get patient's LINE user (relationship is on Patient, not LineUser)
+            line_user = appointment.patient.line_user
 
             if not line_user:
                 logger.warning(f"No LINE user found for patient {appointment.patient_id}")
@@ -258,8 +259,14 @@ class ReminderService:
 
             # Format reminder message
             therapist_name = appointment.calendar_event.user.full_name
-            appointment_datetime = datetime.combine(appointment.calendar_event.date, appointment.calendar_event.start_time)
-            appointment_time = appointment_datetime.strftime("%m/%d (%a) %H:%M")
+            appointment_datetime = ensure_taiwan(datetime.combine(
+                appointment.calendar_event.date,
+                appointment.calendar_event.start_time
+            ))
+            if not appointment_datetime:
+                logger.error(f"Invalid appointment datetime for appointment {appointment.calendar_event_id}")
+                return False
+            appointment_time = format_datetime(appointment_datetime)
             appointment_type = appointment.appointment_type.name
 
             message = self._format_reminder_message(

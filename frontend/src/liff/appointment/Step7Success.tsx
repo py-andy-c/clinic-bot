@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { downloadAppointmentICS, generateGoogleCalendarURL } from '../../utils/icsGenerator';
 import { useModal } from '../../contexts/ModalContext';
+import { formatDateTime as formatDateTimeUtil } from '../../utils/calendarUtils';
 
 const Step7Success: React.FC = () => {
   const {
@@ -110,15 +111,8 @@ const Step7Success: React.FC = () => {
       return '';
     }
 
-    // Format weekday as (日), (一), (二), etc.
-    const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
-    const weekday = weekdayNames[taiwanMoment.day()];
-
-    // Format using Taiwan timezone
-    const dateStr = taiwanMoment.format('YYYY/MM/DD');
-    const timeStr = taiwanMoment.format('HH:mm');
-
-    return `${dateStr} (${weekday}) ${timeStr}`;
+    // Use shared formatting utility
+    return formatDateTimeUtil(taiwanMoment.toDate());
   };
 
   const handleClose = () => {

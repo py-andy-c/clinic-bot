@@ -3,6 +3,7 @@ import { logger } from '../../utils/logger';
 import moment from 'moment-timezone';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
+import { formatDateTime as formatDateTimeUtil } from '../../utils/calendarUtils';
 
 const Step6Confirmation: React.FC = () => {
   const { appointmentType, practitioner, practitionerId, isAutoAssigned, date, startTime, patient, notes, clinicId, step, setStep, updateAssignedPractitioner, setCreatedAppointment } = useAppointmentStore();
@@ -84,14 +85,8 @@ const Step6Confirmation: React.FC = () => {
       return '';
     }
     
-    // Format weekday as (日), (一), (二), etc.
-    const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
-    const weekday = weekdayNames[dateTimeTaiwan.day()]; // moment uses .day() instead of .getDay()
-    
-    const dateStr = dateTimeTaiwan.format('YYYY/MM/DD');
-    const timeStr = dateTimeTaiwan.format('HH:mm');
-    
-    return `${dateStr} (${weekday}) ${timeStr}`;
+    // Use shared formatting utility
+    return formatDateTimeUtil(dateTimeTaiwan.toDate());
   };
 
   return (

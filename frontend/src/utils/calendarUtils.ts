@@ -17,15 +17,34 @@ export const getDateString = (date: Date): string => {
 };
 
 /**
+ * Format datetime for user-facing display
+ * Format: "12/25 (三) 1:30 PM"
+ * 
+ * Used for all user-facing messages (appointments, notifications, reminders, etc.)
+ * to ensure consistent date/time formatting across the platform.
+ * 
+ * @param dateTime - Date object or ISO string
+ * @returns Formatted datetime string
+ */
+export const formatDateTime = (dateTime: Date | string): string => {
+  const taiwanMoment = moment(dateTime).tz(TAIWAN_TIMEZONE);
+  const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+  const weekday = weekdayNames[taiwanMoment.day()];
+  const dateStr = taiwanMoment.format('MM/DD');
+  const timeStr = taiwanMoment.format('h:mm A');
+  return `${dateStr} (${weekday}) ${timeStr}`;
+};
+
+/**
  * Format appointment time with date and weekday
- * Example: "1/15 (一) 9:00 AM - 10:00 AM"
+ * Example: "12/25 (三) 9:00 AM - 10:00 AM"
  */
 export const formatAppointmentTime = (start: Date, end: Date): string => {
   const startMoment = moment(start).tz(TAIWAN_TIMEZONE);
   const endMoment = moment(end).tz(TAIWAN_TIMEZONE);
   const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
   const weekday = weekdayNames[startMoment.day()];
-  const dateStr = `${startMoment.format('M/D')} (${weekday})`;
+  const dateStr = `${startMoment.format('MM/DD')} (${weekday})`;
   return `${dateStr} ${startMoment.format('h:mm A')} - ${endMoment.format('h:mm A')}`;
 };
 

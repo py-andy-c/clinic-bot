@@ -1,5 +1,5 @@
 import React from 'react';
-import moment from 'moment-timezone';
+import { formatDateTime } from '../../utils/calendarUtils';
 
 interface Appointment {
   id: number;
@@ -19,32 +19,6 @@ interface AppointmentCardProps {
 }
 
 const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel }) => {
-  const formatDateTime = (dateTime: string) => {
-    if (!dateTime) {
-      return { date: '', time: '' };
-    }
-    
-    // Parse as Taiwan timezone explicitly
-    const taiwanTimezone = 'Asia/Taipei';
-    const taiwanMoment = moment.tz(dateTime, taiwanTimezone);
-    
-    if (!taiwanMoment.isValid()) {
-      return { date: '', time: '' };
-    }
-    
-    // Format weekday as (日), (一), (二), etc.
-    const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
-    const weekday = weekdayNames[taiwanMoment.day()];
-    
-    // Format using Taiwan timezone
-    const dateStr = taiwanMoment.format('YYYY/MM/DD');
-    const timeStr = taiwanMoment.format('HH:mm');
-    
-    return {
-      date: `${dateStr} (${weekday})`,
-      time: timeStr
-    };
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -71,7 +45,9 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
     }
   };
 
-  const { date, time } = formatDateTime(appointment.start_time);
+  const formattedDateTime = appointment.start_time 
+    ? formatDateTime(appointment.start_time)
+    : '';
   const canCancel = appointment.status === 'confirmed';
 
   return (
@@ -98,7 +74,7 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          {date} {time}
+          {formattedDateTime}
         </div>
 
         {appointment.notes && (

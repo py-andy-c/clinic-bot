@@ -34,7 +34,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
       try {
         const response = await apiService.generateReminderPreview({
           appointment_type: '一般診療',
-          appointment_time: '12/25 (三) 14:30',
+          appointment_time: '12/25 (三) 1:30 PM',
           therapist_name: '王大明',
         });
         setPreviewMessage(response.preview_message);
@@ -42,7 +42,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
         logger.error('Failed to generate reminder preview:', error);
         setPreviewError('無法載入預覽');
         // Fallback to a basic message
-        setPreviewMessage('提醒您，您預約的【一般診療】預計於【12/25 (三) 14:30】開始，由【王大明治療師】為您服務。\n\n請準時前往診所，期待為您服務！');
+        setPreviewMessage('提醒您，您預約的【一般診療】預計於【12/25 (三) 1:30 PM】開始，由【王大明治療師】為您服務。\n\n請準時前往診所，期待為您服務！');
       } finally {
         setPreviewLoading(false);
       }
