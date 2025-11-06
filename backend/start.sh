@@ -23,53 +23,36 @@ fi
 
 # Run database migrations - CRITICAL: Must succeed before starting app
 if [ -d "alembic" ] && [ -f "alembic.ini" ]; then
-    # Check if database is fresh (no alembic_version table)
-    if ! alembic current 2>&1 | grep -q "alembic_version"; then
-        echo "Fresh database detected - creating initial schema..."
-        cd src
-        # Create tables from models - exit on failure
-        # IMPORTANT: Must import all models before calling create_all()
-        if ! python -c "
-from core.database import Base, engine
-from core.config import DATABASE_URL
-# Import all models to register them with Base.metadata
-from models import (
-    Clinic, User, SignupToken, RefreshToken, Patient, LineUser,
-    Appointment, AppointmentType, PractitionerAvailability,
-    CalendarEvent, AvailabilityException, PractitionerAppointmentTypes
-)
-import sys
-print(f'Creating tables in: {DATABASE_URL}')
-try:
-    # Now all models are registered, create_all() will create all tables
-    Base.metadata.create_all(bind=engine)
-    print('Tables created successfully')
-except Exception as e:
-    print(f'ERROR: Failed to create tables: {e}', file=sys.stderr)
-    sys.exit(1)
-"; then
-            echo "ERROR: Failed to create database tables. Aborting startup." >&2
-            exit 1
-        fi
-        cd ..
+    # Handle migration history reset transition
+    # If database has old migration revision, stamp it to baseline
+    CURRENT_REV=$(alembic current 2>&1 | grep -oE '[a-f0-9]{12}' | head -1 || echo "")
+    BASELINE_REV="680334b106f8"
+    
+    # Check if we have a revision that's not our baseline (old migration system)
+    if [ -n "$CURRENT_REV" ] && [ "$CURRENT_REV" != "$BASELINE_REV" ]; then
+        echo "⚠️  Detected old migration revision: $CURRENT_REV"
+        echo "📋 This database was created with old migrations (pre-baseline reset)."
+        echo "🔄 Stamping database to new baseline migration ($BASELINE_REV)..."
+        echo "   Note: This assumes the schema already matches the baseline."
+        echo "   If schema differs, you may need to create a bridge migration."
         
-        # Run migrations to ensure schema is up to date with all migrations
-        # This ensures any migrations that modify existing tables are applied
-        echo "Running migrations to ensure schema is up to date..."
-        if ! alembic upgrade head; then
-            echo "ERROR: Failed to run migrations. Aborting startup." >&2
+        if alembic stamp "$BASELINE_REV" 2>&1; then
+            echo "✅ Database stamped to baseline successfully"
+        else
+            echo "❌ ERROR: Failed to stamp database to baseline" >&2
+            echo "   You may need to manually verify the schema matches" >&2
             exit 1
         fi
-    else
-        # Run incremental migrations - exit on failure
-        echo "Running migrations..."
-        if ! alembic upgrade head; then
-            echo "ERROR: Database migrations failed. Aborting startup." >&2
-            echo "The application will not start with an inconsistent database schema." >&2
-            exit 1
-        fi
-        echo "Migrations completed successfully"
     fi
+    
+    # Run migrations - baseline migration handles everything (fresh or existing)
+    echo "Running migrations..."
+    if ! alembic upgrade head; then
+        echo "ERROR: Database migrations failed. Aborting startup." >&2
+        echo "The application will not start with an inconsistent database schema." >&2
+        exit 1
+    fi
+    echo "✅ Migrations completed successfully"
 else
     echo "ERROR: Alembic directory or config not found. Cannot proceed without migrations." >&2
     echo "This is a critical error - migrations are required for database consistency." >&2
