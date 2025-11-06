@@ -14,7 +14,7 @@ export interface DeleteConfirmationModalProps {
   onConfirm: () => void;
 }
 
-export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
+export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = React.memo(({
   event,
   onCancel,
   onConfirm,
@@ -66,5 +66,5 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = (
         </div>
     </BaseModal>
   );
-};
+});
 

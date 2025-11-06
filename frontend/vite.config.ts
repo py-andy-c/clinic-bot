@@ -22,9 +22,40 @@ export default defineConfig({
     minify: 'esbuild',
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          line: ['@line/liff'],
+        manualChunks: (id) => {
+          // Vendor chunks
+          if (id.includes('node_modules')) {
+            // React and React DOM
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'react-vendor';
+            }
+            // React Router
+            if (id.includes('react-router')) {
+              return 'router-vendor';
+            }
+            // LINE LIFF SDK
+            if (id.includes('@line/liff')) {
+              return 'line-vendor';
+            }
+            // Moment.js and timezone (large library)
+            if (id.includes('moment')) {
+              return 'moment-vendor';
+            }
+            // React Big Calendar (large calendar library)
+            if (id.includes('react-big-calendar')) {
+              return 'calendar-vendor';
+            }
+            // Axios
+            if (id.includes('axios')) {
+              return 'axios-vendor';
+            }
+            // Zustand
+            if (id.includes('zustand')) {
+              return 'zustand-vendor';
+            }
+            // Other vendor libraries
+            return 'vendor';
+          }
         },
       },
     },

@@ -15,7 +15,7 @@ export interface CancellationNoteModalProps {
   onSubmit: () => void;
 }
 
-export const CancellationNoteModal: React.FC<CancellationNoteModalProps> = ({
+export const CancellationNoteModal: React.FC<CancellationNoteModalProps> = React.memo(({
   cancellationNote,
   isLoading,
   onNoteChange,
@@ -68,5 +68,5 @@ export const CancellationNoteModal: React.FC<CancellationNoteModalProps> = ({
         </div>
     </BaseModal>
   );
-};
+});
 

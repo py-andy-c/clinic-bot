@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
@@ -231,7 +231,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
     }
   };
 
-  const handleNavigation = (href: string) => {
+  const handleNavigation = useCallback((href: string) => {
     if (hasUnsavedChanges && (location.pathname === '/profile' || location.pathname === '/clinic/settings')) {
       const confirmed = window.confirm('您有未儲存的變更，確定要離開嗎？');
       if (!confirmed) {
@@ -239,15 +239,15 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
       }
     }
     navigate(href);
-  };
+  }, [hasUnsavedChanges, location.pathname, navigate]);
 
-  const navigation = [
+  const navigation = useMemo(() => [
     { name: '行事曆', href: '/calendar', icon: '📅', show: isPractitioner },
     { name: '團隊成員', href: '/clinic/members', icon: '👥', show: true }, // All clinic members can view
     { name: '病患管理', href: '/clinic/patients', icon: '👥', show: true },
     { name: '診所設定', href: '/clinic/settings', icon: '⚙️', show: true }, // All clinic members can view settings
     { name: '個人設定', href: '/profile', icon: '👤', show: true }, // All users can access profile
-  ].filter(item => item.show);
+  ].filter(item => item.show), [isPractitioner]);
 
   const isActive = (href: string) => {
     return location.pathname === href;

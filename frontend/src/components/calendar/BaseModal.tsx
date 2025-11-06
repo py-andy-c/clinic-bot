@@ -16,7 +16,7 @@ export interface BaseModalProps {
   'aria-labelledby'?: string;
 }
 
-export const BaseModal: React.FC<BaseModalProps> = ({
+export const BaseModal: React.FC<BaseModalProps> = React.memo(({
   children,
   onClose,
   className = '',
@@ -49,5 +49,5 @@ export const BaseModal: React.FC<BaseModalProps> = ({
     </div>,
     document.body
   );
-};
+});
 

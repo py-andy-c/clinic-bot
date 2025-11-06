@@ -13,7 +13,7 @@ export interface CancellationPreviewModalProps {
   onConfirm: () => void;
 }
 
-export const CancellationPreviewModal: React.FC<CancellationPreviewModalProps> = ({
+export const CancellationPreviewModal: React.FC<CancellationPreviewModalProps> = React.memo(({
   previewMessage,
   onBack,
   onConfirm,
@@ -61,5 +61,5 @@ export const CancellationPreviewModal: React.FC<CancellationPreviewModalProps> =
         </div>
     </BaseModal>
   );
-};
+});
 

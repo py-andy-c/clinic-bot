@@ -21,7 +21,7 @@ export interface ConflictModalProps {
   formatTimeString: (timeStr: string) => string;
 }
 
-export const ConflictModal: React.FC<ConflictModalProps> = ({
+export const ConflictModal: React.FC<ConflictModalProps> = React.memo(({
   conflictingAppointments,
   onClose,
   formatTimeString,
@@ -72,5 +72,5 @@ export const ConflictModal: React.FC<ConflictModalProps> = ({
         </div>
     </BaseModal>
   );
-};
+});
 

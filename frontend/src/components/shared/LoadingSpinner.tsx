@@ -14,7 +14,7 @@ const sizeClasses = {
   xl: 'h-32 w-32',
 } as const;
 
-export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
+export const LoadingSpinner: React.FC<LoadingSpinnerProps> = React.memo(({
   size = 'md',
   className = '',
   fullScreen = false,
@@ -41,4 +41,4 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   }
 
   return spinner;
-};
+});

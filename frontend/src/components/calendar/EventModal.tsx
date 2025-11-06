@@ -16,7 +16,7 @@ export interface EventModalProps {
   formatAppointmentTime: (start: Date, end: Date) => string;
 }
 
-export const EventModal: React.FC<EventModalProps> = ({
+export const EventModal: React.FC<EventModalProps> = React.memo(({
   event,
   onClose,
   onDeleteAppointment,
@@ -78,5 +78,5 @@ export const EventModal: React.FC<EventModalProps> = ({
         </div>
     </BaseModal>
   );
-};
+});
 

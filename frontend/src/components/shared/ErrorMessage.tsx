@@ -9,7 +9,7 @@ export interface ErrorMessageProps {
   retryText?: string;
 }
 
-export const ErrorMessage: React.FC<ErrorMessageProps> = ({
+export const ErrorMessage: React.FC<ErrorMessageProps> = React.memo(({
   message,
   onRetry,
   className = '',
@@ -54,4 +54,4 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
   }
 
   return errorContent;
-};
+});

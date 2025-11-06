@@ -22,7 +22,7 @@ export interface ExceptionModalProps {
   onFullDayChange: (isFullDay: boolean) => void;
 }
 
-export const ExceptionModal: React.FC<ExceptionModalProps> = ({
+export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
   exceptionData,
   isFullDay,
   onClose,
@@ -117,5 +117,5 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = ({
         </div>
     </BaseModal>
   );
-};
+});
 

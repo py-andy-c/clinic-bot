@@ -179,7 +179,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   // Event styling based on document requirements
-  const eventStyleGetter = (event: CalendarEvent) => {
+  const eventStyleGetter = useCallback((event: CalendarEvent) => {
     let style: any = {
       borderRadius: '6px',
       color: 'white',
@@ -204,18 +204,18 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
     
     return { style };
-  };
+  }, []);
 
   // Handle event selection
-  const handleSelectEvent = (event: CalendarEvent) => {
+  const handleSelectEvent = useCallback((event: CalendarEvent) => {
     setModalState({ type: 'event', data: event });
     if (onSelectEvent) {
       onSelectEvent(event);
     }
-  };
+  }, [onSelectEvent]);
 
   // Handle slot selection - only for monthly view navigation
-  const handleSelectSlot = (slotInfo: any) => {
+  const handleSelectSlot = useCallback((slotInfo: any) => {
     // In monthly view, clicking a date should navigate to daily view of that date
     if (view === Views.MONTH) {
       setCurrentDate(slotInfo.start);
@@ -225,7 +225,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       }
     }
     // In daily view, clicking blank space does nothing
-  };
+  }, [view, onNavigate]);
 
   // Create a dateHeader component that handles clicks on the date number to navigate to day view
   const DateHeaderWithClick = useCallback(({ date }: any) => {
@@ -241,12 +241,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }, [handleSelectSlot]);
 
   // Handle navigation
-  const handleNavigate = (date: Date) => {
+  const handleNavigate = useCallback((date: Date) => {
     setCurrentDate(date);
     if (onNavigate) {
       onNavigate(date);
     }
-  };
+  }, [onNavigate]);
 
 
   // Handle adding availability exception via button
