@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
 import { apiService } from '../services/api';
+import { logger } from '../utils/logger';
 
 interface ClinicLayoutProps {
   children: React.ReactNode;
@@ -40,7 +41,7 @@ const GlobalWarnings: React.FC = () => {
             hasAppointmentTypes: clinicSettings.appointment_types.length > 0
           };
         } catch (err) {
-          console.error('Error fetching clinic settings:', err);
+          logger.error('Error fetching clinic settings:', err);
         }
       }
 
@@ -92,7 +93,7 @@ const GlobalWarnings: React.FC = () => {
       
       if (!isNetworkError) {
         // Only log non-network errors (actual API failures)
-        console.error('Error fetching warnings:', err);
+        logger.error('Error fetching warnings:', err);
       }
     } finally {
       setLoading(false);
@@ -226,7 +227,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
     try {
       await logout();
     } catch (error) {
-      console.error('Logout failed:', error);
+      logger.error('Logout failed:', error);
     }
   };
 

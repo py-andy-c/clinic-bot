@@ -1,5 +1,6 @@
 import React from 'react';
 import moment from 'moment-timezone';
+import { logger } from '../../utils/logger';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { downloadAppointmentICS, generateGoogleCalendarURL } from '../../utils/icsGenerator';
 import { useModal } from '../../contexts/ModalContext';
@@ -20,7 +21,7 @@ const Step7Success: React.FC = () => {
 
   const handleAddToCalendar = () => {
     if (!appointmentType || !createdAppointment || !patient) {
-      console.error('Missing appointment data for calendar:', {
+      logger.error('Missing appointment data for calendar:', {
         appointmentType,
         createdAppointment,
         patient
@@ -34,7 +35,7 @@ const Step7Success: React.FC = () => {
       const endDateTimeTaiwan = moment(createdAppointment.end_time);
 
       if (!startDateTimeTaiwan.isValid() || !endDateTimeTaiwan.isValid()) {
-        console.error('Invalid date/time from created appointment:', createdAppointment);
+        logger.error('Invalid date/time from created appointment:', createdAppointment);
         showAlert('無法建立行事曆事件：日期時間格式錯誤', '日期時間錯誤');
         return;
       }
@@ -71,11 +72,11 @@ const Step7Success: React.FC = () => {
         }
       } catch (error) {
         // If window.open fails completely, navigate current window
-        console.log('window.open failed, using location.href:', error);
+        logger.log('window.open failed, using location.href:', error);
         window.location.href = googleCalendarURL;
       }
     } catch (error) {
-      console.error('Failed to open Google Calendar:', error);
+      logger.error('Failed to open Google Calendar:', error);
       // Fallback to ICS download if Google Calendar URL fails
       try {
         const appointmentData = {
@@ -91,7 +92,7 @@ const Step7Success: React.FC = () => {
         };
     downloadAppointmentICS(appointmentData);
       } catch (fallbackError) {
-        console.error('Failed to download ICS as fallback:', fallbackError);
+        logger.error('Failed to download ICS as fallback:', fallbackError);
         showAlert('無法加入行事曆，請稍後再試', '行事曆錯誤');
       }
     }

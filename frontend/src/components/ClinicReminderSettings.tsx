@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
+import { logger } from '../utils/logger';
 
 interface ClinicReminderSettingsProps {
   reminderHoursBefore: string | number;
@@ -38,7 +39,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
         });
         setPreviewMessage(response.preview_message);
       } catch (error) {
-        console.error('Failed to generate reminder preview:', error);
+        logger.error('Failed to generate reminder preview:', error);
         setPreviewError('無法載入預覽');
         // Fallback to a basic message
         setPreviewMessage('提醒您，您預約的【一般診療】預計於【12/25 (三) 14:30】開始，由【王大明治療師】為您服務。\n\n請準時前往診所，期待為您服務！');

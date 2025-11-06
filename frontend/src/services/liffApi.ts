@@ -1,5 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { config } from '../config/env';
+import { logger } from '../utils/logger';
+import { Practitioner } from '../types';
 
 // LIFF-specific types
 export interface LiffLoginRequest {
@@ -39,13 +41,6 @@ export interface PatientSummary {
 
 export interface PatientsResponse {
   patients: PatientSummary[];
-}
-
-export interface Practitioner {
-  id: number;
-  full_name: string;
-  picture_url?: string;
-  offered_types: number[];
 }
 
 export interface PractitionersResponse {
@@ -138,7 +133,7 @@ class LiffApiService {
           // LIFF token expired, clear it and redirect to login
           localStorage.removeItem('liff_jwt_token');
           // For LIFF, we might need to re-initialize or show error
-          console.error('LIFF authentication failed');
+          logger.error('LIFF authentication failed');
         }
         return Promise.reject(error);
       }

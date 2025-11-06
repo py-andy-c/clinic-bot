@@ -1,4 +1,5 @@
 import moment from 'moment-timezone';
+import { logger } from './logger';
 
 export interface AppointmentData {
   id: number;
@@ -68,7 +69,7 @@ END:VCALENDAR`;
   URL.revokeObjectURL(url);
     }, 100);
   } catch (error) {
-    console.error('Failed to create ICS download:', error);
+    logger.error('Failed to create ICS download:', error);
     throw error;
   }
 };

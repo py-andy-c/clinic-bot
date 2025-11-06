@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { logger } from '../utils/logger';
 
 const LoginPage: React.FC = () => {
   const { login, isLoading } = useAuth();
@@ -23,7 +24,7 @@ const LoginPage: React.FC = () => {
       setErrorMessage(null);
       await login();
     } catch (error: any) {
-      console.error('Login failed:', error);
+      logger.error('Login failed:', error);
       
       // Handle different types of errors
       let errorMsg = '登入失敗，請稍後再試';

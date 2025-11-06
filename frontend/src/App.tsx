@@ -4,7 +4,6 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
 import { ModalProvider } from './contexts/ModalContext';
 import ErrorBoundary from './components/ErrorBoundary';
-import { logger } from './utils/logger';
 // Lazy load page components for code splitting
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SystemAdminLayout = lazy(() => import('./components/SystemAdminLayout'));
@@ -21,17 +20,7 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const LiffApp = lazy(() => import('./liff/LiffApp'));
 
 const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading, isSystemAdmin, isClinicUser, user } = useAuth();
-
-  // Debug logging
-  logger.log('AppRoutes - Auth State:', {
-    isAuthenticated,
-    isLoading,
-    isSystemAdmin,
-    isClinicUser,
-    user_type: user?.user_type,
-    hasRoles: !!user?.roles
-  });
+  const { isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -69,21 +58,8 @@ const AppRoutes: React.FC = () => {
 const ProtectedRoutes: React.FC = () => {
   const { isAuthenticated, isSystemAdmin, isClinicUser, user } = useAuth();
 
-  // Debug: Log when ProtectedRoutes renders
-  logger.log('DEBUG: ProtectedRoutes render', {
-    isAuthenticated,
-    isSystemAdmin,
-    isClinicUser,
-    hasUser: !!user,
-    userEmail: user?.email,
-    timestamp: new Date().toISOString()
-  });
-
   // If not authenticated, redirect to login
   if (!isAuthenticated) {
-    logger.log('DEBUG: ProtectedRoutes - not authenticated, redirecting to login', {
-      timestamp: new Date().toISOString()
-    });
     return <Navigate to="/login" replace />;
   }
 

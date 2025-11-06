@@ -1,17 +1,5 @@
 import { create } from 'zustand';
-
-export interface AppointmentType {
-  id: number;
-  name: string;
-  duration_minutes: number;
-}
-
-export interface Practitioner {
-  id: number;
-  full_name: string;
-  picture_url?: string;
-  offered_types: number[];
-}
+import { AppointmentType } from '../types';
 
 export interface Patient {
   id: number;

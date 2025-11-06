@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { logger } from '../utils/logger';
 
 interface SignupPageProps {
   signupType: 'clinic' | 'member';
@@ -34,7 +35,7 @@ const SignupPage: React.FC<SignupPageProps> = ({
       const response = await onSignup(token!);
       window.location.href = response.auth_url;
     } catch (err: any) {
-      console.error('Signup error:', err);
+      logger.error('Signup error:', err);
       if (err.response?.status === 400) {
         setError('邀請連結無效或已過期');
       } else if (err.response?.status === 409) {

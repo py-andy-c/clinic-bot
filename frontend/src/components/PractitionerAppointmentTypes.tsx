@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
+import { logger } from '../utils/logger';
 
 interface PractitionerAppointmentTypesProps {
   selectedAppointmentTypeIds?: number[];
@@ -65,7 +66,7 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
       await apiService.getPractitionerStatus(user.user_id);
 
     } catch (err) {
-      console.error('Error fetching practitioner appointment types:', err);
+      logger.error('Error fetching practitioner appointment types:', err);
       setError('無法載入預約類型設定');
     } finally {
       setLoading(false);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { apiService } from '../services/api';
+import { logger } from '../utils/logger';
 import { ClinicSettings } from '../schemas/api';
 import { AppointmentType } from '../types';
 import { useAuth } from '../hooks/useAuth';
@@ -163,7 +164,7 @@ const SettingsPage: React.FC = () => {
         appointment_types: updatedTypes,
       });
     } catch (error: any) {
-      console.error('Error validating appointment type deletion:', error);
+      logger.error('Error validating appointment type deletion:', error);
       const errorMessage = error.response?.data?.detail || error.message || '驗證刪除失敗，請稍後再試';
       await alert(errorMessage, '驗證失敗');
     }

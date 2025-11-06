@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../utils/logger';
 import moment from 'moment-timezone';
 import { Link, useParams } from 'react-router-dom';
 import { apiService } from '../services/api';
@@ -34,7 +35,7 @@ const SystemClinicsPage: React.FC = () => {
         setClinics([]);
       }
     } catch (err) {
-      console.error('Failed to load clinics:', err);
+      logger.error('Failed to load clinics:', err);
       setClinics([]);
     } finally {
       setLoading(false);
@@ -52,7 +53,7 @@ const SystemClinicsPage: React.FC = () => {
       setClinicHealth(healthData);
     } catch (err) {
       // setError('Failed to load clinic details');
-      console.error('Clinic details error:', err);
+      logger.error('Clinic details error:', err);
     } finally {
       setLoading(false);
     }
@@ -65,7 +66,7 @@ const SystemClinicsPage: React.FC = () => {
       setClinics(prev => [...prev, newClinic]);
       setShowCreateModal(false);
     } catch (err) {
-      console.error('Create clinic error:', err);
+      logger.error('Create clinic error:', err);
       alert('建立診所失敗，請稍後再試。');
     } finally {
       setCreating(false);
@@ -99,7 +100,7 @@ const SystemClinicsPage: React.FC = () => {
         document.body.removeChild(textArea);
       }
     } catch (err) {
-      console.error('Generate signup link error:', err);
+      logger.error('Generate signup link error:', err);
       alert('產生註冊連結失敗，請稍後再試。');
     }
   };

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { logger } from '../../utils/logger';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 import { preserveQueryParams } from '../../utils/urlUtils';
@@ -53,13 +54,13 @@ const FirstTimeRegister: React.FC = () => {
       // Preserve clinic_id and other query parameters while updating mode
       const newUrl = preserveQueryParams(window.location.pathname, { mode: 'book' });
       window.history.replaceState(null, '', newUrl);
-      console.log('📝 Registration successful - updated URL to:', newUrl);
+      logger.log('📝 Registration successful - updated URL to:', newUrl);
 
       // Dispatch custom event to trigger authentication refresh
-      console.log('📡 Dispatching auth-refresh event');
+      logger.log('📡 Dispatching auth-refresh event');
       window.dispatchEvent(new CustomEvent('auth-refresh'));
     } catch (err) {
-      console.error('Registration failed:', err);
+      logger.error('Registration failed:', err);
       setError(err instanceof Error ? err.message : '註冊失敗，請稍後再試');
     } finally {
       setIsSubmitting(false);

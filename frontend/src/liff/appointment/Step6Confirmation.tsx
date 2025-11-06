@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { logger } from '../../utils/logger';
 import moment from 'moment-timezone';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
@@ -62,7 +63,7 @@ const Step6Confirmation: React.FC = () => {
       // Success - move to step 7
       useAppointmentStore.setState({ step: 7 });
     } catch (err) {
-      console.error('Failed to create appointment:', err);
+      logger.error('Failed to create appointment:', err);
       setError(err instanceof Error ? err.message : '預約失敗，請稍後再試');
     } finally {
       setIsSubmitting(false);

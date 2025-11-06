@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { logger } from '../utils/logger';
 import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment-timezone';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -148,7 +149,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       const schedule = await apiService.getPractitionerDefaultSchedule(userId);
       setDefaultSchedule(schedule);
     } catch (err) {
-      console.error('Failed to fetch default schedule:', err);
+      logger.error('Failed to fetch default schedule:', err);
     }
   };
 
@@ -187,7 +188,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             events.push(...eventsWithDate);
           }
         } catch (err) {
-          console.warn(`Failed to fetch events for ${current.format('YYYY-MM-DD')}:`, err);
+          logger.warn(`Failed to fetch events for ${current.format('YYYY-MM-DD')}:`, err);
         }
         
         current.add(1, 'day');
@@ -197,7 +198,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
     } catch (err) {
       setError('無法載入月曆資料');
-      console.error('Fetch calendar data error:', err);
+      logger.error('Fetch calendar data error:', err);
     } finally {
       setLoading(false);
     }
@@ -337,7 +338,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       setIsFullDay(false);
       alert('休診時段已建立');
     } catch (error) {
-      console.error('Error creating exception:', error);
+      logger.error('Error creating exception:', error);
       alert('建立休診時段失敗，請稍後再試');
     }
   };
@@ -381,7 +382,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       setCancellationPreviewMessage(response.preview_message);
       setModalState({ type: 'cancellation_preview', data: modalState.data });
     } catch (error) {
-      console.error('Error generating cancellation preview:', error);
+      logger.error('Error generating cancellation preview:', error);
       alert('無法產生預覽訊息，請稍後再試');
     } finally {
       setCancellationPreviewLoading(false);
@@ -401,7 +402,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       setCancellationNote('');
       setCancellationPreviewMessage('');
     } catch (error) {
-      console.error('Error deleting appointment:', error);
+      logger.error('Error deleting appointment:', error);
       alert('取消預約失敗，請稍後再試');
     }
   };
@@ -424,7 +425,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       await fetchCalendarData();
       setModalState({ type: null, data: null });
     } catch (error) {
-      console.error('Error deleting availability exception:', error);
+      logger.error('Error deleting availability exception:', error);
       alert('刪除休診時段失敗，請稍後再試');
     }
   };

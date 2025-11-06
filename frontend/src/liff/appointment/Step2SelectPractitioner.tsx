@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useAppointmentStore, Practitioner } from '../../stores/appointmentStore';
+import { logger } from '../../utils/logger';
+import { useAppointmentStore } from '../../stores/appointmentStore';
+import { Practitioner } from '../../types';
 import { liffApiService } from '../../services/liffApi';
 
 const Step2SelectPractitioner: React.FC = () => {
@@ -18,7 +20,7 @@ const Step2SelectPractitioner: React.FC = () => {
         const response = await liffApiService.getPractitioners(clinicId, appointmentTypeId);
         setPractitioners(response.practitioners);
       } catch (err) {
-        console.error('Failed to load practitioners:', err);
+        logger.error('Failed to load practitioners:', err);
         setError('無法載入治療師列表，請稍後再試');
       } finally {
         setIsLoading(false);

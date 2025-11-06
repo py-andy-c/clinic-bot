@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import liff from '@line/liff';
+import { logger } from '../utils/logger';
 
 interface LiffProfile {
   userId: string;
@@ -57,7 +58,7 @@ export const useLiff = (): UseLiffReturn => {
 
         setIsReady(true);
       } catch (err) {
-        console.error('LIFF initialization failed:', err);
+        logger.error('LIFF initialization failed:', err);
         setError(err instanceof Error ? err.message : 'LIFF initialization failed');
       }
     };

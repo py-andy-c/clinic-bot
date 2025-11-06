@@ -40,40 +40,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: false,
     isLoading: true,
   });
-  
-  // Debug: Log component mount/unmount
-  useEffect(() => {
-    logger.log('DEBUG: AuthProvider mounted', {
-      timestamp: new Date().toISOString(),
-      initialAuthState: authState
-    });
-    
-    return () => {
-      logger.log('DEBUG: AuthProvider unmounting', {
-        timestamp: new Date().toISOString(),
-        finalAuthState: authState
-      });
-    };
-  }, []);
-  
-  // Debug: Log auth state changes
-  useEffect(() => {
-    logger.log('DEBUG: Auth state changed', {
-      isAuthenticated: authState.isAuthenticated,
-      isLoading: authState.isLoading,
-      hasUser: !!authState.user,
-      userEmail: authState.user?.email,
-      timestamp: new Date().toISOString(),
-      stackTrace: new Error().stack?.split('\n').slice(0, 5).join('\n')
-    });
-  }, [authState.isAuthenticated, authState.isLoading, authState.user?.email]);
-
 
   const clearAuthState = useCallback(() => {
-    logger.log('DEBUG: clearAuthState called', {
-      timestamp: new Date().toISOString(),
-      stackTrace: new Error().stack?.split('\n').slice(0, 5).join('\n')
-    });
     localStorage.removeItem('access_token');
     localStorage.removeItem('was_logged_in');
     localStorage.removeItem('refresh_token'); // Clear refresh token for security
@@ -165,8 +133,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshToken = useCallback(async (): Promise<void> => {
     try {
-      logger.log('DEBUG: Attempting token refresh using HttpOnly cookie...');
-
       // Simple refresh using HttpOnly cookies only
       const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',

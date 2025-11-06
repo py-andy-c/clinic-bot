@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../../utils/logger';
 import { useAppointmentStore, AppointmentType } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 
@@ -19,7 +20,7 @@ const Step1SelectType: React.FC = () => {
         setAppointmentTypes(response.appointment_types);
         setAppointmentTypeInstructions(response.appointment_type_instructions || null);
       } catch (err) {
-        console.error('Failed to load appointment types:', err);
+        logger.error('Failed to load appointment types:', err);
         setError('無法載入預約類型，請稍後再試');
       } finally {
         setIsLoading(false);

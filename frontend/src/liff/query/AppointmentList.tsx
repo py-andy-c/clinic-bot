@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../../utils/logger';
 import { liffApiService } from '../../services/liffApi';
 import AppointmentCard from './AppointmentCard';
 import { useModal } from '../../contexts/ModalContext';
@@ -32,7 +33,7 @@ const AppointmentList: React.FC = () => {
       const response = await liffApiService.getAppointments(true); // upcoming only
       setAppointments(response.appointments);
     } catch (err) {
-      console.error('Failed to load appointments:', err);
+      logger.error('Failed to load appointments:', err);
       setError('無法載入預約記錄');
     } finally {
       setIsLoading(false);
@@ -49,7 +50,7 @@ const AppointmentList: React.FC = () => {
       // Refresh the list
       loadAppointments();
     } catch (err) {
-      console.error('Failed to cancel appointment:', err);
+      logger.error('Failed to cancel appointment:', err);
       await showAlert('取消預約失敗，請稍後再試', '取消失敗');
     }
   };

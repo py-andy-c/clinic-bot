@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useUnsavedChangesDetection } from './useUnsavedChangesDetection';
+import { logger } from '../utils/logger';
 
 interface UIState {
   loading: boolean;
@@ -50,7 +51,7 @@ export const useSettingsPage = <T extends Record<string, any>>(
       setOriginalData(JSON.parse(JSON.stringify(result))); // Deep clone for comparison
     } catch (err) {
       setUiState(prev => ({ ...prev, error: '無法載入設定' }));
-      console.error('Fetch settings error:', err);
+      logger.error('Fetch settings error:', err);
     } finally {
       setUiState(prev => ({ ...prev, loading: false }));
     }
@@ -99,7 +100,7 @@ export const useSettingsPage = <T extends Record<string, any>>(
 
       alert('設定已更新');
     } catch (err: any) {
-      console.error('Save settings error:', err);
+      logger.error('Save settings error:', err);
       setUiState(prev => ({
         ...prev,
         error: err.message || err.response?.data?.message || err.response?.data?.detail || '儲存設定失敗，請稍後再試'

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../utils/logger';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 
@@ -62,7 +63,7 @@ const NameConfirmationPage: React.FC = () => {
       setFullName(payload.google_name || '');
       setLoading(false);
     } catch (err) {
-      console.error('Token parsing error:', err);
+      logger.error('Token parsing error:', err);
       setError('無效的確認令牌格式');
       setLoading(false);
     }
@@ -90,7 +91,7 @@ const NameConfirmationPage: React.FC = () => {
       // Redirect to dashboard
       window.location.href = response.redirect_url;
     } catch (err: any) {
-      console.error('Name confirmation error:', err);
+      logger.error('Name confirmation error:', err);
       if (err.response?.status === 400) {
         setError(err.response.data.detail || '姓名確認失敗');
       } else if (err.response?.status === 401) {

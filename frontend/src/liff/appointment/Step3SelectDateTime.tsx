@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../../utils/logger';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 
@@ -85,7 +86,7 @@ const Step3SelectDateTime: React.FC = () => {
 
         setDatesWithSlots(datesWithAvailableSlots);
       } catch (err) {
-        console.error('Failed to load month availability:', err);
+        logger.error('Failed to load month availability:', err);
       } finally {
         setLoadingAvailability(false);
       }
@@ -117,7 +118,7 @@ const Step3SelectDateTime: React.FC = () => {
       const slots = response.slots.map(slot => slot.start_time);
       setAvailableSlots(slots);
     } catch (err) {
-      console.error('Failed to load available slots:', err);
+      logger.error('Failed to load available slots:', err);
       setError('無法載入可用時段');
     } finally {
       setIsLoading(false);

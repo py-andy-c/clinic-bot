@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../../utils/logger';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 import { useModal } from '../../contexts/ModalContext';
@@ -36,7 +37,7 @@ const PatientManagement: React.FC = () => {
       const response = await liffApiService.getPatients();
       setPatients(response.patients);
     } catch (err) {
-      console.error('Failed to load patients:', err);
+      logger.error('Failed to load patients:', err);
       setError('無法載入就診人列表');
     } finally {
       setIsLoading(false);
@@ -77,7 +78,7 @@ const PatientManagement: React.FC = () => {
       setNewPatientPhone('');
       setShowAddForm(false);
     } catch (err: any) {
-      console.error('Failed to add patient:', err);
+      logger.error('Failed to add patient:', err);
       
       // Handle FastAPI validation errors (422) - detail is an array
       let errorMessage = '新增就診人失敗，請稍後再試';
@@ -140,7 +141,7 @@ const PatientManagement: React.FC = () => {
       await loadPatients();
       setEditingPatientId(null);
     } catch (err: any) {
-      console.error('Failed to update patient:', err);
+      logger.error('Failed to update patient:', err);
       
       // Handle FastAPI validation errors (422) - detail is an array
       let errorMessage = '更新就診人失敗，請稍後再試';
@@ -179,7 +180,7 @@ const PatientManagement: React.FC = () => {
       await liffApiService.deletePatient(patientId);
       setPatients(prev => prev.filter(p => p.id !== patientId));
     } catch (err: any) {
-      console.error('Failed to delete patient:', err);
+      logger.error('Failed to delete patient:', err);
 
       // Handle specific error cases
       if (err?.response?.status === 409) {

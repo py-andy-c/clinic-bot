@@ -1,5 +1,6 @@
 import React from 'react';
 import { TimeInterval } from '../types';
+import { logger } from '../utils/logger';
 import { useAuth } from '../hooks/useAuth';
 import { useSettingsPage } from '../hooks/useSettingsPage';
 import { validateProfileSettings, getProfileSectionChanges } from '../utils/profileSettings';
@@ -29,7 +30,7 @@ const ProfilePage: React.FC = () => {
           const profileData = await apiService.getProfile();
           setProfile(profileData);
         } catch (err) {
-          console.error('Error fetching profile:', err);
+          logger.error('Error fetching profile:', err);
         }
       };
       fetchProfile();
@@ -57,7 +58,7 @@ const ProfilePage: React.FC = () => {
           profileToUse = await apiService.getProfile();
           setProfile(profileToUse);
         } catch (err) {
-          console.error('Error fetching profile:', err);
+          logger.error('Error fetching profile:', err);
         }
       }
 
@@ -72,7 +73,7 @@ const ProfilePage: React.FC = () => {
           const scheduleData = await apiService.getPractitionerDefaultSchedule(user.user_id);
           result.schedule = scheduleData;
         } catch (err) {
-          console.warn('Could not fetch availability schedule:', err);
+          logger.warn('Could not fetch availability schedule:', err);
         }
 
         // Fetch practitioner's appointment types
@@ -80,7 +81,7 @@ const ProfilePage: React.FC = () => {
           const practitionerData = await apiService.getPractitionerAppointmentTypes(user.user_id);
           result.selectedAppointmentTypeIds = practitionerData.appointment_types.map((at: any) => at.id);
         } catch (err) {
-          console.warn('Could not fetch practitioner appointment types:', err);
+          logger.warn('Could not fetch practitioner appointment types:', err);
         }
       }
 

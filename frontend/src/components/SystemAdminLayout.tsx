@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { logger } from '../utils/logger';
 
 interface SystemAdminLayoutProps {
   children: React.ReactNode;
@@ -16,7 +17,7 @@ const SystemAdminLayout: React.FC<SystemAdminLayoutProps> = ({ children }) => {
     try {
       await logout();
     } catch (error) {
-      console.error('Logout failed:', error);
+      logger.error('Logout failed:', error);
     }
   };
 

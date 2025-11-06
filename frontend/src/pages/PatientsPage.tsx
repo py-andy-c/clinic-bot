@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../utils/logger';
 import moment from 'moment-timezone';
 import { apiService } from '../services/api';
 import { Patient } from '../types';
@@ -25,7 +26,7 @@ const PatientsPage: React.FC = () => {
       setPatients(data);
     } catch (err) {
       setError('無法載入病患列表');
-      console.error('Fetch patients error:', err);
+      logger.error('Fetch patients error:', err);
     } finally {
       setLoading(false);
     }

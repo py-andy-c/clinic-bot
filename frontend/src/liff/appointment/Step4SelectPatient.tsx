@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../../utils/logger';
 import { useAppointmentStore, Patient } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 
@@ -22,7 +23,7 @@ const Step4SelectPatient: React.FC = () => {
       const response = await liffApiService.getPatients();
       setPatients(response.patients);
     } catch (err) {
-      console.error('Failed to load patients:', err);
+      logger.error('Failed to load patients:', err);
     } finally {
       setIsLoading(false);
     }
@@ -72,8 +73,8 @@ const Step4SelectPatient: React.FC = () => {
       setShowAddForm(false);
       setPatient(newPatient.id, newPatient);
     } catch (err: any) {
-      console.error('Failed to add patient:', err);
-      
+      logger.error('Failed to add patient:', err);
+
       // Handle FastAPI validation errors (422) - detail is an array
       let errorMessage = '新增就診人失敗，請稍後再試';
       if (err?.response?.data?.detail) {

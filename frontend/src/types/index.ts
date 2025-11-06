@@ -44,6 +44,14 @@ export interface User {
 // Member type (alias for User in clinic context)
 export type Member = User;
 
+// Practitioner types
+export interface Practitioner {
+  id: number;
+  full_name: string;
+  picture_url?: string;
+  offered_types: number[];
+}
+
 // Patient types
 export interface Patient {
   id: number;
@@ -64,7 +72,6 @@ export interface AppointmentType {
   is_deleted?: boolean;
 }
 
-// Appointment types
 export interface Appointment {
   id: number;
   patient_id: number;
@@ -144,14 +151,6 @@ export interface SignupResponse {
   token_type: string;
   expires_in: number;
   user: AuthUser;
-}
-
-// Settings types
-export interface AppointmentType {
-  id: number;
-  clinic_id: number;
-  name: string;
-  duration_minutes: number;
 }
 
 // Calendar and Availability types

@@ -1,5 +1,6 @@
 import { FC, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { logger } from '../utils/logger';
 import { useLiff } from '../hooks/useLiff';
 import { useLineAuth } from '../hooks/useLineAuth';
 import { useAppointmentStore } from '../stores/appointmentStore';
@@ -52,7 +53,7 @@ const LiffApp: FC = () => {
             clinicInfo.phone_number
           );
         } catch (error) {
-          console.error('Failed to fetch clinic info:', error);
+          logger.error('Failed to fetch clinic info:', error);
           // Don't show error to user, just use defaults
         }
       }
