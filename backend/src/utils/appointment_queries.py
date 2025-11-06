@@ -6,7 +6,6 @@ query patterns (like future/upcoming appointment filtering) are applied
 consistently across all services and APIs.
 """
 
-from typing import List, Optional
 from sqlalchemy.orm import Session, Query
 from sqlalchemy import or_, and_
 

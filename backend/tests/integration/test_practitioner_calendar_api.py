@@ -587,9 +587,11 @@ class TestPractitionerCalendarAPI:
         data = response.json()
         
         # Should return warning about conflicts
-        assert "warning" in data
-        assert data["warning"] == "appointment_conflicts"
-        assert "conflicting_appointments" in data["details"]
+        assert "success" in data
+        assert data["success"] == False
+        assert "message" in data
+        assert "conflicts" in data
+        assert len(data["conflicts"]) > 0
 
     def test_delete_availability_exception(self, client: TestClient, db_session: Session):
         """Test deleting availability exception."""

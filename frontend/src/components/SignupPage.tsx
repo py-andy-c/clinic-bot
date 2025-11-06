@@ -10,7 +10,6 @@ interface SignupPageProps {
 }
 
 const SignupPage: React.FC<SignupPageProps> = ({
-  signupType,
   title,
   icon,
   buttonText,

@@ -7,7 +7,6 @@ import {
   Patient,
   ClinicCreateData,
   ClinicHealth,
-  SignupTokenInfo,
   MemberInviteData,
   OAuthResponse,
   UserRole

@@ -217,9 +217,9 @@ class TestMiddlewareIntegration:
         # We'll create a mock endpoint that raises an exception
         # and test that it gets handled by the global handler
 
-        # First, let's test with a route that doesn't exist
+        # Test with an API route that doesn't exist - should return 404
         client = TestClient(app)
-        response = client.get("/nonexistent-route")
+        response = client.get("/api/nonexistent-route")
 
         # Should return 404, not 500 (404 is handled by FastAPI, not our global handler)
         assert response.status_code == 404
