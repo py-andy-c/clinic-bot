@@ -16,8 +16,7 @@ from sqlalchemy.orm import Session
 
 from core.constants import (
     REMINDER_WINDOW_SIZE_MINUTES,
-    REMINDER_SCHEDULER_MAX_INSTANCES,
-    REMINDER_CATCHUP_WINDOW_HOURS
+    REMINDER_SCHEDULER_MAX_INSTANCES
 )
 from core.database import get_db_context
 from models.appointment import Appointment
@@ -74,9 +73,9 @@ class ReminderService:
         self._is_started = True
         logger.info("Appointment reminder scheduler started")
         
-        # Run catch-up logic on startup to handle missed reminders during downtime
-        # and handle reminder_hours_before setting changes
-        await self._catch_up_missed_reminders()
+        # Run reminder check immediately on startup to catch up on missed reminders
+        # during downtime and handle reminder_hours_before setting changes
+        await self._send_pending_reminders()
 
     async def stop_scheduler(self) -> None:
         """
@@ -94,7 +93,16 @@ class ReminderService:
         Check for and send pending appointment reminders.
 
         This method is called by the scheduler every hour to check for
-        appointments that need reminders sent.
+        appointments that need reminders sent. It also automatically catches up
+        on missed reminders during downtime and handles reminder_hours_before setting changes.
+        
+        Window logic:
+        - Start: current_time (checks from now)
+        - End: current_time + reminder_hours_before + REMINDER_WINDOW_SIZE_MINUTES
+        - This catches:
+          * Late reminders: appointments < reminder_hours_before away that should have been reminded earlier
+          * On-time reminders: appointments ≈ reminder_hours_before away
+          * Early reminders: appointments slightly > reminder_hours_before away (within window)
         
         Uses a fresh database session for each run to avoid stale session issues.
         """
@@ -112,15 +120,15 @@ class ReminderService:
 
                 for clinic in clinics:
                     # Calculate reminder window for this clinic using Taiwan time
-                    # Use ±REMINDER_WINDOW_SIZE_MINUTES to ensure overlap between hourly runs
-                    # This prevents missed reminders at window boundaries:
-                    # - Run at 2:00 PM checks (reminder_time - window_size) to (reminder_time + window_size)
-                    # - Run at 3:00 PM checks (reminder_time + 25min) to (reminder_time + 95min)
-                    # - Overlap ensures no appointments are missed
+                    # Window: current_time to current_time + reminder_hours_before + window_size
+                    # This automatically catches up on missed reminders during downtime and
+                    # handles reminder_hours_before setting increases
                     current_time = taiwan_now()
-                    reminder_time = current_time + timedelta(hours=clinic.reminder_hours_before)
-                    reminder_window_start = reminder_time - timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
-                    reminder_window_end = reminder_time + timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
+                    reminder_window_start = current_time
+                    reminder_window_end = current_time + timedelta(
+                        hours=clinic.reminder_hours_before,
+                        minutes=REMINDER_WINDOW_SIZE_MINUTES
+                    )
 
                     # Get confirmed appointments for this clinic in the reminder window
                     appointments_needing_reminders = self._get_appointments_needing_reminders(
@@ -144,127 +152,6 @@ class ReminderService:
 
             except Exception as e:
                 logger.exception(f"Error sending pending reminders: {e}")
-
-    async def _catch_up_missed_reminders(self) -> None:
-        """
-        Catch up on missed reminders due to server downtime or reminder_hours_before setting changes.
-        
-        This method:
-        1. Handles server downtime recovery: Finds appointments that should have been reminded
-           during downtime but weren't
-        2. Handles reminder_hours_before setting increases: When the setting increases,
-           appointments that should have been reminded with the new setting but weren't
-           will be caught up
-        
-        Only sends reminders for future appointments within the catch-up window to avoid
-        sending reminders for past appointments.
-        
-        Uses a fresh database session to avoid stale session issues.
-        """
-        # Use fresh database session for catch-up logic
-        with get_db_context() as db:
-            try:
-                logger.info("Running catch-up logic for missed reminders...")
-                
-                current_time = taiwan_now()
-                catchup_window_end = current_time + timedelta(hours=REMINDER_CATCHUP_WINDOW_HOURS)
-                
-                # Get all clinics
-                clinics = db.query(Clinic).all()
-                
-                total_caught_up = 0
-                
-                for clinic in clinics:
-                    # Calculate catch-up window for this clinic
-                    # We check for appointments that should have been reminded based on
-                    # the current reminder_hours_before setting
-                    reminder_hours = clinic.reminder_hours_before
-                    
-                    # Find appointments that:
-                    # 1. Are confirmed and haven't received reminders yet
-                    # 2. Are in the future (not past)
-                    # 3. Are within the catch-up window (next 48 hours)
-                    # 4. Should have been reminded based on current reminder_hours_before setting
-                    #
-                    # Optimize query by filtering in SQL:
-                    # - appointment_time > current_time (future appointments)
-                    # - appointment_time <= catchup_window_end (within catch-up window)
-                    # - appointment_time <= current_time + reminder_hours_before (should have been reminded)
-                    
-                    # Calculate bounds for SQL filtering
-                    # Upper bound: min(catchup_window_end, current_time + reminder_hours_before)
-                    upper_bound = min(catchup_window_end, current_time + timedelta(hours=reminder_hours))
-                    lower_bound = current_time
-                    
-                    # Convert bounds to date/time for SQL filtering
-                    lower_bound_date = lower_bound.date()
-                    lower_bound_time = lower_bound.time()
-                    upper_bound_date = upper_bound.date()
-                    upper_bound_time = upper_bound.time()
-                    
-                    # Build SQL query with date/time filtering
-                    # Filter by date range first, then by time for boundary dates
-                    query = db.query(Appointment).join(CalendarEvent).join(
-                        Appointment.patient
-                    ).filter(
-                        Appointment.status == "confirmed",
-                        Appointment.patient.has(clinic_id=clinic.id),
-                        Appointment.reminder_sent_at.is_(None),  # Haven't received reminders yet
-                        # Appointment date is after lower bound date, or on lower bound date with time after lower bound time
-                        or_(
-                            CalendarEvent.date > lower_bound_date,
-                            and_(
-                                CalendarEvent.date == lower_bound_date,
-                                CalendarEvent.start_time > lower_bound_time
-                            )
-                        ),
-                        # Appointment date is before upper bound date, or on upper bound date with time before/equal to upper bound time
-                        or_(
-                            CalendarEvent.date < upper_bound_date,
-                            and_(
-                                CalendarEvent.date == upper_bound_date,
-                                CalendarEvent.start_time <= upper_bound_time
-                            )
-                        )
-                    )
-                    
-                    # Execute query and get appointments
-                    appointments_needing_catchup = query.all()
-                    
-                    if appointments_needing_catchup:
-                        logger.info(
-                            f"Found {len(appointments_needing_catchup)} appointment(s) for clinic {clinic.id} "
-                            f"needing catch-up reminders"
-                        )
-                        
-                        # Send catch-up reminders
-                        for appointment in appointments_needing_catchup:
-                            # Calculate ideal reminder time for logging
-                            appointment_datetime = ensure_taiwan(datetime.combine(
-                                appointment.calendar_event.date,
-                                appointment.calendar_event.start_time
-                            ))
-                            ideal_reminder_time = appointment_datetime - timedelta(hours=reminder_hours) if appointment_datetime else None
-                            
-                            if await self._send_reminder_for_appointment(db, appointment):
-                                total_caught_up += 1
-                                if ideal_reminder_time:
-                                    logger.info(
-                                        f"Sent catch-up reminder for appointment {appointment.calendar_event_id} "
-                                        f"(should have been reminded at {ideal_reminder_time})"
-                                    )
-                                else:
-                                    logger.info(
-                                        f"Sent catch-up reminder for appointment {appointment.calendar_event_id}"
-                                    )
-                
-                if total_caught_up > 0:
-                    logger.info(f"Successfully sent {total_caught_up} catch-up reminder(s)")
-                else:
-                    logger.info("No appointments found that need catch-up reminders")
-                    
-            except Exception as e:
-                logger.exception(f"Error in catch-up logic for missed reminders: {e}")
 
     def _get_appointments_needing_reminders(
         self,
@@ -321,7 +208,7 @@ class ReminderService:
         # Execute query and return results
         return query.all()
 
-    def _format_reminder_message(
+    def format_reminder_message(
         self,
         appointment_type: str,
         appointment_time: str,
@@ -354,35 +241,6 @@ class ReminderService:
         )
 
         return message
-
-    def generate_reminder_preview(
-        self,
-        appointment_type: str,
-        appointment_time: str,
-        therapist_name: str,
-        clinic: "Clinic"
-    ) -> str:
-        """
-        Generate a preview of what a LINE reminder message would look like.
-
-        This method can be used by API endpoints to show users what their
-        reminder messages will look like before they are sent.
-
-        Args:
-            appointment_type: Name of the appointment type
-            appointment_time: Formatted appointment time (e.g., "12/25 (三) 1:30 PM")
-            therapist_name: Name of the therapist/practitioner
-            clinic: Clinic object with display information
-
-        Returns:
-            Formatted reminder message string
-        """
-        return self._format_reminder_message(
-            appointment_type=appointment_type,
-            appointment_time=appointment_time,
-            therapist_name=therapist_name,
-            clinic=clinic
-        )
 
     async def _send_reminder_for_appointment(self, db: Session, appointment: Appointment) -> bool:
         """
@@ -427,7 +285,7 @@ class ReminderService:
             appointment_time = format_datetime(appointment_datetime)
             appointment_type = appointment.appointment_type.name
 
-            message = self._format_reminder_message(
+            message = self.format_reminder_message(
                 appointment_type=appointment_type,
                 appointment_time=appointment_time,
                 therapist_name=therapist_name,
@@ -455,27 +313,6 @@ class ReminderService:
             db.rollback()
             logger.exception(f"Failed to send reminder for appointment {appointment.calendar_event_id}: {e}")
             return False
-
-    async def send_immediate_reminder(self, appointment_id: int, db: Session) -> bool:
-        """
-        Send an immediate reminder for a specific appointment.
-
-        This can be used for testing or manual reminder sending.
-
-        Args:
-            appointment_id: ID of the appointment to send reminder for
-            db: Database session
-
-        Returns:
-            True if reminder was sent successfully, False otherwise
-        """
-        appointment = db.query(Appointment).filter_by(id=appointment_id).first()
-        if not appointment:
-            logger.warning(f"Appointment {appointment_id} not found")
-            return False
-
-        return await self._send_reminder_for_appointment(db, appointment)
-
 
 # Global reminder service instance
 _reminder_service: Optional[ReminderService] = None

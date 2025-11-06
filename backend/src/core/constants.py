@@ -49,12 +49,3 @@ REMINDER_WINDOW_SIZE_MINUTES = 35  # ±35 minutes window around reminder time
 
 # Reminder scheduler settings
 REMINDER_SCHEDULER_MAX_INSTANCES = 1  # Prevent overlapping scheduler runs
-
-# Reminder catch-up settings
-REMINDER_CATCHUP_WINDOW_HOURS = 48  # Catch-up window for missed reminders (48 hours)
-# When the server starts up or reminder_hours_before setting increases, we check for
-# future appointments within the next 48 hours that should have been reminded but weren't.
-# This prevents missed reminders due to:
-# - Server downtime
-# - reminder_hours_before setting increases
-# Only future appointments within this window will receive catch-up reminders.

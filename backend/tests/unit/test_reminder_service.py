@@ -585,23 +585,29 @@ class TestReminderServiceWindowBoundaries:
         # Create reminder service
         reminder_service = ReminderService()
 
-        # Calculate reminder window using REMINDER_WINDOW_SIZE_MINUTES
-        window_start = reminder_time - timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
-        window_end = reminder_time + timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
+        # Calculate reminder window using new logic: current_time to current_time + reminder_hours_before + window_size
+        window_start = current_time
+        window_end = current_time + timedelta(hours=24, minutes=REMINDER_WINDOW_SIZE_MINUTES)
 
         # Get appointments needing reminders
         appointments = reminder_service._get_appointments_needing_reminders(
             db_session, clinic.id, window_start, window_end
         )
 
-        # Should include appointments at boundaries (appointment1 and appointment2)
-        # Should exclude appointments outside boundaries (appointment3 and appointment4)
-        assert len(appointments) == 2
+        # With new window logic:
+        # - Window: current_time to current_time + 24h + 35min
+        # - Appointment 1: at (reminder_time - 35min) = (current_time + 24h - 35min) - IN WINDOW
+        # - Appointment 2: at (reminder_time + 35min) = (current_time + 24h + 35min) - AT BOUNDARY (included)
+        # - Appointment 3: at (reminder_time - 36min) = (current_time + 24h - 36min) - IN WINDOW (earlier than appointment 1)
+        # - Appointment 4: at (reminder_time + 36min) = (current_time + 24h + 36min) - OUT OF WINDOW
+        # Should include appointments 1, 2, and 3 (all within window)
+        # Should exclude appointment 4 (outside window)
+        assert len(appointments) == 3
         appointment_ids = {app.calendar_event_id for app in appointments}
-        assert calendar_event1.id in appointment_ids  # At start boundary
-        assert calendar_event2.id in appointment_ids  # At end boundary
-        assert calendar_event3.id not in appointment_ids  # Outside start boundary
-        assert calendar_event4.id not in appointment_ids  # Outside end boundary
+        assert calendar_event1.id in appointment_ids
+        assert calendar_event2.id in appointment_ids
+        assert calendar_event3.id in appointment_ids
+        assert calendar_event4.id not in appointment_ids
 
     @pytest.mark.asyncio
     async def test_overlap_prevents_duplicate_reminders(self, db_session):
@@ -706,13 +712,14 @@ class TestReminderServiceWindowBoundaries:
         reminder_service = ReminderService()
 
         # Simulate first run (at hour H)
-        window_start_run1 = reminder_time - timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
-        window_end_run1 = reminder_time + timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
+        # New window logic: current_time to current_time + reminder_hours_before + window_size
+        window_start_run1 = current_time
+        window_end_run1 = current_time + timedelta(hours=24, minutes=REMINDER_WINDOW_SIZE_MINUTES)
         appointments_run1 = reminder_service._get_appointments_needing_reminders(
             db_session, clinic.id, window_start_run1, window_end_run1
         )
         
-        # Appointment should be found in first run
+        # Appointment should be found in first run (it's 24 hours away, within window)
         assert len(appointments_run1) == 1
         assert appointments_run1[0].calendar_event_id == calendar_event.id
 
@@ -730,19 +737,18 @@ class TestReminderServiceWindowBoundaries:
         db_session.refresh(appointment)
 
         # Simulate second run (at hour H+1) - 1 hour later
-        # This would check appointments 24 hours before (H+1)
-        # But the appointment is now 25 hours before (H+1), so it wouldn't be in the window
-        # However, if it were in the overlap zone, reminder_sent_at would prevent duplicate
-        reminder_time_run2 = current_time + timedelta(hours=25)  # 1 hour later
-        window_start_run2 = reminder_time_run2 - timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
-        window_end_run2 = reminder_time_run2 + timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
+        # New window logic: current_time + 1h to current_time + 1h + reminder_hours_before + window_size
+        current_time_run2 = current_time + timedelta(hours=1)  # 1 hour later
+        window_start_run2 = current_time_run2
+        window_end_run2 = current_time_run2 + timedelta(hours=24, minutes=REMINDER_WINDOW_SIZE_MINUTES)
         appointments_run2 = reminder_service._get_appointments_needing_reminders(
             db_session, clinic.id, window_start_run2, window_end_run2
         )
 
         # Appointment should NOT be found in second run because:
-        # 1. It's now 25 hours before (outside the 24-hour window)
-        # 2. Even if it were in the window, reminder_sent_at would prevent it
+        # 1. reminder_sent_at is set (prevents duplicates)
+        # 2. Even if reminder_sent_at wasn't set, the appointment is now 25 hours away,
+        #    which is outside the window (current_time + 1h to current_time + 1h + 24h + 35min)
         assert len(appointments_run2) == 0
 
         # Verify reminder_sent_at was set
@@ -750,11 +756,15 @@ class TestReminderServiceWindowBoundaries:
 
 
 class TestReminderServiceCatchUp:
-    """Test cases for catch-up logic (downtime recovery and setting changes)."""
+    """Test cases for catch-up logic (downtime recovery and setting changes).
+    
+    Note: Catch-up logic is now integrated into _send_pending_reminders
+    using the new window logic (current_time to current_time + reminder_hours_before + window_size).
+    """
 
     @pytest.mark.asyncio
     async def test_catch_up_missed_reminders_during_downtime(self, db_session):
-        """Test that catch-up logic sends reminders for appointments missed during downtime."""
+        """Test that _send_pending_reminders catches up on missed reminders during downtime."""
         # Create test data
         clinic = Clinic(
             name="Test Clinic",
@@ -850,8 +860,8 @@ class TestReminderServiceCatchUp:
                 yield db_session
             mock_get_db_context.return_value = mock_db_context()
 
-            # Run catch-up logic
-            await reminder_service._catch_up_missed_reminders()
+            # Run reminder check (now includes catch-up logic)
+            await reminder_service._send_pending_reminders()
 
             # Verify reminder was sent
             mock_line_service.send_text_message.assert_called_once()
@@ -862,7 +872,7 @@ class TestReminderServiceCatchUp:
 
     @pytest.mark.asyncio
     async def test_catch_up_skips_past_appointments(self, db_session):
-        """Test that catch-up logic skips past appointments."""
+        """Test that _send_pending_reminders skips past appointments."""
         # Create test data
         clinic = Clinic(
             name="Test Clinic",
@@ -933,14 +943,22 @@ class TestReminderServiceCatchUp:
         # Create reminder service
         reminder_service = ReminderService()
 
-        # Mock LINE service
-        with patch('services.reminder_service.LINEService') as mock_line_service_class:
+        # Mock LINE service and get_db_context
+        with patch('services.reminder_service.LINEService') as mock_line_service_class, \
+             patch('services.reminder_service.get_db_context') as mock_get_db_context:
             mock_line_service = Mock()
             mock_line_service.send_text_message.return_value = None
             mock_line_service_class.return_value = mock_line_service
+            
+            # Mock get_db_context to return the test session
+            from contextlib import contextmanager
+            @contextmanager
+            def mock_db_context():
+                yield db_session
+            mock_get_db_context.return_value = mock_db_context()
 
-            # Run catch-up logic
-            await reminder_service._catch_up_missed_reminders()
+            # Run reminder check (now includes catch-up logic)
+            await reminder_service._send_pending_reminders()
 
             # Verify reminder was NOT sent (past appointment)
             mock_line_service.send_text_message.assert_not_called()
@@ -951,7 +969,7 @@ class TestReminderServiceCatchUp:
 
     @pytest.mark.asyncio
     async def test_catch_up_handles_setting_increase(self, db_session):
-        """Test that catch-up logic handles reminder_hours_before setting increases."""
+        """Test that _send_pending_reminders handles reminder_hours_before setting increases."""
         # Create test data
         clinic = Clinic(
             name="Test Clinic",
@@ -1048,8 +1066,8 @@ class TestReminderServiceCatchUp:
                 yield db_session
             mock_get_db_context.return_value = mock_db_context()
 
-            # Run catch-up logic
-            await reminder_service._catch_up_missed_reminders()
+            # Run reminder check (now includes catch-up logic)
+            await reminder_service._send_pending_reminders()
 
             # Verify reminder was sent (caught up with new setting)
             mock_line_service.send_text_message.assert_called_once()
