@@ -91,42 +91,20 @@ else
     exit 1
 fi
 
-# Run TypeScript type checking for frontend
-print_status "Running TypeScript type checking for frontend..."
+# Run frontend tests using test driver script
+print_status "Running frontend tests..."
 cd "$PROJECT_ROOT/frontend"
-if npx tsc --noEmit; then
-    print_success "Frontend TypeScript type checking passed!"
-else
-    print_error "Frontend TypeScript type checking failed!"
-    exit 1
-fi
-
-# Run frontend unit tests (if Vitest is available)
-print_status "Checking for frontend unit tests..."
-cd "$PROJECT_ROOT/frontend"
-# Check if vitest is installed without failing script
-if [ -f "node_modules/.bin/vitest" ] || npm list vitest &> /dev/null 2>&1; then
-    print_status "Running frontend unit tests..."
-    # Check if test script exists in package.json
-    if grep -q '"test"' package.json; then
-        # Temporarily disable exit on error for this check
-        set +e
-        npm test -- --run
-        TEST_EXIT_CODE=$?
-        set -e
-        if [ $TEST_EXIT_CODE -eq 0 ]; then
-            print_success "Frontend unit tests passed!"
-        else
-            print_error "Frontend unit tests failed!"
-            exit 1
-        fi
+if [ -f "run_frontend_tests.sh" ]; then
+    if bash run_frontend_tests.sh; then
+        print_success "Frontend tests passed!"
     else
-        print_warning "Test script not found in package.json"
-        print_warning "Add 'test' script: \"test\": \"vitest\""
+        print_error "Frontend tests failed!"
+        exit 1
     fi
 else
-    print_warning "Vitest not found - skipping frontend unit tests"
-    print_warning "To enable frontend tests, run: cd frontend && npm install --save-dev vitest @vitest/ui jsdom"
+    print_error "Frontend test driver script not found!"
+    print_error "Expected: frontend/run_frontend_tests.sh"
+    exit 1
 fi
 
 # Final success message
