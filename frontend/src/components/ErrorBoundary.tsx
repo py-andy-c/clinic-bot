@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { logger } from '../utils/logger';
+import { errorTracking } from '../utils/errorTracking';
 
 interface Props {
   children: ReactNode;
@@ -22,7 +23,11 @@ class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     logger.error('Uncaught error:', error, errorInfo);
-    // TODO: Send to error tracking service (e.g., Sentry)
+    // Send to error tracking service
+    errorTracking.captureException(error, {
+      componentStack: errorInfo.componentStack,
+      errorBoundary: true,
+    });
   }
 
   private handleRetry = () => {
