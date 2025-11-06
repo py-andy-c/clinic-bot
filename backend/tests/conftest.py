@@ -66,33 +66,6 @@ def db_engine():
     engine.dispose()
 
 
-def get_parent_revision(alembic_cfg: Config) -> str:
-    """Get the parent revision of the current head migration.
-    
-    This is used to stamp the database with the parent of head when
-    we've already created tables from models (which include all columns).
-    This allows us to test only new migrations without conflicts.
-    """
-    from alembic.script import ScriptDirectory
-    script = ScriptDirectory.from_config(alembic_cfg)
-    head_revision = script.get_current_head()
-    
-    if not head_revision:
-        return "base"
-    
-    head_script = script.get_revision(head_revision)
-    if not head_script or not head_script.down_revision:
-        return "base"
-    
-    # Handle multiple parents (branching) by using the first one
-    if isinstance(head_script.down_revision, tuple):
-        return head_script.down_revision[0]
-    elif isinstance(head_script.down_revision, str):
-        return head_script.down_revision
-    else:
-        return "base"
-
-
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_database(db_engine):
     """
@@ -101,30 +74,28 @@ def setup_test_database(db_engine):
     This runs once at the start of the test session and ensures
     the test database has the correct schema from migrations.
 
-    Strategy: Create base tables from models, stamp with parent of head, then run new migrations.
-    This ensures base tables exist (since some migrations only modify them),
-    while still testing that new migrations work correctly.
+    Strategy: Run all migrations from scratch (base → head).
+    This tests that ALL migrations work correctly together.
+    
+    After Path B Week 2 (migration history reset), we now have a baseline migration
+    that creates all tables from scratch. This allows us to use the simplified
+    approach of just running all migrations from scratch.
     """
     alembic_cfg = Config("alembic.ini")
     alembic_cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
 
-    # Drop all tables to start fresh
+    # Drop all tables to start fresh (including alembic_version if it exists)
     Base.metadata.drop_all(bind=db_engine)
+    
+    # Explicitly drop alembic_version table if it exists
+    # This ensures we start with a clean state after migration history reset
+    with db_engine.connect() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+        conn.commit()
 
-    # Create base tables from models first
-    # Some migrations assume tables exist and only modify them (e.g., add columns)
-    # Creating base tables ensures the schema exists before migrations run
-    Base.metadata.create_all(bind=db_engine)
-
-    # Stamp database with parent of head
-    # Since models already have all columns from existing migrations,
-    # we stamp with the parent of head to mark existing migrations as applied
-    # This allows us to test only new migrations without conflicts
-    stamp_revision = get_parent_revision(alembic_cfg)
-    command.stamp(alembic_cfg, stamp_revision)
-
-    # Run migrations to upgrade to head
-    # This applies only new migrations that come after the stamp point
+    # Run all migrations from scratch (base → head)
+    # With the baseline migration, this creates all tables from scratch
+    # This tests that ALL migrations work correctly together
     command.upgrade(alembic_cfg, "head")
 
     yield
