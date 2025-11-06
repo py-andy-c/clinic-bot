@@ -31,8 +31,9 @@ const Step7Success: React.FC = () => {
 
     try {
       // Use the created appointment's start_time and end_time
-      const startDateTimeTaiwan = moment(createdAppointment.start_time);
-      const endDateTimeTaiwan = moment(createdAppointment.end_time);
+      // Parse as Taiwan time to ensure correct timezone handling
+      const startDateTimeTaiwan = moment.tz(createdAppointment.start_time, 'Asia/Taipei');
+      const endDateTimeTaiwan = moment.tz(createdAppointment.end_time, 'Asia/Taipei');
 
       if (!startDateTimeTaiwan.isValid() || !endDateTimeTaiwan.isValid()) {
         logger.error('Invalid date/time from created appointment:', createdAppointment);
@@ -101,8 +102,9 @@ const Step7Success: React.FC = () => {
   const formatDateTime = () => {
     if (!createdAppointment) return '';
 
-    // Parse the start_time from created appointment (already in Taiwan timezone)
-    const taiwanMoment = moment(createdAppointment.start_time);
+    // Parse the start_time from created appointment as Taiwan time
+    // The ISO string from API has timezone info, but we need to ensure it's interpreted as Taiwan time
+    const taiwanMoment = moment.tz(createdAppointment.start_time, 'Asia/Taipei');
 
     if (!taiwanMoment.isValid()) {
       return '';

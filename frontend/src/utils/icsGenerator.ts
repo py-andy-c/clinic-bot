@@ -78,7 +78,7 @@ END:VCALENDAR`;
 // Input is Taiwan time ISO string (with +08:00), convert to UTC for ICS format
 const formatICSDate = (date: Date | string): string => {
   // Parse as Taiwan time and convert to UTC for ICS format
-  const twMoment = moment(date);
+  const twMoment = moment.tz(date, 'Asia/Taipei');
   // Format as YYYYMMDDTHHMMSSZ (UTC format required by ICS)
   return twMoment.utc().format('YYYYMMDDTHHmmss') + 'Z';
 };
@@ -100,16 +100,9 @@ export const generateGoogleCalendarURL = (appointment: AppointmentData): string 
   // Using ctz=Asia/Taipei parameter so Google Calendar handles timezone conversion correctly
   // This avoids DST issues when converting to user's local timezone
   const formatGoogleCalendarDate = (date: Date | string): string => {
-    // Parse Taiwan time ISO string (with timezone indicator)
-    let twMoment;
-    
-    if (typeof date === 'string') {
-      // Parse as Taiwan time (already in Taiwan timezone with +08:00)
-      twMoment = moment(date);
-    } else {
-      // If Date object, assume it's in Taiwan time (shouldn't happen with our flow)
-      twMoment = moment.tz(date, 'Asia/Taipei');
-    }
+    // Parse as Taiwan time to ensure correct timezone handling
+    // Always use moment.tz to explicitly set Taiwan timezone
+    const twMoment = moment.tz(date, 'Asia/Taipei');
     
     // Format as YYYYMMDDTHHMMSS (no timezone suffix when using ctz parameter)
     return twMoment.format('YYYYMMDDTHHmmss');
