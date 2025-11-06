@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { AppointmentType } from '../types';
+import { AppointmentType, Practitioner } from '../types';
 
 export interface Patient {
   id: number;

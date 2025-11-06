@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { logger } from '../../utils/logger';
+import { validatePhoneNumber } from '../../utils/phoneValidation';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 import { preserveQueryParams } from '../../utils/urlUtils';
@@ -12,11 +13,6 @@ const FirstTimeRegister: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const validatePhoneNumber = (phone: string): boolean => {
-    // Taiwanese phone number format: 09xxxxxxxx (10 digits)
-    const phoneRegex = /^09\d{8}$/;
-    return phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''));
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,8 +27,9 @@ const FirstTimeRegister: React.FC = () => {
       return;
     }
 
-    if (!validatePhoneNumber(phoneNumber)) {
-      setError('手機號碼格式不正確，請輸入09開頭的10位數字');
+    const phoneValidation = validatePhoneNumber(phoneNumber);
+    if (!phoneValidation.isValid && phoneValidation.error) {
+      setError(phoneValidation.error);
       return;
     }
 

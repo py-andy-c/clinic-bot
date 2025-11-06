@@ -307,3 +307,5 @@ export interface ClinicSettings {
     reminder_hours_before: string | number;
   };
 }
+
+export * from './api';

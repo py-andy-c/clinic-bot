@@ -40,7 +40,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: false,
     isLoading: true,
   });
-
+  
   const clearAuthState = useCallback(() => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('was_logged_in');

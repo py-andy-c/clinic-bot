@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { logger } from '../../utils/logger';
+import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { Practitioner } from '../../types';
 import { liffApiService } from '../../services/liffApi';
@@ -37,7 +38,7 @@ const Step2SelectPractitioner: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <LoadingSpinner />
       </div>
     );
   }
@@ -45,15 +46,7 @@ const Step2SelectPractitioner: React.FC = () => {
   if (error) {
     return (
       <div className="px-4 py-8">
-        <div className="bg-red-50 border border-red-200 rounded-md p-4 text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-          >
-            重試
-          </button>
-        </div>
+        <ErrorMessage message={error} onRetry={() => window.location.reload()} />
       </div>
     );
   }

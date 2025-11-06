@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
 import { ModalProvider } from './contexts/ModalContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import { LoadingSpinner } from './components/shared';
 // Lazy load page components for code splitting
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SystemAdminLayout = lazy(() => import('./components/SystemAdminLayout'));
@@ -23,19 +24,11 @@ const AppRoutes: React.FC = () => {
   const { isLoading } = useAuth();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600"></div>
-      </div>
-    );
+    return <LoadingSpinner size="xl" fullScreen />;
   }
 
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600"></div>
-      </div>
-    }>
+    <Suspense fallback={<LoadingSpinner size="xl" fullScreen />}>
       <Routes>
         {/* LIFF routes */}
         <Route path="/liff/*" element={<ModalProvider><LiffApp /></ModalProvider>} />

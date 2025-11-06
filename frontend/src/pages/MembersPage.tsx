@@ -4,6 +4,7 @@ import { useModal } from '../contexts/ModalContext';
 import { apiService } from '../services/api';
 import { Member, UserRole, MemberInviteData } from '../types';
 import { logger } from '../utils/logger';
+import { LoadingSpinner } from '../components/shared';
 import PageHeader from '../components/PageHeader';
 
 const MembersPage: React.FC = () => {
@@ -167,7 +168,7 @@ const MembersPage: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <LoadingSpinner />
       </div>
     );
   }

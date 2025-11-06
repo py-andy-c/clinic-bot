@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { logger } from '../../utils/logger';
+import { LoadingSpinner } from '../../components/shared';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 
@@ -253,7 +254,7 @@ const Step3SelectDateTime: React.FC = () => {
         {/* Calendar Grid */}
         {loadingAvailability ? (
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+            <LoadingSpinner size="sm" />
           </div>
         ) : (
           <div className="grid grid-cols-7 gap-1">
@@ -306,7 +307,7 @@ const Step3SelectDateTime: React.FC = () => {
 
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+              <LoadingSpinner size="sm" />
             </div>
           ) : error ? (
             <div className="bg-red-50 border border-red-200 rounded-md p-3">

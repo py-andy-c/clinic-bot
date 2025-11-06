@@ -1,6 +1,7 @@
 import React from 'react';
 import { TimeInterval } from '../types';
 import { logger } from '../utils/logger';
+import { LoadingSpinner } from '../components/shared';
 import { useAuth } from '../hooks/useAuth';
 import { useSettingsPage } from '../hooks/useSettingsPage';
 import { validateProfileSettings, getProfileSectionChanges } from '../utils/profileSettings';
@@ -157,7 +158,7 @@ const ProfilePage: React.FC = () => {
   if (uiState.loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600"></div>
+        <LoadingSpinner size="xl" />
       </div>
     );
   }

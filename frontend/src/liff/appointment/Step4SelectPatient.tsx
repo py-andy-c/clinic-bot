@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { logger } from '../../utils/logger';
+import { LoadingSpinner } from '../../components/shared';
+import { validatePhoneNumber } from '../../utils/phoneValidation';
+import { ApiErrorType, getErrorMessage } from '../../types';
 import { useAppointmentStore, Patient } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 
@@ -33,11 +36,6 @@ const Step4SelectPatient: React.FC = () => {
     setPatient(patient.id, patient);
   };
 
-  const validatePhoneNumber = (phone: string): boolean => {
-    // Taiwanese phone number format: 09xxxxxxxx (10 digits)
-    const phoneRegex = /^09\d{8}$/;
-    return phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''));
-  };
 
   const handleAddPatient = async () => {
     if (!newPatientName.trim() || !clinicId) return;
@@ -48,8 +46,9 @@ const Step4SelectPatient: React.FC = () => {
       return;
     }
 
-    if (!validatePhoneNumber(newPatientPhone)) {
-      setError('手機號碼格式不正確，請輸入09開頭的10位數字');
+    const phoneValidation = validatePhoneNumber(newPatientPhone);
+    if (!phoneValidation.isValid && phoneValidation.error) {
+      setError(phoneValidation.error);
       return;
     }
 
@@ -72,25 +71,10 @@ const Step4SelectPatient: React.FC = () => {
       setNewPatientPhone('');
       setShowAddForm(false);
       setPatient(newPatient.id, newPatient);
-    } catch (err: any) {
+    } catch (err: ApiErrorType) {
       logger.error('Failed to add patient:', err);
-
-      // Handle FastAPI validation errors (422) - detail is an array
-      let errorMessage = '新增就診人失敗，請稍後再試';
-      if (err?.response?.data?.detail) {
-        const detail = err.response.data.detail;
-        if (Array.isArray(detail)) {
-          // Validation error: extract first error message
-          errorMessage = detail[0]?.msg || detail[0]?.message || errorMessage;
-        } else if (typeof detail === 'string') {
-          // Regular error message
-          errorMessage = detail;
-        }
-      } else if (err instanceof Error) {
-        errorMessage = err.message;
-      }
       
-      setError(errorMessage);
+      setError(getErrorMessage(err));
     } finally {
       setIsAdding(false);
     }
@@ -99,7 +83,7 @@ const Step4SelectPatient: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <LoadingSpinner />
       </div>
     );
   }

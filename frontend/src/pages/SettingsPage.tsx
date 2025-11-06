@@ -1,6 +1,7 @@
 import React from 'react';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
+import { LoadingSpinner } from '../components/shared';
 import { ClinicSettings } from '../schemas/api';
 import { AppointmentType } from '../types';
 import { useAuth } from '../hooks/useAuth';
@@ -173,7 +174,7 @@ const SettingsPage: React.FC = () => {
   if (uiState.loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <LoadingSpinner />
       </div>
     );
   }

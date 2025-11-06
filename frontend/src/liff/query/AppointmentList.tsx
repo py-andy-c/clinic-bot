@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { logger } from '../../utils/logger';
+import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { liffApiService } from '../../services/liffApi';
 import AppointmentCard from './AppointmentCard';
 import { useModal } from '../../contexts/ModalContext';
@@ -60,7 +61,7 @@ const AppointmentList: React.FC = () => {
       <div className="min-h-screen bg-gray-50 py-8 px-4">
         <div className="max-w-md mx-auto">
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            <LoadingSpinner />
           </div>
         </div>
       </div>
@@ -71,14 +72,8 @@ const AppointmentList: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 py-8 px-4">
         <div className="max-w-md mx-auto">
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 my-8">
-            <p className="text-red-600 mb-4">{error}</p>
-            <button
-              onClick={loadAppointments}
-              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-            >
-              重試
-            </button>
+          <div className="my-8">
+            <ErrorMessage message={error} onRetry={loadAppointments} />
           </div>
         </div>
       </div>

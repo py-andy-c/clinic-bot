@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { logger } from '../../utils/logger';
+import { LoadingSpinner, ErrorMessage } from '../../components/shared';
+import { validatePhoneNumber } from '../../utils/phoneValidation';
+import { ApiErrorType, getErrorMessage, AxiosErrorResponse } from '../../types';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 import { useModal } from '../../contexts/ModalContext';
@@ -44,11 +47,6 @@ const PatientManagement: React.FC = () => {
     }
   };
 
-  const validatePhoneNumber = (phone: string): boolean => {
-    // Taiwanese phone number format: 09xxxxxxxx (10 digits)
-    const phoneRegex = /^09\d{8}$/;
-    return phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''));
-  };
 
   const handleAddPatient = async () => {
     if (!newPatientName.trim() || !clinicId) return;
@@ -59,8 +57,9 @@ const PatientManagement: React.FC = () => {
       return;
     }
 
-    if (!validatePhoneNumber(newPatientPhone)) {
-      setError('手機號碼格式不正確，請輸入09開頭的10位數字');
+    const phoneValidation = validatePhoneNumber(newPatientPhone);
+    if (!phoneValidation.isValid && phoneValidation.error) {
+      setError(phoneValidation.error);
       return;
     }
 
@@ -77,23 +76,10 @@ const PatientManagement: React.FC = () => {
       setNewPatientName('');
       setNewPatientPhone('');
       setShowAddForm(false);
-    } catch (err: any) {
+    } catch (err: ApiErrorType) {
       logger.error('Failed to add patient:', err);
       
-      // Handle FastAPI validation errors (422) - detail is an array
-      let errorMessage = '新增就診人失敗，請稍後再試';
-      if (err?.response?.data?.detail) {
-        const detail = err.response.data.detail;
-        if (Array.isArray(detail)) {
-          // Validation error: extract first error message
-          errorMessage = detail[0]?.msg || detail[0]?.message || errorMessage;
-        } else if (typeof detail === 'string') {
-          // Regular error message
-          errorMessage = detail;
-        }
-      }
-      
-      setError(errorMessage);
+      setError(getErrorMessage(err));
     } finally {
       setIsAdding(false);
     }
@@ -124,8 +110,9 @@ const PatientManagement: React.FC = () => {
       return;
     }
 
-    if (!validatePhoneNumber(editPatientPhone)) {
-      setError('手機號碼格式不正確，請輸入09開頭的10位數字');
+    const phoneValidation = validatePhoneNumber(editPatientPhone);
+    if (!phoneValidation.isValid && phoneValidation.error) {
+      setError(phoneValidation.error);
       return;
     }
 
@@ -140,23 +127,10 @@ const PatientManagement: React.FC = () => {
       // Reload patients to get updated data
       await loadPatients();
       setEditingPatientId(null);
-    } catch (err: any) {
+    } catch (err: ApiErrorType) {
       logger.error('Failed to update patient:', err);
       
-      // Handle FastAPI validation errors (422) - detail is an array
-      let errorMessage = '更新就診人失敗，請稍後再試';
-      if (err?.response?.data?.detail) {
-        const detail = err.response.data.detail;
-        if (Array.isArray(detail)) {
-          // Validation error: extract first error message
-          errorMessage = detail[0]?.msg || detail[0]?.message || errorMessage;
-        } else if (typeof detail === 'string') {
-          // Regular error message
-          errorMessage = detail;
-        }
-      }
-      
-      setError(errorMessage);
+      setError(getErrorMessage(err));
     } finally {
       setIsUpdating(false);
     }
@@ -179,15 +153,20 @@ const PatientManagement: React.FC = () => {
     try {
       await liffApiService.deletePatient(patientId);
       setPatients(prev => prev.filter(p => p.id !== patientId));
-    } catch (err: any) {
+    } catch (err: ApiErrorType) {
       logger.error('Failed to delete patient:', err);
 
-      // Handle specific error cases
-      if (err?.response?.status === 409) {
-        if (err?.response?.data?.detail === "Cannot delete patient with future appointments") {
-          await showAlert('無法刪除此就診人，因為該就診人尚有未來的預約記錄。\n\n請先刪除或取消相關預約後再試。', '無法刪除');
-        } else if (err?.response?.data?.detail === "至少需保留一位就診人") {
-          await showAlert('至少需保留一位就診人', '無法刪除');
+      // Handle specific error cases - use type guard for Axios error with response
+      if (typeof err === 'object' && err && 'response' in err) {
+        const axiosError = err as AxiosErrorResponse;
+        if (axiosError.response?.status === 409) {
+          if (axiosError.response.data?.detail === "Cannot delete patient with future appointments") {
+            await showAlert('無法刪除此就診人，因為該就診人尚有未來的預約記錄。\n\n請先刪除或取消相關預約後再試。', '無法刪除');
+          } else if (axiosError.response.data?.detail === "至少需保留一位就診人") {
+            await showAlert('至少需保留一位就診人', '無法刪除');
+          } else {
+            await showAlert('刪除就診人失敗，請稍後再試', '刪除失敗');
+          }
         } else {
           await showAlert('刪除就診人失敗，請稍後再試', '刪除失敗');
         }
@@ -202,7 +181,7 @@ const PatientManagement: React.FC = () => {
       <div className="min-h-screen bg-gray-50 py-8 px-4">
         <div className="max-w-md mx-auto">
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            <LoadingSpinner />
           </div>
         </div>
       </div>
@@ -213,14 +192,8 @@ const PatientManagement: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 py-8 px-4">
         <div className="max-w-md mx-auto">
-          <div className="bg-red-50 border border-red-200 rounded-md p-4 my-8">
-            <p className="text-red-600 mb-4">{error}</p>
-            <button
-              onClick={loadPatients}
-              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-            >
-              重試
-            </button>
+          <div className="my-8">
+            <ErrorMessage message={error} onRetry={loadPatients} />
           </div>
         </div>
       </div>

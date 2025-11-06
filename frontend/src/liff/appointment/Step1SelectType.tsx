@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { logger } from '../../utils/logger';
-import { useAppointmentStore, AppointmentType } from '../../stores/appointmentStore';
+import { LoadingSpinner, ErrorMessage } from '../../components/shared';
+import { useAppointmentStore } from '../../stores/appointmentStore';
+import { AppointmentType } from '../../types';
 import { liffApiService } from '../../services/liffApi';
 
 const Step1SelectType: React.FC = () => {
@@ -17,7 +19,13 @@ const Step1SelectType: React.FC = () => {
         setIsLoading(true);
         setError(null);
         const response = await liffApiService.getAppointmentTypes(clinicId);
-        setAppointmentTypes(response.appointment_types);
+        // Map API response to AppointmentType (API returns subset, we add clinic_id)
+        const appointmentTypes: AppointmentType[] = response.appointment_types.map(type => ({
+          ...type,
+          clinic_id: clinicId,
+          is_deleted: false,
+        }));
+        setAppointmentTypes(appointmentTypes);
         setAppointmentTypeInstructions(response.appointment_type_instructions || null);
       } catch (err) {
         logger.error('Failed to load appointment types:', err);
@@ -40,25 +48,13 @@ const Step1SelectType: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <LoadingSpinner />
       </div>
     );
   }
 
   if (error) {
-    return (
-      <div className="px-4 py-8">
-        <div className="bg-red-50 border border-red-200 rounded-md p-4 text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-          >
-            重試
-          </button>
-        </div>
-      </div>
-    );
+    return <ErrorMessage message={error} onRetry={() => window.location.reload()} />;
   }
 
   return (

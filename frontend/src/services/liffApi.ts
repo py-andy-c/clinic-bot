@@ -181,7 +181,10 @@ class LiffApiService {
   }
 
   // Appointment Types
-  async getAppointmentTypes(_clinicId: number): Promise<{ appointment_types: Array<{ id: number; name: string; duration_minutes: number }>; appointment_type_instructions?: string }> {
+  async getAppointmentTypes(_clinicId: number): Promise<{ 
+    appointment_types: Array<{ id: number; name: string; duration_minutes: number }>; 
+    appointment_type_instructions?: string 
+  }> {
     // Clinic ID is already in the JWT token, don't need it in URL
     const response = await this.client.get('/liff/appointment-types');
     return response.data;

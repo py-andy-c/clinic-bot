@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
+import { LoadingSpinner } from './shared';
 
 interface PractitionerAppointmentTypesProps {
   selectedAppointmentTypeIds?: number[];
@@ -52,10 +53,10 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
 
       // Get practitioner's current appointment types (only set internal state if not using external)
       const practitionerData = await apiService.getPractitionerAppointmentTypes(user.user_id);
-      const selectedIds = practitionerData.appointment_types.map((at: any) => at.id);
+      const selectedIds = practitionerData.appointment_types.map((at: { id: number }) => at.id);
       
       // Defensive filtering: only include IDs that exist in available types
-      const availableTypeIds = new Set(clinicSettings.appointment_types.map((at: any) => at.id));
+      const availableTypeIds = new Set(clinicSettings.appointment_types.map((at: { id: number }) => at.id));
       const validSelectedIds = selectedIds.filter((id: number) => availableTypeIds.has(id));
       
       if (externalSelectedTypeIds === undefined) {
@@ -89,7 +90,7 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <LoadingSpinner />
       </div>
     );
   }
