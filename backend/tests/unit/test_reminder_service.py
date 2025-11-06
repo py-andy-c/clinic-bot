@@ -748,3 +748,307 @@ class TestReminderServiceWindowBoundaries:
         # Verify reminder_sent_at was set
         assert appointment.reminder_sent_at is not None
 
+
+class TestReminderServiceCatchUp:
+    """Test cases for catch-up logic (downtime recovery and setting changes)."""
+
+    @pytest.mark.asyncio
+    async def test_catch_up_missed_reminders_during_downtime(self, db_session):
+        """Test that catch-up logic sends reminders for appointments missed during downtime."""
+        # Create test data
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            subscription_status="trial"
+        )
+        clinic.settings = {
+            "notification_settings": {
+                "reminder_hours_before": 24
+            }
+        }
+        db_session.add(clinic)
+        db_session.flush()
+
+        user = User(
+            clinic_id=clinic.id,
+            email="therapist@test.com",
+            google_subject_id="therapist_subject_123",
+            full_name="Test Therapist",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        from models.line_user import LineUser
+        line_user = LineUser(
+            line_user_id="test_line_user_id",
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.flush()
+        patient.line_user_id = line_user.id
+        db_session.flush()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create appointment that should have been reminded but wasn't
+        # Appointment is in 12 hours (should have been reminded 12 hours ago with 24h setting)
+        current_time = taiwan_now()
+        appointment_time = current_time + timedelta(hours=12)
+        
+        calendar_event = CalendarEvent(
+            user_id=user.id,
+            event_type="appointment",
+            date=appointment_time.date(),
+            start_time=appointment_time.time(),
+            end_time=(appointment_time + timedelta(minutes=60)).time()
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed",
+            reminder_sent_at=None  # No reminder sent yet (missed during downtime)
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Create reminder service
+        reminder_service = ReminderService(db_session)
+
+        # Mock LINE service
+        with patch('services.reminder_service.LINEService') as mock_line_service_class:
+            mock_line_service = Mock()
+            mock_line_service.send_text_message.return_value = None
+            mock_line_service_class.return_value = mock_line_service
+
+            # Run catch-up logic
+            await reminder_service._catch_up_missed_reminders()
+
+            # Verify reminder was sent
+            mock_line_service.send_text_message.assert_called_once()
+            
+            # Verify reminder_sent_at was updated
+            db_session.refresh(appointment)
+            assert appointment.reminder_sent_at is not None
+
+    @pytest.mark.asyncio
+    async def test_catch_up_skips_past_appointments(self, db_session):
+        """Test that catch-up logic skips past appointments."""
+        # Create test data
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            subscription_status="trial"
+        )
+        clinic.settings = {
+            "notification_settings": {
+                "reminder_hours_before": 24
+            }
+        }
+        db_session.add(clinic)
+        db_session.flush()
+
+        user = User(
+            clinic_id=clinic.id,
+            email="therapist@test.com",
+            google_subject_id="therapist_subject_123",
+            full_name="Test Therapist",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create past appointment (should not receive catch-up reminder)
+        current_time = taiwan_now()
+        appointment_time = current_time - timedelta(hours=1)  # Past appointment
+        
+        calendar_event = CalendarEvent(
+            user_id=user.id,
+            event_type="appointment",
+            date=appointment_time.date(),
+            start_time=appointment_time.time(),
+            end_time=(appointment_time + timedelta(minutes=60)).time()
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed",
+            reminder_sent_at=None
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Create reminder service
+        reminder_service = ReminderService(db_session)
+
+        # Mock LINE service
+        with patch('services.reminder_service.LINEService') as mock_line_service_class:
+            mock_line_service = Mock()
+            mock_line_service.send_text_message.return_value = None
+            mock_line_service_class.return_value = mock_line_service
+
+            # Run catch-up logic
+            await reminder_service._catch_up_missed_reminders()
+
+            # Verify reminder was NOT sent (past appointment)
+            mock_line_service.send_text_message.assert_not_called()
+            
+            # Verify reminder_sent_at was NOT updated
+            db_session.refresh(appointment)
+            assert appointment.reminder_sent_at is None
+
+    @pytest.mark.asyncio
+    async def test_catch_up_handles_setting_increase(self, db_session):
+        """Test that catch-up logic handles reminder_hours_before setting increases."""
+        # Create test data
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            subscription_status="trial"
+        )
+        # Setting was increased from 24 to 48 hours
+        clinic.settings = {
+            "notification_settings": {
+                "reminder_hours_before": 48
+            }
+        }
+        db_session.add(clinic)
+        db_session.flush()
+
+        user = User(
+            clinic_id=clinic.id,
+            email="therapist@test.com",
+            google_subject_id="therapist_subject_123",
+            full_name="Test Therapist",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        from models.line_user import LineUser
+        line_user = LineUser(
+            line_user_id="test_line_user_id",
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.flush()
+        patient.line_user_id = line_user.id
+        db_session.flush()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create appointment that should have been reminded with new 48h setting
+        # Appointment is in 36 hours (should have been reminded 12 hours ago with 48h setting)
+        current_time = taiwan_now()
+        appointment_time = current_time + timedelta(hours=36)
+        
+        calendar_event = CalendarEvent(
+            user_id=user.id,
+            event_type="appointment",
+            date=appointment_time.date(),
+            start_time=appointment_time.time(),
+            end_time=(appointment_time + timedelta(minutes=60)).time()
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed",
+            reminder_sent_at=None  # No reminder sent yet (would have been sent with old 24h setting)
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Create reminder service
+        reminder_service = ReminderService(db_session)
+
+        # Mock LINE service
+        with patch('services.reminder_service.LINEService') as mock_line_service_class:
+            mock_line_service = Mock()
+            mock_line_service.send_text_message.return_value = None
+            mock_line_service_class.return_value = mock_line_service
+
+            # Run catch-up logic
+            await reminder_service._catch_up_missed_reminders()
+
+            # Verify reminder was sent (caught up with new setting)
+            mock_line_service.send_text_message.assert_called_once()
+            
+            # Verify reminder_sent_at was updated
+            db_session.refresh(appointment)
+            assert appointment.reminder_sent_at is not None
+
+    def test_scheduler_timezone_is_taiwan(self, db_session):
+        """Test that scheduler is configured with Taiwan timezone."""
+        reminder_service = ReminderService(db_session)
+        
+        # Verify scheduler timezone is set to Taiwan timezone
+        assert reminder_service.scheduler.timezone is not None
+        # The scheduler timezone should be TAIWAN_TZ
+        from utils.datetime_utils import TAIWAN_TZ
+        assert reminder_service.scheduler.timezone == TAIWAN_TZ
+
