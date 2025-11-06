@@ -228,17 +228,6 @@ class LiffApiService {
     return response.data;
   }
 
-  // ICS Download
-  async getAppointmentICS(appointmentId: number): Promise<Blob> {
-    const response = await this.client.get(`/liff/appointments/${appointmentId}/ics`, {
-      responseType: 'blob',
-      headers: {
-        'Accept': 'text/calendar',
-      },
-    });
-    return response.data;
-  }
-
   // Clinic Info
   async getClinicInfo(): Promise<ClinicInfoResponse> {
     const response = await this.client.get('/liff/clinic-info');

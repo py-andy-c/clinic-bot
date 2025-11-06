@@ -189,54 +189,6 @@ async def get_clinic(
         )
 
 
-@router.put("/clinics/{clinic_id}", summary="Update clinic information")
-async def update_clinic(
-    clinic_id: int,
-    updates: Dict[str, Any],
-    current_user: UserContext = Depends(require_system_admin),
-    db: Session = Depends(get_db)
-) -> ClinicResponse:
-    """
-    Update clinic information (subscription status, settings, etc.).
-    """
-    try:
-        clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
-
-        if not clinic:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到診所"
-            )
-
-        # Update allowed fields
-        allowed_fields = ["name", "subscription_status", "trial_ends_at", "stripe_customer_id"]
-        for field in allowed_fields:
-            if field in updates:
-                setattr(clinic, field, updates[field])
-
-        db.commit()
-        db.refresh(clinic)
-
-        return ClinicResponse(
-            id=clinic.id,
-            name=clinic.name,
-            line_channel_id=clinic.line_channel_id,
-            subscription_status=clinic.subscription_status,
-            trial_ends_at=clinic.trial_ends_at,
-            created_at=clinic.created_at
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.exception(f"Failed to update clinic {clinic_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="更新診所失敗"
-        )
-
-
 @router.post("/clinics/{clinic_id}/signup-link", summary="Generate clinic admin signup link")
 async def generate_clinic_signup_link(
     clinic_id: int,

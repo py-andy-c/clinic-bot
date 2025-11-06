@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -27,7 +27,6 @@ from services.notification_service import NotificationService, CancellationSourc
 from utils.appointment_type_queries import count_active_appointment_types_for_practitioner
 from api.responses import (
     ClinicPatientResponse, ClinicPatientListResponse,
-    ClinicAppointmentResponse, ClinicAppointmentsResponse,
     AppointmentTypeResponse, PractitionerAppointmentTypesResponse, PractitionerStatusResponse,
     AppointmentTypeDeletionErrorResponse
 )
@@ -1278,54 +1277,6 @@ async def delete_practitioner_availability(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法刪除治療師可用時間"
-        )
-
-
-@router.get("/appointments", response_model=ClinicAppointmentsResponse, summary="List all clinic appointments")
-async def list_clinic_appointments(
-    current_user: UserContext = Depends(require_clinic_member),
-    date: Optional[str] = Query(None, description="Filter by specific date (YYYY-MM-DD)"),
-    practitioner_id: Optional[int] = Query(None, description="Filter by practitioner ID"),
-    status_filter: Optional[str] = Query(None, description="Filter by status ('confirmed', 'canceled_by_patient', 'canceled_by_clinic')"),
-    db: Session = Depends(get_db)
-) -> ClinicAppointmentsResponse:
-    """
-    Get all appointments for the current user's clinic.
-
-    Available to all clinic members. Admins can see all appointments.
-    Practitioners can see appointments they're involved in.
-    """
-    try:
-        # For non-admin users, only show appointments they're involved in
-        practitioner_filter = practitioner_id
-        if not current_user.has_role('admin'):
-            practitioner_filter = current_user.user_id
-
-        # Get appointments using service
-        assert current_user.clinic_id is not None, "Clinic ID required for clinic members"
-        appointments_data = AppointmentService.list_appointments_for_clinic(
-            db=db,
-            clinic_id=current_user.clinic_id,
-            date_filter=date,
-            practitioner_id=practitioner_filter,
-            status_filter=status_filter
-        )
-
-        # Convert dicts to response objects
-        appointments = [
-            ClinicAppointmentResponse(**appointment)
-            for appointment in appointments_data
-        ]
-
-        return ClinicAppointmentsResponse(appointments=appointments)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Failed to list clinic appointments for user {current_user.user_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="無法取得預約列表"
         )
 
 

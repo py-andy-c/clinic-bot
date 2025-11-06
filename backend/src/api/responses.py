@@ -121,26 +121,6 @@ class ClinicAppointmentTypeResponse(AppointmentTypeResponse):
     clinic_id: int
 
 
-class ClinicAppointmentResponse(BaseModel):
-    """Response model for clinic appointment information."""
-    appointment_id: int
-    calendar_event_id: int
-    patient_name: str
-    patient_phone: Optional[str]
-    practitioner_name: str
-    appointment_type_name: str
-    start_time: datetime
-    end_time: datetime
-    status: str
-    notes: Optional[str]
-    created_at: datetime
-
-
-class ClinicAppointmentsResponse(BaseModel):
-    """Response model for listing clinic appointments."""
-    appointments: List[ClinicAppointmentResponse]
-
-
 class PractitionerAvailabilityResponse(BaseModel):
     """Response model for practitioner availability."""
     id: int

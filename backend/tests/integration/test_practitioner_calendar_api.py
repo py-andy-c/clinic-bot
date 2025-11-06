@@ -591,69 +591,6 @@ class TestPractitionerCalendarAPI:
         assert data["warning"] == "appointment_conflicts"
         assert "conflicting_appointments" in data["details"]
 
-    def test_update_availability_exception(self, client: TestClient, db_session: Session):
-        """Test updating availability exception."""
-        # Create test clinic and practitioner
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.flush()
-
-        practitioner = User(
-            clinic_id=clinic.id,
-            email="practitioner@example.com",
-            google_subject_id="practitioner_subject",
-            full_name="Dr. Test",
-            roles=["practitioner"]
-        )
-        db_session.add(practitioner)
-        db_session.flush()
-
-        # Create availability exception
-        calendar_event = CalendarEvent(
-            user_id=practitioner.id,
-            event_type="availability_exception",
-            date=date(2025, 1, 15),
-            start_time=time(14, 0),
-            end_time=time(18, 0)
-        )
-        db_session.add(calendar_event)
-        db_session.flush()
-
-        exception = AvailabilityException(
-            calendar_event_id=calendar_event.id
-        )
-        db_session.add(exception)
-        db_session.commit()
-
-        # Test updating availability exception
-        update_data = {
-            "date": "2025-01-15",
-            "start_time": "15:00",
-            "end_time": "19:00"
-        }
-
-        # Use dev login endpoint to get authentication
-        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
-        assert response.status_code == 200
-        token = response.json()["access_token"]
-
-        response = client.put(
-            f"/api/clinic/practitioners/{practitioner.id}/availability/exceptions/{exception.id}",
-            json=update_data,
-            headers={"Authorization": f"Bearer {token}"}
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        
-        assert data["start_time"] == "15:00"
-        assert data["end_time"] == "19:00"
-
     def test_delete_availability_exception(self, client: TestClient, db_session: Session):
         """Test deleting availability exception."""
         # Create test clinic and practitioner

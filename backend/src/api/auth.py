@@ -9,7 +9,6 @@ system admins and clinic users.
 import logging
 import os
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, Query
-from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -24,7 +23,6 @@ from models.clinic import ClinicSettings
 from auth.dependencies import UserContext, get_current_user
 
 router = APIRouter()
-security = HTTPBearer(auto_error=False)
 
 
 def set_refresh_token_cookie(

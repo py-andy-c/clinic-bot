@@ -109,15 +109,6 @@ export interface ClinicCreateData {
   trial_ends_at?: string;
 }
 
-export interface ClinicUpdateData {
-  name?: string;
-  line_channel_id?: string;
-  line_channel_secret?: string;
-  line_channel_access_token?: string;
-  subscription_status?: 'trial' | 'active' | 'past_due' | 'canceled';
-  trial_ends_at?: string;
-}
-
 export interface ClinicHealth {
   clinic_id: number;
   line_integration_status: 'healthy' | 'warning' | 'error';
@@ -285,12 +276,6 @@ export interface AvailabilityExceptionResponse {
 // Error and warning response types
 export interface ErrorResponse {
   error: string;
-  message: string;
-  details?: any;
-}
-
-export interface WarningResponse {
-  warning: string;
   message: string;
   details?: any;
 }

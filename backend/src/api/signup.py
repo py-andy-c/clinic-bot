@@ -10,7 +10,6 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import RedirectResponse
-from fastapi.security import HTTPBearer
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -22,7 +21,6 @@ from models import User, SignupToken, RefreshToken
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-security = HTTPBearer(auto_error=False)
 
 
 @router.get("/clinic", summary="Initiate clinic admin signup")

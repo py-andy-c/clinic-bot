@@ -2,12 +2,10 @@ import axios, { AxiosInstance } from 'axios';
 import { config } from '../config/env';
 import { logger } from '../utils/logger';
 import {
-  // AuthUser,
   Clinic,
   Member,
   Patient,
   ClinicCreateData,
-  ClinicUpdateData,
   ClinicHealth,
   SignupTokenInfo,
   MemberInviteData,
@@ -16,9 +14,7 @@ import {
 } from '../types';
 import {
   validateClinicSettings,
-  validateSignupResponse,
-  ClinicSettings,
-  SignupResponse
+  ClinicSettings
 } from '../schemas/api';
 import {
   DefaultScheduleResponse,
@@ -305,11 +301,6 @@ export class ApiService {
     return response.data;
   }
 
-  async updateClinic(clinicId: number, clinicData: ClinicUpdateData): Promise<Clinic> {
-    const response = await this.client.put(`/system/clinics/${clinicId}`, clinicData);
-    return response.data;
-  }
-
   async getClinicHealth(clinicId: number): Promise<ClinicHealth> {
     const response = await this.client.get(`/system/clinics/${clinicId}/health`);
     return response.data;
@@ -426,11 +417,6 @@ export class ApiService {
     return response.data;
   }
 
-  async updateAvailabilityException(userId: number, exceptionId: number, exceptionData: Partial<AvailabilityExceptionRequest>): Promise<AvailabilityExceptionResponse> {
-    const response = await this.client.put(`/clinic/practitioners/${userId}/availability/exceptions/${exceptionId}`, exceptionData);
-    return response.data;
-  }
-
   async deleteAvailabilityException(userId: number, exceptionId: number): Promise<{ message: string }> {
     const response = await this.client.delete(`/clinic/practitioners/${userId}/availability/exceptions/${exceptionId}`);
     return response.data;
@@ -512,16 +498,6 @@ export class ApiService {
   async initiateMemberSignup(token: string): Promise<OAuthResponse> {
     const response = await this.client.get(`/signup/member?token=${token}`);
     return response.data;
-  }
-
-  async completeClinicSignup(token: string): Promise<SignupResponse> {
-    const response = await this.client.post('/signup/callback', { token, type: 'clinic' });
-    return validateSignupResponse(response.data);
-  }
-
-  async completeMemberSignup(token: string): Promise<SignupResponse> {
-    const response = await this.client.post('/signup/callback', { token, type: 'member' });
-    return validateSignupResponse(response.data);
   }
 
   async confirmName(token: string, fullName: string): Promise<{ redirect_url: string; refresh_token: string }> {
