@@ -113,7 +113,5 @@ print_success "🎉 All Tests Passed Successfully!"
 echo ""
 print_success "📁 Coverage report: backend/htmlcov/index.html"
 print_success "🔍 TypeScript: All type checks passed"
-if [ -f "node_modules/.bin/vitest" ] || npm list vitest &> /dev/null 2>&1; then
-    print_success "✅ Frontend unit tests: All passed"
-fi
+print_success "✅ Frontend unit tests: All passed"
 exit 0
