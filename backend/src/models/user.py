@@ -8,7 +8,8 @@ with role-based access control via the JSONB roles field.
 
 from typing import Optional
 from datetime import datetime
-from sqlalchemy import String, TIMESTAMP, Boolean, JSON, ForeignKey, UniqueConstraint
+from sqlalchemy import String, TIMESTAMP, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -27,7 +28,7 @@ class User(Base):
     google_subject_id: Mapped[str] = mapped_column(String(255), unique=True)
     full_name: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    roles: Mapped[list[str]] = mapped_column(JSON, default=list)  # ['admin'], ['practitioner'], or ['admin', 'practitioner']
+    roles: Mapped[list[str]] = mapped_column(JSONB, default=list)  # ['admin'], ['practitioner'], or ['admin', 'practitioner']
 
     # Metadata
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)

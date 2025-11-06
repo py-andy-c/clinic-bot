@@ -7,7 +7,8 @@ invitations with expiration, revocation, and one-time use functionality.
 
 from typing import Optional
 from datetime import datetime, timezone
-from sqlalchemy import String, TIMESTAMP, Boolean, JSON, ForeignKey, Index
+from sqlalchemy import String, TIMESTAMP, Boolean, ForeignKey, Index
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -21,7 +22,7 @@ class SignupToken(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     token: Mapped[str] = mapped_column(String(255), unique=True)
     clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"))
-    default_roles: Mapped[list[str]] = mapped_column(JSON)  # Default roles for new user
+    default_roles: Mapped[list[str]] = mapped_column(JSONB)  # Default roles for new user
     expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     used_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     used_by_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

@@ -10,7 +10,8 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 
 from pydantic import BaseModel, Field
-from sqlalchemy import String, TIMESTAMP, Integer, Text, Boolean, JSON
+from sqlalchemy import String, TIMESTAMP, Integer, Text, Boolean
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -133,10 +134,10 @@ class Clinic(Base):
     health_check_errors: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     """JSON string containing recent health check errors."""
 
-    # Clinic Settings (JSON column for all configurable settings)
-    settings: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    # Clinic Settings (JSONB column for all configurable settings)
+    settings: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     """
-    JSON column containing all clinic settings with validated schema.
+    JSONB column containing all clinic settings with validated schema.
 
     Structure (matches ClinicSettings Pydantic model):
     {
