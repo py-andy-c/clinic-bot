@@ -116,24 +116,6 @@ class ClinicPatientListResponse(BaseModel):
     patients: List[ClinicPatientResponse]
 
 
-class ClinicAppointmentTypeResponse(AppointmentTypeResponse):
-    """Response model for appointment type in clinic context (includes clinic_id)."""
-    clinic_id: int
-
-
-class PractitionerAvailabilityResponse(BaseModel):
-    """Response model for practitioner availability."""
-    id: int
-    user_id: int
-    day_of_week: int
-    day_name: str
-    day_name_zh: str
-    start_time: str
-    end_time: str
-    created_at: datetime
-    updated_at: datetime
-
-
 class AvailableSlotResponse(BaseModel):
     """Response model for available time slot."""
     start_time: str
@@ -156,36 +138,6 @@ class PractitionerStatusResponse(BaseModel):
 class AvailableSlotsResponse(BaseModel):
     """Response model for available slots query."""
     available_slots: List[AvailableSlotResponse]
-
-
-class DefaultScheduleResponse(BaseModel):
-    """Response model for practitioner's default schedule."""
-    monday: List[Dict[str, Any]] = []
-    tuesday: List[Dict[str, Any]] = []
-    wednesday: List[Dict[str, Any]] = []
-    thursday: List[Dict[str, Any]] = []
-    friday: List[Dict[str, Any]] = []
-    saturday: List[Dict[str, Any]] = []
-    sunday: List[Dict[str, Any]] = []
-
-
-class AvailabilityExceptionRequest(BaseModel):
-    """Request model for availability exception."""
-    date: str
-    start_time: str
-    end_time: str
-    reason: Optional[str] = None
-
-
-class AvailabilityExceptionResponse(BaseModel):
-    """Response model for availability exception."""
-    id: int
-    user_id: int
-    date: str
-    start_time: str
-    end_time: str
-    reason: Optional[str]
-    created_at: datetime
 
 
 class ConflictWarningResponse(BaseModel):
