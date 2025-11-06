@@ -111,7 +111,7 @@ class TestReminderServiceDuplicatePrevention:
         db_session.commit()
 
         # Create reminder service
-        reminder_service = ReminderService(db_session)
+        reminder_service = ReminderService()
 
         # Calculate reminder window (24 hours before appointment)
         # Using REMINDER_WINDOW_SIZE_MINUTES to ensure overlap between hourly runs
@@ -121,7 +121,7 @@ class TestReminderServiceDuplicatePrevention:
 
         # Get appointments needing reminders
         appointments = reminder_service._get_appointments_needing_reminders(
-            clinic.id, window_start, window_end
+            db_session, clinic.id, window_start, window_end
         )
 
         # Should only include appointment2 (no reminder sent)
@@ -212,10 +212,10 @@ class TestReminderServiceDuplicatePrevention:
         mock_line_service_class.return_value = mock_line_service
 
         # Create reminder service
-        reminder_service = ReminderService(db_session)
+        reminder_service = ReminderService()
 
         # Send reminder
-        result = await reminder_service._send_reminder_for_appointment(appointment)
+        result = await reminder_service._send_reminder_for_appointment(db_session, appointment)
 
         # Verify reminder was sent
         assert result is True
@@ -309,10 +309,10 @@ class TestReminderServiceDuplicatePrevention:
         mock_line_service_class.return_value = mock_line_service
 
         # Create reminder service
-        reminder_service = ReminderService(db_session)
+        reminder_service = ReminderService()
 
         # Send reminder (should fail)
-        result = await reminder_service._send_reminder_for_appointment(appointment)
+        result = await reminder_service._send_reminder_for_appointment(db_session, appointment)
 
         # Verify reminder sending failed
         assert result is False
@@ -405,11 +405,11 @@ class TestReminderServiceDuplicatePrevention:
         mock_line_service_class.return_value = mock_line_service
 
         # Mock db.commit() to raise an exception (simulating commit failure)
-        # We need to patch the commit method on the reminder service's db session
-        reminder_service = ReminderService(db_session)
+        # We need to patch the commit method on the db session
+        reminder_service = ReminderService()
         
         # Store original commit method
-        original_commit = reminder_service.db.commit
+        original_commit = db_session.commit
         commit_called = False
         
         def failing_commit():
@@ -418,10 +418,10 @@ class TestReminderServiceDuplicatePrevention:
             raise Exception("Database commit failed")
         
         # Patch the commit method
-        reminder_service.db.commit = failing_commit
+        db_session.commit = failing_commit
 
         # Send reminder (should fail on commit)
-        result = await reminder_service._send_reminder_for_appointment(appointment)
+        result = await reminder_service._send_reminder_for_appointment(db_session, appointment)
 
         # Verify reminder sending failed
         assert result is False
@@ -435,7 +435,7 @@ class TestReminderServiceDuplicatePrevention:
         assert appointment.reminder_sent_at is None
 
         # Restore original commit
-        reminder_service.db.commit = original_commit
+        db_session.commit = original_commit
 
 class TestReminderServiceWindowBoundaries:
     """Test cases for reminder window boundary handling and overlap."""
@@ -583,7 +583,7 @@ class TestReminderServiceWindowBoundaries:
         db_session.commit()
 
         # Create reminder service
-        reminder_service = ReminderService(db_session)
+        reminder_service = ReminderService()
 
         # Calculate reminder window using REMINDER_WINDOW_SIZE_MINUTES
         window_start = reminder_time - timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
@@ -591,7 +591,7 @@ class TestReminderServiceWindowBoundaries:
 
         # Get appointments needing reminders
         appointments = reminder_service._get_appointments_needing_reminders(
-            clinic.id, window_start, window_end
+            db_session, clinic.id, window_start, window_end
         )
 
         # Should include appointments at boundaries (appointment1 and appointment2)
@@ -703,13 +703,13 @@ class TestReminderServiceWindowBoundaries:
         db_session.commit()
 
         # Create reminder service
-        reminder_service = ReminderService(db_session)
+        reminder_service = ReminderService()
 
         # Simulate first run (at hour H)
         window_start_run1 = reminder_time - timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
         window_end_run1 = reminder_time + timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
         appointments_run1 = reminder_service._get_appointments_needing_reminders(
-            clinic.id, window_start_run1, window_end_run1
+            db_session, clinic.id, window_start_run1, window_end_run1
         )
         
         # Appointment should be found in first run
@@ -723,7 +723,7 @@ class TestReminderServiceWindowBoundaries:
             mock_line_service_class.return_value = mock_line_service
 
             # Send reminder
-            result = await reminder_service._send_reminder_for_appointment(appointment)
+            result = await reminder_service._send_reminder_for_appointment(db_session, appointment)
             assert result is True
 
         # Refresh appointment to get updated reminder_sent_at
@@ -737,7 +737,7 @@ class TestReminderServiceWindowBoundaries:
         window_start_run2 = reminder_time_run2 - timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
         window_end_run2 = reminder_time_run2 + timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
         appointments_run2 = reminder_service._get_appointments_needing_reminders(
-            clinic.id, window_start_run2, window_end_run2
+            db_session, clinic.id, window_start_run2, window_end_run2
         )
 
         # Appointment should NOT be found in second run because:
@@ -834,13 +834,21 @@ class TestReminderServiceCatchUp:
         db_session.commit()
 
         # Create reminder service
-        reminder_service = ReminderService(db_session)
+        reminder_service = ReminderService()
 
-        # Mock LINE service
-        with patch('services.reminder_service.LINEService') as mock_line_service_class:
+        # Mock LINE service and get_db_context
+        with patch('services.reminder_service.LINEService') as mock_line_service_class, \
+             patch('services.reminder_service.get_db_context') as mock_get_db_context:
             mock_line_service = Mock()
             mock_line_service.send_text_message.return_value = None
             mock_line_service_class.return_value = mock_line_service
+            
+            # Mock get_db_context to return the test session
+            from contextlib import contextmanager
+            @contextmanager
+            def mock_db_context():
+                yield db_session
+            mock_get_db_context.return_value = mock_db_context()
 
             # Run catch-up logic
             await reminder_service._catch_up_missed_reminders()
@@ -923,7 +931,7 @@ class TestReminderServiceCatchUp:
         db_session.commit()
 
         # Create reminder service
-        reminder_service = ReminderService(db_session)
+        reminder_service = ReminderService()
 
         # Mock LINE service
         with patch('services.reminder_service.LINEService') as mock_line_service_class:
@@ -1024,13 +1032,21 @@ class TestReminderServiceCatchUp:
         db_session.commit()
 
         # Create reminder service
-        reminder_service = ReminderService(db_session)
+        reminder_service = ReminderService()
 
-        # Mock LINE service
-        with patch('services.reminder_service.LINEService') as mock_line_service_class:
+        # Mock LINE service and get_db_context
+        with patch('services.reminder_service.LINEService') as mock_line_service_class, \
+             patch('services.reminder_service.get_db_context') as mock_get_db_context:
             mock_line_service = Mock()
             mock_line_service.send_text_message.return_value = None
             mock_line_service_class.return_value = mock_line_service
+            
+            # Mock get_db_context to return the test session
+            from contextlib import contextmanager
+            @contextmanager
+            def mock_db_context():
+                yield db_session
+            mock_get_db_context.return_value = mock_db_context()
 
             # Run catch-up logic
             await reminder_service._catch_up_missed_reminders()
@@ -1044,11 +1060,250 @@ class TestReminderServiceCatchUp:
 
     def test_scheduler_timezone_is_taiwan(self, db_session):
         """Test that scheduler is configured with Taiwan timezone."""
-        reminder_service = ReminderService(db_session)
+        reminder_service = ReminderService()
         
         # Verify scheduler timezone is set to Taiwan timezone
         assert reminder_service.scheduler.timezone is not None
         # The scheduler timezone should be TAIWAN_TZ
         from utils.datetime_utils import TAIWAN_TZ
         assert reminder_service.scheduler.timezone == TAIWAN_TZ
+
+
+class TestReminderServiceRescheduling:
+    """Test cases for appointment rescheduling handling."""
+
+    @pytest.mark.asyncio
+    async def test_reminder_sent_at_reset_on_appointment_reschedule(self, db_session):
+        """Test that reminder_sent_at is reset when appointment time changes."""
+        # Create test data
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            subscription_status="trial"
+        )
+        clinic.settings = {"reminder_hours_before": 24}
+        db_session.add(clinic)
+        db_session.flush()
+
+        user = User(
+            clinic_id=clinic.id,
+            full_name="Test Therapist",
+            email="therapist@test.com",
+            google_subject_id="test_google_subject_id"
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create original appointment
+        current_time = taiwan_now()
+        original_appointment_time = current_time + timedelta(hours=48)
+        
+        calendar_event = CalendarEvent(
+            user_id=user.id,
+            event_type="appointment",
+            date=original_appointment_time.date(),
+            start_time=original_appointment_time.time(),
+            end_time=(original_appointment_time + timedelta(minutes=60)).time()
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed",
+            reminder_sent_at=current_time  # Reminder was already sent
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Verify reminder_sent_at is set
+        assert appointment.reminder_sent_at is not None
+
+        # Reschedule appointment (change date and start_time)
+        new_appointment_time = current_time + timedelta(hours=72)
+        calendar_event.date = new_appointment_time.date()
+        calendar_event.start_time = new_appointment_time.time()
+        calendar_event.end_time = (new_appointment_time + timedelta(minutes=60)).time()
+        db_session.flush()  # Flush to ensure event listener fires
+        db_session.commit()
+
+        # Verify reminder_sent_at was reset to None
+        db_session.refresh(appointment)
+        assert appointment.reminder_sent_at is None, "reminder_sent_at should be reset when appointment is rescheduled"
+
+    @pytest.mark.asyncio
+    async def test_reminder_sent_at_reset_on_date_only_change(self, db_session):
+        """Test that reminder_sent_at is reset when only appointment date changes."""
+        # Create test data
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            subscription_status="trial"
+        )
+        clinic.settings = {"reminder_hours_before": 24}
+        db_session.add(clinic)
+        db_session.flush()
+
+        user = User(
+            clinic_id=clinic.id,
+            full_name="Test Therapist",
+            email="therapist@test.com",
+            google_subject_id="test_google_subject_id"
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create original appointment
+        current_time = taiwan_now()
+        original_appointment_time = current_time + timedelta(hours=48)
+        
+        calendar_event = CalendarEvent(
+            user_id=user.id,
+            event_type="appointment",
+            date=original_appointment_time.date(),
+            start_time=original_appointment_time.time(),
+            end_time=(original_appointment_time + timedelta(minutes=60)).time()
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed",
+            reminder_sent_at=current_time  # Reminder was already sent
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Verify reminder_sent_at is set
+        assert appointment.reminder_sent_at is not None
+
+        # Reschedule appointment (change only date, keep same time)
+        new_appointment_time = current_time + timedelta(days=3, hours=48)
+        calendar_event.date = new_appointment_time.date()
+        # Keep start_time the same
+        db_session.flush()  # Flush to ensure event listener fires
+        db_session.commit()
+
+        # Verify reminder_sent_at was reset to None
+        db_session.refresh(appointment)
+        assert appointment.reminder_sent_at is None, "reminder_sent_at should be reset when appointment date changes"
+
+    @pytest.mark.asyncio
+    async def test_reminder_sent_at_reset_on_time_only_change(self, db_session):
+        """Test that reminder_sent_at is reset when only appointment start_time changes."""
+        # Create test data
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            subscription_status="trial"
+        )
+        clinic.settings = {"reminder_hours_before": 24}
+        db_session.add(clinic)
+        db_session.flush()
+
+        user = User(
+            clinic_id=clinic.id,
+            full_name="Test Therapist",
+            email="therapist@test.com",
+            google_subject_id="test_google_subject_id"
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create original appointment
+        current_time = taiwan_now()
+        original_appointment_time = current_time + timedelta(hours=48)
+        
+        calendar_event = CalendarEvent(
+            user_id=user.id,
+            event_type="appointment",
+            date=original_appointment_time.date(),
+            start_time=original_appointment_time.time(),
+            end_time=(original_appointment_time + timedelta(minutes=60)).time()
+        )
+        db_session.add(calendar_event)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed",
+            reminder_sent_at=current_time  # Reminder was already sent
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Verify reminder_sent_at is set
+        assert appointment.reminder_sent_at is not None
+
+        # Reschedule appointment (change only start_time, keep same date)
+        new_start_time = (original_appointment_time + timedelta(hours=2)).time()
+        calendar_event.start_time = new_start_time
+        calendar_event.end_time = (datetime.combine(original_appointment_time.date(), new_start_time) + timedelta(minutes=60)).time()
+        db_session.flush()  # Flush to ensure event listener fires
+        db_session.commit()
+
+        # Verify reminder_sent_at was reset to None
+        db_session.refresh(appointment)
+        assert appointment.reminder_sent_at is None, "reminder_sent_at should be reset when appointment start_time changes"
 

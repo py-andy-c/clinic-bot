@@ -23,7 +23,6 @@ from fastapi.staticfiles import StaticFiles
 from api import auth, signup, system, clinic, profile, practitioner_calendar, liff
 from core.constants import CORS_ORIGINS
 from services.reminder_service import start_reminder_scheduler, stop_reminder_scheduler
-from core.database import get_db
 
 # Configure logging
 logging.basicConfig(
@@ -42,9 +41,9 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Starting Clinic Bot Backend API")
 
     # Start reminder scheduler
-    db = next(get_db())
+    # Note: Database sessions are created fresh for each scheduler run
     try:
-        await start_reminder_scheduler(db)
+        await start_reminder_scheduler()
         logger.info("✅ Appointment reminder scheduler started")
     except Exception as e:
         logger.exception(f"❌ Failed to start reminder scheduler: {e}")

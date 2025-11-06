@@ -810,7 +810,7 @@ async def generate_reminder_preview(
             )
 
         # Generate preview using the same service that sends actual reminders
-        reminder_service = ReminderService(db)
+        reminder_service = ReminderService()
         preview_message = reminder_service.generate_reminder_preview(
             appointment_type=request.appointment_type,
             appointment_time=request.appointment_time,

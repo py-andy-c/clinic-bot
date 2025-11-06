@@ -85,6 +85,66 @@ def receive_before_update(mapper, connection, target):  # type: ignore
             pass
 
 
+# Event listener to reset reminder_sent_at when appointment time changes
+@event.listens_for(Base, "before_update", propagate=True)  # type: ignore
+def reset_reminder_on_appointment_reschedule(mapper, connection, target):  # type: ignore
+    """
+    Reset reminder_sent_at when appointment time changes (rescheduling).
+    
+    When a CalendarEvent's date or start_time changes, we need to reset
+    the associated Appointment's reminder_sent_at so a new reminder can be sent
+    for the rescheduled time.
+    
+    Uses before_update event to reset the field before the update is committed.
+    """
+    # Only process CalendarEvent updates
+    if not hasattr(target, "__tablename__") or getattr(target, "__tablename__", None) != "calendar_events":  # type: ignore
+        return
+    
+    # Verify target has an ID (must be an existing record, not a new one)
+    if not hasattr(target, "id") or target.id is None:  # type: ignore
+        return
+    
+    # Check if date or start_time changed using history tracking
+    from sqlalchemy import inspect, text
+    insp = inspect(target)  # type: ignore
+    
+    # Check if date changed
+    date_changed = False
+    if "date" in insp.attrs:  # type: ignore
+        date_history = insp.attrs["date"].history  # type: ignore
+        if date_history.has_changes():  # type: ignore
+            # Check if there are deleted and added values
+            if date_history.deleted and date_history.added:  # type: ignore
+                if date_history.deleted[0] != date_history.added[0]:  # type: ignore
+                    date_changed = True
+            # Handle edge case where only deleted or only added values exist
+            elif date_history.deleted or date_history.added:  # type: ignore
+                date_changed = True
+    
+    # Check if start_time changed
+    start_time_changed = False
+    if "start_time" in insp.attrs:  # type: ignore
+        start_time_history = insp.attrs["start_time"].history  # type: ignore
+        if start_time_history.has_changes():  # type: ignore
+            # Handle None values and edge cases
+            old_value = start_time_history.deleted[0] if start_time_history.deleted else None  # type: ignore
+            new_value = start_time_history.added[0] if start_time_history.added else None  # type: ignore
+            if old_value != new_value:
+                start_time_changed = True
+    
+    if date_changed or start_time_changed:
+        # Log the rescheduling action
+        logger.info(f"Resetting reminder_sent_at for appointment with calendar_event_id={target.id} due to rescheduling")  # type: ignore
+        
+        # Use direct SQL update to reset reminder_sent_at
+        # This avoids session management issues
+        connection.execute(  # type: ignore
+            text("UPDATE appointments SET reminder_sent_at = NULL WHERE calendar_event_id = :event_id"),
+            {"event_id": target.id}  # type: ignore
+        )
+
+
 def get_db() -> Generator[Session, None, None]:
     """
     FastAPI dependency to provide database sessions.
