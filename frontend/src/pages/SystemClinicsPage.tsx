@@ -1,70 +1,69 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { logger } from '../utils/logger';
-import { LoadingSpinner } from '../components/shared';
+import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import moment from 'moment-timezone';
 import { Link, useParams } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { Clinic, ClinicCreateData, ClinicHealth } from '../types';
+import { useApiData } from '../hooks/useApiData';
+
+interface ClinicDetailsData {
+  clinic: Clinic;
+  health: ClinicHealth;
+}
 
 const SystemClinicsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const [clinics, setClinics] = useState<Clinic[]>([]);
-  const [selectedClinic, setSelectedClinic] = useState<Clinic | null>(null);
-  const [clinicHealth, setClinicHealth] = useState<ClinicHealth | null>(null);
-  const [loading, setLoading] = useState(true);
-  // const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    if (id) {
-      fetchClinicDetails(id);
-    } else {
-      fetchClinics();
+  // Stable fetch functions using useCallback
+  const fetchClinics = useCallback(() => apiService.getClinics(), []);
+  const fetchClinicDetails = useCallback(async (): Promise<ClinicDetailsData> => {
+    if (!id) {
+      throw new Error('Clinic ID is required');
     }
+    const [clinicData, healthData] = await Promise.all([
+      apiService.getClinicDetails(parseInt(id)),
+      apiService.getClinicHealth(parseInt(id))
+    ]);
+    return { clinic: clinicData, health: healthData };
   }, [id]);
 
-  const fetchClinics = async () => {
-    try {
-      setLoading(true);
-      const data = await apiService.getClinics();
+  // Fetch clinics list when no ID
+  const {
+    data: clinics,
+    loading: clinicsLoading,
+    error: clinicsError,
+    refetch: refetchClinics,
+    setData: setClinics,
+  } = useApiData<Clinic[]>(fetchClinics, {
+    enabled: !id,
+    dependencies: [id],
+    initialData: [],
+  });
 
-      // Validate that we received an array
-      if (Array.isArray(data)) {
-        setClinics(data);
-      } else {
-        setClinics([]);
-      }
-    } catch (err) {
-      logger.error('Failed to load clinics:', err);
-      setClinics([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Fetch clinic details when ID exists
+  const {
+    data: clinicDetails,
+    loading: detailsLoading,
+    error: detailsError,
+    refetch: refetchDetails,
+  } = useApiData<ClinicDetailsData>(fetchClinicDetails, {
+    enabled: !!id,
+    dependencies: [id],
+  });
 
-  const fetchClinicDetails = async (clinicId: string) => {
-    try {
-      setLoading(true);
-      const [clinicData, healthData] = await Promise.all([
-        apiService.getClinicDetails(parseInt(clinicId)),
-        apiService.getClinicHealth(parseInt(clinicId))
-      ]);
-      setSelectedClinic(clinicData);
-      setClinicHealth(healthData);
-    } catch (err) {
-      // setError('Failed to load clinic details');
-      logger.error('Clinic details error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const selectedClinic = clinicDetails?.clinic ?? null;
+  const clinicHealth = clinicDetails?.health ?? null;
+  const loading = clinicsLoading || detailsLoading;
+  const error = clinicsError || detailsError;
 
   const handleCreateClinic = async (clinicData: ClinicCreateData) => {
     try {
       setCreating(true);
       const newClinic = await apiService.createClinic(clinicData);
-      setClinics(prev => [...prev, newClinic]);
+      setClinics([...(clinics || []), newClinic]);
       setShowCreateModal(false);
     } catch (err) {
       logger.error('Create clinic error:', err);
@@ -136,6 +135,17 @@ const SystemClinicsPage: React.FC = () => {
     return (
       <div className="flex items-center justify-center min-h-96">
         <LoadingSpinner size="xl" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <ErrorMessage
+          message={error}
+          onRetry={id ? refetchDetails : refetchClinics}
+        />
       </div>
     );
   }
@@ -305,7 +315,7 @@ const SystemClinicsPage: React.FC = () => {
 
       {/* Clinics Grid */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {clinics.map((clinic) => (
+        {clinics?.map((clinic) => (
           <div key={clinic.id} className="bg-white overflow-hidden shadow rounded-lg">
             <div className="p-6">
               <div className="flex items-center">
@@ -348,7 +358,7 @@ const SystemClinicsPage: React.FC = () => {
         ))}
       </div>
 
-      {clinics.length === 0 && (
+      {(!clinics || clinics.length === 0) && (
         <div className="text-center py-12">
           <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />

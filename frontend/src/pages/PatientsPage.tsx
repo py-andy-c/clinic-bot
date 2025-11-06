@@ -1,42 +1,38 @@
-import React, { useState, useEffect } from 'react';
-import { logger } from '../utils/logger';
-import { LoadingSpinner } from '../components/shared';
+import React from 'react';
+import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import moment from 'moment-timezone';
 import { apiService } from '../services/api';
 import { Patient } from '../types';
 import { useAuth } from '../hooks/useAuth';
+import { useApiData } from '../hooks/useApiData';
 import PageHeader from '../components/PageHeader';
 
 const PatientsPage: React.FC = () => {
   const { isLoading, isAuthenticated } = useAuth();
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Wait for auth to complete before fetching data
-    if (!isLoading && isAuthenticated) {
-      fetchPatients();
+  const { data: patients, loading, error, refetch } = useApiData<Patient[]>(
+    () => apiService.getPatients(),
+    {
+      enabled: !isLoading && isAuthenticated,
+      dependencies: [isLoading, isAuthenticated],
+      defaultErrorMessage: '無法載入病患列表',
+      initialData: [],
     }
-  }, [isLoading, isAuthenticated]);
-
-  const fetchPatients = async () => {
-    try {
-      setLoading(true);
-      const data = await apiService.getPatients();
-      setPatients(data);
-    } catch (err) {
-      setError('無法載入病患列表');
-      logger.error('Fetch patients error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  );
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <PageHeader title="病患管理" />
+        <ErrorMessage message={error} onRetry={refetch} />
       </div>
     );
   }
@@ -47,28 +43,10 @@ const PatientsPage: React.FC = () => {
       <PageHeader title="病患管理" />
 
       <div className="space-y-8">
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">錯誤</h3>
-                <div className="mt-2 text-sm text-red-700">
-                  <p>{error}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Patients List */}
         <div className="bg-white rounded-lg shadow-md p-6">
         <div className="space-y-4">
-          {patients.length === 0 ? (
+          {!patients || patients.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-500">尚未有病患註冊</p>
             </div>
@@ -92,7 +70,7 @@ const PatientsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {patients.map((patient) => (
+                  {patients?.map((patient) => (
                     <tr key={patient.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">

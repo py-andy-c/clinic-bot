@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../contexts/ModalContext';
 import { apiService } from '../services/api';
 import { Member, UserRole, MemberInviteData } from '../types';
 import { logger } from '../utils/logger';
-import { LoadingSpinner } from '../components/shared';
+import { LoadingSpinner, ErrorMessage } from '../components/shared';
+import { useApiData } from '../hooks/useApiData';
 import PageHeader from '../components/PageHeader';
 
 const MembersPage: React.FC = () => {
   const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus, isLoading } = useAuth();
   const { alert, confirm } = useModal();
-  
   
   // If not authenticated, show a message (in real app, this would redirect to login)
   if (!isAuthenticated) {
@@ -23,33 +23,24 @@ const MembersPage: React.FC = () => {
       </div>
     );
   }
-  const [members, setMembers] = useState<Member[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  // Stable fetch function using useCallback
+  const fetchMembers = useCallback(() => apiService.getMembers(), []);
+
+  const { data: members, loading, error, refetch } = useApiData<Member[]>(
+    fetchMembers,
+    {
+      enabled: !isLoading && isAuthenticated,
+      dependencies: [isLoading, isAuthenticated],
+      defaultErrorMessage: '無法載入成員列表',
+      initialData: [],
+    }
+  );
+
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState<Member | null>(null);
   const [inviting, setInviting] = useState(false);
   const [updatingRoles, setUpdatingRoles] = useState(false);
-
-  useEffect(() => {
-    // Wait for auth to complete before fetching data
-    if (!isLoading && isAuthenticated) {
-      fetchMembers();
-    }
-  }, [isLoading, isAuthenticated]);
-
-  const fetchMembers = async () => {
-    try {
-      setLoading(true);
-      const data = await apiService.getMembers();
-      setMembers(data);
-    } catch (err) {
-      setError('無法載入成員列表');
-      logger.error('Fetch members error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleInviteMember = async (inviteData: MemberInviteData) => {
     try {
@@ -75,7 +66,7 @@ const MembersPage: React.FC = () => {
       setUpdatingRoles(true);
       await apiService.updateMemberRoles(userId, roles);
       setShowRoleModal(null);
-      await fetchMembers(); // Refresh the list
+      await refetch(); // Refresh the list
       
       // If the current user updated their own roles, refresh auth status
       if (currentUser && userId === currentUser.user_id) {
@@ -106,7 +97,7 @@ const MembersPage: React.FC = () => {
 
     try {
       await apiService.removeMember(userId);
-      await fetchMembers(); // Refresh the list
+      await refetch(); // Refresh the list
     } catch (err: any) {
       logger.error('Remove member error:', err);
 
@@ -130,7 +121,7 @@ const MembersPage: React.FC = () => {
 
     try {
       await apiService.reactivateMember(userId);
-      await fetchMembers(); // Refresh the list
+      await refetch(); // Refresh the list
       await alert('成員已重新啟用');
     } catch (err: any) {
       logger.error('Reactivate member error:', err);
@@ -169,6 +160,15 @@ const MembersPage: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-4xl mx-auto">
+        <PageHeader title="成員管理" />
+        <ErrorMessage message={error} onRetry={refetch} />
       </div>
     );
   }
@@ -216,7 +216,7 @@ const MembersPage: React.FC = () => {
         {/* Members List */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <ul role="list" className="divide-y divide-gray-200">
-          {members.length === 0 ? (
+          {!members || members.length === 0 ? (
             <div className="text-center py-12">
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -240,7 +240,7 @@ const MembersPage: React.FC = () => {
               )}
             </div>
           ) : (
-            members.map((member) => (
+            members?.map((member) => (
               <li key={member.id}>
                 <div className={`px-4 py-4 sm:px-6 ${!member.is_active ? 'bg-gray-50 opacity-75' : ''}`}>
                   <div className="flex items-center justify-between">
