@@ -13,6 +13,10 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore
 from apscheduler.triggers.cron import CronTrigger  # type: ignore
 from sqlalchemy.orm import Session
 
+from core.constants import (
+    REMINDER_WINDOW_SIZE_MINUTES,
+    REMINDER_SCHEDULER_MAX_INSTANCES
+)
 from models.appointment import Appointment
 from models.calendar_event import CalendarEvent
 from models.clinic import Clinic
@@ -57,7 +61,7 @@ class ReminderService:
             CronTrigger(hour="*"),  # Run every hour
             id="send_reminders",
             name="Send appointment reminders",
-            max_instances=1,  # Prevent overlapping runs
+            max_instances=REMINDER_SCHEDULER_MAX_INSTANCES,  # Prevent overlapping runs
             replace_existing=True
         )
 
@@ -94,10 +98,15 @@ class ReminderService:
 
             for clinic in clinics:
                 # Calculate reminder window for this clinic using Taiwan time
+                # Use ±REMINDER_WINDOW_SIZE_MINUTES to ensure overlap between hourly runs
+                # This prevents missed reminders at window boundaries:
+                # - Run at 2:00 PM checks (reminder_time - window_size) to (reminder_time + window_size)
+                # - Run at 3:00 PM checks (reminder_time + 25min) to (reminder_time + 95min)
+                # - Overlap ensures no appointments are missed
                 current_time = taiwan_now()
                 reminder_time = current_time + timedelta(hours=clinic.reminder_hours_before)
-                reminder_window_start = reminder_time - timedelta(minutes=30)  # 30-minute window
-                reminder_window_end = reminder_time + timedelta(minutes=30)
+                reminder_window_start = reminder_time - timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
+                reminder_window_end = reminder_time + timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
 
                 # Get confirmed appointments for this clinic in the reminder window
                 appointments_needing_reminders = self._get_appointments_needing_reminders(
