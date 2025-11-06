@@ -25,7 +25,9 @@ from core.database import Base
 target_metadata = Base.metadata
 
 # Set the database URL from our settings
-config.set_main_option("sqlalchemy.url", DATABASE_URL)
+# Only set if not already set (allows conftest.py to override for tests)
+if config.get_main_option("sqlalchemy.url") is None:
+    config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
