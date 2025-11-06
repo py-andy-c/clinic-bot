@@ -49,6 +49,17 @@ class Appointment(Base):
     canceled_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     """Timestamp when the appointment was canceled (if applicable)."""
 
+    reminder_sent_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    """
+    Timestamp when the reminder was sent for this appointment.
+    
+    NULL means reminder has not been sent yet. This field enables:
+    - Duplicate reminder prevention
+    - Handling of reminder_hours_before setting changes
+    - Server downtime recovery
+    - Window boundary edge case handling
+    """
+
     notes: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     """Optional patient-provided notes about the appointment (備註)."""
 

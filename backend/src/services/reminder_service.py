@@ -139,14 +139,13 @@ class ReminderService:
         Returns:
             List of appointments that need reminders
         """
-        # Get all appointments for this clinic that are confirmed
+        # Get all appointments for this clinic that are confirmed and haven't received reminders yet
         appointments = self.db.query(Appointment).join(CalendarEvent).join(
             Appointment.patient
         ).filter(
             Appointment.status == "confirmed",
             Appointment.patient.has(clinic_id=clinic_id),
-            # For now, we'll send reminders for all appointments
-            # In the future, we could add a flag to track if reminder was sent
+            Appointment.reminder_sent_at.is_(None),  # Only get appointments that haven't received reminders
         ).all()
 
         # Filter appointments that fall within the reminder window
@@ -279,10 +278,22 @@ class ReminderService:
             # Send reminder via LINE
             line_service.send_text_message(line_user.line_user_id, message)
 
+            # Update reminder_sent_at after successful send
+            # Note: LINE send and database commit are not truly atomic (they're separate systems).
+            # If LINE send succeeds but commit fails, the reminder will be sent but reminder_sent_at
+            # won't be updated, which could result in a duplicate reminder on the next run.
+            # This is a known limitation - it's better to send the reminder than to miss it.
+            # In production, consider using database-level locking (SELECT FOR UPDATE) to prevent
+            # race conditions when multiple scheduler instances run concurrently.
+            appointment.reminder_sent_at = taiwan_now()
+            self.db.commit()
+
             logger.info(f"Sent reminder for appointment {appointment.calendar_event_id} to patient {appointment.patient_id}")
             return True
 
         except Exception as e:
+            # Rollback on any exception to ensure database consistency
+            self.db.rollback()
             logger.exception(f"Failed to send reminder for appointment {appointment.calendar_event_id}: {e}")
             return False
 
