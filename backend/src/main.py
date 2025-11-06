@@ -12,11 +12,13 @@ Features:
 """
 
 import logging
+from pathlib import Path
 from contextlib import asynccontextmanager
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from api import auth, signup, system, clinic, profile, practitioner_calendar, liff
 from core.constants import CORS_ORIGINS
@@ -155,6 +157,18 @@ app.include_router(
     },
 )
 
+# Serve static files from frontend dist directory
+# This allows the backend to serve the frontend app for LIFF routes
+# Note: Mounts are processed before route handlers, so /assets/* won't conflict
+# with any routes. The mount order (after routers, before routes) is correct.
+frontend_dist_path = Path(__file__).parent.parent.parent / "frontend" / "dist"
+if frontend_dist_path.exists():
+    # Mount static assets (CSS, JS files)
+    app.mount("/assets", StaticFiles(directory=str(frontend_dist_path / "assets")), name="assets")
+    logger.info(f"✅ Static files mounted from {frontend_dist_path}")
+else:
+    logger.warning(f"⚠️  Frontend dist directory not found at {frontend_dist_path}")
+
 
 @app.get(
     "/",
@@ -178,6 +192,40 @@ async def root() -> dict[str, str]:
 async def health_check() -> dict[str, str]:
     """Check if the API is healthy and responding."""
     return {"status": "healthy"}
+
+
+# Serve frontend app for non-API routes (especially LIFF routes)
+# This catch-all route must be defined after all other routes
+# Note: Only handles GET requests. This is sufficient for serving HTML in a SPA
+# where all non-API routes are handled client-side by React Router.
+# API calls go to /api/* routes, and CORS middleware handles OPTIONS requests.
+@app.get("/{path:path}")
+async def serve_frontend(path: str):
+    """
+    Serve the frontend React app for non-API routes.
+    
+    This catch-all route handles frontend routes like /liff/appointment
+    by serving the index.html file, which allows React Router to handle routing.
+    
+    Note: The path parameter does not include the leading slash, so /api/liff/something
+    becomes path="api/liff/something" (hence path.startswith("api/") is correct).
+    """
+    # Don't serve frontend for API routes or special endpoints
+    # The root "/" is handled by the root() function above (more specific route)
+    # Note: "" is included for completeness, but root() will match "/" first
+    if path.startswith("api/") or path in ["docs", "redoc", "openapi.json", "health", ""]:
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    # Check if frontend dist exists
+    if not frontend_dist_path.exists():
+        raise HTTPException(status_code=404, detail="Frontend not built")
+    
+    # Serve index.html for frontend routes (React Router will handle client-side routing)
+    index_path = frontend_dist_path / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
+    else:
+        raise HTTPException(status_code=404, detail="Frontend not found")
 
 
 # Global exception handlers
