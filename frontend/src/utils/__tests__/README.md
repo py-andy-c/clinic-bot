@@ -48,5 +48,4 @@ npm run test:ui
 ## Test Files
 
 - `urlUtils.test.ts` - Tests for URL parameter preservation utility
-- `jwtUtils.test.ts` - Tests for JWT token clinic_id extraction logic
 
