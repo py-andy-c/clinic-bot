@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode, useMe
 import { AuthUser, AuthState, UserRole } from '../types';
 import { logger } from '../utils/logger';
 import { config } from '../config/env';
+import { tokenRefreshService } from '../services/tokenRefresh';
 
 // Get API base URL from environment variable
 const API_BASE_URL = config.apiBaseUrl;
@@ -40,7 +41,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: false,
     isLoading: true,
   });
-  
+
   const clearAuthState = useCallback(() => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('was_logged_in');
@@ -133,40 +134,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshToken = useCallback(async (): Promise<void> => {
     try {
-      // Simple refresh using HttpOnly cookies only
-      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
+      // Use centralized token refresh service
+      const result = await tokenRefreshService.refreshToken({
+        validateToken: true,
       });
 
-      if (response.ok) {
-        const data = await response.json();
-
-        // Store new access token
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('was_logged_in', 'true');
-
-        // Validate the new token to get user data
-        const userResponse = await fetch(`${API_BASE_URL}/auth/verify`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${data.access_token}`,
-          },
-        });
-
-        if (userResponse.ok) {
-          const userData = await userResponse.json();
+      // Update auth state with user data
+      if (result.userData) {
           setAuthState({
-            user: userData,
+          user: result.userData,
             isAuthenticated: true,
             isLoading: false,
           });
           logger.log('Token refresh successful');
         } else {
           throw new Error('Token validation failed after refresh');
-        }
-      } else {
-        throw new Error(`Token refresh failed: ${response.status}`);
       }
     } catch (error) {
       logger.error('Token refresh failed:', error);

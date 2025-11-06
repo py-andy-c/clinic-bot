@@ -161,9 +161,9 @@ const PatientManagement: React.FC = () => {
         const axiosError = err as AxiosErrorResponse;
         if (axiosError.response?.status === 409) {
           if (axiosError.response.data?.detail === "Cannot delete patient with future appointments") {
-            await showAlert('無法刪除此就診人，因為該就診人尚有未來的預約記錄。\n\n請先刪除或取消相關預約後再試。', '無法刪除');
+          await showAlert('無法刪除此就診人，因為該就診人尚有未來的預約記錄。\n\n請先刪除或取消相關預約後再試。', '無法刪除');
           } else if (axiosError.response.data?.detail === "至少需保留一位就診人") {
-            await showAlert('至少需保留一位就診人', '無法刪除');
+          await showAlert('至少需保留一位就診人', '無法刪除');
           } else {
             await showAlert('刪除就診人失敗，請稍後再試', '刪除失敗');
           }

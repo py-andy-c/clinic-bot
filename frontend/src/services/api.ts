@@ -1,6 +1,8 @@
 import axios, { AxiosInstance } from 'axios';
 import { config } from '../config/env';
 import { logger } from '../utils/logger';
+import { tokenRefreshService } from './tokenRefresh';
+import { ApiErrorType, AxiosErrorResponse } from '../types';
 import {
   Clinic,
   Member,
@@ -88,18 +90,16 @@ export class ApiService {
         const accessTokenBeforeRefresh = localStorage.getItem('access_token');
 
         try {
-          // Check if refresh is already in progress (either from api.ts or useAuth.tsx)
-          const refreshInProgress = this.isRefreshing || localStorage.getItem('_refresh_in_progress') === 'true';
+          // Check if refresh is already in progress (using centralized service)
+          const refreshInProgress = tokenRefreshService.isRefreshing() || this.isRefreshing;
           
           // Queue requests if refresh is already in progress
           if (refreshInProgress && this.refreshTokenPromise) {
             await this.refreshTokenPromise;
           } else {
             this.isRefreshing = true;
-            localStorage.setItem('_refresh_in_progress', 'true');
             this.refreshTokenPromise = this.refreshToken().finally(() => {
               this.isRefreshing = false;
-              localStorage.removeItem('_refresh_in_progress');
             });
             await this.refreshTokenPromise;
           }
@@ -183,7 +183,7 @@ export class ApiService {
           // Clear localStorage to ensure auth state is cleared
           localStorage.removeItem('access_token');
           localStorage.removeItem('was_logged_in');
-          localStorage.removeItem('_refresh_in_progress'); // Clear refresh flag to prevent blocking future refreshes
+          // Refresh flag is now managed by TokenRefreshService
           
           // Use replace instead of href to prevent back navigation issues
           // This immediately redirects without waiting for async operations
@@ -215,62 +215,24 @@ export class ApiService {
 
   async refreshToken(): Promise<void> {
     try {
-      logger.log('ApiService: Attempting to refresh token...');
+      // Use centralized token refresh service
+      // Pass axios instance to use existing interceptors
+      await tokenRefreshService.refreshToken({
+        validateToken: false, // Don't validate here, just refresh token
+        axiosInstance: this.client,
+      });
 
-      let response;
-      let refreshTokenSource = 'cookie';
-
-      // Try HttpOnly cookie first (preferred method)
-      try {
-        response = await this.client.post('/auth/refresh', {}, { withCredentials: true });
-      } catch (cookieError: any) {
-        logger.warn('ApiService: Cookie refresh failed, trying localStorage fallback:', cookieError.message);
-
-        // Fallback to localStorage if cookie fails (Safari ITP workaround)
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (refreshToken) {
-          logger.log('ApiService: Using localStorage refresh token fallback');
-          response = await this.client.post('/auth/refresh', {
-            refresh_token: refreshToken
-          }, { withCredentials: true });
-          refreshTokenSource = 'localStorage';
-        } else {
-          throw cookieError; // Re-throw if no fallback available
-        }
-      }
-
-      if (response.status >= 200 && response.status < 300) {
-        const data = response.data;
-
-        // Store new access token
-        try {
-          localStorage.setItem('access_token', data.access_token);
-          logger.log(`ApiService: New access token stored (via ${refreshTokenSource})`);
-
-          // Store new refresh token if provided (for localStorage fallback)
-          if (data.refresh_token) {
-            localStorage.setItem('refresh_token', data.refresh_token);
-            logger.log('ApiService: Refresh token updated in localStorage');
-          }
-
-          // Mark that user was successfully logged in
-          localStorage.setItem('was_logged_in', 'true');
-          this.resetSessionExpired();
-
-          logger.log('ApiService: Token refresh successful');
-        } catch (storageError) {
-          logger.error('ApiService: Failed to store tokens in localStorage:', storageError);
-          throw new Error('Failed to persist authentication token');
-        }
-      } else {
-        throw new Error(`Token refresh failed: ${response.status}`);
-      }
-    } catch (error: any) {
+      this.resetSessionExpired();
+      logger.log('ApiService: Token refresh successful');
+    } catch (error: ApiErrorType) {
       logger.error('ApiService: Token refresh failed with exception:', error);
 
       // Set session expired flag for 401 errors
-      if (error.response?.status === 401) {
-        this.sessionExpired = true;
+      if (typeof error === 'object' && error && 'response' in error) {
+        const axiosError = error as AxiosErrorResponse;
+        if (axiosError.response?.status === 401) {
+          this.sessionExpired = true;
+        }
       }
 
       throw error;
