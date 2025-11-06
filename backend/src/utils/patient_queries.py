@@ -71,36 +71,6 @@ def get_active_patients_for_clinic(
     return filter_active_patients(query).all()
 
 
-def get_all_patients_for_clinic(
-    db: Session,
-    clinic_id: int,
-    include_deleted: bool = False
-) -> List[Patient]:
-    """
-    Get all patients for a clinic (admin view with optional deleted patients).
-
-    Args:
-        db: Database session
-        clinic_id: Clinic ID
-        include_deleted: If True, include soft-deleted patients
-
-    Returns:
-        List of Patient objects (filtered by include_deleted)
-    """
-    from sqlalchemy.orm import joinedload
-
-    query = db.query(Patient).options(
-        joinedload(Patient.line_user)
-    ).filter(
-        Patient.clinic_id == clinic_id
-    )
-
-    if not include_deleted:
-        query = filter_active_patients(query)
-
-    return query.all()
-
-
 def get_patient_by_id_with_soft_delete_check(
     db: Session,
     patient_id: int,

@@ -16,7 +16,6 @@ from models.appointment_type import AppointmentType
 from models.clinic import Clinic
 from models.calendar_event import CalendarEvent
 from models.practitioner_availability import PractitionerAvailability
-from services.encryption_service import EncryptionService
 
 
 @pytest.fixture

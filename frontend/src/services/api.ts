@@ -485,11 +485,6 @@ export class ApiService {
 
 
   // Signup APIs (public)
-  async validateSignupToken(token: string, type: 'clinic' | 'member'): Promise<SignupTokenInfo> {
-    const response = await this.client.get(`/signup/${type}`, { params: { token } });
-    return response.data;
-  }
-
   async initiateClinicSignup(token: string): Promise<OAuthResponse> {
     const response = await this.client.get(`/signup/clinic?token=${token}`);
     return response.data;

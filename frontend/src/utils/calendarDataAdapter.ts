@@ -64,37 +64,6 @@ export const transformToCalendarEvents = (apiEvents: (ApiCalendarEvent | any)[])
 };
 
 /**
- * Transform monthly calendar data for React Big Calendar
- */
-export const transformMonthlyData = (monthlyData: MonthlyCalendarData): MonthlyCalendarEvent[] => {
-  return monthlyData.days.map(day => ({
-    date: day.date,
-    appointmentCount: day.appointment_count
-  }));
-};
-
-/**
- * Generate time slots for daily view
- */
-export const generateTimeSlots = (startHour: number = 8, endHour: number = 22): string[] => {
-  const slots: string[] = [];
-  for (let hour = startHour; hour < endHour; hour++) {
-    for (let minute = 0; minute < 60; minute += 30) {
-      const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-      slots.push(timeString);
-    }
-  }
-  return slots;
-};
-
-/**
- * Format time for display
- */
-export const formatTime = (timeStr: string): string => {
-  return timeStr.substring(0, 5); // HH:MM format
-};
-
-/**
  * Format event time range for display (e.g., "10:30 AM - 11:00 AM")
  * Uses Taiwan timezone for consistent formatting.
  * 
@@ -109,19 +78,4 @@ export const formatEventTimeRange = (start: Date, end: Date): string => {
   const startStr = startMoment.format('h:mm A');
   const endStr = endMoment.format('h:mm A');
   return `${startStr} - ${endStr}`;
-};
-
-/**
- * Get events for a specific time slot
- */
-export const getEventsForSlot = (slotTime: string, events: CalendarEvent[]): CalendarEvent[] => {
-  const slotStart = new Date(`2000-01-01T${slotTime}`);
-  const slotEnd = new Date(slotStart.getTime() + 30 * 60000); // 30 minutes later
-
-  return events.filter(event => {
-    const eventStart = new Date(`2000-01-01T${event.start.toTimeString().substring(0, 5)}`);
-    const eventEnd = new Date(`2000-01-01T${event.end.toTimeString().substring(0, 5)}`);
-
-    return eventStart < slotEnd && eventEnd > slotStart;
-  });
 };

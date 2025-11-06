@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { apiService } from '../services/api';
-import { SignupTokenInfo } from '../types';
 
 interface SignupPageProps {
   signupType: 'clinic' | 'member';
@@ -20,8 +18,6 @@ const SignupPage: React.FC<SignupPageProps> = ({
 }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [tokenInfo, setTokenInfo] = useState<SignupTokenInfo | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
 
@@ -30,31 +26,8 @@ const SignupPage: React.FC<SignupPageProps> = ({
   useEffect(() => {
     if (!token) {
       setError('缺少邀請令牌');
-      setLoading(false);
-      return;
     }
-
-    validateToken();
   }, [token]);
-
-  const validateToken = async () => {
-    try {
-      setLoading(true);
-      const data = await apiService.validateSignupToken(token!, signupType);
-      setTokenInfo(data);
-    } catch (err: any) {
-      console.error('Token validation error:', err);
-      if (err.response?.status === 400) {
-        setError('邀請連結無效或已過期');
-      } else if (err.response?.status === 409) {
-        setError('此邀請連結已被使用');
-      } else {
-        setError('驗證邀請連結時發生錯誤');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleGoogleSignup = async () => {
     try {
@@ -74,15 +47,7 @@ const SignupPage: React.FC<SignupPageProps> = ({
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600"></div>
-      </div>
-    );
-  }
-
-  if (error || !tokenInfo) {
+  if (error || !token) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8">

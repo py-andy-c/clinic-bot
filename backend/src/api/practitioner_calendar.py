@@ -26,7 +26,7 @@ from models import (
     PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment
 )
 from services import AvailabilityService, AppointmentTypeService
-from api.responses import AvailableSlotsResponse, AvailableSlotResponse
+from api.responses import AvailableSlotsResponse, AvailableSlotResponse, ConflictWarningResponse
 
 router = APIRouter()
 
@@ -118,13 +118,6 @@ class AvailabilityExceptionResponse(BaseModel):
     start_time: Optional[str]
     end_time: Optional[str]
     created_at: datetime
-
-
-class ConflictWarningResponse(BaseModel):
-    """Response model for conflict warnings."""
-    warning: str
-    message: str
-    details: Optional[Dict[str, Any]] = None
 
 
 # Helper Functions
@@ -738,9 +731,9 @@ async def create_availability_exception(
         # If there are conflicts, return warning response
         if conflicts:
             return ConflictWarningResponse(
-                warning="appointment_conflicts",
+                success=False,
                 message="此可用時間例外與現有預約衝突。預約將保持有效，但標記為「非工作時間」。",
-                details={'conflicting_appointments': conflicts}
+                conflicts=conflicts
             )
         
         return response
