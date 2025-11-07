@@ -13,6 +13,7 @@ import ClinicAppointmentTypeInstructions from '../components/ClinicAppointmentTy
 import ClinicReminderSettings from '../components/ClinicReminderSettings';
 import ClinicBookingRestrictionSettings from '../components/ClinicBookingRestrictionSettings';
 import ClinicInfoSettings from '../components/ClinicInfoSettings';
+import ChatSettings from '../components/ChatSettings';
 import PageHeader from '../components/PageHeader';
 
 const SettingsPage: React.FC = () => {
@@ -267,6 +268,20 @@ const SettingsPage: React.FC = () => {
                   });
                 }}
                 showSaveButton={sectionChanges.appointmentTypeInstructions || false}
+                onSave={saveData}
+                saving={uiState.saving}
+                isClinicAdmin={isClinicAdmin}
+              />
+
+              {/* Chat Settings */}
+              <ChatSettings
+                chatSettings={settings.chat_settings}
+                onChatSettingsChange={(chatSettings) => {
+                  updateData({
+                    chat_settings: chatSettings
+                  });
+                }}
+                showSaveButton={sectionChanges.chatSettings || false}
                 onSave={saveData}
                 saving={uiState.saving}
                 isClinicAdmin={isClinicAdmin}

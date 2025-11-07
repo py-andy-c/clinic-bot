@@ -119,6 +119,16 @@ async def line_webhook(
             f"message={message_text[:30]}..."
         )
         
+        # Check if chat feature is enabled for this clinic
+        validated_settings = clinic.get_validated_settings()
+        if not validated_settings.chat_settings.chat_enabled:
+            logger.info(
+                f"Chat feature is disabled for clinic_id={clinic.id}. "
+                f"Ignoring message from line_user_id={line_user_id}"
+            )
+            # Return OK to LINE but don't process the message
+            return {"status": "ok", "message": "Chat feature is disabled"}
+        
         # Start loading animation to show user that response is being prepared
         # Animation will automatically stop when we send the response message
         line_service.start_loading_animation(line_user_id, loading_seconds=60)

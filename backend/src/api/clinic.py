@@ -83,6 +83,11 @@ class ClinicInfoSettings(BaseModel):
     appointment_type_instructions: Optional[str] = None
 
 
+class ChatSettings(BaseModel):
+    """Chat/chatbot settings for clinic."""
+    chat_enabled: bool = False
+
+
 class SettingsResponse(BaseModel):
     """Response model for clinic settings."""
     clinic_id: int
@@ -92,6 +97,7 @@ class SettingsResponse(BaseModel):
     notification_settings: NotificationSettings
     booking_restriction_settings: BookingRestrictionSettings
     clinic_info_settings: ClinicInfoSettings
+    chat_settings: ChatSettings
 
 
 class PractitionerAvailabilityRequest(BaseModel):
@@ -459,6 +465,9 @@ async def get_settings(
             "sunday": {"start": "09:00", "end": "18:00", "enabled": False},
         }
 
+        # Get validated settings to access chat_settings
+        validated_settings = clinic.get_validated_settings()
+        
         return SettingsResponse(
             clinic_id=clinic.id,
             clinic_name=clinic.name,
@@ -476,6 +485,9 @@ async def get_settings(
                address=clinic.address,
                phone_number=clinic.phone_number,
                appointment_type_instructions=clinic.appointment_type_instructions
+           ),
+           chat_settings=ChatSettings(
+               chat_enabled=validated_settings.chat_settings.chat_enabled
            )
         )
 

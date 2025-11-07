@@ -54,5 +54,6 @@ export const getClinicSectionChanges = (current: ClinicSettings, original: Clini
     bookingRestrictionSettings:
       current.booking_restriction_settings.booking_restriction_type !== original.booking_restriction_settings.booking_restriction_type ||
       current.booking_restriction_settings.minimum_booking_hours_ahead !== original.booking_restriction_settings.minimum_booking_hours_ahead,
+    chatSettings: current.chat_settings.chat_enabled !== original.chat_settings.chat_enabled,
   };
 };

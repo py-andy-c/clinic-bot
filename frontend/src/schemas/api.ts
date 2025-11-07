@@ -24,6 +24,10 @@ export const ClinicInfoSettingsSchema = z.object({
   appointment_type_instructions: z.string().nullable().optional(),
 });
 
+export const ChatSettingsSchema = z.object({
+  chat_enabled: z.boolean(),
+});
+
 export const BusinessHoursSchema = z.record(z.string(), z.object({
   start: z.string(),
   end: z.string(),
@@ -45,6 +49,7 @@ export const ClinicSettingsSchema = z.object({
   notification_settings: NotificationSettingsSchema,
   booking_restriction_settings: BookingRestrictionSettingsSchema,
   clinic_info_settings: ClinicInfoSettingsSchema,
+  chat_settings: ChatSettingsSchema,
 });
 
 
@@ -86,6 +91,7 @@ export type ClinicSettings = z.infer<typeof ClinicSettingsSchema>;
 export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
 export type BookingRestrictionSettings = z.infer<typeof BookingRestrictionSettingsSchema>;
 export type ClinicInfoSettings = z.infer<typeof ClinicInfoSettingsSchema>;
+export type ChatSettings = z.infer<typeof ChatSettingsSchema>;
 export type User = z.infer<typeof UserSchema>;
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 export type SignupResponse = z.infer<typeof SignupResponseSchema>;

@@ -38,11 +38,17 @@ class ClinicInfoSettings(BaseModel):
     appointment_type_instructions: Optional[str] = Field(default=None, description="Instructions to guide patients when selecting appointment types")
 
 
+class ChatSettings(BaseModel):
+    """Schema for chat/chatbot settings."""
+    chat_enabled: bool = Field(default=False, description="Whether the AI chatbot feature is enabled for this clinic")
+
+
 class ClinicSettings(BaseModel):
     """Schema for all clinic settings."""
     notification_settings: NotificationSettings = Field(default_factory=NotificationSettings)
     booking_restriction_settings: BookingRestrictionSettings = Field(default_factory=BookingRestrictionSettings)
     clinic_info_settings: ClinicInfoSettings = Field(default_factory=ClinicInfoSettings)
+    chat_settings: ChatSettings = Field(default_factory=ChatSettings)
 
 
 class Clinic(Base):
@@ -161,7 +167,11 @@ class Clinic(Base):
         "clinic_info_settings": {
             "display_name": null,
             "address": null,
-            "phone_number": null
+            "phone_number": null,
+            "appointment_type_instructions": null
+        },
+        "chat_settings": {
+            "chat_enabled": false
         }
     }
     """
