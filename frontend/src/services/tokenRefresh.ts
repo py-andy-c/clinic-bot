@@ -2,11 +2,11 @@
  * Token Refresh Service
  * 
  * Centralized service for refreshing authentication tokens.
- * Handles both cookie-based and localStorage fallback mechanisms.
+ * Uses localStorage for token storage.
  * 
  * Flow:
- * 1. Try to refresh using HttpOnly cookie (preferred)
- * 2. Fallback to localStorage refresh token if cookie fails (Safari ITP workaround)
+ * 1. Get refresh token from localStorage
+ * 2. Send refresh request with token in request body
  * 3. Store new tokens in localStorage
  * 4. Optionally validate new token and return user data
  */
@@ -15,7 +15,7 @@ import axios, { AxiosInstance } from 'axios';
 import { config } from '../config/env';
 import { logger } from '../utils/logger';
 import { authStorage } from '../utils/storage';
-import { ApiErrorType, AuthUser } from '../types';
+import { AuthUser } from '../types';
 
 export interface RefreshTokenResponse {
   access_token: string;
@@ -75,51 +75,30 @@ export class TokenRefreshService {
       logger.log('TokenRefreshService: Attempting to refresh token...');
 
       const client = options.axiosInstance || this.createAxiosClient();
-      let response;
-      let refreshTokenSource = 'cookie';
-
-      // Step 1: Try HttpOnly cookie first (preferred method)
-      try {
-        response = await client.post<RefreshTokenResponse>('/auth/refresh', {}, {
-          withCredentials: true,
-        });
-        logger.log('TokenRefreshService: Token refreshed via cookie');
-      } catch (cookieError: ApiErrorType) {
-        logger.warn('TokenRefreshService: Cookie refresh failed, trying localStorage fallback');
-
-        // Step 2: Fallback to localStorage if cookie fails (Safari ITP workaround)
-        const refreshToken = authStorage.getRefreshToken();
-        if (refreshToken) {
-          logger.log('TokenRefreshService: Using localStorage refresh token fallback');
-          try {
-            response = await client.post<RefreshTokenResponse>('/auth/refresh', {
-              refresh_token: refreshToken,
-            }, {
-              withCredentials: true,
-            });
-            refreshTokenSource = 'localStorage';
-            logger.log('TokenRefreshService: Token refreshed via localStorage fallback');
-          } catch (fallbackError: ApiErrorType) {
-            logger.error('TokenRefreshService: Both cookie and localStorage refresh failed');
-            throw fallbackError;
-          }
-        } else {
-          logger.error('TokenRefreshService: No refresh token available in localStorage');
-          throw cookieError;
-        }
+      
+      // Get refresh token from localStorage
+      const refreshToken = authStorage.getRefreshToken();
+      if (!refreshToken) {
+        logger.error('TokenRefreshService: No refresh token available in localStorage');
+        throw new Error('找不到重新整理權杖');
       }
 
-      // Step 3: Extract tokens from response
+      logger.log('TokenRefreshService: Sending refresh request to /auth/refresh');
+      // Send refresh request with token in request body
+      const response = await client.post<RefreshTokenResponse>('/auth/refresh', {
+        refresh_token: refreshToken,
+      });
+
+      // Extract tokens from response
       const data = response.data;
       if (!data.access_token) {
-        throw new Error('Token refresh response missing access_token');
+        throw new Error('重新整理權杖回應缺少存取權杖');
       }
 
-      // Step 4: Store new tokens
+      // Store new tokens
       this.storeTokens(data.access_token, data.refresh_token);
-      logger.log(`TokenRefreshService: New tokens stored (via ${refreshTokenSource})`);
 
-      // Step 5: Optionally validate token and get user data
+      // Optionally validate token and get user data
       let userData: AuthUser | undefined = undefined;
       if (options.validateToken) {
         userData = await this.validateToken(data.access_token, client);
@@ -135,9 +114,12 @@ export class TokenRefreshService {
       }
       
       return result;
-    } catch (error: ApiErrorType) {
+    } catch (error: unknown) {
       logger.error('TokenRefreshService: Token refresh failed:', error);
-      throw error;
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('重新整理權杖失敗：未知錯誤');
     }
   }
 
@@ -154,7 +136,7 @@ export class TokenRefreshService {
       }
     } catch (error) {
       logger.error('TokenRefreshService: Failed to store tokens:', error);
-      throw new Error('Failed to persist authentication tokens');
+      throw new Error('無法儲存認證權杖');
     }
   }
 
@@ -163,15 +145,26 @@ export class TokenRefreshService {
    */
   private async validateToken(accessToken: string, client: AxiosInstance): Promise<AuthUser> {
     try {
+      logger.log('TokenRefreshService: Validating token with /auth/verify');
       const response = await client.get('/auth/verify', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
       });
+      logger.log('TokenRefreshService: Token validation successful');
       return response.data;
-    } catch (error: ApiErrorType) {
+    } catch (error: unknown) {
       logger.error('TokenRefreshService: Token validation failed:', error);
-      throw new Error('Token validation failed after refresh');
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { status?: number; data?: unknown } };
+        if (axiosError.response) {
+          logger.error('TokenRefreshService: Validation error response:', {
+            status: axiosError.response.status,
+            data: axiosError.response.data,
+          });
+        }
+      }
+      throw new Error('重新整理後權杖驗證失敗');
     }
   }
 
@@ -185,7 +178,6 @@ export class TokenRefreshService {
       headers: {
         'Content-Type': 'application/json',
       },
-      withCredentials: true,
     });
   }
 

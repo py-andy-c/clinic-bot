@@ -521,9 +521,10 @@ class TestRefreshTokenFlow:
         db_session.add(refresh_token_record)
         db_session.commit()
 
-        # Create a mock request with the refresh token cookie
+        # Create a mock request with the refresh token in request body
+        from unittest.mock import AsyncMock
         mock_request = Mock(spec=Request)
-        mock_request.cookies = {"refresh_token": refresh_token_string}
+        mock_request.json = AsyncMock(return_value={"refresh_token": refresh_token_string})
 
         # Create a mock response
         mock_response = Mock(spec=Response)
@@ -535,6 +536,7 @@ class TestRefreshTokenFlow:
         assert "access_token" in result
         assert "token_type" in result
         assert "expires_in" in result
+        assert "refresh_token" in result  # New refresh token should be in response
 
         # Verify the old token was revoked
         db_session.refresh(refresh_token_record)
@@ -546,12 +548,6 @@ class TestRefreshTokenFlow:
             RefreshToken.revoked == False
         ).all()
         assert len(new_tokens) == 1
-
-        # Verify set_cookie was called
-        mock_response.set_cookie.assert_called_once()
-        call_args = mock_response.set_cookie.call_args
-        assert call_args[1]["key"] == "refresh_token"
-        assert call_args[1]["httponly"] == True
 
     def test_refresh_token_success(self, client, db_session):
         """Test successful refresh token exchange."""
@@ -599,17 +595,15 @@ class TestRefreshTokenFlow:
         client.app.dependency_overrides[get_db] = override_get_db
 
         try:
-            # Set the refresh token cookie with the actual token string (not hash)
-            client.cookies.set("refresh_token", refresh_token_string)
-
-            # Attempt refresh
-            response = client.post("/api/auth/refresh")
+            # Send refresh token in request body
+            response = client.post("/api/auth/refresh", json={"refresh_token": refresh_token_string})
 
             assert response.status_code == 200
             data = response.json()
             assert "access_token" in data
             assert "token_type" in data
             assert "expires_in" in data
+            assert "refresh_token" in data  # New refresh token should be in response
 
             # Verify old refresh token was revoked
             db_session.refresh(refresh_token_record)
@@ -622,9 +616,6 @@ class TestRefreshTokenFlow:
             ).all()
             assert len(new_refresh_tokens) == 1
 
-            # Verify new cookie was set
-            assert "refresh_token" in response.cookies
-
         finally:
             # Clean up overrides
             client.app.dependency_overrides.pop(get_db, None)
@@ -635,14 +626,13 @@ class TestRefreshTokenFlow:
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
-            # Test with no cookie
+            # Test with no refresh token in request body
             response = client.post("/api/auth/refresh")
             assert response.status_code == 401
             assert "找不到重新整理權杖" in response.json()["detail"]
 
-            # Test with invalid cookie
-            client.cookies.set("refresh_token", "invalid_token_string")
-            response = client.post("/api/auth/refresh")
+            # Test with invalid refresh token in request body
+            response = client.post("/api/auth/refresh", json={"refresh_token": "invalid_token_string"})
             assert response.status_code == 401
             assert "無效的重新整理權杖" in response.json()["detail"]
         finally:
@@ -691,8 +681,8 @@ class TestRefreshTokenFlow:
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
-            client.cookies.set("refresh_token", expired_token_string)
-            response = client.post("/api/auth/refresh")
+            # Send expired refresh token in request body
+            response = client.post("/api/auth/refresh", json={"refresh_token": expired_token_string})
             assert response.status_code == 401
             assert "無效的重新整理權杖" in response.json()["detail"]
         finally:
@@ -740,11 +730,8 @@ class TestRefreshTokenFlow:
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
-            # Set the refresh token cookie
-            client.cookies.set("refresh_token", refresh_token_string)
-
-            # Logout
-            response = client.post("/api/auth/logout")
+            # Send refresh token in request body for logout
+            response = client.post("/api/auth/logout", json={"refresh_token": refresh_token_string})
             assert response.status_code == 200
             assert response.json()["message"] == "登出成功"
 
@@ -752,8 +739,88 @@ class TestRefreshTokenFlow:
             db_session.refresh(refresh_token_record)
             assert refresh_token_record.revoked == True
 
-            # Verify cookie was cleared
-            assert response.cookies.get("refresh_token", "") == ""
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_concurrent_refresh_requests(self, client, db_session):
+        """Test that multiple rapid refresh requests are handled correctly."""
+        from models import User, RefreshToken
+        from services.jwt_service import jwt_service
+        from datetime import datetime, timezone, timedelta
+
+        # Create test clinic and user
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel_concurrent",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        user = User(
+            clinic_id=clinic.id,
+            email="test@example.com",
+            google_subject_id="test_subject",
+            full_name="Test User",
+            roles=["admin", "practitioner"]
+        )
+        db_session.add(user)
+        db_session.commit()
+
+        # Create a valid refresh token
+        refresh_token_string = "test_refresh_token_concurrent_123"
+        refresh_token_hash = jwt_service.create_refresh_token_hash(refresh_token_string)
+
+        refresh_token_record = RefreshToken(
+            user_id=user.id,
+            token_hash=refresh_token_hash,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7)
+        )
+        db_session.add(refresh_token_record)
+        db_session.commit()
+
+        # Override dependencies to use test session
+        def override_get_db():
+            yield db_session
+
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # Make multiple rapid refresh requests sequentially
+            # This tests that the backend handles token rotation correctly
+            # even when requests come in quick succession
+            results = []
+            for i in range(5):
+                response = client.post("/api/auth/refresh", json={"refresh_token": refresh_token_string})
+                results.append(response)
+                
+                # If the request succeeded, get the new refresh token for the next request
+                if response.status_code == 200:
+                    data = response.json()
+                    if "refresh_token" in data:
+                        refresh_token_string = data["refresh_token"]
+                else:
+                    # If request failed, break to avoid using invalid token
+                    break
+
+            # All requests should succeed (or at least the first few)
+            # Note: After the first refresh, the old token is revoked, so subsequent
+            # requests using the old token will fail. This is expected behavior.
+            assert results[0].status_code == 200, "First refresh request should succeed"
+            assert "access_token" in results[0].json(), "First response should contain access_token"
+
+            # Verify that tokens were rotated
+            # After first refresh, old token should be revoked
+            db_session.refresh(refresh_token_record)
+            assert refresh_token_record.revoked == True, "Old token should be revoked after refresh"
+
+            # Verify new token was created
+            new_tokens = db_session.query(RefreshToken).filter(
+                RefreshToken.user_id == user.id,
+                RefreshToken.revoked == False
+            ).all()
+            assert len(new_tokens) >= 1, "Should have at least one new token after refresh"
 
         finally:
             client.app.dependency_overrides.pop(get_db, None)
@@ -1467,9 +1534,8 @@ class TestSignupCallbackFlow:
         try:
             client.app.dependency_overrides[get_db] = override_get_db
 
-            # Set an invalid refresh token cookie
-            client.cookies.set("refresh_token", "invalid_token")
-            response = client.post("/api/auth/refresh")
+            # Send invalid refresh token in request body
+            response = client.post("/api/auth/refresh", json={"refresh_token": "invalid_token"})
             assert response.status_code == 401
             # Should get "Invalid refresh token" error since token doesn't exist in database
             data = response.json()
@@ -1630,17 +1696,15 @@ class TestSystemAdminRefreshTokenFlow:
             client.app.dependency_overrides[get_db] = override_get_db
 
             try:
-                # Set the refresh token cookie
-                client.cookies.set("refresh_token", refresh_token_string)
-
-                # Attempt refresh
-                response = client.post("/api/auth/refresh")
+                # Send refresh token in request body
+                response = client.post("/api/auth/refresh", json={"refresh_token": refresh_token_string})
 
                 assert response.status_code == 200
                 data = response.json()
                 assert "access_token" in data
                 assert "token_type" in data
                 assert "expires_in" in data
+                assert "refresh_token" in data  # New refresh token should be in response
 
                 # Verify old refresh token was revoked
                 db_session.refresh(refresh_token_record)
@@ -1658,9 +1722,6 @@ class TestSystemAdminRefreshTokenFlow:
                 assert new_token.google_subject_id == google_subject_id
                 assert new_token.name == name
                 assert new_token.user_id is None  # System admins don't have User records
-
-                # Verify new cookie was set
-                assert "refresh_token" in response.cookies
 
                 # Verify the access token contains correct system admin info
                 access_token_payload = jwt_service.verify_token(data["access_token"])
@@ -1747,10 +1808,10 @@ class TestSystemAdminRefreshTokenFlow:
 
             try:
                 # First refresh
-                client.cookies.set("refresh_token", refresh_token_string)
-                response1 = client.post("/api/auth/refresh")
+                response1 = client.post("/api/auth/refresh", json={"refresh_token": refresh_token_string})
                 assert response1.status_code == 200
-                new_refresh_token_string = response1.cookies.get("refresh_token")
+                data1 = response1.json()
+                new_refresh_token_string = data1["refresh_token"]
 
                 # Verify old token is revoked
                 db_session.refresh(initial_refresh_token)
@@ -1771,8 +1832,7 @@ class TestSystemAdminRefreshTokenFlow:
                 assert new_token.user_id is None  # System admins don't have User records
 
                 # Second refresh using new token
-                client.cookies.set("refresh_token", new_refresh_token_string)
-                response2 = client.post("/api/auth/refresh")
+                response2 = client.post("/api/auth/refresh", json={"refresh_token": new_refresh_token_string})
                 assert response2.status_code == 200
 
                 # Verify first new token is revoked
@@ -1873,8 +1933,8 @@ class TestSystemAdminRefreshTokenFlow:
                 dummy_user.is_active = False
                 db_session.commit()
                 
-                client.cookies.set("refresh_token", refresh_token_string)
-                response = client.post("/api/auth/refresh")
+                # Send refresh token in request body
+                response = client.post("/api/auth/refresh", json={"refresh_token": refresh_token_string})
                 assert response.status_code == 401
                 assert "找不到使用者或使用者已停用" in response.json()["detail"]
 

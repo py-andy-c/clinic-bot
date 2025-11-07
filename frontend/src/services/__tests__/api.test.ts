@@ -356,10 +356,10 @@ describe('ApiService.refreshToken', () => {
 
     it('should handle response without access_token', async () => {
       // Mock TokenRefreshService to fail (missing access_token)
-      const error = new Error('Token refresh response missing access_token');
+      const error = new Error('重新整理權杖回應缺少存取權杖');
       (tokenRefreshService.refreshToken as any).mockRejectedValueOnce(error);
 
-      await expect(apiService.refreshToken()).rejects.toThrow('Token refresh response missing access_token');
+      await expect(apiService.refreshToken()).rejects.toThrow('重新整理權杖回應缺少存取權杖');
     });
   });
 

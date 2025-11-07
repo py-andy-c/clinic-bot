@@ -16,71 +16,13 @@ logger = logging.getLogger(__name__)
 from datetime import datetime, timezone
 from typing import Dict, Any
 from core.database import get_db
-from core.config import API_BASE_URL, SYSTEM_ADMIN_EMAILS, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, JWT_REFRESH_TOKEN_EXPIRE_DAYS
+from core.config import API_BASE_URL, SYSTEM_ADMIN_EMAILS, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 from services.jwt_service import jwt_service, TokenPayload
 from models import RefreshToken, User, Clinic
 from models.clinic import ClinicSettings
 from auth.dependencies import UserContext, get_current_user
 
 router = APIRouter()
-
-
-def set_refresh_token_cookie(
-    response: Response,
-    request: Request,
-    refresh_token: str,
-    max_age: int = JWT_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
-) -> None:
-    """
-    Helper to set refresh token cookie with proper cross-origin settings.
-    
-    Args:
-        response: FastAPI Response object to set cookie on
-        request: FastAPI Request object to detect HTTPS
-        refresh_token: The refresh token value to set
-        max_age: Cookie max age in seconds (defaults to refresh token expiry)
-    """
-    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
-    cookie_same_site = "none" if is_https else "lax"
-    
-    # Enhanced logging for cookie setting (consensus recommendation)
-    logger.info(
-        f"Setting refresh token cookie - domain: {request.url.hostname}, "
-        f"HTTPS: {is_https}, SameSite: {cookie_same_site}, "
-        f"max_age: {max_age}s ({max_age/86400:.1f} days), "
-        f"secure: {is_https}, path: /"
-    )
-    
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=is_https,  # Secure cookies only over HTTPS (required for SameSite=None)
-        samesite=cookie_same_site,  # "none" for cross-origin, "lax" for same-origin HTTP
-        path="/",  # Ensure cookie is sent with all requests
-        max_age=max_age
-    )
-
-
-def delete_refresh_token_cookie(
-    response: Response,
-    request: Request
-) -> None:
-    """
-    Helper to delete refresh token cookie with proper cross-origin settings.
-    
-    Args:
-        response: FastAPI Response object to delete cookie on
-        request: FastAPI Request object to detect HTTPS
-    """
-    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
-    cookie_same_site = "none" if is_https else "lax"
-    response.delete_cookie(
-        key="refresh_token",
-        httponly=True,
-        secure=is_https,  # Secure cookies only over HTTPS (required for SameSite=None)
-        samesite=cookie_same_site  # Match cookie setting
-    )
 
 
 @router.get("/google/login", summary="Initiate Google OAuth login")
@@ -275,49 +217,54 @@ async def google_auth_callback(
                     detail="診所使用者認證必須透過註冊流程"
                 )
 
-        # Create token pair
-        token_data = jwt_service.create_token_pair(payload)
+        # Create token pair and store refresh token in database
+        # Wrap in try-catch to rollback database changes if token creation fails
+        try:
+            # Create token pair
+            token_data = jwt_service.create_token_pair(payload)
 
-        # Store refresh token in database
-        if actual_user_type == "system_admin":
-            # For system admins, we don't have a user record, so user_id is None
-            # System admin identity is stored in email, google_subject_id, and name fields
-            user_id_for_token = None
-        else:
-            # For clinic users, use the actual user ID
-            assert existing_user is not None, "existing_user should not be None for clinic users"
-            user_id_for_token = existing_user.id
+            # Store refresh token in database
+            if actual_user_type == "system_admin":
+                # For system admins, we don't have a user record, so user_id is None
+                # System admin identity is stored in email, google_subject_id, and name fields
+                user_id_for_token = None
+            else:
+                # For clinic users, use the actual user ID
+                assert existing_user is not None, "existing_user should not be None for clinic users"
+                user_id_for_token = existing_user.id
 
-        refresh_token_hash = token_data["refresh_token_hash"]
+            refresh_token_hash = token_data["refresh_token_hash"]
 
-        refresh_token_record = RefreshToken(
-            user_id=user_id_for_token,  # None for system admins, actual user_id for clinic users
-            token_hash=refresh_token_hash,
-            expires_at=jwt_service.get_token_expiry("refresh"),
-            email=email if actual_user_type == "system_admin" else None,  # Store email for system admins
-            google_subject_id=google_subject_id if actual_user_type == "system_admin" else None,  # Store google_subject_id for system admins
-            name=name if actual_user_type == "system_admin" else None  # Store name for system admins
-        )
-        db.add(refresh_token_record)
-        db.commit()
+            refresh_token_record = RefreshToken(
+                user_id=user_id_for_token,  # None for system admins, actual user_id for clinic users
+                token_hash=refresh_token_hash,
+                expires_at=jwt_service.get_token_expiry("refresh"),
+                email=email if actual_user_type == "system_admin" else None,  # Store email for system admins
+                google_subject_id=google_subject_id if actual_user_type == "system_admin" else None,  # Store google_subject_id for system admins
+                name=name if actual_user_type == "system_admin" else None  # Store name for system admins
+            )
+            db.add(refresh_token_record)
+            db.commit()
 
-        # Create redirect response with tokens in URL and refresh token in cookie
-        from fastapi.responses import RedirectResponse
-        # Note: Setting cookies during cross-origin redirects can be problematic
-        # The cookie will be set for the backend domain, not the frontend domain
-        # Include refresh token in URL as fallback for cross-origin cookie issues
-        from urllib.parse import quote
-        redirect_url_with_tokens = f"{redirect_url}?token={quote(token_data['access_token'])}&refresh_token={quote(token_data['refresh_token'])}"
-        logger.debug(f"OAuth redirect: tokens included in URL for cross-origin fallback")
-        response = RedirectResponse(
-            url=redirect_url_with_tokens,
-            status_code=302
-        )
+            # Create redirect response with tokens in URL
+            from fastapi.responses import RedirectResponse
+            from urllib.parse import quote
+            redirect_url_with_tokens = f"{redirect_url}?token={quote(token_data['access_token'])}&refresh_token={quote(token_data['refresh_token'])}"
+            logger.debug(f"OAuth redirect: tokens included in URL")
+            response = RedirectResponse(
+                url=redirect_url_with_tokens,
+                status_code=302
+            )
 
-        # Set refresh token as httpOnly cookie
-        set_refresh_token_cookie(response, request, token_data["refresh_token"])
-
-        return response
+            return response
+        except Exception as e:
+            # Rollback database changes if token creation or redirect fails
+            db.rollback()
+            logger.exception(f"Failed to create tokens or redirect in OAuth callback: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="認證失敗"
+            )
 
     except HTTPException as e:
         # Handle specific error cases by redirecting to frontend with error message
@@ -346,85 +293,34 @@ async def refresh_access_token(
     db: Session = Depends(get_db)
 ) -> Dict[str, str]:
     """
-    Refresh access token using refresh token from httpOnly cookie or request body/header.
+    Refresh access token using refresh token from request body.
     
-    Falls back to request body/header for cross-origin scenarios where cookies don't work
-    (e.g., different ngrok domains with Safari ITP).
-    
-    Returns new access token and sets new refresh token cookie.
+    Returns new access token and refresh token.
     """
-    # Try to get refresh token from cookie first (preferred method)
-    refresh_token = request.cookies.get("refresh_token")
-    token_source = "cookie" if refresh_token else None
+    # Get refresh token from request body
+    try:
+        body = await request.json()
+        refresh_token = body.get("refresh_token")
+    except Exception as e:
+        logger.debug(f"Could not read request body as JSON: {e}")
+        refresh_token = None
     
-    # Fallback: Try to get from request body or header if cookie is not available
-    # This handles cross-origin scenarios where cookies are blocked (Safari ITP)
+    # Validate refresh token format
     if not refresh_token:
-        try:
-            # Try to get from request body
-            # Note: request.body() can only be read once, so we check if content-type is JSON first
-            content_type = request.headers.get("content-type", "")
-            if "application/json" in content_type:
-                body = await request.json()
-                refresh_token = body.get("refresh_token")
-                if refresh_token:
-                    token_source = "body"
-                    logger.debug("Refresh token found in request body (cookie fallback)")
-        except Exception as e:
-            logger.debug(f"Could not read request body as JSON: {e}")
-        finally:
-            # Try header as last resort
-            if not refresh_token:
-                refresh_token = request.headers.get("X-Refresh-Token")
-                if refresh_token:
-                    token_source = "header"
-                    logger.debug("Refresh token found in header (cookie fallback)")
-    
-    # Enhanced logging for refresh token request (consensus recommendation)
-    user_agent = request.headers.get('user-agent', '')
-
-    # Handle both string and Mock objects for testing
-    user_agent_str = str(user_agent) if user_agent else ''
-
-    # Safari detection for backend logging: More robust than simple string check
-    # Matches Safari user agent pattern, excludes Chrome and other WebKit browsers
-    is_safari = ('Safari' in user_agent_str and
-                 'Chrome' not in user_agent_str and
-                 'Version/' in user_agent_str)  # iOS Safari includes Version/
-
-    # Note: Backend Safari detection is for logging only and may have some false positives/negatives
-    # compared to frontend detection which can use navigator.vendor
-
-    if refresh_token:
-        logger.info(
-            f"Refresh token request received - source: {token_source}, "
-            f"origin: {request.headers.get('origin')}, "
-            f"referer: {request.headers.get('referer')}, "
-            f"cookies: {list(request.cookies.keys())}, "
-            f"hostname: {request.url.hostname}, "
-            f"is_safari: {is_safari}, "
-            f"user_agent: {user_agent_str[:100]}..."
-        )
-    else:
-        # Log warning with detailed context when refresh token is not found
-        all_cookies = request.cookies
-        logger.warning(
-            f"Refresh token not found in cookie, body, or header - "
-            f"cookies received: {list(all_cookies.keys())}, "
-            f"origin: {request.headers.get('origin')}, "
-            f"referer: {request.headers.get('referer')}, "
-            f"hostname: {request.url.hostname}, "
-            f"URL: {request.url}, "
-            f"is_safari: {is_safari}, "
-            f"user_agent: {user_agent_str[:100]}..."
-        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="找不到重新整理權杖"
         )
+    
+    # Validate refresh token format (must be a non-empty string with minimum length)
+    if not isinstance(refresh_token, str) or len(refresh_token.strip()) < 10:
+        logger.warning(f"Invalid refresh token format: type={type(refresh_token)}, length={len(refresh_token) if isinstance(refresh_token, str) else 0}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="無效的重新整理權杖格式"
+        )
 
     # Find refresh token by verifying against all valid tokens
-    # Since refresh tokens are sent via HttpOnly cookies, we verify by checking all valid tokens
     valid_tokens = db.query(RefreshToken).filter(
         RefreshToken.revoked == False,
         RefreshToken.expires_at > datetime.now(timezone.utc)
@@ -457,15 +353,15 @@ async def refresh_access_token(
         # For system admin, create token payload from stored fields
         assert refresh_token_record.email is not None, "System admin refresh token must have email"
         system_admin_email = refresh_token_record.email
-        system_admin_subject_id = refresh_token_record.google_subject_id or system_admin_email  # Fallback to email if not stored
-        system_admin_name = refresh_token_record.name or system_admin_email.split('@')[0].title()  # Fallback name
+        system_admin_subject_id = refresh_token_record.google_subject_id or system_admin_email
+        system_admin_name = refresh_token_record.name or system_admin_email.split('@')[0].title()
         
         # Create new token pair for system admin
         payload = TokenPayload(
-            sub=system_admin_subject_id,  # Use stored google_subject_id
+            sub=system_admin_subject_id,
             email=system_admin_email,
             user_type="system_admin",
-            roles=[],  # System admins don't have clinic roles
+            roles=[],
             clinic_id=None,
             name=system_admin_name
         )
@@ -476,23 +372,18 @@ async def refresh_access_token(
         refresh_token_record.revoke()
         
         # Create new refresh token record for system admin
-        # System admins have user_id=None (no User record exists)
         new_refresh_token_record = RefreshToken(
-            user_id=None,  # System admins don't have User records
+            user_id=None,
             token_hash=token_data["refresh_token_hash"],
             expires_at=jwt_service.get_token_expiry("refresh"),
-            email=system_admin_email,  # Store email for system admin
-            google_subject_id=system_admin_subject_id,  # Store google_subject_id for system admin
-            name=system_admin_name  # Store name for system admin
+            email=system_admin_email,
+            google_subject_id=system_admin_subject_id,
+            name=system_admin_name
         )
         db.add(new_refresh_token_record)
         db.commit()
-        
-        # Set new refresh token cookie for system admin
-        set_refresh_token_cookie(response, request, token_data["refresh_token"])
     else:
         # Clinic user - normal flow
-        # Get the user associated with this refresh token (must exist for clinic users)
         user = refresh_token_record.user
         if user is None:
             raise HTTPException(
@@ -517,71 +408,37 @@ async def refresh_access_token(
         
         token_data = jwt_service.create_token_pair(payload)
         
-        # IMPORTANT: Only rotate refresh token if cookies are working
-        # If token comes from body (not cookie), it means Safari ITP is blocking cookies
-        # In this case, if CORS blocks the response, frontend can't read new tokens
-        # So we reuse the same refresh token to allow retry
-        if token_source == "cookie":
-            # Cookies are working - safe to rotate (frontend can use cookie for retry)
-            # Revoke old refresh token
-            refresh_token_record.revoke()
-            
-            # Create new refresh token record
-            new_refresh_token_record = RefreshToken(
-                user_id=user.id,
-                token_hash=token_data["refresh_token_hash"],
-                expires_at=jwt_service.get_token_expiry("refresh"),
-                email=None,  # Clinic users don't need email in RefreshToken
-                google_subject_id=None,  # Clinic users don't need google_subject_id in RefreshToken
-                name=None  # Clinic users don't need name in RefreshToken
-            )
-            db.add(new_refresh_token_record)
-            db.commit()
-            
-            # Set new refresh token cookie
-            set_refresh_token_cookie(response, request, token_data["refresh_token"])
-        else:
-            # Cookies are NOT working (Safari ITP blocking) - don't rotate yet
-            # Reuse the same refresh token in response so frontend can retry if CORS blocks
-            # Only rotate when cookies work OR after successful response confirmed
-            logger.info(
-                f"Cookies not working (token from {token_source}) - "
-                f"reusing same refresh token to allow retry if CORS blocks response"
-            )
-            # Use the SAME refresh token in response (don't rotate)
-            token_data["refresh_token"] = refresh_token  # Reuse existing token
-            # Don't set cookie - it won't work anyway
-            # Don't revoke old token - frontend needs it for retry
+        # Revoke old refresh token
+        refresh_token_record.revoke()
+        
+        # Create new refresh token record
+        new_refresh_token_record = RefreshToken(
+            user_id=user.id,
+            token_hash=token_data["refresh_token_hash"],
+            expires_at=jwt_service.get_token_expiry("refresh"),
+            email=None,
+            google_subject_id=None,
+            name=None
+        )
+        db.add(new_refresh_token_record)
+        db.commit()
 
-    # Return response with access token
-    # Always include refresh_token in response to ensure localStorage fallback works
-    # even if cookies fail (cross-origin, SameSite issues, Safari ITP, etc.)
+    # Return response with access token and refresh token
     response_data = {
         "access_token": token_data["access_token"],
         "token_type": token_data["token_type"],
         "expires_in": str(token_data["expires_in"]),
-        "refresh_token": token_data["refresh_token"]  # Always include for localStorage fallback
+        "refresh_token": token_data["refresh_token"]
     }
     
-    # Enhanced logging for successful refresh
+    # Log successful refresh
     user_email = refresh_token_record.email if is_system_admin else (
         refresh_token_record.user.email if refresh_token_record.user else "unknown"
     )
-    if token_source == "cookie":
-        logger.info(
-            f"Token refresh successful - user: {user_email}, "
-            f"token_source: {token_source}, "
-            f"token_rotated: True, "
-            f"new_refresh_token_included: True, "
-            f"cookie_set: True"
-        )
-    else:
-        logger.info(
-            f"Token refresh successful - user: {user_email}, "
-            f"token_source: {token_source}, "
-            f"token_rotated: False (cookies not working, allowing retry if CORS blocks), "
-            f"refresh_token_reused: True"
-        )
+    logger.info(
+        f"Token refresh successful - user: {user_email}, "
+        f"token_rotated: True"
+    )
     
     return response_data
 
@@ -746,25 +603,15 @@ async def logout(
     db: Session = Depends(get_db)
 ) -> dict[str, str]:
     """
-    Logout the current user by revoking refresh token and clearing cookie.
+    Logout the current user by revoking refresh token.
     """
-    # Get refresh token from cookie (preferred) or request body (fallback for cross-origin)
-    refresh_token = request.cookies.get("refresh_token")
-    token_source = "cookie" if refresh_token else None
-
-    # Fallback: Try to get from request body if cookie is not available
-    # This handles cross-origin scenarios where cookies are blocked (Safari ITP)
-    if not refresh_token:
-        try:
-            content_type = request.headers.get("content-type", "")
-            if "application/json" in content_type:
-                body = await request.json()
-                refresh_token = body.get("refresh_token")
-                if refresh_token:
-                    token_source = "body"
-                    logger.debug("Refresh token found in request body during logout (cookie fallback)")
-        except Exception as e:
-            logger.debug(f"Could not read request body as JSON during logout: {e}")
+    # Get refresh token from request body
+    try:
+        body = await request.json()
+        refresh_token = body.get("refresh_token")
+    except Exception as e:
+        logger.debug(f"Could not read request body as JSON during logout: {e}")
+        refresh_token = None
 
     # Revoke refresh token if found
     if refresh_token:
@@ -778,12 +625,9 @@ async def logout(
             if jwt_service.verify_refresh_token_hash(refresh_token, token_record.token_hash):
                 token_record.revoke()
                 db.commit()
-                logger.info(f"Refresh token revoked during logout (source: {token_source})")
+                logger.info("Refresh token revoked during logout")
                 break
     else:
-        logger.debug("No refresh token found in cookie or request body during logout")
-
-    # Clear the refresh token cookie
-    delete_refresh_token_cookie(response, request)
+        logger.debug("No refresh token found in request body during logout")
 
     return {"message": "登出成功"}

@@ -2,6 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 import { config } from '../config/env';
 import { logger } from '../utils/logger';
 import { tokenRefreshService } from './tokenRefresh';
+import { authStorage } from '../utils/storage';
 import { ApiErrorType, AxiosErrorResponse } from '../types';
 import {
   Clinic,
@@ -11,7 +12,8 @@ import {
   ClinicHealth,
   MemberInviteData,
   OAuthResponse,
-  UserRole
+  UserRole,
+  AuthUser
 } from '../types';
 import {
   validateClinicSettings,
@@ -29,13 +31,12 @@ import {
 
 export class ApiService {
   private client: AxiosInstance;
-  private refreshTokenPromise: Promise<void> | null = null;
-  private isRefreshing = false;
   private sessionExpired = false; // Flag to prevent multiple redirects
+  private redirectInProgress = false; // Flag to prevent multiple redirects
 
   constructor() {
     // Reset session expired flag if we have a token (user might have logged in before)
-    const token = localStorage.getItem('access_token');
+    const token = authStorage.getAccessToken();
     if (token) {
       this.sessionExpired = false;
     }
@@ -47,14 +48,11 @@ export class ApiService {
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': 'true',
       },
-      // Enable credentials (cookies) for cross-origin requests
-      // Required for refresh token cookies when frontend is on Vercel and backend on Railway
-      withCredentials: true,
     });
 
     // Add request interceptor to include auth token
     this.client.interceptors.request.use((config) => {
-      const token = localStorage.getItem('access_token');
+      const token = authStorage.getAccessToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
         // Reset session expired flag if we have a token
@@ -86,111 +84,55 @@ export class ApiService {
 
         originalRequest._retry = true;
 
-        // Capture current token before refresh attempt
-        const accessTokenBeforeRefresh = localStorage.getItem('access_token');
+        // Check if we have a refresh token before attempting refresh
+        const refreshToken = authStorage.getRefreshToken();
+        if (!refreshToken) {
+          logger.warn('ApiService: No refresh token available, logging out');
+          this.sessionExpired = true;
+          authStorage.clearAuth();
+          this.redirectToLogin();
+          return Promise.reject(new Error('會話已過期，正在重新導向至登入頁面...'));
+        }
 
         try {
-          // Check if refresh is already in progress (using centralized service)
-          const refreshInProgress = tokenRefreshService.isRefreshing() || this.isRefreshing;
-          
-          // Queue requests if refresh is already in progress
-          if (refreshInProgress && this.refreshTokenPromise) {
-            await this.refreshTokenPromise;
-          } else {
-            this.isRefreshing = true;
-            this.refreshTokenPromise = this.refreshToken().finally(() => {
-              this.isRefreshing = false;
-            });
-            await this.refreshTokenPromise;
-          }
+          // Use centralized token refresh service (handles duplicate requests automatically)
+          // Don't pass axiosInstance to avoid interceptor loops - refresh service creates its own client
+          await tokenRefreshService.refreshToken({ 
+            validateToken: false
+          });
 
+          // Reset session expired flag after successful refresh (before retry)
+          // This ensures the flag is cleared even if retry fails for other reasons
+          this.sessionExpired = false;
+          
           // Retry with new token
-          const token = localStorage.getItem('access_token');
+          const token = authStorage.getAccessToken();
           if (token) {
             originalRequest.headers.Authorization = `Bearer ${token}`;
-            return this.client.request(originalRequest);
+            // Clear the retry flag to allow retry
+            originalRequest._retry = false;
+            // Reset timeout for retry to ensure we have full timeout available
+            // Create a new request config to avoid timeout issues
+            const retryConfig = {
+              ...originalRequest,
+              timeout: 10000, // Reset timeout to full 10 seconds
+            };
+            const retryResponse = await this.client.request(retryConfig);
+            // Reset session expired flag after successful refresh and retry
+            this.sessionExpired = false;
+            return retryResponse;
+          } else {
+            throw new Error('重新整理後找不到存取權杖');
           }
         } catch (refreshError: any) {
-          // Check if this is a CORS/network error (refresh might have succeeded on backend)
-          const isCorsError = !refreshError.response && 
-            (refreshError.code === 'ERR_NETWORK' || 
-             refreshError.message?.includes('CORS') ||
-             refreshError.message?.includes('access control') ||
-             refreshError.message?.includes('Load failed'));
-          
-          if (isCorsError) {
-            logger.log('ApiService: CORS error during refresh - checking if current token is still valid', {
-              hasAccessToken: !!localStorage.getItem('access_token'),
-              accessTokenBeforeRefresh: !!accessTokenBeforeRefresh,
-              timestamp: new Date().toISOString()
-            });
-            
-            // When CORS blocks the response, we can't get the new token
-            // But the backend might have refreshed successfully
-            // Check if our current token is still valid (might have been refreshed by another request)
-            const currentToken = localStorage.getItem('access_token');
-            if (currentToken) {
-              try {
-                // Try to validate the current token - it might have been refreshed by another request
-                const verifyResponse = await this.client.get('/auth/verify', {
-                  headers: { Authorization: `Bearer ${currentToken}` }
-                });
-                if (verifyResponse.status === 200) {
-                  logger.log('ApiService: Current token is still valid after CORS error - refresh may have succeeded', {
-                    timestamp: new Date().toISOString()
-                  });
-                  this.resetSessionExpired();
-                  // Retry the original request with the current token
-                  originalRequest.headers.Authorization = `Bearer ${currentToken}`;
-                  return this.client.request(originalRequest);
-                }
-              } catch (verifyError: any) {
-                logger.warn('ApiService: Current token validation failed after CORS error', {
-                  error: verifyError.message,
-                  timestamp: new Date().toISOString()
-                });
-              }
-            }
-            
-            // Wait a moment and check again - another request might have refreshed the token
-            await new Promise(resolve => setTimeout(resolve, 100)); // Reduced from 300ms
-            const tokenAfterWait = localStorage.getItem('access_token');
-            if (tokenAfterWait && tokenAfterWait !== currentToken) {
-              logger.log('ApiService: New token appeared after wait - refresh succeeded via another request', {
-                timestamp: new Date().toISOString()
-              });
-              try {
-                const verifyResponse = await this.client.get('/auth/verify', {
-                  headers: { Authorization: `Bearer ${tokenAfterWait}` }
-                });
-                if (verifyResponse.status === 200) {
-                  this.resetSessionExpired();
-                  originalRequest.headers.Authorization = `Bearer ${tokenAfterWait}`;
-                  return this.client.request(originalRequest);
-                }
-              } catch (verifyError) {
-                logger.warn('ApiService: New token validation failed', {
-                  error: verifyError instanceof Error ? verifyError.message : String(verifyError),
-                  timestamp: new Date().toISOString()
-                });
-              }
-            }
-          }
+          logger.error('ApiService: Token refresh or retry failed:', refreshError);
           
           // Refresh failed (session expired), clear auth state and redirect to login
-          this.sessionExpired = true; // Mark session as expired to prevent further attempts
-          this.isRefreshing = false;
-          // Clear localStorage to ensure auth state is cleared
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('was_logged_in');
-          // Refresh flag is now managed by TokenRefreshService
-          
-          // Use replace instead of href to prevent back navigation issues
-          // This immediately redirects without waiting for async operations
-          window.location.replace('/login');
+          this.sessionExpired = true;
+          authStorage.clearAuth();
+          this.redirectToLogin();
           
           // Return a rejected promise with a special error that won't cause infinite loops
-          // The redirect happens immediately, so components won't be stuck loading
           return Promise.reject(new Error('會話已過期，正在重新導向至登入頁面...'));
         }
 
@@ -211,6 +153,26 @@ export class ApiService {
    */
   resetSessionExpired(): void {
     this.sessionExpired = false;
+    this.redirectInProgress = false;
+  }
+
+  /**
+   * Redirect to login page with delay to avoid interrupting React rendering
+   * Prevents multiple redirects from happening simultaneously
+   */
+  private redirectToLogin(): void {
+    // Prevent multiple redirects
+    if (this.redirectInProgress) {
+      return;
+    }
+    
+    this.redirectInProgress = true;
+    
+    // Use setTimeout to delay redirect and avoid interrupting React rendering
+    // This prevents "Importing a module script failed" errors
+    setTimeout(() => {
+      window.location.replace('/login');
+    }, 0);
   }
 
   async refreshToken(): Promise<void> {
@@ -240,8 +202,20 @@ export class ApiService {
   }
 
   async logout(): Promise<void> {
-    await this.client.post('/auth/logout', {}, { withCredentials: true });
-    localStorage.removeItem('access_token');
+    const refreshToken = authStorage.getRefreshToken();
+    if (refreshToken) {
+      await this.client.post('/auth/logout', { refresh_token: refreshToken });
+    }
+    authStorage.clearAuth();
+  }
+
+  /**
+   * Verify the current access token and get user data
+   * This goes through the axios interceptor which handles token refresh automatically
+   */
+  async verifyToken(): Promise<AuthUser> {
+    const response = await this.client.get('/auth/verify');
+    return response.data;
   }
 
   // System Admin APIs

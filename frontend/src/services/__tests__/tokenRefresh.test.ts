@@ -44,6 +44,7 @@ describe('TokenRefreshService', () => {
       };
 
       mockAxiosInstance.post.mockResolvedValue(mockResponse);
+      (authStorage.getRefreshToken as any).mockReturnValue('test-refresh-token');
 
       const result = await service.refreshToken();
 
@@ -51,54 +52,49 @@ describe('TokenRefreshService', () => {
       expect(result.refreshToken).toBe('new-refresh-token');
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         '/auth/refresh',
-        {},
-        { withCredentials: true }
+        { refresh_token: 'test-refresh-token' }
       );
       expect(authStorage.setAccessToken).toHaveBeenCalledWith('new-access-token');
       expect(authStorage.setRefreshToken).toHaveBeenCalledWith('new-refresh-token');
       expect(authStorage.setWasLoggedIn).toHaveBeenCalledWith(true);
     });
 
-    it('should fallback to localStorage if cookie fails', async () => {
+    it('should refresh token using localStorage', async () => {
       const mockResponse = {
         data: {
           access_token: 'new-access-token',
+          refresh_token: 'new-refresh-token',
         },
       };
 
-      // First call (cookie) fails
-      mockAxiosInstance.post
-        .mockRejectedValueOnce(new Error('Cookie failed'))
-        .mockResolvedValueOnce(mockResponse);
-
+      mockAxiosInstance.post.mockResolvedValue(mockResponse);
       (authStorage.getRefreshToken as any).mockReturnValue('stored-refresh-token');
 
       const result = await service.refreshToken();
 
       expect(result.accessToken).toBe('new-access-token');
-      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
-      expect(mockAxiosInstance.post).toHaveBeenNthCalledWith(
-        2,
+      expect(result.refreshToken).toBe('new-refresh-token');
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         '/auth/refresh',
-        { refresh_token: 'stored-refresh-token' },
-        { withCredentials: true }
+        { refresh_token: 'stored-refresh-token' }
       );
     });
 
-    it('should throw error if both cookie and localStorage fail', async () => {
+    it('should throw error if refresh request fails', async () => {
+      // Reset mocks to ensure clean state
+      vi.clearAllMocks();
       const error = new Error('Refresh failed');
-      mockAxiosInstance.post.mockRejectedValue(error);
+      mockAxiosInstance.post.mockRejectedValueOnce(error);
       (authStorage.getRefreshToken as any).mockReturnValue('stored-refresh-token');
 
       await expect(service.refreshToken()).rejects.toThrow('Refresh failed');
     });
 
     it('should throw error if no refresh token available', async () => {
-      const error = new Error('Cookie failed');
-      mockAxiosInstance.post.mockRejectedValue(error);
       (authStorage.getRefreshToken as any).mockReturnValue(null);
 
-      await expect(service.refreshToken()).rejects.toThrow('Cookie failed');
+      await expect(service.refreshToken()).rejects.toThrow('找不到重新整理權杖');
     });
 
     it('should validate token and return user data when requested', async () => {
@@ -115,6 +111,7 @@ describe('TokenRefreshService', () => {
 
       mockAxiosInstance.post.mockResolvedValue(mockRefreshResponse);
       mockAxiosInstance.get.mockResolvedValue({ data: mockUserData });
+      (authStorage.getRefreshToken as any).mockReturnValue('test-refresh-token');
 
       const result = await service.refreshToken({ validateToken: true });
 
@@ -139,6 +136,7 @@ describe('TokenRefreshService', () => {
       });
 
       mockAxiosInstance.post.mockReturnValue(firstPromise);
+      (authStorage.getRefreshToken as any).mockReturnValue('test-refresh-token');
 
       // Start first refresh (this will set refreshInProgress)
       const promise1 = service.refreshToken();
@@ -178,8 +176,9 @@ describe('TokenRefreshService', () => {
       };
 
       mockAxiosInstance.post.mockResolvedValue(mockResponse);
+      (authStorage.getRefreshToken as any).mockReturnValue('test-refresh-token');
 
-      await expect(service.refreshToken()).rejects.toThrow('Token refresh response missing access_token');
+      await expect(service.refreshToken()).rejects.toThrow('重新整理權杖回應缺少存取權杖');
     });
   });
 
@@ -201,6 +200,7 @@ describe('TokenRefreshService', () => {
       });
 
       mockAxiosInstance.post.mockReturnValue(refreshPromise);
+      (authStorage.getRefreshToken as any).mockReturnValue('test-refresh-token');
 
       const refreshPromiseResult = service.refreshToken();
 
@@ -227,6 +227,7 @@ describe('TokenRefreshService', () => {
       });
 
       mockAxiosInstance.post.mockReturnValue(refreshPromise);
+      (authStorage.getRefreshToken as any).mockReturnValue('test-refresh-token');
 
       service.refreshToken();
 

@@ -1,11 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from 'react';
 import { AuthUser, AuthState, UserRole } from '../types';
 import { logger } from '../utils/logger';
-import { config } from '../config/env';
 import { tokenRefreshService } from '../services/tokenRefresh';
-
-// Get API base URL from environment variable
-const API_BASE_URL = config.apiBaseUrl;
+import { authStorage } from '../utils/storage';
+import { apiService } from '../services/api';
 
 interface AuthContextType extends AuthState {
   user: AuthUser | null;
@@ -43,9 +41,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   });
 
   const clearAuthState = useCallback(() => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('was_logged_in');
-    localStorage.removeItem('refresh_token'); // Clear refresh token for security
+    authStorage.clearAuth();
     setAuthState({
       user: null,
       isAuthenticated: false,
@@ -67,39 +63,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     if (token) {
       // Handle OAuth callback - extract token and redirect
-      localStorage.setItem('access_token', token);
-      localStorage.setItem('was_logged_in', 'true');
+      authStorage.setAccessToken(token);
+      authStorage.setWasLoggedIn(true);
 
-      // Store refresh token in localStorage as fallback for Safari ITP
+      // Store refresh token in localStorage
       if (refreshToken) {
-        localStorage.setItem('refresh_token', refreshToken);
+        authStorage.setRefreshToken(refreshToken);
         logger.log('OAuth callback - access token and refresh token stored in localStorage');
-      } else {
-        logger.log('OAuth callback - access token stored, refresh token handled via HttpOnly cookie only');
       }
 
       // Clean up URL (remove token and refresh_token from query params)
       const cleanUrl = window.location.pathname + window.location.hash;
       window.history.replaceState({}, document.title, cleanUrl);
 
-      // Validate the token and get user info
-      fetch(`${API_BASE_URL}/auth/verify`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-        .then(response => {
-          if (response.ok) {
-            return response.json();
-          } else {
-            throw new Error('Token validation failed');
-          }
-        })
+      // Validate the token and get user info using axios client
+      // This goes through the axios interceptor which handles token refresh automatically
+      apiService.verifyToken()
         .then(userData => {
           logger.log('OAuth callback - User data received');
-
-
           setAuthState({
             user: userData,
             isAuthenticated: true,
@@ -119,7 +100,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Listen for storage events (e.g., when token is cleared by another tab)
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'access_token' && !e.newValue) {
+      // Check for auth_ prefixed keys (used by authStorage)
+      if (e.key === 'auth_access_token' && !e.newValue) {
         // Token was cleared (e.g., logout in another tab)
         clearAuthState();
       }
@@ -134,24 +116,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshToken = useCallback(async (): Promise<void> => {
     try {
+      logger.log('useAuth: Starting token refresh...');
       // Use centralized token refresh service
-      const result = await tokenRefreshService.refreshToken({
-        validateToken: true,
+      // Don't validate token here - just refresh and update state
+      // Validation will happen when we check auth status
+      await tokenRefreshService.refreshToken({
+        validateToken: false,
       });
 
-      // Update auth state with user data
-      if (result.userData) {
-          setAuthState({
-          user: result.userData,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-          logger.log('Token refresh successful');
-        } else {
-          throw new Error('Token validation failed after refresh');
+      // Get user data by validating the new token
+      const newToken = authStorage.getAccessToken();
+      if (!newToken) {
+        throw new Error('No access token after refresh');
       }
+
+      logger.log('useAuth: Token refreshed, validating new token...');
+      // Validate the new token to get user data using axios client
+      // This goes through the axios interceptor which handles token refresh automatically
+      const userData = await apiService.verifyToken();
+
+      setAuthState({
+        user: userData,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+      logger.log('useAuth: Token refresh and validation successful');
     } catch (error) {
-      logger.error('Token refresh failed:', error);
+      logger.error('useAuth: Token refresh failed:', error);
       clearAuthState();
       // Redirect to login if we're not already there
       if (!window.location.pathname.startsWith('/login')) {
@@ -180,35 +171,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const checkAuthStatus = useCallback(async () => {
     try {
       // Check if we have a valid access token
-      const token = localStorage.getItem('access_token');
+      const token = authStorage.getAccessToken();
       if (token) {
-        // Validate token with backend
+        // Validate token with backend using axios client
+        // This goes through the axios interceptor which handles token refresh automatically
         try {
-          const response = await fetch(`${API_BASE_URL}/auth/verify`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
+          const userData = await apiService.verifyToken();
 
-          if (response.ok) {
-            const userData = await response.json();
-            setAuthState({
-              user: userData,
-              isAuthenticated: true,
-              isLoading: false,
-            });
-          } else {
-            // Token is invalid, try refresh
-            await refreshToken();
-          }
+          setAuthState({
+            user: userData,
+            isAuthenticated: true,
+            isLoading: false,
+          });
         } catch (error) {
-          // Try refresh token flow
+          // Token is invalid, try refresh
+          // The axios interceptor should have already attempted refresh, but if it failed,
+          // we try again here
           await refreshToken();
         }
       } else {
         // No access token
-        const wasLoggedIn = localStorage.getItem('was_logged_in') === 'true';
+        const wasLoggedIn = authStorage.getWasLoggedIn();
         if (wasLoggedIn) {
           await refreshToken();
         } else {
@@ -235,15 +218,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setAuthState(prev => ({ ...prev, isLoading: true }));
 
-      // Get the OAuth URL from backend first
-      const params = userType ? `?user_type=${userType}` : '';
-      const response = await fetch(`${API_BASE_URL}/auth/google/login${params}`);
-
-      if (!response.ok) {
-        throw new Error(`Failed to get OAuth URL: ${response.status}`);
-      }
-
-      const data = await response.json();
+      // Get the OAuth URL from backend using axios client
+      const data = await apiService.initiateGoogleAuth(userType);
 
       // Redirect to Google OAuth
       window.location.href = data.auth_url;
@@ -255,16 +231,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
-      // Clear local storage
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('was_logged_in');
-
       // Call logout endpoint to revoke refresh token
-      await fetch(`${API_BASE_URL}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
+      // apiService.logout() will get the refresh token and clear storage
+      await apiService.logout();
 
       clearAuthState();
 
