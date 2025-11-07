@@ -1,4 +1,5 @@
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosInstance, AxiosError } from 'axios';
+import axiosRetry from 'axios-retry';
 import { config } from '../config/env';
 import { logger } from '../utils/logger';
 import { tokenRefreshService } from './tokenRefresh';
@@ -28,20 +29,24 @@ import {
 } from '../types';
 
 /**
- * Delay before redirecting to login page (in milliseconds).
+ * Redirect to login page utility.
  * 
- * This delay ensures React has finished rendering before we redirect,
- * preventing "useAuth must be used within an AuthProvider" errors that occur
- * when window.location.replace() is called during React's rendering cycle.
- * 
- * requestAnimationFrame waits for the next frame (~16ms at 60fps), which is
- * typically sufficient for React to finish rendering. Set to 0 to use only
- * requestAnimationFrame, or increase if additional delay is needed.
+ * Uses requestAnimationFrame to ensure React has finished rendering before redirecting,
+ * preventing "useAuth must be used within an AuthProvider" errors.
  */
-const REDIRECT_DELAY_MS = 0; // Using requestAnimationFrame only (no additional delay needed)
-
-// Module-level flag to prevent multiple redirects (shared across all ApiService instances)
-let redirectInProgress = false;
+const redirectToLogin = (): void => {
+  if (window.location.pathname === '/login') {
+    return;
+  }
+  
+  requestAnimationFrame(() => {
+    try {
+      window.location.replace('/login');
+    } catch (error) {
+      logger.error('Failed to redirect to login:', error);
+    }
+  });
+};
 
 export class ApiService {
   private client: AxiosInstance;
@@ -57,7 +62,22 @@ export class ApiService {
       },
     });
 
-    // Add request interceptor to include auth token
+    // Configure axios-retry for network errors (not 401 auth errors)
+    // 401 errors are handled manually in the response interceptor after token refresh
+    axiosRetry(this.client, {
+      retries: 2,
+      retryDelay: axiosRetry.exponentialDelay,
+      retryCondition: (error: AxiosError) => {
+        // Only retry on network errors, not 401 (handled by interceptor)
+        // Don't retry refresh token requests to avoid infinite loops
+        const requestUrl = error.config?.url || '';
+        const isRefreshRequest = requestUrl.includes('/auth/refresh');
+        const isNetworkError = !error.response; // Network error (no response)
+        return isNetworkError && !isRefreshRequest;
+      },
+    });
+
+    // Request interceptor: Inject auth token
     this.client.interceptors.request.use((config) => {
       const token = authStorage.getAccessToken();
       if (token) {
@@ -66,78 +86,54 @@ export class ApiService {
       return config;
     });
 
-    // Add response interceptor for error handling
+    // Response interceptor: Handle 401 errors and refresh tokens
     this.client.interceptors.response.use(
       (response) => response,
-      async (error) => {
-        const originalRequest = error.config;
-
-        // If redirect is already in progress, don't process more errors
-        if (redirectInProgress) {
-          return Promise.reject(new Error('會話已過期，正在重新導向至登入頁面...'));
-        }
-
-        // Prevent infinite loops - don't retry refresh token requests
-        // Check if this is a refresh token endpoint request (works with both full URL and path)
-        const requestUrl = originalRequest.url || '';
-        const isRefreshRequest = requestUrl.includes('/auth/refresh');
-        
-        // Skip retry if already retried, if not a 401, or if this is a refresh request
-        if (originalRequest._retry || error.response?.status !== 401 || isRefreshRequest) {
+      async (error: AxiosError) => {
+        // Only handle 401 errors (unauthorized)
+        if (error.response?.status !== 401) {
           return Promise.reject(error);
         }
 
-        originalRequest._retry = true;
+        const requestUrl = error.config?.url || '';
+        const isRefreshRequest = requestUrl.includes('/auth/refresh');
+        
+        // Don't handle refresh token requests (avoid infinite loops)
+        if (isRefreshRequest) {
+          return Promise.reject(error);
+        }
 
-        // Check if we have a refresh token before attempting refresh
+        // Check if we have a refresh token
         const refreshToken = authStorage.getRefreshToken();
         if (!refreshToken) {
           logger.warn('ApiService: No refresh token available, logging out');
           authStorage.clearAuth();
-          this.redirectToLogin();
+          redirectToLogin();
           return Promise.reject(new Error('會話已過期，正在重新導向至登入頁面...'));
         }
 
         try {
-          // Use centralized token refresh service (handles duplicate requests automatically)
-          // The TokenRefreshService uses refreshInProgress promise to prevent concurrent refreshes
-          // Refresh service creates its own client to avoid interceptor loops
-          // User data is now included in refresh response (eliminates need for /auth/verify)
+          // Refresh token using centralized service
+          // TokenRefreshService handles concurrent refresh requests automatically
           await tokenRefreshService.refreshToken();
           
-          // Retry the original request with the new access token
-          const token = authStorage.getAccessToken();
-          if (token) {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            // Clear the retry flag to allow retry
-            originalRequest._retry = false;
-            // Reset timeout for retry to ensure we have full timeout available
-            // Create a new request config to avoid timeout issues
-            const retryConfig = {
-              ...originalRequest,
-              timeout: 10000, // Reset timeout to full 10 seconds
-            };
-            const retryResponse = await this.client.request(retryConfig);
-            return retryResponse;
+          // Update request with new token and retry manually
+          const newToken = authStorage.getAccessToken();
+          if (newToken && error.config) {
+            error.config.headers.Authorization = `Bearer ${newToken}`;
+            // Manually retry the request with the new token
+            return this.client.request(error.config);
           } else {
             throw new Error('重新整理後找不到存取權杖');
           }
-        } catch (refreshError: any) {
-          logger.error('ApiService: Token refresh or retry failed:', refreshError);
+        } catch (refreshError) {
+          logger.error('ApiService: Token refresh failed:', refreshError);
           
-          // Refresh failed (session expired), clear auth state and redirect to login
-          // This handles cases where:
-          // - Refresh token is invalid/expired
-          // - Refresh token is missing
-          // - Network error during refresh
+          // Refresh failed - clear auth and redirect to login
           authStorage.clearAuth();
-          this.redirectToLogin();
-          
-          // Return a rejected promise with a special error that won't cause infinite loops
+          redirectToLogin();
           return Promise.reject(new Error('會話已過期，正在重新導向至登入頁面...'));
         }
-
-        return Promise.reject(error);
       }
     );
   }
@@ -148,47 +144,6 @@ export class ApiService {
     return this.client.get('/auth/google/login', { params }).then(res => res.data);
   }
 
-  /**
-   * Redirect to login page with delay to avoid interrupting React rendering.
-   * 
-   * Prevents multiple redirects from happening simultaneously and ensures React
-   * has finished rendering before redirecting, which prevents "useAuth must be
-   * used within an AuthProvider" errors.
-   * 
-   * Uses requestAnimationFrame to wait for the next frame, ensuring React has
-   * finished rendering before the redirect occurs.
-   * 
-   * Uses module-level flag to prevent multiple redirects across all ApiService instances.
-   */
-  private redirectToLogin(): void {
-    // Prevent multiple redirects (check if already on login page or redirect in progress)
-    if (redirectInProgress || window.location.pathname === '/login') {
-      return;
-    }
-    
-    redirectInProgress = true;
-    
-    // Use requestAnimationFrame to ensure redirect happens after React has finished rendering
-    // This prevents "useAuth must be used within an AuthProvider" errors that occur
-    // when window.location.replace() is called during React's rendering cycle
-    requestAnimationFrame(() => {
-      try {
-        if (REDIRECT_DELAY_MS > 0) {
-          setTimeout(() => {
-            window.location.replace('/login');
-          }, REDIRECT_DELAY_MS);
-        } else {
-          // No additional delay needed - requestAnimationFrame is sufficient
-          window.location.replace('/login');
-        }
-      } catch (error) {
-        // Reset flag if redirect fails (shouldn't happen, but defensive)
-        // This handles edge cases like browser security restrictions
-        redirectInProgress = false;
-        logger.error('Failed to redirect to login:', error);
-      }
-    });
-  }
 
 
   async logout(): Promise<void> {
