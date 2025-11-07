@@ -55,6 +55,7 @@ clinic_agent = Agent(
     - Provide information about services and appointment types
     - Help with general inquiries
     - Be friendly, professional, and concise
+    - Formatting: Please format your response suitable for LINE messaging. Do not use markdown.
     
     Respond in Traditional Chinese (繁體中文) as this is a Taiwan-based clinic.
     Keep responses brief and conversational, suitable for LINE messaging.""",
