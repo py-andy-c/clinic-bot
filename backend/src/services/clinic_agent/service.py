@@ -10,10 +10,12 @@ import logging
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
+from sqlalchemy.orm import Session
 from agents import Agent, ModelSettings, Runner, RunConfig
 from agents.extensions.memory import SQLAlchemySession
 
 from models import Clinic
+from services.appointment_type_service import AppointmentTypeService
 from core.config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
@@ -46,10 +48,17 @@ def get_async_engine() -> AsyncEngine:
     return _async_engine
 
 
-# Initialize clinic agent
-clinic_agent = Agent(
-    name="Clinic Agent",
-    instructions="""You are a helpful assistant for a physical therapy clinic.
+def _build_agent_instructions(clinic_context: str) -> str:
+    """
+    Build agent instructions with clinic context.
+    
+    Args:
+        clinic_context: Formatted clinic context string
+        
+    Returns:
+        str: Complete agent instructions with clinic context
+    """
+    base_instructions = """You are a helpful assistant for a physical therapy clinic.
     Your role is to:
     - Answer patient questions about the clinic
     - Provide information about services and appointment types
@@ -58,10 +67,43 @@ clinic_agent = Agent(
     - Formatting: Please format your response suitable for LINE messaging. Do not use markdown.
     
     Respond in Traditional Chinese (繁體中文) as this is a Taiwan-based clinic.
-    Keep responses brief and conversational, suitable for LINE messaging.""",
-    model="gpt-4o-mini",
-    model_settings=ModelSettings()
-)
+    Keep responses brief and conversational, suitable for LINE messaging.
+    
+    Below is the information about this clinic:
+    
+{clinic_context}"""
+    
+    return base_instructions.format(clinic_context=clinic_context)
+
+
+def _create_clinic_agent(clinic: Clinic, db: Session) -> Agent:
+    """
+    Create clinic-specific agent with clinic context in instructions.
+    
+    Creates a new agent for each call to ensure fresh clinic context.
+    
+    Args:
+        clinic: Clinic entity
+        db: Database session
+        
+    Returns:
+        Agent: Clinic-specific agent with context in instructions
+    """
+    # Build clinic context
+    clinic_context = ClinicAgentService._build_clinic_context(clinic, db)
+    
+    # Build instructions with clinic context
+    instructions = _build_agent_instructions(clinic_context)
+    
+    # Create agent with clinic-specific instructions
+    agent = Agent(
+        name=f"Clinic Agent - {clinic.name}",
+        instructions=instructions,
+        model="gpt-5",
+        model_settings=ModelSettings()
+    )
+    
+    return agent
 
 
 class ClinicAgentService:
@@ -73,21 +115,69 @@ class ClinicAgentService:
     """
     
     @staticmethod
+    def _build_clinic_context(clinic: Clinic, db: Session) -> str:
+        """
+        Build clinic context string for the AI agent.
+        
+        Includes clinic name, display name, address, phone, and services.
+        
+        Args:
+            clinic: Clinic entity
+            db: Database session
+            
+        Returns:
+            str: Formatted clinic context string
+        """
+        context_parts = []
+        
+        # Clinic name
+        clinic_name = clinic.effective_display_name
+        context_parts.append(f"診所名稱：{clinic_name}")
+        
+        # Address
+        if clinic.address:
+            context_parts.append(f"地址：{clinic.address}")
+        
+        # Phone number
+        if clinic.phone_number:
+            context_parts.append(f"電話：{clinic.phone_number}")
+        
+        # Appointment types (services)
+        try:
+            appointment_types = AppointmentTypeService.list_appointment_types_for_clinic(db, clinic.id)
+            if appointment_types:
+                services = [f"{at.name}（{at.duration_minutes}分鐘）" for at in appointment_types]
+                context_parts.append(f"服務項目：{', '.join(services)}")
+        except Exception as e:
+            logger.warning(f"Failed to fetch appointment types for clinic_id={clinic.id}: {e}")
+        
+        # Appointment type instructions (if available)
+        validated_settings = clinic.get_validated_settings()
+        if validated_settings.clinic_info_settings.appointment_type_instructions:
+            instructions = validated_settings.clinic_info_settings.appointment_type_instructions
+            context_parts.append(f"預約說明：{instructions}")
+        
+        return "\n".join(context_parts)
+    
+    @staticmethod
     async def process_message(
         line_user_id: str,
         message: str,
-        clinic: Clinic
+        clinic: Clinic,
+        db: Session
     ) -> str:
         """
         Process a patient message and generate AI response.
         
         Limits conversation history to the last 10 messages to manage
-        token usage and keep context relevant.
+        token usage and keep context relevant. Includes clinic-specific
+        context (name, address, phone, services) in the agent's knowledge.
         
         Args:
             line_user_id: LINE user ID from webhook
             message: Patient's message text
             clinic: Clinic entity
+            db: Database session (for fetching appointment types)
             
         Returns:
             str: AI-generated response text
@@ -133,12 +223,17 @@ class ClinicAgentService:
                     f"messages for clinic_id={clinic.id}, line_user_id={line_user_id}"
                 )
             
+            # Create clinic-specific agent with context in system prompt
+            # Create fresh agent each time to ensure latest clinic context
+            agent = _create_clinic_agent(clinic, db)
+            
             # Run agent with session (SDK handles conversation history automatically)
             # Note: When using session memory, pass input as string, not list
             # The SDK will automatically manage conversation history
+            # Clinic context is already in the agent's instructions (system prompt)
             result = await Runner.run(
-                clinic_agent,
-                input=message,  # Pass as string when using session memory
+                agent,
+                input=message,  # Pass user message directly - context is in system prompt
                 session=session,
                 run_config=RunConfig(trace_metadata={"clinic_id": str(clinic.id)})
             )
