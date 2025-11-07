@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from 'react';
 import { AuthUser, AuthState, UserRole } from '../types';
 import { logger } from '../utils/logger';
-import { tokenRefreshService } from '../services/tokenRefresh';
 import { authStorage } from '../utils/storage';
 import { apiService } from '../services/api';
 
@@ -21,7 +20,6 @@ interface AuthContextType extends AuthState {
   user: AuthUser | null;
   login: (userType?: 'system_admin' | 'clinic_user') => Promise<void>;
   logout: () => Promise<void>;
-  refreshToken: () => Promise<void>;
   checkAuthStatus: () => Promise<void>;
   hasRole: (role: UserRole) => boolean;
   isSystemAdmin: boolean;
@@ -76,7 +74,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (token) {
       // Handle OAuth callback - extract token and redirect
       authStorage.setAccessToken(token);
-      authStorage.setWasLoggedIn(true);
 
       // Store refresh token in localStorage
       if (refreshToken) {
@@ -128,43 +125,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, [clearAuthState]);
 
-  const refreshToken = useCallback(async (): Promise<void> => {
-    try {
-      logger.log('useAuth: Starting token refresh...');
-      // Use centralized token refresh service
-      // Don't validate token here - just refresh and update state
-      // Validation will happen when we check auth status
-      await tokenRefreshService.refreshToken({
-        validateToken: false,
-      });
-
-      // Get user data by validating the new token
-      const newToken = authStorage.getAccessToken();
-      if (!newToken) {
-        throw new Error('No access token after refresh');
-      }
-
-      logger.log('useAuth: Token refreshed, validating new token...');
-      // Validate the new token to get user data using axios client
-      // This goes through the axios interceptor which handles token refresh automatically
-      const userData = await apiService.verifyToken();
-
-      setAuthState({
-        user: userData,
-        isAuthenticated: true,
-        isLoading: false,
-      });
-      logger.log('useAuth: Token refresh and validation successful');
-    } catch (error) {
-      logger.error('useAuth: Token refresh failed:', error);
-      clearAuthState();
-      // Redirect to login if we're not already there
-      // Use delayed redirect to avoid React rendering issues
-      if (!window.location.pathname.startsWith('/login')) {
-        redirectToLogin();
-      }
-    }
-  }, [clearAuthState]);
 
   // Enhanced user object with role helpers
   const enhancedUser = useMemo(() => {
@@ -185,62 +145,46 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const checkAuthStatus = useCallback(async () => {
     try {
-      // Check if we have a valid access token
-      const token = authStorage.getAccessToken();
-      if (token) {
-        // Validate token with backend using axios client
-        // This goes through the axios interceptor which handles token refresh automatically
+      // Check if we have a token (access or refresh)
+      const accessToken = authStorage.getAccessToken();
+      const refreshToken = authStorage.getRefreshToken();
+      
+      if (accessToken || refreshToken) {
+        // If we have tokens, verifyToken() will trigger the axios interceptor
+        // which automatically handles refresh if the access token is invalid.
+        // The interceptor will:
+        // 1. Detect 401 error from verifyToken()
+        // 2. Call tokenRefreshService.refreshToken() to get new tokens
+        // 3. Retry the verifyToken() request with the new access token
+        // 4. If refresh fails, redirect to login
         try {
           const userData = await apiService.verifyToken();
-
           setAuthState({
             user: userData,
             isAuthenticated: true,
             isLoading: false,
           });
         } catch (error) {
-          // Token is invalid, try refresh
-          // The axios interceptor should have already attempted refresh, but if it failed,
-          // we try again here
-          try {
-            await refreshToken();
-          } catch (refreshError) {
-            // If refresh also fails, clear auth state and redirect to login
-            // This ensures consistent behavior across all error paths
-            logger.error('useAuth: Token refresh failed in checkAuthStatus:', refreshError);
-            clearAuthState();
-            if (!window.location.pathname.startsWith('/login')) {
-              redirectToLogin();
-            } else {
-              setAuthState(prev => ({ ...prev, isLoading: false }));
-            }
+          // Token validation failed - interceptor should have already attempted refresh
+          // If we get here, refresh also failed or no refresh token available
+          // The interceptor will have already cleared auth state and redirected to login
+          logger.error('useAuth: Token verification failed in checkAuthStatus:', error);
+          clearAuthState();
+          if (!window.location.pathname.startsWith('/login')) {
+            redirectToLogin();
+          } else {
+            setAuthState(prev => ({ ...prev, isLoading: false }));
           }
         }
       } else {
-        // No access token
-        const wasLoggedIn = authStorage.getWasLoggedIn();
-        if (wasLoggedIn) {
-          try {
-            await refreshToken();
-          } catch (refreshError) {
-            // If refresh fails, clear auth state and redirect to login
-            // This ensures consistent behavior across all error paths
-            logger.error('useAuth: Token refresh failed in checkAuthStatus:', refreshError);
-            clearAuthState();
-            if (!window.location.pathname.startsWith('/login')) {
-              redirectToLogin();
-            } else {
-              setAuthState(prev => ({ ...prev, isLoading: false }));
-            }
-          }
-        } else {
-          setAuthState(prev => ({ ...prev, isLoading: false }));
-        }
+        // No tokens available
+        setAuthState(prev => ({ ...prev, isLoading: false }));
       }
     } catch (error) {
+      logger.error('useAuth: Unexpected error in checkAuthStatus:', error);
       setAuthState(prev => ({ ...prev, isLoading: false }));
     }
-  }, [refreshToken]);
+  }, [clearAuthState]);
 
   // Initial auth check on mount
   useEffect(() => {
@@ -294,7 +238,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading: authState.isLoading,
     login,
     logout,
-    refreshToken,
     checkAuthStatus,
     hasRole,
     isSystemAdmin: enhancedUser?.isSystemAdmin ?? false,

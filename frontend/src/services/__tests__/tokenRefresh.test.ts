@@ -13,7 +13,6 @@ vi.mock('../../utils/storage', () => ({
     getRefreshToken: vi.fn(),
     setAccessToken: vi.fn(),
     setRefreshToken: vi.fn(),
-    setWasLoggedIn: vi.fn(),
   },
 }));
 
@@ -56,7 +55,6 @@ describe('TokenRefreshService', () => {
       );
       expect(authStorage.setAccessToken).toHaveBeenCalledWith('new-access-token');
       expect(authStorage.setRefreshToken).toHaveBeenCalledWith('new-refresh-token');
-      expect(authStorage.setWasLoggedIn).toHaveBeenCalledWith(true);
     });
 
     it('should refresh token using localStorage', async () => {

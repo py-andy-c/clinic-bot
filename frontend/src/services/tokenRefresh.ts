@@ -28,12 +28,6 @@ export interface RefreshTokenOptions {
    * @default false
    */
   validateToken?: boolean;
-  
-  /**
-   * Custom axios instance to use (for interceptors)
-   * @default undefined (creates new instance)
-   */
-  axiosInstance?: AxiosInstance;
 }
 
 export interface RefreshTokenResult {
@@ -74,7 +68,8 @@ export class TokenRefreshService {
     try {
       logger.log('TokenRefreshService: Attempting to refresh token...');
 
-      const client = options.axiosInstance || this.createAxiosClient();
+      // Always create a new axios client to avoid interceptor loops
+      const client = this.createAxiosClient();
       
       // Get refresh token from localStorage
       const refreshToken = authStorage.getRefreshToken();
@@ -129,7 +124,6 @@ export class TokenRefreshService {
   private storeTokens(accessToken: string, refreshToken?: string): void {
     try {
       authStorage.setAccessToken(accessToken);
-      authStorage.setWasLoggedIn(true);
 
       if (refreshToken) {
         authStorage.setRefreshToken(refreshToken);

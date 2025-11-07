@@ -3,7 +3,6 @@ import { config } from '../config/env';
 import { logger } from '../utils/logger';
 import { tokenRefreshService } from './tokenRefresh';
 import { authStorage } from '../utils/storage';
-import { ApiErrorType, AxiosErrorResponse } from '../types';
 import {
   Clinic,
   Member,
@@ -109,7 +108,8 @@ export class ApiService {
 
         try {
           // Use centralized token refresh service (handles duplicate requests automatically)
-          // Don't pass axiosInstance to avoid interceptor loops - refresh service creates its own client
+          // The TokenRefreshService uses refreshInProgress promise to prevent concurrent refreshes
+          // Refresh service creates its own client to avoid interceptor loops
           await tokenRefreshService.refreshToken({ 
             validateToken: false
           });
@@ -118,7 +118,7 @@ export class ApiService {
           // This ensures the flag is cleared even if retry fails for other reasons
           this.sessionExpired = false;
           
-          // Retry with new token
+          // Retry the original request with the new access token
           const token = authStorage.getAccessToken();
           if (token) {
             originalRequest.headers.Authorization = `Bearer ${token}`;
@@ -141,6 +141,10 @@ export class ApiService {
           logger.error('ApiService: Token refresh or retry failed:', refreshError);
           
           // Refresh failed (session expired), clear auth state and redirect to login
+          // This handles cases where:
+          // - Refresh token is invalid/expired
+          // - Refresh token is missing
+          // - Network error during refresh
           this.sessionExpired = true;
           authStorage.clearAuth();
           this.redirectToLogin();
@@ -202,31 +206,6 @@ export class ApiService {
     });
   }
 
-  async refreshToken(): Promise<void> {
-    try {
-      // Use centralized token refresh service
-      // Pass axios instance to use existing interceptors
-      await tokenRefreshService.refreshToken({
-        validateToken: false, // Don't validate here, just refresh token
-        axiosInstance: this.client,
-      });
-
-      this.resetSessionExpired();
-      logger.log('ApiService: Token refresh successful');
-    } catch (error: ApiErrorType) {
-      logger.error('ApiService: Token refresh failed with exception:', error);
-
-      // Set session expired flag for 401 errors
-      if (typeof error === 'object' && error && 'response' in error) {
-        const axiosError = error as AxiosErrorResponse;
-        if (axiosError.response?.status === 401) {
-          this.sessionExpired = true;
-        }
-      }
-
-      throw error;
-    }
-  }
 
   async logout(): Promise<void> {
     const refreshToken = authStorage.getRefreshToken();
