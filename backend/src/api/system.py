@@ -74,6 +74,21 @@ async def create_clinic(
                 detail="LINE 頻道 ID 已存在"
             )
 
+        # Fetch bot info (official account user ID) from LINE API
+        from services.line_service import LINEService
+        line_service = LINEService(
+            channel_secret=clinic_data.line_channel_secret,
+            channel_access_token=clinic_data.line_channel_access_token
+        )
+        bot_user_id = line_service.get_bot_info()
+        
+        if not bot_user_id:
+            logger.warning(
+                f"Failed to fetch bot info for clinic {clinic_data.name}. "
+                f"Clinic will be created without line_official_account_user_id. "
+                f"This can be fixed later via migration script."
+            )
+
         # Create clinic
         # Use ClinicSettings with all defaults - display_name will be None, and effective_display_name will fallback to clinic.name on read
         clinic = Clinic(
@@ -81,6 +96,7 @@ async def create_clinic(
             line_channel_id=clinic_data.line_channel_id,
             line_channel_secret=clinic_data.line_channel_secret,
             line_channel_access_token=clinic_data.line_channel_access_token,
+            line_official_account_user_id=bot_user_id,
             subscription_status=clinic_data.subscription_status,
             trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14) if clinic_data.subscription_status == "trial" else None,
             settings=ClinicSettings().model_dump()  # Use all defaults from Pydantic model

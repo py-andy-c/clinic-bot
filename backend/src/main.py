@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from api import auth, signup, system, clinic, profile, practitioner_calendar, liff
+from api import auth, signup, system, clinic, profile, practitioner_calendar, liff, line_webhook
 from core.constants import CORS_ORIGINS
 from services.reminder_service import start_reminder_scheduler, stop_reminder_scheduler
 
@@ -152,6 +152,17 @@ app.include_router(
         403: {"description": "Forbidden"},
         404: {"description": "Resource not found"},
         409: {"description": "Conflict"},
+        500: {"description": "Internal server error"},
+    },
+)
+app.include_router(
+    line_webhook.router,
+    prefix="/api/line",
+    tags=["line-webhook"],
+    responses={
+        400: {"description": "Bad request"},
+        401: {"description": "Unauthorized"},
+        404: {"description": "Resource not found"},
         500: {"description": "Internal server error"},
     },
 )

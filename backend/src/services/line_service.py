@@ -14,6 +14,7 @@ import base64
 import logging
 from typing import Any, Optional, Tuple
 
+import httpx
 from linebot.v3.messaging import MessagingApi, PushMessageRequest
 from linebot.v3.messaging.models import TextMessage
 from linebot.v3.messaging.api_client import ApiClient
@@ -158,3 +159,41 @@ class LINEService:
             # Log the error but let caller handle it
             logger.exception(f"Failed to send LINE message to {line_user_id}: {e}")
             raise
+
+    def get_bot_info(self) -> Optional[str]:
+        """
+        Get bot information including user ID from LINE API.
+
+        Calls LINE Messaging API to get bot information, including the bot's
+        user ID (official account user ID) which appears in webhook payloads.
+
+        Returns:
+            Bot's user ID (official account user ID) if successful, None otherwise
+
+        Raises:
+            Exception: If LINE API call fails
+        """
+        try:
+            response = httpx.get(
+                "https://api.line.me/v2/bot/info",
+                headers={"Authorization": f"Bearer {self.channel_access_token}"},
+                timeout=10.0
+            )
+            response.raise_for_status()
+            data = response.json()
+            bot_user_id = data.get("userId")
+            
+            if bot_user_id:
+                logger.info(f"Successfully retrieved bot user ID: {bot_user_id[:10]}...")
+            else:
+                logger.warning("Bot info response missing userId field")
+            
+            return bot_user_id
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"LINE API error getting bot info: {e.response.status_code} - {e.response.text}"
+            )
+            return None
+        except Exception as e:
+            logger.exception(f"Failed to get bot info from LINE API: {e}")
+            return None

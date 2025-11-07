@@ -88,6 +88,16 @@ class Clinic(Base):
     Obtained from LINE Developers Console. Must be kept secure.
     """
 
+    line_official_account_user_id: Mapped[Optional[str]] = mapped_column(String(MAX_STRING_LENGTH), nullable=True)
+    """
+    LINE Official Account User ID (bot user ID) for the clinic's bot.
+
+    This is the user ID of the clinic's official account that appears in the
+    'destination' field of LINE webhook payloads. Obtained from LINE API
+    using the channel access token. Used to identify which clinic a webhook
+    event belongs to.
+    """
+
     subscription_status: Mapped[str] = mapped_column(String(50), default="trial")
     """
     Current subscription status of the clinic.
