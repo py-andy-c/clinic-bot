@@ -41,17 +41,13 @@ import {
  */
 const REDIRECT_DELAY_MS = 0; // Using requestAnimationFrame only (no additional delay needed)
 
+// Module-level flag to prevent multiple redirects (shared across all ApiService instances)
+let redirectInProgress = false;
+
 export class ApiService {
   private client: AxiosInstance;
-  private sessionExpired = false; // Flag to prevent multiple redirects
-  private redirectInProgress = false; // Flag to prevent multiple redirects
 
   constructor() {
-    // Reset session expired flag if we have a token (user might have logged in before)
-    const token = authStorage.getAccessToken();
-    if (token) {
-      this.sessionExpired = false;
-    }
 
     this.client = axios.create({
       baseURL: config.apiBaseUrl,
@@ -67,8 +63,6 @@ export class ApiService {
       const token = authStorage.getAccessToken();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
-        // Reset session expired flag if we have a token
-        this.sessionExpired = false;
       }
       return config;
     });
@@ -79,8 +73,8 @@ export class ApiService {
       async (error) => {
         const originalRequest = error.config;
 
-        // If session already expired, immediately redirect without processing
-        if (this.sessionExpired) {
+        // If redirect is already in progress, don't process more errors
+        if (redirectInProgress) {
           return Promise.reject(new Error('會話已過期，正在重新導向至登入頁面...'));
         }
 
@@ -100,7 +94,6 @@ export class ApiService {
         const refreshToken = authStorage.getRefreshToken();
         if (!refreshToken) {
           logger.warn('ApiService: No refresh token available, logging out');
-          this.sessionExpired = true;
           authStorage.clearAuth();
           this.redirectToLogin();
           return Promise.reject(new Error('會話已過期，正在重新導向至登入頁面...'));
@@ -113,10 +106,6 @@ export class ApiService {
           await tokenRefreshService.refreshToken({ 
             validateToken: false
           });
-
-          // Reset session expired flag after successful refresh (before retry)
-          // This ensures the flag is cleared even if retry fails for other reasons
-          this.sessionExpired = false;
           
           // Retry the original request with the new access token
           const token = authStorage.getAccessToken();
@@ -131,8 +120,6 @@ export class ApiService {
               timeout: 10000, // Reset timeout to full 10 seconds
             };
             const retryResponse = await this.client.request(retryConfig);
-            // Reset session expired flag after successful refresh and retry
-            this.sessionExpired = false;
             return retryResponse;
           } else {
             throw new Error('重新整理後找不到存取權杖');
@@ -145,7 +132,6 @@ export class ApiService {
           // - Refresh token is invalid/expired
           // - Refresh token is missing
           // - Network error during refresh
-          this.sessionExpired = true;
           authStorage.clearAuth();
           this.redirectToLogin();
           
@@ -165,15 +151,6 @@ export class ApiService {
   }
 
   /**
-   * Reset the session expired flag - called when we successfully get a new token
-   * Can be called publicly when login succeeds from outside the service
-   */
-  resetSessionExpired(): void {
-    this.sessionExpired = false;
-    this.redirectInProgress = false;
-  }
-
-  /**
    * Redirect to login page with delay to avoid interrupting React rendering.
    * 
    * Prevents multiple redirects from happening simultaneously and ensures React
@@ -182,26 +159,35 @@ export class ApiService {
    * 
    * Uses requestAnimationFrame to wait for the next frame, ensuring React has
    * finished rendering before the redirect occurs.
+   * 
+   * Uses module-level flag to prevent multiple redirects across all ApiService instances.
    */
   private redirectToLogin(): void {
-    // Prevent multiple redirects
-    if (this.redirectInProgress) {
+    // Prevent multiple redirects (check if already on login page or redirect in progress)
+    if (redirectInProgress || window.location.pathname === '/login') {
       return;
     }
     
-    this.redirectInProgress = true;
+    redirectInProgress = true;
     
     // Use requestAnimationFrame to ensure redirect happens after React has finished rendering
     // This prevents "useAuth must be used within an AuthProvider" errors that occur
     // when window.location.replace() is called during React's rendering cycle
     requestAnimationFrame(() => {
-      if (REDIRECT_DELAY_MS > 0) {
-        setTimeout(() => {
+      try {
+        if (REDIRECT_DELAY_MS > 0) {
+          setTimeout(() => {
+            window.location.replace('/login');
+          }, REDIRECT_DELAY_MS);
+        } else {
+          // No additional delay needed - requestAnimationFrame is sufficient
           window.location.replace('/login');
-        }, REDIRECT_DELAY_MS);
-      } else {
-        // No additional delay needed - requestAnimationFrame is sufficient
-        window.location.replace('/login');
+        }
+      } catch (error) {
+        // Reset flag if redirect fails (shouldn't happen, but defensive)
+        // This handles edge cases like browser security restrictions
+        redirectInProgress = false;
+        logger.error('Failed to redirect to login:', error);
       }
     });
   }
