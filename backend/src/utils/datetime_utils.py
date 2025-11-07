@@ -72,8 +72,9 @@ def format_datetime(dt: datetime) -> str:
         raise ValueError("Cannot format None datetime")
     
     # Format weekday in Traditional Chinese
+    # Python's weekday() returns 0=Monday, 1=Tuesday, ..., 6=Sunday
     weekday_map = {
-        0: '日', 1: '一', 2: '二', 3: '三', 4: '四', 5: '五', 6: '六'
+        0: '一', 1: '二', 2: '三', 3: '四', 4: '五', 5: '六', 6: '日'
     }
     weekday_cn = weekday_map[local_datetime.weekday()]
     
