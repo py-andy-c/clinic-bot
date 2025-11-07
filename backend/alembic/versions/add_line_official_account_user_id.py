@@ -35,22 +35,32 @@ def upgrade() -> None:
     appears in webhook payloads. It's nullable initially to support existing
     clinics that don't have this value yet.
     """
-    # Add column
-    op.add_column(
-        'clinics',
-        sa.Column(
-            'line_official_account_user_id',
-            sa.String(255),
-            nullable=True
-        )
-    )
+    # Check if column already exists (for test database that might have it)
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('clinics')]
     
-    # Add index for performance
-    op.create_index(
-        'idx_clinics_line_official_account_user_id',
-        'clinics',
-        ['line_official_account_user_id']
-    )
+    # Add column if it doesn't exist
+    if 'line_official_account_user_id' not in columns:
+        op.add_column(
+            'clinics',
+            sa.Column(
+                'line_official_account_user_id',
+                sa.String(255),
+                nullable=True
+            )
+        )
+    
+    # Check if index already exists
+    indexes = [idx['name'] for idx in inspector.get_indexes('clinics')]
+    
+    # Add index for performance if it doesn't exist
+    if 'idx_clinics_line_official_account_user_id' not in indexes:
+        op.create_index(
+            'idx_clinics_line_official_account_user_id',
+            'clinics',
+            ['line_official_account_user_id']
+        )
 
 
 def downgrade() -> None:
