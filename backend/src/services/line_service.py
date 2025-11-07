@@ -160,6 +160,58 @@ class LINEService:
             logger.exception(f"Failed to send LINE message to {line_user_id}: {e}")
             raise
 
+    def start_loading_animation(self, line_user_id: str, loading_seconds: int = 60) -> bool:
+        """
+        Display loading animation (typing indicator) to LINE user.
+
+        Shows a loading animation in the chat to indicate that a response is being prepared.
+        The animation automatically stops when a message is sent to the user.
+
+        Args:
+            line_user_id: LINE user ID (chatId) to show loading animation to
+            loading_seconds: Duration in seconds (must be multiple of 5, max 60)
+
+        Returns:
+            True if successful, False otherwise
+
+        Note:
+            - Animation only shows in one-on-one chats
+            - Animation only shows when user is viewing the chat screen
+            - Animation automatically stops when a message is sent
+            - If loading_seconds is not a multiple of 5, it will be rounded down
+        """
+        try:
+            # Ensure loading_seconds is a multiple of 5 and within valid range
+            loading_seconds = max(5, min(60, (loading_seconds // 5) * 5))
+            
+            response = httpx.post(
+                "https://api.line.me/v2/bot/chat/loading/start",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.channel_access_token}"
+                },
+                json={
+                    "chatId": line_user_id,
+                    "loadingSeconds": loading_seconds
+                },
+                timeout=10.0
+            )
+            response.raise_for_status()
+            logger.debug(f"Started loading animation for user {line_user_id[:10]}...")
+            return True
+        except httpx.HTTPStatusError as e:
+            # Don't log as error - loading animation is optional and may fail silently
+            # (e.g., if user is not viewing chat screen)
+            logger.debug(
+                f"Could not start loading animation for {line_user_id[:10]}...: "
+                f"{e.response.status_code} - {e.response.text}"
+            )
+            return False
+        except Exception as e:
+            # Log but don't fail - loading animation is a nice-to-have feature
+            logger.debug(f"Failed to start loading animation: {e}")
+            return False
+
     def get_bot_info(self) -> Optional[str]:
         """
         Get bot information including user ID from LINE API.

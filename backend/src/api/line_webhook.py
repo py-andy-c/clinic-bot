@@ -119,6 +119,10 @@ async def line_webhook(
             f"message={message_text[:30]}..."
         )
         
+        # Start loading animation to show user that response is being prepared
+        # Animation will automatically stop when we send the response message
+        line_service.start_loading_animation(line_user_id, loading_seconds=60)
+        
         # Process message through AI agent
         response_text = await ClinicAgentService.process_message(
             line_user_id=line_user_id,
@@ -127,6 +131,7 @@ async def line_webhook(
         )
         
         # Send response back to patient via LINE
+        # This will automatically stop the loading animation
         line_service.send_text_message(
             line_user_id=line_user_id,
             text=response_text
