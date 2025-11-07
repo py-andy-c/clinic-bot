@@ -4,6 +4,12 @@ Authentication and authorization dependencies for FastAPI.
 
 Provides dependency injection functions for user authentication,
 role-based access control, and clinic isolation enforcement.
+
+MIGRATION NOTE (2025-01-27):
+- Removed require_clinic_member, require_read_access, require_clinic_or_system_admin
+  (replaced by require_authenticated - they were functionally identical)
+- Removed require_practitioner_role (not used in any endpoints)
+- Added require_authenticated for any authenticated user (system admin or clinic user)
 """
 
 import logging
@@ -183,26 +189,6 @@ def require_system_admin(user: UserContext = Depends(get_current_user)) -> UserC
     return user
 
 
-def require_admin_role(user: UserContext = Depends(get_current_user)) -> UserContext:
-    """Require admin role (or system admin)."""
-    if not user.has_role("admin"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-    return user
-
-
-def require_practitioner_role(user: UserContext = Depends(get_current_user)) -> UserContext:
-    """Require practitioner role (or system admin)."""
-    if not user.has_role("practitioner"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Practitioner access required"
-        )
-    return user
-
-
 def require_clinic_user(user: UserContext = Depends(get_current_user)) -> UserContext:
     """Require clinic user (not system admin)."""
     if not user.is_clinic_user():
@@ -213,43 +199,30 @@ def require_clinic_user(user: UserContext = Depends(get_current_user)) -> UserCo
     return user
 
 
-def require_clinic_or_system_admin(user: UserContext = Depends(get_current_user)) -> UserContext:
-    """Require clinic user or system admin."""
-    if not (user.is_clinic_user() or user.is_system_admin()):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Clinic user or system admin access required"
-        )
-    return user
-
-
-def require_clinic_member(user: UserContext = Depends(get_current_user)) -> UserContext:
+def require_authenticated(user: UserContext = Depends(get_current_user)) -> UserContext:
     """
-    Require any clinic member (regardless of roles).
-    
-    This allows users with no roles to have read-only access to clinic data.
-    System admins are also allowed.
-    """
-    if not (user.is_clinic_user() or user.is_system_admin()):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Clinic member access required"
-        )
-    return user
-
-
-def require_read_access(user: UserContext = Depends(get_current_user)) -> UserContext:
-    """
-    Require read access to clinic data.
+    Require any authenticated user (system admin or clinic user).
     
     This allows:
     - System admins (full access)
     - Clinic users with any roles (including no roles for read-only access)
+    
+    Replaces require_clinic_member and require_read_access which were functionally identical.
     """
     if not (user.is_system_admin() or user.is_clinic_user()):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access required"
+            detail="Authentication required"
+        )
+    return user
+
+
+def require_admin_role(user: UserContext = Depends(get_current_user)) -> UserContext:
+    """Require admin role (or system admin)."""
+    if not user.has_role("admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
         )
     return user
 
@@ -259,6 +232,9 @@ def require_practitioner_or_admin(user: UserContext = Depends(get_current_user))
     Require practitioner role or admin role (or system admin).
     
     This is for endpoints that need practitioner-specific functionality.
+    
+    NOTE: This could potentially be replaced with a parameterized require_role() function
+    in the future, but keeping as-is for now since it's a specific use case.
     """
     if not (user.has_role("practitioner") or user.has_role("admin") or user.is_system_admin()):
         raise HTTPException(
@@ -266,6 +242,25 @@ def require_practitioner_or_admin(user: UserContext = Depends(get_current_user))
             detail="Practitioner or admin access required"
         )
     return user
+
+
+# FUTURE CONSIDERATION: Parameterized role checking
+# Could replace require_admin_role and simplify require_practitioner_or_admin:
+#
+# def require_role(role: str):
+#     """Require specific role (or system admin)."""
+#     def _require_role(user: UserContext = Depends(get_current_user)) -> UserContext:
+#         if not (user.has_role(role) or user.is_system_admin()):
+#             raise HTTPException(
+#                 status_code=status.HTTP_403_FORBIDDEN,
+#                 detail=f"{role.title()} access required"
+#             )
+#         return user
+#     return _require_role
+#
+# Then use: require_role("admin"), require_role("practitioner")
+# And require_practitioner_or_admin could be replaced with composition:
+# # Use: require_role("practitioner") or require_role("admin")
 
 
 # Clinic isolation enforcement

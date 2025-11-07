@@ -20,7 +20,7 @@ from sqlalchemy import func
 logger = logging.getLogger(__name__)
 
 from core.database import get_db
-from auth.dependencies import require_clinic_member, UserContext
+from auth.dependencies import require_authenticated, UserContext
 from models import (
     User,
     PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment
@@ -222,7 +222,7 @@ def _check_appointment_conflicts(
 async def get_default_schedule(
     user_id: int,
     db: Session = Depends(get_db),
-    current_user: UserContext = Depends(require_clinic_member)
+    current_user: UserContext = Depends(require_authenticated)
 ) -> DefaultScheduleResponse:
     """
     Get practitioner's default weekly schedule.
@@ -274,7 +274,7 @@ async def update_default_schedule(
     user_id: int,
     schedule_data: DefaultScheduleRequest,
     db: Session = Depends(get_db),
-    current_user: UserContext = Depends(require_clinic_member)
+    current_user: UserContext = Depends(require_authenticated)
 ) -> Union[DefaultScheduleResponse, ConflictWarningResponse]:
     """
     Update practitioner's default weekly schedule.
@@ -385,7 +385,7 @@ async def get_calendar_data(
     page: int = Query(1, ge=1, description="Page number for monthly view"),
     limit: int = Query(31, ge=1, le=31, description="Days per page for monthly view"),
     db: Session = Depends(get_db),
-    current_user: UserContext = Depends(require_clinic_member)
+    current_user: UserContext = Depends(require_authenticated)
 ):
     """
     Get calendar data for practitioner.
@@ -557,7 +557,7 @@ async def get_available_slots(
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
     appointment_type_id: int = Query(..., description="Appointment type ID"),
     db: Session = Depends(get_db),
-    current_user: UserContext = Depends(require_clinic_member)
+    current_user: UserContext = Depends(require_authenticated)
 ) -> AvailableSlotsResponse:
     """
     Get available time slots for booking.
@@ -636,7 +636,7 @@ async def create_availability_exception(
     user_id: int,
     exception_data: AvailabilityExceptionRequest,
     db: Session = Depends(get_db),
-    current_user: UserContext = Depends(require_clinic_member)
+    current_user: UserContext = Depends(require_authenticated)
 ) -> Union[AvailabilityExceptionResponse, ConflictWarningResponse]:
     """
     Create availability exception for practitioner.
@@ -756,7 +756,7 @@ async def delete_availability_exception(
     user_id: int,
     exception_id: int,
     db: Session = Depends(get_db),
-    current_user: UserContext = Depends(require_clinic_member)
+    current_user: UserContext = Depends(require_authenticated)
 ):
     """
     Delete availability exception.

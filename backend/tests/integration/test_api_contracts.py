@@ -55,7 +55,7 @@ def api_contract_client(db_session):
 
     # Use the global app but with temporarily overridden dependencies
     from main import app
-    from auth.dependencies import get_current_user, require_practitioner_role, require_admin_role, require_system_admin
+    from auth.dependencies import get_current_user, require_admin_role, require_system_admin
     from core.database import get_db
 
     def override_get_db():
@@ -73,9 +73,6 @@ def api_contract_client(db_session):
             name="Test Practitioner",
             user_id=test_user.id
         )
-
-    def override_require_practitioner_role():
-        return override_get_current_user()
 
     def override_require_admin_role():
         return override_get_current_user()
@@ -98,7 +95,6 @@ def api_contract_client(db_session):
     app.dependency_overrides.update({
         get_db: override_get_db,
         get_current_user: override_get_current_user,
-        require_practitioner_role: override_require_practitioner_role,
         require_admin_role: override_require_admin_role,
         require_system_admin: override_require_system_admin,
     })

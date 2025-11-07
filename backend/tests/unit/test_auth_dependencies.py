@@ -9,8 +9,8 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from auth.dependencies import (
     UserContext, get_token_payload, get_current_user,
-    require_system_admin, require_admin_role, require_practitioner_role,
-    require_clinic_user, require_clinic_access
+    require_system_admin, require_admin_role,
+    require_clinic_user, require_authenticated, require_clinic_access
 )
 from services.jwt_service import TokenPayload
 
@@ -340,36 +340,33 @@ class TestRoleRequirements:
         assert exc_info.value.status_code == 403
         assert "Admin access required" in exc_info.value.detail
 
-    def test_require_practitioner_role_valid(self):
-        """Test requiring practitioner role with practitioner user."""
-        practitioner = UserContext(
-            user_type="clinic_user",
-            email="user@example.com",
-            roles=["practitioner"],
-            clinic_id=1,
-            google_subject_id="sub123",
-            name="Practitioner"
-        )
-
-        result = require_practitioner_role(practitioner)
-        assert result == practitioner
-
-    def test_require_practitioner_role_invalid(self):
-        """Test requiring practitioner role with non-practitioner user."""
-        read_only_user = UserContext(
+    def test_require_authenticated_valid(self):
+        """Test requiring authenticated user with clinic user."""
+        clinic_user = UserContext(
             user_type="clinic_user",
             email="user@example.com",
             roles=[],
             clinic_id=1,
-            google_subject_id="sub456",
-            name="Read Only User"
+            google_subject_id="sub123",
+            name="Clinic User"
         )
 
-        with pytest.raises(HTTPException) as exc_info:
-            require_practitioner_role(read_only_user)
+        result = require_authenticated(clinic_user)
+        assert result == clinic_user
 
-        assert exc_info.value.status_code == 403
-        assert "Practitioner access required" in exc_info.value.detail
+    def test_require_authenticated_system_admin(self):
+        """Test requiring authenticated user with system admin."""
+        system_admin = UserContext(
+            user_type="system_admin",
+            email="admin@example.com",
+            roles=[],
+            clinic_id=None,
+            google_subject_id="sub456",
+            name="System Admin"
+        )
+
+        result = require_authenticated(system_admin)
+        assert result == system_admin
 
     def test_require_clinic_user_valid(self):
         """Test requiring clinic user with clinic user."""

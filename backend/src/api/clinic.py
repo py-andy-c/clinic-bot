@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 from core.database import get_db
 from core.config import FRONTEND_URL
-from auth.dependencies import require_admin_role, require_clinic_member, require_practitioner_or_admin, UserContext
+from auth.dependencies import require_admin_role, require_authenticated, require_practitioner_or_admin, UserContext
 from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent
 from models.clinic import ClinicSettings
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
@@ -123,7 +123,7 @@ class PractitionerAvailabilityResponse(BaseModel):
 
 @router.get("/members", summary="List all clinic members")
 async def list_members(
-    current_user: UserContext = Depends(require_clinic_member),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -404,7 +404,7 @@ async def reactivate_member(
 
 @router.get("/settings", summary="Get clinic settings")
 async def get_settings(
-    current_user: UserContext = Depends(require_clinic_member),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> SettingsResponse:
     """
@@ -423,7 +423,7 @@ async def get_settings(
                 detail="找不到診所"
             )
 
-        # require_clinic_member ensures clinic_user or system_admin
+        # require_authenticated ensures clinic_user or system_admin
         # For clinic members, clinic_id should be set
         # Type narrowing for clinic_id
         clinic_id: int
@@ -785,7 +785,7 @@ class CancellationPreviewRequest(BaseModel):
 @router.post("/reminder-preview", summary="Generate reminder message preview")
 async def generate_reminder_preview(
     request: ReminderPreviewRequest,
-    current_user: UserContext = Depends(require_clinic_member),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> Dict[str, str]:
     """
@@ -833,7 +833,7 @@ async def generate_reminder_preview(
 @router.post("/cancellation-preview", summary="Generate cancellation message preview")
 async def generate_cancellation_preview(
     request: CancellationPreviewRequest,
-    current_user: UserContext = Depends(require_clinic_member),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> Dict[str, str]:
     """
@@ -883,7 +883,7 @@ async def generate_cancellation_preview(
 
 @router.get("/patients", summary="List all patients", response_model=ClinicPatientListResponse)
 async def get_patients(
-    current_user: UserContext = Depends(require_clinic_member),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> ClinicPatientListResponse:
     """
@@ -926,7 +926,7 @@ async def get_patients(
 @router.get("/practitioners/{user_id}/availability", summary="Get practitioner availability")
 async def get_practitioner_availability(
     user_id: int,
-    current_user: UserContext = Depends(require_clinic_member),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -1377,7 +1377,7 @@ async def cancel_clinic_appointment(
 @router.get("/practitioners/{user_id}/appointment-types", summary="Get practitioner's appointment types")
 async def get_practitioner_appointment_types(
     user_id: int,
-    current_user: UserContext = Depends(require_clinic_member),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> PractitionerAppointmentTypesResponse:
     """
@@ -1425,7 +1425,7 @@ async def get_practitioner_appointment_types(
 async def update_practitioner_appointment_types(
     user_id: int,
     request: PractitionerAppointmentTypesUpdateRequest,
-    current_user: UserContext = Depends(require_clinic_member),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ):
     """
@@ -1495,7 +1495,7 @@ async def update_practitioner_appointment_types(
 @router.get("/practitioners/{user_id}/status", summary="Get practitioner's configuration status")
 async def get_practitioner_status(
     user_id: int,
-    current_user: UserContext = Depends(require_clinic_member),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> PractitionerStatusResponse:
     """
