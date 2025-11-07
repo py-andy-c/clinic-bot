@@ -19,13 +19,15 @@ class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)  # Nullable for system admins
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)  # Both system admins and clinic users have User records now
     token_hash: Mapped[str] = mapped_column(String(255), unique=True)  # bcrypt hashed
     expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     last_used_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
-    # Fields for system admins (nullable since clinic users have User records)
+    # Legacy fields - no longer needed (user_id links to User record)
+    # Kept for backward compatibility during migration period
+    # TODO: Remove in future migration after all old refresh tokens are migrated
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     google_subject_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

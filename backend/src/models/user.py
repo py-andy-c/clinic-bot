@@ -21,7 +21,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"))
+    clinic_id: Mapped[Optional[int]] = mapped_column(ForeignKey("clinics.id"), nullable=True)  # Nullable for system admins
 
     # Authentication (all users)
     email: Mapped[str] = mapped_column(String(255), unique=True)

@@ -30,7 +30,7 @@ class ProfileResponse(BaseModel):
     email: str  # Read-only, cannot be changed
     full_name: str
     roles: list[str]
-    clinic_id: int
+    clinic_id: Optional[int]  # None for system admins
     created_at: datetime
     last_login_at: Optional[datetime]
 
@@ -54,19 +54,7 @@ async def get_profile(
     Available to all authenticated users (system admins and clinic users).
     """
     try:
-        # For system admins, return basic info
-        if current_user.is_system_admin():
-            return ProfileResponse(
-                id=0,  # System admins don't have database IDs
-                email=current_user.email,
-                full_name=current_user.name,
-                roles=[],  # System admins don't have clinic roles
-                clinic_id=0,  # System admins don't belong to clinics
-                created_at=taiwan_now(),
-                last_login_at=None
-            )
-        
-        # For clinic users, get from database
+        # Both system admins and clinic users now have User records
         user = db.query(User).filter(
             User.id == current_user.user_id,
             User.is_active == True
@@ -83,7 +71,7 @@ async def get_profile(
             email=user.email,
             full_name=user.full_name,
             roles=user.roles,
-            clinic_id=user.clinic_id,
+            clinic_id=user.clinic_id,  # None for system admins, clinic_id for clinic users
             created_at=user.created_at,
             last_login_at=user.last_login_at
         )
@@ -113,13 +101,7 @@ async def update_profile(
     Available to all authenticated users.
     """
     try:
-        # System admins cannot update profile (no database record)
-        if current_user.is_system_admin():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="系統管理員無法更新個人資料"
-            )
-        
+        # Both system admins and clinic users now have User records
         # Find user
         user = db.query(User).filter(
             User.id == current_user.user_id,
@@ -147,7 +129,7 @@ async def update_profile(
             email=user.email,  # Email cannot be changed
             full_name=user.full_name,
             roles=user.roles,
-            clinic_id=user.clinic_id,
+            clinic_id=user.clinic_id,  # None for system admins, clinic_id for clinic users
             created_at=user.created_at,
             last_login_at=user.last_login_at
         )

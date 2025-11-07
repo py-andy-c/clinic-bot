@@ -160,13 +160,44 @@ async def google_auth_callback(
         google_subject_id = user_info["id"]
         name = user_info.get("name", email)
 
-        # Determine actual user type based on email (not frontend intention)
-        actual_user_type = "clinic_user"  # Default
+        # Determine user type based on email (not frontend intention)
         existing_user = None
 
         if email in SYSTEM_ADMIN_EMAILS:
             # This is a system admin regardless of which button was clicked
-            actual_user_type = "system_admin"
+
+            # For system admins, get or create User record (with clinic_id=None)
+            existing_user = db.query(User).filter(
+                User.email == email,
+                User.clinic_id.is_(None)  # System admins have clinic_id=None
+            ).first()
+            
+            if not existing_user:
+                # Create new User record for system admin
+                now = datetime.now(timezone.utc)
+                existing_user = User(
+                    clinic_id=None,  # System admins don't belong to clinics
+                    email=email,
+                    google_subject_id=google_subject_id,
+                    full_name=name,
+                    roles=[],  # System admins don't have clinic roles
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now
+                )
+                db.add(existing_user)
+                db.commit()
+                db.refresh(existing_user)
+                logger.info(f"Created User record for system admin: {email}")
+            else:
+                # Update existing system admin User record
+                existing_user.google_subject_id = google_subject_id
+                existing_user.full_name = name
+                existing_user.last_login_at = datetime.now(timezone.utc)
+                existing_user.updated_at = datetime.now(timezone.utc)
+                db.commit()
+                db.refresh(existing_user)
+                logger.info(f"Updated User record for system admin: {email}")
 
             # Create token payload for system admin
             payload = TokenPayload(
@@ -190,7 +221,10 @@ async def google_auth_callback(
                 )
 
             # For clinic users, check if they have an existing account
-            existing_user = db.query(User).filter(User.email == email).first()
+            existing_user = db.query(User).filter(
+                User.email == email,
+                User.clinic_id.isnot(None)  # Clinic users must have clinic_id
+            ).first()
             if existing_user:
                 # Check if user is active
                 if not existing_user.is_active:
@@ -198,6 +232,11 @@ async def google_auth_callback(
                         status_code=status.HTTP_401_UNAUTHORIZED,
                         detail="帳戶已被停用，請聯繫診所管理員重新啟用"
                     )
+                
+                # Update last login
+                existing_user.last_login_at = datetime.now(timezone.utc)
+                existing_user.updated_at = datetime.now(timezone.utc)
+                db.commit()
                 
                 # Existing active clinic user - create tokens
                 payload = TokenPayload(
@@ -224,24 +263,19 @@ async def google_auth_callback(
             token_data = jwt_service.create_token_pair(payload)
 
             # Store refresh token in database
-            if actual_user_type == "system_admin":
-                # For system admins, we don't have a user record, so user_id is None
-                # System admin identity is stored in email, google_subject_id, and name fields
-                user_id_for_token = None
-            else:
-                # For clinic users, use the actual user ID
-                assert existing_user is not None, "existing_user should not be None for clinic users"
-                user_id_for_token = existing_user.id
+            # Now both system admins and clinic users have User records
+            assert existing_user is not None, "existing_user should not be None"
+            user_id_for_token = existing_user.id
 
             refresh_token_hash = token_data["refresh_token_hash"]
 
             refresh_token_record = RefreshToken(
-                user_id=user_id_for_token,  # None for system admins, actual user_id for clinic users
+                user_id=user_id_for_token,  # Both system admins and clinic users have user_id now
                 token_hash=refresh_token_hash,
                 expires_at=jwt_service.get_token_expiry("refresh"),
-                email=email if actual_user_type == "system_admin" else None,  # Store email for system admins
-                google_subject_id=google_subject_id if actual_user_type == "system_admin" else None,  # Store google_subject_id for system admins
-                name=name if actual_user_type == "system_admin" else None  # Store name for system admins
+                email=None,  # No longer needed - user_id links to User record
+                google_subject_id=None,  # No longer needed - user_id links to User record
+                name=None  # No longer needed - user_id links to User record
             )
             db.add(refresh_token_record)
             db.commit()
@@ -343,85 +377,99 @@ async def refresh_access_token(
             detail="無效的重新整理權杖"
         )
     
-    # Handle system admins - check if email is stored (system admin indicator)
-    # System admins have user_id=None and email/google_subject_id/name stored in RefreshToken
-    is_system_admin = refresh_token_record.user_id is None or (
-        refresh_token_record.email is not None and refresh_token_record.email in SYSTEM_ADMIN_EMAILS
-    )
+    # Now both system admins and clinic users have User records
+    # Look up user from refresh token
+    user = refresh_token_record.user
+    
+    # Backward compatibility: Handle old refresh tokens with user_id=None
+    # These are from before the unification migration
+    if user is None:
+        # Check if this is an old system admin refresh token (has email stored)
+        if refresh_token_record.email and refresh_token_record.email in SYSTEM_ADMIN_EMAILS:
+            # Migrate old system admin refresh token: create User record
+            logger.warning(f"Migrating old system admin refresh token for {refresh_token_record.email}")
+            now = datetime.now(timezone.utc)
+            
+            # Check if User record already exists
+            user = db.query(User).filter(
+                User.email == refresh_token_record.email,
+                User.clinic_id.is_(None)
+            ).first()
+            
+            if not user:
+                # Create User record for system admin
+                user = User(
+                    clinic_id=None,
+                    email=refresh_token_record.email,
+                    google_subject_id=refresh_token_record.google_subject_id or refresh_token_record.email,
+                    full_name=refresh_token_record.name or refresh_token_record.email.split('@')[0].title(),
+                    roles=[],
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now
+                )
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+                logger.info(f"Created User record for system admin during refresh token migration: {refresh_token_record.email}")
+            
+            # Update refresh token to link to User record
+            refresh_token_record.user_id = user.id
+            refresh_token_record.email = None  # Clear legacy field
+            refresh_token_record.google_subject_id = None  # Clear legacy field
+            refresh_token_record.name = None  # Clear legacy field
+            db.commit()
+        else:
+            # Invalid refresh token - no user record and not a system admin
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="找不到使用者或使用者已停用"
+            )
+    
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="找不到使用者或使用者已停用"
+        )
+    
+    # Determine user type based on clinic_id
+    # System admins have clinic_id=None, clinic users have clinic_id set
+    is_system_admin = user.clinic_id is None
     
     if is_system_admin:
-        # For system admin, create token payload from stored fields
-        assert refresh_token_record.email is not None, "System admin refresh token must have email"
-        system_admin_email = refresh_token_record.email
-        system_admin_subject_id = refresh_token_record.google_subject_id or system_admin_email
-        system_admin_name = refresh_token_record.name or system_admin_email.split('@')[0].title()
-        
-        # Create new token pair for system admin
-        payload = TokenPayload(
-            sub=system_admin_subject_id,
-            email=system_admin_email,
-            user_type="system_admin",
-            roles=[],
-            clinic_id=None,
-            name=system_admin_name
-        )
-        
-        token_data = jwt_service.create_token_pair(payload)
-        
-        # Revoke old refresh token
-        refresh_token_record.revoke()
-        
-        # Create new refresh token record for system admin
-        new_refresh_token_record = RefreshToken(
-            user_id=None,
-            token_hash=token_data["refresh_token_hash"],
-            expires_at=jwt_service.get_token_expiry("refresh"),
-            email=system_admin_email,
-            google_subject_id=system_admin_subject_id,
-            name=system_admin_name
-        )
-        db.add(new_refresh_token_record)
-        db.commit()
-    else:
-        # Clinic user - normal flow
-        user = refresh_token_record.user
-        if user is None:
+        # Verify email is in system admin whitelist
+        if user.email not in SYSTEM_ADMIN_EMAILS:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="找不到使用者或使用者已停用"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied"
             )
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="找不到使用者或使用者已停用"
-            )
-        
-        # Create new token pair
-        payload = TokenPayload(
-            sub=str(user.google_subject_id),
-            email=user.email,
-            user_type="clinic_user",
-            roles=user.roles,
-            clinic_id=user.clinic_id,
-            name=user.full_name
-        )
-        
-        token_data = jwt_service.create_token_pair(payload)
-        
-        # Revoke old refresh token
-        refresh_token_record.revoke()
-        
-        # Create new refresh token record
-        new_refresh_token_record = RefreshToken(
-            user_id=user.id,
-            token_hash=token_data["refresh_token_hash"],
-            expires_at=jwt_service.get_token_expiry("refresh"),
-            email=None,
-            google_subject_id=None,
-            name=None
-        )
-        db.add(new_refresh_token_record)
-        db.commit()
+    
+    # Unified token payload creation for both system admins and clinic users
+    payload = TokenPayload(
+        sub=str(user.google_subject_id),
+        email=user.email,
+        user_type="system_admin" if is_system_admin else "clinic_user",
+        roles=[] if is_system_admin else user.roles,  # System admins don't have clinic roles
+        clinic_id=user.clinic_id,  # None for system admins, clinic_id for clinic users
+        name=user.full_name
+    )
+    
+    token_data = jwt_service.create_token_pair(payload)
+    
+    # Revoke old refresh token
+    refresh_token_record.revoke()
+    
+    # Create new refresh token record (same for both system admins and clinic users)
+    new_refresh_token_record = RefreshToken(
+        user_id=user.id,  # Both system admins and clinic users have user_id now
+        token_hash=token_data["refresh_token_hash"],
+        expires_at=jwt_service.get_token_expiry("refresh"),
+        email=None,  # No longer needed - user_id links to User record
+        google_subject_id=None,  # No longer needed - user_id links to User record
+        name=None  # No longer needed - user_id links to User record
+    )
+    db.add(new_refresh_token_record)
+    db.commit()
 
     # Return response with access token and refresh token
     response_data = {
@@ -432,11 +480,10 @@ async def refresh_access_token(
     }
     
     # Log successful refresh
-    user_email = refresh_token_record.email if is_system_admin else (
-        refresh_token_record.user.email if refresh_token_record.user else "unknown"
-    )
+    # Both system admins and clinic users now have User records
     logger.info(
-        f"Token refresh successful - user: {user_email}, "
+        f"Token refresh successful - user: {user.email}, "
+        f"user_type: {'system_admin' if is_system_admin else 'clinic_user'}, "
         f"token_rotated: True"
     )
     
@@ -499,9 +546,24 @@ async def dev_login(
         )
 
     # Check if user exists, if not create them
-    user = db.query(User).filter(User.email == email).first()
+    # For system admins, check with clinic_id=None
+    # For clinic users, check with clinic_id set
+    if user_type == "system_admin":
+        user = db.query(User).filter(
+            User.email == email,
+            User.clinic_id.is_(None)  # System admins have clinic_id=None
+        ).first()
+    else:
+        user = db.query(User).filter(
+            User.email == email,
+            User.clinic_id.isnot(None)  # Clinic users must have clinic_id
+        ).first()
+    
     if not user:
         # Create a new user
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        
         if user_type == "clinic_user":
             # Need a clinic for clinic users
             clinic = db.query(Clinic).first()
@@ -522,38 +584,26 @@ async def dev_login(
                 email=email,
                 google_subject_id=f"dev_{email.replace('@', '_').replace('.', '_')}",
                 full_name=email.split('@')[0].title(),
-                roles=["admin", "practitioner"] if user_type == "clinic_user" else [],
-                is_active=True
+                roles=["admin", "practitioner"],
+                is_active=True,
+                created_at=now,
+                updated_at=now
             )
         else:
-            # System admin - in dev mode, still create a User record but use a dummy clinic
-            # This is different from OAuth where system admins use dummy user_id and no User record
-            # NOTE: For consistency in dev/testing, dev_login system admins have User records
-            # and will go through clinic user refresh path (not system admin path)
-            clinic = db.query(Clinic).first()
-            if not clinic:
-                # Create a default clinic for dev system admins
-                # Create default clinic using ClinicSettings with all defaults
-                clinic = Clinic(
-                    name="Development Clinic",
-                    line_channel_id="dev_channel",
-                    line_channel_secret="dev_secret",
-                    line_channel_access_token="dev_token",
-                    settings=ClinicSettings().model_dump()  # Use all defaults from Pydantic model
-                )
-                db.add(clinic)
-                db.commit()
-            
+            # System admin - create User record with clinic_id=None
             user = User(
-                clinic_id=clinic.id,
+                clinic_id=None,  # System admins have clinic_id=None
                 email=email,
                 google_subject_id=f"dev_{email.replace('@', '_').replace('.', '_')}",
                 full_name=email.split('@')[0].title(),
                 roles=[],  # System admins don't have clinic roles
-                is_active=True
+                is_active=True,
+                created_at=now,
+                updated_at=now
             )
         db.add(user)
         db.commit()
+        db.refresh(user)
 
     # Create JWT tokens
     token_payload = TokenPayload(

@@ -1630,9 +1630,10 @@ class TestSystemAdminRefreshTokenFlow:
 
     def test_system_admin_refresh_token_exchange(self, client, db_session):
         """Test successful refresh token exchange for system admin."""
-        from models import RefreshToken, User, Clinic
+        from models import RefreshToken, User
         from services.jwt_service import jwt_service, TokenPayload
         from api import auth
+        from datetime import datetime, timezone
 
         # Set system admin email
         original_emails = auth.SYSTEM_ADMIN_EMAILS
@@ -1643,28 +1644,22 @@ class TestSystemAdminRefreshTokenFlow:
             email = "systemadmin@example.com"
             google_subject_id = "google_subject_123"
             name = "System Admin"
-            dummy_user_id = hash(email) % 1000000
 
-            # Create dummy User record for foreign key constraint
-            clinic = Clinic(
-                name="Dummy Clinic",
-                line_channel_id="dummy_channel",
-                line_channel_secret="dummy_secret",
-                line_channel_access_token="dummy_token"
+            # Create system admin User record (clinic_id=None)
+            now = datetime.now(timezone.utc)
+            system_admin_user = User(
+                clinic_id=None,  # System admins have clinic_id=None
+                email=email,
+                google_subject_id=google_subject_id,
+                full_name=name,
+                roles=[],
+                is_active=True,
+                created_at=now,
+                updated_at=now
             )
-            db_session.add(clinic)
+            db_session.add(system_admin_user)
             db_session.commit()
-
-            dummy_user = User(
-                id=dummy_user_id,
-                clinic_id=clinic.id,
-                email=f"dummy_{email}",
-                google_subject_id=f"dummy_{google_subject_id}",
-                full_name="Dummy User",
-                roles=[]
-            )
-            db_session.add(dummy_user)
-            db_session.commit()
+            db_session.refresh(system_admin_user)
 
             payload = TokenPayload(
                 sub=google_subject_id,
@@ -1677,14 +1672,14 @@ class TestSystemAdminRefreshTokenFlow:
             token_data = jwt_service.create_token_pair(payload)
 
             refresh_token_string = token_data["refresh_token"]
-            # System admin refresh tokens have user_id=None (no User record)
+            # System admin refresh tokens now have user_id pointing to User record
             refresh_token_record = RefreshToken(
-                user_id=None,  # System admins don't have User records
+                user_id=system_admin_user.id,  # System admins now have User records
                 token_hash=token_data["refresh_token_hash"],
                 expires_at=jwt_service.get_token_expiry("refresh"),
-                email=email,
-                google_subject_id=google_subject_id,
-                name=name
+                email=None,  # No longer needed - user_id links to User record
+                google_subject_id=None,  # No longer needed - user_id links to User record
+                name=None  # No longer needed - user_id links to User record
             )
             db_session.add(refresh_token_record)
             db_session.commit()
@@ -1710,18 +1705,19 @@ class TestSystemAdminRefreshTokenFlow:
                 db_session.refresh(refresh_token_record)
                 assert refresh_token_record.revoked == True
 
-                # Verify new refresh token was created with system admin fields
-                # System admin refresh tokens have user_id=None
+                # Verify new refresh token was created with user_id pointing to User record
                 new_refresh_tokens = db_session.query(RefreshToken).filter(
-                    RefreshToken.user_id == None,  # System admins have user_id=None
+                    RefreshToken.user_id == system_admin_user.id,  # System admins now have user_id
                     RefreshToken.revoked == False
                 ).all()
                 assert len(new_refresh_tokens) == 1
                 new_token = new_refresh_tokens[0]
-                assert new_token.email == email
-                assert new_token.google_subject_id == google_subject_id
-                assert new_token.name == name
-                assert new_token.user_id is None  # System admins don't have User records
+                assert new_token.user_id == system_admin_user.id  # System admins now have User records
+                # Verify user record is correct
+                assert new_token.user.email == email
+                assert new_token.user.google_subject_id == google_subject_id
+                assert new_token.user.full_name == name
+                assert new_token.user.clinic_id is None  # System admins have clinic_id=None
 
                 # Verify the access token contains correct system admin info
                 access_token_payload = jwt_service.verify_token(data["access_token"])
@@ -1740,9 +1736,10 @@ class TestSystemAdminRefreshTokenFlow:
 
     def test_system_admin_refresh_token_rotation(self, client, db_session):
         """Test that refresh token rotation works for system admins (old token revoked, new token created)."""
-        from models import RefreshToken, User, Clinic
+        from models import RefreshToken, User
         from services.jwt_service import jwt_service, TokenPayload
         from api import auth
+        from datetime import datetime, timezone
 
         # Set system admin email
         original_emails = auth.SYSTEM_ADMIN_EMAILS
@@ -1753,28 +1750,22 @@ class TestSystemAdminRefreshTokenFlow:
             email = "systemadmin@example.com"
             google_subject_id = "google_subject_123"
             name = "System Admin"
-            dummy_user_id = hash(email) % 1000000
 
-            # Create dummy User record for foreign key constraint
-            clinic = Clinic(
-                name="Dummy Clinic",
-                line_channel_id="dummy_channel",
-                line_channel_secret="dummy_secret",
-                line_channel_access_token="dummy_token"
+            # Create system admin User record (clinic_id=None)
+            now = datetime.now(timezone.utc)
+            system_admin_user = User(
+                clinic_id=None,  # System admins have clinic_id=None
+                email=email,
+                google_subject_id=google_subject_id,
+                full_name=name,
+                roles=[],
+                is_active=True,
+                created_at=now,
+                updated_at=now
             )
-            db_session.add(clinic)
+            db_session.add(system_admin_user)
             db_session.commit()
-
-            dummy_user = User(
-                id=dummy_user_id,
-                clinic_id=clinic.id,
-                email=f"dummy_{email}",
-                google_subject_id=f"dummy_{google_subject_id}",
-                full_name="Dummy User",
-                roles=[]
-            )
-            db_session.add(dummy_user)
-            db_session.commit()
+            db_session.refresh(system_admin_user)
 
             payload = TokenPayload(
                 sub=google_subject_id,
@@ -1787,14 +1778,14 @@ class TestSystemAdminRefreshTokenFlow:
             token_data = jwt_service.create_token_pair(payload)
 
             refresh_token_string = token_data["refresh_token"]
-            # System admin refresh tokens have user_id=None (no User record)
+            # System admin refresh tokens now have user_id pointing to User record
             initial_refresh_token = RefreshToken(
-                user_id=None,  # System admins don't have User records
+                user_id=system_admin_user.id,  # System admins now have User records
                 token_hash=token_data["refresh_token_hash"],
                 expires_at=jwt_service.get_token_expiry("refresh"),
-                email=email,
-                google_subject_id=google_subject_id,
-                name=name
+                email=None,  # No longer needed - user_id links to User record
+                google_subject_id=None,  # No longer needed - user_id links to User record
+                name=None  # No longer needed - user_id links to User record
             )
             db_session.add(initial_refresh_token)
             db_session.commit()
@@ -1817,19 +1808,20 @@ class TestSystemAdminRefreshTokenFlow:
                 db_session.refresh(initial_refresh_token)
                 assert initial_refresh_token.revoked == True
 
-                # Verify new token was created
-                # System admin refresh tokens have user_id=None
+                # Verify new token was created with user_id pointing to User record
                 new_tokens = db_session.query(RefreshToken).filter(
-                    RefreshToken.user_id == None,  # System admins have user_id=None
+                    RefreshToken.user_id == system_admin_user.id,  # System admins now have user_id
                     RefreshToken.revoked == False
                 ).all()
                 assert len(new_tokens) == 1
                 new_token = new_tokens[0]
                 assert new_token.id != initial_token_id
-                assert new_token.email == email
-                assert new_token.google_subject_id == google_subject_id
-                assert new_token.name == name
-                assert new_token.user_id is None  # System admins don't have User records
+                assert new_token.user_id == system_admin_user.id  # System admins now have User records
+                # Verify user record is correct
+                assert new_token.user.email == email
+                assert new_token.user.google_subject_id == google_subject_id
+                assert new_token.user.full_name == name
+                assert new_token.user.clinic_id is None  # System admins have clinic_id=None
 
                 # Second refresh using new token
                 response2 = client.post("/api/auth/refresh", json={"refresh_token": new_refresh_token_string})
@@ -1839,19 +1831,20 @@ class TestSystemAdminRefreshTokenFlow:
                 db_session.refresh(new_token)
                 assert new_token.revoked == True
 
-                # Verify second new token was created
-                # System admin refresh tokens have user_id=None
+                # Verify second new token was created with user_id pointing to User record
                 final_tokens = db_session.query(RefreshToken).filter(
-                    RefreshToken.user_id == None,  # System admins have user_id=None
+                    RefreshToken.user_id == system_admin_user.id,  # System admins now have user_id
                     RefreshToken.revoked == False
                 ).all()
                 assert len(final_tokens) == 1
                 final_token = final_tokens[0]
                 assert final_token.id != new_token.id
-                assert final_token.email == email
-                assert final_token.google_subject_id == google_subject_id
-                assert final_token.name == name
-                assert final_token.user_id is None  # System admins don't have User records
+                assert final_token.user_id == system_admin_user.id  # System admins now have User records
+                # Verify user record is correct
+                assert final_token.user.email == email
+                assert final_token.user.google_subject_id == google_subject_id
+                assert final_token.user.full_name == name
+                assert final_token.user.clinic_id is None  # System admins have clinic_id=None
 
             finally:
                 client.app.dependency_overrides.pop(get_db, None)

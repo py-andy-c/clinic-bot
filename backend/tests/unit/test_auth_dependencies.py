@@ -105,6 +105,8 @@ class TestGetCurrentUser:
     @patch('auth.dependencies.get_db')
     def test_system_admin_user(self, mock_get_db):
         """Test authenticating system admin user."""
+        from models import User
+        
         payload = TokenPayload(
             sub="admin_sub",
             email="admin@example.com",
@@ -114,13 +116,35 @@ class TestGetCurrentUser:
             name="System Admin"
         )
 
+        # Create a mock system admin user (clinic_id=None)
+        class MockSystemAdminUser:
+            def __init__(self):
+                self.id = 1
+                self.email = "admin@example.com"
+                self.google_subject_id = "admin_sub"
+                self.roles = []
+                self.clinic_id = None  # System admins have clinic_id=None
+                self.full_name = "System Admin"
+                self.is_active = True
+
+        mock_user = MockSystemAdminUser()
+
+        mock_db = Mock()
+        # Mock the query chain: db.query(User).filter(...).first()
+        mock_query = Mock()
+        mock_query.filter.return_value.first.return_value = mock_user
+        mock_db.query.return_value = mock_query
+        mock_get_db.return_value = mock_db
+
         with patch('auth.dependencies.SYSTEM_ADMIN_EMAILS', ['admin@example.com']):
-            result = get_current_user(payload, mock_get_db)
+            result = get_current_user(payload, mock_db)
 
         assert isinstance(result, UserContext)
         assert result.user_type == "system_admin"
         assert result.email == "admin@example.com"
         assert result.is_system_admin() is True
+        assert result.user_id == 1  # System admins now have user_id
+        assert result.clinic_id is None
 
     @patch('auth.dependencies.get_db')
     def test_clinic_user_valid(self, mock_get_db):

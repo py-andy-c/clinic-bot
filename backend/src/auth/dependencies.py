@@ -40,7 +40,7 @@ class UserContext:
         self.clinic_id = clinic_id
         self.google_subject_id = google_subject_id
         self.name = name
-        self.user_id = user_id  # Database user ID (for clinic users only)
+        self.user_id = user_id  # Database user ID (for both system admins and clinic users)
 
     def is_system_admin(self) -> bool:
         """Check if user is a system admin."""
@@ -98,13 +98,33 @@ def get_current_user(
                 detail="Access denied"
             )
 
+        # Look up User record for system admin (clinic_id=None)
+        user = db.query(User).filter(
+            User.email == payload.email,
+            User.clinic_id.is_(None)  # System admins have clinic_id=None
+        ).first()
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+
+        # Check if user is active
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="帳戶已被停用，請聯繫系統管理員重新啟用"
+            )
+
         return UserContext(
             user_type="system_admin",
-            email=payload.email,
+            email=user.email,
             roles=[],  # System admins don't have clinic-specific roles
             clinic_id=None,
-            google_subject_id=payload.sub,
-            name=payload.name
+            google_subject_id=user.google_subject_id,
+            name=user.full_name,
+            user_id=user.id  # System admins now have user_id
         )
 
     # Handle clinic user authentication
