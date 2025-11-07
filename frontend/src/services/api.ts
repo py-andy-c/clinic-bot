@@ -29,6 +29,19 @@ import {
   PractitionerAvailability
 } from '../types';
 
+/**
+ * Delay before redirecting to login page (in milliseconds).
+ * 
+ * This delay ensures React has finished rendering before we redirect,
+ * preventing "useAuth must be used within an AuthProvider" errors that occur
+ * when window.location.replace() is called during React's rendering cycle.
+ * 
+ * requestAnimationFrame waits for the next frame (~16ms at 60fps), which is
+ * typically sufficient for React to finish rendering. Set to 0 to use only
+ * requestAnimationFrame, or increase if additional delay is needed.
+ */
+const REDIRECT_DELAY_MS = 0; // Using requestAnimationFrame only (no additional delay needed)
+
 export class ApiService {
   private client: AxiosInstance;
   private sessionExpired = false; // Flag to prevent multiple redirects
@@ -157,8 +170,14 @@ export class ApiService {
   }
 
   /**
-   * Redirect to login page with delay to avoid interrupting React rendering
-   * Prevents multiple redirects from happening simultaneously
+   * Redirect to login page with delay to avoid interrupting React rendering.
+   * 
+   * Prevents multiple redirects from happening simultaneously and ensures React
+   * has finished rendering before redirecting, which prevents "useAuth must be
+   * used within an AuthProvider" errors.
+   * 
+   * Uses requestAnimationFrame to wait for the next frame, ensuring React has
+   * finished rendering before the redirect occurs.
    */
   private redirectToLogin(): void {
     // Prevent multiple redirects
@@ -168,11 +187,19 @@ export class ApiService {
     
     this.redirectInProgress = true;
     
-    // Use setTimeout to delay redirect and avoid interrupting React rendering
-    // This prevents "Importing a module script failed" errors
-    setTimeout(() => {
-      window.location.replace('/login');
-    }, 0);
+    // Use requestAnimationFrame to ensure redirect happens after React has finished rendering
+    // This prevents "useAuth must be used within an AuthProvider" errors that occur
+    // when window.location.replace() is called during React's rendering cycle
+    requestAnimationFrame(() => {
+      if (REDIRECT_DELAY_MS > 0) {
+        setTimeout(() => {
+          window.location.replace('/login');
+        }, REDIRECT_DELAY_MS);
+      } else {
+        // No additional delay needed - requestAnimationFrame is sufficient
+        window.location.replace('/login');
+      }
+    });
   }
 
   async refreshToken(): Promise<void> {

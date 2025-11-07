@@ -5,6 +5,18 @@ import { tokenRefreshService } from '../services/tokenRefresh';
 import { authStorage } from '../utils/storage';
 import { apiService } from '../services/api';
 
+/**
+ * Redirect to login page with delay to avoid interrupting React rendering.
+ * 
+ * Uses requestAnimationFrame to ensure React has finished rendering before redirecting,
+ * preventing "useAuth must be used within an AuthProvider" errors.
+ */
+const redirectToLogin = (): void => {
+  requestAnimationFrame(() => {
+    window.location.replace('/login');
+  });
+};
+
 interface AuthContextType extends AuthState {
   user: AuthUser | null;
   login: (userType?: 'system_admin' | 'clinic_user') => Promise<void>;
@@ -90,6 +102,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .catch(error => {
           logger.error('OAuth callback token validation failed:', error);
           clearAuthState();
+          // Redirect to login with delay to avoid React rendering issues
+          redirectToLogin();
         });
 
       return; // Skip normal auth check
@@ -145,8 +159,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       logger.error('useAuth: Token refresh failed:', error);
       clearAuthState();
       // Redirect to login if we're not already there
+      // Use delayed redirect to avoid React rendering issues
       if (!window.location.pathname.startsWith('/login')) {
-        window.location.replace('/login');
+        redirectToLogin();
       }
     }
   }, [clearAuthState]);
@@ -187,13 +202,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Token is invalid, try refresh
           // The axios interceptor should have already attempted refresh, but if it failed,
           // we try again here
-          await refreshToken();
+          try {
+            await refreshToken();
+          } catch (refreshError) {
+            // If refresh also fails, clear auth state and redirect to login
+            // This ensures consistent behavior across all error paths
+            logger.error('useAuth: Token refresh failed in checkAuthStatus:', refreshError);
+            clearAuthState();
+            if (!window.location.pathname.startsWith('/login')) {
+              redirectToLogin();
+            } else {
+              setAuthState(prev => ({ ...prev, isLoading: false }));
+            }
+          }
         }
       } else {
         // No access token
         const wasLoggedIn = authStorage.getWasLoggedIn();
         if (wasLoggedIn) {
-          await refreshToken();
+          try {
+            await refreshToken();
+          } catch (refreshError) {
+            // If refresh fails, clear auth state and redirect to login
+            // This ensures consistent behavior across all error paths
+            logger.error('useAuth: Token refresh failed in checkAuthStatus:', refreshError);
+            clearAuthState();
+            if (!window.location.pathname.startsWith('/login')) {
+              redirectToLogin();
+            } else {
+              setAuthState(prev => ({ ...prev, isLoading: false }));
+            }
+          }
         } else {
           setAuthState(prev => ({ ...prev, isLoading: false }));
         }
