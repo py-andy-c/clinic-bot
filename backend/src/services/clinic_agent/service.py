@@ -81,6 +81,9 @@ class ClinicAgentService:
         """
         Process a patient message and generate AI response.
         
+        Limits conversation history to the last 10 messages to manage
+        token usage and keep context relevant.
+        
         Args:
             line_user_id: LINE user ID from webhook
             message: Patient's message text
@@ -107,6 +110,28 @@ class ClinicAgentService:
                 engine=engine,
                 create_tables=True
             )
+            
+            # Limit conversation history to last 10 messages
+            # This helps manage token usage and keeps context relevant
+            MAX_HISTORY_MESSAGES = 10
+            
+            # Get all conversation items from session
+            all_items = await session.get_items()
+            
+            # If we have more than MAX_HISTORY_MESSAGES, keep only the last N
+            if len(all_items) > MAX_HISTORY_MESSAGES:
+                # Keep only the last MAX_HISTORY_MESSAGES items
+                # Items are typically ordered chronologically, so we take the last ones
+                items_to_keep = all_items[-MAX_HISTORY_MESSAGES:]
+                
+                # Clear the session and re-add only the items we want to keep
+                await session.clear_session()
+                await session.add_items(items_to_keep)
+                
+                logger.debug(
+                    f"Truncated conversation history from {len(all_items)} to {len(items_to_keep)} "
+                    f"messages for clinic_id={clinic.id}, line_user_id={line_user_id}"
+                )
             
             # Run agent with session (SDK handles conversation history automatically)
             # Note: When using session memory, pass input as string, not list
