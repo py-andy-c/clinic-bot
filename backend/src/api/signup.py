@@ -446,6 +446,7 @@ async def confirm_name(
         # Create JWT token payload
         payload = TokenPayload(
             sub=str(google_subject_id),
+            user_id=user.id,
             email=str(email),
             user_type="clinic_user",
             roles=user.roles,

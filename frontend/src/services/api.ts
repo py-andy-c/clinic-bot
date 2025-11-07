@@ -11,8 +11,7 @@ import {
   ClinicHealth,
   MemberInviteData,
   OAuthResponse,
-  UserRole,
-  AuthUser
+  UserRole
 } from '../types';
 import {
   validateClinicSettings,
@@ -103,9 +102,8 @@ export class ApiService {
           // Use centralized token refresh service (handles duplicate requests automatically)
           // The TokenRefreshService uses refreshInProgress promise to prevent concurrent refreshes
           // Refresh service creates its own client to avoid interceptor loops
-          await tokenRefreshService.refreshToken({ 
-            validateToken: false
-          });
+          // User data is now included in refresh response (eliminates need for /auth/verify)
+          await tokenRefreshService.refreshToken();
           
           // Retry the original request with the new access token
           const token = authStorage.getAccessToken();
@@ -201,14 +199,6 @@ export class ApiService {
     authStorage.clearAuth();
   }
 
-  /**
-   * Verify the current access token and get user data
-   * This goes through the axios interceptor which handles token refresh automatically
-   */
-  async verifyToken(): Promise<AuthUser> {
-    const response = await this.client.get('/auth/verify');
-    return response.data;
-  }
 
   // System Admin APIs
 

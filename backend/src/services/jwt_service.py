@@ -18,6 +18,7 @@ from core.config import JWT_SECRET_KEY, JWT_ACCESS_TOKEN_EXPIRE_MINUTES, JWT_REF
 class TokenPayload(BaseModel):
     """Payload structure for JWT tokens."""
     sub: str  # Google subject ID
+    user_id: int  # Database user ID
     email: str
     user_type: str  # "system_admin" or "clinic_user"
     roles: list[str]  # For clinic users: ["admin"], ["practitioner"], ["admin", "practitioner"]

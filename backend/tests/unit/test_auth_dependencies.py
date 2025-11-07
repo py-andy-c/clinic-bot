@@ -60,6 +60,7 @@ class TestGetTokenPayload:
         """Test extracting payload from valid token."""
         mock_payload = TokenPayload(
             sub="test_sub",
+            user_id=1,
             email="test@example.com",
             user_type="clinic_user",
             roles=["admin"],
@@ -109,6 +110,7 @@ class TestGetCurrentUser:
         
         payload = TokenPayload(
             sub="admin_sub",
+            user_id=1,
             email="admin@example.com",
             user_type="system_admin",
             roles=[],
@@ -153,6 +155,7 @@ class TestGetCurrentUser:
 
         payload = TokenPayload(
             sub="user_sub",
+            user_id=1,
             email="user@example.com",
             user_type="clinic_user",
             roles=["admin", "practitioner"],
@@ -194,6 +197,7 @@ class TestGetCurrentUser:
         """Test handling clinic user not found in database."""
         payload = TokenPayload(
             sub="user_sub",
+            user_id=1,
             email="user@example.com",
             user_type="clinic_user",
             roles=["admin"],
@@ -221,6 +225,7 @@ class TestGetCurrentUser:
 
         payload = TokenPayload(
             sub="user_sub",
+            user_id=1,
             email="user@example.com",
             user_type="clinic_user",
             roles=["admin"],
@@ -229,6 +234,7 @@ class TestGetCurrentUser:
         )
 
         mock_user = Mock(spec=User)
+        mock_user.id = 1
         mock_user.clinic_id = 2  # But user is in clinic 2
         mock_user.is_active = True
 
@@ -246,6 +252,7 @@ class TestGetCurrentUser:
         """Test handling invalid user type."""
         payload = TokenPayload(
             sub="user_sub",
+            user_id=1,
             email="user@example.com",
             user_type="invalid_type",
             roles=[],

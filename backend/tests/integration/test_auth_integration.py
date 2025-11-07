@@ -1464,63 +1464,9 @@ class TestSignupCallbackFlow:
             client.app.dependency_overrides.pop(get_db, None)
             client.app.dependency_overrides.pop(get_current_user, None)
 
-    def test_verify_token_valid(self, client, db_session):
-        """Test verifying a valid access token."""
-        # Create test clinic first
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_access_token"
-        )
-        db_session.add(clinic)
-        db_session.commit()
-
-        # Create test user
-        user = User(
-            clinic_id=clinic.id,
-            email="test@example.com",
-            google_subject_id="test_sub",
-            full_name="Test User",
-            roles=["practitioner"],
-            is_active=True
-        )
-        db_session.add(user)
-        db_session.commit()
-
-        # Mock get_current_user to return the test user context
-        def mock_get_current_user():
-            return type('UserContext', (), {
-                'user_id': user.id,
-                'clinic_id': user.clinic_id,
-                'email': user.email,
-                'name': user.full_name,  # Note: UserContext uses 'name', not 'full_name'
-                'user_type': 'clinic_user',  # Determined by context, not stored in User model
-                'roles': user.roles
-            })()
-
-        try:
-            client.app.dependency_overrides[get_current_user] = mock_get_current_user
-
-            response = client.get("/api/auth/verify")
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data["user_id"] == user.id
-            assert data["clinic_id"] == user.clinic_id
-            assert data["email"] == user.email
-            assert data["full_name"] == user.full_name  # API returns 'full_name' from UserContext.name
-            assert data["user_type"] == 'clinic_user'
-            assert data["roles"] == user.roles
-
-        finally:
-            client.app.dependency_overrides.pop(get_current_user, None)
-
-    def test_verify_token_invalid(self, client):
-        """Test verifying an invalid access token."""
-        # No authorization header provided
-        response = client.get("/api/auth/verify")
-        assert response.status_code == 401
+    # Note: /auth/verify endpoint has been removed as redundant validation
+    # Tokens are now validated on every request via get_current_user() dependency
+    # User data is included in refresh response, eliminating need for separate verify call
 
     def test_refresh_token_no_cookie(self, client):
         """Test refresh token endpoint when no cookie is present."""
@@ -1603,6 +1549,7 @@ class TestSystemAdminRefreshTokenFlow:
             from services.jwt_service import TokenPayload
             payload = TokenPayload(
                 sub=google_subject_id,
+                user_id=dummy_user.id,
                 email=email,
                 user_type="system_admin",
                 roles=[],
@@ -1668,6 +1615,7 @@ class TestSystemAdminRefreshTokenFlow:
 
             payload = TokenPayload(
                 sub=google_subject_id,
+                user_id=system_admin_user.id,
                 email=email,
                 user_type="system_admin",
                 roles=[],
@@ -1774,6 +1722,7 @@ class TestSystemAdminRefreshTokenFlow:
 
             payload = TokenPayload(
                 sub=google_subject_id,
+                user_id=system_admin_user.id,
                 email=email,
                 user_type="system_admin",
                 roles=[],
@@ -1897,6 +1846,7 @@ class TestSystemAdminRefreshTokenFlow:
 
             payload = TokenPayload(
                 sub=google_subject_id,
+                user_id=dummy_user.id,
                 email=email,
                 user_type="system_admin",
                 roles=[],

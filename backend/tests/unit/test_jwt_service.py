@@ -16,6 +16,7 @@ class TestJWTService:
         # Create a payload without iat/exp (these are set internally)
         payload_dict = {
             "sub": "test_subject",
+            "user_id": 1,
             "email": "test@example.com",
             "user_type": "clinic_user",
             "roles": ["admin", "practitioner"],
@@ -31,6 +32,7 @@ class TestJWTService:
         """Test verifying a valid JWT token."""
         payload = TokenPayload(
             sub="test_subject",
+            user_id=1,
             email="test@example.com",
             user_type="clinic_user",
             roles=["admin"],
@@ -53,6 +55,7 @@ class TestJWTService:
         # Create token that's already expired
         expired_payload = TokenPayload(
             sub="test_subject",
+            user_id=1,
             email="test@example.com",
             user_type="clinic_user",
             roles=["admin"],
@@ -140,6 +143,7 @@ class TestJWTService:
         """Test creating both access and refresh tokens."""
         payload = TokenPayload(
             sub="test_subject",
+            user_id=1,
             email="test@example.com",
             user_type="clinic_user",
             roles=["admin"],

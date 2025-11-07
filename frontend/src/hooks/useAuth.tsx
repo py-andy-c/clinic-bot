@@ -85,23 +85,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const cleanUrl = window.location.pathname + window.location.hash;
       window.history.replaceState({}, document.title, cleanUrl);
 
-      // Validate the token and get user info using axios client
-      // This goes through the axios interceptor which handles token refresh automatically
-      apiService.verifyToken()
-        .then(userData => {
-          logger.log('OAuth callback - User data received');
-          setAuthState({
-            user: userData,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-        })
-        .catch(error => {
-          logger.error('OAuth callback token validation failed:', error);
-          clearAuthState();
-          // Redirect to login with delay to avoid React rendering issues
-          redirectToLogin();
+      // Decode JWT token to get user data (eliminates need for /auth/verify call)
+      try {
+        const tokenParts = token.split('.');
+        if (tokenParts.length !== 3) {
+          throw new Error('Invalid token format: expected 3 parts');
+        }
+        
+        // Decode base64 payload
+        let payload: any;
+        try {
+          payload = JSON.parse(atob(tokenParts[1]!));
+        } catch (decodeError) {
+          throw new Error('Invalid token format: failed to decode payload');
+        }
+        
+        // Extract user data from JWT payload
+        const userData: AuthUser = {
+          user_id: payload.user_id || 0,  // Database user ID (now included in JWT)
+          email: payload.email || '',
+          full_name: payload.name || '',
+          user_type: payload.user_type || 'clinic_user',
+          roles: payload.roles || [],
+          clinic_id: payload.clinic_id || undefined,
+        };
+        
+        // Validate required fields
+        if (!userData.email || !userData.user_type) {
+          throw new Error('Invalid token: missing required fields');
+        }
+        
+        logger.log('OAuth callback - User data decoded from JWT token', { user_id: userData.user_id, email: userData.email });
+        setAuthState({
+          user: userData,
+          isAuthenticated: true,
+          isLoading: false,
         });
+      } catch (error) {
+        logger.error('OAuth callback token decoding failed:', error);
+        clearAuthState();
+        // Redirect to login with delay to avoid React rendering issues
+        redirectToLogin();
+      }
 
       return; // Skip normal auth check
     }
@@ -150,32 +175,60 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const refreshToken = authStorage.getRefreshToken();
       
       if (accessToken || refreshToken) {
-        // If we have tokens, verifyToken() will trigger the axios interceptor
-        // which automatically handles refresh if the access token is invalid.
+        // If we have an access token, decode it to get user data
+        // If access token is invalid, the first API call will trigger refresh via interceptor
         // The interceptor will:
-        // 1. Detect 401 error from verifyToken()
-        // 2. Call tokenRefreshService.refreshToken() to get new tokens
-        // 3. Retry the verifyToken() request with the new access token
+        // 1. Detect 401 error from the API call
+        // 2. Call tokenRefreshService.refreshToken() to get new tokens (with user data)
+        // 3. Retry the API call with the new access token
         // 4. If refresh fails, redirect to login
-        try {
-          const userData = await apiService.verifyToken();
-          setAuthState({
-            user: userData,
-            isAuthenticated: true,
-            isLoading: false,
-          });
-        } catch (error) {
-          // Token validation failed - interceptor should have already attempted refresh
-          // If we get here, refresh also failed or no refresh token available
-          // The interceptor will have already cleared auth state and redirected to login
-          logger.error('useAuth: Token verification failed in checkAuthStatus:', error);
-          clearAuthState();
-          if (!window.location.pathname.startsWith('/login')) {
-            redirectToLogin();
-          } else {
-            setAuthState(prev => ({ ...prev, isLoading: false }));
+        if (accessToken) {
+          try {
+            // Decode JWT token to get user data (eliminates need for /auth/verify call)
+            const tokenParts = accessToken.split('.');
+            if (tokenParts.length !== 3) {
+              throw new Error('Invalid token format: expected 3 parts');
+            }
+            
+            // Decode base64 payload
+            let payload: any;
+            try {
+              payload = JSON.parse(atob(tokenParts[1]!));
+            } catch (decodeError) {
+              throw new Error('Invalid token format: failed to decode payload');
+            }
+            
+            // Extract user data from JWT payload
+            const userData: AuthUser = {
+              user_id: payload.user_id || 0,  // Database user ID (now included in JWT)
+              email: payload.email || '',
+              full_name: payload.name || '',
+              user_type: payload.user_type || 'clinic_user',
+              roles: payload.roles || [],
+              clinic_id: payload.clinic_id || undefined,
+            };
+            
+            // Validate required fields
+            if (!userData.email || !userData.user_type) {
+              throw new Error('Invalid token: missing required fields');
+            }
+            
+            logger.log('useAuth: User data decoded from JWT token', { user_id: userData.user_id, email: userData.email });
+            setAuthState({
+              user: userData,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+            return;
+          } catch (error) {
+            logger.warn('useAuth: Failed to decode access token, will rely on first API call to validate:', error);
+            // Continue to set loading false - first API call will validate token
           }
         }
+        
+        // If no access token or decoding failed, just set loading false
+        // The first API call will trigger refresh if needed
+        setAuthState(prev => ({ ...prev, isLoading: false }));
       } else {
         // No tokens available
         setAuthState(prev => ({ ...prev, isLoading: false }));

@@ -20,7 +20,6 @@ from core.config import API_BASE_URL, SYSTEM_ADMIN_EMAILS, FRONTEND_URL, GOOGLE_
 from services.jwt_service import jwt_service, TokenPayload
 from models import RefreshToken, User, Clinic
 from models.clinic import ClinicSettings
-from auth.dependencies import UserContext, get_current_user
 
 router = APIRouter()
 
@@ -202,6 +201,7 @@ async def google_auth_callback(
             # Create token payload for system admin
             payload = TokenPayload(
                 sub=google_subject_id,
+                user_id=existing_user.id,
                 email=email,
                 user_type="system_admin",
                 roles=[],  # System admins don't have clinic roles
@@ -241,6 +241,7 @@ async def google_auth_callback(
                 # Existing active clinic user - create tokens
                 payload = TokenPayload(
                     sub=google_subject_id,
+                    user_id=existing_user.id,
                     email=email,
                     user_type="clinic_user",
                     roles=existing_user.roles,
@@ -327,7 +328,7 @@ async def refresh_access_token(
     request: Request,
     response: Response,
     db: Session = Depends(get_db)
-) -> Dict[str, str]:
+) -> Dict[str, Any]:
     """
     Refresh access token using refresh token from request body.
     
@@ -476,6 +477,7 @@ async def refresh_access_token(
     # Unified token payload creation for both system admins and clinic users
     payload = TokenPayload(
         sub=str(user.google_subject_id),
+        user_id=user.id,
         email=user.email,
         user_type="system_admin" if is_system_admin else "clinic_user",
         roles=[] if is_system_admin else user.roles,  # System admins don't have clinic roles
@@ -501,12 +503,21 @@ async def refresh_access_token(
     db.add(new_refresh_token_record)
     db.commit()
 
-    # Return response with access token and refresh token
+    # Return response with access token, refresh token, and user data
+    # This eliminates the need for a separate /auth/verify call
     response_data = {
         "access_token": token_data["access_token"],
         "token_type": token_data["token_type"],
         "expires_in": str(token_data["expires_in"]),
-        "refresh_token": token_data["refresh_token"]
+        "refresh_token": token_data["refresh_token"],
+        "user": {
+            "user_id": user.id,
+            "clinic_id": user.clinic_id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "user_type": "system_admin" if is_system_admin else "clinic_user",
+            "roles": [] if is_system_admin else user.roles
+        }
     }
     
     # Log successful refresh
@@ -518,27 +529,6 @@ async def refresh_access_token(
     )
     
     return response_data
-
-
-@router.get("/verify", summary="Verify access token")
-async def verify_token(
-    current_user: UserContext = Depends(get_current_user)
-) -> Dict[str, Any]:
-    """
-    Verify that the provided access token is valid and return user information.
-
-    Returns user data if token is valid, raises 401 if invalid.
-    """
-    logger.info(f"Token verification for user: {current_user.email}, type: {current_user.user_type}, roles: {current_user.roles}")
-    
-    return {
-        "user_id": current_user.user_id,
-        "clinic_id": current_user.clinic_id,
-        "email": current_user.email,
-        "full_name": current_user.name,
-        "user_type": current_user.user_type,
-        "roles": current_user.roles
-    }
 
 
 @router.post("/dev/login", summary="Development login (bypass OAuth)")
@@ -638,6 +628,7 @@ async def dev_login(
     # Create JWT tokens
     token_payload = TokenPayload(
         sub=str(user.google_subject_id),
+        user_id=user.id,
         user_type="system_admin" if email in SYSTEM_ADMIN_EMAILS else "clinic_user",
         email=user.email,
         roles=user.roles,

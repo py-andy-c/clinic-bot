@@ -95,30 +95,34 @@ describe('TokenRefreshService', () => {
       await expect(service.refreshToken()).rejects.toThrow('找不到重新整理權杖');
     });
 
-    it('should validate token and return user data when requested', async () => {
+    it('should return user data from refresh response', async () => {
+      const mockUserData = {
+        user_id: 1,
+        email: 'test@example.com',
+        full_name: 'Test User',
+        user_type: 'clinic_user',
+        roles: ['admin'],
+        clinic_id: 1,
+      };
+
       const mockRefreshResponse = {
         data: {
           access_token: 'new-access-token',
+          refresh_token: 'new-refresh-token',
+          user: mockUserData,  // User data included in refresh response
         },
-      };
-
-      const mockUserData = {
-        id: 1,
-        email: 'test@example.com',
       };
 
       mockAxiosInstance.post.mockResolvedValue(mockRefreshResponse);
-      mockAxiosInstance.get.mockResolvedValue({ data: mockUserData });
       (authStorage.getRefreshToken as any).mockReturnValue('test-refresh-token');
 
-      const result = await service.refreshToken({ validateToken: true });
+      const result = await service.refreshToken();
 
       expect(result.userData).toEqual(mockUserData);
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/auth/verify', {
-        headers: {
-          'Authorization': 'Bearer new-access-token',
-        },
-      });
+      expect(result.accessToken).toBe('new-access-token');
+      expect(result.refreshToken).toBe('new-refresh-token');
+      // Should not call /auth/verify (removed redundant validation)
+      expect(mockAxiosInstance.get).not.toHaveBeenCalled();
     });
 
     it('should reuse in-progress refresh promise', async () => {

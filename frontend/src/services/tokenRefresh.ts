@@ -20,14 +20,11 @@ import { AuthUser } from '../types';
 export interface RefreshTokenResponse {
   access_token: string;
   refresh_token?: string;
+  user?: AuthUser;  // User data included in refresh response (eliminates need for /auth/verify)
 }
 
 export interface RefreshTokenOptions {
-  /**
-   * Whether to validate the new token and return user data
-   * @default false
-   */
-  validateToken?: boolean;
+  // validateToken option removed - user data is now always included in refresh response
 }
 
 export interface RefreshTokenResult {
@@ -64,7 +61,7 @@ export class TokenRefreshService {
   /**
    * Perform the actual token refresh
    */
-  private async performRefresh(options: RefreshTokenOptions): Promise<RefreshTokenResult> {
+  private async performRefresh(_options: RefreshTokenOptions): Promise<RefreshTokenResult> {
     try {
       logger.log('TokenRefreshService: Attempting to refresh token...');
 
@@ -84,7 +81,7 @@ export class TokenRefreshService {
         refresh_token: refreshToken,
       });
 
-      // Extract tokens from response
+      // Extract tokens and user data from response
       const data = response.data;
       if (!data.access_token) {
         throw new Error('重新整理權杖回應缺少存取權杖');
@@ -93,11 +90,8 @@ export class TokenRefreshService {
       // Store new tokens
       this.storeTokens(data.access_token, data.refresh_token);
 
-      // Optionally validate token and get user data
-      let userData: AuthUser | undefined = undefined;
-      if (options.validateToken) {
-        userData = await this.validateToken(data.access_token, client);
-      }
+      // User data is now included in refresh response (eliminates need for /auth/verify)
+      const userData: AuthUser | undefined = data.user;
 
       const result: RefreshTokenResult = {
         accessToken: data.access_token,
@@ -134,33 +128,6 @@ export class TokenRefreshService {
     }
   }
 
-  /**
-   * Validate token and get user data
-   */
-  private async validateToken(accessToken: string, client: AxiosInstance): Promise<AuthUser> {
-    try {
-      logger.log('TokenRefreshService: Validating token with /auth/verify');
-      const response = await client.get('/auth/verify', {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      });
-      logger.log('TokenRefreshService: Token validation successful');
-      return response.data;
-    } catch (error: unknown) {
-      logger.error('TokenRefreshService: Token validation failed:', error);
-      if (error && typeof error === 'object' && 'response' in error) {
-        const axiosError = error as { response?: { status?: number; data?: unknown } };
-        if (axiosError.response) {
-          logger.error('TokenRefreshService: Validation error response:', {
-            status: axiosError.response.status,
-            data: axiosError.response.data,
-          });
-        }
-      }
-      throw new Error('重新整理後權杖驗證失敗');
-    }
-  }
 
   /**
    * Create axios client for token refresh
