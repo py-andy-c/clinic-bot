@@ -511,11 +511,12 @@ class TestRefreshTokenFlow:
 
         # Create a valid refresh token
         refresh_token_string = "test_refresh_token_123"
-        refresh_token_hash = jwt_service.create_refresh_token_hash(refresh_token_string)
+        refresh_token_hash, refresh_token_hash_sha256 = jwt_service.create_refresh_token_hash(refresh_token_string)
 
         refresh_token_record = RefreshToken(
             user_id=user.id,
             token_hash=refresh_token_hash,
+            token_hash_sha256=refresh_token_hash_sha256,  # SHA-256 hash for O(1) lookup
             expires_at=datetime.now(timezone.utc) + timedelta(days=7)
         )
         db_session.add(refresh_token_record)
@@ -578,11 +579,12 @@ class TestRefreshTokenFlow:
 
         # Create a valid refresh token
         refresh_token_string = "test_refresh_token_123"
-        refresh_token_hash = jwt_service.create_refresh_token_hash(refresh_token_string)
+        refresh_token_hash, refresh_token_hash_sha256 = jwt_service.create_refresh_token_hash(refresh_token_string)
 
         refresh_token_record = RefreshToken(
             user_id=user.id,
             token_hash=refresh_token_hash,
+            token_hash_sha256=refresh_token_hash_sha256,  # SHA-256 hash for O(1) lookup
             expires_at=datetime.now(timezone.utc) + timedelta(days=7)
         )
         db_session.add(refresh_token_record)
@@ -667,11 +669,12 @@ class TestRefreshTokenFlow:
 
         # Create an expired refresh token
         expired_token_string = "expired_token_123"
-        expired_token_hash = jwt_service.create_refresh_token_hash(expired_token_string)
+        expired_token_hash, expired_token_hash_sha256 = jwt_service.create_refresh_token_hash(expired_token_string)
 
         expired_token = RefreshToken(
             user_id=user.id,
             token_hash=expired_token_hash,
+            token_hash_sha256=expired_token_hash_sha256,  # SHA-256 hash for O(1) lookup
             expires_at=datetime.now(timezone.utc) - timedelta(hours=1)  # Already expired
         )
         db_session.add(expired_token)
@@ -716,11 +719,12 @@ class TestRefreshTokenFlow:
 
         # Create a refresh token
         refresh_token_string = "logout_test_token_123"
-        refresh_token_hash = jwt_service.create_refresh_token_hash(refresh_token_string)
+        refresh_token_hash, refresh_token_hash_sha256 = jwt_service.create_refresh_token_hash(refresh_token_string)
 
         refresh_token_record = RefreshToken(
             user_id=user.id,
             token_hash=refresh_token_hash,
+            token_hash_sha256=refresh_token_hash_sha256,  # SHA-256 hash for O(1) lookup
             expires_at=datetime.now(timezone.utc) + timedelta(days=7)
         )
         db_session.add(refresh_token_record)
@@ -770,11 +774,12 @@ class TestRefreshTokenFlow:
 
         # Create a valid refresh token
         refresh_token_string = "test_refresh_token_concurrent_123"
-        refresh_token_hash = jwt_service.create_refresh_token_hash(refresh_token_string)
+        refresh_token_hash, refresh_token_hash_sha256 = jwt_service.create_refresh_token_hash(refresh_token_string)
 
         refresh_token_record = RefreshToken(
             user_id=user.id,
             token_hash=refresh_token_hash,
+            token_hash_sha256=refresh_token_hash_sha256,  # SHA-256 hash for O(1) lookup
             expires_at=datetime.now(timezone.utc) + timedelta(days=7)
         )
         db_session.add(refresh_token_record)

@@ -268,10 +268,12 @@ async def google_auth_callback(
             user_id_for_token = existing_user.id
 
             refresh_token_hash = token_data["refresh_token_hash"]
+            refresh_token_hash_sha256 = token_data.get("refresh_token_hash_sha256")  # SHA-256 hash for O(1) lookup
 
             refresh_token_record = RefreshToken(
                 user_id=user_id_for_token,  # Both system admins and clinic users have user_id now
                 token_hash=refresh_token_hash,
+                token_hash_sha256=refresh_token_hash_sha256,  # SHA-256 hash for O(1) lookup
                 expires_at=jwt_service.get_token_expiry("refresh"),
                 email=None,  # No longer needed - user_id links to User record
                 google_subject_id=None,  # No longer needed - user_id links to User record
@@ -354,19 +356,35 @@ async def refresh_access_token(
             detail="無效的重新整理權杖格式"
         )
 
-    # Find refresh token by verifying against all valid tokens
-    valid_tokens = db.query(RefreshToken).filter(
+    # Optimized O(1) lookup using SHA-256 hash
+    # First, compute SHA-256 hash of the incoming token
+    token_hash_sha256 = jwt_service.get_refresh_token_sha256_hash(refresh_token)
+    
+    # Use SHA-256 hash for fast O(1) lookup via index
+    refresh_token_record = db.query(RefreshToken).filter(
+        RefreshToken.token_hash_sha256 == token_hash_sha256,
         RefreshToken.revoked == False,
         RefreshToken.expires_at > datetime.now(timezone.utc)
-    ).all()
+    ).first()
+    
+    # If not found with SHA-256 hash (old token without SHA-256), fall back to O(n) scan
+    if not refresh_token_record:
+        logger.debug("Refresh token not found via SHA-256 hash, falling back to O(n) scan for backward compatibility")
+        # Fallback: O(n) scan for old tokens without SHA-256 hash
+        valid_tokens = db.query(RefreshToken).filter(
+            RefreshToken.token_hash_sha256.is_(None),  # Only check tokens without SHA-256 hash
+            RefreshToken.revoked == False,
+            RefreshToken.expires_at > datetime.now(timezone.utc)
+        ).all()
 
-    refresh_token_record = None
-    for token_record in valid_tokens:
-        if jwt_service.verify_refresh_token_hash(refresh_token, token_record.token_hash):
-            refresh_token_record = token_record
-            logger.debug(f"Refresh token validated - user_id: {token_record.user_id}, "
-                        f"expires_at: {token_record.expires_at}")
-            break
+        for token_record in valid_tokens:
+            if jwt_service.verify_refresh_token_hash(refresh_token, token_record.token_hash):
+                refresh_token_record = token_record
+                # Update old token with SHA-256 hash for future O(1) lookups
+                token_record.token_hash_sha256 = token_hash_sha256
+                db.commit()
+                logger.debug(f"Updated old refresh token with SHA-256 hash - user_id: {token_record.user_id}")
+                break
 
     if not refresh_token_record:
         logger.warning(
@@ -376,6 +394,17 @@ async def refresh_access_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="無效的重新整理權杖"
         )
+    
+    # Verify with bcrypt hash for security (SHA-256 is just for lookup)
+    if not jwt_service.verify_refresh_token_hash(refresh_token, refresh_token_record.token_hash):
+        logger.warning("Refresh token SHA-256 hash matched but bcrypt verification failed")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="無效的重新整理權杖"
+        )
+    
+    logger.debug(f"Refresh token validated - user_id: {refresh_token_record.user_id}, "
+                f"expires_at: {refresh_token_record.expires_at}")
     
     # Now both system admins and clinic users have User records
     # Look up user from refresh token
@@ -463,6 +492,7 @@ async def refresh_access_token(
     new_refresh_token_record = RefreshToken(
         user_id=user.id,  # Both system admins and clinic users have user_id now
         token_hash=token_data["refresh_token_hash"],
+        token_hash_sha256=token_data.get("refresh_token_hash_sha256"),  # SHA-256 hash for O(1) lookup
         expires_at=jwt_service.get_token_expiry("refresh"),
         email=None,  # No longer needed - user_id links to User record
         google_subject_id=None,  # No longer needed - user_id links to User record
@@ -619,14 +649,16 @@ async def dev_login(
 
     # Store refresh token
     refresh_token_hash = token_data["refresh_token_hash"]
+    refresh_token_hash_sha256 = token_data.get("refresh_token_hash_sha256")  # SHA-256 hash for O(1) lookup
 
     refresh_token_record = RefreshToken(
         user_id=user.id,
         token_hash=refresh_token_hash,
+        token_hash_sha256=refresh_token_hash_sha256,  # SHA-256 hash for O(1) lookup
         expires_at=jwt_service.get_token_expiry("refresh"),
-        email=email if email in SYSTEM_ADMIN_EMAILS else None,  # Store email for system admins
-        google_subject_id=str(user.google_subject_id) if email in SYSTEM_ADMIN_EMAILS else None,  # Store google_subject_id for system admins
-        name=user.full_name if email in SYSTEM_ADMIN_EMAILS else None  # Store name for system admins
+        email=None,  # No longer needed - user_id links to User record
+        google_subject_id=None,  # No longer needed - user_id links to User record
+        name=None  # No longer needed - user_id links to User record
     )
     db.add(refresh_token_record)
     db.commit()
@@ -665,18 +697,36 @@ async def logout(
 
     # Revoke refresh token if found
     if refresh_token:
-        # Find and revoke the refresh token by checking all valid tokens
-        valid_tokens = db.query(RefreshToken).filter(
+        # Optimized O(1) lookup using SHA-256 hash
+        token_hash_sha256 = jwt_service.get_refresh_token_sha256_hash(refresh_token)
+        
+        # Use SHA-256 hash for fast O(1) lookup via index
+        token_record = db.query(RefreshToken).filter(
+            RefreshToken.token_hash_sha256 == token_hash_sha256,
             RefreshToken.revoked == False,
             RefreshToken.expires_at > datetime.now(timezone.utc)
-        ).all()
-
-        for token_record in valid_tokens:
+        ).first()
+        
+        if token_record:
+            # Verify with bcrypt hash for security
             if jwt_service.verify_refresh_token_hash(refresh_token, token_record.token_hash):
                 token_record.revoke()
                 db.commit()
                 logger.info("Refresh token revoked during logout")
-                break
+        else:
+            # Fallback: O(n) scan for old tokens without SHA-256 hash
+            valid_tokens = db.query(RefreshToken).filter(
+                RefreshToken.token_hash_sha256.is_(None),  # Only check tokens without SHA-256 hash
+                RefreshToken.revoked == False,
+                RefreshToken.expires_at > datetime.now(timezone.utc)
+            ).all()
+
+            for token_record in valid_tokens:
+                if jwt_service.verify_refresh_token_hash(refresh_token, token_record.token_hash):
+                    token_record.revoke()
+                    db.commit()
+                    logger.info("Refresh token revoked during logout (fallback)")
+                    break
     else:
         logger.debug("No refresh token found in request body during logout")
 

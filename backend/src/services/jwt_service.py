@@ -55,13 +55,21 @@ class JWTService:
             return None
 
     @classmethod
-    def create_refresh_token_hash(cls, token: str) -> str:
-        """Create a bcrypt hash of a refresh token."""
+    def create_refresh_token_hash(cls, token: str) -> tuple[str, str]:
+        """
+        Create a bcrypt hash of a refresh token.
+        
+        Returns:
+            tuple: (bcrypt_hash, sha256_hash_hex)
+            - bcrypt_hash: Full bcrypt hash for verification
+            - sha256_hash_hex: SHA-256 hash in hex format for O(1) lookup
+        """
         # First hash with SHA-256 to ensure input is within bcrypt's 72-byte limit
-        token_hash = hashlib.sha256(token.encode('utf-8')).digest()
+        token_hash_digest = hashlib.sha256(token.encode('utf-8')).digest()
+        token_hash_sha256_hex = hashlib.sha256(token.encode('utf-8')).hexdigest()  # For lookup
         salt = bcrypt.gensalt()
-        hashed = bcrypt.hashpw(token_hash, salt)
-        return hashed.decode('utf-8')
+        hashed = bcrypt.hashpw(token_hash_digest, salt)
+        return (hashed.decode('utf-8'), token_hash_sha256_hex)
 
     @classmethod
     def verify_refresh_token_hash(cls, token: str, hashed_token: str) -> bool:
@@ -72,6 +80,16 @@ class JWTService:
             return bcrypt.checkpw(token_hash, hashed_token.encode('utf-8'))
         except Exception:
             return False
+    
+    @classmethod
+    def get_refresh_token_sha256_hash(cls, token: str) -> str:
+        """
+        Get SHA-256 hash of a refresh token for O(1) lookup.
+        
+        Returns:
+            str: SHA-256 hash in hex format
+        """
+        return hashlib.sha256(token.encode('utf-8')).hexdigest()
 
 
     @classmethod
@@ -127,12 +145,13 @@ class JWTService:
         # Create refresh token (random string)
         import secrets
         refresh_token = secrets.token_urlsafe(64)
-        refresh_token_hash = cls.create_refresh_token_hash(refresh_token)
+        refresh_token_hash, refresh_token_hash_sha256 = cls.create_refresh_token_hash(refresh_token)
 
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
             "refresh_token_hash": refresh_token_hash,
+            "refresh_token_hash_sha256": refresh_token_hash_sha256,  # SHA-256 hash for O(1) lookup
             "token_type": "bearer",
             "expires_in": cls.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # seconds
             "expires_at": int(cls.get_token_expiry("access").timestamp()),

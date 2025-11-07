@@ -9,6 +9,7 @@ from typing import Optional
 from datetime import datetime, timezone
 from sqlalchemy import String, TIMESTAMP, Boolean, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+import sqlalchemy as sa
 
 from core.database import Base
 
@@ -21,6 +22,7 @@ class RefreshToken(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)  # Both system admins and clinic users have User records now
     token_hash: Mapped[str] = mapped_column(String(255), unique=True)  # bcrypt hashed
+    token_hash_sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # SHA-256 hash for O(1) lookup
     expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     last_used_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
@@ -38,6 +40,8 @@ class RefreshToken(Base):
     __table_args__ = (
         Index('idx_refresh_tokens_user_id', 'user_id'),
         Index('idx_refresh_tokens_token_hash', 'token_hash'),
+        Index('idx_refresh_tokens_token_hash_sha256', 'token_hash_sha256', unique=True, postgresql_where=sa.text('token_hash_sha256 IS NOT NULL')),
+        Index('idx_refresh_tokens_sha256_valid', 'token_hash_sha256', 'revoked', 'expires_at', postgresql_where=sa.text('token_hash_sha256 IS NOT NULL AND revoked = false')),
         Index('idx_refresh_tokens_expires_at', 'expires_at'),
     )
 

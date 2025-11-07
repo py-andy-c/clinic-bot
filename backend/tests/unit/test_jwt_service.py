@@ -77,27 +77,30 @@ class TestJWTService:
     def test_create_refresh_token_hash(self):
         """Test creating a bcrypt hash for refresh tokens."""
         token = "test_refresh_token"
-        hashed = jwt_service.create_refresh_token_hash(token)
+        bcrypt_hash, sha256_hash = jwt_service.create_refresh_token_hash(token)
 
-        assert isinstance(hashed, str)
-        assert len(hashed) > 0
-        assert hashed != token  # Should be hashed
+        assert isinstance(bcrypt_hash, str)
+        assert isinstance(sha256_hash, str)
+        assert len(bcrypt_hash) > 0
+        assert len(sha256_hash) == 64  # SHA-256 produces 64 hex characters
+        assert bcrypt_hash != token  # Should be hashed
+        assert sha256_hash != token  # Should be hashed
 
     def test_verify_refresh_token_hash_valid(self):
         """Test verifying a valid refresh token hash."""
         token = "test_refresh_token"
-        hashed = jwt_service.create_refresh_token_hash(token)
+        bcrypt_hash, sha256_hash = jwt_service.create_refresh_token_hash(token)
 
-        result = jwt_service.verify_refresh_token_hash(token, hashed)
+        result = jwt_service.verify_refresh_token_hash(token, bcrypt_hash)
         assert result is True
 
     def test_verify_refresh_token_hash_invalid(self):
         """Test verifying an invalid refresh token hash."""
         token = "test_refresh_token"
         wrong_token = "wrong_token"
-        hashed = jwt_service.create_refresh_token_hash(token)
+        bcrypt_hash, sha256_hash = jwt_service.create_refresh_token_hash(token)
 
-        result = jwt_service.verify_refresh_token_hash(wrong_token, hashed)
+        result = jwt_service.verify_refresh_token_hash(wrong_token, bcrypt_hash)
         assert result is False
 
     def test_get_token_expiry_access(self):
@@ -149,6 +152,7 @@ class TestJWTService:
         assert "access_token" in result
         assert "refresh_token" in result
         assert "refresh_token_hash" in result
+        assert "refresh_token_hash_sha256" in result  # SHA-256 hash for O(1) lookup
         assert "token_type" in result
         assert "expires_in" in result
         assert "expires_at" in result
