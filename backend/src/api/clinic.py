@@ -86,6 +86,16 @@ class ClinicInfoSettings(BaseModel):
 class ChatSettings(BaseModel):
     """Chat/chatbot settings for clinic."""
     chat_enabled: bool = False
+    clinic_description: Optional[str] = None
+    therapist_info: Optional[str] = None
+    treatment_details: Optional[str] = None
+    operating_hours: Optional[str] = None
+    location_details: Optional[str] = None
+    booking_policy: Optional[str] = None
+    payment_methods: Optional[str] = None
+    equipment_facilities: Optional[str] = None
+    common_questions: Optional[str] = None
+    other_info: Optional[str] = None
 
 
 class SettingsResponse(BaseModel):
@@ -487,7 +497,17 @@ async def get_settings(
                appointment_type_instructions=clinic.appointment_type_instructions
            ),
            chat_settings=ChatSettings(
-               chat_enabled=validated_settings.chat_settings.chat_enabled
+               chat_enabled=validated_settings.chat_settings.chat_enabled,
+               clinic_description=validated_settings.chat_settings.clinic_description,
+               therapist_info=validated_settings.chat_settings.therapist_info,
+               treatment_details=validated_settings.chat_settings.treatment_details,
+               operating_hours=validated_settings.chat_settings.operating_hours,
+               location_details=validated_settings.chat_settings.location_details,
+               booking_policy=validated_settings.chat_settings.booking_policy,
+               payment_methods=validated_settings.chat_settings.payment_methods,
+               equipment_facilities=validated_settings.chat_settings.equipment_facilities,
+               common_questions=validated_settings.chat_settings.common_questions,
+               other_info=validated_settings.chat_settings.other_info
            )
         )
 

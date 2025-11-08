@@ -54,6 +54,17 @@ export const getClinicSectionChanges = (current: ClinicSettings, original: Clini
     bookingRestrictionSettings:
       current.booking_restriction_settings.booking_restriction_type !== original.booking_restriction_settings.booking_restriction_type ||
       current.booking_restriction_settings.minimum_booking_hours_ahead !== original.booking_restriction_settings.minimum_booking_hours_ahead,
-    chatSettings: current.chat_settings.chat_enabled !== original.chat_settings.chat_enabled,
+    chatSettings:
+      current.chat_settings.chat_enabled !== original.chat_settings.chat_enabled ||
+      current.chat_settings.clinic_description !== original.chat_settings.clinic_description ||
+      current.chat_settings.therapist_info !== original.chat_settings.therapist_info ||
+      current.chat_settings.treatment_details !== original.chat_settings.treatment_details ||
+      current.chat_settings.operating_hours !== original.chat_settings.operating_hours ||
+      current.chat_settings.location_details !== original.chat_settings.location_details ||
+      current.chat_settings.booking_policy !== original.chat_settings.booking_policy ||
+      current.chat_settings.payment_methods !== original.chat_settings.payment_methods ||
+      current.chat_settings.equipment_facilities !== original.chat_settings.equipment_facilities ||
+      current.chat_settings.common_questions !== original.chat_settings.common_questions ||
+      current.chat_settings.other_info !== original.chat_settings.other_info,
   };
 };

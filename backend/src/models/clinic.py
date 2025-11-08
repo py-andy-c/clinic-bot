@@ -41,6 +41,16 @@ class ClinicInfoSettings(BaseModel):
 class ChatSettings(BaseModel):
     """Schema for chat/chatbot settings."""
     chat_enabled: bool = Field(default=False, description="Whether the AI chatbot feature is enabled for this clinic")
+    clinic_description: Optional[str] = Field(default=None, max_length=5000, description="Clinic description, specialties, and treatment approach")
+    therapist_info: Optional[str] = Field(default=None, max_length=5000, description="Detailed information about therapists")
+    treatment_details: Optional[str] = Field(default=None, max_length=5000, description="Detailed information about treatments, prices, duration, and content")
+    operating_hours: Optional[str] = Field(default=None, max_length=5000, description="Clinic operating hours")
+    location_details: Optional[str] = Field(default=None, max_length=5000, description="Transportation and location details")
+    booking_policy: Optional[str] = Field(default=None, max_length=5000, description="Appointment booking and cancellation policies")
+    payment_methods: Optional[str] = Field(default=None, max_length=5000, description="Accepted payment methods")
+    equipment_facilities: Optional[str] = Field(default=None, max_length=5000, description="Equipment and facilities available at the clinic")
+    common_questions: Optional[str] = Field(default=None, max_length=5000, description="Frequently asked questions and answers")
+    other_info: Optional[str] = Field(default=None, max_length=5000, description="Other information about the clinic")
 
 
 class ClinicSettings(BaseModel):
@@ -171,7 +181,17 @@ class Clinic(Base):
             "appointment_type_instructions": null
         },
         "chat_settings": {
-            "chat_enabled": false
+            "chat_enabled": false,
+            "clinic_description": null,
+            "therapist_info": null,
+            "treatment_details": null,
+            "operating_hours": null,
+            "location_details": null,
+            "booking_policy": null,
+            "payment_methods": null,
+            "equipment_facilities": null,
+            "common_questions": null,
+            "other_info": null
         }
     }
     """

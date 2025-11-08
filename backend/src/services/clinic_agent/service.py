@@ -15,7 +15,6 @@ from agents import Agent, ModelSettings, Runner, RunConfig
 from agents.extensions.memory import SQLAlchemySession
 
 from models import Clinic
-from services.appointment_type_service import AppointmentTypeService
 from core.config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
@@ -69,6 +68,12 @@ def _build_agent_instructions(clinic_context: str) -> str:
     Respond in Traditional Chinese (繁體中文) as this is a Taiwan-based clinic.
     Keep responses brief and conversational, suitable for LINE messaging.
     
+    IMPORTANT INSTRUCTIONS:
+    - Answer questions ONLY based on the clinic information provided below
+    - NEVER make up, invent, or hallucinate any information about the clinic
+    - If you don't know something or it's not in the provided context, politely say "抱歉，我沒有這方面的資訊，之後再由專人回覆您喔！"
+    - Always refer to the clinic information provided in the XML format below for accurate details
+    
     Below is the information about this clinic:
     
 {clinic_context}"""
@@ -117,47 +122,71 @@ class ClinicAgentService:
     @staticmethod
     def _build_clinic_context(clinic: Clinic, db: Session) -> str:
         """
-        Build clinic context string for the AI agent.
+        Build clinic context string for the AI agent in XML format.
         
-        Includes clinic name, display name, address, phone, and services.
+        Includes clinic name, display name, address, phone, services, and
+        detailed chat settings information in structured XML format.
         
         Args:
             clinic: Clinic entity
             db: Database session
             
         Returns:
-            str: Formatted clinic context string
+            str: Formatted clinic context string in XML format
         """
-        context_parts = []
-        
-        # Clinic name
-        clinic_name = clinic.effective_display_name
-        context_parts.append(f"診所名稱：{clinic_name}")
-        
-        # Address
-        if clinic.address:
-            context_parts.append(f"地址：{clinic.address}")
-        
-        # Phone number
-        if clinic.phone_number:
-            context_parts.append(f"電話：{clinic.phone_number}")
-        
-        # Appointment types (services)
-        try:
-            appointment_types = AppointmentTypeService.list_appointment_types_for_clinic(db, clinic.id)
-            if appointment_types:
-                services = [f"{at.name}（{at.duration_minutes}分鐘）" for at in appointment_types]
-                context_parts.append(f"服務項目：{', '.join(services)}")
-        except Exception as e:
-            logger.warning(f"Failed to fetch appointment types for clinic_id={clinic.id}: {e}")
-        
-        # Appointment type instructions (if available)
         validated_settings = clinic.get_validated_settings()
+        chat_settings = validated_settings.chat_settings
+        
+        xml_parts = ["<診所資訊>"]
+        
+        # Basic clinic information
+        clinic_name = clinic.effective_display_name
+        xml_parts.append(f"  <診所名稱>{clinic_name}</診所名稱>")
+        
+        if clinic.address:
+            xml_parts.append(f"  <地址>{clinic.address}</地址>")
+        
+        if clinic.phone_number:
+            xml_parts.append(f"  <電話>{clinic.phone_number}</電話>")
+        
         if validated_settings.clinic_info_settings.appointment_type_instructions:
             instructions = validated_settings.clinic_info_settings.appointment_type_instructions
-            context_parts.append(f"預約說明：{instructions}")
+            xml_parts.append(f"  <預約說明>{instructions}</預約說明>")
         
-        return "\n".join(context_parts)
+        # Chat settings - detailed clinic information
+        if chat_settings.clinic_description:
+            xml_parts.append(f"  <診所介紹>{chat_settings.clinic_description}</診所介紹>")
+        
+        if chat_settings.therapist_info:
+            xml_parts.append(f"  <治療師資訊>{chat_settings.therapist_info}</治療師資訊>")
+        
+        if chat_settings.treatment_details:
+            xml_parts.append(f"  <治療項目詳情>{chat_settings.treatment_details}</治療項目詳情>")
+        
+        if chat_settings.operating_hours:
+            xml_parts.append(f"  <營業時間>{chat_settings.operating_hours}</營業時間>")
+        
+        if chat_settings.location_details:
+            xml_parts.append(f"  <交通資訊>{chat_settings.location_details}</交通資訊>")
+        
+        if chat_settings.booking_policy:
+            xml_parts.append(f"  <預約與取消政策>{chat_settings.booking_policy}</預約與取消政策>")
+        
+        if chat_settings.payment_methods:
+            xml_parts.append(f"  <付款方式>{chat_settings.payment_methods}</付款方式>")
+        
+        if chat_settings.equipment_facilities:
+            xml_parts.append(f"  <設備與設施>{chat_settings.equipment_facilities}</設備與設施>")
+        
+        if chat_settings.common_questions:
+            xml_parts.append(f"  <常見問題>{chat_settings.common_questions}</常見問題>")
+        
+        if chat_settings.other_info:
+            xml_parts.append(f"  <其他資訊>{chat_settings.other_info}</其他資訊>")
+        
+        xml_parts.append("</診所資訊>")
+        
+        return "\n".join(xml_parts)
     
     @staticmethod
     async def process_message(

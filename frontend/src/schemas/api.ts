@@ -26,6 +26,16 @@ export const ClinicInfoSettingsSchema = z.object({
 
 export const ChatSettingsSchema = z.object({
   chat_enabled: z.boolean(),
+  clinic_description: z.string().nullable().optional(),
+  therapist_info: z.string().nullable().optional(),
+  treatment_details: z.string().nullable().optional(),
+  operating_hours: z.string().nullable().optional(),
+  location_details: z.string().nullable().optional(),
+  booking_policy: z.string().nullable().optional(),
+  payment_methods: z.string().nullable().optional(),
+  equipment_facilities: z.string().nullable().optional(),
+  common_questions: z.string().nullable().optional(),
+  other_info: z.string().nullable().optional(),
 });
 
 export const BusinessHoursSchema = z.record(z.string(), z.object({
