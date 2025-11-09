@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 from sqlalchemy.orm import Session
 from agents import Agent, ModelSettings, Runner, RunConfig
 from agents.extensions.memory import SQLAlchemySession
+from openai.types.shared.reasoning import Reasoning
 
 from models import Clinic
 from core.config import DATABASE_URL
@@ -106,8 +107,13 @@ def _create_clinic_agent(clinic: Clinic, db: Session) -> Agent:
     agent = Agent(
         name=f"Clinic Agent - {clinic.name}",
         instructions=instructions,
-        model="gpt-5",
-        model_settings=ModelSettings()  
+        model="gpt-5-nano",
+        model_settings=ModelSettings(
+            reasoning=Reasoning(
+                effort="low",
+                summary="auto"
+            )
+        )  
     )
     
     return agent
