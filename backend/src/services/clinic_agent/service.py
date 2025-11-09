@@ -16,6 +16,7 @@ from agents.extensions.memory import SQLAlchemySession
 
 from models import Clinic
 from core.config import DATABASE_URL
+from .utils import trim_session
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,7 @@ def _create_clinic_agent(clinic: Clinic, db: Session) -> Agent:
         name=f"Clinic Agent - {clinic.name}",
         instructions=instructions,
         model="gpt-5",
-        model_settings=ModelSettings()
+        model_settings=ModelSettings()  
     )
     
     return agent
@@ -233,25 +234,16 @@ class ClinicAgentService:
             
             # Limit conversation history to last 10 messages
             # This helps manage token usage and keeps context relevant
+            # IMPORTANT: We need to truncate carefully to preserve related items
+            # (e.g., message items and their reasoning items, tool calls and results)
             MAX_HISTORY_MESSAGES = 10
             
-            # Get all conversation items from session
-            all_items = await session.get_items()
-            
-            # If we have more than MAX_HISTORY_MESSAGES, keep only the last N
-            if len(all_items) > MAX_HISTORY_MESSAGES:
-                # Keep only the last MAX_HISTORY_MESSAGES items
-                # Items are typically ordered chronologically, so we take the last ones
-                items_to_keep = all_items[-MAX_HISTORY_MESSAGES:]
-                
-                # Clear the session and re-add only the items we want to keep
-                await session.clear_session()
-                await session.add_items(items_to_keep)
-                
-                logger.debug(
-                    f"Truncated conversation history from {len(all_items)} to {len(items_to_keep)} "
-                    f"messages for clinic_id={clinic.id}, line_user_id={line_user_id}"
-                )
+            # Trim session to limit conversation history while preserving related items
+            # This ensures message items keep their reasoning items, tool calls keep results, etc.
+            await trim_session(
+                session=session,
+                max_items=MAX_HISTORY_MESSAGES
+            )
             
             # Create clinic-specific agent with context in system prompt
             # Create fresh agent each time to ensure latest clinic context
