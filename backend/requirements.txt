@@ -13,8 +13,7 @@ pytest-asyncio==0.21.1
 pytest-cov==4.1.0
 
 # OpenAI Agent SDK for multi-agent orchestration
-# Downgraded from 0.4.0 to fix image handling bug (https://github.com/openai/openai-agents-python/issues/1930)
-openai-agents[sqlalchemy]==0.3.0
+openai-agents[sqlalchemy]==0.5.0
 openai>=1.0.0
 # Async PostgreSQL driver for OpenAI Agent SDK SQLAlchemySession
 asyncpg>=0.29.0
