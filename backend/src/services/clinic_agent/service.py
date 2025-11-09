@@ -242,7 +242,7 @@ class ClinicAgentService:
             # This helps manage token usage and keeps context relevant
             # IMPORTANT: We need to truncate carefully to preserve related items
             # (e.g., message items and their reasoning items, tool calls and results)
-            MAX_HISTORY_MESSAGES = 10
+            MAX_HISTORY_MESSAGES = 25
             
             # Trim session to limit conversation history while preserving related items
             # This ensures message items keep their reasoning items, tool calls keep results, etc.
