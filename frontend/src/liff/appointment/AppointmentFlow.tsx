@@ -52,7 +52,7 @@ const AppointmentFlow: React.FC = () => {
       <div className="bg-white shadow-sm">
         <div className="max-w-md mx-auto px-4 py-4">
           <div className="mb-2">
-            <h1 className="text-lg font-semibold text-gray-900">線上約診</h1>
+            <h1 className="text-lg font-semibold text-gray-900">新增預約</h1>
           </div>
 
           {/* Progress bar */}

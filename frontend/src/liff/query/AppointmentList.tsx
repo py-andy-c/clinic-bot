@@ -85,7 +85,7 @@ const AppointmentList: React.FC = () => {
       <div className="max-w-md mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            預約查詢
+            預約管理
           </h1>
         </div>
 
@@ -96,7 +96,7 @@ const AppointmentList: React.FC = () => {
               目前沒有預約
             </h3>
             <p className="text-gray-600 mb-6">
-              點選「線上約診」來預約您的就診時間
+              點選「新增預約」來預約您的就診時間
             </p>
           </div>
         ) : (

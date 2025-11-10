@@ -6,21 +6,22 @@ import { useLineAuth } from '../hooks/useLineAuth';
 import { useAppointmentStore } from '../stores/appointmentStore';
 import { liffApiService } from '../services/liffApi';
 import { LoadingSpinner, ErrorMessage, InvalidAccess } from './components/StatusComponents';
+import FirstTimeRegister from './auth/FirstTimeRegister';
+import LiffHome from './home/LiffHome';
+import AppointmentFlow from './appointment/AppointmentFlow';
+import AppointmentList from './query/AppointmentList';
+import PatientManagement from './settings/PatientManagement';
 
-type AppMode = 'book' | 'query' | 'settings';
-const VALID_MODES: AppMode[] = ['book', 'query', 'settings'];
-const DEFAULT_MODE: AppMode = 'book';
+type AppMode = 'home' | 'book' | 'query' | 'settings';
+const VALID_MODES: AppMode[] = ['home', 'book', 'query', 'settings'];
+const DEFAULT_MODE: AppMode = 'home';
 
 const MODE_COMPONENTS: Record<AppMode, FC> = {
+  home: LiffHome,
   book: AppointmentFlow,
   query: AppointmentList,
   settings: PatientManagement,
 };
-
-import FirstTimeRegister from './auth/FirstTimeRegister';
-import AppointmentFlow from './appointment/AppointmentFlow';
-import AppointmentList from './query/AppointmentList';
-import PatientManagement from './settings/PatientManagement';
 
 const LiffApp: FC = () => {
   const { isReady, profile, accessToken, error: liffError } = useLiff();
