@@ -7,6 +7,7 @@ and other agent-related operations.
 """
 
 import logging
+from typing import Any
 
 from agents.extensions.memory import SQLAlchemySession
 
@@ -57,15 +58,17 @@ async def trim_session(
         f"items (preserving related items)"
     )
 
-def _is_legal_start_item(item: dict) -> bool:
+def _is_legal_start_item(item: dict[str, Any]) -> bool:
     # TODO support tool call
     if item["role"] == "user":
         return True
     elif item["role"] == "assistant":
         if item["type"] == "message":
-            assert item["id"].startswith("msg_")
+            item_id: str = item["id"]
+            assert item_id.startswith("msg_")
             return False # assistant message should have a reasoning item before it
         elif item["type"] == "reasoning":
-            assert item["id"].startswith("rs_")
+            item_id: str = item["id"]
+            assert item_id.startswith("rs_")
             return True
     raise ValueError(f"Converation item: {item}")

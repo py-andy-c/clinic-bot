@@ -184,14 +184,18 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
     return value ? value.length : 0;
   };
 
+  // Type for string-only fields in ChatSettings (excludes chat_enabled which is boolean)
+  type StringChatSettingsField = Exclude<keyof ChatSettingsType, 'chat_enabled'>;
+
   const renderField = (
     label: string,
-    field: keyof ChatSettingsType,
+    field: StringChatSettingsField,
     placeholder: string,
     hasTemplate: boolean = false
   ) => {
-    const value = chatSettings[field] || '';
-    const charCount = getCharacterCount(chatSettings[field]);
+    const fieldValue = chatSettings[field];
+    const value = (fieldValue ?? '') as string;
+    const charCount = getCharacterCount(fieldValue ?? null);
     const maxChars = 5000;
     const hasContent = charCount > 0;
 

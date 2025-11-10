@@ -49,6 +49,74 @@ def get_async_engine() -> AsyncEngine:
     return _async_engine
 
 
+def _build_clinic_context(clinic: Clinic) -> str:
+    """
+    Build clinic context string for the AI agent in XML format.
+    
+    Includes clinic name, display name, address, phone, services, and
+    detailed chat settings information in structured XML format.
+    
+    Args:
+        clinic: Clinic entity
+        
+    Returns:
+        str: Formatted clinic context string in XML format
+    """
+    validated_settings = clinic.get_validated_settings()
+    chat_settings = validated_settings.chat_settings
+    
+    xml_parts = ["<診所資訊>"]
+    
+    # Basic clinic information
+    clinic_name = clinic.effective_display_name
+    xml_parts.append(f"  <診所名稱>{clinic_name}</診所名稱>")
+    
+    if clinic.address:
+        xml_parts.append(f"  <地址>{clinic.address}</地址>")
+    
+    if clinic.phone_number:
+        xml_parts.append(f"  <電話>{clinic.phone_number}</電話>")
+    
+    if validated_settings.clinic_info_settings.appointment_type_instructions:
+        instructions = validated_settings.clinic_info_settings.appointment_type_instructions
+        xml_parts.append(f"  <預約說明>{instructions}</預約說明>")
+    
+    # Chat settings - detailed clinic information
+    if chat_settings.clinic_description:
+        xml_parts.append(f"  <診所介紹>{chat_settings.clinic_description}</診所介紹>")
+    
+    if chat_settings.therapist_info:
+        xml_parts.append(f"  <治療師資訊>{chat_settings.therapist_info}</治療師資訊>")
+    
+    if chat_settings.treatment_details:
+        xml_parts.append(f"  <治療項目詳情>{chat_settings.treatment_details}</治療項目詳情>")
+    
+    if chat_settings.operating_hours:
+        xml_parts.append(f"  <營業時間>{chat_settings.operating_hours}</營業時間>")
+    
+    if chat_settings.location_details:
+        xml_parts.append(f"  <交通資訊>{chat_settings.location_details}</交通資訊>")
+    
+    if chat_settings.booking_policy:
+        xml_parts.append(f"  <預約與取消政策>{chat_settings.booking_policy}</預約與取消政策>")
+    
+    if chat_settings.payment_methods:
+        xml_parts.append(f"  <付款方式>{chat_settings.payment_methods}</付款方式>")
+    
+    if chat_settings.equipment_facilities:
+        xml_parts.append(f"  <設備與設施>{chat_settings.equipment_facilities}</設備與設施>")
+    
+    if chat_settings.common_questions:
+        xml_parts.append(f"  <常見問題>{chat_settings.common_questions}</常見問題>")
+    
+    if chat_settings.other_info:
+        xml_parts.append(f"  <其他資訊>{chat_settings.other_info}</其他資訊>")
+    
+    xml_parts.append("</診所資訊>")
+    
+    return "\n".join(xml_parts)
+
+
 def _build_agent_instructions(clinic: Clinic) -> str:
     """
     Build agent instructions with clinic context.
@@ -59,7 +127,7 @@ def _build_agent_instructions(clinic: Clinic) -> str:
     Returns:
         str: Complete agent instructions with clinic context
     """
-    clinic_context = ClinicAgentService._build_clinic_context(clinic)
+    clinic_context = _build_clinic_context(clinic)
     clinic_name = clinic.effective_display_name
 
     return BASE_SYSTEM_PROMPT.format(clinic_name=clinic_name, clinic_context=clinic_context)
@@ -103,74 +171,6 @@ class ClinicAgentService:
     This service manages conversation history per LINE user per clinic
     using OpenAI Agent SDK's SQLAlchemySession for persistence.
     """
-    
-    @staticmethod
-    def _build_clinic_context(clinic: Clinic) -> str:
-        """
-        Build clinic context string for the AI agent in XML format.
-        
-        Includes clinic name, display name, address, phone, services, and
-        detailed chat settings information in structured XML format.
-        
-        Args:
-            clinic: Clinic entity
-            
-        Returns:
-            str: Formatted clinic context string in XML format
-        """
-        validated_settings = clinic.get_validated_settings()
-        chat_settings = validated_settings.chat_settings
-        
-        xml_parts = ["<診所資訊>"]
-        
-        # Basic clinic information
-        clinic_name = clinic.effective_display_name
-        xml_parts.append(f"  <診所名稱>{clinic_name}</診所名稱>")
-        
-        if clinic.address:
-            xml_parts.append(f"  <地址>{clinic.address}</地址>")
-        
-        if clinic.phone_number:
-            xml_parts.append(f"  <電話>{clinic.phone_number}</電話>")
-        
-        if validated_settings.clinic_info_settings.appointment_type_instructions:
-            instructions = validated_settings.clinic_info_settings.appointment_type_instructions
-            xml_parts.append(f"  <預約說明>{instructions}</預約說明>")
-        
-        # Chat settings - detailed clinic information
-        if chat_settings.clinic_description:
-            xml_parts.append(f"  <診所介紹>{chat_settings.clinic_description}</診所介紹>")
-        
-        if chat_settings.therapist_info:
-            xml_parts.append(f"  <治療師資訊>{chat_settings.therapist_info}</治療師資訊>")
-        
-        if chat_settings.treatment_details:
-            xml_parts.append(f"  <治療項目詳情>{chat_settings.treatment_details}</治療項目詳情>")
-        
-        if chat_settings.operating_hours:
-            xml_parts.append(f"  <營業時間>{chat_settings.operating_hours}</營業時間>")
-        
-        if chat_settings.location_details:
-            xml_parts.append(f"  <交通資訊>{chat_settings.location_details}</交通資訊>")
-        
-        if chat_settings.booking_policy:
-            xml_parts.append(f"  <預約與取消政策>{chat_settings.booking_policy}</預約與取消政策>")
-        
-        if chat_settings.payment_methods:
-            xml_parts.append(f"  <付款方式>{chat_settings.payment_methods}</付款方式>")
-        
-        if chat_settings.equipment_facilities:
-            xml_parts.append(f"  <設備與設施>{chat_settings.equipment_facilities}</設備與設施>")
-        
-        if chat_settings.common_questions:
-            xml_parts.append(f"  <常見問題>{chat_settings.common_questions}</常見問題>")
-        
-        if chat_settings.other_info:
-            xml_parts.append(f"  <其他資訊>{chat_settings.other_info}</其他資訊>")
-        
-        xml_parts.append("</診所資訊>")
-        
-        return "\n".join(xml_parts)
     
     @staticmethod
     async def process_message(
