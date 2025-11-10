@@ -111,7 +111,7 @@ async def line_webhook(
             logger.debug("Webhook event is not a text message, ignoring")
             return {"status": "ok", "message": "Event ignored (not a text message)"}
         
-        line_user_id, message_text = message_data
+        line_user_id, message_text, reply_token = message_data
         
         logger.info(
             f"Processing message from clinic_id={clinic.id}, "
@@ -142,9 +142,11 @@ async def line_webhook(
         
         # Send response back to patient via LINE
         # This will automatically stop the loading animation
+        # Use reply_message if reply_token is available, otherwise fall back to push_message
         line_service.send_text_message(
             line_user_id=line_user_id,
-            text=response_text
+            text=response_text,
+            reply_token=reply_token
         )
         
         logger.info(

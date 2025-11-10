@@ -15,7 +15,7 @@ import logging
 from typing import Any, Optional, Tuple
 
 import httpx
-from linebot.v3.messaging import MessagingApi, PushMessageRequest
+from linebot.v3.messaging import MessagingApi, PushMessageRequest, ReplyMessageRequest
 from linebot.v3.messaging.models import TextMessage
 from linebot.v3.messaging.api_client import ApiClient
 from linebot.v3.messaging.configuration import Configuration
@@ -96,19 +96,21 @@ class LINEService:
             logger.exception(f"Signature verification error: {e}")
             return False
 
-    def extract_message_data(self, payload: dict[str, Any]) -> Optional[Tuple[str, str]]:
+    def extract_message_data(self, payload: dict[str, Any]) -> Optional[Tuple[str, str, Optional[str]]]:
         """
-        Extract LINE user ID and message text from webhook payload.
+        Extract LINE user ID, message text, and reply token from webhook payload.
 
-        Parses the LINE webhook payload to extract the sender's LINE user ID
-        and the text content of their message. Only processes text messages.
+        Parses the LINE webhook payload to extract the sender's LINE user ID,
+        the text content of their message, and the reply token (if available).
+        Only processes text messages.
 
         Args:
             payload: Parsed JSON payload from LINE webhook
 
         Returns:
-            Tuple of (line_user_id, message_text) for text messages,
-            None for non-text messages or invalid payloads
+            Tuple of (line_user_id, message_text, reply_token) for text messages,
+            None for non-text messages or invalid payloads.
+            reply_token may be None if not available in the event.
         """
         try:
             # Check for events array
@@ -124,37 +126,58 @@ class LINEService:
 
             line_user_id = event['source']['userId']
             message_text = event['message']['text']
+            # Extract reply_token if available (may not be present in all events)
+            reply_token = event.get('replyToken')
 
             if not line_user_id or not message_text:
                 return None
 
-            return (line_user_id, message_text)
+            return (line_user_id, message_text, reply_token)
 
         except (KeyError, IndexError, TypeError) as e:
             # Invalid payload structure - could be external input issue or internal parsing bug
             logger.exception(f"Invalid LINE payload structure: {e}")
             return None
 
-    def send_text_message(self, line_user_id: str, text: str) -> None:
+    def send_text_message(self, line_user_id: str, text: str, reply_token: Optional[str] = None) -> None:
         """
         Send text message to LINE user.
+
+        Uses reply_message when reply_token is available (for responding to webhook events),
+        otherwise falls back to push_message (for proactive messages like notifications).
 
         Args:
             line_user_id: LINE user ID to send message to
             text: Text content to send
+            reply_token: Optional reply token from webhook event. If provided, uses reply_message.
+                        If None, uses push_message as fallback.
 
         Raises:
             Exception: If LINE API call fails
         """
         try:
-            # Send push message to specific user
-            request = PushMessageRequest(
-                to=line_user_id,
-                messages=[TextMessage(text=text, quickReply=None, quoteToken=None)],
-                notificationDisabled=False,
-                customAggregationUnits=None
-            )
-            self.api.push_message(request)
+            messages = [TextMessage(text=text, quickReply=None, quoteToken=None)]
+            
+            if reply_token:
+                # Use reply_message for responding to webhook events
+                # This is more efficient and provides better UX for conversational responses
+                request = ReplyMessageRequest(
+                    replyToken=reply_token,
+                    messages=messages,
+                    notificationDisabled=False
+                )
+                self.api.reply_message(request)
+                logger.debug(f"Sent reply message using reply_token for user {line_user_id[:10]}...")
+            else:
+                # Fall back to push_message for proactive messages (notifications, reminders, etc.)
+                request = PushMessageRequest(
+                    to=line_user_id,
+                    messages=messages,
+                    notificationDisabled=False,
+                    customAggregationUnits=None
+                )
+                self.api.push_message(request)
+                logger.debug(f"Sent push message for user {line_user_id[:10]}...")
         except Exception as e:
             # Log the error but let caller handle it
             logger.exception(f"Failed to send LINE message to {line_user_id}: {e}")

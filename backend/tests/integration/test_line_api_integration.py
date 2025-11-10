@@ -100,8 +100,26 @@ class TestLineApiIntegration:
             channel_access_token=channel_access_token
         )
 
-        # Test text message parsing
+        # Test text message parsing with reply_token
         payload = {
+            "events": [{
+                "type": "message",
+                "message": {
+                    "type": "text",
+                    "text": "Hello from LINE"
+                },
+                "source": {
+                    "userId": "U1234567890abcdef"
+                },
+                "replyToken": "test_reply_token_123"
+            }]
+        }
+
+        result = service.extract_message_data(payload)
+        assert result == ("U1234567890abcdef", "Hello from LINE", "test_reply_token_123")
+        
+        # Test text message parsing without reply_token
+        payload_no_token = {
             "events": [{
                 "type": "message",
                 "message": {
@@ -114,8 +132,8 @@ class TestLineApiIntegration:
             }]
         }
 
-        result = service.extract_message_data(payload)
-        assert result == ("U1234567890abcdef", "Hello from LINE")
+        result = service.extract_message_data(payload_no_token)
+        assert result == ("U1234567890abcdef", "Hello from LINE", None)
 
         # Test non-text message (should return None)
         payload_non_text = {
