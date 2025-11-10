@@ -17,7 +17,7 @@ from openai.types.shared.reasoning import Reasoning
 from models import Clinic
 from core.config import DATABASE_URL
 from .utils import trim_session
-from .base_system_prompt import BASE_SYSTEM_PROMPT
+from .prompts.base_system_prompt import BASE_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 

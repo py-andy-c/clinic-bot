@@ -4,6 +4,7 @@ import { validatePhoneNumber } from '../../utils/phoneValidation';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 import { preserveQueryParams } from '../../utils/urlUtils';
+import { NameWarning } from '../../components/shared';
 
 const FirstTimeRegister: React.FC = () => {
   const { clinicId } = useAppointmentStore();
@@ -70,11 +71,8 @@ const FirstTimeRegister: React.FC = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            歡迎使用線上預約系統
-          </h1>
-          <p className="text-gray-600">
             請填寫基本資料以完成註冊
-          </p>
+          </h1>
         </div>
 
         {/* Registration Form */}
@@ -94,9 +92,7 @@ const FirstTimeRegister: React.FC = () => {
                 placeholder="請輸入您的姓名"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">
-                此為您健保卡上的姓名
-              </p>
+              <NameWarning />
             </div>
 
             {/* Phone Number Field */}
@@ -143,12 +139,6 @@ const FirstTimeRegister: React.FC = () => {
           </form>
         </div>
 
-        {/* Footer */}
-        <div className="text-center mt-6">
-          <p className="text-xs text-gray-500">
-            您的個人資料將用於預約管理和通知服務
-          </p>
-        </div>
       </div>
     </div>
   );

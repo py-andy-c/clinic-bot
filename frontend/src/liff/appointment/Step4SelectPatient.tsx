@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { logger } from '../../utils/logger';
-import { LoadingSpinner } from '../../components/shared';
+import { LoadingSpinner, NameWarning } from '../../components/shared';
 import { validatePhoneNumber } from '../../utils/phoneValidation';
 import { ApiErrorType, getErrorMessage } from '../../types';
 import { useAppointmentStore, Patient } from '../../stores/appointmentStore';
@@ -129,8 +129,11 @@ const Step4SelectPatient: React.FC = () => {
               value={newPatientName}
               onChange={(e) => setNewPatientName(e.target.value)}
               placeholder="請輸入姓名"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md mb-3"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md mb-2"
             />
+            <div className="mb-3">
+              <NameWarning />
+            </div>
             <input
               type="tel"
               value={newPatientPhone}
