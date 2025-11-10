@@ -10,7 +10,6 @@ import logging
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
-from sqlalchemy.orm import Session
 from agents import Agent, ModelSettings, Runner, RunConfig
 from agents.extensions.memory import SQLAlchemySession
 from openai.types.shared.reasoning import Reasoning
@@ -18,6 +17,7 @@ from openai.types.shared.reasoning import Reasoning
 from models import Clinic
 from core.config import DATABASE_URL
 from .utils import trim_session
+from .base_system_prompt import BASE_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -49,42 +49,23 @@ def get_async_engine() -> AsyncEngine:
     return _async_engine
 
 
-def _build_agent_instructions(clinic_context: str) -> str:
+def _build_agent_instructions(clinic: Clinic) -> str:
     """
     Build agent instructions with clinic context.
     
     Args:
-        clinic_context: Formatted clinic context string
+        clinic: Clinic entity
         
     Returns:
         str: Complete agent instructions with clinic context
     """
-    base_instructions = """You are a helpful assistant for a physical therapy clinic.
-    Your role is to:
-    - Answer patient questions about the clinic
-    - Provide information about services and appointment types
-    - Help with general inquiries
-    - Be friendly, professional, and concise
-    - Formatting: Please format your response suitable for LINE messaging. Do not use markdown.
-    
-    Respond in Traditional Chinese (繁體中文) as this is a Taiwan-based clinic.
-    Keep responses brief and conversational, suitable for LINE messaging.
-    
-    IMPORTANT INSTRUCTIONS:
-    - Answer questions ONLY based on the clinic information provided below
-    - NEVER make up, invent, or hallucinate any information about the clinic
-    - If you don't know something or it's not in the provided context, politely say "抱歉，我沒有這方面的資訊，之後再由專人回覆您喔！"
-    - Always refer to the clinic information provided in the XML format below for accurate details
-    - When patients ask about making appointments, always direct them to use the "選單" at the bottom of the LINE official account. This is the preferred way to make appointments.
-    
-    Below is the information about this clinic:
-    
-{clinic_context}"""
-    
-    return base_instructions.format(clinic_context=clinic_context)
+    clinic_context = ClinicAgentService._build_clinic_context(clinic)
+    clinic_name = clinic.effective_display_name
+
+    return BASE_SYSTEM_PROMPT.format(clinic_name=clinic_name, clinic_context=clinic_context)
 
 
-def _create_clinic_agent(clinic: Clinic, db: Session) -> Agent:
+def _create_clinic_agent(clinic: Clinic) -> Agent:
     """
     Create clinic-specific agent with clinic context in instructions.
     
@@ -92,16 +73,12 @@ def _create_clinic_agent(clinic: Clinic, db: Session) -> Agent:
     
     Args:
         clinic: Clinic entity
-        db: Database session
         
     Returns:
         Agent: Clinic-specific agent with context in instructions
     """
-    # Build clinic context
-    clinic_context = ClinicAgentService._build_clinic_context(clinic, db)
-    
     # Build instructions with clinic context
-    instructions = _build_agent_instructions(clinic_context)
+    instructions = _build_agent_instructions(clinic)
     
     # Create agent with clinic-specific instructions
     agent = Agent(
@@ -128,7 +105,7 @@ class ClinicAgentService:
     """
     
     @staticmethod
-    def _build_clinic_context(clinic: Clinic, db: Session) -> str:
+    def _build_clinic_context(clinic: Clinic) -> str:
         """
         Build clinic context string for the AI agent in XML format.
         
@@ -137,7 +114,6 @@ class ClinicAgentService:
         
         Args:
             clinic: Clinic entity
-            db: Database session
             
         Returns:
             str: Formatted clinic context string in XML format
@@ -200,8 +176,7 @@ class ClinicAgentService:
     async def process_message(
         line_user_id: str,
         message: str,
-        clinic: Clinic,
-        db: Session
+        clinic: Clinic
     ) -> str:
         """
         Process a patient message and generate AI response.
@@ -214,7 +189,6 @@ class ClinicAgentService:
             line_user_id: LINE user ID from webhook
             message: Patient's message text
             clinic: Clinic entity
-            db: Database session (for fetching appointment types)
             
         Returns:
             str: AI-generated response text
@@ -253,7 +227,7 @@ class ClinicAgentService:
             
             # Create clinic-specific agent with context in system prompt
             # Create fresh agent each time to ensure latest clinic context
-            agent = _create_clinic_agent(clinic, db)
+            agent = _create_clinic_agent(clinic)
             
             # Run agent with session (SDK handles conversation history automatically)
             # Note: When using session memory, pass input as string, not list

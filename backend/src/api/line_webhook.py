@@ -134,12 +134,10 @@ async def line_webhook(
         line_service.start_loading_animation(line_user_id, loading_seconds=60)
         
         # Process message through AI agent
-        # Pass db session for fetching clinic appointment types
         response_text = await ClinicAgentService.process_message(
             line_user_id=line_user_id,
             message=message_text,
-            clinic=clinic,
-            db=db
+            clinic=clinic
         )
         
         # Send response back to patient via LINE
