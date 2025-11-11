@@ -52,6 +52,7 @@ const LineChatMock: React.FC<LineChatMockProps> = ({ messages, clinicType }) => 
         window.removeEventListener('resize', checkScrollPosition);
       };
     }
+    return undefined;
   }, [messages]);
 
   // Scroll to top when clinic type (tab) changes
