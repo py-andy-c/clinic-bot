@@ -25,7 +25,7 @@ const LineChatMock: React.FC<LineChatMockProps> = ({ messages, clinicType }) => 
   // Handle empty messages array
   if (!messages || messages.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-lg overflow-hidden max-w-md md:max-w-2xl lg:max-w-3xl mx-auto">
+      <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden max-w-md md:max-w-2xl lg:max-w-3xl mx-auto">
         <div className="bg-white border-b border-gray-200 px-3 md:px-4 py-2.5 md:py-3 flex items-center">
           <div className="flex items-center flex-1 min-w-0">
             <div className="text-gray-900 text-lg mr-2">←</div>
@@ -46,7 +46,7 @@ const LineChatMock: React.FC<LineChatMockProps> = ({ messages, clinicType }) => 
     );
   }
   return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden max-w-md md:max-w-2xl lg:max-w-3xl mx-auto">
+    <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden max-w-md md:max-w-2xl lg:max-w-3xl mx-auto">
       {/* LINE Header - White header style */}
       <div className="bg-white border-b border-gray-200 px-3 md:px-4 py-2.5 md:py-3 flex items-center">
         <div className="flex items-center flex-1 min-w-0">
