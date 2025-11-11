@@ -89,6 +89,7 @@ class ChatSettings(BaseModel):
     clinic_description: Optional[str] = None
     therapist_info: Optional[str] = None
     treatment_details: Optional[str] = None
+    service_item_selection_guide: Optional[str] = None
     operating_hours: Optional[str] = None
     location_details: Optional[str] = None
     booking_policy: Optional[str] = None

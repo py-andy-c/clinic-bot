@@ -44,6 +44,7 @@ class ChatSettings(BaseModel):
     clinic_description: Optional[str] = Field(default=None, max_length=5000, description="Clinic description, specialties, and treatment approach")
     therapist_info: Optional[str] = Field(default=None, max_length=5000, description="Detailed information about therapists")
     treatment_details: Optional[str] = Field(default=None, max_length=5000, description="Detailed information about treatments, prices, duration, and content")
+    service_item_selection_guide: Optional[str] = Field(default=None, max_length=5000, description="Guide for selecting service items")
     operating_hours: Optional[str] = Field(default=None, max_length=5000, description="Clinic operating hours")
     location_details: Optional[str] = Field(default=None, max_length=5000, description="Transportation and location details")
     booking_policy: Optional[str] = Field(default=None, max_length=5000, description="Appointment booking and cancellation policies")
@@ -185,6 +186,7 @@ class Clinic(Base):
             "clinic_description": null,
             "therapist_info": null,
             "treatment_details": null,
+            "service_item_selection_guide": null,
             "operating_hours": null,
             "location_details": null,
             "booking_policy": null,

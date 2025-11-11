@@ -29,6 +29,7 @@ export const ChatSettingsSchema = z.object({
   clinic_description: z.string().nullable().optional(),
   therapist_info: z.string().nullable().optional(),
   treatment_details: z.string().nullable().optional(),
+  service_item_selection_guide: z.string().nullable().optional(),
   operating_hours: z.string().nullable().optional(),
   location_details: z.string().nullable().optional(),
   booking_policy: z.string().nullable().optional(),

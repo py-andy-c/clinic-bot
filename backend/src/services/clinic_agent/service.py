@@ -91,6 +91,9 @@ def _build_clinic_context(clinic: Clinic) -> str:
     if chat_settings.treatment_details:
         xml_parts.append(f"  <治療項目詳情>{chat_settings.treatment_details}</治療項目詳情>")
     
+    if chat_settings.service_item_selection_guide:
+        xml_parts.append(f"  <服務項目選擇指南>{chat_settings.service_item_selection_guide}</服務項目選擇指南>")
+    
     if chat_settings.operating_hours:
         xml_parts.append(f"  <營業時間>{chat_settings.operating_hours}</營業時間>")
     
