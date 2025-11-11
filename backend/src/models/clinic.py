@@ -41,17 +41,17 @@ class ClinicInfoSettings(BaseModel):
 class ChatSettings(BaseModel):
     """Schema for chat/chatbot settings."""
     chat_enabled: bool = Field(default=False, description="Whether the AI chatbot feature is enabled for this clinic")
-    clinic_description: Optional[str] = Field(default=None, max_length=5000, description="Clinic description, specialties, and treatment approach")
-    therapist_info: Optional[str] = Field(default=None, max_length=5000, description="Detailed information about therapists")
-    treatment_details: Optional[str] = Field(default=None, max_length=5000, description="Detailed information about treatments, prices, duration, and content")
-    service_item_selection_guide: Optional[str] = Field(default=None, max_length=5000, description="Guide for selecting service items")
-    operating_hours: Optional[str] = Field(default=None, max_length=5000, description="Clinic operating hours")
-    location_details: Optional[str] = Field(default=None, max_length=5000, description="Transportation and location details")
-    booking_policy: Optional[str] = Field(default=None, max_length=5000, description="Appointment booking and cancellation policies")
-    payment_methods: Optional[str] = Field(default=None, max_length=5000, description="Accepted payment methods")
-    equipment_facilities: Optional[str] = Field(default=None, max_length=5000, description="Equipment and facilities available at the clinic")
-    common_questions: Optional[str] = Field(default=None, max_length=5000, description="Frequently asked questions and answers")
-    other_info: Optional[str] = Field(default=None, max_length=5000, description="Other information about the clinic")
+    clinic_description: Optional[str] = Field(default=None, max_length=10000, description="Clinic description, specialties, and treatment approach")
+    therapist_info: Optional[str] = Field(default=None, max_length=10000, description="Detailed information about therapists")
+    treatment_details: Optional[str] = Field(default=None, max_length=10000, description="Detailed information about treatments, prices, duration, and content")
+    service_item_selection_guide: Optional[str] = Field(default=None, max_length=10000, description="Guide for selecting service items")
+    operating_hours: Optional[str] = Field(default=None, max_length=10000, description="Clinic operating hours")
+    location_details: Optional[str] = Field(default=None, max_length=10000, description="Transportation and location details")
+    booking_policy: Optional[str] = Field(default=None, max_length=10000, description="Appointment booking and cancellation policies")
+    payment_methods: Optional[str] = Field(default=None, max_length=10000, description="Accepted payment methods")
+    equipment_facilities: Optional[str] = Field(default=None, max_length=10000, description="Equipment and facilities available at the clinic")
+    common_questions: Optional[str] = Field(default=None, max_length=10000, description="Frequently asked questions and answers")
+    other_info: Optional[str] = Field(default=None, max_length=10000, description="Other information about the clinic")
 
 
 class ClinicSettings(BaseModel):

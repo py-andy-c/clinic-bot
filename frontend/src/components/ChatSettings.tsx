@@ -235,7 +235,7 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
     const fieldValue = chatSettings[field];
     const value = (fieldValue ?? '') as string;
     const charCount = getCharacterCount(fieldValue ?? null);
-    const maxChars = 5000;
+    const maxChars = 10000;
     const hasContent = charCount > 0;
 
     return (
