@@ -6,6 +6,7 @@ import ClinicTypeTabs from '../components/ClinicTypeTabs';
 import { consultationMessages } from '../data/consultationMessages';
 import { serviceMessages } from '../data/serviceMessages';
 import type { ClinicType } from '../data/consultationMessages';
+import { LINE_THEME } from '../constants/lineTheme';
 
 const LandingPage: React.FC = () => {
   const [consultationTab, setConsultationTab] = useState<ClinicType>('物理治療');
@@ -106,48 +107,88 @@ const LandingPage: React.FC = () => {
               預約管理
             </h2>
             <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
-              智能提醒系統，自動通知病患預約時間，有效降低爽約率
+              智能預約管理，提升診所時間利用率
             </p>
           </div>
 
           {/* Value Proposition Content */}
           <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 md:p-8">
-            <div className="max-w-3xl mx-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                <div className="text-center md:text-left">
-                  <div className="mx-auto md:mx-0 w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                    <span className="text-3xl">📅</span>
+            <div className="max-w-4xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+                {/* Value Proposition 1: Convenient Booking */}
+                <div className="text-center">
+                  <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                    <span className="text-3xl">📱</span>
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-3">自動提醒</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    系統會在預約前自動發送 LINE 提醒，讓病患不會忘記預約時間。可設定多個提醒時點，確保病患收到通知。
-                  </p>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-4">LINE預約 降低預約門檻</h3>
+                  
+                  {/* Mock UI: Time Selection */}
+                  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 max-w-[280px] mx-auto">
+                    <div className="bg-gray-50 rounded-lg p-3 mb-2">
+                      <div className="text-xs text-gray-500 mb-2">選擇預約時間</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button className="bg-blue-500 text-white text-xs py-2 px-2 rounded">10:00</button>
+                        <button className="bg-gray-200 text-gray-700 text-xs py-2 px-2 rounded">10:30</button>
+                        <button className="bg-gray-200 text-gray-700 text-xs py-2 px-2 rounded">11:00</button>
+                        <button className="bg-gray-200 text-gray-700 text-xs py-2 px-2 rounded">11:30</button>
+                        <button className="bg-gray-200 text-gray-700 text-xs py-2 px-2 rounded">14:00</button>
+                        <button className="bg-gray-200 text-gray-700 text-xs py-2 px-2 rounded">14:30</button>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="flex-1 bg-gray-200 text-gray-700 text-xs py-2 rounded">取消</button>
+                      <button className="flex-1 bg-blue-500 text-white text-xs py-2 rounded">確認</button>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-center md:text-left">
-                  <div className="mx-auto md:mx-0 w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-                    <span className="text-3xl">✅</span>
+
+                {/* Value Proposition 2: Appointment Reminders */}
+                <div className="text-center">
+                  <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                    <span className="text-3xl">🔔</span>
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-3">降低爽約率</h3>
-                  <p className="text-gray-600 leading-relaxed">
-                    透過及時提醒與確認機制，有效減少病患忘記或錯過預約的情況，提升診所時間利用率與營運效率。
-                  </p>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-4">診前提醒 降低爽約率</h3>
+                  
+                  {/* Mock UI: Reminder Message */}
+                  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-3 max-w-[280px] mx-auto" style={{ backgroundColor: LINE_THEME.chatBackground }}>
+                    <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
+                          <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <span className="text-xs font-semibold text-gray-900">診所 Line官方帳號</span>
+                      </div>
+                      <div className="text-sm text-gray-900">
+                        🔔 提醒您，明天 10:00 AM 有預約
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="mt-8 pt-8 border-t border-gray-200">
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">🔔</span>
-                    <span className="text-gray-700">預約前 24 小時提醒</span>
+
+                {/* Value Proposition 3: Cancellation Notifications */}
+                <div className="text-center">
+                  <div className="mx-auto w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
+                    <span className="text-3xl">⚡</span>
                   </div>
-                  <div className="hidden sm:block text-gray-300">•</div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">⏰</span>
-                    <span className="text-gray-700">預約前 2 小時再次確認</span>
-                  </div>
-                  <div className="hidden sm:block text-gray-300">•</div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">📱</span>
-                    <span className="text-gray-700">LINE 即時通知</span>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-4">空檔通知 提升利用率</h3>
+                  
+                  {/* Mock UI: Cancellation Notification Message */}
+                  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-3 max-w-[280px] mx-auto" style={{ backgroundColor: LINE_THEME.chatBackground }}>
+                    <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
+                          <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <span className="text-xs font-semibold text-gray-900">診所 Line官方帳號</span>
+                      </div>
+                      <div className="text-sm text-gray-900">
+                        ⚡ 明天 2:00 PM 時段有新的空檔，是您之前想預約的時間，要幫您預約嗎？
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
