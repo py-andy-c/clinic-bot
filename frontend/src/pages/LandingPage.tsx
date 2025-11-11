@@ -51,7 +51,7 @@ const LandingPage: React.FC = () => {
               線上諮詢
             </h2>
             <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
-              24小時提供專業醫療諮詢，服務病患並抓住潛在客源
+              24小時提供初步諮詢，抓住潛在客源
             </p>
           </div>
 
