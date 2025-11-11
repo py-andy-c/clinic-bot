@@ -78,7 +78,7 @@ const LandingPage: React.FC = () => {
               智能客服
             </h2>
             <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
-              AI 智能分析病患需求，提供專業服務建議與療程比較
+              24小時智能客服，從需求分析到療程選擇，提升轉換率
             </p>
           </div>
 
