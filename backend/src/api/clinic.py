@@ -497,19 +497,7 @@ async def get_settings(
                phone_number=clinic.phone_number,
                appointment_type_instructions=clinic.appointment_type_instructions
            ),
-           chat_settings=ChatSettings(
-               chat_enabled=validated_settings.chat_settings.chat_enabled,
-               clinic_description=validated_settings.chat_settings.clinic_description,
-               therapist_info=validated_settings.chat_settings.therapist_info,
-               treatment_details=validated_settings.chat_settings.treatment_details,
-               operating_hours=validated_settings.chat_settings.operating_hours,
-               location_details=validated_settings.chat_settings.location_details,
-               booking_policy=validated_settings.chat_settings.booking_policy,
-               payment_methods=validated_settings.chat_settings.payment_methods,
-               equipment_facilities=validated_settings.chat_settings.equipment_facilities,
-               common_questions=validated_settings.chat_settings.common_questions,
-               other_info=validated_settings.chat_settings.other_info
-           )
+           chat_settings=ChatSettings.model_validate(validated_settings.chat_settings.model_dump())
         )
 
     except Exception as e:
