@@ -35,13 +35,13 @@ import {
  * preventing "useAuth must be used within an AuthProvider" errors.
  */
 const redirectToLogin = (): void => {
-  if (window.location.pathname === '/login') {
+  if (window.location.pathname === '/admin/login') {
     return;
   }
   
   requestAnimationFrame(() => {
     try {
-      window.location.replace('/login');
+      window.location.replace('/admin/login');
     } catch (error) {
       logger.error('Failed to redirect to login:', error);
     }

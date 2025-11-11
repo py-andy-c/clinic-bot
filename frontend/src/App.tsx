@@ -6,6 +6,9 @@ import { ModalProvider } from './contexts/ModalContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LoadingSpinner } from './components/shared';
 // Lazy load page components for code splitting
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const FreeTrialPage = lazy(() => import('./pages/FreeTrialPage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SystemAdminLayout = lazy(() => import('./components/SystemAdminLayout'));
 const ClinicLayout = lazy(() => import('./components/ClinicLayout'));
@@ -30,6 +33,11 @@ const AppRoutes: React.FC = () => {
   return (
     <Suspense fallback={<LoadingSpinner size="xl" fullScreen />}>
       <Routes>
+        {/* Public landing page and marketing pages */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/free-trial" element={<FreeTrialPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+
         {/* LIFF routes */}
         <Route path="/liff/*" element={<ModalProvider><LiffApp /></ModalProvider>} />
 
@@ -38,22 +46,20 @@ const AppRoutes: React.FC = () => {
         <Route path="/signup/member" element={<MemberSignupPage />} />
         <Route path="/signup/confirm-name" element={<NameConfirmationPage />} />
 
-        {/* Login route */}
-        <Route path="/login" element={<LoginPage />} />
-
-        {/* Protected routes */}
-        <Route path="/*" element={<ProtectedRoutes />} />
+        {/* Admin routes */}
+        <Route path="/admin/login" element={<LoginPage />} />
+        <Route path="/admin/*" element={<AdminRoutes />} />
       </Routes>
     </Suspense>
   );
 };
 
-const ProtectedRoutes: React.FC = () => {
+const AdminRoutes: React.FC = () => {
   const { isAuthenticated, isSystemAdmin, isClinicUser, user } = useAuth();
 
   // If not authenticated, redirect to login
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/admin/login" replace />;
   }
 
   // System Admin Routes
@@ -61,11 +67,11 @@ const ProtectedRoutes: React.FC = () => {
     return (
       <SystemAdminLayout>
         <Routes>
-          <Route path="/" element={<Navigate to="/system/clinics" replace />} />
+          <Route path="/" element={<Navigate to="/admin/system/clinics" replace />} />
           <Route path="/system/clinics" element={<SystemClinicsPage />} />
           <Route path="/system/clinics/:id" element={<SystemClinicsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="*" element={<Navigate to="/system/clinics" replace />} />
+          <Route path="*" element={<Navigate to="/admin/system/clinics" replace />} />
         </Routes>
       </SystemAdminLayout>
     );
@@ -76,9 +82,9 @@ const ProtectedRoutes: React.FC = () => {
     // Determine default route based on user role
     const getDefaultRoute = () => {
       if (user?.roles?.includes('practitioner')) {
-        return '/calendar'; // Calendar for practitioners
+        return '/admin/calendar'; // Calendar for practitioners
       }
-      return '/clinic/members'; // Members page for admins and read-only users
+      return '/admin/clinic/members'; // Members page for admins and read-only users
     };
 
     return (
@@ -103,7 +109,7 @@ const ProtectedRoutes: React.FC = () => {
         <h1 className="text-2xl font-bold text-gray-900 mb-4">存取被拒絕</h1>
         <p className="text-gray-600 mb-4">您沒有權限存取此應用程式。</p>
         <button
-          onClick={() => window.location.href = '/login'}
+          onClick={() => window.location.href = '/admin/login'}
           className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
         >
           返回登入

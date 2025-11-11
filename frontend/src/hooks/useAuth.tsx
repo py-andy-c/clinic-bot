@@ -274,7 +274,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       clearAuthState();
 
       // Redirect to login page
-      window.location.href = '/login';
+      window.location.href = '/admin/login';
     } catch (error) {
       // Still clear local state even if API call fails
       clearAuthState();

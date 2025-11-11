@@ -232,7 +232,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   };
 
   const handleNavigation = useCallback((href: string) => {
-    if (hasUnsavedChanges && (location.pathname === '/profile' || location.pathname === '/clinic/settings')) {
+    if (hasUnsavedChanges && (location.pathname === '/admin/profile' || location.pathname === '/admin/clinic/settings')) {
       const confirmed = window.confirm('您有未儲存的變更，確定要離開嗎？');
       if (!confirmed) {
         return;
@@ -242,11 +242,11 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   }, [hasUnsavedChanges, location.pathname, navigate]);
 
   const navigation = useMemo(() => [
-    { name: '行事曆', href: '/calendar', icon: '📅', show: isPractitioner },
-    { name: '團隊成員', href: '/clinic/members', icon: '👥', show: true }, // All clinic members can view
-    { name: '病患管理', href: '/clinic/patients', icon: '👥', show: true },
-    { name: '診所設定', href: '/clinic/settings', icon: '⚙️', show: true }, // All clinic members can view settings
-    { name: '個人設定', href: '/profile', icon: '👤', show: true }, // All users can access profile
+    { name: '行事曆', href: '/admin/calendar', icon: '📅', show: isPractitioner },
+    { name: '團隊成員', href: '/admin/clinic/members', icon: '👥', show: true }, // All clinic members can view
+    { name: '病患管理', href: '/admin/clinic/patients', icon: '👥', show: true },
+    { name: '診所設定', href: '/admin/clinic/settings', icon: '⚙️', show: true }, // All clinic members can view settings
+    { name: '個人設定', href: '/admin/profile', icon: '👤', show: true }, // All users can access profile
   ].filter(item => item.show), [isPractitioner]);
 
   const isActive = (href: string) => {

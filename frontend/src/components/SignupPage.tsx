@@ -136,7 +136,7 @@ const SignupPage: React.FC<SignupPageProps> = ({
           <p className="text-sm text-gray-600">
             已經有帳號了嗎？{' '}
             <button
-              onClick={() => window.location.href = '/login'}
+              onClick={() => window.location.href = '/admin/login'}
               className="font-medium text-primary-600 hover:text-primary-500"
             >
               返回登入頁面

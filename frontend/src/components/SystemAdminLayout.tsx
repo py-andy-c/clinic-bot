@@ -22,7 +22,7 @@ const SystemAdminLayout: React.FC<SystemAdminLayoutProps> = ({ children }) => {
   };
 
   const navigation = [
-    { name: '診所管理', href: '/system/clinics', icon: '🏥' },
+    { name: '診所管理', href: '/admin/system/clinics', icon: '🏥' },
   ];
 
   const isActive = (href: string) => {
