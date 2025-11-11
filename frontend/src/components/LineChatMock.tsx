@@ -31,7 +31,7 @@ const LineChatMock: React.FC<LineChatMockProps> = ({ messages, clinicType }) => 
             <div className="text-gray-900 text-lg mr-2">←</div>
             <div className="flex items-center flex-1 min-w-0">
               <div className="flex-1 min-w-0">
-                <div className="font-semibold text-base sm:text-lg text-gray-900 truncate">{clinicType}診所Line官方帳號</div>
+                <div className="font-semibold text-base sm:text-lg text-gray-900 truncate">{clinicType}診所 Line官方帳號</div>
               </div>
             </div>
           </div>
@@ -53,7 +53,7 @@ const LineChatMock: React.FC<LineChatMockProps> = ({ messages, clinicType }) => 
           <div className="text-gray-900 text-lg mr-2">←</div>
           <div className="flex items-center flex-1 min-w-0">
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-base sm:text-lg text-gray-900 truncate">{clinicType}診所Line官方帳號</div>
+              <div className="font-semibold text-base sm:text-lg text-gray-900 truncate">{clinicType}診所 Line官方帳號</div>
             </div>
           </div>
         </div>
