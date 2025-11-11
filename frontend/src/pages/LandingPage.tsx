@@ -1,8 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import PublicHeader from '../components/PublicHeader';
+import LineChatMock from '../components/LineChatMock';
+import ClinicTypeTabs from '../components/ClinicTypeTabs';
+import { consultationMessages } from '../data/consultationMessages';
+import { serviceMessages } from '../data/serviceMessages';
+import type { ClinicType } from '../data/consultationMessages';
 
 const LandingPage: React.FC = () => {
+  const [consultationTab, setConsultationTab] = useState<ClinicType>('物理治療');
+  const [serviceTab, setServiceTab] = useState<ClinicType>('物理治療');
+
+  const clinicTypes: ClinicType[] = ['物理治療', '醫美', '牙醫'];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <PublicHeader />
@@ -11,10 +21,10 @@ const LandingPage: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 md:py-16">
         <div className="text-center">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-gray-900 mb-4 sm:mb-6 px-2">
-            智慧診所管理系統
+            全天候智能診所助理
           </h1>
           <p className="text-base sm:text-lg md:text-xl text-gray-600 mb-8 sm:mb-12 max-w-3xl mx-auto px-4">
-            為您的診所提供完整的預約管理、病患管理與 AI 智能客服解決方案
+            透過診所LINE官方帳號，提供諮詢、客服、到預約的全自動化服務
           </p>
 
           {/* Call to Action */}
@@ -27,37 +37,117 @@ const LandingPage: React.FC = () => {
             </Link>
             {/* TODO: Implement free trial signup flow - currently redirects to /free-trial page */}
           </div>
+        </div>
 
-          {/* Features Section */}
-          <div className="mt-12 sm:mt-16 md:mt-20 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8 max-w-5xl mx-auto px-4">
-            <div className="text-center">
-              <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-blue-100">
-                <span className="text-2xl">📅</span>
-              </div>
-              <h3 className="mt-4 text-base sm:text-lg font-semibold text-gray-900">預約管理</h3>
-              <p className="mt-2 text-sm sm:text-base text-gray-600 px-2">
-                完整的線上預約系統，讓病患輕鬆預約
+        {/* Features Section */}
+        <div className="mt-16 sm:mt-20 space-y-20 sm:space-y-24">
+          {/* 線上諮詢 Section */}
+          <section className="max-w-6xl mx-auto">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+                線上諮詢
+              </h2>
+              <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
+                24小時提供專業醫療諮詢，協助病患了解症狀與治療選項
               </p>
             </div>
-            <div className="text-center">
-              <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-purple-100">
-                <span className="text-2xl">🤖</span>
-              </div>
-              <h3 className="mt-4 text-base sm:text-lg font-semibold text-gray-900">AI 智能客服</h3>
-              <p className="mt-2 text-sm sm:text-base text-gray-600 px-2">
-                24/7 自動回覆病患問題，提升服務品質
+
+            {/* Tabs */}
+            <ClinicTypeTabs
+              types={clinicTypes}
+              activeType={consultationTab}
+              onChange={setConsultationTab}
+              ariaLabel="選擇診所類型以查看諮詢範例"
+            />
+
+            {/* Chat Mock */}
+            <LineChatMock
+              messages={consultationMessages[consultationTab] || []}
+              clinicType={consultationTab}
+            />
+          </section>
+
+          {/* 智能客服 Section */}
+          <section className="max-w-6xl mx-auto">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+                智能客服
+              </h2>
+              <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
+                AI 智能分析病患需求，提供專業服務建議與療程比較
               </p>
             </div>
-            <div className="text-center sm:col-span-2 md:col-span-1">
-              <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-orange-100">
-                <span className="text-2xl">👥</span>
-              </div>
-              <h3 className="mt-4 text-base sm:text-lg font-semibold text-gray-900">病患管理</h3>
-              <p className="mt-2 text-sm sm:text-base text-gray-600 px-2">
-                集中管理病患資料，提升工作效率
+
+            {/* Tabs */}
+            <ClinicTypeTabs
+              types={clinicTypes}
+              activeType={serviceTab}
+              onChange={setServiceTab}
+              ariaLabel="選擇診所類型以查看服務比較範例"
+            />
+
+            {/* Chat Mock */}
+            <LineChatMock
+              messages={serviceMessages[serviceTab] || []}
+              clinicType={serviceTab}
+            />
+          </section>
+
+          {/* 預約管理 Section */}
+          <section className="max-w-6xl mx-auto">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+                預約管理
+              </h2>
+              <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
+                智能提醒系統，自動通知病患預約時間，有效降低爽約率
               </p>
             </div>
-          </div>
+
+            {/* Value Proposition Content */}
+            <div className="bg-white rounded-lg shadow-lg p-6 md:p-8">
+              <div className="max-w-3xl mx-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                  <div className="text-center md:text-left">
+                    <div className="mx-auto md:mx-0 w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                      <span className="text-3xl">📅</span>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-3">自動提醒</h3>
+                    <p className="text-gray-600 leading-relaxed">
+                      系統會在預約前自動發送 LINE 提醒，讓病患不會忘記預約時間。可設定多個提醒時點，確保病患收到通知。
+                    </p>
+                  </div>
+                  <div className="text-center md:text-left">
+                    <div className="mx-auto md:mx-0 w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                      <span className="text-3xl">✅</span>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-3">降低爽約率</h3>
+                    <p className="text-gray-600 leading-relaxed">
+                      透過及時提醒與確認機制，有效減少病患忘記或錯過預約的情況，提升診所時間利用率與營運效率。
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-8 pt-8 border-t border-gray-200">
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">🔔</span>
+                      <span className="text-gray-700">預約前 24 小時提醒</span>
+                    </div>
+                    <div className="hidden sm:block text-gray-300">•</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">⏰</span>
+                      <span className="text-gray-700">預約前 2 小時再次確認</span>
+                    </div>
+                    <div className="hidden sm:block text-gray-300">•</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">📱</span>
+                      <span className="text-gray-700">LINE 即時通知</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </main>
 
