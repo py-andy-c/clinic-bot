@@ -10,6 +10,30 @@ echo "🛑 Killing existing uvicorn processes..."
 pkill -f uvicorn 2>/dev/null || true
 sleep 2
 
+# Check and start PostgreSQL if not running
+echo "🔍 Checking PostgreSQL status..."
+if ! pg_isready -h localhost -p 5432 >/dev/null 2>&1; then
+    echo "⚠️  PostgreSQL is not running. Starting postgresql@14..."
+    brew services restart postgresql@14 2>/dev/null || brew services start postgresql@14 2>/dev/null || true
+    
+    # Wait for PostgreSQL to be ready
+    echo "⏳ Waiting for PostgreSQL to be ready..."
+    for i in {1..10}; do
+        if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then
+            echo "✅ PostgreSQL is now running and accepting connections"
+            break
+        fi
+        sleep 1
+    done
+    
+    if ! pg_isready -h localhost -p 5432 >/dev/null 2>&1; then
+        echo "❌ ERROR: Could not start PostgreSQL. Please start it manually and try again." >&2
+        exit 1
+    fi
+else
+    echo "✅ PostgreSQL is running and accepting connections"
+fi
+
 # Activate virtual environment
 source venv/bin/activate
 
