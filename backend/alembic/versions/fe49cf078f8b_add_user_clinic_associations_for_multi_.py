@@ -248,6 +248,14 @@ def upgrade() -> None:
                 ['user_id', 'last_accessed_at'], 
                 postgresql_where=sa.text('is_active = TRUE')
             )
+        # Covering index for get_active_clinic_association with id for fallback ordering
+        if 'idx_user_clinic_associations_user_active_accessed_id' not in assoc_indexes:
+            op.create_index(
+                'idx_user_clinic_associations_user_active_accessed_id',
+                'user_clinic_associations',
+                ['user_id', 'is_active', 'last_accessed_at', 'id'],
+                postgresql_where=sa.text('is_active = TRUE')
+            )
 
 
 def downgrade() -> None:
@@ -255,6 +263,7 @@ def downgrade() -> None:
     Rollback migration - remove user_clinic_associations and restore previous schema.
     """
     # Drop indexes
+    op.drop_index('idx_user_clinic_associations_user_active_accessed_id', table_name='user_clinic_associations')
     op.drop_index('idx_user_clinic_associations_last_accessed', table_name='user_clinic_associations')
     op.drop_index('idx_user_clinic_associations_user_active_clinic', table_name='user_clinic_associations')
     op.drop_index('idx_user_clinic_associations_active', table_name='user_clinic_associations')
