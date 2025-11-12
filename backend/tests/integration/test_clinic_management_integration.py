@@ -486,7 +486,7 @@ class TestClinicAppointmentManagement:
             user_type="clinic_user",
             email=admin.email,
             roles=["admin"],
-            clinic_id=admin.clinic_id,
+            active_clinic_id=admin.clinic_id,
             google_subject_id=admin.google_subject_id,
             name=admin.full_name,
             user_id=admin.id
@@ -542,7 +542,7 @@ class TestClinicAppointmentManagement:
             user_type="clinic_user",
             email=admin.email,
             roles=["admin"],
-            clinic_id=admin.clinic_id,
+            active_clinic_id=admin.clinic_id,
             google_subject_id=admin.google_subject_id,
             name=admin.full_name,
             user_id=admin.id
@@ -608,7 +608,7 @@ class TestClinicAppointmentManagement:
             user_type="clinic_user",
             email=admin.email,
             roles=["admin"],
-            clinic_id=admin.clinic_id,
+            active_clinic_id=admin.clinic_id,
             google_subject_id=admin.google_subject_id,
             name=admin.full_name,
             user_id=admin.id
@@ -678,7 +678,7 @@ class TestClinicAppointmentManagement:
             user_type="clinic_user",
             email=practitioner.email,
             roles=["practitioner"],
-            clinic_id=practitioner.clinic_id,
+            active_clinic_id=practitioner.clinic_id,
             google_subject_id=practitioner.google_subject_id,
             name=practitioner.full_name,
             user_id=practitioner.id
@@ -733,7 +733,7 @@ class TestClinicAppointmentManagement:
             user_type="clinic_user",
             email=therapist.email,
             roles=["practitioner"],
-            clinic_id=therapist.clinic_id,
+            active_clinic_id=therapist.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id
@@ -794,7 +794,7 @@ class TestPractitionerAppointmentTypes:
             user_type="clinic_user",
             email=therapist.email,
             roles=therapist.roles,
-            clinic_id=therapist.clinic_id,
+            active_clinic_id=therapist.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id
@@ -830,7 +830,7 @@ class TestPractitionerAppointmentTypes:
             user_type="clinic_user",
             email=therapist.email,
             roles=therapist.roles,
-            clinic_id=therapist.clinic_id,
+            active_clinic_id=therapist.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id
@@ -876,7 +876,7 @@ class TestPractitionerAppointmentTypes:
             user_type="clinic_user",
             email=therapist.email,
             roles=therapist.roles,
-            clinic_id=therapist.clinic_id,
+            active_clinic_id=therapist.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id
@@ -908,7 +908,7 @@ class TestPractitionerAppointmentTypes:
             user_type="clinic_user",
             email=therapist.email,
             roles=therapist.roles,
-            clinic_id=therapist.clinic_id,
+            active_clinic_id=therapist.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id
@@ -963,7 +963,7 @@ class TestPractitionerAppointmentTypes:
             user_type="clinic_user",
             email=therapist.email,
             roles=therapist.roles,
-            clinic_id=therapist.clinic_id,
+            active_clinic_id=therapist.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id
@@ -1001,7 +1001,7 @@ class TestPractitionerAppointmentTypes:
             user_type="clinic_user",
             email=therapist.email,
             roles=therapist.roles,
-            clinic_id=therapist.clinic_id,
+            active_clinic_id=therapist.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id
@@ -1048,7 +1048,7 @@ class TestPractitionerAppointmentTypes:
             user_type="clinic_user",
             email=therapist.email,
             roles=therapist.roles,
-            clinic_id=therapist.clinic_id,
+            active_clinic_id=therapist.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id

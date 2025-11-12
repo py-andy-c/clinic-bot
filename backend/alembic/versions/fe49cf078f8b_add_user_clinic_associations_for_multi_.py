@@ -152,27 +152,73 @@ def upgrade() -> None:
     if 'uq_clinic_user_email' in constraints:
         op.drop_constraint('uq_clinic_user_email', 'users', type_='unique')
     
-    # Step 10: Create indexes for user_clinic_associations
-    op.create_index('idx_user_clinic_associations_user', 'user_clinic_associations', ['user_id'])
-    op.create_index('idx_user_clinic_associations_clinic', 'user_clinic_associations', ['clinic_id'])
-    op.create_index(
-        'idx_user_clinic_associations_active', 
-        'user_clinic_associations', 
-        ['user_id', 'is_active'], 
-        postgresql_where=sa.text('is_active = TRUE')
-    )
-    op.create_index(
-        'idx_user_clinic_associations_user_active_clinic', 
-        'user_clinic_associations', 
-        ['user_id', 'is_active', 'clinic_id'], 
-        postgresql_where=sa.text('is_active = TRUE')
-    )
-    op.create_index(
-        'idx_user_clinic_associations_last_accessed', 
-        'user_clinic_associations', 
-        ['user_id', 'last_accessed_at'], 
-        postgresql_where=sa.text('is_active = TRUE')
-    )
+    # Step 9.5: Update unique constraint on practitioner_appointment_types to include clinic_id
+    # Only proceed if table exists (baseline migration may have created it)
+    if 'practitioner_appointment_types' in inspector.get_table_names():
+        types_constraints = [c['name'] for c in inspector.get_unique_constraints('practitioner_appointment_types')]
+        
+        # Drop old constraint if it exists
+        if 'uq_practitioner_type' in types_constraints:
+            op.drop_constraint('uq_practitioner_type', 'practitioner_appointment_types', type_='unique')
+        
+        # Check if new constraint already exists (baseline migration may have created it from model)
+        # Use raw SQL to check indexes (unique constraints are stored as unique indexes in PostgreSQL)
+        conn = op.get_bind()
+        result = conn.execute(sa.text("""
+            SELECT indexname 
+            FROM pg_indexes 
+            WHERE tablename = 'practitioner_appointment_types' 
+            AND indexname = 'uq_practitioner_type_clinic'
+        """)).fetchone()
+        
+        # Create new unique constraint with clinic_id (if it doesn't already exist)
+        # Note: Baseline migration may have already created this from the model
+        if result is None:
+            op.create_unique_constraint(
+                'uq_practitioner_type_clinic',
+                'practitioner_appointment_types',
+                ['user_id', 'clinic_id', 'appointment_type_id']
+            )
+        
+        # Create composite index for query performance (if it doesn't already exist)
+        types_indexes = [idx['name'] for idx in inspector.get_indexes('practitioner_appointment_types')]
+        if 'idx_practitioner_types_user_clinic_type' not in types_indexes:
+            op.create_index(
+                'idx_practitioner_types_user_clinic_type',
+                'practitioner_appointment_types',
+                ['user_id', 'clinic_id', 'appointment_type_id']
+            )
+    
+    # Step 10: Create indexes for user_clinic_associations (if they don't already exist)
+    # Check if table exists first (baseline migration may have created it)
+    if 'user_clinic_associations' in inspector.get_table_names():
+        assoc_indexes = [idx['name'] for idx in inspector.get_indexes('user_clinic_associations')]
+        
+        if 'idx_user_clinic_associations_user' not in assoc_indexes:
+            op.create_index('idx_user_clinic_associations_user', 'user_clinic_associations', ['user_id'])
+        if 'idx_user_clinic_associations_clinic' not in assoc_indexes:
+            op.create_index('idx_user_clinic_associations_clinic', 'user_clinic_associations', ['clinic_id'])
+        if 'idx_user_clinic_associations_active' not in assoc_indexes:
+            op.create_index(
+                'idx_user_clinic_associations_active', 
+                'user_clinic_associations', 
+                ['user_id', 'is_active'], 
+                postgresql_where=sa.text('is_active = TRUE')
+            )
+        if 'idx_user_clinic_associations_user_active_clinic' not in assoc_indexes:
+            op.create_index(
+                'idx_user_clinic_associations_user_active_clinic', 
+                'user_clinic_associations', 
+                ['user_id', 'is_active', 'clinic_id'], 
+                postgresql_where=sa.text('is_active = TRUE')
+            )
+        if 'idx_user_clinic_associations_last_accessed' not in assoc_indexes:
+            op.create_index(
+                'idx_user_clinic_associations_last_accessed', 
+                'user_clinic_associations', 
+                ['user_id', 'last_accessed_at'], 
+                postgresql_where=sa.text('is_active = TRUE')
+            )
 
 
 def downgrade() -> None:
@@ -186,8 +232,13 @@ def downgrade() -> None:
     op.drop_index('idx_user_clinic_associations_clinic', table_name='user_clinic_associations')
     op.drop_index('idx_user_clinic_associations_user', table_name='user_clinic_associations')
     
-    # Restore unique constraint
+    # Restore unique constraint on users
     op.create_unique_constraint('uq_clinic_user_email', 'users', ['clinic_id', 'email'])
+    
+    # Restore old unique constraint on practitioner_appointment_types
+    op.drop_index('idx_practitioner_types_user_clinic_type', table_name='practitioner_appointment_types')
+    op.drop_constraint('uq_practitioner_type_clinic', 'practitioner_appointment_types', type_='unique')
+    op.create_unique_constraint('uq_practitioner_type', 'practitioner_appointment_types', ['user_id', 'appointment_type_id'])
     
     # Drop foreign keys
     op.drop_constraint('fk_practitioner_appointment_types_clinic', 'practitioner_appointment_types', type_='foreignkey')

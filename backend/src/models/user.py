@@ -21,9 +21,9 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    # Deprecated: clinic_id kept for backward compatibility during transition
-    # Will be removed after migration is complete
-    clinic_id: Mapped[Optional[int]] = mapped_column(ForeignKey("clinics.id"), nullable=True)  # Deprecated: Use clinic_associations instead
+    # Note: clinic_id column exists in database but is no longer used in code
+    # Migration has populated user_clinic_associations from this field
+    clinic_id: Mapped[Optional[int]] = mapped_column(ForeignKey("clinics.id"), nullable=True)
 
     # Authentication (all users)
     email: Mapped[str] = mapped_column(String(255), unique=True)  # Globally unique (not per-clinic)
@@ -31,9 +31,9 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(255))  # Default/fallback name
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     
-    # Deprecated: roles kept for backward compatibility during transition
-    # Clinic-specific roles are now in UserClinicAssociation.roles
-    roles: Mapped[list[str]] = mapped_column(JSONB, default=list)  # Deprecated: Use clinic_associations[].roles instead
+    # Note: roles column exists in database but is no longer used in code
+    # Clinic-specific roles are in UserClinicAssociation.roles
+    roles: Mapped[list[str]] = mapped_column(JSONB, default=list)
 
     # Metadata
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
@@ -41,7 +41,7 @@ class User(Base):
     last_login_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
 
     # Relationships
-    # New: Multi-clinic support via associations
+    # Multi-clinic support via associations
     clinic_associations = relationship(
         "UserClinicAssociation",
         back_populates="user",
@@ -49,10 +49,8 @@ class User(Base):
     )
     """User-clinic associations for multi-clinic support. Roles and names are clinic-specific."""
     
-    # Deprecated: Keep for backward compatibility during transition
-    # Will be removed after migration is complete and all code is updated
+    # Note: clinic relationship exists for database schema but is no longer used in code
     clinic = relationship("Clinic", back_populates="users")
-    """Deprecated: Use clinic_associations instead. Kept for backward compatibility."""
     
     refresh_tokens = relationship("RefreshToken", back_populates="user")
     availability = relationship("PractitionerAvailability", back_populates="user", cascade="all, delete-orphan")

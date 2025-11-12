@@ -48,7 +48,7 @@ class TestJWTService:
         assert verified_payload.email == payload.email
         assert verified_payload.user_type == payload.user_type
         assert verified_payload.roles == payload.roles
-        assert verified_payload.clinic_id == payload.clinic_id
+        assert verified_payload.active_clinic_id == payload.active_clinic_id
 
     def test_verify_token_expired(self):
         """Test verifying an expired JWT token."""

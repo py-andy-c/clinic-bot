@@ -32,7 +32,7 @@ def _uc(user_id, clinic_id, roles):
         user_type="clinic_user",
         email=f"u{user_id}@ex.com",
         roles=roles,
-        clinic_id=clinic_id,
+        active_clinic_id=clinic_id,
         google_subject_id=f"sub-{user_id}",
         name=f"User {user_id}",
         user_id=user_id,

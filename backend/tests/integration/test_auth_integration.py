@@ -202,7 +202,7 @@ class TestAuthenticationFlow:
                 user_type="clinic_user",
                 email="admin@test.com",
                 roles=["admin", "practitioner"],
-                clinic_id=clinic.id,
+                active_clinic_id=clinic.id,
                 google_subject_id="admin_sub",
                 name="Test Admin",
                 user_id=admin_user.id
@@ -291,7 +291,7 @@ class TestAuthenticationFlow:
                 user_type="clinic_user",
                 email="user1@test.com",
                 roles=["admin", "practitioner"],
-                clinic_id=clinic1.id,
+                active_clinic_id=clinic1.id,
                 google_subject_id="sub1",
                 name="User 1",
                 user_id=user1.id
@@ -378,7 +378,7 @@ class TestAuthenticationFlow:
                 user_type="clinic_user",
                 email="admin@test.com",
                 roles=["admin", "practitioner"],
-                clinic_id=clinic.id,
+                active_clinic_id=clinic.id,
                 google_subject_id="admin_sub",
                 name="Admin User",
                 user_id=admin_user.id
@@ -401,7 +401,7 @@ class TestAuthenticationFlow:
                     user_type="clinic_user",
                     email="practitioner@test.com",
                     roles=["practitioner"],
-                    clinic_id=clinic.id,
+                    active_clinic_id=clinic.id,
                     google_subject_id="pract_sub",
                     name="Practitioner User",
                     user_id=practitioner_user.id
@@ -442,7 +442,7 @@ class TestAuthenticationFlow:
             user_type="system_admin",
             email="sysadmin@test.com",
             roles=[],
-            clinic_id=None,
+            active_clinic_id=None,
             google_subject_id="sysadmin_sub",
             name="System Admin"
         )
@@ -1289,7 +1289,7 @@ class TestSignupCallbackFlow:
             user_type="clinic_user",
             email="practitioner@test.com",
             roles=["practitioner"],
-            clinic_id=clinic.id,
+            active_clinic_id=clinic.id,
             google_subject_id="pract_sub",
             name="Test Practitioner"
         )
@@ -1356,7 +1356,7 @@ class TestSignupCallbackFlow:
             user_type="clinic_user",
             email="admin@test.com",
             roles=["admin"],
-            clinic_id=clinic.id,
+            active_clinic_id=clinic.id,
             google_subject_id="admin_sub",
             name="Clinic Admin",
             user_id=999  # Different user ID for admin
@@ -1435,7 +1435,7 @@ class TestSignupCallbackFlow:
             user_type="system_admin",
             email="admin@test.com",
             roles=[],
-            clinic_id=None,
+            active_clinic_id=None,
             google_subject_id="admin_sub",
             name="System Admin"
         )
@@ -1555,7 +1555,7 @@ class TestSystemAdminRefreshTokenFlow:
                 email=email,
                 user_type="system_admin",
                 roles=[],
-                clinic_id=None,
+                active_clinic_id=None,
                 name=name
             )
             token_data = jwt_service.create_token_pair(payload)
@@ -1621,7 +1621,7 @@ class TestSystemAdminRefreshTokenFlow:
                 email=email,
                 user_type="system_admin",
                 roles=[],
-                clinic_id=None,
+                active_clinic_id=None,
                 name=name
             )
             token_data = jwt_service.create_token_pair(payload)
@@ -1728,7 +1728,7 @@ class TestSystemAdminRefreshTokenFlow:
                 email=email,
                 user_type="system_admin",
                 roles=[],
-                clinic_id=None,
+                active_clinic_id=None,
                 name=name
             )
             token_data = jwt_service.create_token_pair(payload)
@@ -1852,7 +1852,7 @@ class TestSystemAdminRefreshTokenFlow:
                 email=email,
                 user_type="system_admin",
                 roles=[],
-                clinic_id=None,
+                active_clinic_id=None,
                 name=name
             )
             token_data = jwt_service.create_token_pair(payload)
@@ -1990,7 +1990,6 @@ class TestMultiClinicTokenCreation:
             access_token_payload = jwt_service.verify_token(data["access_token"])
             assert access_token_payload is not None
             assert access_token_payload.active_clinic_id == clinic2.id
-            assert access_token_payload.clinic_id == clinic1.id  # Deprecated field for backward compatibility
             assert set(access_token_payload.roles) == {"admin", "practitioner"}  # Roles from clinic2
             assert access_token_payload.name == "Dr. Smith at Clinic 2"  # Name from clinic2
 
@@ -2154,7 +2153,6 @@ class TestMultiClinicTokenCreation:
             access_token_payload = jwt_service.verify_token(access_token)
             assert access_token_payload is not None
             assert access_token_payload.active_clinic_id == clinic.id
-            assert access_token_payload.clinic_id == clinic.id
             assert set(access_token_payload.roles) == {"admin", "practitioner"}
             assert access_token_payload.name == "Signup Test User"
             assert access_token_payload.email == "signup@example.com"
@@ -2255,65 +2253,9 @@ class TestMultiClinicTokenCreation:
         finally:
             client.app.dependency_overrides.pop(get_db, None)
 
-    def test_refresh_token_fallback_to_deprecated_fields(self, client, db_session):
-        """Test that token refresh falls back to deprecated fields if no association exists."""
-        from services.jwt_service import jwt_service
-        from datetime import datetime, timezone, timedelta
-
-        # Create clinic
-        clinic = Clinic(
-            name="Fallback Clinic",
-            line_channel_id="fallback_channel",
-            line_channel_secret="fallback_secret",
-            line_channel_access_token="fallback_token"
-        )
-        db_session.add(clinic)
-        db_session.commit()
-
-        # Create user WITHOUT UserClinicAssociation (legacy user)
-        user = User(
-            clinic_id=clinic.id,
-            email="legacy@example.com",
-            google_subject_id="legacy_subject",
-            full_name="Legacy User",
-            roles=["admin", "practitioner"]
-        )
-        db_session.add(user)
-        db_session.commit()
-
-        # Create refresh token
-        refresh_token_string = "legacy_refresh_token"
-        refresh_token_hash, refresh_token_hash_sha256 = jwt_service.create_refresh_token_hash(refresh_token_string)
-        refresh_token_record = RefreshToken(
-            user_id=user.id,
-            token_hash=refresh_token_hash,
-            token_hash_sha256=refresh_token_hash_sha256,
-            expires_at=datetime.now(timezone.utc) + timedelta(days=7)
-        )
-        db_session.add(refresh_token_record)
-        db_session.commit()
-
-        # Override dependencies
-        def override_get_db():
-            yield db_session
-        client.app.dependency_overrides[get_db] = override_get_db
-
-        try:
-            # Refresh token - should fallback to deprecated fields
-            response = client.post("/api/auth/refresh", json={"refresh_token": refresh_token_string})
-            assert response.status_code == 200
-            data = response.json()
-
-            # Verify token uses deprecated fields as fallback
-            access_token_payload = jwt_service.verify_token(data["access_token"])
-            assert access_token_payload is not None
-            assert access_token_payload.active_clinic_id == clinic.id  # From deprecated clinic_id
-            assert access_token_payload.clinic_id == clinic.id
-            assert set(access_token_payload.roles) == {"admin", "practitioner"}  # From deprecated roles
-            assert access_token_payload.name == "Legacy User"  # From deprecated full_name
-
-        finally:
-            client.app.dependency_overrides.pop(get_db, None)
+    # Removed test_refresh_token_fallback_to_deprecated_fields
+    # Fallback to deprecated fields is no longer supported.
+    # Users must have UserClinicAssociation records to authenticate.
 
 
 class TestClinicSwitchingEndpoints:
@@ -2381,7 +2323,6 @@ class TestClinicSwitchingEndpoints:
             email=user.email,
             user_type="clinic_user",
             roles=["admin"],
-            clinic_id=clinic1.id,
             active_clinic_id=clinic1.id,
             name="User at Clinic A"
         )
@@ -2548,7 +2489,6 @@ class TestClinicSwitchingEndpoints:
             email=user.email,
             user_type="clinic_user",
             roles=["admin"],
-            clinic_id=clinic1.id,
             active_clinic_id=clinic1.id,
             name="User at Clinic A"
         )
@@ -2637,7 +2577,6 @@ class TestClinicSwitchingEndpoints:
             email=user.email,
             user_type="clinic_user",
             roles=["admin"],
-            clinic_id=clinic.id,
             active_clinic_id=clinic.id,
             name="Test User"
         )
@@ -3134,7 +3073,6 @@ class TestExistingUserJoinClinic:
             email=user.email,
             user_type="clinic_user",
             roles=["admin"],
-            clinic_id=clinic.id,
             active_clinic_id=clinic.id,
             name="Test User"
         )
@@ -3203,7 +3141,6 @@ class TestExistingUserJoinClinic:
             email=user.email,
             user_type="clinic_user",
             roles=["admin"],
-            clinic_id=clinic.id,
             active_clinic_id=clinic.id,
             name="Member User"
         )
@@ -3258,7 +3195,6 @@ class TestExistingUserJoinClinic:
             email=user.email,
             user_type="clinic_user",
             roles=["admin"],
-            clinic_id=clinic.id,
             active_clinic_id=clinic.id,
             name="Test User"
         )

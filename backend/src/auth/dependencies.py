@@ -36,7 +36,6 @@ class UserContext:
         user_type: str,
         email: str,
         roles: list[str],
-        clinic_id: Optional[int],  # Deprecated: Use active_clinic_id instead
         google_subject_id: str,
         name: str,
         user_id: Optional[int] = None,
@@ -46,8 +45,7 @@ class UserContext:
         self.user_type = user_type  # "system_admin" or "clinic_user"
         self.email = email
         self.roles = roles  # List of roles at active_clinic_id: ["admin"], ["practitioner"], etc.
-        self.clinic_id = clinic_id  # Deprecated: kept for backward compatibility
-        self.active_clinic_id = active_clinic_id if active_clinic_id is not None else clinic_id  # Use active_clinic_id if provided, fallback to clinic_id
+        self.active_clinic_id = active_clinic_id  # Currently selected clinic for clinic users
         self.google_subject_id = google_subject_id
         self.name = name  # Clinic-specific name at active_clinic_id
         self.user_id = user_id  # Database user ID (for both system admins and clinic users)
@@ -132,10 +130,10 @@ def get_current_user(
             user_type="system_admin",
             email=user.email,
             roles=[],  # System admins don't have clinic-specific roles
-            clinic_id=None,
             google_subject_id=user.google_subject_id,
             name=user.full_name,
-            user_id=user.id  # System admins now have user_id
+            user_id=user.id,  # System admins now have user_id
+            active_clinic_id=None  # System admins don't have active clinic
         )
 
     # Handle clinic user authentication
@@ -159,9 +157,8 @@ def get_current_user(
                 detail="帳戶已被停用，請聯繫診所管理員重新啟用"
             )
 
-        # CRITICAL: Get active_clinic_id from payload (new tokens) or fallback to clinic_id (old tokens)
-        # This provides backward compatibility during transition
-        active_clinic_id = getattr(payload, 'active_clinic_id', None) or payload.clinic_id
+        # Get active_clinic_id from payload
+        active_clinic_id = payload.active_clinic_id
         
         if not active_clinic_id:
             raise HTTPException(
@@ -208,12 +205,11 @@ def get_current_user(
         return UserContext(
             user_type="clinic_user",
             email=user.email,
-            roles=association.roles,  # Roles from association, not user.roles
-            clinic_id=active_clinic_id,  # Keep for backward compatibility
+            roles=association.roles,  # Roles from association
             google_subject_id=user.google_subject_id,
             name=association.full_name,  # Clinic-specific name
             user_id=user.id,
-            active_clinic_id=active_clinic_id  # New field
+            active_clinic_id=active_clinic_id
         )
 
     else:
@@ -326,9 +322,8 @@ def get_active_clinic_association(user: User, db: Session) -> Optional[UserClini
         This function does NOT update last_accessed_at. Callers should update it
         when creating tokens to track clinic usage.
     """
-    if user.clinic_id is None:
-        # System admin - no clinic association
-        return None
+    # Get all active associations for this user
+    # System admins will have no associations, which is expected
     
     # Get all active associations for this user
     associations = db.query(UserClinicAssociation).filter(
@@ -355,7 +350,7 @@ def ensure_clinic_access(user: UserContext) -> int:
     Raises HTTPException if user doesn't have clinic access.
     This is a helper function to avoid repeating the same check.
     
-    Uses `active_clinic_id` if available, falls back to `clinic_id` for backward compatibility.
+    Gets `active_clinic_id` from user context.
     
     System admins are not allowed to access clinic endpoints - they should use system endpoints.
     
@@ -375,7 +370,7 @@ def ensure_clinic_access(user: UserContext) -> int:
             detail="系統管理員無法存取診所端點，請使用系統管理端點"
         )
     
-    clinic_id = user.active_clinic_id or user.clinic_id
+    clinic_id = user.active_clinic_id
     if clinic_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -395,7 +390,7 @@ def require_clinic_access(
     This dependency should be used for endpoints that take a clinic_id parameter
     to ensure users can't access other clinics' data.
     """
-    if clinic_id is not None and user.clinic_id != clinic_id:
+    if clinic_id is not None and user.active_clinic_id != clinic_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this clinic"

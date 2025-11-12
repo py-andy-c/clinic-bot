@@ -488,7 +488,6 @@ async def confirm_name(
             email=str(email),
             user_type="clinic_user",
             roles=clinic_roles,  # Use clinic-specific roles from association
-            clinic_id=user.clinic_id,  # Deprecated: kept for backward compatibility
             active_clinic_id=active_clinic_id,  # Currently selected clinic
             name=clinic_name  # Clinic-specific name from association
         )

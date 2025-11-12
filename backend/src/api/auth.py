@@ -63,7 +63,7 @@ def get_clinic_user_token_data(user: User, db: Session) -> Dict[str, Any]:
     
     For clinic users, retrieves the active clinic association and returns
     clinic-specific roles and name. Updates last_accessed_at for default
-    clinic selection. Falls back to deprecated fields if no association exists.
+    clinic selection.
     
     Args:
         user: User to get clinic data for
@@ -79,28 +79,26 @@ def get_clinic_user_token_data(user: User, db: Session) -> Dict[str, Any]:
     clinic_roles: list[str] = []
     clinic_name = user.full_name  # Fallback to user.full_name
     
-    # Only process clinic users (system admins have clinic_id=None)
-    if user.clinic_id is not None:
-        association = get_active_clinic_association(user, db)
-        if association:
-            active_clinic_id = association.clinic_id
-            clinic_roles = association.roles or []
-            clinic_name = association.full_name or user.full_name
-            
-            # Update last_accessed_at for default clinic selection
-            try:
-                association.last_accessed_at = datetime.now(timezone.utc)
-                db.flush()  # Use flush instead of commit to reduce blocking
-            except Exception as e:
-                logger.warning(f"Failed to update last_accessed_at for user {user.id}: {e}")
-                # Don't fail authentication if update fails
-        else:
-            # User has no active clinic association - this shouldn't happen for valid users
-            # but handle gracefully by using deprecated fields
-            logger.warning(f"User {user.id} has no active clinic association, using deprecated fields")
-            active_clinic_id = user.clinic_id
-            clinic_roles = user.roles or []
-            clinic_name = user.full_name
+    # Get active clinic association for clinic users
+    association = get_active_clinic_association(user, db)
+    if association:
+        active_clinic_id = association.clinic_id
+        clinic_roles = association.roles or []
+        clinic_name = association.full_name or user.full_name
+        
+        # Update last_accessed_at for default clinic selection
+        try:
+            association.last_accessed_at = datetime.now(timezone.utc)
+            db.flush()  # Use flush instead of commit to reduce blocking
+        except Exception as e:
+            logger.warning(f"Failed to update last_accessed_at for user {user.id}: {e}")
+            # Don't fail authentication if update fails
+    else:
+        # System admin or user with no active clinic association
+        # For system admins, this is expected (active_clinic_id will be None)
+        # For clinic users, this shouldn't happen after migration, but handle gracefully
+        if user.clinic_id is not None:
+            logger.warning(f"User {user.id} has no active clinic association but clinic_id is set. This may indicate incomplete migration.")
     
     return {
         "active_clinic_id": active_clinic_id,
@@ -290,7 +288,7 @@ async def google_auth_callback(
                 email=email,
                 user_type="system_admin",
                 roles=[],  # System admins don't have clinic roles
-                clinic_id=None,
+                active_clinic_id=None,
                 name=name
             )
 
@@ -306,10 +304,11 @@ async def google_auth_callback(
                 )
 
             # For clinic users, check if they have an existing account
+            # Check by email (clinic users should have at least one association)
             existing_user = db.query(User).filter(
-                User.email == email,
-                User.clinic_id.isnot(None)  # Clinic users must have clinic_id
+                User.email == email
             ).first()
+            
             if existing_user:
                 # Check if user is active
                 if not existing_user.is_active:
@@ -318,10 +317,27 @@ async def google_auth_callback(
                         detail="帳戶已被停用，請聯繫診所管理員重新啟用"
                     )
                 
+                # Verify user has at least one active clinic association
+                from models import UserClinicAssociation
+                has_association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == existing_user.id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                
+                if not has_association:
+                    # User exists but has no active clinic association - redirect to signup
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="診所使用者認證必須透過註冊流程"
+                    )
+                
                 # Update last login
                 existing_user.last_login_at = datetime.now(timezone.utc)
                 existing_user.updated_at = datetime.now(timezone.utc)
                 db.commit()
+                
+                # Get clinic-specific data for token creation
+                clinic_data = get_clinic_user_token_data(existing_user, db)
                 
                 # Existing active clinic user - create tokens
                 payload = TokenPayload(
@@ -329,9 +345,9 @@ async def google_auth_callback(
                     user_id=existing_user.id,
                     email=email,
                     user_type="clinic_user",
-                    roles=existing_user.roles,
-                    clinic_id=existing_user.clinic_id,
-                    name=name
+                    roles=clinic_data["clinic_roles"],
+                    active_clinic_id=clinic_data["active_clinic_id"],
+                    name=clinic_data["clinic_name"]
                 )
 
                 redirect_url = f"{FRONTEND_URL}/clinic/dashboard"
@@ -547,9 +563,14 @@ async def refresh_access_token(
             detail="找不到使用者或使用者已停用"
         )
     
-    # Determine user type based on clinic_id
-    # System admins have clinic_id=None, clinic users have clinic_id set
-    is_system_admin = user.clinic_id is None
+    # Determine user type based on clinic associations
+    # System admins have no clinic associations, clinic users have at least one
+    from models import UserClinicAssociation
+    has_association = db.query(UserClinicAssociation).filter(
+        UserClinicAssociation.user_id == user.id,
+        UserClinicAssociation.is_active == True
+    ).first()
+    is_system_admin = not has_association
     
     if is_system_admin:
         # Verify email is in system admin whitelist
@@ -569,7 +590,6 @@ async def refresh_access_token(
         email=user.email,
         user_type="system_admin" if is_system_admin else "clinic_user",
         roles=[] if is_system_admin else clinic_data["clinic_roles"],  # System admins don't have clinic roles
-        clinic_id=user.clinic_id,  # Deprecated: kept for backward compatibility
         active_clinic_id=clinic_data["active_clinic_id"],  # Currently selected clinic for clinic users
         name=clinic_data["clinic_name"]  # Clinic-specific name for clinic users
     )
@@ -594,18 +614,18 @@ async def refresh_access_token(
 
     # Return response with access token, refresh token, and user data
     # This eliminates the need for a separate /auth/verify call
-    response_data = {
+    response_data: Dict[str, Any] = {
         "access_token": token_data["access_token"],
         "token_type": token_data["token_type"],
         "expires_in": str(token_data["expires_in"]),
         "refresh_token": token_data["refresh_token"],
         "user": {
             "user_id": user.id,
-            "clinic_id": user.clinic_id,
+            "active_clinic_id": clinic_data["active_clinic_id"],
             "email": user.email,
-            "full_name": user.full_name,
+            "full_name": clinic_data["clinic_name"],
             "user_type": "system_admin" if is_system_admin else "clinic_user",
-            "roles": [] if is_system_admin else user.roles
+            "roles": [] if is_system_admin else clinic_data["clinic_roles"]
         }
     }
     
@@ -726,7 +746,6 @@ async def dev_login(
         user_type="system_admin" if is_system_admin else "clinic_user",
         email=user.email,
         roles=[] if is_system_admin else clinic_data["clinic_roles"],  # System admins don't have clinic roles
-        clinic_id=user.clinic_id,  # Deprecated: kept for backward compatibility
         active_clinic_id=clinic_data["active_clinic_id"],  # Currently selected clinic for clinic users
         name=clinic_data["clinic_name"]  # Clinic-specific name for clinic users
     )
@@ -1034,7 +1053,6 @@ async def switch_clinic(
         email=user.email,
         user_type="clinic_user",
         roles=association.roles or [],
-        clinic_id=user.clinic_id,  # Deprecated: kept for backward compatibility
         active_clinic_id=request_data.clinic_id,
         name=association.full_name or user.full_name
     )

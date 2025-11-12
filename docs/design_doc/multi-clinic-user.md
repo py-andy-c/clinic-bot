@@ -1248,7 +1248,7 @@ user_associations = relationship("UserClinicAssociation", back_populates="clinic
 4. **Authentication Integration** (`test_auth_integration.py`)
   - [x] Update existing signup flows to use `user_clinic_associations` - **COMPLETED** (signup creates UserClinicAssociation)
   - [x] Add tests for multi-clinic user flows - **COMPLETED** (added `TestMultiClinicTokenCreation` class with 5 integration tests)
-  - [ ] Add tests for existing user joining new clinic - **PENDING** (endpoint not yet implemented)
+  - [x] Add tests for existing user joining new clinic - **COMPLETED** (7 integration tests in `TestExistingUserJoinClinic` class)
   - [x] Add tests for clinic switching - **COMPLETED** (added `TestClinicSwitchingEndpoints` class with 8 integration tests including rate limiting)
    - [x] Update fixtures to create `UserClinicAssociation` records - **COMPLETED** (using helper functions)
 
@@ -2300,9 +2300,9 @@ These queries need `clinic_id` added to the filter, but the table already has th
 - [x] Update models to add `clinic_id` to clinic-scoped tables (`PractitionerAvailability`, `CalendarEvent`, `PractitionerAppointmentTypes`)
 - [x] Update API endpoints to include `clinic_id` when creating clinic-scoped records
 - [x] Update signup flow to create `UserClinicAssociation` - **COMPLETED** (signup endpoint creates association)
-- [ ] Update all queries identified in Database Query Review section - **IN PROGRESS**
+- [x] Update all queries identified in Database Query Review section - **COMPLETED** (all queries updated for clinic isolation)
 - [x] Add new API endpoints (`/api/auth/clinics`, `/api/auth/switch-clinic`) - **COMPLETED**
-- [ ] Update signup flow for existing users (joining new clinic)
+- [x] Update signup flow for existing users (joining new clinic) - **COMPLETED** (endpoint `/api/signup/member/join-existing` implemented with 7 integration tests)
 - [x] Add error handling for all edge cases - **COMPLETED** (access denied, inactive clinic, inactive association, system admin rejection, idempotent handling)
 - [x] Add rate limiting to clinic switching endpoint - **COMPLETED** (10 switches per minute per user, in-memory sliding window)
 

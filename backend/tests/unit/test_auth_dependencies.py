@@ -24,9 +24,9 @@ class TestUserContext:
             user_type="system_admin",
             email="admin@example.com",
             roles=[],
-            clinic_id=None,
             google_subject_id="sub123",
-            name="Admin User"
+            name="Admin User",
+            active_clinic_id=None
         )
 
         assert context.is_system_admin() is True
@@ -40,9 +40,9 @@ class TestUserContext:
             user_type="clinic_user",
             email="user@example.com",
             roles=["admin", "practitioner"],
-            clinic_id=1,
             google_subject_id="sub456",
-            name="Clinic User"
+            name="Clinic User",
+            active_clinic_id=1
         )
 
         assert context.is_system_admin() is False
@@ -64,7 +64,7 @@ class TestGetTokenPayload:
             email="test@example.com",
             user_type="clinic_user",
             roles=["admin"],
-            clinic_id=1,
+            active_clinic_id=1,
             name="Test User"
         )
         mock_jwt_service.verify_token.return_value = mock_payload
@@ -114,7 +114,7 @@ class TestGetCurrentUser:
             email="admin@example.com",
             user_type="system_admin",
             roles=[],
-            clinic_id=None,
+            active_clinic_id=None,
             name="System Admin"
         )
 
@@ -146,7 +146,7 @@ class TestGetCurrentUser:
         assert result.email == "admin@example.com"
         assert result.is_system_admin() is True
         assert result.user_id == 1  # System admins now have user_id
-        assert result.clinic_id is None
+        assert result.active_clinic_id is None
 
     @patch('auth.dependencies.get_db')
     def test_clinic_user_valid(self, mock_get_db):
@@ -159,7 +159,7 @@ class TestGetCurrentUser:
             email="user@example.com",
             user_type="clinic_user",
             roles=["admin", "practitioner"],
-            clinic_id=1,
+            active_clinic_id=1,
             name="Clinic User"
         )
 
@@ -204,7 +204,6 @@ class TestGetCurrentUser:
         assert result.user_type == "clinic_user"
         assert result.email == "user@example.com"
         assert result.roles == ["admin", "practitioner"]  # From association
-        assert result.clinic_id == 1
         assert result.active_clinic_id == 1
         assert result.user_id == 1
         assert result.name == "Clinic User"  # From association
@@ -218,7 +217,7 @@ class TestGetCurrentUser:
             email="user@example.com",
             user_type="clinic_user",
             roles=["admin"],
-            clinic_id=1,
+            active_clinic_id=1,
             name="Clinic User"
         )
 
@@ -246,7 +245,7 @@ class TestGetCurrentUser:
             email="user@example.com",
             user_type="clinic_user",
             roles=["admin"],
-            clinic_id=1,  # Payload says clinic 1
+            active_clinic_id=1,  # Payload says clinic 1
             name="Clinic User"
         )
 
@@ -298,7 +297,7 @@ class TestGetCurrentUser:
             email="user@example.com",
             user_type="clinic_user",
             roles=["admin"],
-            clinic_id=1,
+            active_clinic_id=1,
             name="Clinic User"
         )
 
@@ -350,7 +349,7 @@ class TestGetCurrentUser:
             email="user@example.com",
             user_type="invalid_type",
             roles=[],
-            clinic_id=None,
+            active_clinic_id=None,
             name="Invalid User"
         )
 
@@ -378,7 +377,7 @@ class TestRoleRequirements:
             user_type="system_admin",
             email="admin@example.com",
             roles=[],
-            clinic_id=None,
+            active_clinic_id=None,
             google_subject_id="sub123",
             name="System Admin"
         )
@@ -392,7 +391,7 @@ class TestRoleRequirements:
             user_type="clinic_user",
             email="user@example.com",
             roles=["admin"],
-            clinic_id=1,
+            active_clinic_id=1,
             google_subject_id="sub456",
             name="Clinic User"
         )
@@ -409,7 +408,7 @@ class TestRoleRequirements:
             user_type="clinic_user",
             email="admin@example.com",
             roles=["admin", "practitioner"],
-            clinic_id=1,
+            active_clinic_id=1,
             google_subject_id="sub123",
             name="Admin User"
         )
@@ -423,7 +422,7 @@ class TestRoleRequirements:
             user_type="clinic_user",
             email="user@example.com",
             roles=["practitioner"],
-            clinic_id=1,
+            active_clinic_id=1,
             google_subject_id="sub456",
             name="Regular User"
         )
@@ -440,7 +439,7 @@ class TestRoleRequirements:
             user_type="clinic_user",
             email="user@example.com",
             roles=[],
-            clinic_id=1,
+            active_clinic_id=1,
             google_subject_id="sub123",
             name="Clinic User"
         )
@@ -454,7 +453,7 @@ class TestRoleRequirements:
             user_type="system_admin",
             email="admin@example.com",
             roles=[],
-            clinic_id=None,
+            active_clinic_id=None,
             google_subject_id="sub456",
             name="System Admin"
         )
@@ -468,7 +467,7 @@ class TestRoleRequirements:
             user_type="clinic_user",
             email="user@example.com",
             roles=["admin"],
-            clinic_id=1,
+            active_clinic_id=1,
             google_subject_id="sub123",
             name="Clinic User"
         )
@@ -482,7 +481,7 @@ class TestRoleRequirements:
             user_type="system_admin",
             email="admin@example.com",
             roles=[],
-            clinic_id=None,
+            active_clinic_id=None,
             google_subject_id="sub456",
             name="System Admin"
         )
@@ -503,7 +502,7 @@ class TestClinicAccess:
             user_type="clinic_user",
             email="user@example.com",
             roles=["admin"],
-            clinic_id=1,
+            active_clinic_id=1,
             google_subject_id="sub123",
             name="Clinic User",
             user_id=1
@@ -518,7 +517,7 @@ class TestClinicAccess:
             user_type="clinic_user",
             email="user@example.com",
             roles=["admin"],
-            clinic_id=1,
+            active_clinic_id=1,
             google_subject_id="sub123",
             name="Clinic User",
             user_id=1
@@ -536,7 +535,7 @@ class TestClinicAccess:
             user_type="clinic_user",
             email="user@example.com",
             roles=["admin"],
-            clinic_id=1,
+            active_clinic_id=1,
             google_subject_id="sub123",
             name="Clinic User",
             user_id=1

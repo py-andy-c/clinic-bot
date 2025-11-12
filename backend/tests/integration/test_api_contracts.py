@@ -68,7 +68,7 @@ def api_contract_client(db_session):
             user_type="clinic_user",
             email="test@example.com",
             roles=["admin", "practitioner"],
-            clinic_id=test_clinic.id,
+            active_clinic_id=test_clinic.id,
             google_subject_id="test_sub",
             name="Test Practitioner",
             user_id=test_user.id
@@ -83,7 +83,7 @@ def api_contract_client(db_session):
             user_type="system_admin",
             email="admin@test.com",
             roles=["admin"],
-            clinic_id=None,
+            active_clinic_id=None,
             google_subject_id="system_admin_123",
             name="System Admin"
         )
