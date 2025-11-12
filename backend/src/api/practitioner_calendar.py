@@ -20,7 +20,7 @@ from sqlalchemy import func
 logger = logging.getLogger(__name__)
 
 from core.database import get_db
-from auth.dependencies import require_authenticated, UserContext
+from auth.dependencies import require_authenticated, UserContext, ensure_clinic_access
 from models import (
     User,
     PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment
@@ -342,6 +342,9 @@ async def update_default_schedule(
         ).delete()
         
         # Create new availability records
+        # Ensure clinic_id is not None (this endpoint is for clinic users only)
+        clinic_id = ensure_clinic_access(current_user)
+        
         for day_name in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']:
             intervals = getattr(schedule_data, day_name)
             day_of_week = _get_day_of_week(day_name)
@@ -349,6 +352,7 @@ async def update_default_schedule(
             for interval in intervals:
                 availability = PractitionerAvailability(
                     user_id=user_id,
+                    clinic_id=clinic_id,
                     day_of_week=day_of_week,
                     start_time=_parse_time(interval.start_time),
                     end_time=_parse_time(interval.end_time)
@@ -595,17 +599,13 @@ async def get_available_slots(
         AppointmentTypeService.get_appointment_type_by_id(db, appointment_type_id)
         
         # Get available slots using service
-        if current_user.clinic_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Clinic ID is required"
-            )
+        clinic_id = ensure_clinic_access(current_user)
         slots_data = AvailabilityService.get_available_slots_for_practitioner(
             db=db,
             practitioner_id=user_id,
             date=date,
             appointment_type_id=appointment_type_id,
-            clinic_id=current_user.clinic_id
+            clinic_id=clinic_id
         )
 
         # Strip practitioner info for response (not needed since it's always same practitioner)
@@ -703,6 +703,7 @@ async def create_availability_exception(
         # Create calendar event
         calendar_event = CalendarEvent(
             user_id=user_id,
+            clinic_id=current_user.clinic_id,
             event_type='availability_exception',
             date=target_date,
             start_time=_parse_time(exception_data.start_time) if exception_data.start_time else None,

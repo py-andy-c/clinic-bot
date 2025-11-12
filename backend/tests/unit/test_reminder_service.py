@@ -17,6 +17,7 @@ from models.user import User
 from models.appointment_type import AppointmentType
 from services.reminder_service import ReminderService
 from utils.datetime_utils import taiwan_now, ensure_taiwan
+from tests.conftest import create_calendar_event_with_clinic
 
 
 class TestReminderServiceDuplicatePrevention:
@@ -67,14 +68,13 @@ class TestReminderServiceDuplicatePrevention:
         appointment_time = current_time + timedelta(hours=24)
 
         # Appointment 1: Already has reminder sent
-        calendar_event1 = CalendarEvent(
-            user_id=user.id,
+        calendar_event1 = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=appointment_time.date(),
+            event_date=appointment_time.date(),
             start_time=appointment_time.time(),
             end_time=(appointment_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event1)
         db_session.flush()
 
         appointment1 = Appointment(
@@ -88,14 +88,13 @@ class TestReminderServiceDuplicatePrevention:
         db_session.flush()
 
         # Appointment 2: No reminder sent yet
-        calendar_event2 = CalendarEvent(
-            user_id=user.id,
+        calendar_event2 = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=appointment_time.date(),
+            event_date=appointment_time.date(),
             start_time=appointment_time.time(),
             end_time=(appointment_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event2)
         db_session.flush()
 
         appointment2 = Appointment(
@@ -187,14 +186,13 @@ class TestReminderServiceDuplicatePrevention:
         current_time = taiwan_now()
         appointment_time = current_time + timedelta(hours=24)
 
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=appointment_time.date(),
+            event_date=appointment_time.date(),
             start_time=appointment_time.time(),
             end_time=(appointment_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(
@@ -283,14 +281,13 @@ class TestReminderServiceDuplicatePrevention:
         current_time = taiwan_now()
         appointment_time = current_time + timedelta(hours=24)
 
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=appointment_time.date(),
+            event_date=appointment_time.date(),
             start_time=appointment_time.time(),
             end_time=(appointment_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(
@@ -379,14 +376,13 @@ class TestReminderServiceDuplicatePrevention:
         current_time = taiwan_now()
         appointment_time = current_time + timedelta(hours=24)
 
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=appointment_time.date(),
+            event_date=appointment_time.date(),
             start_time=appointment_time.time(),
             end_time=(appointment_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(
@@ -494,14 +490,13 @@ class TestReminderServiceWindowBoundaries:
         # Create appointments at window boundaries (using REMINDER_WINDOW_SIZE_MINUTES)
         # Appointment 1: At exact start boundary (reminder_time - REMINDER_WINDOW_SIZE_MINUTES)
         boundary_start_time = reminder_time - timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
-        calendar_event1 = CalendarEvent(
-            user_id=user.id,
+        calendar_event1 = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=boundary_start_time.date(),
+            event_date=boundary_start_time.date(),
             start_time=boundary_start_time.time(),
             end_time=(boundary_start_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event1)
         db_session.flush()
 
         appointment1 = Appointment(
@@ -516,14 +511,13 @@ class TestReminderServiceWindowBoundaries:
 
         # Appointment 2: At exact end boundary (reminder_time + REMINDER_WINDOW_SIZE_MINUTES)
         boundary_end_time = reminder_time + timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES)
-        calendar_event2 = CalendarEvent(
-            user_id=user.id,
+        calendar_event2 = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=boundary_end_time.date(),
+            event_date=boundary_end_time.date(),
             start_time=boundary_end_time.time(),
             end_time=(boundary_end_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event2)
         db_session.flush()
 
         appointment2 = Appointment(
@@ -538,14 +532,13 @@ class TestReminderServiceWindowBoundaries:
 
         # Appointment 3: Just outside start boundary (reminder_time - REMINDER_WINDOW_SIZE_MINUTES - 1)
         outside_start_time = reminder_time - timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES + 1)
-        calendar_event3 = CalendarEvent(
-            user_id=user.id,
+        calendar_event3 = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=outside_start_time.date(),
+            event_date=outside_start_time.date(),
             start_time=outside_start_time.time(),
             end_time=(outside_start_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event3)
         db_session.flush()
 
         appointment3 = Appointment(
@@ -560,14 +553,13 @@ class TestReminderServiceWindowBoundaries:
 
         # Appointment 4: Just outside end boundary (reminder_time + REMINDER_WINDOW_SIZE_MINUTES + 1)
         outside_end_time = reminder_time + timedelta(minutes=REMINDER_WINDOW_SIZE_MINUTES + 1)
-        calendar_event4 = CalendarEvent(
-            user_id=user.id,
+        calendar_event4 = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=outside_end_time.date(),
+            event_date=outside_end_time.date(),
             start_time=outside_end_time.time(),
             end_time=(outside_end_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event4)
         db_session.flush()
 
         appointment4 = Appointment(
@@ -688,14 +680,13 @@ class TestReminderServiceWindowBoundaries:
         # duplicate reminders. This test verifies that once a reminder is sent, it
         # won't be sent again even if the appointment falls in multiple windows.
         overlap_time = reminder_time - timedelta(minutes=30)  # In overlap zone
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=overlap_time.date(),
+            event_date=overlap_time.date(),
             start_time=overlap_time.time(),
             end_time=(overlap_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(
@@ -823,14 +814,13 @@ class TestReminderServiceCatchUp:
         current_time = taiwan_now()
         appointment_time = current_time + timedelta(hours=12)
         
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=appointment_time.date(),
+            event_date=appointment_time.date(),
             start_time=appointment_time.time(),
             end_time=(appointment_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(
@@ -920,14 +910,13 @@ class TestReminderServiceCatchUp:
         current_time = taiwan_now()
         appointment_time = current_time - timedelta(hours=1)  # Past appointment
         
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=appointment_time.date(),
+            event_date=appointment_time.date(),
             start_time=appointment_time.time(),
             end_time=(appointment_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(
@@ -1029,14 +1018,13 @@ class TestReminderServiceCatchUp:
         current_time = taiwan_now()
         appointment_time = current_time + timedelta(hours=36)
         
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=appointment_time.date(),
+            event_date=appointment_time.date(),
             start_time=appointment_time.time(),
             end_time=(appointment_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(
@@ -1134,14 +1122,13 @@ class TestReminderServiceRescheduling:
         current_time = taiwan_now()
         original_appointment_time = current_time + timedelta(hours=48)
         
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=original_appointment_time.date(),
+            event_date=original_appointment_time.date(),
             start_time=original_appointment_time.time(),
             end_time=(original_appointment_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(
@@ -1213,14 +1200,13 @@ class TestReminderServiceRescheduling:
         current_time = taiwan_now()
         original_appointment_time = current_time + timedelta(hours=48)
         
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=original_appointment_time.date(),
+            event_date=original_appointment_time.date(),
             start_time=original_appointment_time.time(),
             end_time=(original_appointment_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(
@@ -1291,14 +1277,13 @@ class TestReminderServiceRescheduling:
         current_time = taiwan_now()
         original_appointment_time = current_time + timedelta(hours=48)
         
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=original_appointment_time.date(),
+            event_date=original_appointment_time.date(),
             start_time=original_appointment_time.time(),
             end_time=(original_appointment_time + timedelta(minutes=60)).time()
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(

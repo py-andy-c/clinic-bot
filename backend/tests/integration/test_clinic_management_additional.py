@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from main import app
 from core.database import get_db
 from models import Clinic, User, Patient, AppointmentType, Appointment, CalendarEvent, PractitionerAppointmentTypes
+from tests.conftest import create_calendar_event_with_clinic
 
 
 @pytest.fixture
@@ -115,14 +116,13 @@ class TestSettingsDestructiveUpdate:
         end = start + timedelta(minutes=60)
 
         # Create CalendarEvent first
-        calendar_event = CalendarEvent(
-            user_id=pract.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, pract, c,
             event_type='appointment',
-            date=start.date(),
+            event_date=start.date(),
             start_time=start.time(),
-            end_time=end.time(),
+            end_time=end.time()
         )
-        db_session.add(calendar_event)
         db_session.commit()
 
         appt = Appointment(
@@ -176,6 +176,7 @@ class TestAppointmentTypeDeletionPrevention:
         # Associate practitioner with appointment type
         pat = PractitionerAppointmentTypes(
             user_id=pract.id,
+            clinic_id=c.id,
             appointment_type_id=at1.id
         )
         db_session.add(pat)
@@ -267,8 +268,8 @@ class TestAppointmentTypeDeletionPrevention:
         db_session.commit()
 
         # Associate both practitioners with appointment type
-        pat1 = PractitionerAppointmentTypes(user_id=pract.id, appointment_type_id=at1.id)
-        pat2 = PractitionerAppointmentTypes(user_id=pract2.id, appointment_type_id=at1.id)
+        pat1 = PractitionerAppointmentTypes(user_id=pract.id, clinic_id=c.id, appointment_type_id=at1.id)
+        pat2 = PractitionerAppointmentTypes(user_id=pract2.id, clinic_id=c.id, appointment_type_id=at1.id)
         db_session.add_all([pat1, pat2])
         db_session.commit()
 
@@ -306,7 +307,7 @@ class TestAppointmentTypeDeletionPrevention:
         db_session.commit()
 
         # Associate practitioner only with at1
-        pat = PractitionerAppointmentTypes(user_id=pract.id, appointment_type_id=at1.id)
+        pat = PractitionerAppointmentTypes(user_id=pract.id, clinic_id=c.id, appointment_type_id=at1.id)
         db_session.add(pat)
         db_session.commit()
 
@@ -350,6 +351,7 @@ class TestAppointmentTypeDeletionValidation:
         # Associate practitioner with appointment type
         pat = PractitionerAppointmentTypes(
             user_id=pract.id,
+            clinic_id=c.id,
             appointment_type_id=at1.id
         )
         db_session.add(pat)
@@ -414,6 +416,7 @@ class TestAppointmentTypeDeletionValidation:
         # Associate practitioner only with at1
         pat = PractitionerAppointmentTypes(
             user_id=pract.id,
+            clinic_id=c.id,
             appointment_type_id=at1.id
         )
         db_session.add(pat)

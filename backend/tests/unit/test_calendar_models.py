@@ -10,6 +10,7 @@ from datetime import date, time, datetime
 from sqlalchemy.exc import IntegrityError
 
 from models import CalendarEvent, AvailabilityException, Appointment, User, Clinic, AppointmentType, Patient
+from tests.conftest import create_calendar_event_with_clinic
 
 
 class TestCalendarEvent:
@@ -38,14 +39,13 @@ class TestCalendarEvent:
         db_session.flush()
 
         # Create calendar event
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(10, 0),
             end_time=time(11, 0)
         )
-        db_session.add(calendar_event)
         db_session.commit()
 
         assert calendar_event.id is not None
@@ -78,14 +78,13 @@ class TestCalendarEvent:
         db_session.flush()
 
         # Create all-day calendar event
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="availability_exception",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=None,
             end_time=None
         )
-        db_session.add(calendar_event)
         db_session.commit()
 
         assert calendar_event.is_all_day is True
@@ -114,14 +113,13 @@ class TestCalendarEvent:
         db_session.flush()
 
         # Create calendar event
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(10, 0),
             end_time=time(11, 30)
         )
-        db_session.add(calendar_event)
         db_session.commit()
 
         assert calendar_event.duration_minutes == 90
@@ -149,14 +147,13 @@ class TestCalendarEvent:
         db_session.flush()
 
         # Try to create calendar event with invalid event type
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="invalid_type",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(10, 0),
             end_time=time(11, 0)
         )
-        db_session.add(calendar_event)
 
         with pytest.raises(IntegrityError):
             db_session.commit()
@@ -184,14 +181,13 @@ class TestCalendarEvent:
         db_session.flush()
 
         # Try to create calendar event with zero duration (start = end)
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(11, 0),
             end_time=time(11, 0)  # Same as start time
         )
-        db_session.add(calendar_event)
 
         with pytest.raises(IntegrityError):
             db_session.commit()
@@ -223,14 +219,13 @@ class TestAvailabilityException:
         db_session.flush()
 
         # Create calendar event
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="availability_exception",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(14, 0),
             end_time=time(18, 0)
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         # Create availability exception
@@ -270,14 +265,13 @@ class TestAvailabilityException:
         db_session.flush()
 
         # Create calendar event
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="availability_exception",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(14, 0),
             end_time=time(18, 0)
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         # Create availability exception
@@ -344,15 +338,13 @@ class TestAppointmentWithCalendarEvent:
         db_session.flush()
 
         # Create calendar event
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(10, 0),
-            end_time=time(11, 0),
-
+            end_time=time(11, 0)
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         # Create appointment
@@ -417,14 +409,13 @@ class TestAppointmentWithCalendarEvent:
         db_session.flush()
 
         # Create calendar event
-        calendar_event = CalendarEvent(
-            user_id=user.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
             event_type="appointment",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(10, 0),
             end_time=time(11, 0)
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         # Create appointment

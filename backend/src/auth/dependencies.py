@@ -263,6 +263,33 @@ def require_practitioner_or_admin(user: UserContext = Depends(get_current_user))
 # # Use: require_role("practitioner") or require_role("admin")
 
 
+def ensure_clinic_access(user: UserContext) -> int:
+    """
+    Ensure user has clinic access and return clinic_id.
+    
+    Raises HTTPException if user doesn't have clinic_id set.
+    This is a helper function to avoid repeating the same check.
+    
+    NOTE: Currently uses deprecated `user.clinic_id`. This will be updated
+    to use `user.active_clinic_id` from UserClinicAssociation in the future.
+    
+    Args:
+        user: UserContext to check
+        
+    Returns:
+        int: The clinic_id
+        
+    Raises:
+        HTTPException: If user doesn't have clinic access
+    """
+    if user.clinic_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="需要診所存取權限"
+        )
+    return user.clinic_id
+
+
 # Clinic isolation enforcement
 def require_clinic_access(
     user: UserContext = Depends(require_clinic_user),

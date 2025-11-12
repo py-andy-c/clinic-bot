@@ -17,6 +17,7 @@ from models.user import User
 # Test client for API calls
 client = TestClient(app)
 from models.clinic import Clinic
+from tests.conftest import create_user_with_clinic_association
 from models.patient import Patient
 from models.appointment import Appointment
 from models.appointment_type import AppointmentType
@@ -28,6 +29,10 @@ from models.practitioner_availability import PractitionerAvailability
 @pytest.fixture
 def test_clinic_with_therapist(db_session):
     """Create a test clinic with a therapist and appointment types."""
+    from tests.conftest import create_user_with_clinic_association
+    from models.practitioner_availability import PractitionerAvailability
+    from datetime import time
+    
     clinic = Clinic(
         name="Test Clinic",
         line_channel_id="test_channel_123",
@@ -37,16 +42,16 @@ def test_clinic_with_therapist(db_session):
     db_session.add(clinic)
     db_session.commit()  # Commit clinic first to get ID
 
-    therapist = User(
-        clinic_id=clinic.id,
+    # Create therapist with clinic association
+    therapist, _ = create_user_with_clinic_association(
+        db_session=db_session,
+        clinic=clinic,
         full_name="Dr. Test",
         email="dr.test@example.com",
         google_subject_id="therapist_sub_123",
         roles=["practitioner"],
         is_active=True
     )
-    db_session.add(therapist)
-    db_session.commit()  # Commit therapist to get ID
 
     # Create appointment types
     appointment_types = [
@@ -63,12 +68,12 @@ def test_clinic_with_therapist(db_session):
     ]
 
     # Create practitioner availability for Monday-Friday, 9am-5pm
-    from datetime import time
     availability_records = []
     for day in range(5):  # Monday to Friday
         availability_records.append(
             PractitionerAvailability(
                 user_id=therapist.id,
+                clinic_id=clinic.id,
                 day_of_week=day,
                 start_time=time(9, 0),  # 9:00 AM
                 end_time=time(17, 0)    # 5:00 PM
@@ -326,6 +331,7 @@ class TestAppointmentLifecycleIntegration:
         # Create CalendarEvent first
         original_calendar_event = CalendarEvent(
             user_id=therapist.id,
+            clinic_id=clinic.id,
             event_type='appointment',
             date=original_start.date(),
             start_time=original_start.time(),
@@ -392,6 +398,7 @@ class TestAppointmentLifecycleIntegration:
         # Create CalendarEvent first
         calendar_event = CalendarEvent(
             user_id=therapist.id,
+            clinic_id=clinic.id,
             event_type='appointment',
             date=start_time.date(),
             start_time=start_time.time(),
@@ -437,23 +444,23 @@ class TestClinicAppointmentManagement:
         """Test that clinic admin can cancel appointments."""
         clinic, therapist, appointment_types = test_clinic_with_therapist
 
-        # Create admin user
-        admin = User(
-            clinic_id=clinic.id,
+        # Create admin user with clinic association
+        admin, _ = create_user_with_clinic_association(
+            db_session=db_session,
+            clinic=clinic,
             full_name="Admin User",
             email="admin@example.com",
             google_subject_id="admin_google_sub_123",
             roles=["admin"],
             is_active=True
         )
-        db_session.add(admin)
-        db_session.commit()
 
         # Create an appointment
         start_time = datetime.now() + timedelta(days=1)
         end_time = start_time + timedelta(hours=1)
         calendar_event = CalendarEvent(
             user_id=therapist.id,
+            clinic_id=clinic.id,
             event_type="appointment",
             date=start_time.date(),
             start_time=start_time.time(),
@@ -516,17 +523,16 @@ class TestClinicAppointmentManagement:
         """Test cancelling a non-existent appointment."""
         clinic, _, _ = test_clinic_with_therapist
 
-        # Create admin user
-        admin = User(
-            clinic_id=clinic.id,
+        # Create admin user with clinic association
+        admin, _ = create_user_with_clinic_association(
+            db_session=db_session,
+            clinic=clinic,
             full_name="Admin User",
             email="admin@example.com",
             google_subject_id="admin_google_sub_123",
             roles=["admin"],
             is_active=True
         )
-        db_session.add(admin)
-        db_session.commit()
 
         # Override dependencies for testing
         from auth.dependencies import get_current_user
@@ -560,23 +566,23 @@ class TestClinicAppointmentManagement:
         """Test cancelling an already cancelled appointment."""
         clinic, therapist, appointment_types = test_clinic_with_therapist
 
-        # Create admin user
-        admin = User(
-            clinic_id=clinic.id,
+        # Create admin user with clinic association
+        admin, _ = create_user_with_clinic_association(
+            db_session=db_session,
+            clinic=clinic,
             full_name="Admin User",
             email="admin@example.com",
             google_subject_id="admin_google_sub_123",
             roles=["admin"],
             is_active=True
         )
-        db_session.add(admin)
-        db_session.commit()
 
         # Create a cancelled appointment
         start_time = datetime.now() + timedelta(days=1)
         end_time = start_time + timedelta(hours=1)
         calendar_event = CalendarEvent(
             user_id=therapist.id,
+            clinic_id=clinic.id,
             event_type="appointment",
             date=start_time.date(),
             start_time=start_time.time(),
@@ -646,6 +652,7 @@ class TestClinicAppointmentManagement:
         end_time = start_time + timedelta(hours=1)
         calendar_event = CalendarEvent(
             user_id=therapist.id,
+            clinic_id=clinic.id,
             event_type="appointment",
             date=start_time.date(),
             start_time=start_time.time(),
@@ -700,6 +707,7 @@ class TestClinicAppointmentManagement:
         end_time = start_time + timedelta(hours=1)
         calendar_event = CalendarEvent(
             user_id=therapist.id,
+            clinic_id=clinic.id,
             event_type="appointment",
             date=start_time.date(),
             start_time=start_time.time(),
@@ -772,6 +780,7 @@ class TestPractitionerAppointmentTypes:
         # Associate therapist with first appointment type
         pat1 = PractitionerAppointmentTypes(
             user_id=therapist.id,
+            clinic_id=clinic.id,
             appointment_type_id=appointment_types[0].id
         )
         db_session.add(pat1)
@@ -940,6 +949,7 @@ class TestPractitionerAppointmentTypes:
 
         pat1 = PractitionerAppointmentTypes(
             user_id=therapist.id,
+            clinic_id=clinic.id,
             appointment_type_id=appointment_types[0].id
         )
         db_session.add(pat1)

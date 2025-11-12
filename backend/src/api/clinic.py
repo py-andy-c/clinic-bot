@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 from core.database import get_db
 from core.config import FRONTEND_URL
-from auth.dependencies import require_admin_role, require_authenticated, require_practitioner_or_admin, UserContext
+from auth.dependencies import require_admin_role, require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
 from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent
 from models.clinic import ClinicSettings
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
@@ -442,14 +442,7 @@ async def get_settings(
 
         # require_authenticated ensures clinic_user or system_admin
         # For clinic members, clinic_id should be set
-        # Type narrowing for clinic_id
-        clinic_id: int
-        if current_user.clinic_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="需要診所存取權限"
-            )
-        clinic_id = current_user.clinic_id
+        clinic_id = ensure_clinic_access(current_user)
         
         appointment_types = AppointmentTypeService.list_appointment_types_for_clinic(
             db, clinic_id
@@ -528,12 +521,7 @@ async def validate_appointment_type_deletion(
     """
     try:
         # Ensure clinic_id is set
-        if current_user.clinic_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="需要診所存取權限"
-            )
-        clinic_id = current_user.clinic_id
+        clinic_id = ensure_clinic_access(current_user)
 
         # Check for practitioner references
         blocked_types: List[Dict[str, Any]] = []
@@ -639,12 +627,7 @@ async def update_settings(
     """
     try:
         # Ensure clinic_id is set
-        if current_user.clinic_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="需要診所存取權限"
-            )
-        clinic_id = current_user.clinic_id
+        clinic_id = ensure_clinic_access(current_user)
 
         # Update appointment types
         appointment_types_data = settings.get("appointment_types", [])
@@ -1086,6 +1069,7 @@ async def create_practitioner_availability(
         # Create availability
         availability = PractitionerAvailability(
             user_id=user_id,
+            clinic_id=current_user.clinic_id,
             day_of_week=availability_data.day_of_week,
             start_time=start_time,
             end_time=end_time
@@ -1488,10 +1472,14 @@ async def update_practitioner_appointment_types(
                 )
 
         # Update the practitioner's appointment types
+        # Ensure clinic_id is not None (this endpoint is for clinic users only)
+        clinic_id = ensure_clinic_access(current_user)
+        
         success = PractitionerService.update_practitioner_appointment_types(
             db=db,
             practitioner_id=user_id,
-            appointment_type_ids=request.appointment_type_ids
+            appointment_type_ids=request.appointment_type_ids,
+            clinic_id=clinic_id
         )
 
         if success:

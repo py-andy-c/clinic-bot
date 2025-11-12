@@ -232,7 +232,8 @@ class PractitionerService:
     def update_practitioner_appointment_types(
         db: Session,
         practitioner_id: int,
-        appointment_type_ids: List[int]
+        appointment_type_ids: List[int],
+        clinic_id: int
     ) -> bool:
         """
         Update the appointment types offered by a practitioner.
@@ -241,6 +242,7 @@ class PractitionerService:
             db: Database session
             practitioner_id: Practitioner user ID
             appointment_type_ids: List of appointment type IDs to offer
+            clinic_id: Clinic ID for clinic isolation
 
         Returns:
             True if successful, False otherwise
@@ -248,13 +250,15 @@ class PractitionerService:
         try:
             # Remove existing associations
             db.query(PractitionerAppointmentTypes).filter(
-                PractitionerAppointmentTypes.user_id == practitioner_id
+                PractitionerAppointmentTypes.user_id == practitioner_id,
+                PractitionerAppointmentTypes.clinic_id == clinic_id
             ).delete()
 
             # Add new associations
             for type_id in appointment_type_ids:
                 association = PractitionerAppointmentTypes(
                     user_id=practitioner_id,
+                    clinic_id=clinic_id,
                     appointment_type_id=type_id
                 )
                 db.add(association)

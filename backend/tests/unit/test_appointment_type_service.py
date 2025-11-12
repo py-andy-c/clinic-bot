@@ -298,6 +298,7 @@ class TestAppointmentTypeService:
         # Active practitioner with first appointment type
         pat1 = PractitionerAppointmentTypes(
             user_id=active_practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type_with_practitioner.id
         )
         db_session.add(pat1)
@@ -305,6 +306,7 @@ class TestAppointmentTypeService:
         # Inactive practitioner with third appointment type
         pat2 = PractitionerAppointmentTypes(
             user_id=inactive_practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type_with_inactive_practitioner.id
         )
         db_session.add(pat2)

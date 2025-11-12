@@ -10,6 +10,7 @@ from models.user import User
 from models.clinic import Clinic
 from models.practitioner_availability import PractitionerAvailability
 from main import app
+from tests.conftest import create_user_with_clinic_association, get_user_clinic_id
 
 
 @pytest.fixture
@@ -43,49 +44,46 @@ def test_clinic(db_session: Session):
 
 @pytest.fixture
 def test_admin(db_session: Session, test_clinic):
-    """Create a test admin user."""
-    admin = User(
-        clinic_id=test_clinic.id,
+    """Create a test admin user with clinic association."""
+    admin, _ = create_user_with_clinic_association(
+        db_session=db_session,
+        clinic=test_clinic,
         full_name="Test Admin",
         email="admin@testclinic.com",
         google_subject_id="admin_sub_123",
         roles=["admin"],
         is_active=True
     )
-    db_session.add(admin)
-    db_session.commit()
     return admin
 
 
 @pytest.fixture
 def test_practitioner(db_session: Session, test_clinic):
-    """Create a test practitioner."""
-    practitioner = User(
-        clinic_id=test_clinic.id,
+    """Create a test practitioner with clinic association."""
+    practitioner, _ = create_user_with_clinic_association(
+        db_session=db_session,
+        clinic=test_clinic,
         full_name="Test Practitioner",
         email="practitioner@testclinic.com",
         google_subject_id="practitioner_sub_123",
         roles=["practitioner"],
         is_active=True
     )
-    db_session.add(practitioner)
-    db_session.commit()
     return practitioner
 
 
 @pytest.fixture
 def test_practitioner2(db_session: Session, test_clinic):
-    """Create a second test practitioner."""
-    practitioner = User(
-        clinic_id=test_clinic.id,
+    """Create a second test practitioner with clinic association."""
+    practitioner, _ = create_user_with_clinic_association(
+        db_session=db_session,
+        clinic=test_clinic,
         full_name="Test Practitioner 2",
         email="practitioner2@testclinic.com",
         google_subject_id="practitioner2_sub_123",
         roles=["practitioner"],
         is_active=True
     )
-    db_session.add(practitioner)
-    db_session.commit()
     return practitioner
 
 
@@ -97,6 +95,7 @@ class TestPractitionerAvailability:
         # Create some availability data
         availability = PractitionerAvailability(
             user_id=test_practitioner.id,
+            clinic_id=test_clinic.id,
             day_of_week=1,  # Tuesday
             start_time=time(9, 0),
             end_time=time(17, 0)
@@ -127,6 +126,7 @@ class TestPractitionerAvailability:
         # Create some availability data
         availability = PractitionerAvailability(
             user_id=test_practitioner.id,
+            clinic_id=test_clinic.id,
             day_of_week=1,  # Tuesday
             start_time=time(9, 0),
             end_time=time(17, 0)
@@ -155,6 +155,7 @@ class TestPractitionerAvailability:
         # Create availability for practitioner2
         availability = PractitionerAvailability(
             user_id=test_practitioner2.id,
+            clinic_id=test_clinic.id,
             day_of_week=1,  # Tuesday
             start_time=time(9, 0),
             end_time=time(17, 0)
@@ -245,6 +246,7 @@ class TestPractitionerAvailability:
         # Create initial availability
         availability = PractitionerAvailability(
             user_id=test_practitioner.id,
+            clinic_id=test_clinic.id,
             day_of_week=1,  # Tuesday
             start_time=time(9, 0),
             end_time=time(17, 0)
@@ -295,6 +297,7 @@ class TestPractitionerAvailability:
         # Create initial availability
         availability = PractitionerAvailability(
             user_id=test_practitioner.id,
+            clinic_id=test_clinic.id,
             day_of_week=1,  # Tuesday
             start_time=time(9, 0),
             end_time=time(17, 0)
@@ -331,6 +334,7 @@ class TestPractitionerAvailability:
         # Create availability
         availability = PractitionerAvailability(
             user_id=test_practitioner.id,
+            clinic_id=test_clinic.id,
             day_of_week=1,  # Tuesday
             start_time=time(9, 0),
             end_time=time(17, 0)

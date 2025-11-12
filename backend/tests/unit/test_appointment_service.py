@@ -20,6 +20,7 @@ from models import (
 from services.appointment_service import AppointmentService
 from services.patient_service import PatientService
 from utils.datetime_utils import taiwan_now, TAIWAN_TZ
+from tests.conftest import create_calendar_event_with_clinic
 
 
 class TestAppointmentServiceListAppointments:
@@ -82,14 +83,13 @@ class TestAppointmentServiceListAppointments:
 
         for i in range(3):
             start_hour = 10 + i
-            calendar_event = CalendarEvent(
-                user_id=practitioner.id,
+            calendar_event = create_calendar_event_with_clinic(
+                db_session, practitioner, clinic,
                 event_type="appointment",
-                date=tomorrow,
+                event_date=tomorrow,
                 start_time=time(start_hour, 0),
                 end_time=time(start_hour, 30)
             )
-            db_session.add(calendar_event)
             db_session.flush()
 
             appointment = Appointment(
@@ -164,14 +164,13 @@ class TestAppointmentServiceListAppointments:
 
         # Create appointment
         today = taiwan_now().date()
-        calendar_event = CalendarEvent(
-            user_id=practitioner.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=today,
+            event_date=today,
             start_time=time(10, 0),
             end_time=time(10, 30)
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(
@@ -242,14 +241,13 @@ class TestAppointmentServiceListAppointments:
 
         # Create past appointment
         yesterday = (taiwan_now() - timedelta(days=1)).date()
-        past_event = CalendarEvent(
-            user_id=practitioner.id,
+        past_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=yesterday,
+            event_date=yesterday,
             start_time=time(10, 0),
             end_time=time(10, 30)
         )
-        db_session.add(past_event)
         db_session.flush()
         past_appt = Appointment(
             calendar_event_id=past_event.id,
@@ -261,14 +259,13 @@ class TestAppointmentServiceListAppointments:
 
         # Create future appointment
         tomorrow = (taiwan_now() + timedelta(days=1)).date()
-        future_event = CalendarEvent(
-            user_id=practitioner.id,
+        future_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=tomorrow,
+            event_date=tomorrow,
             start_time=time(10, 0),
             end_time=time(10, 30)
         )
-        db_session.add(future_event)
         db_session.flush()
         future_appt = Appointment(
             calendar_event_id=future_event.id,
@@ -344,6 +341,7 @@ class TestAppointmentServiceLoadBalancing:
         for practitioner in [practitioner1, practitioner2]:
             pat = PractitionerAppointmentTypes(
                 user_id=practitioner.id,
+                clinic_id=clinic.id,
                 appointment_type_id=appt_type.id
             )
             db_session.add(pat)
@@ -355,6 +353,7 @@ class TestAppointmentServiceLoadBalancing:
         for practitioner in [practitioner1, practitioner2]:
             availability = PractitionerAvailability(
                 user_id=practitioner.id,
+                clinic_id=clinic.id,
                 day_of_week=day_of_week,
                 start_time=time(9, 0),
                 end_time=time(17, 0)
@@ -372,14 +371,13 @@ class TestAppointmentServiceLoadBalancing:
 
         for i in range(2):
             start_hour = 10 + i
-            event = CalendarEvent(
-                user_id=practitioner1.id,
+            event = create_calendar_event_with_clinic(
+                db_session, practitioner1, clinic,
                 event_type="appointment",
-                date=tomorrow,
+                event_date=tomorrow,
                 start_time=time(start_hour, 0),
                 end_time=time(start_hour, 30)
             )
-            db_session.add(event)
             db_session.flush()
             appointment = Appointment(
                 calendar_event_id=event.id,
@@ -445,6 +443,7 @@ class TestAppointmentServiceEdgeCases:
 
         pat = PractitionerAppointmentTypes(
             user_id=practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type.id
         )
         db_session.add(pat)
@@ -452,6 +451,7 @@ class TestAppointmentServiceEdgeCases:
         tomorrow = (taiwan_now() + timedelta(days=1)).date()
         availability = PractitionerAvailability(
             user_id=practitioner.id,
+            clinic_id=clinic.id,
             day_of_week=tomorrow.weekday(),
             start_time=time(9, 0),
             end_time=time(17, 0)
@@ -607,14 +607,13 @@ class TestAppointmentServiceTaiwanTimezone:
         future_minute = 0
 
         # Create appointment today at future time
-        today_event = CalendarEvent(
-            user_id=practitioner.id,
+        today_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=today,
+            event_date=today,
             start_time=time(future_hour, future_minute),
             end_time=time(future_hour, future_minute + 30)
         )
-        db_session.add(today_event)
         db_session.flush()
         today_appt = Appointment(
             calendar_event_id=today_event.id,
@@ -626,14 +625,13 @@ class TestAppointmentServiceTaiwanTimezone:
 
         # Create appointment for tomorrow
         tomorrow = (taiwan_current + timedelta(days=1)).date()
-        tomorrow_event = CalendarEvent(
-            user_id=practitioner.id,
+        tomorrow_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=tomorrow,
+            event_date=tomorrow,
             start_time=time(10, 0),
             end_time=time(10, 30)
         )
-        db_session.add(tomorrow_event)
         db_session.flush()
         tomorrow_appt = Appointment(
             calendar_event_id=tomorrow_event.id,
@@ -645,14 +643,13 @@ class TestAppointmentServiceTaiwanTimezone:
 
         # Create past appointment
         yesterday = (taiwan_current - timedelta(days=1)).date()
-        past_event = CalendarEvent(
-            user_id=practitioner.id,
+        past_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=yesterday,
+            event_date=yesterday,
             start_time=time(10, 0),
             end_time=time(10, 30)
         )
-        db_session.add(past_event)
         db_session.flush()
         past_appt = Appointment(
             calendar_event_id=past_event.id,
@@ -732,14 +729,13 @@ class TestAppointmentServiceTaiwanTimezone:
 
         # Create appointment
         tomorrow = (taiwan_now() + timedelta(days=1)).date()
-        event = CalendarEvent(
-            user_id=practitioner.id,
+        event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=tomorrow,
+            event_date=tomorrow,
             start_time=time(10, 0),
             end_time=time(10, 30)
         )
-        db_session.add(event)
         db_session.flush()
         appointment = Appointment(
             calendar_event_id=event.id,
@@ -806,6 +802,7 @@ class TestAppointmentServiceTaiwanTimezone:
 
         pat = PractitionerAppointmentTypes(
             user_id=practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type.id
         )
         db_session.add(pat)
@@ -813,6 +810,7 @@ class TestAppointmentServiceTaiwanTimezone:
         tomorrow = (taiwan_now() + timedelta(days=1)).date()
         availability = PractitionerAvailability(
             user_id=practitioner.id,
+            clinic_id=clinic.id,
             day_of_week=tomorrow.weekday(),
             start_time=time(9, 0),
             end_time=time(17, 0)

@@ -19,6 +19,11 @@ from models import (
 from services.appointment_service import AppointmentService
 from services.appointment_type_service import AppointmentTypeService
 from utils.datetime_utils import taiwan_now
+from tests.conftest import (
+    create_practitioner_availability_with_clinic,
+    create_calendar_event_with_clinic,
+    create_user_with_clinic_association
+)
 
 
 class TestAppointmentServiceIntegration:
@@ -38,15 +43,16 @@ class TestAppointmentServiceIntegration:
         db_session.add(clinic)
         db_session.commit()
 
-        # Create practitioner
-        practitioner = User(
-            clinic_id=clinic.id,
+        # Create practitioner with clinic association
+        practitioner, _ = create_user_with_clinic_association(
+            db_session=db_session,
+            clinic=clinic,
+            full_name="Dr. Test Practitioner",
             email="practitioner@test.com",
             google_subject_id="practitioner_123",
-            full_name="Dr. Test Practitioner",
-            roles=["practitioner"]
+            roles=["practitioner"],
+            is_active=True
         )
-        db_session.add(practitioner)
         db_session.commit()
 
         # Create appointment type
@@ -61,6 +67,7 @@ class TestAppointmentServiceIntegration:
         # Associate practitioner with appointment type
         pat = PractitionerAppointmentTypes(
             user_id=practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type.id
         )
         db_session.add(pat)
@@ -68,13 +75,12 @@ class TestAppointmentServiceIntegration:
         # Create availability
         tomorrow = (taiwan_now() + timedelta(days=1)).date()
         day_of_week = tomorrow.weekday()
-        availability = PractitionerAvailability(
-            user_id=practitioner.id,
+        availability = create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
             day_of_week=day_of_week,
             start_time=time(9, 0),
             end_time=time(17, 0)
         )
-        db_session.add(availability)
 
         # Create LINE user and patient
         line_user = LineUser(
@@ -82,6 +88,7 @@ class TestAppointmentServiceIntegration:
             display_name="Test User"
         )
         db_session.add(line_user)
+        db_session.flush()  # Flush to get line_user.id
         patient = Patient(
             clinic_id=clinic.id,
             full_name="Test Patient",
@@ -169,6 +176,7 @@ class TestAppointmentServiceIntegration:
         for practitioner in [practitioner1, practitioner2]:
             pat = PractitionerAppointmentTypes(
                 user_id=practitioner.id,
+                clinic_id=clinic.id,
                 appointment_type_id=appt_type.id
             )
             db_session.add(pat)
@@ -178,13 +186,12 @@ class TestAppointmentServiceIntegration:
         day_of_week = tomorrow.weekday()
 
         for practitioner in [practitioner1, practitioner2]:
-            availability = PractitionerAvailability(
-                user_id=practitioner.id,
+            create_practitioner_availability_with_clinic(
+                db_session, practitioner, clinic,
                 day_of_week=day_of_week,
                 start_time=time(9, 0),
                 end_time=time(17, 0)
             )
-            db_session.add(availability)
 
         # Create patient
         patient = Patient(
@@ -197,14 +204,13 @@ class TestAppointmentServiceIntegration:
 
         # Create 3 appointments for practitioner1 on tomorrow
         for i in range(3):
-            event = CalendarEvent(
-                user_id=practitioner1.id,
+            event = create_calendar_event_with_clinic(
+                db_session, practitioner1, clinic,
                 event_type="appointment",
-                date=tomorrow,
+                event_date=tomorrow,
                 start_time=time(10 + i, 0),
                 end_time=time(10 + i, 30)
             )
-            db_session.add(event)
             db_session.flush()
             appointment = Appointment(
                 calendar_event_id=event.id,
@@ -278,14 +284,13 @@ class TestAppointmentServiceIntegration:
 
         # Create past appointment
         yesterday = (taiwan_now() - timedelta(days=1)).date()
-        past_event = CalendarEvent(
-            user_id=practitioner.id,
+        past_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=yesterday,
+            event_date=yesterday,
             start_time=time(10, 0),
             end_time=time(10, 30)
         )
-        db_session.add(past_event)
         db_session.flush()
         past_appt = Appointment(
             calendar_event_id=past_event.id,
@@ -297,14 +302,13 @@ class TestAppointmentServiceIntegration:
 
         # Create future appointment
         tomorrow = (taiwan_now() + timedelta(days=1)).date()
-        future_event = CalendarEvent(
-            user_id=practitioner.id,
+        future_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=tomorrow,
+            event_date=tomorrow,
             start_time=time(10, 0),
             end_time=time(10, 30)
         )
-        db_session.add(future_event)
         db_session.flush()
         future_appt = Appointment(
             calendar_event_id=future_event.id,
@@ -375,14 +379,13 @@ class TestAppointmentServiceIntegration:
 
         # Create appointment
         tomorrow = (taiwan_now() + timedelta(days=1)).date()
-        event = CalendarEvent(
-            user_id=practitioner.id,
+        event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=tomorrow,
+            event_date=tomorrow,
             start_time=time(10, 0),
             end_time=time(10, 30)
         )
-        db_session.add(event)
         db_session.flush()
         appointment = Appointment(
             calendar_event_id=event.id,
@@ -444,6 +447,7 @@ class TestAppointmentServiceIntegration:
         # Associate practitioner with appointment type
         pat = PractitionerAppointmentTypes(
             user_id=practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type.id
         )
         db_session.add(pat)
@@ -451,13 +455,12 @@ class TestAppointmentServiceIntegration:
 
         # Create availability
         tomorrow = (taiwan_now() + timedelta(days=1)).date()
-        availability = PractitionerAvailability(
-            user_id=practitioner.id,
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
             day_of_week=tomorrow.weekday(),
             start_time=time(9, 0),
             end_time=time(17, 0)
         )
-        db_session.add(availability)
         db_session.commit()
 
         # Create patient
@@ -552,10 +555,12 @@ class TestAppointmentServiceIntegration:
         # Associate both practitioners with appointment type
         pat1 = PractitionerAppointmentTypes(
             user_id=practitioner1.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type.id
         )
         pat2 = PractitionerAppointmentTypes(
             user_id=practitioner2.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type.id
         )
         db_session.add_all([pat1, pat2])
@@ -563,19 +568,18 @@ class TestAppointmentServiceIntegration:
 
         # Create availability for both practitioners
         tomorrow = (taiwan_now() + timedelta(days=1)).date()
-        availability1 = PractitionerAvailability(
-            user_id=practitioner1.id,
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner1, clinic,
             day_of_week=tomorrow.weekday(),
             start_time=time(9, 0),
             end_time=time(17, 0)
         )
-        availability2 = PractitionerAvailability(
-            user_id=practitioner2.id,
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner2, clinic,
             day_of_week=tomorrow.weekday(),
             start_time=time(9, 0),
             end_time=time(17, 0)
         )
-        db_session.add_all([availability1, availability2])
         db_session.commit()
 
         # Create patients
@@ -764,6 +768,7 @@ class TestAppointmentServiceIntegration:
         from models import PractitionerAppointmentTypes
         pat = PractitionerAppointmentTypes(
             user_id=practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type.id
         )
         db_session.add(pat)
@@ -771,14 +776,13 @@ class TestAppointmentServiceIntegration:
 
         # Create future appointment for patient2
         future_time = taiwan_now() + timedelta(days=1)
-        calendar_event = CalendarEvent(
-            user_id=practitioner.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type='appointment',
-            date=future_time.date(),
+            event_date=future_time.date(),
             start_time=future_time.time(),
             end_time=(future_time + timedelta(minutes=30)).time()
         )
-        db_session.add(calendar_event)
         db_session.commit()
 
         future_appointment = Appointment(
@@ -857,6 +861,7 @@ class TestAppointmentServiceIntegration:
         # Associate practitioner with appointment type
         pat = PractitionerAppointmentTypes(
             user_id=practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type.id
         )
         db_session.add(pat)
@@ -864,13 +869,12 @@ class TestAppointmentServiceIntegration:
 
         # Create availability
         tomorrow = (taiwan_now() + timedelta(days=1)).date()
-        availability = PractitionerAvailability(
-            user_id=practitioner.id,
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
             day_of_week=tomorrow.weekday(),
             start_time=time(9, 0),
             end_time=time(17, 0)
         )
-        db_session.add(availability)
         db_session.commit()
 
         # Create patients
@@ -1061,6 +1065,7 @@ class TestAppointmentServiceIntegration:
         from models import PractitionerAppointmentTypes
         pat = PractitionerAppointmentTypes(
             user_id=practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type.id
         )
         db_session.add(pat)
@@ -1068,14 +1073,13 @@ class TestAppointmentServiceIntegration:
 
         # Create future appointment for patient2
         future_time = taiwan_now() + timedelta(days=1)
-        calendar_event = CalendarEvent(
-            user_id=practitioner.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type='appointment',
-            date=future_time.date(),
+            event_date=future_time.date(),
             start_time=future_time.time(),
             end_time=(future_time + timedelta(minutes=30)).time()
         )
-        db_session.add(calendar_event)
         db_session.commit()
 
         future_appointment = Appointment(
@@ -1154,6 +1158,7 @@ class TestAppointmentServiceIntegration:
         # Associate practitioner with appointment type
         pat = PractitionerAppointmentTypes(
             user_id=practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type.id
         )
         db_session.add(pat)
@@ -1163,19 +1168,18 @@ class TestAppointmentServiceIntegration:
         tomorrow = (taiwan_now() + timedelta(days=1)).date()
         day_after = (taiwan_now() + timedelta(days=2)).date()
 
-        availability1 = PractitionerAvailability(
-            user_id=practitioner.id,
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
             day_of_week=tomorrow.weekday(),
             start_time=time(9, 0),
             end_time=time(17, 0)
         )
-        availability2 = PractitionerAvailability(
-            user_id=practitioner.id,
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
             day_of_week=day_after.weekday(),
             start_time=time(9, 0),
             end_time=time(17, 0)
         )
-        db_session.add_all([availability1, availability2])
         db_session.commit()
 
         # Create patients
@@ -1364,6 +1368,7 @@ class TestAppointmentServiceIntegration:
         from models import PractitionerAppointmentTypes
         pat = PractitionerAppointmentTypes(
             user_id=practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type.id
         )
         db_session.add(pat)
@@ -1371,14 +1376,13 @@ class TestAppointmentServiceIntegration:
 
         # Create future appointment for patient2
         future_time = taiwan_now() + timedelta(days=1)
-        calendar_event = CalendarEvent(
-            user_id=practitioner.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type='appointment',
-            date=future_time.date(),
+            event_date=future_time.date(),
             start_time=future_time.time(),
             end_time=(future_time + timedelta(minutes=30)).time()
         )
-        db_session.add(calendar_event)
         db_session.commit()
 
         future_appointment = Appointment(

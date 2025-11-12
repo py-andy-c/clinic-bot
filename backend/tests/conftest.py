@@ -12,6 +12,7 @@ import pytest
 from pathlib import Path
 from typing import Generator
 from unittest.mock import Mock
+from datetime import date, time
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
@@ -24,12 +25,15 @@ from alembic import command
 # Import all models to ensure they're registered with SQLAlchemy before any relationships are resolved
 from models.clinic import Clinic
 from models.user import User
+from models.user_clinic_association import UserClinicAssociation
 from models.signup_token import SignupToken
 from models.refresh_token import RefreshToken
 from models.patient import Patient
 from models.appointment_type import AppointmentType
 from models.appointment import Appointment
 from models.line_user import LineUser
+from models.practitioner_availability import PractitionerAvailability
+from models.calendar_event import CalendarEvent
 
 
 # Test database URL
@@ -193,6 +197,174 @@ def sample_patient_data():
         "full_name": "Test Patient",
         "phone_number": "+1234567890"
     }
+
+
+# Helper functions for creating users with clinic associations
+def create_user_with_clinic_association(
+    db_session: Session,
+    clinic: Clinic,
+    full_name: str,
+    email: str,
+    google_subject_id: str,
+    roles: list[str],
+    is_active: bool = True,
+    clinic_name: str | None = None
+) -> tuple[User, UserClinicAssociation]:
+    """
+    Create a user and their clinic association.
+    
+    This helper function creates both a User record and a UserClinicAssociation
+    record, which is required for multi-clinic support.
+    
+    Args:
+        db_session: Database session
+        clinic: Clinic to associate the user with
+        full_name: User's full name
+        email: User's email (must be globally unique)
+        google_subject_id: Google OAuth subject ID (must be globally unique)
+        roles: List of roles for this clinic (e.g., ["admin"], ["practitioner"])
+        is_active: Whether the user is active
+        clinic_name: Optional clinic-specific name (defaults to full_name)
+    
+    Returns:
+        Tuple of (User, UserClinicAssociation)
+    """
+    # Create user (no clinic_id needed)
+    user = User(
+        full_name=full_name,
+        email=email,
+        google_subject_id=google_subject_id,
+        is_active=is_active,
+        # Note: roles and clinic_id are deprecated but kept for backward compatibility
+        roles=roles,  # Deprecated: kept for backward compatibility
+        clinic_id=clinic.id  # Deprecated: kept for backward compatibility
+    )
+    db_session.add(user)
+    db_session.flush()  # Flush to get user.id
+    
+    # Create clinic association
+    association = UserClinicAssociation(
+        user_id=user.id,
+        clinic_id=clinic.id,
+        roles=roles,
+        full_name=clinic_name or full_name,
+        is_active=is_active
+    )
+    db_session.add(association)
+    db_session.commit()
+    
+    return user, association
+
+
+def get_user_clinic_id(user: User, clinic: Clinic | None = None) -> int:
+    """
+    Get clinic_id for a user.
+    
+    For backward compatibility, this function:
+    1. Returns clinic_id from user.clinic_id if available (deprecated)
+    2. Returns clinic_id from the first active association if available
+    3. Returns the provided clinic.id if given
+    4. Raises ValueError if none available
+    
+    Args:
+        user: User object
+        clinic: Optional clinic to use if user has no clinic_id or associations
+    
+    Returns:
+        Clinic ID
+    """
+    # Try deprecated clinic_id first (for backward compatibility)
+    if user.clinic_id is not None:
+        return user.clinic_id
+    
+    # Try associations
+    if hasattr(user, 'clinic_associations') and user.clinic_associations:
+        active_associations = [a for a in user.clinic_associations if a.is_active]
+        if active_associations:
+            return active_associations[0].clinic_id
+    
+    # Fall back to provided clinic
+    if clinic:
+        return clinic.id
+    
+    raise ValueError(f"User {user.id} has no clinic_id or active associations, and no clinic provided")
+
+
+def create_practitioner_availability_with_clinic(
+    db_session: Session,
+    practitioner: User,
+    clinic: Clinic,
+    day_of_week: int,
+    start_time: time,
+    end_time: time
+) -> PractitionerAvailability:
+    """
+    Helper to create PractitionerAvailability with clinic_id automatically set.
+    
+    This ensures clinic_id is always provided when creating availability records,
+    making it easier to maintain when schema changes occur.
+    
+    Args:
+        db_session: Database session
+        practitioner: User (practitioner) to create availability for
+        clinic: Clinic to associate the availability with
+        day_of_week: Day of week (0=Monday, 6=Sunday)
+        start_time: Start time for availability
+        end_time: End time for availability
+    
+    Returns:
+        Created PractitionerAvailability instance
+    """
+    availability = PractitionerAvailability(
+        user_id=practitioner.id,
+        clinic_id=clinic.id,
+        day_of_week=day_of_week,
+        start_time=start_time,
+        end_time=end_time
+    )
+    db_session.add(availability)
+    return availability
+
+
+def create_calendar_event_with_clinic(
+    db_session: Session,
+    practitioner: User,
+    clinic: Clinic,
+    event_type: str,
+    event_date: date,
+    start_time: time | None = None,
+    end_time: time | None = None
+) -> CalendarEvent:
+    """
+    Helper to create CalendarEvent with clinic_id automatically set.
+    
+    This ensures clinic_id is always provided when creating calendar events,
+    making it easier to maintain when schema changes occur.
+    
+    Args:
+        db_session: Database session
+        practitioner: User (practitioner) to create event for
+        clinic: Clinic to associate the event with
+        event_type: Type of event (e.g., "appointment", "availability_exception")
+        event_date: Date of the event
+        start_time: Optional start time
+        end_time: Optional end time
+    
+    Returns:
+        Created CalendarEvent instance
+    """
+    calendar_event = CalendarEvent(
+        user_id=practitioner.id,
+        clinic_id=clinic.id,
+        event_type=event_type,
+        date=event_date,
+        start_time=start_time,
+        end_time=end_time
+    )
+    db_session.add(calendar_event)
+    return calendar_event
+
+
 @pytest.fixture
 def session_database():
     """

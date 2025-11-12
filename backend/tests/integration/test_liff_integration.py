@@ -22,6 +22,10 @@ from core.config import JWT_SECRET_KEY
 from core.database import get_db
 from auth.dependencies import get_current_line_user_with_clinic
 from utils.datetime_utils import taiwan_now
+from tests.conftest import (
+    create_practitioner_availability_with_clinic,
+    create_calendar_event_with_clinic
+)
 
 
 client = TestClient(app)
@@ -82,19 +86,19 @@ def test_clinic_with_liff(db_session: Session):
     for appt_type in appt_types:
         pat = PractitionerAppointmentTypes(
             user_id=practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type.id
         )
         db_session.add(pat)
 
     # Set up default availability for practitioner (Monday-Sunday, 9:00-17:00)
     for day_of_week in range(7):  # 0=Monday, 6=Sunday
-        availability = PractitionerAvailability(
-            user_id=practitioner.id,
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
             day_of_week=day_of_week,
             start_time=time(9, 0),
             end_time=time(17, 0)
         )
-        db_session.add(availability)
 
     db_session.commit()
 
@@ -471,14 +475,13 @@ class TestLiffDatabaseOperations:
         for i, patient in enumerate(patients):
             # Create calendar event with dates in the future (using Taiwan timezone)
             event_date = (taiwan_now() + timedelta(days=i+1)).date()
-            calendar_event = CalendarEvent(
-                user_id=practitioner.id,
+            calendar_event = create_calendar_event_with_clinic(
+                db_session, practitioner, clinic,
                 event_type="appointment",
-                date=event_date,
+                event_date=event_date,
                 start_time=time(14, 0),
                 end_time=time(15, 0)
             )
-            db_session.add(calendar_event)
             db_session.commit()
 
             # Create appointment
@@ -560,13 +563,12 @@ class TestLiffDatabaseOperations:
             day_of_week = future_date_obj.weekday()
             
             # Create practitioner availability for the future date's day of week
-            availability = PractitionerAvailability(
-                user_id=practitioner.id,
+            create_practitioner_availability_with_clinic(
+                db_session, practitioner, clinic,
                 day_of_week=day_of_week,
                 start_time=time(9, 0),
                 end_time=time(17, 0)
             )
-            db_session.add(availability)
             db_session.commit()
             
             appt_type_id = appt_types_data[0]["id"]
@@ -915,13 +917,12 @@ class TestLiffAvailabilityAndScheduling:
             day_of_week = tomorrow.weekday()
             
             # Create practitioner availability for tomorrow's day of week
-            availability = PractitionerAvailability(
-                user_id=practitioner.id,
+            create_practitioner_availability_with_clinic(
+                db_session, practitioner, clinic,
                 day_of_week=day_of_week,
                 start_time=time(9, 0),
                 end_time=time(17, 0)
             )
-            db_session.add(availability)
             db_session.commit()
 
             appt_type_id = appt_types[0].id  # 30-minute consultation
@@ -1236,13 +1237,12 @@ class TestLiffErrorHandling:
             # Set up practitioner availability for a future date (2 days from now to avoid timezone issues)
             future_date = (datetime.now() + timedelta(days=2)).date()
             future_weekday = future_date.weekday()
-            availability = PractitionerAvailability(
-                user_id=practitioner.id,
+            create_practitioner_availability_with_clinic(
+                db_session, practitioner, clinic,
                 day_of_week=future_weekday,
                 start_time=time(9, 0),
                 end_time=time(17, 0)
             )
-            db_session.add(availability)
             db_session.commit()
 
             # Create additional patient for testing
@@ -1386,19 +1386,19 @@ class TestLiffAvailabilityBookingRestrictions:
         # Associate practitioner with appointment type
         pat = PractitionerAppointmentTypes(
             user_id=practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type.id
         )
         db_session.add(pat)
 
         # Set up default availability for practitioner (Monday-Sunday, 9:00-17:00)
         for day_of_week in range(7):  # 0=Monday, 6=Sunday
-            availability = PractitionerAvailability(
-                user_id=practitioner.id,
+            create_practitioner_availability_with_clinic(
+                db_session, practitioner, clinic,
                 day_of_week=day_of_week,
                 start_time=time(9, 0),
                 end_time=time(17, 0)
             )
-            db_session.add(availability)
 
         db_session.commit()
 
@@ -1447,19 +1447,19 @@ class TestLiffAvailabilityBookingRestrictions:
         # Associate practitioner with appointment type
         pat = PractitionerAppointmentTypes(
             user_id=practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type.id
         )
         db_session.add(pat)
 
         # Set up default availability for practitioner (Monday-Sunday, 9:00-17:00)
         for day_of_week in range(7):  # 0=Monday, 6=Sunday
-            availability = PractitionerAvailability(
-                user_id=practitioner.id,
+            create_practitioner_availability_with_clinic(
+                db_session, practitioner, clinic,
                 day_of_week=day_of_week,
                 start_time=time(9, 0),
                 end_time=time(17, 0)
             )
-            db_session.add(availability)
 
         db_session.commit()
 
@@ -1712,6 +1712,7 @@ class TestClinicIsolationSecurity:
         for appt_type in appt_types1:
             pat = PractitionerAppointmentTypes(
                 user_id=practitioner1.id,
+                clinic_id=clinic1.id,
                 appointment_type_id=appt_type.id
             )
             db_session.add(pat)
@@ -1719,6 +1720,7 @@ class TestClinicIsolationSecurity:
         for appt_type in appt_types2:
             pat = PractitionerAppointmentTypes(
                 user_id=practitioner2.id,
+                clinic_id=clinic2.id,
                 appointment_type_id=appt_type.id
             )
             db_session.add(pat)
@@ -1866,6 +1868,7 @@ class TestClinicIsolationSecurity:
         # Active practitioner with first appointment type
         pat1 = PractitionerAppointmentTypes(
             user_id=active_practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type_with_practitioner.id
         )
         db_session.add(pat1)
@@ -1873,6 +1876,7 @@ class TestClinicIsolationSecurity:
         # Inactive practitioner with third appointment type
         pat2 = PractitionerAppointmentTypes(
             user_id=inactive_practitioner.id,
+            clinic_id=clinic.id,
             appointment_type_id=appt_type_with_inactive_practitioner.id
         )
         db_session.add(pat2)

@@ -111,6 +111,7 @@ class AppointmentService:
             # CalendarEvent stores date and time as naive values, interpreted as Taiwan time
             calendar_event = CalendarEvent(
                 user_id=assigned_practitioner_id,
+                clinic_id=clinic_id,
                 event_type='appointment',
                 date=start_time.date(),
                 start_time=start_time.time(),

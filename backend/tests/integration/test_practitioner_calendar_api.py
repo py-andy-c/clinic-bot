@@ -16,6 +16,11 @@ from sqlalchemy.orm import Session
 from main import app
 from models import User, Clinic, AppointmentType, Patient, PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment
 from core.database import get_db
+from tests.conftest import (
+    create_user_with_clinic_association,
+    create_practitioner_availability_with_clinic,
+    create_calendar_event_with_clinic
+)
 
 
 @pytest.fixture
@@ -30,53 +35,64 @@ def client(db_session):
     app.dependency_overrides.pop(get_db, None)
 
 
+@pytest.fixture
+def test_clinic_and_practitioner(db_session: Session):
+    """Create a test clinic and practitioner with clinic association."""
+    clinic = Clinic(
+        name="Test Clinic",
+        line_channel_id="test_channel",
+        line_channel_secret="test_secret",
+        line_channel_access_token="test_token"
+    )
+    db_session.add(clinic)
+    db_session.flush()
+    
+    practitioner, _ = create_user_with_clinic_association(
+        db_session=db_session,
+        clinic=clinic,
+        full_name="Dr. Test",
+        email="practitioner@example.com",
+        google_subject_id="practitioner_subject",
+        roles=["practitioner"],
+        is_active=True
+    )
+    db_session.flush()
+    
+    return clinic, practitioner
+
+
+def get_auth_token(client: TestClient, email: str) -> str:
+    """Helper to get authentication token for a user."""
+    response = client.post(f"/api/auth/dev/login?email={email}&user_type=clinic_user")
+    assert response.status_code == 200
+    return response.json()["access_token"]
+
+
 class TestPractitionerCalendarAPI:
     """Test practitioner calendar API endpoints."""
 
-    def test_get_default_schedule(self, client: TestClient, db_session: Session):
+    def test_get_default_schedule(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test getting practitioner's default schedule."""
-        # Create test clinic and practitioner
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.flush()
-
-        practitioner = User(
-            clinic_id=clinic.id,
-            email="practitioner@example.com",
-            google_subject_id="practitioner_subject",
-            full_name="Dr. Test",
-            roles=["practitioner"]
-        )
-        db_session.add(practitioner)
-        db_session.flush()
+        clinic, practitioner = test_clinic_and_practitioner
 
         # Create default availability
-        availability = PractitionerAvailability(
-            user_id=practitioner.id,
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
             day_of_week=0,  # Monday
             start_time=time(9, 0),
             end_time=time(12, 0)
         )
-        db_session.add(availability)
         
-        availability2 = PractitionerAvailability(
-            user_id=practitioner.id,
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
             day_of_week=0,  # Monday
             start_time=time(14, 0),
             end_time=time(18, 0)
         )
-        db_session.add(availability2)
         db_session.commit()
 
-        # Use dev login endpoint to get authentication
-        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
-        assert response.status_code == 200
-        token = response.json()["access_token"]
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
 
         # Test getting default schedule
         response = client.get(
@@ -94,27 +110,9 @@ class TestPractitionerCalendarAPI:
         assert data["monday"][1]["start_time"] == "14:00"
         assert data["monday"][1]["end_time"] == "18:00"
 
-    def test_update_default_schedule(self, client: TestClient, db_session: Session):
+    def test_update_default_schedule(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test updating practitioner's default schedule."""
-        # Create test clinic and practitioner
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.flush()
-
-        practitioner = User(
-            clinic_id=clinic.id,
-            email="practitioner@example.com",
-            google_subject_id="practitioner_subject",
-            full_name="Dr. Test",
-            roles=["practitioner"]
-        )
-        db_session.add(practitioner)
-        db_session.flush()
+        clinic, practitioner = test_clinic_and_practitioner
 
         # Test updating default schedule
         schedule_data = {
@@ -132,10 +130,8 @@ class TestPractitionerCalendarAPI:
             "sunday": []
         }
 
-        # Use dev login endpoint to get authentication
-        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
-        assert response.status_code == 200
-        token = response.json()["access_token"]
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
 
         response = client.put(
             f"/api/clinic/practitioners/{practitioner.id}/availability/default",
@@ -157,27 +153,9 @@ class TestPractitionerCalendarAPI:
         ).all()
         assert len(monday_availability) == 2
 
-    def test_get_calendar_monthly_view(self, client: TestClient, db_session: Session):
+    def test_get_calendar_monthly_view(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test getting calendar data for monthly view."""
-        # Create test clinic and practitioner
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.flush()
-
-        practitioner = User(
-            clinic_id=clinic.id,
-            email="practitioner@example.com",
-            google_subject_id="practitioner_subject",
-            full_name="Dr. Test",
-            roles=["practitioner"]
-        )
-        db_session.add(practitioner)
-        db_session.flush()
+        clinic, practitioner = test_clinic_and_practitioner
 
         # Create appointment type
         appointment_type = AppointmentType(
@@ -198,14 +176,13 @@ class TestPractitionerCalendarAPI:
         db_session.flush()
 
         # Create calendar event and appointment
-        calendar_event = CalendarEvent(
-            user_id=practitioner.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(10, 0),
             end_time=time(11, 0)
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(
@@ -217,10 +194,8 @@ class TestPractitionerCalendarAPI:
         db_session.add(appointment)
         db_session.commit()
 
-        # Use dev login endpoint to get authentication
-        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
-        assert response.status_code == 200
-        token = response.json()["access_token"]
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
 
         # Test getting monthly calendar data
         response = client.get(
@@ -236,36 +211,17 @@ class TestPractitionerCalendarAPI:
         assert data["days"][0]["date"] == "2025-01-15"
         assert data["days"][0]["appointment_count"] == 1
 
-    def test_get_calendar_daily_view(self, client: TestClient, db_session: Session):
+    def test_get_calendar_daily_view(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test getting calendar data for daily view."""
-        # Create test clinic and practitioner
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.flush()
-
-        practitioner = User(
-            clinic_id=clinic.id,
-            email="practitioner@example.com",
-            google_subject_id="practitioner_subject",
-            full_name="Dr. Test",
-            roles=["practitioner"]
-        )
-        db_session.add(practitioner)
-        db_session.flush()
+        clinic, practitioner = test_clinic_and_practitioner
 
         # Create default availability
-        availability = PractitionerAvailability(
-            user_id=practitioner.id,
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
             day_of_week=2,  # Wednesday
             start_time=time(9, 0),
             end_time=time(12, 0)
         )
-        db_session.add(availability)
         db_session.flush()
 
         # Create appointment type
@@ -287,14 +243,13 @@ class TestPractitionerCalendarAPI:
         db_session.flush()
 
         # Create calendar event and appointment
-        calendar_event = CalendarEvent(
-            user_id=practitioner.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(10, 0),
             end_time=time(11, 0)
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(
@@ -306,14 +261,13 @@ class TestPractitionerCalendarAPI:
         db_session.add(appointment)
 
         # Create availability exception
-        exception_calendar_event = CalendarEvent(
-            user_id=practitioner.id,
+        exception_calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="availability_exception",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(17, 0),
             end_time=time(18, 0)
         )
-        db_session.add(exception_calendar_event)
         db_session.flush()
 
         exception = AvailabilityException(
@@ -322,10 +276,8 @@ class TestPractitionerCalendarAPI:
         db_session.add(exception)
         db_session.commit()
 
-        # Use dev login endpoint to get authentication
-        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
-        assert response.status_code == 200
-        token = response.json()["access_token"]
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
 
         # Test getting daily calendar data
         response = client.get(
@@ -353,38 +305,19 @@ class TestPractitionerCalendarAPI:
         assert exception_event["title"] == "休診"
 
 
-    def test_get_available_slots(self, client: TestClient, db_session: Session):
+    def test_get_available_slots(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test getting available slots for AI agent booking."""
-        # Create test clinic and practitioner
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.flush()
-
-        practitioner = User(
-            clinic_id=clinic.id,
-            email="practitioner@example.com",
-            google_subject_id="practitioner_subject",
-            full_name="Dr. Test",
-            roles=["practitioner"]
-        )
-        db_session.add(practitioner)
-        db_session.flush()
+        clinic, practitioner = test_clinic_and_practitioner
 
         # Create default availability for future date
         future_date = (datetime.now() + timedelta(days=5)).date()
         day_of_week = future_date.weekday()
-        availability = PractitionerAvailability(
-            user_id=practitioner.id,
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
             day_of_week=day_of_week,
             start_time=time(9, 0),
             end_time=time(12, 0)
         )
-        db_session.add(availability)
         db_session.flush()
 
         # Create appointment type
@@ -406,14 +339,13 @@ class TestPractitionerCalendarAPI:
         db_session.flush()
 
         # Create existing appointment (use future date)
-        calendar_event = CalendarEvent(
-            user_id=practitioner.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=future_date,
+            event_date=future_date,
             start_time=time(10, 0),
             end_time=time(11, 0)
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(
@@ -425,10 +357,8 @@ class TestPractitionerCalendarAPI:
         db_session.add(appointment)
         db_session.commit()
 
-        # Use dev login endpoint to get authentication
-        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
-        assert response.status_code == 200
-        token = response.json()["access_token"]
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
 
         # Test getting available slots (use same future date)
         future_date_str = future_date.isoformat()
@@ -449,27 +379,9 @@ class TestPractitionerCalendarAPI:
         occupied_slot = next((s for s in slots if s["start_time"] == "10:00"), None)
         assert occupied_slot is None
 
-    def test_create_availability_exception(self, client: TestClient, db_session: Session):
+    def test_create_availability_exception(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test creating availability exception."""
-        # Create test clinic and practitioner
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.flush()
-
-        practitioner = User(
-            clinic_id=clinic.id,
-            email="practitioner@example.com",
-            google_subject_id="practitioner_subject",
-            full_name="Dr. Test",
-            roles=["practitioner"]
-        )
-        db_session.add(practitioner)
-        db_session.flush()
+        clinic, practitioner = test_clinic_and_practitioner
 
         # Test creating availability exception
         exception_data = {
@@ -478,10 +390,8 @@ class TestPractitionerCalendarAPI:
             "end_time": "18:00"
         }
 
-        # Use dev login endpoint to get authentication
-        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
-        assert response.status_code == 200
-        token = response.json()["access_token"]
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
 
         response = client.post(
             f"/api/clinic/practitioners/{practitioner.id}/availability/exceptions",
@@ -505,27 +415,9 @@ class TestPractitionerCalendarAPI:
         assert calendar_event is not None
         assert calendar_event.event_type == "availability_exception"
 
-    def test_create_availability_exception_with_conflicts(self, client: TestClient, db_session: Session):
+    def test_create_availability_exception_with_conflicts(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test creating availability exception with appointment conflicts."""
-        # Create test clinic and practitioner
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.flush()
-
-        practitioner = User(
-            clinic_id=clinic.id,
-            email="practitioner@example.com",
-            google_subject_id="practitioner_subject",
-            full_name="Dr. Test",
-            roles=["practitioner"]
-        )
-        db_session.add(practitioner)
-        db_session.flush()
+        clinic, practitioner = test_clinic_and_practitioner
 
         # Create appointment type
         appointment_type = AppointmentType(
@@ -546,14 +438,13 @@ class TestPractitionerCalendarAPI:
         db_session.flush()
 
         # Create existing appointment
-        calendar_event = CalendarEvent(
-            user_id=practitioner.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(15, 0),
             end_time=time(16, 0)
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         appointment = Appointment(
@@ -572,10 +463,8 @@ class TestPractitionerCalendarAPI:
             "end_time": "18:00"
         }
 
-        # Use dev login endpoint to get authentication
-        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
-        assert response.status_code == 200
-        token = response.json()["access_token"]
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
 
         response = client.post(
             f"/api/clinic/practitioners/{practitioner.id}/availability/exceptions",
@@ -593,37 +482,18 @@ class TestPractitionerCalendarAPI:
         assert "conflicts" in data
         assert len(data["conflicts"]) > 0
 
-    def test_delete_availability_exception(self, client: TestClient, db_session: Session):
+    def test_delete_availability_exception(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test deleting availability exception."""
-        # Create test clinic and practitioner
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.flush()
-
-        practitioner = User(
-            clinic_id=clinic.id,
-            email="practitioner@example.com",
-            google_subject_id="practitioner_subject",
-            full_name="Dr. Test",
-            roles=["practitioner"]
-        )
-        db_session.add(practitioner)
-        db_session.flush()
+        clinic, practitioner = test_clinic_and_practitioner
 
         # Create availability exception
-        calendar_event = CalendarEvent(
-            user_id=practitioner.id,
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="availability_exception",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(14, 0),
             end_time=time(18, 0)
         )
-        db_session.add(calendar_event)
         db_session.flush()
 
         exception = AvailabilityException(
@@ -634,10 +504,8 @@ class TestPractitionerCalendarAPI:
 
         exception_id = exception.id
 
-        # Use dev login endpoint to get authentication
-        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
-        assert response.status_code == 200
-        token = response.json()["access_token"]
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
 
         # Test deleting availability exception
         response = client.delete(
@@ -659,27 +527,9 @@ class TestPractitionerCalendarAPI:
         ).first()
         assert deleted_calendar_event is None
 
-    def test_daily_calendar_view_filters_cancelled_appointments(self, client: TestClient, db_session: Session):
+    def test_daily_calendar_view_filters_cancelled_appointments(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test that daily calendar view only shows confirmed appointments."""
-        # Create test clinic and practitioner
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.flush()
-
-        practitioner = User(
-            clinic_id=clinic.id,
-            email="practitioner@example.com",
-            google_subject_id="practitioner_subject",
-            full_name="Dr. Test",
-            roles=["practitioner"]
-        )
-        db_session.add(practitioner)
-        db_session.flush()
+        clinic, practitioner = test_clinic_and_practitioner
 
         # Create appointment type
         appointment_type = AppointmentType(
@@ -707,14 +557,13 @@ class TestPractitionerCalendarAPI:
 
         # Create confirmed appointment (use future date)
         future_date = (datetime.now() + timedelta(days=5)).date()
-        confirmed_event = CalendarEvent(
-            user_id=practitioner.id,
+        confirmed_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=future_date,
+            event_date=future_date,
             start_time=time(10, 0),
             end_time=time(11, 0)
         )
-        db_session.add(confirmed_event)
         db_session.flush()
 
         confirmed_appointment = Appointment(
@@ -726,14 +575,13 @@ class TestPractitionerCalendarAPI:
         db_session.add(confirmed_appointment)
 
         # Create cancelled appointment
-        cancelled_event = CalendarEvent(
-            user_id=practitioner.id,
+        cancelled_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=future_date,
+            event_date=future_date,
             start_time=time(11, 0),
             end_time=time(12, 0)
         )
-        db_session.add(cancelled_event)
         db_session.flush()
 
         cancelled_appointment = Appointment(
@@ -745,10 +593,8 @@ class TestPractitionerCalendarAPI:
         db_session.add(cancelled_appointment)
         db_session.commit()
 
-        # Use dev login endpoint to get authentication
-        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
-        assert response.status_code == 200
-        token = response.json()["access_token"]
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
 
         # Test getting daily calendar data (use same future date)
         future_date_str = future_date.isoformat()
@@ -766,27 +612,9 @@ class TestPractitionerCalendarAPI:
         assert appointment_events[0]["title"] == "Confirmed Patient - Test Appointment"
         assert appointment_events[0]["status"] == "confirmed"
 
-    def test_monthly_calendar_view_excludes_cancelled_appointments(self, client: TestClient, db_session: Session):
+    def test_monthly_calendar_view_excludes_cancelled_appointments(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test that monthly calendar view only counts confirmed appointments."""
-        # Create test clinic and practitioner
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.flush()
-
-        practitioner = User(
-            clinic_id=clinic.id,
-            email="practitioner@example.com",
-            google_subject_id="practitioner_subject",
-            full_name="Dr. Test",
-            roles=["practitioner"]
-        )
-        db_session.add(practitioner)
-        db_session.flush()
+        clinic, practitioner = test_clinic_and_practitioner
 
         # Create appointment type
         appointment_type = AppointmentType(
@@ -813,14 +641,13 @@ class TestPractitionerCalendarAPI:
         db_session.flush()
 
         # Create confirmed appointment on 2025-01-15
-        confirmed_event = CalendarEvent(
-            user_id=practitioner.id,
+        confirmed_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(10, 0),
             end_time=time(11, 0)
         )
-        db_session.add(confirmed_event)
         db_session.flush()
 
         confirmed_appointment = Appointment(
@@ -832,10 +659,10 @@ class TestPractitionerCalendarAPI:
         db_session.add(confirmed_appointment)
 
         # Create cancelled appointment on same date
-        cancelled_event = CalendarEvent(
-            user_id=practitioner.id,
+        cancelled_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=date(2025, 1, 15),
+            event_date=date(2025, 1, 15),
             start_time=time(11, 0),
             end_time=time(12, 0)
         )
@@ -851,10 +678,8 @@ class TestPractitionerCalendarAPI:
         db_session.add(cancelled_appointment)
         db_session.commit()
 
-        # Use dev login endpoint to get authentication
-        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
-        assert response.status_code == 200
-        token = response.json()["access_token"]
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
 
         # Test getting monthly calendar data
         response = client.get(
@@ -870,38 +695,19 @@ class TestPractitionerCalendarAPI:
         assert day_data is not None
         assert day_data["appointment_count"] == 1  # Only confirmed appointment
 
-    def test_available_slots_exclude_cancelled_appointments(self, client: TestClient, db_session: Session):
+    def test_available_slots_exclude_cancelled_appointments(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test that cancelled appointments don't block available slots."""
-        # Create test clinic and practitioner
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.flush()
-
-        practitioner = User(
-            clinic_id=clinic.id,
-            email="practitioner@example.com",
-            google_subject_id="practitioner_subject",
-            full_name="Dr. Test",
-            roles=["practitioner"]
-        )
-        db_session.add(practitioner)
-        db_session.flush()
+        clinic, practitioner = test_clinic_and_practitioner
 
         # Create default availability for future date
         future_date = (datetime.now() + timedelta(days=5)).date()
         day_of_week = future_date.weekday()
-        availability = PractitionerAvailability(
-            user_id=practitioner.id,
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
             day_of_week=day_of_week,
             start_time=time(9, 0),
             end_time=time(12, 0)
         )
-        db_session.add(availability)
         db_session.flush()
 
         # Create appointment type
@@ -923,14 +729,13 @@ class TestPractitionerCalendarAPI:
         db_session.flush()
 
         # Create cancelled appointment at 10:00-11:00 (use future date)
-        cancelled_event = CalendarEvent(
-            user_id=practitioner.id,
+        cancelled_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
             event_type="appointment",
-            date=future_date,
+            event_date=future_date,
             start_time=time(10, 0),
             end_time=time(11, 0)
         )
-        db_session.add(cancelled_event)
         db_session.flush()
 
         cancelled_appointment = Appointment(
@@ -942,10 +747,8 @@ class TestPractitionerCalendarAPI:
         db_session.add(cancelled_appointment)
         db_session.commit()
 
-        # Use dev login endpoint to get authentication
-        response = client.post(f"/api/auth/dev/login?email={practitioner.email}&user_type=clinic_user")
-        assert response.status_code == 200
-        token = response.json()["access_token"]
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
 
         # Test getting available slots (use same future date)
         future_date_str = future_date.isoformat()
