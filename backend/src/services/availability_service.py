@@ -99,7 +99,6 @@ class AvailabilityService:
         from models import UserClinicAssociation
         query = db.query(User).join(UserClinicAssociation).filter(
             User.id == practitioner_id,
-            User.is_active == True,
             UserClinicAssociation.is_active == True
         )
         query = filter_by_role(query, 'practitioner')
@@ -481,8 +480,7 @@ class AvailabilityService:
             PractitionerAppointmentTypes.appointment_type_id == appointment_type_id,
             PractitionerAppointmentTypes.clinic_id == clinic_id,
             UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True,
-            User.is_active == True
+            UserClinicAssociation.is_active == True
         )
         query = filter_by_role(query, 'practitioner')
 

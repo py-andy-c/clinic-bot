@@ -267,7 +267,6 @@ async def google_auth_callback(
                     email=email,
                     google_subject_id=google_subject_id,
                     full_name=name,
-                    is_active=True,
                     created_at=now,
                     updated_at=now
                 )
@@ -314,12 +313,7 @@ async def google_auth_callback(
             ).first()
             
             if existing_user:
-                # Check if user is active
-                if not existing_user.is_active:
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="帳戶已被停用，請聯繫診所管理員重新啟用"
-                    )
+                # User is_active check removed - access controlled by association.is_active
                 
                 # Verify user has at least one active clinic association
                 has_association = db.query(UserClinicAssociation).filter(
@@ -545,7 +539,6 @@ async def refresh_access_token(
                     email=refresh_token_record.email,
                     google_subject_id=refresh_token_record.google_subject_id or refresh_token_record.email,
                     full_name=refresh_token_record.name or refresh_token_record.email.split('@')[0].title(),
-                    is_active=True,
                     created_at=now,
                     updated_at=now
                 )
@@ -567,11 +560,7 @@ async def refresh_access_token(
                 detail="找不到使用者或使用者已停用"
             )
     
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="找不到使用者或使用者已停用"
-        )
+    # User is_active check removed - access controlled by association.is_active for clinic users
     
     # Determine user type based on clinic associations
     # System admins have no clinic associations, clinic users have at least one
@@ -750,7 +739,6 @@ async def dev_login(
                 email=email,
                 google_subject_id=f"dev_{email.replace('@', '_').replace('.', '_')}",
                 full_name=email.split('@')[0].title(),
-                is_active=True,
                 created_at=now,
                 updated_at=now
             )

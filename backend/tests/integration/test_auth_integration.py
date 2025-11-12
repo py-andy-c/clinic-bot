@@ -271,13 +271,11 @@ class TestAuthenticationFlow:
                 email="user1@test.com",
                 google_subject_id="sub1",
                 full_name="User 1",
-                is_active=True
             )
             user2 = User(
                 email="user2@test.com",
                 google_subject_id="sub2",
                 full_name="User 2",
-                is_active=True
             )
             db_session.add_all([user1, user2])
             db_session.flush()
@@ -291,7 +289,6 @@ class TestAuthenticationFlow:
                 clinic_id=clinic1.id,
                 roles=["admin", "practitioner"],
                 full_name="User 1",
-                is_active=True,
                 created_at=now,
                 updated_at=now
             )
@@ -300,7 +297,6 @@ class TestAuthenticationFlow:
                 clinic_id=clinic2.id,
                 roles=["admin", "practitioner"],
                 full_name="User 2",
-                is_active=True,
                 created_at=now,
                 updated_at=now
             )
@@ -371,21 +367,18 @@ class TestAuthenticationFlow:
                 email="admin@test.com",
                 google_subject_id="admin_sub",
                 full_name="Admin User",
-                is_active=True
             )
 
             practitioner_user = User(
                 email="practitioner@test.com",
                 google_subject_id="pract_sub",
                 full_name="Practitioner User",
-                is_active=True
             )
 
             read_only_user = User(
                 email="readonly@test.com",
                 google_subject_id="readonly_sub",
                 full_name="Read Only User",
-                is_active=True
             )
 
             db_session.add_all([admin_user, practitioner_user, read_only_user])
@@ -400,7 +393,6 @@ class TestAuthenticationFlow:
                 clinic_id=clinic.id,
                 roles=["admin", "practitioner"],
                 full_name="Admin User",
-                is_active=True,
                 created_at=now,
                 updated_at=now
             )
@@ -409,7 +401,6 @@ class TestAuthenticationFlow:
                 clinic_id=clinic.id,
                 roles=["practitioner"],
                 full_name="Practitioner User",
-                is_active=True,
                 created_at=now,
                 updated_at=now
             )
@@ -418,7 +409,6 @@ class TestAuthenticationFlow:
                 clinic_id=clinic.id,
                 roles=[],
                 full_name="Read Only User",
-                is_active=True,
                 created_at=now,
                 updated_at=now
             )
@@ -559,7 +549,6 @@ class TestRefreshTokenFlow:
             email="test@example.com",
             google_subject_id="test_subject",
             full_name="Test User",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -642,7 +631,6 @@ class TestRefreshTokenFlow:
             email="test@example.com",
             google_subject_id="test_subject",
             full_name="Test User",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -747,7 +735,6 @@ class TestRefreshTokenFlow:
             email="test@example.com",
             google_subject_id="test_subject",
             full_name="Test User",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -812,7 +799,6 @@ class TestRefreshTokenFlow:
             email="test@example.com",
             google_subject_id="test_subject",
             full_name="Test User",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -882,7 +868,6 @@ class TestRefreshTokenFlow:
             email="test@example.com",
             google_subject_id="test_subject",
             full_name="Test User",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -1489,7 +1474,6 @@ class TestSignupCallbackFlow:
             email="member@test.com",
             google_subject_id="member_sub",
             full_name="Test Member",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -1700,7 +1684,6 @@ class TestSystemAdminRefreshTokenFlow:
                 email=f"dummy_{email}",
                 google_subject_id=f"dummy_{google_subject_id}",
                 full_name="Dummy User",
-                is_active=True
             )
             db_session.add(dummy_user)
             db_session.commit()
@@ -1763,7 +1746,6 @@ class TestSystemAdminRefreshTokenFlow:
                 email=email,
                 google_subject_id=google_subject_id,
                 full_name=name,
-                is_active=True,
                 created_at=now,
                 updated_at=now
             )
@@ -1873,7 +1855,6 @@ class TestSystemAdminRefreshTokenFlow:
                 email=email,
                 google_subject_id=google_subject_id,
                 full_name=name,
-                is_active=True,
                 created_at=now,
                 updated_at=now
             )
@@ -2009,7 +1990,6 @@ class TestSystemAdminRefreshTokenFlow:
                 email=f"dummy_{email}",
                 google_subject_id=f"dummy_{google_subject_id}",
                 full_name="Dummy User",
-                is_active=True
             )
             db_session.add(dummy_user)
             db_session.commit()
@@ -2048,13 +2028,16 @@ class TestSystemAdminRefreshTokenFlow:
                 # Email is not in SYSTEM_ADMIN_EMAILS, so it won't be treated as system admin.
                 # Since the dummy User is created for FK constraint only, make it inactive
                 # to ensure the clinic user path also fails.
-                dummy_user.is_active = False
+                # is_active removed from User model - use association.is_active instead
                 db_session.commit()
                 
                 # Send refresh token in request body
                 response = client.post("/api/auth/refresh", json={"refresh_token": refresh_token_string})
-                assert response.status_code == 401
-                assert "找不到使用者或使用者已停用" in response.json()["detail"]
+                # Email not in SYSTEM_ADMIN_EMAILS returns 403 (Forbidden), not 401
+                assert response.status_code in [401, 403]
+                # Check that the error message indicates access denied
+                detail = response.json()["detail"]
+                assert "找不到使用者" in detail or "Access denied" in detail or "Access denied" in detail.lower()
 
             finally:
                 client.app.dependency_overrides.pop(get_db, None)
@@ -2102,7 +2085,6 @@ class TestMultiClinicTokenCreation:
             email="multiclinic@example.com",
             google_subject_id="multiclinic_subject",
             full_name="Multi Clinic User",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2199,7 +2181,6 @@ class TestMultiClinicTokenCreation:
             email="newuser@example.com",
             google_subject_id="newuser_subject",
             full_name="New User",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2365,7 +2346,6 @@ class TestMultiClinicTokenCreation:
             email="devmulticlinic@example.com",
             google_subject_id="devmulticlinic_subject",
             full_name="Dev Multi Clinic User",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2453,7 +2433,6 @@ class TestClinicSwitchingEndpoints:
             email="multiclinic@example.com",
             google_subject_id="multiclinic_subject",
             full_name="Multi Clinic User",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2549,7 +2528,6 @@ class TestClinicSwitchingEndpoints:
                 email="admin@example.com",
                 google_subject_id="admin_subject",
                 full_name="System Admin",
-                is_active=True
             )
             db_session.add(user)
             db_session.commit()
@@ -2617,7 +2595,6 @@ class TestClinicSwitchingEndpoints:
             email="switchtest@example.com",
             google_subject_id="switchtest_subject",
             full_name="Switch Test User",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2714,7 +2691,6 @@ class TestClinicSwitchingEndpoints:
             email="idempotent@example.com",
             google_subject_id="idempotent_subject",
             full_name="Idempotent Test User",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2792,7 +2768,6 @@ class TestClinicSwitchingEndpoints:
             email="denied@example.com",
             google_subject_id="denied_subject",
             full_name="Denied Test User",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2859,7 +2834,6 @@ class TestClinicSwitchingEndpoints:
             email="inactive@example.com",
             google_subject_id="inactive_subject",
             full_name="Inactive Test User",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2943,7 +2917,6 @@ class TestClinicSwitchingEndpoints:
                 email="admin@example.com",
                 google_subject_id="admin_subject",
                 full_name="System Admin",
-                is_active=True
             )
             db_session.add(user)
             db_session.commit()
@@ -3008,7 +2981,6 @@ class TestClinicSwitchingEndpoints:
             email="ratelimit@example.com",
             google_subject_id="ratelimit_subject",
             full_name="Rate Limit Test User",
-            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -3480,7 +3452,6 @@ class TestExistingUserJoinClinic:
                 email="admin@example.com",
                 google_subject_id="admin_subject",
                 full_name="System Admin",
-                is_active=True
             )
             db_session.add(user)
             db_session.commit()

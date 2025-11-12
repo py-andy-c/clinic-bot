@@ -8,7 +8,7 @@ Role-based access control is handled via UserClinicAssociation.roles (clinic-spe
 
 from typing import Optional
 from datetime import datetime
-from sqlalchemy import String, TIMESTAMP, Boolean, UniqueConstraint
+from sqlalchemy import String, TIMESTAMP, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship, Session
 
 from core.database import Base
@@ -25,7 +25,6 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True)  # Globally unique (not per-clinic)
     google_subject_id: Mapped[str] = mapped_column(String(255), unique=True)
     full_name: Mapped[str] = mapped_column(String(255))  # Default/fallback name
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Metadata
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)

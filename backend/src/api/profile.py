@@ -56,8 +56,7 @@ async def get_profile(
     try:
         # Both system admins and clinic users now have User records
         user = db.query(User).filter(
-            User.id == current_user.user_id,
-            User.is_active == True
+            User.id == current_user.user_id
         ).first()
         
         if not user:
@@ -118,8 +117,7 @@ async def update_profile(
         # Both system admins and clinic users now have User records
         # Find user
         user = db.query(User).filter(
-            User.id == current_user.user_id,
-            User.is_active == True
+            User.id == current_user.user_id
         ).first()
         
         if not user:

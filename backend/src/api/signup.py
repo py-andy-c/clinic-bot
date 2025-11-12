@@ -443,8 +443,7 @@ async def signup_oauth_callback(
         existing_email = db.query(User).join(UserClinicAssociation).filter(
             UserClinicAssociation.clinic_id == signup_token.clinic_id,
             User.email == email,
-            UserClinicAssociation.is_active == True,
-            User.is_active == True
+            UserClinicAssociation.is_active == True
         ).first()
 
         if existing_email:
@@ -591,7 +590,6 @@ async def confirm_name(
             email=email,
             google_subject_id=google_subject_id,
             full_name=request.full_name.strip(),
-            is_active=True,
             created_at=now,
             updated_at=now
         )

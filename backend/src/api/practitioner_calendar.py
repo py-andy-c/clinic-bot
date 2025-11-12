@@ -258,11 +258,7 @@ def _verify_practitioner_in_clinic(
         )
     
     user = association.user
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="找不到治療師或治療師已停用"
-        )
+    # User is_active check removed - access controlled by association.is_active
     
     if 'practitioner' not in (association.roles or []):
         raise HTTPException(

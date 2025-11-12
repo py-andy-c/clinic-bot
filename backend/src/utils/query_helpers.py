@@ -40,8 +40,7 @@ def filter_by_role(query: Query[T], role: str) -> Query[T]:
         # Get all practitioners in a clinic
         query = db.query(User).join(UserClinicAssociation).filter(
             UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True,
-            User.is_active == True
+            UserClinicAssociation.is_active == True
         )
         query = filter_by_role(query, 'practitioner')
         practitioners = query.all()

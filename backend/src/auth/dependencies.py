@@ -129,13 +129,6 @@ def get_current_user(
                 detail="User not found"
             )
 
-        # Check if user is active
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="帳戶已被停用，請聯繫系統管理員重新啟用"
-            )
-
         return UserContext(
             user_type="system_admin",
             email=user.email,
@@ -158,13 +151,6 @@ def get_current_user(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found"
-            )
-
-        # Check if user is active
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="帳戶已被停用，請聯繫診所管理員重新啟用"
             )
 
         # Get active_clinic_id from payload

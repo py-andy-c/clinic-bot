@@ -528,8 +528,7 @@ async def get_clinic_practitioners(
         # Get all practitioners (users with practitioner role) for this clinic
         practitioners_query = db.query(User).join(UserClinicAssociation).filter(
             UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True,
-            User.is_active == True
+            UserClinicAssociation.is_active == True
         ).options(joinedload(User.clinic_associations))
 
         all_users = practitioners_query.all()

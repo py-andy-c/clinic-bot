@@ -168,10 +168,8 @@ async def list_members(
         if current_user.has_role("admin"):
             members_with_associations = query.all()
         else:
-            # Non-admins only see active members
-            members_with_associations = query.filter(
-                User.is_active == True
-            ).all()
+            # Non-admins only see active members (already filtered by association.is_active == True)
+            members_with_associations = query.all()
         
         # Build member list with roles from associations
         member_list: List[MemberResponse] = []
@@ -188,7 +186,7 @@ async def list_members(
                 email=member.email,
                 full_name=association.full_name if association else member.full_name,
                 roles=association.roles if association else [],
-                is_active=member.is_active,
+                is_active=association.is_active if association else False,
                 created_at=member.created_at
             ))
 
@@ -281,8 +279,7 @@ async def update_member_roles(
         member = db.query(User).join(UserClinicAssociation).filter(
             User.id == user_id,
             UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True,
-            User.is_active == True
+            UserClinicAssociation.is_active == True
         ).options(joinedload(User.clinic_associations)).first()
 
         if not member:
@@ -312,8 +309,6 @@ async def update_member_roles(
                 UserClinicAssociation.clinic_id == clinic_id,
                 UserClinicAssociation.is_active == True,
                 UserClinicAssociation.user_id != user_id
-            ).join(User).filter(
-                User.is_active == True
             ).all()
 
             admin_count = sum(1 for assoc in admin_associations if 'admin' in (assoc.roles or []))
@@ -343,7 +338,7 @@ async def update_member_roles(
             email=member.email,
             full_name=association.full_name,
             roles=association.roles or [],
-            is_active=member.is_active,
+            is_active=association.is_active,
             created_at=member.created_at
         )
 
@@ -376,8 +371,7 @@ async def remove_member(
         member = db.query(User).join(UserClinicAssociation).filter(
             User.id == user_id,
             UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True,
-            User.is_active == True
+            UserClinicAssociation.is_active == True
         ).first()
 
         if not member:
@@ -404,8 +398,6 @@ async def remove_member(
                 UserClinicAssociation.clinic_id == clinic_id,
                 UserClinicAssociation.is_active == True,
                 UserClinicAssociation.user_id != user_id
-            ).join(User).filter(
-                User.is_active == True
             ).all()
 
             admin_count = sum(1 for assoc in admin_associations if 'admin' in (assoc.roles or []))
@@ -1069,8 +1061,7 @@ async def get_practitioner_availability(
         result = db.query(User, UserClinicAssociation).join(UserClinicAssociation).filter(
             User.id == user_id,
             UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True,
-            User.is_active == True
+            UserClinicAssociation.is_active == True
         ).first()
 
         # Check if user has practitioner role
@@ -1148,8 +1139,7 @@ async def create_practitioner_availability(
         result = db.query(User, UserClinicAssociation).join(UserClinicAssociation).filter(
             User.id == user_id,
             UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True,
-            User.is_active == True
+            UserClinicAssociation.is_active == True
         ).first()
 
         # Check if user has practitioner role
@@ -1274,8 +1264,7 @@ async def update_practitioner_availability(
         result = db.query(User, UserClinicAssociation).join(UserClinicAssociation).filter(
             User.id == user_id,
             UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True,
-            User.is_active == True
+            UserClinicAssociation.is_active == True
         ).first()
 
         # Check if user has practitioner role
@@ -1392,8 +1381,7 @@ async def delete_practitioner_availability(
         result = db.query(User, UserClinicAssociation).join(UserClinicAssociation).filter(
             User.id == user_id,
             UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True,
-            User.is_active == True
+            UserClinicAssociation.is_active == True
         ).first()
 
         # Check if user has practitioner role
@@ -1670,8 +1658,7 @@ async def get_practitioner_status(
     practitioner = db.query(User).join(UserClinicAssociation).filter(
         User.id == user_id,
         UserClinicAssociation.clinic_id == clinic_id,
-        UserClinicAssociation.is_active == True,
-        User.is_active == True
+        UserClinicAssociation.is_active == True
     ).first()
     
     if not practitioner:

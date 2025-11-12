@@ -190,8 +190,7 @@ def get_active_appointment_types_for_clinic_with_active_practitioners(
     ).filter(
         PractitionerAppointmentTypes.clinic_id == clinic_id,
         UserClinicAssociation.clinic_id == clinic_id,
-        UserClinicAssociation.is_active == True,
-        User.is_active == True
+        UserClinicAssociation.is_active == True
     )
     subquery = filter_by_role(subquery, 'practitioner').distinct()
 

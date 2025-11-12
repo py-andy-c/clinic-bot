@@ -45,8 +45,7 @@ class PractitionerService:
         # Base query for practitioners via UserClinicAssociation
         query = db.query(User).join(UserClinicAssociation).filter(
             UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True,
-            User.is_active == True
+            UserClinicAssociation.is_active == True
         )
         # Filter by practitioner role using JSON array check
         query = filter_by_role(query, 'practitioner')
@@ -95,9 +94,7 @@ class PractitionerService:
         if not clinic_id:
             raise ValueError("clinic_id is required for clinic isolation")
         
-        query = db.query(User).filter(
-            User.is_active == True
-        )
+        query = db.query(User)
         # Filter by practitioner role using JSON array check
         query = filter_by_role(query, 'practitioner')
         query = query.join(PractitionerAppointmentTypes).filter(
@@ -130,8 +127,7 @@ class PractitionerService:
             User object if found and valid, None otherwise
         """
         query = db.query(User).filter(
-            User.id == practitioner_id,
-            User.is_active == True
+            User.id == practitioner_id
         )
         # Filter by practitioner role using JSON array check
         query = filter_by_role(query, 'practitioner')
@@ -165,8 +161,7 @@ class PractitionerService:
             User object if valid, None otherwise
         """
         query = db.query(User).filter(
-            User.id == practitioner_id,
-            User.is_active == True
+            User.id == practitioner_id
         )
         # Filter by practitioner role using JSON array check
         query = filter_by_role(query, 'practitioner')

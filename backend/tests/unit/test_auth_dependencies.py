@@ -125,7 +125,7 @@ class TestGetCurrentUser:
                 self.email = "admin@example.com"
                 self.google_subject_id = "admin_sub"
                 self.full_name = "System Admin"
-                self.is_active = True
+                # is_active removed from User model
 
         mock_user = MockSystemAdminUser()
 
@@ -181,7 +181,7 @@ class TestGetCurrentUser:
         mock_user.id = 1
         mock_user.email = "user@example.com"
         mock_user.google_subject_id = "user_sub"
-        mock_user.is_active = True
+        # is_active removed from User model
 
         # Create mock association
         mock_association = Mock(spec=UserClinicAssociation)
@@ -266,7 +266,7 @@ class TestGetCurrentUser:
         mock_user.id = 1
         mock_user.google_subject_id = "user_sub"
         mock_user.email = "user@example.com"
-        mock_user.is_active = True
+        # is_active removed from User model
 
         mock_db = Mock()
         # Mock User query - returns user
@@ -318,7 +318,7 @@ class TestGetCurrentUser:
         mock_user.id = 1
         mock_user.google_subject_id = "user_sub"
         mock_user.email = "user@example.com"
-        mock_user.is_active = True
+        # is_active removed from User model
 
         # Create mock association (exists and is active)
         mock_association = Mock(spec=UserClinicAssociation)

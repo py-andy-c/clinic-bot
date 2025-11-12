@@ -222,18 +222,17 @@ def create_user_with_clinic_association(
         email: User's email (must be globally unique)
         google_subject_id: Google OAuth subject ID (must be globally unique)
         roles: List of roles for this clinic (e.g., ["admin"], ["practitioner"])
-        is_active: Whether the user is active
+        is_active: Whether the association is active (clinic-specific)
         clinic_name: Optional clinic-specific name (defaults to full_name)
     
     Returns:
         Tuple of (User, UserClinicAssociation)
     """
-    # Create user (roles and clinic_id are now in UserClinicAssociation)
+    # Create user (is_active is now only in UserClinicAssociation)
     user = User(
         full_name=full_name,
         email=email,
-        google_subject_id=google_subject_id,
-        is_active=is_active
+        google_subject_id=google_subject_id
     )
     db_session.add(user)
     db_session.flush()  # Flush to get user.id

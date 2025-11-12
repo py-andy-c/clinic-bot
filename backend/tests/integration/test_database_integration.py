@@ -118,8 +118,8 @@ async def mock_create_appointment(db, therapist_id, appointment_type_id, start_t
     from utils.query_helpers import filter_by_role
     
     query = db.query(User).filter(
-        User.id == therapist_id,
-        User.is_active == True
+        User.id == therapist_id
+        # is_active removed from User model - use association.is_active instead
     )
     query = filter_by_role(query, 'practitioner')
     practitioner = query.first()
