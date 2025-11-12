@@ -357,6 +357,8 @@ def ensure_clinic_access(user: UserContext) -> int:
     
     Uses `active_clinic_id` if available, falls back to `clinic_id` for backward compatibility.
     
+    System admins are not allowed to access clinic endpoints - they should use system endpoints.
+    
     Args:
         user: UserContext to check
         
@@ -366,6 +368,13 @@ def ensure_clinic_access(user: UserContext) -> int:
     Raises:
         HTTPException: If user doesn't have clinic access
     """
+    # System admins should not access clinic endpoints
+    if user.is_system_admin():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="系統管理員無法存取診所端點，請使用系統管理端點"
+        )
+    
     clinic_id = user.active_clinic_id or user.clinic_id
     if clinic_id is None:
         raise HTTPException(

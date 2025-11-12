@@ -286,10 +286,11 @@ async def signup_oauth_callback(
                 status_code=302
             )
 
-        # Check if email is already used in this clinic
-        existing_email = db.query(User).filter(
-            User.clinic_id == signup_token.clinic_id,
+        # Check if email is already used in this clinic via association
+        existing_email = db.query(User).join(UserClinicAssociation).filter(
+            UserClinicAssociation.clinic_id == signup_token.clinic_id,
             User.email == email,
+            UserClinicAssociation.is_active == True,
             User.is_active == True
         ).first()
 

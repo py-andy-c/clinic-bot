@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from main import app
 from models import User, SignupToken, RefreshToken, Clinic, UserClinicAssociation
+from tests.conftest import create_user_with_clinic_association
 from datetime import datetime, timezone, timedelta
 from core.database import get_db
 from auth.dependencies import get_current_user
@@ -185,15 +186,14 @@ class TestAuthenticationFlow:
             db_session.add(clinic)
             db_session.commit()
 
-            admin_user = User(
-                clinic_id=clinic.id,
+            admin_user, _ = create_user_with_clinic_association(
+                db_session,
+                clinic=clinic,
                 email="admin@test.com",
                 google_subject_id="admin_sub",
                 full_name="Test Admin",
                 roles=["admin", "practitioner"]
             )
-            db_session.add(admin_user)
-            db_session.commit()
 
             # Mock authenticated admin using dependency override
             from auth.dependencies import UserContext, get_current_user
@@ -457,10 +457,11 @@ class TestAuthenticationFlow:
             # Should work now with proper database isolation
             assert response.status_code == 200
 
-            # Test system admin trying clinic endpoint (should work due to system admin override)
+            # Test system admin trying clinic endpoint (should fail - system admins don't have clinic access)
+            # Clinic endpoints require clinic_id, which system admins don't have
             response = client.get("/api/clinic/members")
-            # System admins should have access to clinic endpoints despite no clinic_id
-            assert response.status_code == 200
+            # System admins should NOT have access to clinic endpoints (they need clinic_id)
+            assert response.status_code == 403
         finally:
             # Restore original override or remove if it was None
             if original_override is not None:

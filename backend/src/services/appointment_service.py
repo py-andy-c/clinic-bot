@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from models import (
-    Appointment, CalendarEvent, User, Patient
+    Appointment, CalendarEvent, User, Patient, UserClinicAssociation
 )
 from services.patient_service import PatientService
 from services.availability_service import AvailabilityService
@@ -244,7 +244,7 @@ class AppointmentService:
         # Batch fetch schedule data for all practitioners (2 queries total)
         practitioner_ids = [p.id for p in practitioners]
         schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
-            db, practitioner_ids, start_time.date()
+            db, practitioner_ids, start_time.date(), clinic_id
         )
         
         slot_start_time = start_time.time()
@@ -433,8 +433,8 @@ class AppointmentService:
         # Base query - join appointments with calendar events
         query = db.query(Appointment).join(CalendarEvent).join(Patient).join(User, CalendarEvent.user_id == User.id)
 
-        # Filter by clinic
-        query = query.filter(User.clinic_id == clinic_id)
+        # Filter by clinic (use CalendarEvent.clinic_id for clinic isolation)
+        query = query.filter(CalendarEvent.clinic_id == clinic_id)
 
         # Filter by date if provided
         if date_filter:
@@ -608,9 +608,11 @@ class AppointmentService:
                 detail="預約不存在"
             )
 
-        practitioner = db.query(User).filter(
+        # Verify practitioner is in the clinic via association
+        practitioner = db.query(User).join(UserClinicAssociation).filter(
             User.id == calendar_event.user_id,
-            User.clinic_id == clinic_id
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
         ).first()
 
         if not practitioner:

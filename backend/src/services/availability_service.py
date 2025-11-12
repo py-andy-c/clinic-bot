@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from models import (
     User, PractitionerAvailability, CalendarEvent,
-    PractitionerAppointmentTypes, Appointment, Clinic
+    PractitionerAppointmentTypes, Appointment, Clinic, UserClinicAssociation
 )
 from services.appointment_type_service import AppointmentTypeService
 from utils.query_helpers import filter_by_role
@@ -92,6 +92,9 @@ class AvailabilityService:
         Raises:
             HTTPException: If practitioner not found
         """
+        # Note: This function doesn't filter by clinic_id because it's used
+        # in contexts where clinic_id is already validated elsewhere.
+        # The caller should ensure the practitioner belongs to the correct clinic.
         query = db.query(User).filter(
             User.id == practitioner_id,
             User.is_active == True
@@ -176,7 +179,7 @@ class AvailabilityService:
 
             # Calculate available slots for this practitioner
             return AvailabilityService._calculate_available_slots(
-                db, requested_date, [practitioner], appointment_type.duration_minutes, clinic
+                db, requested_date, [practitioner], appointment_type.duration_minutes, clinic, clinic_id
             )
             
         except HTTPException:
@@ -251,7 +254,7 @@ class AvailabilityService:
 
             # Calculate available slots for all practitioners
             return AvailabilityService._calculate_available_slots(
-                db, requested_date, practitioners, appointment_type.duration_minutes, clinic
+                db, requested_date, practitioners, appointment_type.duration_minutes, clinic, clinic_id
             )
 
         except HTTPException:
@@ -269,7 +272,8 @@ class AvailabilityService:
         requested_date: date_type,
         practitioners: List[User],
         duration_minutes: int,
-        clinic: Clinic
+        clinic: Clinic,
+        clinic_id: int
     ) -> List[Dict[str, Any]]:
         """
         Calculate available time slots for the given date and practitioners.
@@ -296,7 +300,7 @@ class AvailabilityService:
         # Batch fetch schedule data for all practitioners (2 queries total instead of N×2)
         practitioner_ids = [p.id for p in practitioners]
         schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
-            db, practitioner_ids, requested_date
+            db, practitioner_ids, requested_date, clinic_id
         )
         
         available_slots: List[Dict[str, Any]] = []
@@ -452,12 +456,16 @@ class AvailabilityService:
             List of User objects (practitioners)
         """
         # Query PractitionerAppointmentTypes directly (indexed on appointment_type_id)
-        # Then join with User to filter by active status and clinic
+        # Then join with User and UserClinicAssociation to filter by active status and clinic
         query = db.query(User).join(
             PractitionerAppointmentTypes, User.id == PractitionerAppointmentTypes.user_id
+        ).join(
+            UserClinicAssociation, User.id == UserClinicAssociation.user_id
         ).filter(
             PractitionerAppointmentTypes.appointment_type_id == appointment_type_id,
-            User.clinic_id == clinic_id,
+            PractitionerAppointmentTypes.clinic_id == clinic_id,
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True,
             User.is_active == True
         )
         query = filter_by_role(query, 'practitioner')
@@ -522,7 +530,8 @@ class AvailabilityService:
     def fetch_practitioner_schedule_data(
         db: Session,
         practitioner_ids: List[int],
-        date: date_type
+        date: date_type,
+        clinic_id: int
     ) -> Dict[int, Dict[str, Any]]:
         """
         Fetch schedule data for one or more practitioners.
@@ -534,6 +543,7 @@ class AvailabilityService:
             db: Database session
             practitioner_ids: List of practitioner user IDs (can be a single-item list)
             date: Date to check
+            clinic_id: Clinic ID for filtering schedule data
 
         Returns:
             Dict mapping practitioner_id to their schedule data:
@@ -553,6 +563,7 @@ class AvailabilityService:
         default_intervals_map: Dict[int, List[PractitionerAvailability]] = {}
         default_intervals = db.query(PractitionerAvailability).filter(
             PractitionerAvailability.user_id.in_(practitioner_ids),
+            PractitionerAvailability.clinic_id == clinic_id,
             PractitionerAvailability.day_of_week == day_of_week
         ).order_by(PractitionerAvailability.user_id, PractitionerAvailability.start_time).all()
         
@@ -566,6 +577,7 @@ class AvailabilityService:
             Appointment, CalendarEvent.id == Appointment.calendar_event_id
         ).filter(
             CalendarEvent.user_id.in_(practitioner_ids),
+            CalendarEvent.clinic_id == clinic_id,
             CalendarEvent.date == date,
             or_(
                 CalendarEvent.event_type == 'availability_exception',

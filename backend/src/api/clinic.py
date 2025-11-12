@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
-from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent
+from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation
 from models.clinic import ClinicSettings
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
 from services.availability_service import AvailabilityService
@@ -151,30 +151,46 @@ async def list_members(
     
     Available to all clinic members (including read-only users).
     """
+    # Check clinic access first (raises HTTPException if denied)
+    clinic_id = ensure_clinic_access(current_user)
+    
     try:
+        # Get members via UserClinicAssociation for the active clinic
+        # Use joinedload to eagerly load associations and avoid N+1 queries
+        from sqlalchemy.orm import joinedload
+        
+        query = db.query(User).join(UserClinicAssociation).filter(
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
+        ).options(joinedload(User.clinic_associations))
+        
         # Admins can see both active and inactive members
         if current_user.has_role("admin"):
-            members = db.query(User).filter(
-                User.clinic_id == current_user.clinic_id
-            ).all()
+            members_with_associations = query.all()
         else:
             # Non-admins only see active members
-            members = db.query(User).filter(
-                User.clinic_id == current_user.clinic_id,
+            members_with_associations = query.filter(
                 User.is_active == True
             ).all()
-
-        member_list = [
-            MemberResponse(
+        
+        # Build member list with roles from associations
+        member_list: List[MemberResponse] = []
+        for member in members_with_associations:
+            # Get the association for this clinic from the eagerly loaded relationships
+            association = next(
+                (a for a in member.clinic_associations 
+                 if a.clinic_id == clinic_id),
+                None
+            )
+            
+            member_list.append(MemberResponse(
                 id=member.id,
                 email=member.email,
-                full_name=member.full_name,
-                roles=member.roles,
+                full_name=association.full_name if association else member.full_name,
+                roles=association.roles if association else [],
                 is_active=member.is_active,
                 created_at=member.created_at
-            )
-            for member in members
-        ]
+            ))
 
         return {"members": member_list}
 
@@ -212,9 +228,11 @@ async def invite_member(
         token = secrets.token_urlsafe(32)
         expires_at = datetime.now(timezone.utc) + timedelta(hours=48)  # 48 hours
 
+        clinic_id = ensure_clinic_access(current_user)
+        
         signup_token = SignupToken(
             token=token,
-            clinic_id=current_user.clinic_id,
+            clinic_id=clinic_id,
             default_roles=invite_data.default_roles,
             expires_at=expires_at
         )
@@ -255,12 +273,17 @@ async def update_member_roles(
     Only clinic admins can update member roles.
     """
     try:
-        # Find member
-        member = db.query(User).filter(
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Find member via association with eagerly loaded associations
+        from sqlalchemy.orm import joinedload
+        
+        member = db.query(User).join(UserClinicAssociation).filter(
             User.id == user_id,
-            User.clinic_id == current_user.clinic_id,
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True,
             User.is_active == True
-        ).first()
+        ).options(joinedload(User.clinic_associations)).first()
 
         if not member:
             raise HTTPException(
@@ -268,17 +291,32 @@ async def update_member_roles(
                 detail="找不到成員"
             )
 
+        # Get the association from the eagerly loaded relationships
+        association = next(
+            (a for a in member.clinic_associations 
+             if a.clinic_id == clinic_id),
+            None
+        )
+        
+        if not association:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到成員關聯"
+            )
+
         # Prevent self-demotion if user would lose admin access
         new_roles = roles_update.get("roles", [])
         if current_user.user_id == user_id and "admin" not in new_roles:
             # Check if this user is the last admin
-            admin_users = db.query(User).filter(
-                User.clinic_id == current_user.clinic_id,
-                User.is_active == True,
-                User.id != user_id
+            admin_associations = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.clinic_id == clinic_id,
+                UserClinicAssociation.is_active == True,
+                UserClinicAssociation.user_id != user_id
+            ).join(User).filter(
+                User.is_active == True
             ).all()
 
-            admin_count = sum(1 for user in admin_users if 'admin' in user.roles)
+            admin_count = sum(1 for assoc in admin_associations if 'admin' in (assoc.roles or []))
 
             if admin_count == 0:
                 raise HTTPException(
@@ -294,16 +332,17 @@ async def update_member_roles(
                 detail="指定的角色無效"
             )
 
-        # Update roles
-        member.roles = new_roles
+        # Update roles in association (not User.roles which is deprecated)
+        association.roles = new_roles
+        association.updated_at = datetime.now(timezone.utc)
         db.commit()
-        db.refresh(member)
+        db.refresh(association)
 
         return MemberResponse(
             id=member.id,
             email=member.email,
-            full_name=member.full_name,
-            roles=member.roles,
+            full_name=association.full_name,
+            roles=association.roles or [],
             is_active=member.is_active,
             created_at=member.created_at
         )
@@ -331,10 +370,13 @@ async def remove_member(
     Only clinic admins can remove members.
     """
     try:
-        # Find member
-        member = db.query(User).filter(
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Find member via association
+        member = db.query(User).join(UserClinicAssociation).filter(
             User.id == user_id,
-            User.clinic_id == current_user.clinic_id,
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True,
             User.is_active == True
         ).first()
 
@@ -344,15 +386,29 @@ async def remove_member(
                 detail="找不到成員"
             )
 
+        # Get the association to check roles and deactivate
+        association = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == user_id,
+            UserClinicAssociation.clinic_id == clinic_id
+        ).first()
+        
+        if not association:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到成員關聯"
+            )
+
         # Prevent removing last admin
-        if "admin" in member.roles:
-            admin_users = db.query(User).filter(
-                User.clinic_id == current_user.clinic_id,
-                User.is_active == True,
-                User.id != user_id
+        if "admin" in (association.roles or []):
+            admin_associations = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.clinic_id == clinic_id,
+                UserClinicAssociation.is_active == True,
+                UserClinicAssociation.user_id != user_id
+            ).join(User).filter(
+                User.is_active == True
             ).all()
 
-            admin_count = sum(1 for user in admin_users if 'admin' in user.roles)
+            admin_count = sum(1 for assoc in admin_associations if 'admin' in (assoc.roles or []))
 
             if admin_count == 0:
                 raise HTTPException(
@@ -360,8 +416,9 @@ async def remove_member(
                     detail="無法停用最後一位管理員"
                 )
 
-        # Soft delete
-        member.is_active = False
+        # Deactivate association (not the user, since they may be in other clinics)
+        association.is_active = False
+        association.updated_at = datetime.now(timezone.utc)
         db.commit()
 
         return {"message": "成員已停用"}
@@ -389,11 +446,13 @@ async def reactivate_member(
     Only clinic admins can reactivate members.
     """
     try:
-        # Find inactive member
-        member = db.query(User).filter(
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Find inactive member via association
+        member = db.query(User).join(UserClinicAssociation).filter(
             User.id == user_id,
-            User.clinic_id == current_user.clinic_id,
-            User.is_active == False
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == False
         ).first()
 
         if not member:
@@ -402,8 +461,21 @@ async def reactivate_member(
                 detail="找不到已停用的成員"
             )
 
-        # Reactivate member
-        member.is_active = True
+        # Get and reactivate the association
+        association = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == user_id,
+            UserClinicAssociation.clinic_id == clinic_id
+        ).first()
+        
+        if not association:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到成員關聯"
+            )
+
+        # Reactivate association
+        association.is_active = True
+        association.updated_at = datetime.now(timezone.utc)
         db.commit()
 
         return {"message": "成員已重新啟用"}
@@ -432,8 +504,10 @@ async def get_settings(
     try:
         from models import Clinic
 
+        clinic_id = ensure_clinic_access(current_user)
+        
         # Get clinic info
-        clinic = db.query(Clinic).filter(Clinic.id == current_user.clinic_id).first()
+        clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
         if not clinic:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -799,7 +873,7 @@ async def generate_reminder_preview(
     messages will appear to patients before they are sent.
     """
     try:
-        clinic_id = current_user.clinic_id
+        clinic_id = ensure_clinic_access(current_user)
         if not clinic_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -847,7 +921,7 @@ async def generate_cancellation_preview(
     messages will appear to patients before they are sent.
     """
     try:
-        clinic_id = current_user.clinic_id
+        clinic_id = ensure_clinic_access(current_user)
         if not clinic_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -897,10 +971,10 @@ async def get_patients(
     """
     try:
         # Get patients using service
-        assert current_user.clinic_id is not None, "Clinic ID required for clinic members"
+        clinic_id = ensure_clinic_access(current_user)
         patients = PatientService.list_patients_for_clinic(
             db=db,
-            clinic_id=current_user.clinic_id
+            clinic_id=clinic_id
         )
 
         # Format for clinic response (includes line_user_id and display_name)
@@ -942,9 +1016,12 @@ async def get_practitioner_availability(
     """
     try:
         # Find the practitioner
-        practitioner = db.query(User).filter(
+        clinic_id = ensure_clinic_access(current_user)
+        
+        practitioner = db.query(User).join(UserClinicAssociation).filter(
             User.id == user_id,
-            User.clinic_id == current_user.clinic_id,
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True,
             User.is_active == True
         ).first()
 
@@ -1015,9 +1092,12 @@ async def create_practitioner_availability(
         from datetime import time
 
         # Find the practitioner
-        practitioner = db.query(User).filter(
+        clinic_id = ensure_clinic_access(current_user)
+        
+        practitioner = db.query(User).join(UserClinicAssociation).filter(
             User.id == user_id,
-            User.clinic_id == current_user.clinic_id,
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True,
             User.is_active == True
         ).first()
 
@@ -1067,9 +1147,11 @@ async def create_practitioner_availability(
             )
 
         # Create availability
+        clinic_id = ensure_clinic_access(current_user)
+        
         availability = PractitionerAvailability(
             user_id=user_id,
-            clinic_id=current_user.clinic_id,
+            clinic_id=clinic_id,
             day_of_week=availability_data.day_of_week,
             start_time=start_time,
             end_time=end_time
@@ -1133,9 +1215,12 @@ async def update_practitioner_availability(
             )
 
         # Verify the practitioner belongs to current clinic
-        practitioner = db.query(User).filter(
+        clinic_id = ensure_clinic_access(current_user)
+        
+        practitioner = db.query(User).join(UserClinicAssociation).filter(
             User.id == user_id,
-            User.clinic_id == current_user.clinic_id,
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True,
             User.is_active == True
         ).first()
 
@@ -1245,9 +1330,12 @@ async def delete_practitioner_availability(
             )
 
         # Verify the practitioner belongs to current clinic
-        practitioner = db.query(User).filter(
+        clinic_id = ensure_clinic_access(current_user)
+        
+        practitioner = db.query(User).join(UserClinicAssociation).filter(
             User.id == user_id,
-            User.clinic_id == current_user.clinic_id,
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True,
             User.is_active == True
         ).first()
 
@@ -1326,11 +1414,11 @@ async def cancel_clinic_appointment(
                 # If event doesn't exist, let service handle 404
         
         # Cancel appointment using service (will verify appointment exists, clinic matches, etc.)
-        assert current_user.clinic_id is not None, "Clinic ID required for clinic members"
+        clinic_id = ensure_clinic_access(current_user)
         result = AppointmentService.cancel_appointment_by_clinic_admin(
             db=db,
             appointment_id=appointment_id,
-            clinic_id=current_user.clinic_id
+            clinic_id=clinic_id
         )
 
         appointment = result['appointment']
@@ -1447,10 +1535,13 @@ async def update_practitioner_appointment_types(
         )
 
     try:
+        clinic_id = ensure_clinic_access(current_user)
+        
         # Validate that the practitioner exists and belongs to the same clinic
-        practitioner = db.query(User).filter(
+        practitioner = db.query(User).join(UserClinicAssociation).filter(
             User.id == user_id,
-            User.clinic_id == current_user.clinic_id
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
         ).first()
 
         if not practitioner:
@@ -1463,7 +1554,7 @@ async def update_practitioner_appointment_types(
         for type_id in request.appointment_type_ids:
             try:
                 AppointmentTypeService.get_appointment_type_by_id(
-                    db, type_id, clinic_id=current_user.clinic_id
+                    db, type_id, clinic_id=clinic_id
                 )
             except HTTPException:
                 raise HTTPException(
@@ -1513,33 +1604,32 @@ async def get_practitioner_status(
     This endpoint checks if a practitioner has configured appointment types
     and availability settings, used for displaying warnings to admins.
     """
+    clinic_id = ensure_clinic_access(current_user)
+    
     # Check permissions - clinic members can view practitioner status
-    practitioner = db.query(User).filter(User.id == user_id).first()
-    if not practitioner or current_user.clinic_id != practitioner.clinic_id:
+    # Verify practitioner is in the active clinic
+    practitioner = db.query(User).join(UserClinicAssociation).filter(
+        User.id == user_id,
+        UserClinicAssociation.clinic_id == clinic_id,
+        UserClinicAssociation.is_active == True,
+        User.is_active == True
+    ).first()
+    
+    if not practitioner:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="無權限查看此治療師的狀態"
         )
 
     try:
-        practitioner = db.query(User).filter(
-            User.id == user_id,
-            User.clinic_id == current_user.clinic_id,
-            User.is_active == True
-        ).first()
-
-        if not practitioner:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="治療師不存在或已停用"
-            )
 
         # Check if practitioner has appointment types configured
         appointment_types_count = count_active_appointment_types_for_practitioner(db, user_id)
 
         # Check if practitioner has availability configured
         availability_count = db.query(PractitionerAvailability).filter(
-            PractitionerAvailability.user_id == user_id
+            PractitionerAvailability.user_id == user_id,
+            PractitionerAvailability.clinic_id == clinic_id
         ).count()
 
         return PractitionerStatusResponse(

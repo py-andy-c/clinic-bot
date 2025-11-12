@@ -23,7 +23,8 @@ from core.database import get_db
 from auth.dependencies import require_authenticated, UserContext, ensure_clinic_access
 from models import (
     User,
-    PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment
+    PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment,
+    UserClinicAssociation
 )
 from services import AvailabilityService, AppointmentTypeService
 from api.responses import AvailableSlotsResponse, AvailableSlotResponse, ConflictWarningResponse
@@ -167,10 +168,11 @@ def _get_appointment_type_name(appointment: Appointment) -> Optional[str]:
     return appointment.appointment_type.name if appointment.appointment_type else None
 
 
-def _get_default_schedule_for_day(db: Session, user_id: int, day_of_week: int) -> List[TimeInterval]:
+def _get_default_schedule_for_day(db: Session, user_id: int, day_of_week: int, clinic_id: int) -> List[TimeInterval]:
     """Get default schedule intervals for a specific day."""
     availability = db.query(PractitionerAvailability).filter(
         PractitionerAvailability.user_id == user_id,
+        PractitionerAvailability.clinic_id == clinic_id,
         PractitionerAvailability.day_of_week == day_of_week
     ).order_by(PractitionerAvailability.start_time).all()
     
@@ -188,7 +190,8 @@ def _check_appointment_conflicts(
     user_id: int, 
     target_date: date_type, 
     start_time: time, 
-    end_time: time
+    end_time: time,
+    clinic_id: int
 ) -> List[Dict[str, Any]]:
     """Check for appointment conflicts with availability exception."""
     conflicts: List[Dict[str, Any]] = []
@@ -196,6 +199,7 @@ def _check_appointment_conflicts(
     # Get appointments that overlap with the exception time
     appointments = db.query(Appointment).join(CalendarEvent).filter(
         CalendarEvent.user_id == user_id,
+        CalendarEvent.clinic_id == clinic_id,
         CalendarEvent.event_type == 'appointment',
         CalendarEvent.date == target_date,
         Appointment.status == 'confirmed',
@@ -250,11 +254,13 @@ async def get_default_schedule(
                 detail="找不到治療師或治療師已停用"
             )
         
+        clinic_id = ensure_clinic_access(current_user)
+        
         # Get schedule for each day
         schedule: Dict[str, List[TimeInterval]] = {}
         for day_of_week in range(7):
             day_name = _get_day_name(day_of_week)
-            schedule[day_name] = _get_default_schedule_for_day(db, user_id, day_of_week)
+            schedule[day_name] = _get_default_schedule_for_day(db, user_id, day_of_week, clinic_id)
         
         return DefaultScheduleResponse(**schedule)
         
@@ -294,12 +300,30 @@ async def update_default_schedule(
                     detail="您只能修改自己的可用時間"
                 )
         
-        # Verify user exists, is active, and is a practitioner
-        user = db.query(User).filter(
+        # Get clinic_id for validation
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Verify user exists, is active, is a practitioner, and is in the clinic
+        user = db.query(User).join(UserClinicAssociation).filter(
             User.id == user_id,
-            User.is_active == True
+            User.is_active == True,
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
         ).first()
-        if not user or not user.is_practitioner:
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到治療師或治療師已停用"
+            )
+        
+        # Verify user is a practitioner via UserClinicAssociation roles
+        association = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == user_id,
+            UserClinicAssociation.clinic_id == clinic_id
+        ).first()
+        
+        if not association or "practitioner" not in (association.roles or []):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="找不到治療師或治療師已停用"
@@ -336,14 +360,15 @@ async def update_default_schedule(
         # Skip conflict checking for now to avoid validation errors
         pass
         
+        clinic_id = ensure_clinic_access(current_user)
+        
         # Clear existing availability for this user
         db.query(PractitionerAvailability).filter(
-            PractitionerAvailability.user_id == user_id
+            PractitionerAvailability.user_id == user_id,
+            PractitionerAvailability.clinic_id == clinic_id
         ).delete()
         
         # Create new availability records
-        # Ensure clinic_id is not None (this endpoint is for clinic users only)
-        clinic_id = ensure_clinic_access(current_user)
         
         for day_name in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']:
             intervals = getattr(schedule_data, day_name)
@@ -365,7 +390,7 @@ async def update_default_schedule(
         schedule: Dict[str, List[TimeInterval]] = {}
         for day_of_week in range(7):
             day_name = _get_day_name(day_of_week)
-            schedule[day_name] = _get_default_schedule_for_day(db, user_id, day_of_week)
+            schedule[day_name] = _get_default_schedule_for_day(db, user_id, day_of_week, clinic_id)
         
         return DefaultScheduleResponse(**schedule)
         
@@ -427,13 +452,16 @@ async def get_calendar_data(
                     detail="無效的日期格式，請使用 YYYY-MM-DD"
                 )
             
+            clinic_id = ensure_clinic_access(current_user)
+            
             # Get default schedule for this day of week
             day_of_week = target_date.weekday()
-            default_schedule = _get_default_schedule_for_day(db, user_id, day_of_week)
+            default_schedule = _get_default_schedule_for_day(db, user_id, day_of_week, clinic_id)
             
             # Get events for this date
             events = db.query(CalendarEvent).filter(
                 CalendarEvent.user_id == user_id,
+                CalendarEvent.clinic_id == clinic_id,
                 CalendarEvent.date == target_date
             ).order_by(CalendarEvent.start_time).all()
             
@@ -510,12 +538,15 @@ async def get_calendar_data(
                     detail="無效的月份格式，請使用 YYYY-MM"
                 )
             
+            clinic_id = ensure_clinic_access(current_user)
+            
             # Get appointment counts for each day (only count confirmed appointments)
             appointment_counts = db.query(
                 CalendarEvent.date,
                 func.count(CalendarEvent.id).label('count')
             ).join(Appointment, CalendarEvent.id == Appointment.calendar_event_id).filter(
                 CalendarEvent.user_id == user_id,
+                CalendarEvent.clinic_id == clinic_id,
                 CalendarEvent.event_type == 'appointment',
                 Appointment.status == 'confirmed',
                 CalendarEvent.date >= start_date,
@@ -691,19 +722,22 @@ async def create_availability_exception(
                 detail="全天事件必須同時提供或同時省略 start_time 和 end_time"
             )
         
+        clinic_id = ensure_clinic_access(current_user)
+        
         # Check for appointment conflicts
         conflicts = []
         if exception_data.start_time and exception_data.end_time:
             conflicts = _check_appointment_conflicts(
                 db, user_id, target_date, 
                 _parse_time(exception_data.start_time), 
-                _parse_time(exception_data.end_time)
+                _parse_time(exception_data.end_time),
+                clinic_id
             )
         
         # Create calendar event
         calendar_event = CalendarEvent(
             user_id=user_id,
-            clinic_id=current_user.clinic_id,
+            clinic_id=clinic_id,
             event_type='availability_exception',
             date=target_date,
             start_time=_parse_time(exception_data.start_time) if exception_data.start_time else None,
@@ -773,10 +807,13 @@ async def delete_availability_exception(
                     detail="您只能刪除自己的可用時間例外"
                 )
         
+        clinic_id = ensure_clinic_access(current_user)
+        
         # Find the exception
         exception = db.query(AvailabilityException).join(CalendarEvent).filter(
             AvailabilityException.id == exception_id,
-            CalendarEvent.user_id == user_id
+            CalendarEvent.user_id == user_id,
+            CalendarEvent.clinic_id == clinic_id
         ).first()
         
         if not exception:

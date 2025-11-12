@@ -24,7 +24,8 @@ from auth.dependencies import get_current_line_user_with_clinic
 from utils.datetime_utils import taiwan_now
 from tests.conftest import (
     create_practitioner_availability_with_clinic,
-    create_calendar_event_with_clinic
+    create_calendar_event_with_clinic,
+    create_user_with_clinic_association
 )
 
 
@@ -59,15 +60,15 @@ def test_clinic_with_liff(db_session: Session):
     db_session.add(clinic)
     db_session.commit()
 
-    # Create practitioner
-    practitioner = User(
-        clinic_id=clinic.id,
+    # Create practitioner with clinic association
+    practitioner, _ = create_user_with_clinic_association(
+        db_session,
+        clinic=clinic,
         email="practitioner@liffclinic.com",
         google_subject_id="google_123_practitioner",
         full_name="Dr. Test Practitioner",
         roles=["practitioner"]
     )
-    db_session.add(practitioner)
 
     # Create appointment types
     appt_types = []
@@ -1364,14 +1365,14 @@ class TestLiffAvailabilityBookingRestrictions:
         db_session.commit()
 
         # Create practitioner
-        practitioner = User(
-            clinic_id=clinic.id,
+        practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
             email="practitioner@samedayclinic.com",
             google_subject_id="google_123_same_day",
             full_name="Dr. Same Day Test",
             roles=["practitioner"]
         )
-        db_session.add(practitioner)
 
         # Create appointment type
         appt_type = AppointmentType(
@@ -1425,14 +1426,14 @@ class TestLiffAvailabilityBookingRestrictions:
         db_session.commit()
 
         # Create practitioner
-        practitioner = User(
-            clinic_id=clinic.id,
+        practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
             email="practitioner@hoursclinic.com",
             google_subject_id="google_123_hours",
             full_name="Dr. Hours Test",
             roles=["practitioner"]
         )
-        db_session.add(practitioner)
 
         # Create appointment type
         appt_type = AppointmentType(
@@ -1666,24 +1667,23 @@ class TestClinicIsolationSecurity:
         db_session.commit()
 
         # Practitioners for each clinic
-        practitioner1 = User(
-            clinic_id=clinic1.id,
+        practitioner1, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic1,
             email="dr.smith@clinic1.com",
             google_subject_id="google_123_clinic1",
             full_name="Dr. Smith",
             roles=["practitioner"]
         )
-        db_session.add(practitioner1)
 
-        practitioner2 = User(
-            clinic_id=clinic2.id,
+        practitioner2, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic2,
             email="dr.jones@clinic2.com",
             google_subject_id="google_123_clinic2",
             full_name="Dr. Jones",
             roles=["practitioner"]
         )
-        db_session.add(practitioner2)
-        db_session.commit()
 
         # Appointment types for each clinic
         appt_types1 = []
@@ -1844,25 +1844,24 @@ class TestClinicIsolationSecurity:
         db_session.commit()
 
         # Create practitioners
-        active_practitioner = User(
-            clinic_id=clinic.id,
+        active_practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
             email="active@clinic.com",
             google_subject_id="google_active",
             full_name="Active Practitioner",
             roles=["practitioner"],
             is_active=True
         )
-        inactive_practitioner = User(
-            clinic_id=clinic.id,
+        inactive_practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
             email="inactive@clinic.com",
             google_subject_id="google_inactive",
             full_name="Inactive Practitioner",
             roles=["practitioner"],
             is_active=False
         )
-        db_session.add(active_practitioner)
-        db_session.add(inactive_practitioner)
-        db_session.commit()
 
         # Associate practitioners with appointment types
         # Active practitioner with first appointment type

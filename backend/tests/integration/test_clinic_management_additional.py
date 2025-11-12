@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from main import app
 from core.database import get_db
 from models import Clinic, User, Patient, AppointmentType, Appointment, CalendarEvent, PractitionerAppointmentTypes
-from tests.conftest import create_calendar_event_with_clinic
+from tests.conftest import create_calendar_event_with_clinic, create_user_with_clinic_association
 
 
 @pytest.fixture
@@ -46,10 +46,24 @@ def clinic_with_admin_and_practitioner(db_session):
     db_session.add(c)
     db_session.commit()
 
-    admin = User(clinic_id=c.id, full_name="Admin", email="admin@ex.com", google_subject_id="subA", roles=["admin"], is_active=True)
-    pract = User(clinic_id=c.id, full_name="Doc", email="doc@ex.com", google_subject_id="subP", roles=["practitioner"], is_active=True)
-    db_session.add_all([admin, pract])
-    db_session.commit()
+    admin, _ = create_user_with_clinic_association(
+        db_session,
+        clinic=c,
+        full_name="Admin",
+        email="admin@ex.com",
+        google_subject_id="subA",
+        roles=["admin"],
+        is_active=True
+    )
+    pract, _ = create_user_with_clinic_association(
+        db_session,
+        clinic=c,
+        full_name="Doc",
+        email="doc@ex.com",
+        google_subject_id="subP",
+        roles=["practitioner"],
+        is_active=True
+    )
     return c, admin, pract
 
 
@@ -258,9 +272,15 @@ class TestAppointmentTypeDeletionPrevention:
         c, admin, pract = clinic_with_admin_and_practitioner
 
         # Create second practitioner
-        pract2 = User(clinic_id=c.id, full_name="Doc2", email="doc2@ex.com", google_subject_id="subP2", roles=["practitioner"], is_active=True)
-        db_session.add(pract2)
-        db_session.commit()
+        pract2, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=c,
+            full_name="Doc2",
+            email="doc2@ex.com",
+            google_subject_id="subP2",
+            roles=["practitioner"],
+            is_active=True
+        )
 
         # Create appointment type
         at1 = AppointmentType(clinic_id=c.id, name="初診評估", duration_minutes=60)

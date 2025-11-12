@@ -20,7 +20,7 @@ from models import (
 from services.appointment_service import AppointmentService
 from services.patient_service import PatientService
 from utils.datetime_utils import taiwan_now, TAIWAN_TZ
-from tests.conftest import create_calendar_event_with_clinic
+from tests.conftest import create_calendar_event_with_clinic, create_user_with_clinic_association
 
 
 class TestAppointmentServiceListAppointments:
@@ -40,16 +40,15 @@ class TestAppointmentServiceListAppointments:
         db_session.add(clinic)
         db_session.commit()
 
-        # Create practitioner
-        practitioner = User(
-            clinic_id=clinic.id,
+        # Create practitioner with clinic association
+        practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
             email="practitioner@test.com",
             google_subject_id="practitioner_123",
             full_name="Dr. Practitioner",
             roles=["practitioner"]
         )
-        db_session.add(practitioner)
-        db_session.commit()
 
         # Create appointment type
         appt_type = AppointmentType(
@@ -133,16 +132,15 @@ class TestAppointmentServiceListAppointments:
         db_session.add(clinic)
         db_session.commit()
 
-        # Create practitioner
-        practitioner = User(
-            clinic_id=clinic.id,
+        # Create practitioner with clinic association
+        practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
             email="practitioner@test.com",
             google_subject_id="practitioner_123",
             full_name="Dr. Practitioner",
             roles=["practitioner"]
         )
-        db_session.add(practitioner)
-        db_session.commit()
 
         # Create appointment type
         appt_type = AppointmentType(
@@ -209,14 +207,14 @@ class TestAppointmentServiceListAppointments:
         db_session.add(clinic)
         db_session.commit()
 
-        practitioner = User(
-            clinic_id=clinic.id,
+        practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
             email="practitioner@test.com",
             google_subject_id="practitioner_123",
             full_name="Dr. Practitioner",
             roles=["practitioner"]
         )
-        db_session.add(practitioner)
         appt_type = AppointmentType(
             clinic_id=clinic.id,
             name="Consultation",
@@ -309,24 +307,23 @@ class TestAppointmentServiceLoadBalancing:
         db_session.add(clinic)
         db_session.commit()
 
-        # Create two practitioners
-        practitioner1 = User(
-            clinic_id=clinic.id,
+        # Create two practitioners with clinic associations
+        practitioner1, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
             email="practitioner1@test.com",
             google_subject_id="practitioner1",
             full_name="Dr. One",
             roles=["practitioner"]
         )
-        practitioner2 = User(
-            clinic_id=clinic.id,
+        practitioner2, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
             email="practitioner2@test.com",
             google_subject_id="practitioner2",
             full_name="Dr. Two",
             roles=["practitioner"]
         )
-        db_session.add(practitioner1)
-        db_session.add(practitioner2)
-        db_session.commit()
 
         # Create appointment type
         appt_type = AppointmentType(
@@ -425,14 +422,14 @@ class TestAppointmentServiceEdgeCases:
         db_session.add(clinic)
         db_session.commit()
 
-        practitioner = User(
-            clinic_id=clinic.id,
+        practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
             email="practitioner@test.com",
             google_subject_id="practitioner_123",
             full_name="Dr. Practitioner",
             roles=["practitioner"]
         )
-        db_session.add(practitioner)
         appt_type = AppointmentType(
             clinic_id=clinic.id,
             name="Consultation",
@@ -567,15 +564,15 @@ class TestAppointmentServiceTaiwanTimezone:
         db_session.add(clinic)
         db_session.commit()
 
-        # Create practitioner
-        practitioner = User(
-            clinic_id=clinic.id,
+        # Create practitioner with clinic association
+        practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
             email="practitioner@test.com",
             google_subject_id="practitioner_123",
             full_name="Dr. Practitioner",
             roles=["practitioner"]
         )
-        db_session.add(practitioner)
         appt_type = AppointmentType(
             clinic_id=clinic.id,
             name="Consultation",
@@ -694,15 +691,15 @@ class TestAppointmentServiceTaiwanTimezone:
         db_session.add(clinic)
         db_session.commit()
 
-        # Create practitioner
-        practitioner = User(
-            clinic_id=clinic.id,
+        # Create practitioner with clinic association
+        practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
             email="practitioner@test.com",
             google_subject_id="practitioner_123",
             full_name="Dr. Practitioner",
             roles=["practitioner"]
         )
-        db_session.add(practitioner)
         appt_type = AppointmentType(
             clinic_id=clinic.id,
             name="Consultation",
@@ -783,15 +780,15 @@ class TestAppointmentServiceTaiwanTimezone:
         db_session.add(clinic)
         db_session.commit()
 
-        # Create practitioner
-        practitioner = User(
-            clinic_id=clinic.id,
+        # Create practitioner with clinic association
+        practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
             email="practitioner@test.com",
             google_subject_id="practitioner_123",
             full_name="Dr. Practitioner",
             roles=["practitioner"]
         )
-        db_session.add(practitioner)
         appt_type = AppointmentType(
             clinic_id=clinic.id,
             name="Consultation",

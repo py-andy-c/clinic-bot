@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional
 
 from sqlalchemy.orm import Session
 
-from models import User, AppointmentType, PractitionerAppointmentTypes
+from models import User, AppointmentType, PractitionerAppointmentTypes, UserClinicAssociation
 from utils.query_helpers import filter_by_role
 from utils.appointment_type_queries import get_active_appointment_types_for_practitioner
 
@@ -42,9 +42,10 @@ class PractitionerService:
         Returns:
             List of practitioner dictionaries
         """
-        # Base query for practitioners
-        query = db.query(User).filter(
-            User.clinic_id == clinic_id,
+        # Base query for practitioners via UserClinicAssociation
+        query = db.query(User).join(UserClinicAssociation).filter(
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True,
             User.is_active == True
         )
         # Filter by practitioner role using JSON array check
@@ -86,22 +87,28 @@ class PractitionerService:
         Args:
             db: Database session
             appointment_type_id: Appointment type ID
-            clinic_id: Optional clinic ID filter
+            clinic_id: Optional clinic ID filter (required for clinic isolation)
 
         Returns:
             List of User objects (practitioners)
         """
+        if not clinic_id:
+            raise ValueError("clinic_id is required for clinic isolation")
+        
         query = db.query(User).filter(
             User.is_active == True
         )
         # Filter by practitioner role using JSON array check
         query = filter_by_role(query, 'practitioner')
         query = query.join(PractitionerAppointmentTypes).filter(
-            PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
+            PractitionerAppointmentTypes.appointment_type_id == appointment_type_id,
+            PractitionerAppointmentTypes.clinic_id == clinic_id  # Filter by clinic_id in PractitionerAppointmentTypes
         )
-
-        if clinic_id:
-            query = query.filter(User.clinic_id == clinic_id)
+        # Also verify practitioner is in the clinic via UserClinicAssociation
+        query = query.join(UserClinicAssociation).filter(
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
+        )
 
         return query.all()
 
@@ -117,7 +124,7 @@ class PractitionerService:
         Args:
             db: Database session
             practitioner_id: Practitioner user ID
-            clinic_id: Optional clinic ID for validation
+            clinic_id: Optional clinic ID for validation (required for clinic isolation)
 
         Returns:
             User object if found and valid, None otherwise
@@ -130,7 +137,11 @@ class PractitionerService:
         query = filter_by_role(query, 'practitioner')
 
         if clinic_id:
-            query = query.filter(User.clinic_id == clinic_id)
+            # Verify practitioner is in the clinic via UserClinicAssociation
+            query = query.join(UserClinicAssociation).filter(
+                UserClinicAssociation.clinic_id == clinic_id,
+                UserClinicAssociation.is_active == True
+            )
 
         return query.first()
 
