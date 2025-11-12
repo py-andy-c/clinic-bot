@@ -177,8 +177,15 @@ class PractitionerService:
         if not practitioner:
             return None
 
-        if clinic_id and practitioner.clinic_id != clinic_id:
-            return None
+        if clinic_id:
+            # Verify practitioner is in the specified clinic
+            association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == practitioner.id,
+                UserClinicAssociation.clinic_id == clinic_id,
+                UserClinicAssociation.is_active == True
+            ).first()
+            if not association:
+                return None
 
         return practitioner
 

@@ -40,14 +40,10 @@ def api_contract_client(db_session):
 
     # Create a test practitioner user
     from models.user import User
-    test_user = User(
-        email="test@example.com",
-        full_name="Test Practitioner",
-        roles=["admin", "practitioner"],
-        clinic_id=test_clinic.id,
-        google_subject_id="test_sub"
+    from tests.conftest import create_user_with_clinic_association
+    test_user, test_user_assoc = create_user_with_clinic_association(
+        db_session, test_clinic, "Test Practitioner", "test@example.com", "test_sub", ["admin", "practitioner"], True
     )
-    db_session.add(test_user)
     db_session.commit()
 
     # Verify user was created

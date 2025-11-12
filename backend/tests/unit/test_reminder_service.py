@@ -17,7 +17,7 @@ from models.user import User
 from models.appointment_type import AppointmentType
 from services.reminder_service import ReminderService
 from utils.datetime_utils import taiwan_now, ensure_taiwan
-from tests.conftest import create_calendar_event_with_clinic
+from tests.conftest import create_calendar_event_with_clinic, create_user_with_clinic_association
 
 
 class TestReminderServiceDuplicatePrevention:
@@ -36,16 +36,14 @@ class TestReminderServiceDuplicatePrevention:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test Therapist",
             email="therapist@test.com",
             google_subject_id="therapist_subject_123",
-            full_name="Test Therapist",
             roles=["practitioner"],
             is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         patient = Patient(
             clinic_id=clinic.id,
@@ -145,16 +143,14 @@ class TestReminderServiceDuplicatePrevention:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test Therapist",
             email="therapist@test.com",
             google_subject_id="therapist_subject_123",
-            full_name="Test Therapist",
             roles=["practitioner"],
             is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         patient = Patient(
             clinic_id=clinic.id,
@@ -240,16 +236,14 @@ class TestReminderServiceDuplicatePrevention:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test Therapist",
             email="therapist@test.com",
             google_subject_id="therapist_subject_123",
-            full_name="Test Therapist",
             roles=["practitioner"],
             is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         patient = Patient(
             clinic_id=clinic.id,
@@ -335,16 +329,14 @@ class TestReminderServiceDuplicatePrevention:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test Therapist",
             email="therapist@test.com",
             google_subject_id="therapist_subject_123",
-            full_name="Test Therapist",
             roles=["practitioner"],
             is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         patient = Patient(
             clinic_id=clinic.id,
@@ -449,16 +441,14 @@ class TestReminderServiceWindowBoundaries:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test Therapist",
             email="therapist@test.com",
             google_subject_id="therapist_subject_123",
-            full_name="Test Therapist",
             roles=["practitioner"],
             is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         patient = Patient(
             clinic_id=clinic.id,
@@ -615,16 +605,14 @@ class TestReminderServiceWindowBoundaries:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test Therapist",
             email="therapist@test.com",
             google_subject_id="therapist_subject_123",
-            full_name="Test Therapist",
             roles=["practitioner"],
             is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         patient = Patient(
             clinic_id=clinic.id,
@@ -772,16 +760,14 @@ class TestReminderServiceCatchUp:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test Therapist",
             email="therapist@test.com",
             google_subject_id="therapist_subject_123",
-            full_name="Test Therapist",
             roles=["practitioner"],
             is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         patient = Patient(
             clinic_id=clinic.id,
@@ -879,16 +865,14 @@ class TestReminderServiceCatchUp:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test Therapist",
             email="therapist@test.com",
             google_subject_id="therapist_subject_123",
-            full_name="Test Therapist",
             roles=["practitioner"],
             is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         patient = Patient(
             clinic_id=clinic.id,
@@ -976,16 +960,14 @@ class TestReminderServiceCatchUp:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test Therapist",
             email="therapist@test.com",
             google_subject_id="therapist_subject_123",
-            full_name="Test Therapist",
             roles=["practitioner"],
             is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         patient = Patient(
             clinic_id=clinic.id,
@@ -1093,14 +1075,14 @@ class TestReminderServiceRescheduling:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
             full_name="Test Therapist",
             email="therapist@test.com",
-            google_subject_id="test_google_subject_id"
+            google_subject_id="test_google_subject_id",
+            roles=["practitioner"],
+            is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         patient = Patient(
             clinic_id=clinic.id,
@@ -1171,14 +1153,14 @@ class TestReminderServiceRescheduling:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
             full_name="Test Therapist",
             email="therapist@test.com",
-            google_subject_id="test_google_subject_id"
+            google_subject_id="test_google_subject_id",
+            roles=["practitioner"],
+            is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         patient = Patient(
             clinic_id=clinic.id,
@@ -1248,14 +1230,14 @@ class TestReminderServiceRescheduling:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
             full_name="Test Therapist",
             email="therapist@test.com",
-            google_subject_id="test_google_subject_id"
+            google_subject_id="test_google_subject_id",
+            roles=["practitioner"],
+            is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         patient = Patient(
             clinic_id=clinic.id,

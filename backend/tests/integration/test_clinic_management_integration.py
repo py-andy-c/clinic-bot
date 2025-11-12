@@ -43,7 +43,7 @@ def test_clinic_with_therapist(db_session):
     db_session.commit()  # Commit clinic first to get ID
 
     # Create therapist with clinic association
-    therapist, _ = create_user_with_clinic_association(
+    therapist, therapist_assoc = create_user_with_clinic_association(
         db_session=db_session,
         clinic=clinic,
         full_name="Dr. Test",
@@ -83,19 +83,20 @@ def test_clinic_with_therapist(db_session):
     db_session.add_all(appointment_types + availability_records)
     db_session.commit()
 
-    return clinic, therapist, appointment_types
+    return clinic, therapist, appointment_types, therapist_assoc
 
 
 @pytest.fixture
 def test_clinic_with_therapist_and_types(test_clinic_with_therapist):
     """Alias for test_clinic_with_therapist for backward compatibility."""
-    return test_clinic_with_therapist
+    clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
+    return clinic, therapist, appointment_types, therapist_assoc
 
 
 @pytest.fixture
 def linked_patient(db_session, test_clinic_with_therapist):
     """Create a linked patient for testing."""
-    clinic, therapist, appointment_types = test_clinic_with_therapist
+    clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
 
     # Create patient
     patient = Patient(
@@ -141,57 +142,44 @@ class TestClinicOnboardingIntegration:
         db_session.commit()
 
         # Create clinic admin (admin + practitioner roles)
-        clinic_admin = User(
-            clinic_id=clinic.id,
-            full_name="Clinic Admin",
-            email="admin@testclinic.com",
-            google_subject_id="admin_sub_123",
-            roles=["admin", "practitioner"],
-            is_active=True
+        from tests.conftest import create_user_with_clinic_association
+        clinic_admin, clinic_admin_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Clinic Admin", "admin@testclinic.com", "admin_sub_123", ["admin", "practitioner"], True
         )
-        db_session.add(clinic_admin)
 
         # Create practitioner only
-        practitioner = User(
-            clinic_id=clinic.id,
-            full_name="Practitioner Only",
-            email="practitioner@testclinic.com",
-            google_subject_id="pract_sub_456",
-            roles=["practitioner"],
-            is_active=True
+        practitioner, practitioner_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Practitioner Only", "practitioner@testclinic.com", "pract_sub_456", ["practitioner"], True
         )
-        db_session.add(practitioner)
 
         # Create admin only
-        admin_only = User(
-            clinic_id=clinic.id,
-            full_name="Admin Only",
-            email="adminonly@testclinic.com",
-            google_subject_id="adminonly_sub_789",
-            roles=["admin"],
-            is_active=True
+        admin_only, admin_only_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Admin Only", "adminonly@testclinic.com", "adminonly_sub_789", ["admin"], True
         )
-        db_session.add(admin_only)
         db_session.commit()
 
         # Verify role assignments follow business rules
         # Clinic admin should have both roles
-        assert "admin" in clinic_admin.roles
-        assert "practitioner" in clinic_admin.roles
+        assert "admin" in clinic_admin_assoc.roles
+        assert "practitioner" in clinic_admin_assoc.roles
 
         # Practitioner should only have practitioner role
-        assert "practitioner" in practitioner.roles
-        assert "admin" not in practitioner.roles
+        assert "practitioner" in practitioner_assoc.roles
+        assert "admin" not in practitioner_assoc.roles
 
         # Admin-only should only have admin role
-        assert "admin" in admin_only.roles
-        assert "practitioner" not in admin_only.roles
+        assert "admin" in admin_only_assoc.roles
+        assert "practitioner" not in admin_only_assoc.roles
 
         # Test that all users belong to the same clinic
-        users = db_session.query(User).filter(User.clinic_id == clinic.id).all()
-        assert len(users) == 3
-        for user in users:
-            assert user.clinic_id == clinic.id
+        from models import UserClinicAssociation
+        associations = db_session.query(UserClinicAssociation).filter(
+            UserClinicAssociation.clinic_id == clinic.id,
+            UserClinicAssociation.is_active == True
+        ).all()
+        assert len(associations) == 3
+        for assoc in associations:
+            assert assoc.clinic_id == clinic.id
 
     @pytest.mark.asyncio
     async def test_cross_clinic_data_isolation_business_logic(self, db_session):
@@ -217,23 +205,13 @@ class TestClinicOnboardingIntegration:
         db_session.commit()
 
         # Create users for each clinic
-        user1 = User(
-            clinic_id=clinic1.id,
-            full_name="User One",
-            email="user1@clinic1.com",
-            google_subject_id="user1_sub",
-            roles=["practitioner"],
-            is_active=True
+        from tests.conftest import create_user_with_clinic_association
+        user1, user1_assoc = create_user_with_clinic_association(
+            db_session, clinic1, "User One", "user1@clinic1.com", "user1_sub", ["practitioner"], True
         )
-        user2 = User(
-            clinic_id=clinic2.id,
-            full_name="User Two",
-            email="user2@clinic2.com",
-            google_subject_id="user2_sub",
-            roles=["practitioner"],
-            is_active=True
+        user2, user2_assoc = create_user_with_clinic_association(
+            db_session, clinic2, "User Two", "user2@clinic2.com", "user2_sub", ["practitioner"], True
         )
-        db_session.add_all([user1, user2])
         db_session.commit()
 
         # Create patients for each clinic
@@ -265,7 +243,11 @@ class TestClinicOnboardingIntegration:
         db_session.commit()
 
         # Test data isolation - Clinic 1 user should only see Clinic 1 data
-        clinic1_users = db_session.query(User).filter(User.clinic_id == clinic1.id).all()
+        from models import UserClinicAssociation
+        clinic1_users = db_session.query(User).join(UserClinicAssociation).filter(
+            UserClinicAssociation.clinic_id == clinic1.id,
+            UserClinicAssociation.is_active == True
+        ).all()
         assert len(clinic1_users) == 1
         assert clinic1_users[0].id == user1.id
 
@@ -278,7 +260,10 @@ class TestClinicOnboardingIntegration:
         assert clinic1_apt_types[0].id == apt_type1.id
 
         # Test data isolation - Clinic 2 user should only see Clinic 2 data
-        clinic2_users = db_session.query(User).filter(User.clinic_id == clinic2.id).all()
+        clinic2_users = db_session.query(User).join(UserClinicAssociation).filter(
+            UserClinicAssociation.clinic_id == clinic2.id,
+            UserClinicAssociation.is_active == True
+        ).all()
         assert len(clinic2_users) == 1
         assert clinic2_users[0].id == user2.id
 
@@ -292,8 +277,9 @@ class TestClinicOnboardingIntegration:
 
         # Critical: Verify no cross-contamination
         # Clinic 1 should not see Clinic 2 data
-        cross_clinic_users = db_session.query(User).filter(
-            User.clinic_id == clinic1.id,
+        cross_clinic_users = db_session.query(User).join(UserClinicAssociation).filter(
+            UserClinicAssociation.clinic_id == clinic1.id,
+            UserClinicAssociation.is_active == True,
             User.email == "user2@clinic2.com"
         ).all()
         assert len(cross_clinic_users) == 0
@@ -315,7 +301,7 @@ class TestAppointmentLifecycleIntegration:
         Business rule: Rescheduling should maintain appointment constraints and update related data.
         This test exposes bugs in the reschedule logic.
         """
-        clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist_and_types
         apt_type = appointment_types[0]
 
         # Set up therapist with Google Calendar credentials
@@ -382,7 +368,7 @@ class TestAppointmentLifecycleIntegration:
         Business rule: Cancellation should update status and handle Google Calendar appropriately.
         This test exposes bugs in cancellation logic.
         """
-        clinic, therapist, appointment_types = test_clinic_with_therapist_and_types
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist_and_types
         apt_type = appointment_types[0]
 
         # Set up therapist with Google Calendar credentials
@@ -442,10 +428,10 @@ class TestClinicAppointmentManagement:
 
     def test_cancel_appointment_by_admin(self, test_clinic_with_therapist, linked_patient, db_session):
         """Test that clinic admin can cancel appointments."""
-        clinic, therapist, appointment_types = test_clinic_with_therapist
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
 
         # Create admin user with clinic association
-        admin, _ = create_user_with_clinic_association(
+        admin, admin_assoc = create_user_with_clinic_association(
             db_session=db_session,
             clinic=clinic,
             full_name="Admin User",
@@ -485,8 +471,8 @@ class TestClinicAppointmentManagement:
         user_context = UserContext(
             user_type="clinic_user",
             email=admin.email,
-            roles=["admin"],
-            active_clinic_id=admin.clinic_id,
+            roles=admin_assoc.roles,
+            active_clinic_id=admin_assoc.clinic_id,
             google_subject_id=admin.google_subject_id,
             name=admin.full_name,
             user_id=admin.id
@@ -521,10 +507,10 @@ class TestClinicAppointmentManagement:
 
     def test_cancel_appointment_nonexistent(self, test_clinic_with_therapist, db_session):
         """Test cancelling a non-existent appointment."""
-        clinic, _, _ = test_clinic_with_therapist
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
 
         # Create admin user with clinic association
-        admin, _ = create_user_with_clinic_association(
+        admin, admin_assoc = create_user_with_clinic_association(
             db_session=db_session,
             clinic=clinic,
             full_name="Admin User",
@@ -541,8 +527,8 @@ class TestClinicAppointmentManagement:
         user_context = UserContext(
             user_type="clinic_user",
             email=admin.email,
-            roles=["admin"],
-            active_clinic_id=admin.clinic_id,
+            roles=admin_assoc.roles,
+            active_clinic_id=admin_assoc.clinic_id,
             google_subject_id=admin.google_subject_id,
             name=admin.full_name,
             user_id=admin.id
@@ -564,10 +550,10 @@ class TestClinicAppointmentManagement:
 
     def test_cancel_appointment_already_cancelled(self, test_clinic_with_therapist, linked_patient, db_session):
         """Test cancelling an already cancelled appointment."""
-        clinic, therapist, appointment_types = test_clinic_with_therapist
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
 
         # Create admin user with clinic association
-        admin, _ = create_user_with_clinic_association(
+        admin, admin_assoc = create_user_with_clinic_association(
             db_session=db_session,
             clinic=clinic,
             full_name="Admin User",
@@ -607,8 +593,8 @@ class TestClinicAppointmentManagement:
         user_context = UserContext(
             user_type="clinic_user",
             email=admin.email,
-            roles=["admin"],
-            active_clinic_id=admin.clinic_id,
+            roles=admin_assoc.roles,
+            active_clinic_id=admin_assoc.clinic_id,
             google_subject_id=admin.google_subject_id,
             name=admin.full_name,
             user_id=admin.id
@@ -633,18 +619,13 @@ class TestClinicAppointmentManagement:
 
     def test_practitioner_cannot_cancel_other_practitioner_appointment(self, test_clinic_with_therapist, linked_patient, db_session):
         """Test that practitioners cannot cancel other practitioners' appointments."""
-        clinic, therapist, appointment_types = test_clinic_with_therapist
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
 
         # Create practitioner user (not admin)
-        practitioner = User(
-            clinic_id=clinic.id,
-            full_name="Practitioner User",
-            email="practitioner@example.com",
-            google_subject_id="practitioner_google_sub_456",
-            roles=["practitioner"],
-            is_active=True
+        from tests.conftest import create_user_with_clinic_association
+        practitioner, practitioner_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Practitioner User", "practitioner@example.com", "practitioner_google_sub_456", ["practitioner"], True
         )
-        db_session.add(practitioner)
         db_session.commit()
 
         # Create an appointment for therapist (not the practitioner)
@@ -677,8 +658,8 @@ class TestClinicAppointmentManagement:
         user_context = UserContext(
             user_type="clinic_user",
             email=practitioner.email,
-            roles=["practitioner"],
-            active_clinic_id=practitioner.clinic_id,
+            roles=practitioner_assoc.roles,
+            active_clinic_id=practitioner_assoc.clinic_id,
             google_subject_id=practitioner.google_subject_id,
             name=practitioner.full_name,
             user_id=practitioner.id
@@ -700,7 +681,7 @@ class TestClinicAppointmentManagement:
 
     def test_practitioner_can_cancel_own_appointment(self, test_clinic_with_therapist, linked_patient, db_session):
         """Test that practitioners can cancel their own appointments."""
-        clinic, therapist, appointment_types = test_clinic_with_therapist
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
 
         # Create an appointment for therapist
         start_time = datetime.now() + timedelta(days=1)
@@ -732,8 +713,8 @@ class TestClinicAppointmentManagement:
         user_context = UserContext(
             user_type="clinic_user",
             email=therapist.email,
-            roles=["practitioner"],
-            active_clinic_id=therapist.clinic_id,
+            roles=therapist_assoc.roles,
+            active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id
@@ -772,7 +753,7 @@ class TestPractitionerAppointmentTypes:
 
     def test_get_practitioner_appointment_types_success(self, db_session, test_clinic_with_therapist):
         """Test getting practitioner's appointment types successfully."""
-        clinic, therapist, appointment_types = test_clinic_with_therapist
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
 
         # Create some practitioner appointment type associations
         from models.practitioner_appointment_types import PractitionerAppointmentTypes
@@ -793,8 +774,8 @@ class TestPractitionerAppointmentTypes:
         user_context = UserContext(
             user_type="clinic_user",
             email=therapist.email,
-            roles=therapist.roles,
-            active_clinic_id=therapist.clinic_id,
+            roles=therapist_assoc.roles,
+            active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id
@@ -820,7 +801,7 @@ class TestPractitionerAppointmentTypes:
 
     def test_get_practitioner_appointment_types_empty(self, db_session, test_clinic_with_therapist):
         """Test getting practitioner's appointment types when none are configured."""
-        clinic, therapist, appointment_types = test_clinic_with_therapist
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
 
         # Mock authentication for therapist
         from auth.dependencies import get_current_user, get_db
@@ -829,8 +810,8 @@ class TestPractitionerAppointmentTypes:
         user_context = UserContext(
             user_type="clinic_user",
             email=therapist.email,
-            roles=therapist.roles,
-            active_clinic_id=therapist.clinic_id,
+            roles=therapist_assoc.roles,
+            active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id
@@ -854,18 +835,13 @@ class TestPractitionerAppointmentTypes:
 
     def test_get_practitioner_appointment_types_permission_denied(self, db_session, test_clinic_with_therapist):
         """Test that practitioners cannot view other practitioners' appointment types."""
-        clinic, therapist, appointment_types = test_clinic_with_therapist
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
 
         # Create another therapist
-        therapist2 = User(
-            clinic_id=clinic.id,
-            full_name="Dr. Test 2",
-            email="dr.test2@example.com",
-            google_subject_id="therapist_sub_456",
-            roles=["practitioner"],
-            is_active=True
+        from tests.conftest import create_user_with_clinic_association
+        therapist2, therapist2_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Dr. Test 2", "dr.test2@example.com", "therapist_sub_456", ["practitioner"], True
         )
-        db_session.add(therapist2)
         db_session.commit()
 
         # Mock authentication for therapist trying to view therapist2's types
@@ -875,8 +851,8 @@ class TestPractitionerAppointmentTypes:
         user_context = UserContext(
             user_type="clinic_user",
             email=therapist.email,
-            roles=therapist.roles,
-            active_clinic_id=therapist.clinic_id,
+            roles=therapist_assoc.roles,
+            active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id
@@ -898,7 +874,7 @@ class TestPractitionerAppointmentTypes:
 
     def test_update_practitioner_appointment_types_success(self, db_session, test_clinic_with_therapist):
         """Test updating practitioner's appointment types successfully."""
-        clinic, therapist, appointment_types = test_clinic_with_therapist
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
 
         # Mock authentication for therapist
         from auth.dependencies import get_current_user, get_db
@@ -907,8 +883,8 @@ class TestPractitionerAppointmentTypes:
         user_context = UserContext(
             user_type="clinic_user",
             email=therapist.email,
-            roles=therapist.roles,
-            active_clinic_id=therapist.clinic_id,
+            roles=therapist_assoc.roles,
+            active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id
@@ -942,7 +918,7 @@ class TestPractitionerAppointmentTypes:
 
     def test_update_practitioner_appointment_types_clear_all(self, db_session, test_clinic_with_therapist):
         """Test clearing all practitioner's appointment types."""
-        clinic, therapist, appointment_types = test_clinic_with_therapist
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
 
         # First create some associations
         from models.practitioner_appointment_types import PractitionerAppointmentTypes
@@ -962,8 +938,8 @@ class TestPractitionerAppointmentTypes:
         user_context = UserContext(
             user_type="clinic_user",
             email=therapist.email,
-            roles=therapist.roles,
-            active_clinic_id=therapist.clinic_id,
+            roles=therapist_assoc.roles,
+            active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id
@@ -991,7 +967,7 @@ class TestPractitionerAppointmentTypes:
 
     def test_update_practitioner_appointment_types_invalid_type_id(self, db_session, test_clinic_with_therapist):
         """Test updating with invalid appointment type ID."""
-        clinic, therapist, appointment_types = test_clinic_with_therapist
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
 
         # Mock authentication for therapist
         from auth.dependencies import get_current_user, get_db
@@ -1000,8 +976,8 @@ class TestPractitionerAppointmentTypes:
         user_context = UserContext(
             user_type="clinic_user",
             email=therapist.email,
-            roles=therapist.roles,
-            active_clinic_id=therapist.clinic_id,
+            roles=therapist_assoc.roles,
+            active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id
@@ -1026,18 +1002,13 @@ class TestPractitionerAppointmentTypes:
 
     def test_update_practitioner_appointment_types_permission_denied(self, db_session, test_clinic_with_therapist):
         """Test that practitioners cannot update other practitioners' appointment types."""
-        clinic, therapist, appointment_types = test_clinic_with_therapist
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
 
         # Create another therapist
-        therapist2 = User(
-            clinic_id=clinic.id,
-            full_name="Dr. Test 2",
-            email="dr.test2@example.com",
-            google_subject_id="therapist_sub_456",
-            roles=["practitioner"],
-            is_active=True
+        from tests.conftest import create_user_with_clinic_association
+        therapist2, therapist2_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Dr. Test 2", "dr.test2@example.com", "therapist_sub_456", ["practitioner"], True
         )
-        db_session.add(therapist2)
         db_session.commit()
 
         # Mock authentication for therapist trying to update therapist2's types
@@ -1047,8 +1018,8 @@ class TestPractitionerAppointmentTypes:
         user_context = UserContext(
             user_type="clinic_user",
             email=therapist.email,
-            roles=therapist.roles,
-            active_clinic_id=therapist.clinic_id,
+            roles=therapist_assoc.roles,
+            active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
             name=therapist.full_name,
             user_id=therapist.id

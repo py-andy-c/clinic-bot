@@ -332,7 +332,7 @@ async def update_member_roles(
                 detail="指定的角色無效"
             )
 
-        # Update roles in association (not User.roles which is deprecated)
+        # Update roles in association
         association.roles = new_roles
         association.updated_at = datetime.now(timezone.utc)
         db.commit()
@@ -1018,7 +1018,8 @@ async def get_practitioner_availability(
         # Find the practitioner
         clinic_id = ensure_clinic_access(current_user)
         
-        practitioner = db.query(User).join(UserClinicAssociation).filter(
+        # Get practitioner with association
+        result = db.query(User, UserClinicAssociation).join(UserClinicAssociation).filter(
             User.id == user_id,
             UserClinicAssociation.clinic_id == clinic_id,
             UserClinicAssociation.is_active == True,
@@ -1026,8 +1027,10 @@ async def get_practitioner_availability(
         ).first()
 
         # Check if user has practitioner role
-        if not practitioner or 'practitioner' not in practitioner.roles:
+        if not result or 'practitioner' not in (result[1].roles or []):
             practitioner = None
+        else:
+            practitioner = result[0]
 
         if not practitioner:
             raise HTTPException(
@@ -1094,7 +1097,8 @@ async def create_practitioner_availability(
         # Find the practitioner
         clinic_id = ensure_clinic_access(current_user)
         
-        practitioner = db.query(User).join(UserClinicAssociation).filter(
+        # Get practitioner with association
+        result = db.query(User, UserClinicAssociation).join(UserClinicAssociation).filter(
             User.id == user_id,
             UserClinicAssociation.clinic_id == clinic_id,
             UserClinicAssociation.is_active == True,
@@ -1102,8 +1106,10 @@ async def create_practitioner_availability(
         ).first()
 
         # Check if user has practitioner role
-        if not practitioner or 'practitioner' not in practitioner.roles:
+        if not result or 'practitioner' not in (result[1].roles or []):
             practitioner = None
+        else:
+            practitioner = result[0]
 
         if not practitioner:
             raise HTTPException(
@@ -1217,7 +1223,8 @@ async def update_practitioner_availability(
         # Verify the practitioner belongs to current clinic
         clinic_id = ensure_clinic_access(current_user)
         
-        practitioner = db.query(User).join(UserClinicAssociation).filter(
+        # Get practitioner with association
+        result = db.query(User, UserClinicAssociation).join(UserClinicAssociation).filter(
             User.id == user_id,
             UserClinicAssociation.clinic_id == clinic_id,
             UserClinicAssociation.is_active == True,
@@ -1225,8 +1232,10 @@ async def update_practitioner_availability(
         ).first()
 
         # Check if user has practitioner role
-        if not practitioner or 'practitioner' not in practitioner.roles:
+        if not result or 'practitioner' not in (result[1].roles or []):
             practitioner = None
+        else:
+            practitioner = result[0]
 
         if not practitioner:
             raise HTTPException(
@@ -1332,7 +1341,8 @@ async def delete_practitioner_availability(
         # Verify the practitioner belongs to current clinic
         clinic_id = ensure_clinic_access(current_user)
         
-        practitioner = db.query(User).join(UserClinicAssociation).filter(
+        # Get practitioner with association
+        result = db.query(User, UserClinicAssociation).join(UserClinicAssociation).filter(
             User.id == user_id,
             UserClinicAssociation.clinic_id == clinic_id,
             UserClinicAssociation.is_active == True,
@@ -1340,8 +1350,10 @@ async def delete_practitioner_availability(
         ).first()
 
         # Check if user has practitioner role
-        if not practitioner or 'practitioner' not in practitioner.roles:
+        if not result or 'practitioner' not in (result[1].roles or []):
             practitioner = None
+        else:
+            practitioner = result[0]
 
         if not practitioner:
             raise HTTPException(

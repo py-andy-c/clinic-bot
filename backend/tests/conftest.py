@@ -185,8 +185,7 @@ def sample_user_data():
     """Sample user data for tests."""
     return {
         "full_name": "Dr. Test",
-        "email": "dr.test@example.com",
-        "roles": ["practitioner"]
+        "email": "dr.test@example.com"
     }
 
 
@@ -229,15 +228,12 @@ def create_user_with_clinic_association(
     Returns:
         Tuple of (User, UserClinicAssociation)
     """
-    # Create user (no clinic_id needed)
+    # Create user (roles and clinic_id are now in UserClinicAssociation)
     user = User(
         full_name=full_name,
         email=email,
         google_subject_id=google_subject_id,
-        is_active=is_active,
-        # Note: roles and clinic_id are deprecated but kept for backward compatibility
-        roles=roles,  # Deprecated: kept for backward compatibility
-        clinic_id=clinic.id  # Deprecated: kept for backward compatibility
+        is_active=is_active
     )
     db_session.add(user)
     db_session.flush()  # Flush to get user.id

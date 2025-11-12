@@ -118,24 +118,37 @@ class TestGetCurrentUser:
             name="System Admin"
         )
 
-        # Create a mock system admin user (clinic_id=None)
+        # Create a mock system admin user
         class MockSystemAdminUser:
             def __init__(self):
                 self.id = 1
                 self.email = "admin@example.com"
                 self.google_subject_id = "admin_sub"
-                self.roles = []
-                self.clinic_id = None  # System admins have clinic_id=None
                 self.full_name = "System Admin"
                 self.is_active = True
 
         mock_user = MockSystemAdminUser()
 
         mock_db = Mock()
+        from models import User, UserClinicAssociation
+        
         # Mock the query chain: db.query(User).filter(...).first()
-        mock_query = Mock()
-        mock_query.filter.return_value.first.return_value = mock_user
-        mock_db.query.return_value = mock_query
+        mock_user_query = Mock()
+        mock_user_query.filter.return_value.first.return_value = mock_user
+        
+        # Mock the UserClinicAssociation query to return None (no associations for system admin)
+        mock_assoc_query = Mock()
+        mock_assoc_query.filter.return_value.first.return_value = None
+        
+        # Configure db.query to return different mocks based on the model
+        def query_side_effect(model):
+            if model is User:
+                return mock_user_query
+            elif model is UserClinicAssociation:
+                return mock_assoc_query
+            return Mock()
+        
+        mock_db.query.side_effect = query_side_effect
         mock_get_db.return_value = mock_db
 
         with patch('auth.dependencies.SYSTEM_ADMIN_EMAILS', ['admin@example.com']):

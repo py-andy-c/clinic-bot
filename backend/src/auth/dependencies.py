@@ -107,11 +107,21 @@ def get_current_user(
                 detail="Access denied"
             )
 
-        # Look up User record for system admin (clinic_id=None)
+        # Look up User record for system admin (no clinic associations)
         user = db.query(User).filter(
-            User.email == payload.email,
-            User.clinic_id.is_(None)  # System admins have clinic_id=None
+            User.email == payload.email
         ).first()
+        
+        # Verify it's actually a system admin (no associations)
+        if user:
+            has_associations = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == user.id
+            ).first() is not None
+            if has_associations:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="User not found"
+                )
 
         if not user:
             raise HTTPException(

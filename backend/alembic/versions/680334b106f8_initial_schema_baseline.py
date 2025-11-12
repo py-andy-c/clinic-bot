@@ -65,13 +65,7 @@ def upgrade() -> None:
     
     # Step 2: Create GIN indexes for JSONB fields (Week 1 optimization)
     # Note: Columns are already JSONB from models, so we can create GIN indexes directly
-    op.create_index(
-        'idx_users_roles_gin',
-        'users',
-        ['roles'],
-        postgresql_using='gin'
-    )
-    
+    # Note: users.roles index removed - roles are now in user_clinic_associations table
     op.create_index(
         'idx_clinics_settings_gin',
         'clinics',
@@ -125,11 +119,7 @@ def upgrade() -> None:
         ['clinic_id', 'is_deleted']
     )
     
-    op.create_index(
-        'idx_users_clinic_active',
-        'users',
-        ['clinic_id', 'is_active']
-    )
+    # Note: idx_users_clinic_active removed - clinic_id is now in user_clinic_associations table
 
 
 def downgrade() -> None:
@@ -139,14 +129,13 @@ def downgrade() -> None:
     This removes all tables, indexes, and constraints created by the baseline migration.
     """
     # Drop indexes first (before dropping tables)
-    op.drop_index('idx_users_clinic_active', table_name='users')
+    # Note: idx_users_clinic_active and idx_users_roles_gin removed - no longer exist
     op.drop_index('idx_appointment_types_clinic_deleted', table_name='appointment_types')
     op.drop_index('idx_patients_clinic_deleted', table_name='patients')
     op.drop_index('idx_appointments_appointment_type_id', table_name='appointments')
     op.drop_index('idx_appointment_types_clinic_id', table_name='appointment_types')
     op.drop_index('idx_signup_tokens_default_roles_gin', table_name='signup_tokens')
     op.drop_index('idx_clinics_settings_gin', table_name='clinics')
-    op.drop_index('idx_users_roles_gin', table_name='users')
     
     # Drop check constraints
     op.drop_constraint('check_appointment_status', 'appointments', type_='check')

@@ -10,7 +10,7 @@ from datetime import date, time, datetime
 from sqlalchemy.exc import IntegrityError
 
 from models import CalendarEvent, AvailabilityException, Appointment, User, Clinic, AppointmentType, Patient
-from tests.conftest import create_calendar_event_with_clinic
+from tests.conftest import create_calendar_event_with_clinic, create_user_with_clinic_association
 
 
 class TestCalendarEvent:
@@ -28,15 +28,14 @@ class TestCalendarEvent:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test User",
             email="test@example.com",
             google_subject_id="test_subject",
-            full_name="Test User",
-            roles=["practitioner"]
+            roles=["practitioner"],
+            is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         # Create calendar event
         calendar_event = create_calendar_event_with_clinic(
@@ -67,15 +66,14 @@ class TestCalendarEvent:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test User",
             email="test@example.com",
             google_subject_id="test_subject",
-            full_name="Test User",
-            roles=["practitioner"]
+            roles=["practitioner"],
+            is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         # Create all-day calendar event
         calendar_event = create_calendar_event_with_clinic(
@@ -102,15 +100,14 @@ class TestCalendarEvent:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test User",
             email="test@example.com",
             google_subject_id="test_subject",
-            full_name="Test User",
-            roles=["practitioner"]
+            roles=["practitioner"],
+            is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         # Create calendar event
         calendar_event = create_calendar_event_with_clinic(
@@ -136,15 +133,14 @@ class TestCalendarEvent:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test User",
             email="test@example.com",
             google_subject_id="test_subject",
-            full_name="Test User",
-            roles=["practitioner"]
+            roles=["practitioner"],
+            is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         # Try to create calendar event with invalid event type
         calendar_event = create_calendar_event_with_clinic(
@@ -170,15 +166,14 @@ class TestCalendarEvent:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test User",
             email="test@example.com",
             google_subject_id="test_subject",
-            full_name="Test User",
-            roles=["practitioner"]
+            roles=["practitioner"],
+            is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         # Try to create calendar event with zero duration (start = end)
         calendar_event = create_calendar_event_with_clinic(
@@ -208,15 +203,14 @@ class TestAvailabilityException:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test User",
             email="test@example.com",
             google_subject_id="test_subject",
-            full_name="Test User",
-            roles=["practitioner"]
+            roles=["practitioner"],
+            is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         # Create calendar event
         calendar_event = create_calendar_event_with_clinic(
@@ -254,15 +248,14 @@ class TestAvailabilityException:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test User",
             email="test@example.com",
             google_subject_id="test_subject",
-            full_name="Test User",
-            roles=["practitioner"]
+            roles=["practitioner"],
+            is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         # Create calendar event
         calendar_event = create_calendar_event_with_clinic(
@@ -309,15 +302,14 @@ class TestAppointmentWithCalendarEvent:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test User",
             email="test@example.com",
             google_subject_id="test_subject",
-            full_name="Test User",
-            roles=["practitioner"]
+            roles=["practitioner"],
+            is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         # Create appointment type
         appointment_type = AppointmentType(
@@ -380,15 +372,14 @@ class TestAppointmentWithCalendarEvent:
         db_session.add(clinic)
         db_session.flush()
 
-        user = User(
-            clinic_id=clinic.id,
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test User",
             email="test@example.com",
             google_subject_id="test_subject",
-            full_name="Test User",
-            roles=["practitioner"]
+            roles=["practitioner"],
+            is_active=True
         )
-        db_session.add(user)
-        db_session.flush()
 
         # Create appointment type
         appointment_type = AppointmentType(

@@ -85,37 +85,66 @@ def upgrade() -> None:
     
     # Step 4: Populate user_clinic_associations from users.clinic_id
     # CRITICAL: Include full_name in INSERT
-    op.execute("""
-        INSERT INTO user_clinic_associations (user_id, clinic_id, roles, full_name, created_at, updated_at)
-        SELECT id, clinic_id, roles, COALESCE(full_name, email, 'User'), created_at, updated_at
-        FROM users
-        WHERE clinic_id IS NOT NULL
-    """)
+    # Note: If users.clinic_id doesn't exist (baseline migration didn't create it), skip this step
+    users_columns = [col['name'] for col in inspector.get_columns('users')]
+    if 'clinic_id' in users_columns:
+        op.execute("""
+            INSERT INTO user_clinic_associations (user_id, clinic_id, roles, full_name, created_at, updated_at)
+            SELECT id, clinic_id, roles, COALESCE(full_name, email, 'User'), created_at, updated_at
+            FROM users
+            WHERE clinic_id IS NOT NULL
+        """)
     
     # Step 5: Populate clinic_id in clinic-scoped tables
-    # For practitioner_availability: get clinic_id from user
-    op.execute("""
-        UPDATE practitioner_availability pa
-        SET clinic_id = u.clinic_id
-        FROM users u
-        WHERE pa.user_id = u.id AND pa.clinic_id IS NULL AND u.clinic_id IS NOT NULL
-    """)
-    
-    # For calendar_events: get clinic_id from user
-    op.execute("""
-        UPDATE calendar_events ce
-        SET clinic_id = u.clinic_id
-        FROM users u
-        WHERE ce.user_id = u.id AND ce.clinic_id IS NULL AND u.clinic_id IS NOT NULL
-    """)
-    
-    # For practitioner_appointment_types: get clinic_id from user
-    op.execute("""
-        UPDATE practitioner_appointment_types pat
-        SET clinic_id = u.clinic_id
-        FROM users u
-        WHERE pat.user_id = u.id AND pat.clinic_id IS NULL AND u.clinic_id IS NOT NULL
-    """)
+    # Note: If users.clinic_id doesn't exist, we need to get clinic_id from user_clinic_associations instead
+    users_columns = [col['name'] for col in inspector.get_columns('users')]
+    if 'clinic_id' in users_columns:
+        # For practitioner_availability: get clinic_id from user
+        op.execute("""
+            UPDATE practitioner_availability pa
+            SET clinic_id = u.clinic_id
+            FROM users u
+            WHERE pa.user_id = u.id AND pa.clinic_id IS NULL AND u.clinic_id IS NOT NULL
+        """)
+        
+        # For calendar_events: get clinic_id from user
+        op.execute("""
+            UPDATE calendar_events ce
+            SET clinic_id = u.clinic_id
+            FROM users u
+            WHERE ce.user_id = u.id AND ce.clinic_id IS NULL AND u.clinic_id IS NOT NULL
+        """)
+        
+        # For practitioner_appointment_types: get clinic_id from user
+        op.execute("""
+            UPDATE practitioner_appointment_types pat
+            SET clinic_id = u.clinic_id
+            FROM users u
+            WHERE pat.user_id = u.id AND pat.clinic_id IS NULL AND u.clinic_id IS NOT NULL
+        """)
+    else:
+        # If users.clinic_id doesn't exist, get clinic_id from user_clinic_associations
+        # This handles the case where baseline migration didn't create clinic_id in users table
+        op.execute("""
+            UPDATE practitioner_availability pa
+            SET clinic_id = uca.clinic_id
+            FROM user_clinic_associations uca
+            WHERE pa.user_id = uca.user_id AND pa.clinic_id IS NULL AND uca.is_active = TRUE
+        """)
+        
+        op.execute("""
+            UPDATE calendar_events ce
+            SET clinic_id = uca.clinic_id
+            FROM user_clinic_associations uca
+            WHERE ce.user_id = uca.user_id AND ce.clinic_id IS NULL AND uca.is_active = TRUE
+        """)
+        
+        op.execute("""
+            UPDATE practitioner_appointment_types pat
+            SET clinic_id = uca.clinic_id
+            FROM user_clinic_associations uca
+            WHERE pat.user_id = uca.user_id AND pat.clinic_id IS NULL AND uca.is_active = TRUE
+        """)
     
     # Step 6: Verify no NULL clinic_id remains (should be 0)
     conn = op.get_bind()

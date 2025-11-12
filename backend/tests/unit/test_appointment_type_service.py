@@ -13,6 +13,7 @@ from models.clinic import Clinic
 from models.user import User
 from models.practitioner_appointment_types import PractitionerAppointmentTypes
 from services.appointment_type_service import AppointmentTypeService
+from tests.conftest import create_user_with_clinic_association
 
 
 class TestAppointmentTypeService:
@@ -272,25 +273,22 @@ class TestAppointmentTypeService:
         db_session.commit()
 
         # Create practitioners
-        active_practitioner = User(
-            clinic_id=clinic.id,
+        active_practitioner, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Active Practitioner",
             email="active@clinic.com",
             google_subject_id="google_active",
-            full_name="Active Practitioner",
             roles=["practitioner"],
             is_active=True
         )
-        inactive_practitioner = User(
-            clinic_id=clinic.id,
+        inactive_practitioner, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Inactive Practitioner",
             email="inactive@clinic.com",
             google_subject_id="google_inactive",
-            full_name="Inactive Practitioner",
             roles=["practitioner"],
             is_active=False
         )
-        db_session.add(active_practitioner)
-        db_session.add(inactive_practitioner)
-        db_session.commit()
 
         # Associate practitioners with appointment types
         from models import PractitionerAppointmentTypes

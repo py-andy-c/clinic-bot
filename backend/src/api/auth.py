@@ -97,8 +97,7 @@ def get_clinic_user_token_data(user: User, db: Session) -> Dict[str, Any]:
         # System admin or user with no active clinic association
         # For system admins, this is expected (active_clinic_id will be None)
         # For clinic users, this shouldn't happen after migration, but handle gracefully
-        if user.clinic_id is not None:
-            logger.warning(f"User {user.id} has no active clinic association but clinic_id is set. This may indicate incomplete migration.")
+        pass
     
     return {
         "active_clinic_id": active_clinic_id,
@@ -248,21 +247,26 @@ async def google_auth_callback(
         if email in SYSTEM_ADMIN_EMAILS:
             # This is a system admin regardless of which button was clicked
 
-            # For system admins, get or create User record (with clinic_id=None)
+            # For system admins, get or create User record (no clinic associations)
             existing_user = db.query(User).filter(
-                User.email == email,
-                User.clinic_id.is_(None)  # System admins have clinic_id=None
+                User.email == email
             ).first()
+            
+            # Verify it's actually a system admin (no associations)
+            if existing_user:
+                has_associations = db.query(UserClinicAssociation).filter(  # type: ignore
+                    UserClinicAssociation.user_id == existing_user.id  # type: ignore
+                ).first() is not None
+                if has_associations:
+                    existing_user = None  # Not a system admin, treat as new user
             
             if not existing_user:
                 # Create new User record for system admin
                 now = datetime.now(timezone.utc)
                 existing_user = User(
-                    clinic_id=None,  # System admins don't belong to clinics
                     email=email,
                     google_subject_id=google_subject_id,
                     full_name=name,
-                    roles=[],  # System admins don't have clinic roles
                     is_active=True,
                     created_at=now,
                     updated_at=now
@@ -521,20 +525,25 @@ async def refresh_access_token(
             logger.warning(f"Migrating old system admin refresh token for {refresh_token_record.email}")
             now = datetime.now(timezone.utc)
             
-            # Check if User record already exists
+            # Check if User record already exists (system admin - no associations)
             user = db.query(User).filter(
-                User.email == refresh_token_record.email,
-                User.clinic_id.is_(None)
+                User.email == refresh_token_record.email
             ).first()
+            
+            # Verify it's actually a system admin (no associations)
+            if user:
+                has_associations = db.query(UserClinicAssociation).filter(  # type: ignore
+                    UserClinicAssociation.user_id == user.id  # type: ignore
+                ).first() is not None
+                if has_associations:
+                    user = None  # Not a system admin
             
             if not user:
                 # Create User record for system admin
                 user = User(
-                    clinic_id=None,
                     email=refresh_token_record.email,
                     google_subject_id=refresh_token_record.google_subject_id or refresh_token_record.email,
                     full_name=refresh_token_record.name or refresh_token_record.email.split('@')[0].title(),
-                    roles=[],
                     is_active=True,
                     created_at=now,
                     updated_at=now
@@ -675,18 +684,23 @@ async def dev_login(
         )
 
     # Check if user exists, if not create them
-    # For system admins, check with clinic_id=None
-    # For clinic users, check with clinic_id set
-    if user_type == "system_admin":
-        user = db.query(User).filter(
-            User.email == email,
-            User.clinic_id.is_(None)  # System admins have clinic_id=None
-        ).first()
-    else:
-        user = db.query(User).filter(
-            User.email == email,
-            User.clinic_id.isnot(None)  # Clinic users must have clinic_id
-        ).first()
+    # Get user by email
+    user = db.query(User).filter(
+        User.email == email
+    ).first()
+    
+    # Verify user type matches
+    if user:
+        has_associations = db.query(UserClinicAssociation).filter(  # type: ignore
+            UserClinicAssociation.user_id == user.id  # type: ignore
+        ).first() is not None
+        
+        if user_type == "system_admin" and has_associations:
+            # User has associations but we're expecting system admin
+            user = None
+        elif user_type == "clinic_user" and not has_associations:
+            # User has no associations but we're expecting clinic user
+            user = None
     
     if not user:
         # Create a new user
@@ -706,25 +720,36 @@ async def dev_login(
                 )
                 db.add(clinic)
                 db.commit()
-
+            
+            # Create user
             user = User(
-                clinic_id=clinic.id,
                 email=email,
                 google_subject_id=f"dev_{email.replace('@', '_').replace('.', '_')}",
                 full_name=email.split('@')[0].title(),
-                roles=["admin", "practitioner"],
                 is_active=True,
                 created_at=now,
                 updated_at=now
             )
+            db.add(user)
+            db.flush()
+            
+            # Create clinic association
+            association = UserClinicAssociation(
+                user_id=user.id,
+                clinic_id=clinic.id,
+                roles=["admin", "practitioner"],
+                full_name=email.split('@')[0].title(),
+                is_active=True,
+                created_at=now,
+                updated_at=now
+            )
+            db.add(association)
         else:
-            # System admin - create User record with clinic_id=None
+            # System admin - create User record (no clinic associations)
             user = User(
-                clinic_id=None,  # System admins have clinic_id=None
                 email=email,
                 google_subject_id=f"dev_{email.replace('@', '_').replace('.', '_')}",
                 full_name=email.split('@')[0].title(),
-                roles=[],  # System admins don't have clinic roles
                 is_active=True,
                 created_at=now,
                 updated_at=now
@@ -733,8 +758,11 @@ async def dev_login(
         db.commit()
         db.refresh(user)
 
-    # Determine user type
-    is_system_admin = user.clinic_id is None or email in SYSTEM_ADMIN_EMAILS
+    # Determine user type - check if user has any clinic associations
+    has_associations = db.query(UserClinicAssociation).filter(  # type: ignore
+        UserClinicAssociation.user_id == user.id  # type: ignore
+    ).first() is not None
+    is_system_admin = not has_associations or email in SYSTEM_ADMIN_EMAILS
     
     # Get clinic-specific data for token creation
     clinic_data = get_clinic_user_token_data(user, db)
@@ -778,7 +806,7 @@ async def dev_login(
             "email": user.email,
             "full_name": user.full_name,
             "user_type": token_payload.user_type,
-            "roles": user.roles
+            "roles": token_payload.roles  # Clinic-specific roles from token
         }
     }
 

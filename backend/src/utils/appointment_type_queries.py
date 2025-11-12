@@ -177,15 +177,20 @@ def get_active_appointment_types_for_clinic_with_active_practitioners(
     Returns:
         List of active AppointmentType objects that have active practitioners
     """
-    from models import PractitionerAppointmentTypes, User
+    from models import PractitionerAppointmentTypes, User, UserClinicAssociation
     from utils.query_helpers import filter_by_role
 
     # Get appointment types that have active practitioners associated
     subquery = db.query(PractitionerAppointmentTypes.appointment_type_id).join(
         User,
         PractitionerAppointmentTypes.user_id == User.id
+    ).join(
+        UserClinicAssociation,
+        UserClinicAssociation.user_id == User.id
     ).filter(
-        User.clinic_id == clinic_id,
+        PractitionerAppointmentTypes.clinic_id == clinic_id,
+        UserClinicAssociation.clinic_id == clinic_id,
+        UserClinicAssociation.is_active == True,
         User.is_active == True
     )
     subquery = filter_by_role(subquery, 'practitioner').distinct()

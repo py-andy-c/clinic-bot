@@ -29,8 +29,8 @@ class ProfileResponse(BaseModel):
     id: int
     email: str  # Read-only, cannot be changed
     full_name: str
-    roles: list[str]
-    clinic_id: Optional[int]  # None for system admins
+    roles: list[str]  # Roles at active clinic (from UserClinicAssociation)
+    active_clinic_id: Optional[int]  # Currently active clinic ID (None for system admins)
     created_at: datetime
     last_login_at: Optional[datetime]
 
@@ -66,12 +66,27 @@ async def get_profile(
                 detail="找不到使用者"
             )
         
+        # Get roles and active clinic from UserClinicAssociation
+        from models import UserClinicAssociation
+        roles: list[str] = []
+        active_clinic_id: Optional[int] = None
+        
+        if current_user.active_clinic_id:
+            association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == user.id,
+                UserClinicAssociation.clinic_id == current_user.active_clinic_id,
+                UserClinicAssociation.is_active == True
+            ).first()
+            if association:
+                roles = association.roles or []
+                active_clinic_id = association.clinic_id
+        
         return ProfileResponse(
             id=user.id,
             email=user.email,
-            full_name=user.full_name,
-            roles=user.roles,
-            clinic_id=user.clinic_id,  # None for system admins, clinic_id for clinic users
+            full_name=current_user.name,  # Use clinic-specific name
+            roles=roles,
+            active_clinic_id=active_clinic_id,
             created_at=user.created_at,
             last_login_at=user.last_login_at
         )
@@ -115,8 +130,10 @@ async def update_profile(
             )
         
         # Update allowed fields only
+        # Note: full_name is clinic-specific, so we update UserClinicAssociation
+        # The user.full_name is kept as fallback but clinic-specific names take precedence
         if profile_data.full_name is not None:
-            user.full_name = profile_data.full_name
+            user.full_name = profile_data.full_name  # Update fallback name
         
         # Update timestamp (Taiwan timezone)
         user.updated_at = taiwan_now()
@@ -124,12 +141,32 @@ async def update_profile(
         db.commit()
         db.refresh(user)
         
+        # Get roles and active clinic from UserClinicAssociation
+        from models import UserClinicAssociation
+        roles: list[str] = []
+        active_clinic_id: Optional[int] = None
+        
+        if current_user.active_clinic_id:
+            association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == user.id,
+                UserClinicAssociation.clinic_id == current_user.active_clinic_id,
+                UserClinicAssociation.is_active == True
+            ).first()
+            if association:
+                roles = association.roles or []
+                active_clinic_id = association.clinic_id
+                
+                # Update clinic-specific name if provided
+                if profile_data.full_name is not None:
+                    association.full_name = profile_data.full_name
+                    association.updated_at = taiwan_now()
+        
         return ProfileResponse(
             id=user.id,
             email=user.email,  # Email cannot be changed
-            full_name=user.full_name,
-            roles=user.roles,
-            clinic_id=user.clinic_id,  # None for system admins, clinic_id for clinic users
+            full_name=current_user.name,  # Use clinic-specific name
+            roles=roles,
+            active_clinic_id=active_clinic_id,
             created_at=user.created_at,
             last_login_at=user.last_login_at
         )

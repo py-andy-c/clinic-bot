@@ -268,20 +268,43 @@ class TestAuthenticationFlow:
             db_session.commit()
 
             user1 = User(
-                clinic_id=clinic1.id,
                 email="user1@test.com",
                 google_subject_id="sub1",
                 full_name="User 1",
-                roles=["admin", "practitioner"]
+                is_active=True
             )
             user2 = User(
-                clinic_id=clinic2.id,
                 email="user2@test.com",
                 google_subject_id="sub2",
                 full_name="User 2",
-                roles=["admin", "practitioner"]
+                is_active=True
             )
             db_session.add_all([user1, user2])
+            db_session.flush()
+            
+            # Create associations
+            from models import UserClinicAssociation
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+            assoc1 = UserClinicAssociation(
+                user_id=user1.id,
+                clinic_id=clinic1.id,
+                roles=["admin", "practitioner"],
+                full_name="User 1",
+                is_active=True,
+                created_at=now,
+                updated_at=now
+            )
+            assoc2 = UserClinicAssociation(
+                user_id=user2.id,
+                clinic_id=clinic2.id,
+                roles=["admin", "practitioner"],
+                full_name="User 2",
+                is_active=True,
+                created_at=now,
+                updated_at=now
+            )
+            db_session.add_all([assoc1, assoc2])
             db_session.commit()
 
             # Mock user from clinic 1 using dependency override
@@ -345,30 +368,61 @@ class TestAuthenticationFlow:
             db_session.commit()
 
             admin_user = User(
-                clinic_id=clinic.id,
                 email="admin@test.com",
                 google_subject_id="admin_sub",
                 full_name="Admin User",
-                roles=["admin", "practitioner"]
+                is_active=True
             )
 
             practitioner_user = User(
-                clinic_id=clinic.id,
                 email="practitioner@test.com",
                 google_subject_id="pract_sub",
                 full_name="Practitioner User",
-                roles=["practitioner"]
+                is_active=True
             )
 
             read_only_user = User(
-                clinic_id=clinic.id,
                 email="readonly@test.com",
                 google_subject_id="readonly_sub",
                 full_name="Read Only User",
-                roles=[]
+                is_active=True
             )
 
             db_session.add_all([admin_user, practitioner_user, read_only_user])
+            db_session.flush()
+            
+            # Create associations
+            from models import UserClinicAssociation
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+            admin_assoc = UserClinicAssociation(
+                user_id=admin_user.id,
+                clinic_id=clinic.id,
+                roles=["admin", "practitioner"],
+                full_name="Admin User",
+                is_active=True,
+                created_at=now,
+                updated_at=now
+            )
+            practitioner_assoc = UserClinicAssociation(
+                user_id=practitioner_user.id,
+                clinic_id=clinic.id,
+                roles=["practitioner"],
+                full_name="Practitioner User",
+                is_active=True,
+                created_at=now,
+                updated_at=now
+            )
+            read_only_assoc = UserClinicAssociation(
+                user_id=read_only_user.id,
+                clinic_id=clinic.id,
+                roles=[],
+                full_name="Read Only User",
+                is_active=True,
+                created_at=now,
+                updated_at=now
+            )
+            db_session.add_all([admin_assoc, practitioner_assoc, read_only_assoc])
             db_session.commit()
 
             # Test admin-only endpoint with admin user
@@ -502,13 +556,28 @@ class TestRefreshTokenFlow:
         db_session.commit()
 
         user = User(
-            clinic_id=clinic.id,
             email="test@example.com",
             google_subject_id="test_subject",
             full_name="Test User",
-            roles=["admin", "practitioner"]
+            is_active=True
         )
         db_session.add(user)
+        db_session.flush()
+        
+        # Create association
+        from models import UserClinicAssociation
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            roles=["admin", "practitioner"],
+            full_name="Test User",
+            is_active=True,
+            created_at=now,
+            updated_at=now
+        )
+        db_session.add(association)
         db_session.commit()
 
         # Create a valid refresh token
@@ -570,13 +639,28 @@ class TestRefreshTokenFlow:
 
         # Create test user
         user = User(
-            clinic_id=clinic.id,
             email="test@example.com",
             google_subject_id="test_subject",
             full_name="Test User",
-            roles=["admin", "practitioner"]
+            is_active=True
         )
         db_session.add(user)
+        db_session.flush()
+        
+        # Create association
+        from models import UserClinicAssociation
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            roles=["admin", "practitioner"],
+            full_name="Test User",
+            is_active=True,
+            created_at=now,
+            updated_at=now
+        )
+        db_session.add(association)
         db_session.commit()
 
         # Create a valid refresh token
@@ -660,13 +744,28 @@ class TestRefreshTokenFlow:
         db_session.commit()
 
         user = User(
-            clinic_id=clinic.id,
             email="test@example.com",
             google_subject_id="test_subject",
             full_name="Test User",
-            roles=["admin", "practitioner"]
+            is_active=True
         )
         db_session.add(user)
+        db_session.flush()
+        
+        # Create association
+        from models import UserClinicAssociation
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            roles=["admin", "practitioner"],
+            full_name="Test User",
+            is_active=True,
+            created_at=now,
+            updated_at=now
+        )
+        db_session.add(association)
         db_session.commit()
 
         # Create an expired refresh token
@@ -710,13 +809,28 @@ class TestRefreshTokenFlow:
         db_session.commit()
 
         user = User(
-            clinic_id=clinic.id,
             email="test@example.com",
             google_subject_id="test_subject",
             full_name="Test User",
-            roles=["admin", "practitioner"]
+            is_active=True
         )
         db_session.add(user)
+        db_session.flush()
+        
+        # Create association
+        from models import UserClinicAssociation
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            roles=["admin", "practitioner"],
+            full_name="Test User",
+            is_active=True,
+            created_at=now,
+            updated_at=now
+        )
+        db_session.add(association)
         db_session.commit()
 
         # Create a refresh token
@@ -765,13 +879,28 @@ class TestRefreshTokenFlow:
         db_session.commit()
 
         user = User(
-            clinic_id=clinic.id,
             email="test@example.com",
             google_subject_id="test_subject",
             full_name="Test User",
-            roles=["admin", "practitioner"]
+            is_active=True
         )
         db_session.add(user)
+        db_session.flush()
+        
+        # Create association
+        from models import UserClinicAssociation
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            roles=["admin", "practitioner"],
+            full_name="Test User",
+            is_active=True,
+            created_at=now,
+            updated_at=now
+        )
+        db_session.add(association)
         db_session.commit()
 
         # Create a valid refresh token
@@ -920,6 +1049,9 @@ class TestSignupCallbackFlow:
             name_confirmation_data = {"full_name": "New Admin"}
             confirm_response = client.post(f"/api/signup/confirm-name?token={temp_token}", json=name_confirmation_data)
 
+            if confirm_response.status_code != 200:
+                print(f"Response status: {confirm_response.status_code}")
+                print(f"Response body: {confirm_response.text}")
             assert confirm_response.status_code == 200
             confirm_result = confirm_response.json()
             assert "redirect_url" in confirm_result
@@ -928,8 +1060,13 @@ class TestSignupCallbackFlow:
             # Verify user was created in database
             user = db_session.query(User).filter(User.email == "newadmin@example.com").first()
             assert user is not None
-            assert user.roles == ["admin", "practitioner"]
-            assert user.clinic_id == clinic.id
+            # Verify user has clinic association with correct roles
+            from models import UserClinicAssociation
+            association = db_session.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == user.id,
+                UserClinicAssociation.clinic_id == clinic.id
+            ).first()
+            assert association is not None
 
             # Verify signup token was marked as used
             db_session.refresh(signup_token)
@@ -1032,7 +1169,14 @@ class TestSignupCallbackFlow:
                 # Verify user was created with correct roles
                 user = db_session.query(User).filter(User.email == "newmember@example.com").first()
                 assert user is not None
-                assert user.roles == ["practitioner"]
+                # Verify user has clinic association with correct roles
+                from models import UserClinicAssociation
+                association = db_session.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == user.id,
+                    UserClinicAssociation.clinic_id == clinic.id
+                ).first()
+                assert association is not None
+                assert association.roles == ["practitioner"]
 
         finally:
             # Clean up overrides
@@ -1342,13 +1486,28 @@ class TestSignupCallbackFlow:
         db_session.commit()
 
         user = User(
-            clinic_id=clinic.id,
             email="member@test.com",
             google_subject_id="member_sub",
             full_name="Test Member",
-            roles=["practitioner"]
+            is_active=True
         )
         db_session.add(user)
+        db_session.flush()
+        
+        # Create association
+        from models import UserClinicAssociation
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            roles=["practitioner"],
+            full_name="Test Member",
+            is_active=True,
+            created_at=now,
+            updated_at=now
+        )
+        db_session.add(association)
         db_session.commit()
 
         # Mock admin user (required for member OAuth callback)
@@ -1538,11 +1697,10 @@ class TestSystemAdminRefreshTokenFlow:
             # that don't reference real User records, but we need to satisfy the FK constraint in tests
             dummy_user = User(
                 id=dummy_user_id,  # Use the same dummy_user_id
-                clinic_id=clinic.id,
                 email=f"dummy_{email}",
                 google_subject_id=f"dummy_{google_subject_id}",
                 full_name="Dummy User",
-                roles=[]
+                is_active=True
             )
             db_session.add(dummy_user)
             db_session.commit()
@@ -1599,14 +1757,12 @@ class TestSystemAdminRefreshTokenFlow:
             google_subject_id = "google_subject_123"
             name = "System Admin"
 
-            # Create system admin User record (clinic_id=None)
+            # Create system admin User record (no clinic associations)
             now = datetime.now(timezone.utc)
             system_admin_user = User(
-                clinic_id=None,  # System admins have clinic_id=None
                 email=email,
                 google_subject_id=google_subject_id,
                 full_name=name,
-                roles=[],
                 is_active=True,
                 created_at=now,
                 updated_at=now
@@ -1672,7 +1828,12 @@ class TestSystemAdminRefreshTokenFlow:
                 assert new_token.user.email == email
                 assert new_token.user.google_subject_id == google_subject_id
                 assert new_token.user.full_name == name
-                assert new_token.user.clinic_id is None  # System admins have clinic_id=None
+                # System admins have no clinic associations
+                from models import UserClinicAssociation
+                associations = db_session.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == new_token.user.id
+                ).all()
+                assert len(associations) == 0
 
                 # Verify the access token contains correct system admin info
                 access_token_payload = jwt_service.verify_token(data["access_token"])
@@ -1706,14 +1867,12 @@ class TestSystemAdminRefreshTokenFlow:
             google_subject_id = "google_subject_123"
             name = "System Admin"
 
-            # Create system admin User record (clinic_id=None)
+            # Create system admin User record (no clinic associations)
             now = datetime.now(timezone.utc)
             system_admin_user = User(
-                clinic_id=None,  # System admins have clinic_id=None
                 email=email,
                 google_subject_id=google_subject_id,
                 full_name=name,
-                roles=[],
                 is_active=True,
                 created_at=now,
                 updated_at=now
@@ -1777,7 +1936,12 @@ class TestSystemAdminRefreshTokenFlow:
                 assert new_token.user.email == email
                 assert new_token.user.google_subject_id == google_subject_id
                 assert new_token.user.full_name == name
-                assert new_token.user.clinic_id is None  # System admins have clinic_id=None
+                # System admins have no clinic associations
+                from models import UserClinicAssociation
+                associations = db_session.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == new_token.user.id
+                ).all()
+                assert len(associations) == 0
 
                 # Second refresh using new token
                 response2 = client.post("/api/auth/refresh", json={"refresh_token": new_refresh_token_string})
@@ -1800,7 +1964,12 @@ class TestSystemAdminRefreshTokenFlow:
                 assert final_token.user.email == email
                 assert final_token.user.google_subject_id == google_subject_id
                 assert final_token.user.full_name == name
-                assert final_token.user.clinic_id is None  # System admins have clinic_id=None
+                # System admins have no clinic associations
+                from models import UserClinicAssociation
+                associations = db_session.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == final_token.user.id
+                ).all()
+                assert len(associations) == 0
 
             finally:
                 client.app.dependency_overrides.pop(get_db, None)
@@ -1837,11 +2006,10 @@ class TestSystemAdminRefreshTokenFlow:
 
             dummy_user = User(
                 id=dummy_user_id,
-                clinic_id=clinic.id,
                 email=f"dummy_{email}",
                 google_subject_id=f"dummy_{google_subject_id}",
                 full_name="Dummy User",
-                roles=[]
+                is_active=True
             )
             db_session.add(dummy_user)
             db_session.commit()
@@ -1931,11 +2099,10 @@ class TestMultiClinicTokenCreation:
 
         # Create user with multiple clinic associations
         user = User(
-            clinic_id=clinic1.id,  # Deprecated field, kept for backward compatibility
             email="multiclinic@example.com",
             google_subject_id="multiclinic_subject",
             full_name="Multi Clinic User",
-            roles=["admin"]  # Deprecated field
+            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2029,11 +2196,10 @@ class TestMultiClinicTokenCreation:
 
         # Create user
         user = User(
-            clinic_id=clinic1.id,
             email="newuser@example.com",
             google_subject_id="newuser_subject",
             full_name="New User",
-            roles=["admin"]
+            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2196,11 +2362,10 @@ class TestMultiClinicTokenCreation:
 
         # Create user with multiple associations
         user = User(
-            clinic_id=clinic1.id,
             email="devmulticlinic@example.com",
             google_subject_id="devmulticlinic_subject",
             full_name="Dev Multi Clinic User",
-            roles=["admin"]
+            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2285,11 +2450,10 @@ class TestClinicSwitchingEndpoints:
 
         # Create user with multiple associations
         user = User(
-            clinic_id=clinic1.id,
             email="multiclinic@example.com",
             google_subject_id="multiclinic_subject",
             full_name="Multi Clinic User",
-            roles=["admin"]
+            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2380,13 +2544,12 @@ class TestClinicSwitchingEndpoints:
         dependencies.SYSTEM_ADMIN_EMAILS = ['admin@example.com']
 
         try:
-            # Create system admin user
+            # Create system admin user (no clinic associations)
             user = User(
-                clinic_id=None,
                 email="admin@example.com",
                 google_subject_id="admin_subject",
                 full_name="System Admin",
-                roles=[]
+                is_active=True
             )
             db_session.add(user)
             db_session.commit()
@@ -2451,11 +2614,10 @@ class TestClinicSwitchingEndpoints:
 
         # Create user with multiple associations
         user = User(
-            clinic_id=clinic1.id,
             email="switchtest@example.com",
             google_subject_id="switchtest_subject",
             full_name="Switch Test User",
-            roles=["admin"]
+            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2549,11 +2711,10 @@ class TestClinicSwitchingEndpoints:
 
         # Create user
         user = User(
-            clinic_id=clinic.id,
             email="idempotent@example.com",
             google_subject_id="idempotent_subject",
             full_name="Idempotent Test User",
-            roles=["admin"]
+            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2628,11 +2789,10 @@ class TestClinicSwitchingEndpoints:
 
         # Create user with only clinic1 association
         user = User(
-            clinic_id=clinic1.id,
             email="denied@example.com",
             google_subject_id="denied_subject",
             full_name="Denied Test User",
-            roles=["admin"]
+            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2696,11 +2856,10 @@ class TestClinicSwitchingEndpoints:
 
         # Create user
         user = User(
-            clinic_id=clinic.id,
             email="inactive@example.com",
             google_subject_id="inactive_subject",
             full_name="Inactive Test User",
-            roles=["admin"]
+            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -2779,13 +2938,12 @@ class TestClinicSwitchingEndpoints:
         dependencies.SYSTEM_ADMIN_EMAILS = ['admin@example.com']
 
         try:
-            # Create system admin user
+            # Create system admin user (no clinic associations)
             user = User(
-                clinic_id=None,
                 email="admin@example.com",
                 google_subject_id="admin_subject",
                 full_name="System Admin",
-                roles=[]
+                is_active=True
             )
             db_session.add(user)
             db_session.commit()
@@ -2847,11 +3005,10 @@ class TestClinicSwitchingEndpoints:
 
         # Create user with multiple associations
         user = User(
-            clinic_id=clinic1.id,
             email="ratelimit@example.com",
             google_subject_id="ratelimit_subject",
             full_name="Rate Limit Test User",
-            roles=["admin"]
+            is_active=True
         )
         db_session.add(user)
         db_session.flush()
@@ -3318,13 +3475,12 @@ class TestExistingUserJoinClinic:
             db_session.add(clinic)
             db_session.commit()
             
-            # Create system admin user
+            # Create system admin user (no clinic associations)
             user = User(
-                clinic_id=None,
                 email="admin@example.com",
                 google_subject_id="admin_subject",
                 full_name="System Admin",
-                roles=[]
+                is_active=True
             )
             db_session.add(user)
             db_session.commit()

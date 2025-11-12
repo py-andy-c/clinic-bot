@@ -10,7 +10,7 @@ from sqlalchemy import cast
 from sqlalchemy.orm import Query
 from sqlalchemy.dialects.postgresql import JSONB
 
-from models import User
+from models import UserClinicAssociation
 
 # Type variable for Query generic type
 T = TypeVar('T')
@@ -35,10 +35,12 @@ def filter_by_role(query: Query[T], role: str) -> Query[T]:
     Example:
         ```python
         from utils.query_helpers import filter_by_role
+        from models import UserClinicAssociation
         
         # Get all practitioners in a clinic
-        query = db.query(User).filter(
-            User.clinic_id == clinic_id,
+        query = db.query(User).join(UserClinicAssociation).filter(
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True,
             User.is_active == True
         )
         query = filter_by_role(query, 'practitioner')
@@ -46,9 +48,10 @@ def filter_by_role(query: Query[T], role: str) -> Query[T]:
         ```
     """
     # Use PostgreSQL's JSONB containment operator (@>) to check if array contains role
+    # This checks UserClinicAssociation.roles (clinic-specific roles)
     # This is equivalent to: roles @> '["practitioner"]'::jsonb
     # Works for arrays like ["admin", "practitioner"] or ["practitioner"]
     return query.filter(
-        cast(User.roles, JSONB).op('@>')(cast([role], JSONB))
+        cast(UserClinicAssociation.roles, JSONB).op('@>')(cast([role], JSONB))
     )
 

@@ -435,20 +435,20 @@ async def confirm_name(
             )
         
         # Create user record
+        now = datetime.now(timezone.utc)
         user = User(
-            clinic_id=clinic_id,
             email=email,
             google_subject_id=google_subject_id,
             full_name=request.full_name.strip(),
-            roles=roles
+            is_active=True,
+            created_at=now,
+            updated_at=now
         )
         
         db.add(user)
-        db.commit()
-        db.refresh(user)
+        db.flush()  # Get user.id before creating association
         
         # Create UserClinicAssociation for the new user
-        now = datetime.now(timezone.utc)
         association = UserClinicAssociation(
             user_id=user.id,
             clinic_id=clinic_id,
@@ -497,11 +497,13 @@ async def confirm_name(
         
         # Store refresh token in database
         refresh_token_hash = token_data["refresh_token_hash"]
+        refresh_token_hash_sha256 = token_data.get("refresh_token_hash_sha256")
         refresh_token_expiry = jwt_service.get_token_expiry("refresh")
         
         refresh_token_record = RefreshToken(
             user_id=user.id,
             token_hash=refresh_token_hash,
+            token_hash_sha256=refresh_token_hash_sha256,
             expires_at=refresh_token_expiry
         )
         db.add(refresh_token_record)

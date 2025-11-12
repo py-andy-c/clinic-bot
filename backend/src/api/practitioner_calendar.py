@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Any, Union
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
 logger = logging.getLogger(__name__)
@@ -219,6 +219,60 @@ def _check_appointment_conflicts(
     return conflicts
 
 
+# Helper Functions
+
+def _verify_practitioner_in_clinic(
+    db: Session,
+    user_id: int,
+    clinic_id: int
+) -> tuple[User, UserClinicAssociation]:
+    """
+    Verify that a user exists, is active, is in the clinic, and has practitioner role.
+    
+    This function efficiently queries UserClinicAssociation directly and eagerly loads
+    the User relationship to avoid N+1 queries.
+    
+    Args:
+        db: Database session
+        user_id: User ID to verify
+        clinic_id: Clinic ID to verify membership in
+        
+    Returns:
+        Tuple of (User, UserClinicAssociation) if valid
+        
+    Raises:
+        HTTPException(404) if user not found, inactive, or not a practitioner
+    """
+    # Query association directly (more efficient than joining User first)
+    # Use joinedload to eagerly load user relationship to avoid additional query
+    association = db.query(UserClinicAssociation).filter(
+        UserClinicAssociation.user_id == user_id,
+        UserClinicAssociation.clinic_id == clinic_id,
+        UserClinicAssociation.is_active == True
+    ).options(joinedload(UserClinicAssociation.user)).first()
+    
+    if not association:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="找不到治療師或治療師已停用"
+        )
+    
+    user = association.user
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="找不到治療師或治療師已停用"
+        )
+    
+    if 'practitioner' not in (association.roles or []):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="找不到治療師或治療師已停用"
+        )
+    
+    return user, association
+
+
 # API Endpoints
 
 @router.get("/practitioners/{user_id}/availability/default", 
@@ -243,18 +297,10 @@ async def get_default_schedule(
                     detail="您只能查看自己的可用時間"
                 )
         
-        # Verify user exists, is active, and is a practitioner
-        user = db.query(User).filter(
-            User.id == user_id,
-            User.is_active == True
-        ).first()
-        if not user or not user.is_practitioner:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到治療師或治療師已停用"
-            )
-        
         clinic_id = ensure_clinic_access(current_user)
+        
+        # Verify user exists, is active, and is a practitioner
+        _verify_practitioner_in_clinic(db, user_id, clinic_id)
         
         # Get schedule for each day
         schedule: Dict[str, List[TimeInterval]] = {}
@@ -304,30 +350,7 @@ async def update_default_schedule(
         clinic_id = ensure_clinic_access(current_user)
         
         # Verify user exists, is active, is a practitioner, and is in the clinic
-        user = db.query(User).join(UserClinicAssociation).filter(
-            User.id == user_id,
-            User.is_active == True,
-            UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True
-        ).first()
-        
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到治療師或治療師已停用"
-            )
-        
-        # Verify user is a practitioner via UserClinicAssociation roles
-        association = db.query(UserClinicAssociation).filter(
-            UserClinicAssociation.user_id == user_id,
-            UserClinicAssociation.clinic_id == clinic_id
-        ).first()
-        
-        if not association or "practitioner" not in (association.roles or []):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到治療師或治療師已停用"
-            )
+        _verify_practitioner_in_clinic(db, user_id, clinic_id)
         
         # Validate intervals for each day
         for day_name in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']:
@@ -431,16 +454,10 @@ async def get_calendar_data(
                     detail="您只能查看自己的行事曆"
                 )
         
+        clinic_id = ensure_clinic_access(current_user)
+        
         # Verify user exists, is active, and is a practitioner
-        user = db.query(User).filter(
-            User.id == user_id,
-            User.is_active == True
-        ).first()
-        if not user or not user.is_practitioner:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到治療師或治療師已停用"
-            )
+        user, _ = _verify_practitioner_in_clinic(db, user_id, clinic_id)
         
         if date:
             # Daily view
@@ -451,8 +468,6 @@ async def get_calendar_data(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="無效的日期格式，請使用 YYYY-MM-DD"
                 )
-            
-            clinic_id = ensure_clinic_access(current_user)
             
             # Get default schedule for this day of week
             day_of_week = target_date.weekday()
@@ -615,22 +630,15 @@ async def get_available_slots(
                     detail="您只能查看自己的可用時間"
                 )
         
+        clinic_id = ensure_clinic_access(current_user)
+        
         # Verify user exists, is active, and is a practitioner
-        user = db.query(User).filter(
-            User.id == user_id,
-            User.is_active == True
-        ).first()
-        if not user or not user.is_practitioner:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到治療師或治療師已停用"
-            )
+        _verify_practitioner_in_clinic(db, user_id, clinic_id)
         
         # Verify appointment type exists
         AppointmentTypeService.get_appointment_type_by_id(db, appointment_type_id)
         
         # Get available slots using service
-        clinic_id = ensure_clinic_access(current_user)
         slots_data = AvailabilityService.get_available_slots_for_practitioner(
             db=db,
             practitioner_id=user_id,
@@ -687,16 +695,10 @@ async def create_availability_exception(
                     detail="您只能建立自己的可用時間例外"
                 )
         
+        clinic_id = ensure_clinic_access(current_user)
+        
         # Verify user exists, is active, and is a practitioner
-        user = db.query(User).filter(
-            User.id == user_id,
-            User.is_active == True
-        ).first()
-        if not user or not user.is_practitioner:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到治療師或治療師已停用"
-            )
+        _verify_practitioner_in_clinic(db, user_id, clinic_id)
         
         try:
             target_date = datetime.strptime(exception_data.date, '%Y-%m-%d').date()

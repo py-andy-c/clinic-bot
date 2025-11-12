@@ -223,10 +223,6 @@ class Clinic(Base):
         cascade="all, delete-orphan"
     )
     """User-clinic associations for multi-clinic support. Roles and names are clinic-specific."""
-    
-    # Deprecated: Keep for backward compatibility during transition
-    users = relationship("User", back_populates="clinic")
-    """Deprecated: Use user_associations instead. Kept for backward compatibility."""
 
     patients = relationship("Patient", back_populates="clinic")
     """Patients registered with this clinic."""
@@ -237,21 +233,6 @@ class Clinic(Base):
     signup_tokens = relationship("SignupToken", back_populates="clinic")
     """Active signup tokens for inviting new users"""
 
-    # Convenience properties for backward compatibility
-    @property
-    def admins(self):
-        """Get all admin users for this clinic."""
-        return [u for u in self.users if 'admin' in u.roles]
-
-    @property
-    def therapists(self):
-        """Get all practitioner users for this clinic (deprecated - use practitioners)."""
-        return self.practitioners
-
-    @property
-    def practitioners(self):
-        """Get all active practitioner users for this clinic."""
-        return [u for u in self.users if 'practitioner' in u.roles and u.is_active]
 
     # Settings convenience properties (match API keys)
     @property

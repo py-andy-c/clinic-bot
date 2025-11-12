@@ -32,10 +32,10 @@ class TestClinicModel:
         clinic = Clinic(**sample_clinic_data)
 
         # Test that relationship attributes exist (they will be None until loaded)
-        assert hasattr(clinic, 'admins')
-        assert hasattr(clinic, 'therapists')
+        assert hasattr(clinic, 'user_associations')  # Multi-clinic support via associations
         assert hasattr(clinic, 'patients')
         assert hasattr(clinic, 'appointment_types')
+        assert hasattr(clinic, 'signup_tokens')
 
     def test_clinic_default_values(self, sample_clinic_data):
         """Test clinic model default values."""
@@ -148,22 +148,20 @@ class TestUserModel:
     def test_user_creation(self, sample_user_data):
         """Test user model creation."""
         user = User(
-            clinic_id=1,
             google_subject_id="google_123",
             **sample_user_data
         )
 
         assert user.full_name == "Dr. Test"
         assert user.email == "dr.test@example.com"
-        assert user.clinic_id == 1
-        assert user.roles == ["practitioner"]
+        assert user.google_subject_id == "google_123"
         # is_active has default=True, but defaults aren't applied in memory-only objects
         # Note: created_at is a server default and may be None in tests
+        # Note: clinic_id and roles are now in UserClinicAssociation, not User model
 
     def test_user_google_calendar_fields(self, sample_user_data):
         """Test user fields (Google Calendar fields removed)."""
         user = User(
-            clinic_id=1,
             google_subject_id="google_123",
             **sample_user_data
         )
@@ -173,11 +171,13 @@ class TestUserModel:
 
     def test_user_relationships(self, sample_user_data):
         """Test user model relationships."""
-        user = User(clinic_id=1, google_subject_id="google_123", **sample_user_data)
+        user = User(google_subject_id="google_123", **sample_user_data)
 
-        assert hasattr(user, 'clinic')
+        assert hasattr(user, 'clinic_associations')  # Multi-clinic support via associations
         assert hasattr(user, 'calendar_events')
         assert hasattr(user, 'refresh_tokens')
+        assert hasattr(user, 'availability')
+        assert hasattr(user, 'practitioner_appointment_types')
 
 
 class TestPatientModel:

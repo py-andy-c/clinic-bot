@@ -40,8 +40,22 @@ def upgrade() -> None:
     unique emails (enforced by the email column unique constraint), while clinic
     users will have unique emails per clinic (enforced by the clinic_id+email constraint).
     """
-    # Drop the foreign key constraint temporarily
-    op.drop_constraint('users_clinic_id_fkey', 'users', type_='foreignkey')
+    # Check if clinic_id column exists (baseline migration may not have created it)
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    users_columns = [col['name'] for col in inspector.get_columns('users')]
+    
+    if 'clinic_id' not in users_columns:
+        # Column doesn't exist, skip this migration
+        # This handles the case where baseline migration didn't create clinic_id
+        return
+    
+    # Get foreign key constraints
+    fk_constraints = [fk['name'] for fk in inspector.get_foreign_keys('users')]
+    
+    # Drop the foreign key constraint temporarily (if it exists)
+    if 'users_clinic_id_fkey' in fk_constraints:
+        op.drop_constraint('users_clinic_id_fkey', 'users', type_='foreignkey')
     
     # Make clinic_id nullable
     op.alter_column(
@@ -91,11 +105,24 @@ def downgrade() -> None:
     WARNING: This will fail if there are any system admin users (clinic_id=NULL).
     You must delete or migrate system admin users before downgrading.
     """
-    # Drop index
-    op.drop_index('idx_users_email_clinic_id', table_name='users')
+    # Check if clinic_id column exists
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    users_columns = [col['name'] for col in inspector.get_columns('users')]
     
-    # Drop foreign key
-    op.drop_constraint('users_clinic_id_fkey', 'users', type_='foreignkey')
+    if 'clinic_id' not in users_columns:
+        # Column doesn't exist, skip this migration
+        return
+    
+    # Drop index (if it exists)
+    indexes = [idx['name'] for idx in inspector.get_indexes('users')]
+    if 'idx_users_email_clinic_id' in indexes:
+        op.drop_index('idx_users_email_clinic_id', table_name='users')
+    
+    # Drop foreign key (if it exists)
+    fk_constraints = [fk['name'] for fk in inspector.get_foreign_keys('users')]
+    if 'users_clinic_id_fkey' in fk_constraints:
+        op.drop_constraint('users_clinic_id_fkey', 'users', type_='foreignkey')
     
     # Make clinic_id non-nullable again
     # This will fail if there are any NULL values

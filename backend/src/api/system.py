@@ -176,7 +176,11 @@ async def get_clinic(
             )
 
         # Get clinic statistics
-        user_count = len(clinic.users)
+        from models import UserClinicAssociation
+        user_count = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.clinic_id == clinic.id,
+            UserClinicAssociation.is_active == True
+        ).count()
         patient_count = len(clinic.patients)
         appointment_count = sum(len(patient.appointments) for patient in clinic.patients)
 

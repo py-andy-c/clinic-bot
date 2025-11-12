@@ -46,14 +46,14 @@ def two_clinics_with_members(db_session):
     db_session.add_all([c1, c2])
     db_session.commit()
 
-    # Members
-    a1 = User(clinic_id=c1.id, full_name="Admin A1", email="a1@ex.com", google_subject_id="a1sub", roles=["admin"], is_active=True)
-    p1 = User(clinic_id=c1.id, full_name="Doc P1", email="p1@ex.com", google_subject_id="p1sub", roles=["practitioner"], is_active=True)
-
-    a2 = User(clinic_id=c2.id, full_name="Admin A2", email="a2@ex.com", google_subject_id="a2sub", roles=["admin"], is_active=True)
-    p2 = User(clinic_id=c2.id, full_name="Doc P2", email="p2@ex.com", google_subject_id="p2sub", roles=["practitioner"], is_active=True)
-
-    db_session.add_all([a1, p1, a2, p2])
+    # Members - use helper function to create users with clinic associations
+    from tests.conftest import create_user_with_clinic_association
+    
+    a1, a1_assoc = create_user_with_clinic_association(db_session, c1, "Admin A1", "a1@ex.com", "a1sub", ["admin"], True)
+    p1, p1_assoc = create_user_with_clinic_association(db_session, c1, "Doc P1", "p1@ex.com", "p1sub", ["practitioner"], True)
+    a2, a2_assoc = create_user_with_clinic_association(db_session, c2, "Admin A2", "a2@ex.com", "a2sub", ["admin"], True)
+    p2, p2_assoc = create_user_with_clinic_association(db_session, c2, "Doc P2", "p2@ex.com", "p2sub", ["practitioner"], True)
+    
     db_session.commit()
 
     # Patients
