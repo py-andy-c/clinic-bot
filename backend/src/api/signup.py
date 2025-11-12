@@ -26,6 +26,69 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def create_clinic_user_token_and_redirect(
+    user: User,
+    google_subject_id: str,
+    email: str,
+    db: Session,
+    fallback_clinic_id: Optional[int] = None,
+    fallback_roles: Optional[list[str]] = None,
+    fallback_name: Optional[str] = None
+) -> RedirectResponse:
+    """
+    Create a JWT token for a clinic user and return a redirect response.
+    
+    This helper function encapsulates the common pattern of:
+    1. Getting the active clinic association (or using fallback values)
+    2. Creating a TokenPayload
+    3. Creating token pair
+    4. Creating redirect URL with access token
+    
+    Args:
+        user: User object
+        google_subject_id: Google subject ID for the user
+        email: User's email
+        db: Database session
+        fallback_clinic_id: Clinic ID to use if no active association found
+        fallback_roles: Roles to use if no active association found
+        fallback_name: Name to use if no active association found
+        
+    Returns:
+        RedirectResponse to /admin with access token
+    """
+    from urllib.parse import quote
+    
+    # Get active clinic association
+    active_association = get_active_clinic_association(user, db)
+    if active_association:
+        active_clinic_id = active_association.clinic_id
+        clinic_roles: list[str] = active_association.roles or []
+        clinic_name = active_association.full_name or user.full_name
+    else:
+        # Use fallback values if no association found
+        active_clinic_id = fallback_clinic_id
+        clinic_roles = fallback_roles or []
+        clinic_name = fallback_name or user.full_name
+    
+    # Create JWT token payload
+    payload = TokenPayload(
+        sub=str(google_subject_id),
+        user_id=user.id,
+        email=str(email),
+        user_type="clinic_user",
+        roles=clinic_roles,
+        active_clinic_id=active_clinic_id,
+        name=clinic_name
+    )
+    
+    # Create token pair
+    token_data = jwt_service.create_token_pair(payload)
+    
+    # Create redirect URL
+    redirect_url = f"{FRONTEND_URL}/admin?token={quote(token_data['access_token'])}"
+    return RedirectResponse(url=redirect_url, status_code=302)
+
+
 @router.get("/clinic", summary="Initiate clinic admin signup")
 async def initiate_clinic_admin_signup(token: str, db: Session = Depends(get_db)) -> dict[str, str]:
     """
@@ -185,14 +248,14 @@ async def signup_oauth_callback(
         logger.info(f"OAuth callback error: {error}")
         from urllib.parse import quote
         error_message = "註冊已取消" if error == "access_denied" else "認證失敗"
-        error_url = f"{FRONTEND_URL}/login?error=true&message={quote(error_message)}"
+        error_url = f"{FRONTEND_URL}/admin/login?error=true&message={quote(error_message)}"
         return RedirectResponse(url=error_url, status_code=302)
 
     # Ensure code is provided if no error
     if not code:
         logger.warning("OAuth callback missing code parameter")
         from urllib.parse import quote
-        error_url = f"{FRONTEND_URL}/login?error=true&message={quote('認證失敗：缺少授權碼')}"
+        error_url = f"{FRONTEND_URL}/admin/login?error=true&message={quote('認證失敗：缺少授權碼')}"
         return RedirectResponse(url=error_url, status_code=302)
 
     try:
@@ -280,13 +343,86 @@ async def signup_oauth_callback(
         ).first()
 
         if existing_user:
-            # User already exists, redirect to login with proper error message
-            from urllib.parse import quote
-            error_message = "此 Google 帳號已經註冊過，請直接登入"
-            return RedirectResponse(
-                url=f"{FRONTEND_URL}/login?error=true&message={quote(error_message)}",
-                status_code=302
-            )
+            # User already exists - check if they already have association with this clinic
+            existing_association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == existing_user.id,
+                UserClinicAssociation.clinic_id == signup_token.clinic_id
+            ).first()
+            
+            if existing_association:
+                if existing_association.is_active:
+                    # Already a member of this clinic - redirect to login
+                    from urllib.parse import quote
+                    error_message = "您已經是此診所的成員，請直接登入"
+                    return RedirectResponse(
+                        url=f"{FRONTEND_URL}/admin/login?error=true&message={quote(error_message)}",
+                        status_code=302
+                    )
+                else:
+                    # Reactivate inactive association
+                    existing_association.is_active = True
+                    existing_association.roles = signup_token.default_roles or []
+                    existing_association.full_name = name
+                    existing_association.last_accessed_at = datetime.now(timezone.utc)
+                    existing_association.updated_at = datetime.now(timezone.utc)
+                    signup_token.used_at = datetime.now(timezone.utc)
+                    signup_token.used_by_email = email
+                    db.commit()
+                    
+                    # Create token and redirect to dashboard
+                    return create_clinic_user_token_and_redirect(
+                        user=existing_user,
+                        google_subject_id=google_subject_id,
+                        email=email,
+                        db=db,
+                        fallback_clinic_id=signup_token.clinic_id,
+                        fallback_roles=signup_token.default_roles or [],
+                        fallback_name=name
+                    )
+            else:
+                # User exists but not associated with this clinic - create association
+                # This handles the case where user clicks signup link while not logged in
+                association = UserClinicAssociation(
+                    user_id=existing_user.id,
+                    clinic_id=signup_token.clinic_id,
+                    roles=signup_token.default_roles or [],
+                    full_name=name,
+                    is_active=True,
+                    last_accessed_at=datetime.now(timezone.utc),
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc)
+                )
+                
+                try:
+                    db.add(association)
+                    signup_token.used_at = datetime.now(timezone.utc)
+                    signup_token.used_by_email = email
+                    db.commit()
+                except IntegrityError:
+                    # Race condition - association was created by another request
+                    db.rollback()
+                    association = db.query(UserClinicAssociation).filter(
+                        UserClinicAssociation.user_id == existing_user.id,
+                        UserClinicAssociation.clinic_id == signup_token.clinic_id
+                    ).first()
+                    if not association or not association.is_active:
+                        from urllib.parse import quote
+                        error_message = "無法加入診所，請聯繫診所管理員"
+                        return RedirectResponse(
+                            url=f"{FRONTEND_URL}/admin/login?error=true&message={quote(error_message)}",
+                            status_code=302
+                        )
+                
+                # Create token and redirect to dashboard
+                return create_clinic_user_token_and_redirect(
+                    user=existing_user,
+                    google_subject_id=google_subject_id,
+                    email=email,
+                    db=db,
+                    fallback_clinic_id=signup_token.clinic_id,
+                    fallback_roles=signup_token.default_roles or [],
+                    fallback_name=name
+                )
 
         # Check if email is already used in this clinic via association
         existing_email = db.query(User).join(UserClinicAssociation).filter(
@@ -301,7 +437,7 @@ async def signup_oauth_callback(
             from urllib.parse import quote
             error_message = "此 email 已在診所中註冊，請直接登入或聯繫管理員"
             return RedirectResponse(
-                url=f"{FRONTEND_URL}/login?error=true&message={quote(error_message)}",
+                url=f"{FRONTEND_URL}/admin/login?error=true&message={quote(error_message)}",
                 status_code=302
             )
 
@@ -510,8 +646,11 @@ async def confirm_name(
         db.commit()
         
         # Return redirect URL with access token
+        from urllib.parse import quote
         return {
-            "redirect_url": f"{FRONTEND_URL}/clinic/dashboard?token={token_data['access_token']}",
+            # Redirect to default clinic user route (will be determined by frontend based on role)
+            # Frontend will redirect practitioners to /admin/calendar and others to /admin/clinic/members
+            "redirect_url": f"{FRONTEND_URL}/admin?token={quote(token_data['access_token'])}",
             "refresh_token": token_data["refresh_token"]
         }
         

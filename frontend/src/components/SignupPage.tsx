@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import { useModal } from '../contexts/ModalContext';
+import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 
 interface SignupPageProps {
@@ -14,20 +17,33 @@ const SignupPage: React.FC<SignupPageProps> = ({
   title,
   icon,
   buttonText,
-  onSignup
+  onSignup,
+  signupType
 }) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { isAuthenticated, user, switchClinic, refreshAvailableClinics } = useAuth();
+  const { alert } = useModal();
   const [error, setError] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
+  const [showJoinConfirmation, setShowJoinConfirmation] = useState(false);
+  const [clinicName, setClinicName] = useState<string>('');
+  const [joining, setJoining] = useState(false);
 
   const token = searchParams.get('token');
 
   useEffect(() => {
     if (!token) {
       setError('缺少邀請令牌');
+      return;
     }
-  }, [token]);
+
+    // Check if user is already authenticated (only for member signup)
+    if (signupType === 'member' && isAuthenticated && user) {
+      // User is logged in - show join confirmation instead of OAuth
+      setShowJoinConfirmation(true);
+    }
+  }, [token, isAuthenticated, user, signupType]);
 
   const handleGoogleSignup = async () => {
     try {
@@ -46,6 +62,146 @@ const SignupPage: React.FC<SignupPageProps> = ({
       setCompleting(false);
     }
   };
+
+  const handleJoinExisting = async () => {
+    if (!token) return;
+
+    try {
+      setJoining(true);
+      setError(null);
+
+      const result = await apiService.joinClinicAsExistingUser(token, clinicName || undefined);
+
+      // Refresh available clinics list
+      await refreshAvailableClinics();
+
+      // Optionally switch to the new clinic
+      if (result.switch_clinic && result.clinic_id) {
+        try {
+          await switchClinic(result.clinic_id);
+          await alert(
+            `已成功加入 ${result.clinic.name}！`,
+            '成功'
+          );
+          navigate('/admin');
+        } catch (switchError: any) {
+          // If switch fails, still show success but don't switch
+          logger.error('Failed to switch clinic after joining:', switchError);
+          await alert(
+            `已成功加入 ${result.clinic.name}！您可以在右上角切換診所。`,
+            '成功'
+          );
+          navigate('/admin');
+        }
+      } else {
+        await alert(
+          `已成功加入 ${result.clinic.name}！您可以在右上角切換診所。`,
+          '成功'
+        );
+        navigate('/admin');
+      }
+    } catch (err: any) {
+      logger.error('Join clinic error:', err);
+      if (err.response?.status === 400) {
+        const detail = err.response?.data?.detail || '無法加入診所';
+        if (detail.includes('已經是此診所的成員')) {
+          setError('您已經是此診所的成員');
+        } else if (detail.includes('已失效')) {
+          setError('邀請連結已失效，請聯繫診所管理員');
+        } else {
+          setError(detail);
+        }
+      } else if (err.response?.status === 403) {
+        setError('您沒有權限加入此診所');
+      } else {
+        setError('加入診所失敗，請稍後再試');
+      }
+      setJoining(false);
+    }
+  };
+
+  // Show join confirmation dialog for existing authenticated users
+  if (showJoinConfirmation && isAuthenticated && user) {
+    const currentClinicName = user.active_clinic_id && user.available_clinics
+      ? user.available_clinics.find(c => c.id === user.active_clinic_id)?.name || '目前診所'
+      : '目前診所';
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div>
+            <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-primary-100">
+              <span className="text-2xl">{icon}</span>
+            </div>
+            <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+              加入新診所
+            </h2>
+            <p className="mt-2 text-center text-sm text-gray-600">
+              您已經登入為 <strong>{currentClinicName}</strong>
+            </p>
+          </div>
+
+          <div className="bg-white py-8 px-6 shadow rounded-lg sm:px-10">
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-700 mb-4">
+                  要加入這個新診所嗎？加入後，您可以在右上角切換診所。
+                </p>
+                
+                {/* Optional name input */}
+                <div className="mb-4">
+                  <label htmlFor="clinic-name" className="block text-sm font-medium text-gray-700 mb-1">
+                    在此診所的顯示名稱（選填）
+                  </label>
+                  <input
+                    id="clinic-name"
+                    type="text"
+                    value={clinicName}
+                    onChange={(e) => setClinicName(e.target.value)}
+                    placeholder={user.full_name || '您的名稱'}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm px-3 py-2 border"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    如果不填寫，將使用您目前的名稱
+                  </p>
+                </div>
+
+                {error && (
+                  <div className="mb-4 rounded-md bg-red-50 p-3">
+                    <p className="text-sm text-red-800">{error}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => navigate('/admin')}
+                  disabled={joining}
+                  className="flex-1 py-2 px-4 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleJoinExisting}
+                  disabled={joining}
+                  className="flex-1 py-2 px-4 border border-transparent rounded-md text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {joining ? (
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      加入中...
+                    </div>
+                  ) : (
+                    '加入診所'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (error || !token) {
     return (

@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
+import ClinicSwitcher from './ClinicSwitcher';
 
 interface ClinicLayoutProps {
   children: React.ReactNode;
@@ -217,7 +218,14 @@ const GlobalWarnings: React.FC = () => {
 };
 
 const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
-  const { user, logout, isPractitioner } = useAuth();
+  const { 
+    user, 
+    logout, 
+    isPractitioner, 
+    switchClinic, 
+    availableClinics, 
+    isSwitchingClinic 
+  } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { hasUnsavedChanges } = useUnsavedChanges();
@@ -291,6 +299,16 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
             <div className="hidden md:ml-6 md:flex md:items-center">
               <div className="ml-3 relative">
                 <div className="flex items-center space-x-4">
+                  {/* Clinic Switcher */}
+                  {user && user.user_type === 'clinic_user' && (
+                    <ClinicSwitcher
+                      currentClinicId={user.active_clinic_id}
+                      availableClinics={availableClinics}
+                      onSwitch={switchClinic}
+                      isSwitching={isSwitchingClinic}
+                    />
+                  )}
+                  
                   <div className="text-sm text-gray-700">
                     <div className="font-medium">{user?.full_name}</div>
                     <div className="text-xs text-gray-500">{user?.email}</div>
@@ -356,6 +374,17 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
               <div className="flex items-center px-5">
                 <div className="text-base font-medium text-gray-800">{user?.full_name}</div>
               </div>
+              {/* Clinic Switcher for Mobile */}
+              {user && user.user_type === 'clinic_user' && (
+                <div className="mt-3 px-5">
+                  <ClinicSwitcher
+                    currentClinicId={user.active_clinic_id}
+                    availableClinics={availableClinics}
+                    onSwitch={switchClinic}
+                    isSwitching={isSwitchingClinic}
+                  />
+                </div>
+              )}
               <div className="mt-3 space-y-1 px-2">
                 <button
                   onClick={handleLogout}

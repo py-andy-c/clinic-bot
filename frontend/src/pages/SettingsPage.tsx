@@ -17,7 +17,8 @@ import ChatSettings from '../components/ChatSettings';
 import PageHeader from '../components/PageHeader';
 
 const SettingsPage: React.FC = () => {
-  const { isClinicAdmin, isClinicUser, isLoading } = useAuth();
+  const { isClinicAdmin, isClinicUser, isLoading, user } = useAuth();
+  const activeClinicId = user?.active_clinic_id;
   const { alert } = useModal();
   const [clinicInfoRefreshTrigger, setClinicInfoRefreshTrigger] = React.useState(0);
 
@@ -48,6 +49,7 @@ const SettingsPage: React.FC = () => {
     sectionChanges,
     saveData,
     updateData,
+    fetchData,
   } = useSettingsPage({
     fetchData: async () => {
       const data = await apiService.getClinicSettings();
@@ -99,6 +101,14 @@ const SettingsPage: React.FC = () => {
       }
     },
   }, { isLoading });
+
+  // Refresh settings when clinic changes
+  React.useEffect(() => {
+    if (!isLoading && activeClinicId && fetchData) {
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeClinicId]);
 
   const addAppointmentType = () => {
     if (!settings) return;

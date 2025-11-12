@@ -316,7 +316,7 @@ class TestAppointmentTypeDeletionPrevention:
         app.dependency_overrides.pop(auth_deps.get_current_user, None)
 
     def test_deletion_prevention_with_mixed_types(self, client, db_session, clinic_with_admin_and_practitioner):
-        """Test that deletion is blocked when trying to delete all types even if keeping one by name+duration."""
+        """Test that deletion is blocked when trying to delete types that have practitioner references."""
         c, admin, pract = clinic_with_admin_and_practitioner
 
         # Create appointment types
@@ -334,9 +334,9 @@ class TestAppointmentTypeDeletionPrevention:
         from auth import dependencies as auth_deps
         app.dependency_overrides[auth_deps.get_current_user] = lambda: _uc(user_id=admin.id, clinic_id=c.id, roles=["admin"])
 
-        # Attempt to delete at2 and at3 but keep at1 by name+duration
-        # However, the delete-all-then-recreate pattern will try to delete ALL types first,
-        # which will fail due to FK constraint or be prevented by our check
+        # Attempt to delete at2 and at3, keep at1 by name+duration (no ID in request)
+        # With the new implementation, at1 is kept (matched by name+duration), so it's not deleted
+        # Only at2 and at3 are deleted, and they don't have practitioner references, so it should succeed
         res = client.put("/api/clinic/settings", json={
             "appointment_types": [
                 {"name": "初診評估", "duration_minutes": 60},  # Keep at1 by name+duration
@@ -344,16 +344,17 @@ class TestAppointmentTypeDeletionPrevention:
             ]
         })
 
-        # The deletion should be blocked because at1 has practitioner references
-        # even though we're trying to keep it by name+duration, the delete-all-then-recreate
-        # pattern attempts to delete all types first
-        assert res.status_code == 400
-        assert "無法刪除某些預約類型" in res.text
+        # Should succeed because:
+        # - at1 is kept (matched by name+duration), not deleted, so no FK constraint issue
+        # - at2 and at3 are deleted but have no practitioner references
+        assert res.status_code == 200
 
-        # Verify original appointment types still exist
+        # Verify at1 still exists, at2 and at3 are soft deleted, and new type is created
         db_session.expire_all()
-        existing_types = db_session.query(AppointmentType).filter_by(clinic_id=c.id).all()
-        assert len(existing_types) == 3
+        existing_types = db_session.query(AppointmentType).filter_by(clinic_id=c.id, is_deleted=False).all()
+        assert len(existing_types) == 2  # at1 (kept) + new type
+        assert any(at.name == "初診評估" and at.duration_minutes == 60 for at in existing_types)
+        assert any(at.name == "新類型" and at.duration_minutes == 20 for at in existing_types)
 
         app.dependency_overrides.pop(auth_deps.get_current_user, None)
 

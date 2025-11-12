@@ -52,7 +52,7 @@ def upgrade() -> None:
     if 'user_clinic_associations' not in tables:
         op.create_table(
         'user_clinic_associations',
-        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('id', sa.Integer(), nullable=False, autoincrement=True, primary_key=True),
         sa.Column('user_id', sa.Integer(), nullable=False),
         sa.Column('clinic_id', sa.Integer(), nullable=False),
         sa.Column('roles', postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'[]'::jsonb")),
@@ -65,6 +65,45 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], ondelete='CASCADE'),
         sa.UniqueConstraint('user_id', 'clinic_id', name='uq_user_clinic')
         )
+    else:
+        # Table exists - check if id column has a sequence (auto-increment)
+        # If not, we need to fix it
+        conn = op.get_bind()
+        result = conn.execute(sa.text("""
+            SELECT column_default 
+            FROM information_schema.columns 
+            WHERE table_name = 'user_clinic_associations' 
+            AND column_name = 'id'
+        """)).fetchone()
+        
+        # If id column doesn't have a default (sequence), we need to fix it
+        if result and result[0] is None:
+            # Check if there's any data
+            count_result = conn.execute(sa.text("SELECT COUNT(*) FROM user_clinic_associations")).scalar()
+            if count_result == 0:
+                # Table is empty - safe to drop and recreate
+                op.drop_table('user_clinic_associations')
+                op.create_table(
+                'user_clinic_associations',
+                sa.Column('id', sa.Integer(), nullable=False, autoincrement=True, primary_key=True),
+                sa.Column('user_id', sa.Integer(), nullable=False),
+                sa.Column('clinic_id', sa.Integer(), nullable=False),
+                sa.Column('roles', postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=sa.text("'[]'::jsonb")),
+                sa.Column('full_name', sa.String(255), nullable=False),
+                sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
+                sa.Column('last_accessed_at', sa.TIMESTAMP(timezone=True), nullable=True),
+                sa.Column('created_at', sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.func.now()),
+                sa.Column('updated_at', sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.func.now()),
+                sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+                sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], ondelete='CASCADE'),
+                sa.UniqueConstraint('user_id', 'clinic_id', name='uq_user_clinic')
+                )
+            else:
+                # Table has data - need to manually fix or drop
+                raise Exception(
+                    f"user_clinic_associations table exists with {count_result} rows but id column is not auto-increment. "
+                    "Please manually drop the table (DROP TABLE user_clinic_associations CASCADE;) and re-run migration."
+                )
     
     # Step 3: Add clinic_id to clinic-scoped tables (nullable initially)
     # Check if columns already exist (baseline migration may have created them)

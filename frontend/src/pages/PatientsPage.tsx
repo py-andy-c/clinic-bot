@@ -8,13 +8,14 @@ import { useApiData } from '../hooks/useApiData';
 import PageHeader from '../components/PageHeader';
 
 const PatientsPage: React.FC = () => {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, user } = useAuth();
+  const activeClinicId = user?.active_clinic_id;
 
   const { data: patients, loading, error, refetch } = useApiData<Patient[]>(
     () => apiService.getPatients(),
     {
       enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated],
+      dependencies: [isLoading, isAuthenticated, activeClinicId],
       defaultErrorMessage: '無法載入病患列表',
       initialData: [],
     }

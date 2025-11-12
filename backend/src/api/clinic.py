@@ -711,25 +711,49 @@ async def update_settings(
             db, clinic_id
         )
 
-        # Determine which appointment types are being deleted
-        # Match by name + duration_minutes (since IDs change with delete-all-then-recreate pattern)
-        incoming_types = {
-            (at_data.get("name"), at_data.get("duration_minutes"))
+        # Build maps for matching: by ID and by (name, duration)
+        incoming_by_id = {
+            at_data.get("id"): at_data
+            for at_data in appointment_types_data
+            if at_data.get("id") and at_data.get("name") and at_data.get("duration_minutes")
+        }
+        incoming_by_name_duration = {
+            (at_data.get("name"), at_data.get("duration_minutes")): at_data
             for at_data in appointment_types_data
             if at_data.get("name") and at_data.get("duration_minutes")
         }
 
-        types_to_delete = [
-            at for at in existing_appointment_types
-            if (at.name, at.duration_minutes) not in incoming_types
-        ]
+        # Determine which appointment types are being deleted or updated
+        # A type is being deleted if:
+        # 1. It's not matched by ID (if incoming has ID), AND
+        # 2. It's not matched by (name, duration) combination
+        types_to_delete: List[Any] = []
+        types_being_updated: Dict[int, Dict[str, Any]] = {}
+        
+        for existing_type in existing_appointment_types:
+            # First try to match by ID (most reliable)
+            if existing_type.id in incoming_by_id:
+                incoming_data = incoming_by_id[existing_type.id]
+                # Check if this is an update (name or duration changed) or just keeping it
+                if (existing_type.name != incoming_data.get("name") or 
+                    existing_type.duration_minutes != incoming_data.get("duration_minutes")):
+                    types_being_updated[existing_type.id] = incoming_data
+                # Type is being kept (matched by ID), not deleted
+                continue
+            
+            # If not matched by ID, try to match by (name, duration)
+            key = (existing_type.name, existing_type.duration_minutes)
+            if key in incoming_by_name_duration:
+                # Type is being kept (matched by name+duration), not deleted
+                continue
+            
+            # Not matched by ID or name+duration - this is a deletion
+            types_to_delete.append(existing_type)
 
         # Check for practitioner references before deletion
-        # Note: Since we use delete-all-then-recreate pattern, we need to check ALL existing types
-        # that have practitioner references, not just ones being deleted, because the delete operation
-        # will attempt to delete ALL types first (including ones we're recreating)
+        # Only check types that are actually being deleted (not updated)
         blocked_types: List[Dict[str, Any]] = []
-        for appointment_type in existing_appointment_types:
+        for appointment_type in types_to_delete:
             practitioners = AvailabilityService.get_practitioners_for_appointment_type(
                 db=db,
                 appointment_type_id=appointment_type.id,
@@ -737,19 +761,12 @@ async def update_settings(
             )
             
             if practitioners:
-                # Check if this type is being kept (same name + duration) or deleted
-                is_being_kept = (appointment_type.name, appointment_type.duration_minutes) in incoming_types
-                
-                # If being kept, we still need to prevent deletion because delete-all-then-recreate
-                # will delete ALL types first before recreating, which violates FK constraints
-                # Only allow if NO types are being deleted (just additions/modifications)
-                if not is_being_kept or types_to_delete:
-                    practitioner_names = [p.full_name for p in practitioners]
-                    blocked_types.append({
-                        "id": appointment_type.id,
-                        "name": appointment_type.name,
-                        "practitioners": practitioner_names
-                    })
+                practitioner_names = [p.full_name for p in practitioners]
+                blocked_types.append({
+                    "id": appointment_type.id,
+                    "name": appointment_type.name,
+                    "practitioners": practitioner_names
+                })
 
         # If any appointment types cannot be deleted, return error
         if blocked_types:
@@ -764,37 +781,59 @@ async def update_settings(
             )
 
         # Process appointment types: update existing, create new, soft delete removed ones
-        incoming_types_dict = {
-            (at_data.get("name"), at_data.get("duration_minutes")): at_data
-            for at_data in appointment_types_data
-            if at_data.get("name") and at_data.get("duration_minutes")
-        }
-
-        # Update existing appointment types or mark for soft deletion
+        from models import AppointmentType
+        from datetime import datetime, timezone
+        
+        # Track which (name, duration) combinations we've processed
+        processed_combinations: set[tuple[str, int]] = set()
+        
+        # First, update existing types that are matched by ID
         for existing_type in existing_appointment_types:
-            key = (existing_type.name, existing_type.duration_minutes)
-            if key in incoming_types_dict:
-                # Type exists in incoming data - ensure it's not soft deleted
+            if existing_type.id in types_being_updated:
+                # Update the existing type with new name/duration
+                incoming_data = types_being_updated[existing_type.id]
+                new_name = incoming_data.get("name")
+                new_duration = incoming_data.get("duration_minutes")
+                if new_name is not None and new_duration is not None:
+                    existing_type.name = new_name
+                    existing_type.duration_minutes = new_duration
                 if existing_type.is_deleted:
                     existing_type.is_deleted = False
                     existing_type.deleted_at = None
-                # Could update other fields here if needed
-            elif not existing_type.is_deleted:
-                # Type not in incoming data and not already deleted - check if safe to soft delete
-                practitioners = AvailabilityService.get_practitioners_for_appointment_type(
-                    db=db,
-                    appointment_type_id=existing_type.id,
-                    clinic_id=clinic_id
-                )
-                if not practitioners:
-                    # Safe to soft delete
-                    from datetime import datetime, timezone
+                processed_combinations.add((existing_type.name, existing_type.duration_minutes))
+            elif existing_type.id in incoming_by_id:
+                # Type is being kept as-is (matched by ID, no changes)
+                if existing_type.is_deleted:
+                    existing_type.is_deleted = False
+                    existing_type.deleted_at = None
+                processed_combinations.add((existing_type.name, existing_type.duration_minutes))
+            elif (existing_type.name, existing_type.duration_minutes) in incoming_by_name_duration:
+                # Type is being kept (matched by name+duration, no ID in incoming)
+                if existing_type.is_deleted:
+                    existing_type.is_deleted = False
+                    existing_type.deleted_at = None
+                processed_combinations.add((existing_type.name, existing_type.duration_minutes))
+            elif existing_type in types_to_delete:
+                # Type is being deleted - already checked for practitioners above
+                # Soft delete it
+                if not existing_type.is_deleted:
                     existing_type.is_deleted = True
                     existing_type.deleted_at = datetime.now(timezone.utc)
 
-        # Create new appointment types
-        for (name, duration), _ in incoming_types_dict.items():
-            # Check if this type already exists (maybe was soft deleted)
+        # Create new appointment types (ones not matched to existing types)
+        for at_data in appointment_types_data:
+            if not at_data.get("name") or not at_data.get("duration_minutes"):
+                continue
+            
+            name = at_data.get("name")
+            duration = at_data.get("duration_minutes")
+            key = (name, duration)
+            
+            # Skip if we've already processed this combination
+            if key in processed_combinations:
+                continue
+            
+            # Check if this type already exists (maybe was soft deleted or has different ID)
             existing = db.query(AppointmentType).filter(
                 AppointmentType.clinic_id == clinic_id,
                 AppointmentType.name == name,
@@ -819,11 +858,19 @@ async def update_settings(
         clinic = db.query(Clinic).get(clinic_id)
         if clinic:
             try:
+                # Remove fields that are not part of ClinicSettings model before validation
+                # appointment_types, clinic_id, and clinic_name are handled separately
+                settings_for_validation = {
+                    k: v for k, v in settings.items() 
+                    if k not in ["appointment_types", "clinic_id", "clinic_name", "business_hours"]
+                }
+                
                 # Validate incoming settings data
-                validated_settings = ClinicSettings.model_validate(settings)
+                validated_settings = ClinicSettings.model_validate(settings_for_validation)
                 # Set the validated settings on the clinic
                 clinic.set_validated_settings(validated_settings)
             except Exception as e:
+                logger.error(f"Settings validation error: {e}, settings keys: {list(settings.keys())}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid settings format: {str(e)}"

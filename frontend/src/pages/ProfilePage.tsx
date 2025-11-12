@@ -18,7 +18,8 @@ interface ProfileData {
 }
 
 const ProfilePage: React.FC = () => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, user: authUser } = useAuth();
+  const activeClinicId = authUser?.active_clinic_id;
 
   // Fetch user profile separately (needed for display)
   const [profile, setProfile] = React.useState<any>(null);
@@ -36,7 +37,7 @@ const ProfilePage: React.FC = () => {
       };
       fetchProfile();
     }
-  }, [isLoading]);
+  }, [isLoading, activeClinicId]); // Refresh when clinic changes
 
   const {
     data: profileData,
@@ -44,6 +45,7 @@ const ProfilePage: React.FC = () => {
     sectionChanges,
     saveData,
     updateData,
+    fetchData,
   } = useSettingsPage<ProfileData>({
     fetchData: async () => {
       const result: ProfileData = {
@@ -97,14 +99,39 @@ const ProfilePage: React.FC = () => {
 
       // Save schedule and appointment types changes (only for practitioners)
       if (user?.roles?.includes('practitioner') && user.user_id) {
-        // Always save schedule and appointment types for practitioners
+        // Always save schedule for practitioners
         await apiService.updatePractitionerDefaultSchedule(user.user_id, data.schedule);
-        await apiService.updatePractitionerAppointmentTypes(user.user_id, data.selectedAppointmentTypeIds);
+        
+        // Filter appointment type IDs to only include valid ones for current clinic
+        // This prevents errors when switching clinics (old clinic's appointment type IDs might still be in state)
+        try {
+          const clinicSettings = await apiService.getClinicSettings();
+          const validAppointmentTypeIds = new Set(
+            clinicSettings.appointment_types.map((at: { id: number }) => at.id)
+          );
+          const filteredAppointmentTypeIds = data.selectedAppointmentTypeIds.filter(
+            (id: number) => validAppointmentTypeIds.has(id)
+          );
+          
+          await apiService.updatePractitionerAppointmentTypes(user.user_id, filteredAppointmentTypeIds);
+        } catch (err) {
+          logger.error('Error filtering appointment types before save:', err);
+          // If we can't get clinic settings, try to save anyway (backend will validate)
+          await apiService.updatePractitionerAppointmentTypes(user.user_id, data.selectedAppointmentTypeIds);
+        }
       }
     },
     validateData: validateProfileSettings,
     getSectionChanges: getProfileSectionChanges,
   }, { isLoading });
+
+  // Refresh profile data when clinic changes
+  React.useEffect(() => {
+    if (!isLoading && activeClinicId && fetchData) {
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeClinicId]);
 
   const handleAddInterval = (dayKey: string) => {
     if (!profileData) return;

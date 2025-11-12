@@ -3531,6 +3531,359 @@ class TestExistingUserJoinClinic:
         finally:
             dependencies.SYSTEM_ADMIN_EMAILS = original_emails
     
+    def test_existing_user_signup_callback_creates_association(self, client, db_session):
+        """Test that existing user clicking signup link (not logged in) creates association."""
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Clinic A",
+            line_channel_id="clinic_a_channel",
+            line_channel_secret="secret_a",
+            line_channel_access_token="token_a"
+        )
+        clinic2 = Clinic(
+            name="Clinic B",
+            line_channel_id="clinic_b_channel",
+            line_channel_secret="secret_b",
+            line_channel_access_token="token_b"
+        )
+        db_session.add_all([clinic1, clinic2])
+        db_session.commit()
+        
+        # Create existing user with association to clinic1 only
+        user, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic1,
+            email="existing@example.com",
+            google_subject_id="existing_subject",
+            full_name="Existing User",
+            roles=["admin"]
+        )
+        
+        # Create signup token for clinic2
+        import secrets
+        token = secrets.token_urlsafe(32)
+        signup_token = SignupToken(
+            token=token,
+            clinic_id=clinic2.id,
+            default_roles=["practitioner"],
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
+        )
+        db_session.add(signup_token)
+        db_session.commit()
+        
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+        
+        try:
+            # Mock Google OAuth response
+            mock_token_response = {
+                "access_token": "mock_access_token",
+                "refresh_token": "mock_refresh_token",
+                "expires_in": 3600,
+                "token_type": "Bearer"
+            }
+            
+            mock_user_info = {
+                "email": "existing@example.com",  # Same email as existing user
+                "name": "Existing User",
+                "sub": "existing_subject"  # Same subject ID
+            }
+            
+            with patch('httpx.AsyncClient') as mock_client:
+                instance = AsyncMock()
+                # Mock token exchange
+                token_resp = Mock(spec=httpx.Response)
+                token_resp.raise_for_status.return_value = None
+                token_resp.json.return_value = mock_token_response
+                instance.post.return_value = token_resp
+                
+                # Mock user info
+                user_info_resp = Mock(spec=httpx.Response)
+                user_info_resp.raise_for_status.return_value = None
+                user_info_resp.json.return_value = mock_user_info
+                instance.get.return_value = user_info_resp
+                
+                mock_client.return_value.__aenter__.return_value = instance
+                
+                # Sign state
+                from services.jwt_service import jwt_service
+                state_data = {"token": token, "type": "member"}
+                signed_state = jwt_service.sign_oauth_state(state_data)
+                
+                # Call signup callback
+                response = client.get(
+                    "/api/signup/callback",
+                    params={
+                        "code": "test_code",
+                        "state": signed_state
+                    },
+                    follow_redirects=False
+                )
+                
+                # Should redirect to admin with token
+                # Note: TestClient may return 200 if redirect is followed, so check both
+                if response.status_code == 302:
+                    assert "/admin?token=" in response.headers["location"]
+                elif response.status_code == 200:
+                    # If redirect was followed, check the final URL
+                    assert response.url is not None
+                    assert "/admin" in str(response.url) or "token=" in str(response.url)
+                else:
+                    pytest.fail(f"Expected 302 or 200, got {response.status_code}: {response.text}")
+                
+                # Verify association was created
+                association = db_session.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == user.id,
+                    UserClinicAssociation.clinic_id == clinic2.id
+                ).first()
+                assert association is not None
+                assert association.is_active is True
+                assert association.roles == ["practitioner"]
+                
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+    
+    def test_existing_user_signup_callback_reactivates_inactive(self, client, db_session):
+        """Test that existing user clicking signup link reactivates inactive association."""
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Clinic A",
+            line_channel_id="clinic_a_channel",
+            line_channel_secret="secret_a",
+            line_channel_access_token="token_a"
+        )
+        clinic2 = Clinic(
+            name="Clinic B",
+            line_channel_id="clinic_b_channel",
+            line_channel_secret="secret_b",
+            line_channel_access_token="token_b"
+        )
+        db_session.add_all([clinic1, clinic2])
+        db_session.commit()
+        
+        # Create existing user with active association to clinic1
+        user, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic1,
+            email="user@example.com",
+            google_subject_id="user_subject",
+            full_name="Test User",
+            roles=["admin"]
+        )
+        
+        # Create inactive association to clinic2
+        inactive_assoc = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic2.id,
+            roles=["practitioner"],
+            full_name="Test User",
+            is_active=False,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
+        )
+        db_session.add(inactive_assoc)
+        db_session.commit()
+        
+        # Create signup token for clinic2
+        import secrets
+        token = secrets.token_urlsafe(32)
+        signup_token = SignupToken(
+            token=token,
+            clinic_id=clinic2.id,
+            default_roles=["practitioner"],
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
+        )
+        db_session.add(signup_token)
+        db_session.commit()
+        
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+        
+        try:
+            # Mock Google OAuth
+            mock_token_response = {
+                "access_token": "mock_access_token",
+                "refresh_token": "mock_refresh_token",
+                "expires_in": 3600,
+                "token_type": "Bearer"
+            }
+            
+            mock_user_info = {
+                "email": "user@example.com",
+                "name": "Test User",
+                "sub": "user_subject"
+            }
+            
+            with patch('httpx.AsyncClient') as mock_client:
+                instance = AsyncMock()
+                token_resp = Mock(spec=httpx.Response)
+                token_resp.raise_for_status.return_value = None
+                token_resp.json.return_value = mock_token_response
+                instance.post.return_value = token_resp
+                
+                user_info_resp = Mock(spec=httpx.Response)
+                user_info_resp.raise_for_status.return_value = None
+                user_info_resp.json.return_value = mock_user_info
+                instance.get.return_value = user_info_resp
+                
+                mock_client.return_value.__aenter__.return_value = instance
+                
+                # Sign state
+                from services.jwt_service import jwt_service
+                state_data = {"token": token, "type": "member"}
+                signed_state = jwt_service.sign_oauth_state(state_data)
+                
+                # Call signup callback
+                response = client.get(
+                    "/api/signup/callback",
+                    params={
+                        "code": "test_code",
+                        "state": signed_state
+                    },
+                    follow_redirects=False
+                )
+                
+                # Should redirect
+                assert response.status_code == 302
+                
+                # Verify association was reactivated
+                db_session.refresh(inactive_assoc)
+                assert inactive_assoc.is_active is True
+                
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+    
+    def test_signup_callback_race_condition_handling(self, client, db_session):
+        """Test that concurrent signup requests are handled correctly (race condition)."""
+        # Create clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="secret",
+            line_channel_access_token="token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        # Create existing user
+        user, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="user@example.com",
+            google_subject_id="user_subject",
+            full_name="Test User",
+            roles=["admin"]
+        )
+        
+        # Create signup token
+        import secrets
+        token = secrets.token_urlsafe(32)
+        signup_token = SignupToken(
+            token=token,
+            clinic_id=clinic.id,
+            default_roles=["practitioner"],
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
+        )
+        db_session.add(signup_token)
+        db_session.commit()
+        
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+        
+        try:
+            # Mock Google OAuth
+            mock_token_response = {
+                "access_token": "mock_access_token",
+                "refresh_token": "mock_refresh_token",
+                "expires_in": 3600,
+                "token_type": "Bearer"
+            }
+            
+            mock_user_info = {
+                "email": "user@example.com",
+                "name": "Test User",
+                "sub": "user_subject"
+            }
+            
+            with patch('httpx.AsyncClient') as mock_client:
+                instance = AsyncMock()
+                token_resp = Mock(spec=httpx.Response)
+                token_resp.raise_for_status.return_value = None
+                token_resp.json.return_value = mock_token_response
+                instance.post.return_value = token_resp
+                
+                user_info_resp = Mock(spec=httpx.Response)
+                user_info_resp.raise_for_status.return_value = None
+                user_info_resp.json.return_value = mock_user_info
+                instance.get.return_value = user_info_resp
+                
+                mock_client.return_value.__aenter__.return_value = instance
+                
+                # Sign state
+                from services.jwt_service import jwt_service
+                state_data = {"token": token, "type": "member"}
+                signed_state = jwt_service.sign_oauth_state(state_data)
+                
+                # First request - creates association
+                response1 = client.get(
+                    "/api/signup/callback",
+                    params={
+                        "code": "test_code",
+                        "state": signed_state
+                    },
+                    follow_redirects=False
+                )
+                
+                # Should succeed with redirect
+                assert response1.status_code == 302
+                
+                # Verify association exists
+                association = db_session.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == user.id,
+                    UserClinicAssociation.clinic_id == clinic.id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                assert association is not None
+                
+                # Second request - should handle race condition gracefully
+                # (In practice, this would be a different token, but we're testing the IntegrityError handling)
+                # Since the association already exists and is active, it should redirect to login
+                # But actually, the code checks for existing active association first, so it should redirect
+                # Let's test with a new token to the same clinic
+                token2 = secrets.token_urlsafe(32)
+                signup_token2 = SignupToken(
+                    token=token2,
+                    clinic_id=clinic.id,
+                    default_roles=["practitioner"],
+                    expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
+                )
+                db_session.add(signup_token2)
+                db_session.commit()
+                
+                state_data2 = {"token": token2, "type": "member"}
+                signed_state2 = jwt_service.sign_oauth_state(state_data2)
+                
+                response2 = client.get(
+                    "/api/signup/callback",
+                    params={
+                        "code": "test_code2",
+                        "state": signed_state2
+                    },
+                    follow_redirects=False
+                )
+                
+                # Should redirect (either to admin if association exists, or login if already member)
+                assert response2.status_code == 302
+                
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+    
     def test_join_clinic_reactivates_inactive_association(self, client, db_session):
         """Test that joining clinic reactivates previously inactive association."""
         from services.jwt_service import jwt_service

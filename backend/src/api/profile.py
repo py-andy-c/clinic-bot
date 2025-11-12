@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 from core.database import get_db
 from auth.dependencies import get_current_user, UserContext
-from models import User
+from models import User, UserClinicAssociation
 from utils.datetime_utils import taiwan_now
 
 router = APIRouter()
@@ -67,7 +67,6 @@ async def get_profile(
             )
         
         # Get roles and active clinic from UserClinicAssociation
-        from models import UserClinicAssociation
         roles: list[str] = []
         active_clinic_id: Optional[int] = None
         
@@ -132,8 +131,23 @@ async def update_profile(
         # Update allowed fields only
         # Note: full_name is clinic-specific, so we update UserClinicAssociation
         # The user.full_name is kept as fallback but clinic-specific names take precedence
+        association = None
         if profile_data.full_name is not None:
-            user.full_name = profile_data.full_name  # Update fallback name
+            # Update fallback name in User model
+            user.full_name = profile_data.full_name
+            
+            # Update clinic-specific name in UserClinicAssociation for active clinic
+            if current_user.active_clinic_id:
+                association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == user.id,
+                    UserClinicAssociation.clinic_id == current_user.active_clinic_id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                
+                if association:
+                    association.full_name = profile_data.full_name
+                    association.updated_at = taiwan_now()
+                # If no association exists (shouldn't happen for clinic users), just update user.full_name
         
         # Update timestamp (Taiwan timezone)
         user.updated_at = taiwan_now()
@@ -141,30 +155,39 @@ async def update_profile(
         db.commit()
         db.refresh(user)
         
+        # Refresh association if it was updated
+        if association:
+            db.refresh(association)
+        
         # Get roles and active clinic from UserClinicAssociation
-        from models import UserClinicAssociation
         roles: list[str] = []
         active_clinic_id: Optional[int] = None
+        clinic_full_name = user.full_name  # Fallback to user.full_name
         
         if current_user.active_clinic_id:
-            association = db.query(UserClinicAssociation).filter(
-                UserClinicAssociation.user_id == user.id,
-                UserClinicAssociation.clinic_id == current_user.active_clinic_id,
-                UserClinicAssociation.is_active == True
-            ).first()
+            # Use refreshed association if available, otherwise query
             if association:
                 roles = association.roles or []
                 active_clinic_id = association.clinic_id
-                
-                # Update clinic-specific name if provided
-                if profile_data.full_name is not None:
-                    association.full_name = profile_data.full_name
-                    association.updated_at = taiwan_now()
+                clinic_full_name = association.full_name or user.full_name  # Use clinic-specific name
+            else:
+                # Query association if not already loaded (shouldn't happen for clinic users)
+                association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == user.id,
+                    UserClinicAssociation.clinic_id == current_user.active_clinic_id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                if association:
+                    roles = association.roles or []
+                    active_clinic_id = association.clinic_id
+                    clinic_full_name = association.full_name or user.full_name
+                else:
+                    active_clinic_id = None
         
         return ProfileResponse(
             id=user.id,
             email=user.email,  # Email cannot be changed
-            full_name=current_user.name,  # Use clinic-specific name
+            full_name=clinic_full_name,  # Use updated clinic-specific name
             roles=roles,
             active_clinic_id=active_clinic_id,
             created_at=user.created_at,

@@ -10,6 +10,7 @@ import PageHeader from '../components/PageHeader';
 
 const MembersPage: React.FC = () => {
   const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus, isLoading } = useAuth();
+  const activeClinicId = currentUser?.active_clinic_id;
   const { alert, confirm } = useModal();
   
   // If not authenticated, show a message (in real app, this would redirect to login)
@@ -31,7 +32,7 @@ const MembersPage: React.FC = () => {
     fetchMembers,
     {
       enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated],
+      dependencies: [isLoading, isAuthenticated, activeClinicId],
       defaultErrorMessage: '無法載入成員列表',
       initialData: [],
     }

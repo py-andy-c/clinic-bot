@@ -90,12 +90,22 @@ export interface Appointment {
 }
 
 // Auth types
+export interface ClinicInfo {
+  id: number;
+  name: string;
+  display_name: string;
+  roles: UserRole[];
+  is_active: boolean;
+  last_accessed_at: string | null;
+}
+
 export interface AuthUser {
   user_id: number;
   email: string;
   full_name: string;
-  roles: UserRole[];
-  clinic_id?: number;
+  roles: UserRole[]; // Roles at active_clinic_id
+  active_clinic_id: number | null; // Currently selected clinic (null for system admins)
+  available_clinics?: ClinicInfo[]; // List of clinics user can access
   user_type: UserType;
 }
 
@@ -151,6 +161,25 @@ export interface SignupResponse {
   token_type: string;
   expires_in: number;
   user: AuthUser;
+}
+
+// Clinic switching types
+export interface ClinicsListResponse {
+  clinics: ClinicInfo[];
+  active_clinic_id: number | null;
+}
+
+export interface SwitchClinicResponse {
+  access_token: string | null; // None when idempotent (use current token)
+  refresh_token: string | null; // None when idempotent (use current token)
+  active_clinic_id: number;
+  roles: string[];
+  name: string;
+  clinic: {
+    id: number;
+    name: string;
+    display_name: string;
+  };
 }
 
 // Calendar and Availability types

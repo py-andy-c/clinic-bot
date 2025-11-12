@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from 'react';
-import { AuthUser, AuthState, UserRole } from '../types';
+import { AuthUser, AuthState, UserRole, ClinicInfo } from '../types';
 import { logger } from '../utils/logger';
 import { authStorage } from '../utils/storage';
 import { apiService } from '../services/api';
@@ -27,6 +27,11 @@ interface AuthContextType extends AuthState {
   isPractitioner: boolean;
   isReadOnlyUser: boolean;
   isClinicUser: boolean;
+  // Clinic switching methods
+  switchClinic: (clinicId: number) => Promise<void>;
+  refreshAvailableClinics: () => Promise<void>;
+  availableClinics: ClinicInfo[];
+  isSwitchingClinic: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -49,6 +54,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: false,
     isLoading: true,
   });
+  const [availableClinics, setAvailableClinics] = useState<ClinicInfo[]>([]);
+  const [isSwitchingClinic, setIsSwitchingClinic] = useState(false);
 
   const clearAuthState = useCallback(() => {
     authStorage.clearAuth();
@@ -58,6 +65,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       isLoading: false,
     });
   }, []);
+
+  const refreshAvailableClinics = useCallback(async (userOverride?: AuthUser | null) => {
+    try {
+      // Use provided user or current auth state user
+      const user = userOverride ?? authState.user;
+      
+      // Only fetch clinics for clinic users (system admins don't have clinics)
+      if (!user || user.user_type !== 'clinic_user') {
+        setAvailableClinics([]);
+        return;
+      }
+
+      const response = await apiService.listAvailableClinics(false);
+      setAvailableClinics(response.clinics);
+      
+      // Update user's available_clinics if user exists
+      setAuthState(prev => ({
+        ...prev,
+        user: prev.user ? {
+          ...prev.user,
+          available_clinics: response.clinics,
+          active_clinic_id: response.active_clinic_id ?? prev.user.active_clinic_id,
+        } : null,
+      }));
+    } catch (error) {
+      logger.error('Failed to refresh available clinics:', error);
+      // Don't throw - just log the error
+    }
+  }, [authState.user]);
 
   useEffect(() => {
     // Skip authentication checks for signup pages
@@ -107,7 +143,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           full_name: payload.name || '',
           user_type: payload.user_type || 'clinic_user',
           roles: payload.roles || [],
-          clinic_id: payload.clinic_id || undefined,
+          active_clinic_id: payload.active_clinic_id ?? null,
         };
         
         // Validate required fields
@@ -121,6 +157,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           isAuthenticated: true,
           isLoading: false,
         });
+        
+        // Fetch available clinics for clinic users (async, don't wait)
+        if (userData.user_type === 'clinic_user') {
+          // Use setTimeout to avoid calling setState during render
+          // Pass userData to avoid closure issues with authState.user
+          setTimeout(() => {
+            refreshAvailableClinics(userData).catch(err => {
+              logger.warn('Failed to fetch available clinics on OAuth callback:', err);
+            });
+          }, 0);
+        }
       } catch (error) {
         logger.error('OAuth callback token decoding failed:', error);
         clearAuthState();
@@ -205,7 +252,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               full_name: payload.name || '',
               user_type: payload.user_type || 'clinic_user',
               roles: payload.roles || [],
-              clinic_id: payload.clinic_id || undefined,
+              active_clinic_id: payload.active_clinic_id ?? null,
             };
             
             // Validate required fields
@@ -219,6 +266,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               isAuthenticated: true,
               isLoading: false,
             });
+            
+            // Fetch available clinics for clinic users (async, don't wait)
+            if (userData.user_type === 'clinic_user') {
+              // Use setTimeout to avoid calling setState during render
+              // Pass userData to avoid closure issues with authState.user
+              setTimeout(() => {
+                refreshAvailableClinics(userData).catch(err => {
+                  logger.warn('Failed to fetch available clinics on auth check:', err);
+                });
+              }, 0);
+            }
+            
             return;
           } catch (error) {
             logger.warn('useAuth: Failed to decode access token, will rely on first API call to validate:', error);
@@ -285,6 +344,68 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return enhancedUser?.hasRole(role) ?? false;
   };
 
+  const switchClinic = useCallback(async (clinicId: number) => {
+    if (isSwitchingClinic) {
+      logger.warn('Clinic switch already in progress');
+      return;
+    }
+
+    try {
+      setIsSwitchingClinic(true);
+      logger.log('Switching clinic', { clinicId });
+
+      const response = await apiService.switchClinic(clinicId);
+
+      // Update tokens if provided (idempotent case returns null)
+      if (response.access_token) {
+        authStorage.setAccessToken(response.access_token);
+      }
+      if (response.refresh_token) {
+        authStorage.setRefreshToken(response.refresh_token);
+      }
+
+      // Update auth state with new clinic context
+      setAuthState(prev => {
+        if (!prev.user) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          user: {
+            ...prev.user,
+            active_clinic_id: response.active_clinic_id,
+            roles: response.roles as UserRole[],
+            full_name: response.name,
+          },
+        };
+      });
+
+      // Refresh available clinics to get updated last_accessed_at
+      await refreshAvailableClinics();
+
+      logger.log('Clinic switched successfully', { 
+        clinicId: response.active_clinic_id,
+        clinicName: response.clinic.name 
+      });
+    } catch (error: any) {
+      logger.error('Failed to switch clinic:', error);
+      
+      // Handle specific error cases
+      if (error.response?.status === 429) {
+        throw new Error('切換診所次數過於頻繁，請稍後再試');
+      } else if (error.response?.status === 403) {
+        throw new Error(error.response?.data?.detail || '您沒有此診所的存取權限');
+      } else if (error.response?.status === 400) {
+        throw new Error(error.response?.data?.detail || '無法切換診所');
+      } else {
+        throw new Error('切換診所失敗，請稍後再試');
+      }
+    } finally {
+      setIsSwitchingClinic(false);
+    }
+  }, [isSwitchingClinic, refreshAvailableClinics]);
+
   const value: AuthContextType = {
     user: enhancedUser,
     isAuthenticated: authState.isAuthenticated,
@@ -298,6 +419,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isPractitioner: enhancedUser?.isPractitioner ?? false,
     isReadOnlyUser: enhancedUser?.isReadOnlyUser ?? false,
     isClinicUser: enhancedUser?.isClinicUser ?? false,
+    // Clinic switching
+    switchClinic,
+    refreshAvailableClinics,
+    availableClinics,
+    isSwitchingClinic,
   };
 
   return (

@@ -180,7 +180,7 @@ async def google_auth_callback(
         from fastapi.responses import RedirectResponse
         from urllib.parse import quote
         error_message = "登入已取消" if error == "access_denied" else "認證失敗"
-        error_url = f"{FRONTEND_URL}/login?error=true&message={quote(error_message)}"
+        error_url = f"{FRONTEND_URL}/admin/login?error=true&message={quote(error_message)}"
         return RedirectResponse(url=error_url, status_code=302)
     
     # Ensure code is provided if no error
@@ -188,7 +188,7 @@ async def google_auth_callback(
         logger.warning("OAuth callback missing code parameter")
         from fastapi.responses import RedirectResponse
         from urllib.parse import quote
-        error_url = f"{FRONTEND_URL}/login?error=true&message={quote('認證失敗：缺少授權碼')}"
+        error_url = f"{FRONTEND_URL}/admin/login?error=true&message={quote('認證失敗：缺少授權碼')}"
         return RedirectResponse(url=error_url, status_code=302)
 
     try:
@@ -296,7 +296,7 @@ async def google_auth_callback(
                 name=name
             )
 
-            redirect_url = f"{FRONTEND_URL}/system/dashboard"
+            redirect_url = f"{FRONTEND_URL}/admin/system/clinics"
 
         else:
             # This is a clinic user - they need to go through signup flow
@@ -322,7 +322,6 @@ async def google_auth_callback(
                     )
                 
                 # Verify user has at least one active clinic association
-                from models import UserClinicAssociation
                 has_association = db.query(UserClinicAssociation).filter(
                     UserClinicAssociation.user_id == existing_user.id,
                     UserClinicAssociation.is_active == True
@@ -354,7 +353,9 @@ async def google_auth_callback(
                     name=clinic_data["clinic_name"]
                 )
 
-                redirect_url = f"{FRONTEND_URL}/clinic/dashboard"
+                # Redirect to default clinic user route (will be determined by frontend based on role)
+                # Frontend will redirect practitioners to /admin/calendar and others to /admin/clinic/members
+                redirect_url = f"{FRONTEND_URL}/admin"
             else:
                 # New clinic user - redirect to signup
                 raise HTTPException(
@@ -412,11 +413,11 @@ async def google_auth_callback(
         # Handle specific error cases by redirecting to frontend with error message
         if e.detail == "診所使用者認證必須透過註冊流程":
             from fastapi.responses import RedirectResponse
-            error_url = f"{FRONTEND_URL}/login?error=true&message={e.detail}"
+            error_url = f"{FRONTEND_URL}/admin/login?error=true&message={e.detail}"
             return RedirectResponse(url=error_url, status_code=302)
         elif e.detail == "帳戶已被停用，請聯繫診所管理員重新啟用":
             from fastapi.responses import RedirectResponse
-            error_url = f"{FRONTEND_URL}/login?error=true&message={e.detail}"
+            error_url = f"{FRONTEND_URL}/admin/login?error=true&message={e.detail}"
             return RedirectResponse(url=error_url, status_code=302)
         else:
             raise
@@ -574,7 +575,6 @@ async def refresh_access_token(
     
     # Determine user type based on clinic associations
     # System admins have no clinic associations, clinic users have at least one
-    from models import UserClinicAssociation
     has_association = db.query(UserClinicAssociation).filter(
         UserClinicAssociation.user_id == user.id,
         UserClinicAssociation.is_active == True

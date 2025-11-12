@@ -12,7 +12,9 @@ import {
   ClinicHealth,
   MemberInviteData,
   OAuthResponse,
-  UserRole
+  UserRole,
+  ClinicsListResponse,
+  SwitchClinicResponse
 } from '../types';
 import {
   validateClinicSettings,
@@ -154,6 +156,20 @@ export class ApiService {
     authStorage.clearAuth();
   }
 
+  // Clinic switching methods
+  async listAvailableClinics(includeInactive: boolean = false): Promise<ClinicsListResponse> {
+    const response = await this.client.get('/auth/clinics', {
+      params: { include_inactive: includeInactive }
+    });
+    return response.data;
+  }
+
+  async switchClinic(clinicId: number): Promise<SwitchClinicResponse> {
+    const response = await this.client.post('/auth/switch-clinic', {
+      clinic_id: clinicId
+    });
+    return response.data;
+  }
 
   // System Admin APIs
 
@@ -369,6 +385,22 @@ export class ApiService {
 
   async confirmName(token: string, fullName: string): Promise<{ redirect_url: string; refresh_token: string }> {
     const response = await this.client.post(`/signup/confirm-name?token=${token}`, { full_name: fullName });
+    return response.data;
+  }
+
+  async joinClinicAsExistingUser(token: string, name?: string): Promise<{
+    association_created: boolean;
+    clinic_id: number;
+    switch_clinic: boolean;
+    clinic: {
+      id: number;
+      name: string;
+      display_name: string;
+    };
+  }> {
+    const response = await this.client.post(`/signup/member/join-existing?token=${token}`, {
+      name: name || undefined
+    });
     return response.data;
   }
 }
