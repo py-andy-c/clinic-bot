@@ -7,6 +7,7 @@ Handles secure token-based user onboarding for clinic admins and team members.
 
 import logging
 from datetime import datetime, timezone
+from typing import Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import RedirectResponse
@@ -16,8 +17,9 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from core.config import API_BASE_URL, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 from services.jwt_service import jwt_service, TokenPayload
-from models import User, SignupToken, RefreshToken, UserClinicAssociation
-from auth.dependencies import get_active_clinic_association
+from models import User, SignupToken, RefreshToken, UserClinicAssociation, Clinic
+from auth.dependencies import get_active_clinic_association, require_authenticated, UserContext
+from sqlalchemy.exc import IntegrityError
 
 logger = logging.getLogger(__name__)
 
@@ -340,6 +342,11 @@ class NameConfirmationRequest(BaseModel):
     full_name: str
 
 
+class JoinClinicRequest(BaseModel):
+    """Request model for existing user joining a new clinic."""
+    full_name: Optional[str] = None  # Optional: clinic-specific name
+
+
 @router.post("/confirm-name", summary="Confirm user name and complete signup")
 async def confirm_name(
     request: NameConfirmationRequest,
@@ -515,4 +522,206 @@ async def confirm_name(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="註冊完成失敗"
+        )
+
+
+def _reactivate_association(
+    association: UserClinicAssociation,
+    signup_token: SignupToken,
+    request: JoinClinicRequest,
+    db: Session
+) -> None:
+    """
+    Reactivate an inactive user-clinic association.
+    
+    Updates the association to active, sets roles from signup token,
+    optionally updates name, and updates last_accessed_at.
+    """
+    now = datetime.now(timezone.utc)
+    association.is_active = True
+    association.roles = signup_token.default_roles or []
+    if request.full_name and request.full_name.strip():
+        association.full_name = request.full_name.strip()
+    association.last_accessed_at = now
+    association.updated_at = now
+    db.commit()
+    db.refresh(association)
+
+
+def _get_clinic_name(request: JoinClinicRequest, current_user: UserContext) -> str:
+    """
+    Get clinic-specific name with fallback logic.
+    
+    Priority:
+    1. Request full_name (if provided and non-empty)
+    2. Current user's name
+    3. Email username (before @)
+    4. "User" as final fallback
+    """
+    return (
+        request.full_name.strip() if request.full_name and request.full_name.strip()
+        else current_user.name
+        or (current_user.email.split("@")[0] if current_user.email else "User")
+    )
+
+
+@router.post("/member/join-existing", summary="Join clinic as existing user")
+async def join_clinic_as_existing_user(
+    token: str,
+    request: JoinClinicRequest,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    """
+    Create user-clinic association for existing user.
+    
+    User must be authenticated. This is called when an existing user
+    clicks a signup link for a new clinic.
+    
+    Handles race conditions via database unique constraint.
+    
+    Args:
+        token: Signup token for the clinic
+        request: Optional clinic-specific name
+        current_user: Authenticated user context
+        db: Database session
+        
+    Returns:
+        Dictionary with association details and clinic info
+    """
+    try:
+        # System admins cannot join clinics
+        if current_user.is_system_admin():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="系統管理員無法加入診所"
+            )
+        
+        # Validate user_id is available
+        if current_user.user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無效的使用者上下文"
+            )
+        
+        # Validate signup token
+        signup_token = db.query(SignupToken).filter(
+            SignupToken.token == token,
+            SignupToken.expires_at > datetime.now(timezone.utc),
+            SignupToken.is_revoked == False
+        ).first()
+        
+        if not signup_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="註冊連結已失效，請聯繫診所處理。"
+            )
+        
+        # Validate clinic is active
+        clinic = db.query(Clinic).filter(
+            Clinic.id == signup_token.clinic_id,
+            Clinic.is_active == True
+        ).first()
+        
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="此診所已停用"
+            )
+        
+        # Check if association already exists (optimistic check)
+        existing = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == current_user.user_id,
+            UserClinicAssociation.clinic_id == signup_token.clinic_id
+        ).first()
+        
+        if existing:
+            if existing.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="您已經是此診所的成員"
+                )
+            else:
+                # Reactivate existing association
+                _reactivate_association(existing, signup_token, request, db)
+                association = existing
+                # Mark token as used (user is using the token to reactivate)
+                if signup_token.used_at is None:
+                    signup_token.used_at = datetime.now(timezone.utc)
+                    signup_token.used_by_email = current_user.email
+                    db.commit()
+        else:
+            # Create new association (handle race condition via unique constraint)
+            clinic_name = _get_clinic_name(request, current_user)
+            
+            association = UserClinicAssociation(
+                user_id=current_user.user_id,
+                clinic_id=signup_token.clinic_id,
+                roles=signup_token.default_roles or [],
+                full_name=clinic_name,
+                is_active=True,
+                last_accessed_at=datetime.now(timezone.utc),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
+            )
+            
+            try:
+                db.add(association)
+                # Mark signup token as used (if not already used)
+                # Note: Token is marked as used when creating new association or reactivating
+                if signup_token.used_at is None:
+                    signup_token.used_at = datetime.now(timezone.utc)
+                    signup_token.used_by_email = current_user.email
+                db.commit()
+                db.refresh(association)
+            except IntegrityError:
+                # Race condition: association was created by another request
+                db.rollback()
+                # Fetch the existing association
+                association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == current_user.user_id,
+                    UserClinicAssociation.clinic_id == signup_token.clinic_id
+                ).first()
+                
+                if not association:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="建立關聯時發生錯誤，請稍後再試"
+                    )
+                
+                if not association.is_active:
+                    # Reactivate it
+                    _reactivate_association(association, signup_token, request, db)
+                    # Mark token as used (user is using the token to reactivate)
+                    if signup_token.used_at is None:
+                        signup_token.used_at = datetime.now(timezone.utc)
+                        signup_token.used_by_email = current_user.email
+                        db.commit()
+                else:
+                    # Already active - user is already a member
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="您已經是此診所的成員"
+                    )
+        
+        return {
+            "association_created": True,
+            "clinic_id": signup_token.clinic_id,
+            "clinic": {
+                "id": clinic.id,
+                "name": clinic.name,
+                "display_name": clinic.name  # Use name as display_name for now
+            },
+            "roles": association.roles or [],
+            "full_name": association.full_name
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Error joining clinic as existing user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="加入診所時發生錯誤，請稍後再試"
         )

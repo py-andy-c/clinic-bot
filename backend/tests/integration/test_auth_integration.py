@@ -2986,3 +2986,552 @@ class TestClinicSwitchingEndpoints:
             # Clean up rate limit
             if user.id in _clinic_switch_rate_limit:
                 del _clinic_switch_rate_limit[user.id]
+
+
+class TestExistingUserJoinClinic:
+    """Test existing user joining a new clinic."""
+    
+    def test_join_clinic_as_existing_user_success(self, client, db_session):
+        """Test successful join of new clinic by existing user."""
+        from services.jwt_service import jwt_service
+        
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Clinic A",
+            line_channel_id="clinic_a_channel",
+            line_channel_secret="secret_a",
+            line_channel_access_token="token_a"
+        )
+        clinic2 = Clinic(
+            name="Clinic B",
+            line_channel_id="clinic_b_channel",
+            line_channel_secret="secret_b",
+            line_channel_access_token="token_b"
+        )
+        db_session.add_all([clinic1, clinic2])
+        db_session.commit()
+        
+        # Create existing user with association to clinic1
+        user, association1 = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic1,
+            email="existing@example.com",
+            google_subject_id="existing_subject",
+            full_name="Existing User",
+            roles=["admin"]
+        )
+        
+        # Create signup token for clinic2
+        import secrets
+        token = secrets.token_urlsafe(32)
+        signup_token = SignupToken(
+            token=token,
+            clinic_id=clinic2.id,
+            default_roles=["practitioner"],
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
+        )
+        db_session.add(signup_token)
+        db_session.commit()
+        
+        # Create access token for user
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="clinic_user",
+            roles=["admin"],
+            clinic_id=clinic1.id,
+            active_clinic_id=clinic1.id,
+            name="Existing User"
+        )
+        access_token = jwt_service.create_access_token(payload)
+        
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+        
+        try:
+            # Join clinic2
+            response = client.post(
+                f"/api/signup/member/join-existing?token={token}",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={"full_name": "User at Clinic B"}  # Optional clinic-specific name
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["association_created"] is True
+            assert data["clinic_id"] == clinic2.id
+            assert data["clinic"]["id"] == clinic2.id
+            assert data["clinic"]["name"] == "Clinic B"
+            assert data["roles"] == ["practitioner"]
+            assert data["full_name"] == "User at Clinic B"
+            
+            # Verify association was created
+            association2 = db_session.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == user.id,
+                UserClinicAssociation.clinic_id == clinic2.id
+            ).first()
+            assert association2 is not None
+            assert association2.is_active is True
+            assert association2.roles == ["practitioner"]
+            assert association2.full_name == "User at Clinic B"
+            
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+    
+    def test_join_clinic_without_name_uses_default(self, client, db_session):
+        """Test joining clinic without providing name uses current user name."""
+        from services.jwt_service import jwt_service
+        
+        # Create clinic
+        clinic = Clinic(
+            name="New Clinic",
+            line_channel_id="new_clinic_channel",
+            line_channel_secret="secret",
+            line_channel_access_token="token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        # Create existing user
+        user, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="user@example.com",
+            google_subject_id="user_subject",
+            full_name="Test User",
+            roles=["admin"]
+        )
+        
+        # Create another clinic to join
+        clinic2 = Clinic(
+            name="Another Clinic",
+            line_channel_id="another_channel",
+            line_channel_secret="secret2",
+            line_channel_access_token="token2"
+        )
+        db_session.add(clinic2)
+        db_session.commit()
+        
+        # Create signup token
+        import secrets
+        token = secrets.token_urlsafe(32)
+        signup_token = SignupToken(
+            token=token,
+            clinic_id=clinic2.id,
+            default_roles=["practitioner"],
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
+        )
+        db_session.add(signup_token)
+        db_session.commit()
+        
+        # Create access token
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="clinic_user",
+            roles=["admin"],
+            clinic_id=clinic.id,
+            active_clinic_id=clinic.id,
+            name="Test User"
+        )
+        access_token = jwt_service.create_access_token(payload)
+        
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+        
+        try:
+            # Join clinic2 without providing name
+            response = client.post(
+                f"/api/signup/member/join-existing?token={token}",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={}  # No name provided
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["full_name"] == "Test User"  # Should use current user name
+            
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+    
+    def test_join_clinic_already_member(self, client, db_session):
+        """Test joining clinic when already a member."""
+        from services.jwt_service import jwt_service
+        
+        # Create clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="secret",
+            line_channel_access_token="token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        # Create user with association to clinic
+        user, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="member@example.com",
+            google_subject_id="member_subject",
+            full_name="Member User",
+            roles=["admin"]
+        )
+        
+        # Create signup token for same clinic
+        import secrets
+        token = secrets.token_urlsafe(32)
+        signup_token = SignupToken(
+            token=token,
+            clinic_id=clinic.id,
+            default_roles=["practitioner"],
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
+        )
+        db_session.add(signup_token)
+        db_session.commit()
+        
+        # Create access token
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="clinic_user",
+            roles=["admin"],
+            clinic_id=clinic.id,
+            active_clinic_id=clinic.id,
+            name="Member User"
+        )
+        access_token = jwt_service.create_access_token(payload)
+        
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+        
+        try:
+            # Try to join clinic (already a member)
+            response = client.post(
+                f"/api/signup/member/join-existing?token={token}",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={}
+            )
+            
+            assert response.status_code == 400
+            assert "您已經是此診所的成員" in response.json()["detail"]
+            
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+    
+    def test_join_clinic_invalid_token(self, client, db_session):
+        """Test joining clinic with invalid token."""
+        from services.jwt_service import jwt_service
+        
+        # Create user
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="secret",
+            line_channel_access_token="token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        user, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="user@example.com",
+            google_subject_id="user_subject",
+            full_name="Test User",
+            roles=["admin"]
+        )
+        
+        # Create access token
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="clinic_user",
+            roles=["admin"],
+            clinic_id=clinic.id,
+            active_clinic_id=clinic.id,
+            name="Test User"
+        )
+        access_token = jwt_service.create_access_token(payload)
+        
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+        
+        try:
+            # Try to join with invalid token
+            response = client.post(
+                "/api/signup/member/join-existing?token=invalid_token",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={}
+            )
+            
+            assert response.status_code == 400
+            assert "註冊連結已失效" in response.json()["detail"]
+            
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+    
+    def test_join_clinic_inactive_clinic(self, client, db_session):
+        """Test joining inactive clinic."""
+        from services.jwt_service import jwt_service
+        
+        # Create active clinic for user
+        clinic1 = Clinic(
+            name="Active Clinic",
+            line_channel_id="active_channel",
+            line_channel_secret="secret",
+            line_channel_access_token="token"
+        )
+        db_session.add(clinic1)
+        db_session.commit()
+        
+        # Create inactive clinic
+        clinic2 = Clinic(
+            name="Inactive Clinic",
+            line_channel_id="inactive_channel",
+            line_channel_secret="secret2",
+            line_channel_access_token="token2",
+            is_active=False
+        )
+        db_session.add(clinic2)
+        db_session.commit()
+        
+        # Create user
+        user, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic1,
+            email="user@example.com",
+            google_subject_id="user_subject",
+            full_name="Test User",
+            roles=["admin"]
+        )
+        
+        # Create signup token for inactive clinic
+        import secrets
+        token = secrets.token_urlsafe(32)
+        signup_token = SignupToken(
+            token=token,
+            clinic_id=clinic2.id,
+            default_roles=["practitioner"],
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
+        )
+        db_session.add(signup_token)
+        db_session.commit()
+        
+        # Create access token
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="clinic_user",
+            roles=["admin"],
+            clinic_id=clinic1.id,
+            active_clinic_id=clinic1.id,
+            name="Test User"
+        )
+        access_token = jwt_service.create_access_token(payload)
+        
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+        
+        try:
+            # Try to join inactive clinic
+            response = client.post(
+                f"/api/signup/member/join-existing?token={token}",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={}
+            )
+            
+            assert response.status_code == 400
+            assert "此診所已停用" in response.json()["detail"]
+            
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+    
+    def test_join_clinic_system_admin_forbidden(self, client, db_session):
+        """Test that system admins cannot join clinics."""
+        from services.jwt_service import jwt_service
+        from auth import dependencies
+        
+        # Override SYSTEM_ADMIN_EMAILS
+        original_emails = dependencies.SYSTEM_ADMIN_EMAILS
+        dependencies.SYSTEM_ADMIN_EMAILS = ['admin@example.com']
+        
+        try:
+            # Create clinic
+            clinic = Clinic(
+                name="Test Clinic",
+                line_channel_id="test_channel",
+                line_channel_secret="secret",
+                line_channel_access_token="token"
+            )
+            db_session.add(clinic)
+            db_session.commit()
+            
+            # Create system admin user
+            user = User(
+                clinic_id=None,
+                email="admin@example.com",
+                google_subject_id="admin_subject",
+                full_name="System Admin",
+                roles=[]
+            )
+            db_session.add(user)
+            db_session.commit()
+            
+            # Create signup token
+            import secrets
+            token = secrets.token_urlsafe(32)
+            signup_token = SignupToken(
+                token=token,
+                clinic_id=clinic.id,
+                default_roles=["practitioner"],
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
+            )
+            db_session.add(signup_token)
+            db_session.commit()
+            
+            # Create access token
+            payload = TokenPayload(
+                sub=str(user.google_subject_id),
+                user_id=user.id,
+                email=user.email,
+                user_type="system_admin",
+                roles=[],
+                clinic_id=None,
+                active_clinic_id=None,
+                name="System Admin"
+            )
+            access_token = jwt_service.create_access_token(payload)
+            
+            # Override dependencies
+            def override_get_db():
+                yield db_session
+            client.app.dependency_overrides[get_db] = override_get_db
+            
+            try:
+                # Try to join clinic (should fail)
+                response = client.post(
+                    f"/api/signup/member/join-existing?token={token}",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    json={}
+                )
+                
+                assert response.status_code == 400
+                assert "系統管理員無法加入診所" in response.json()["detail"]
+                
+            finally:
+                client.app.dependency_overrides.pop(get_db, None)
+        finally:
+            dependencies.SYSTEM_ADMIN_EMAILS = original_emails
+    
+    def test_join_clinic_reactivates_inactive_association(self, client, db_session):
+        """Test that joining clinic reactivates previously inactive association."""
+        from services.jwt_service import jwt_service
+        
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Clinic A",
+            line_channel_id="clinic_a_channel",
+            line_channel_secret="secret_a",
+            line_channel_access_token="token_a"
+        )
+        clinic2 = Clinic(
+            name="Clinic B",
+            line_channel_id="clinic_b_channel",
+            line_channel_secret="secret_b",
+            line_channel_access_token="token_b"
+        )
+        db_session.add_all([clinic1, clinic2])
+        db_session.commit()
+        
+        # Create user with active association to clinic1
+        user, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic1,
+            email="user@example.com",
+            google_subject_id="user_subject",
+            full_name="Test User",
+            roles=["admin"]
+        )
+        
+        # Create inactive association to clinic2
+        inactive_association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic2.id,
+            roles=["practitioner"],
+            full_name="Test User",
+            is_active=False,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
+        )
+        db_session.add(inactive_association)
+        db_session.commit()
+        
+        # Create signup token for clinic2
+        import secrets
+        token = secrets.token_urlsafe(32)
+        signup_token = SignupToken(
+            token=token,
+            clinic_id=clinic2.id,
+            default_roles=["practitioner"],
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1)
+        )
+        db_session.add(signup_token)
+        db_session.commit()
+        
+        # Create access token
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="clinic_user",
+            roles=["admin"],
+            clinic_id=clinic1.id,
+            active_clinic_id=clinic1.id,
+            name="Test User"
+        )
+        access_token = jwt_service.create_access_token(payload)
+        
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+        
+        try:
+            # Join clinic2 (should reactivate association)
+            response = client.post(
+                f"/api/signup/member/join-existing?token={token}",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={"full_name": "Updated Name"}
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["association_created"] is True
+            
+            # Verify association was reactivated
+            db_session.refresh(inactive_association)
+            assert inactive_association.is_active is True
+            assert inactive_association.full_name == "Updated Name"
+            # Verify last_accessed_at was updated
+            assert inactive_association.last_accessed_at is not None
+            time_diff = (datetime.now(timezone.utc) - inactive_association.last_accessed_at).total_seconds()
+            assert time_diff < 5  # Updated within last 5 seconds
+            
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
