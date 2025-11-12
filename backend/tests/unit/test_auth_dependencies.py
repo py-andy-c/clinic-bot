@@ -150,8 +150,8 @@ class TestGetCurrentUser:
 
     @patch('auth.dependencies.get_db')
     def test_clinic_user_valid(self, mock_get_db):
-        """Test authenticating valid clinic user."""
-        from models import User
+        """Test authenticating valid clinic user with association."""
+        from models import User, UserClinicAssociation, Clinic
 
         payload = TokenPayload(
             sub="user_sub",
@@ -163,24 +163,39 @@ class TestGetCurrentUser:
             name="Clinic User"
         )
 
-        # Create a simple mock user object
-        class MockUser:
-            def __init__(self):
-                self.id = 1
-                self.email = "user@example.com"
-                self.google_subject_id = "user_sub"
-                self.roles = ["admin", "practitioner"]
-                self.clinic_id = 1
-                self.full_name = "Clinic User"
-                self.is_active = True
+        # Create mock user
+        mock_user = Mock(spec=User)
+        mock_user.id = 1
+        mock_user.email = "user@example.com"
+        mock_user.google_subject_id = "user_sub"
+        mock_user.is_active = True
 
-        mock_user = MockUser()
+        # Create mock association
+        mock_association = Mock(spec=UserClinicAssociation)
+        mock_association.clinic_id = 1
+        mock_association.roles = ["admin", "practitioner"]
+        mock_association.full_name = "Clinic User"
+        mock_association.last_accessed_at = None  # Will be updated
+
+        # Create mock clinic
+        mock_clinic = Mock(spec=Clinic)
+        mock_clinic.id = 1
+        mock_clinic.is_active = True
 
         mock_db = Mock()
-        # Mock the query chain: db.query(User).filter(...).first()
-        mock_query = Mock()
-        mock_query.filter.return_value.first.return_value = mock_user
-        mock_db.query.return_value = mock_query
+        
+        # Configure db.query to return different queries based on model
+        def query_side_effect(model):
+            mock_query = Mock()
+            if model == User:
+                mock_query.filter.return_value.first.return_value = mock_user
+            elif model == UserClinicAssociation:
+                mock_query.filter.return_value.first.return_value = mock_association
+            elif model == Clinic:
+                mock_query.filter.return_value.first.return_value = mock_clinic
+            return mock_query
+        
+        mock_db.query.side_effect = query_side_effect
         mock_get_db.return_value = mock_db
 
         result = get_current_user(payload, mock_db)
@@ -188,9 +203,11 @@ class TestGetCurrentUser:
         assert isinstance(result, UserContext)
         assert result.user_type == "clinic_user"
         assert result.email == "user@example.com"
-        assert result.roles == ["admin", "practitioner"]
+        assert result.roles == ["admin", "practitioner"]  # From association
         assert result.clinic_id == 1
+        assert result.active_clinic_id == 1
         assert result.user_id == 1
+        assert result.name == "Clinic User"  # From association
 
     @patch('auth.dependencies.get_db')
     def test_clinic_user_not_found(self, mock_get_db):
@@ -220,8 +237,8 @@ class TestGetCurrentUser:
 
     @patch('auth.dependencies.get_db')
     def test_clinic_user_wrong_clinic(self, mock_get_db):
-        """Test handling clinic user with wrong clinic ID."""
-        from models import User
+        """Test handling clinic user with wrong clinic ID (no association)."""
+        from models import User, UserClinicAssociation
 
         payload = TokenPayload(
             sub="user_sub",
@@ -235,18 +252,95 @@ class TestGetCurrentUser:
 
         mock_user = Mock(spec=User)
         mock_user.id = 1
-        mock_user.clinic_id = 2  # But user is in clinic 2
+        mock_user.google_subject_id = "user_sub"
+        mock_user.email = "user@example.com"
         mock_user.is_active = True
 
         mock_db = Mock()
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_user
+        # Mock User query - returns user
+        mock_user_query = Mock()
+        mock_user_query.filter.return_value.first.return_value = mock_user
+        
+        # Mock UserClinicAssociation query - returns None (no association for clinic 1)
+        mock_assoc_query = Mock()
+        mock_assoc_query.filter.return_value.first.return_value = None
+        
+        # Mock Clinic query - not reached, but set up anyway
+        mock_clinic_query = Mock()
+        mock_clinic_query.filter.return_value.first.return_value = None
+        
+        # Configure db.query to return different queries based on model
+        def query_side_effect(model):
+            if model == User:
+                return mock_user_query
+            elif model == UserClinicAssociation:
+                return mock_assoc_query
+            else:  # Clinic
+                return mock_clinic_query
+        
+        mock_db.query.side_effect = query_side_effect
         mock_get_db.return_value = mock_db
 
         with pytest.raises(HTTPException) as exc_info:
-            get_current_user(payload, mock_get_db)
+            get_current_user(payload, mock_db)
 
         assert exc_info.value.status_code == 403
         assert "Clinic access denied" in exc_info.value.detail
+
+    @patch('auth.dependencies.get_db')
+    def test_clinic_user_inactive_clinic(self, mock_get_db):
+        """Test handling clinic user with inactive clinic."""
+        from models import User, UserClinicAssociation, Clinic
+
+        payload = TokenPayload(
+            sub="user_sub",
+            user_id=1,
+            email="user@example.com",
+            user_type="clinic_user",
+            roles=["admin"],
+            clinic_id=1,
+            name="Clinic User"
+        )
+
+        mock_user = Mock(spec=User)
+        mock_user.id = 1
+        mock_user.google_subject_id = "user_sub"
+        mock_user.email = "user@example.com"
+        mock_user.is_active = True
+
+        # Create mock association (exists and is active)
+        mock_association = Mock(spec=UserClinicAssociation)
+        mock_association.clinic_id = 1
+        mock_association.roles = ["admin"]
+        mock_association.full_name = "Clinic User"
+        mock_association.last_accessed_at = None
+
+        # Create mock clinic that is INACTIVE
+        # When query filters by is_active == True, it should return None for inactive clinic
+        mock_clinic = None  # Query will return None because clinic.is_active == False
+
+        mock_db = Mock()
+        
+        # Configure db.query to return different queries based on model
+        def query_side_effect(model):
+            mock_query = Mock()
+            if model == User:
+                mock_query.filter.return_value.first.return_value = mock_user
+            elif model == UserClinicAssociation:
+                mock_query.filter.return_value.first.return_value = mock_association
+            elif model == Clinic:
+                # Return None because clinic is inactive (filter excludes it)
+                mock_query.filter.return_value.first.return_value = None
+            return mock_query
+        
+        mock_db.query.side_effect = query_side_effect
+        mock_get_db.return_value = mock_db
+
+        with pytest.raises(HTTPException) as exc_info:
+            get_current_user(payload, mock_db)
+
+        assert exc_info.value.status_code == 403
+        assert "Clinic is inactive" in exc_info.value.detail
 
     def test_invalid_user_type(self):
         """Test handling invalid user type."""

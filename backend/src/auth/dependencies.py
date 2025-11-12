@@ -13,7 +13,8 @@ MIGRATION NOTE (2025-01-27):
 """
 
 import logging
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Optional, Dict, Any, List
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -22,7 +23,7 @@ import jwt
 from core.database import get_db
 from core.config import SYSTEM_ADMIN_EMAILS
 from services.jwt_service import jwt_service, TokenPayload
-from models import User, LineUser, Clinic
+from models import User, LineUser, Clinic, UserClinicAssociation
 
 logger = logging.getLogger(__name__)
 
@@ -35,18 +36,22 @@ class UserContext:
         user_type: str,
         email: str,
         roles: list[str],
-        clinic_id: Optional[int],
+        clinic_id: Optional[int],  # Deprecated: Use active_clinic_id instead
         google_subject_id: str,
         name: str,
-        user_id: Optional[int] = None
+        user_id: Optional[int] = None,
+        active_clinic_id: Optional[int] = None,  # Currently selected clinic (from UserClinicAssociation)
+        available_clinics: Optional[List[Dict[str, Any]]] = None  # Optional: list of clinics user can access
     ):
         self.user_type = user_type  # "system_admin" or "clinic_user"
         self.email = email
-        self.roles = roles  # List of roles: ["admin"], ["practitioner"], etc.
-        self.clinic_id = clinic_id
+        self.roles = roles  # List of roles at active_clinic_id: ["admin"], ["practitioner"], etc.
+        self.clinic_id = clinic_id  # Deprecated: kept for backward compatibility
+        self.active_clinic_id = active_clinic_id if active_clinic_id is not None else clinic_id  # Use active_clinic_id if provided, fallback to clinic_id
         self.google_subject_id = google_subject_id
-        self.name = name
+        self.name = name  # Clinic-specific name at active_clinic_id
         self.user_id = user_id  # Database user ID (for both system admins and clinic users)
+        self.available_clinics = available_clinics  # For clinic switching UI
 
     def is_system_admin(self) -> bool:
         """Check if user is a system admin."""
@@ -135,7 +140,7 @@ def get_current_user(
 
     # Handle clinic user authentication
     elif payload.user_type == "clinic_user":
-        # First check if user exists (regardless of active status)
+        # Find user by Google subject ID and email
         user = db.query(User).filter(
             User.google_subject_id == payload.sub,
             User.email == payload.email
@@ -147,28 +152,68 @@ def get_current_user(
                 detail="User not found"
             )
 
-            # Check if user is active
-            if not user.is_active:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="帳戶已被停用，請聯繫診所管理員重新啟用"
-                )
+        # Check if user is active
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="帳戶已被停用，請聯繫診所管理員重新啟用"
+            )
 
-        # Verify clinic ID matches
-        if payload.clinic_id != user.clinic_id:
+        # CRITICAL: Get active_clinic_id from payload (new tokens) or fallback to clinic_id (old tokens)
+        # This provides backward compatibility during transition
+        active_clinic_id = getattr(payload, 'active_clinic_id', None) or payload.clinic_id
+        
+        if not active_clinic_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Clinic access denied"
             )
 
+        # CRITICAL: Validate active_clinic_id against user_clinic_associations
+        association = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == user.id,
+            UserClinicAssociation.clinic_id == active_clinic_id,
+            UserClinicAssociation.is_active == True
+        ).first()
+
+        if not association:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Clinic access denied"
+            )
+
+        # Verify clinic is still active
+        clinic = db.query(Clinic).filter(
+            Clinic.id == active_clinic_id,
+            Clinic.is_active == True
+        ).first()
+
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Clinic is inactive"
+            )
+
+        # Update last_accessed_at for default clinic selection
+        # Use flush() instead of commit() to avoid blocking on every request
+        # The session will commit at the end of the request lifecycle
+        # If this fails, log but don't fail authentication
+        try:
+            association.last_accessed_at = datetime.now(timezone.utc)
+            db.flush()  # Flush instead of commit to reduce blocking
+        except Exception as e:
+            # Log but don't fail authentication if last_accessed_at update fails
+            logger.warning(f"Failed to update last_accessed_at for user {user.id}, clinic {active_clinic_id}: {e}")
+
         return UserContext(
             user_type="clinic_user",
             email=user.email,
-            roles=user.roles,
-            clinic_id=user.clinic_id,
+            roles=association.roles,  # Roles from association, not user.roles
+            clinic_id=active_clinic_id,  # Keep for backward compatibility
             google_subject_id=user.google_subject_id,
-            name=user.full_name,
-            user_id=user.id
+            name=association.full_name,  # Clinic-specific name
+            user_id=user.id,
+            active_clinic_id=active_clinic_id  # New field
         )
 
     else:
@@ -267,27 +312,27 @@ def ensure_clinic_access(user: UserContext) -> int:
     """
     Ensure user has clinic access and return clinic_id.
     
-    Raises HTTPException if user doesn't have clinic_id set.
+    Raises HTTPException if user doesn't have clinic access.
     This is a helper function to avoid repeating the same check.
     
-    NOTE: Currently uses deprecated `user.clinic_id`. This will be updated
-    to use `user.active_clinic_id` from UserClinicAssociation in the future.
+    Uses `active_clinic_id` if available, falls back to `clinic_id` for backward compatibility.
     
     Args:
         user: UserContext to check
         
     Returns:
-        int: The clinic_id
+        int: The clinic_id (from active_clinic_id or clinic_id)
         
     Raises:
         HTTPException: If user doesn't have clinic access
     """
-    if user.clinic_id is None:
+    clinic_id = user.active_clinic_id or user.clinic_id
+    if clinic_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="需要診所存取權限"
         )
-    return user.clinic_id
+    return clinic_id
 
 
 # Clinic isolation enforcement
