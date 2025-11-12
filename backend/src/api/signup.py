@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from core.config import API_BASE_URL, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 from services.jwt_service import jwt_service, TokenPayload
-from models import User, SignupToken, RefreshToken
+from models import User, SignupToken, RefreshToken, UserClinicAssociation
+from auth.dependencies import get_active_clinic_association
 
 logger = logging.getLogger(__name__)
 
@@ -438,10 +439,39 @@ async def confirm_name(
         db.commit()
         db.refresh(user)
         
+        # Create UserClinicAssociation for the new user
+        now = datetime.now(timezone.utc)
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic_id,
+            roles=roles,
+            full_name=request.full_name.strip(),
+            is_active=True,
+            last_accessed_at=now,
+            created_at=now,
+            updated_at=now
+        )
+        db.add(association)
+        db.commit()
+        db.refresh(association)
+        
         # Mark signup token as used
         signup_token.used_at = datetime.now(timezone.utc)
         signup_token.used_by_email = email
         db.commit()
+        
+        # Get active clinic association (should be the one we just created)
+        # This ensures we use clinic-specific roles and name
+        active_association = get_active_clinic_association(user, db)
+        if active_association:
+            active_clinic_id = active_association.clinic_id
+            clinic_roles: list[str] = active_association.roles or []
+            clinic_name = active_association.full_name or user.full_name
+        else:
+            # Fallback (shouldn't happen, but handle gracefully)
+            active_clinic_id = clinic_id
+            clinic_roles: list[str] = roles or []
+            clinic_name = user.full_name
         
         # Create JWT token payload
         payload = TokenPayload(
@@ -449,9 +479,10 @@ async def confirm_name(
             user_id=user.id,
             email=str(email),
             user_type="clinic_user",
-            roles=user.roles,
-            clinic_id=user.clinic_id,
-            name=user.full_name
+            roles=clinic_roles,  # Use clinic-specific roles from association
+            clinic_id=user.clinic_id,  # Deprecated: kept for backward compatibility
+            active_clinic_id=active_clinic_id,  # Currently selected clinic
+            name=clinic_name  # Clinic-specific name from association
         )
         
         # Create token pair

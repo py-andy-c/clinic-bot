@@ -308,6 +308,46 @@ def require_practitioner_or_admin(user: UserContext = Depends(get_current_user))
 # # Use: require_role("practitioner") or require_role("admin")
 
 
+def get_active_clinic_association(user: User, db: Session) -> Optional[UserClinicAssociation]:
+    """
+    Get the active clinic association for a clinic user.
+    
+    Selects the most recently accessed clinic (by last_accessed_at), 
+    or the first active association if none have been accessed.
+    
+    Args:
+        user: User to get clinic association for
+        db: Database session
+        
+    Returns:
+        UserClinicAssociation if found, None if user has no associations
+        
+    Note:
+        This function does NOT update last_accessed_at. Callers should update it
+        when creating tokens to track clinic usage.
+    """
+    if user.clinic_id is None:
+        # System admin - no clinic association
+        return None
+    
+    # Get all active associations for this user
+    associations = db.query(UserClinicAssociation).filter(
+        UserClinicAssociation.user_id == user.id,
+        UserClinicAssociation.is_active == True
+    ).join(Clinic).filter(
+        Clinic.is_active == True
+    ).order_by(
+        UserClinicAssociation.last_accessed_at.desc().nulls_last(),
+        UserClinicAssociation.id.asc()  # Fallback: oldest association if no last_accessed_at
+    ).all()
+    
+    if not associations:
+        return None
+    
+    # Return the most recently accessed, or first one if none accessed
+    return associations[0]
+
+
 def ensure_clinic_access(user: UserContext) -> int:
     """
     Ensure user has clinic access and return clinic_id.

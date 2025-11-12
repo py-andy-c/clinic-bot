@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from main import app
-from models import User, SignupToken, RefreshToken, Clinic
+from models import User, SignupToken, RefreshToken, Clinic, UserClinicAssociation
 from datetime import datetime, timezone, timedelta
 from core.database import get_db
 from auth.dependencies import get_current_user
@@ -1900,3 +1900,415 @@ def test_async_sqlite_import_available():
         assert aiosqlite is not None
     except ImportError:
         pytest.fail("aiosqlite is not installed - async SQLite operations will fail")
+
+
+class TestMultiClinicTokenCreation:
+    """Test JWT token creation with multi-clinic user support."""
+
+    def test_refresh_token_with_multiple_clinics_selects_most_recent(self, client, db_session):
+        """Test that token refresh selects the most recently accessed clinic."""
+        from services.jwt_service import jwt_service
+        from datetime import datetime, timezone, timedelta
+
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Clinic 1",
+            line_channel_id="clinic1_channel",
+            line_channel_secret="secret1",
+            line_channel_access_token="token1"
+        )
+        clinic2 = Clinic(
+            name="Clinic 2",
+            line_channel_id="clinic2_channel",
+            line_channel_secret="secret2",
+            line_channel_access_token="token2"
+        )
+        db_session.add(clinic1)
+        db_session.add(clinic2)
+        db_session.commit()
+
+        # Create user with multiple clinic associations
+        user = User(
+            clinic_id=clinic1.id,  # Deprecated field, kept for backward compatibility
+            email="multiclinic@example.com",
+            google_subject_id="multiclinic_subject",
+            full_name="Multi Clinic User",
+            roles=["admin"]  # Deprecated field
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        # Create associations - clinic2 was accessed more recently
+        now = datetime.now(timezone.utc)
+        association1 = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic1.id,
+            roles=["practitioner"],
+            full_name="Dr. Smith at Clinic 1",
+            is_active=True,
+            last_accessed_at=now - timedelta(hours=2)  # Older
+        )
+        association2 = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic2.id,
+            roles=["admin", "practitioner"],
+            full_name="Dr. Smith at Clinic 2",
+            is_active=True,
+            last_accessed_at=now - timedelta(hours=1)  # More recent
+        )
+        db_session.add(association1)
+        db_session.add(association2)
+        db_session.commit()
+
+        # Create refresh token
+        refresh_token_string = "multiclinic_refresh_token"
+        refresh_token_hash, refresh_token_hash_sha256 = jwt_service.create_refresh_token_hash(refresh_token_string)
+        refresh_token_record = RefreshToken(
+            user_id=user.id,
+            token_hash=refresh_token_hash,
+            token_hash_sha256=refresh_token_hash_sha256,
+            expires_at=now + timedelta(days=7)
+        )
+        db_session.add(refresh_token_record)
+        db_session.commit()
+
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # Refresh token
+            response = client.post("/api/auth/refresh", json={"refresh_token": refresh_token_string})
+            assert response.status_code == 200
+            data = response.json()
+            assert "access_token" in data
+
+            # Verify token includes active_clinic_id (should be clinic2 - most recent)
+            access_token_payload = jwt_service.verify_token(data["access_token"])
+            assert access_token_payload is not None
+            assert access_token_payload.active_clinic_id == clinic2.id
+            assert access_token_payload.clinic_id == clinic1.id  # Deprecated field for backward compatibility
+            assert set(access_token_payload.roles) == {"admin", "practitioner"}  # Roles from clinic2
+            assert access_token_payload.name == "Dr. Smith at Clinic 2"  # Name from clinic2
+
+            # Verify last_accessed_at was updated for clinic2
+            db_session.refresh(association2)
+            assert association2.last_accessed_at is not None
+            # Verify it was updated recently (should be close to current time, not the old time)
+            updated_time = association2.last_accessed_at
+            time_diff = (datetime.now(timezone.utc) - updated_time).total_seconds()
+            assert time_diff < 5  # Updated within last 5 seconds
+            assert updated_time > now - timedelta(hours=1)  # Should be more recent than the old last_accessed_at
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_refresh_token_with_no_last_accessed_selects_first(self, client, db_session):
+        """Test that token refresh selects first association if none have been accessed."""
+        from services.jwt_service import jwt_service
+        from datetime import datetime, timezone, timedelta
+
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Clinic 1",
+            line_channel_id="clinic1_channel",
+            line_channel_secret="secret1",
+            line_channel_access_token="token1"
+        )
+        clinic2 = Clinic(
+            name="Clinic 2",
+            line_channel_id="clinic2_channel",
+            line_channel_secret="secret2",
+            line_channel_access_token="token2"
+        )
+        db_session.add(clinic1)
+        db_session.add(clinic2)
+        db_session.commit()
+
+        # Create user
+        user = User(
+            clinic_id=clinic1.id,
+            email="newuser@example.com",
+            google_subject_id="newuser_subject",
+            full_name="New User",
+            roles=["admin"]
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        # Create associations - neither has last_accessed_at (both None)
+        association1 = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic1.id,
+            roles=["admin"],
+            full_name="User at Clinic 1",
+            is_active=True,
+            last_accessed_at=None
+        )
+        association2 = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic2.id,
+            roles=["practitioner"],
+            full_name="User at Clinic 2",
+            is_active=True,
+            last_accessed_at=None
+        )
+        db_session.add(association1)
+        db_session.add(association2)
+        db_session.commit()
+
+        # Create refresh token
+        refresh_token_string = "newuser_refresh_token"
+        refresh_token_hash, refresh_token_hash_sha256 = jwt_service.create_refresh_token_hash(refresh_token_string)
+        refresh_token_record = RefreshToken(
+            user_id=user.id,
+            token_hash=refresh_token_hash,
+            token_hash_sha256=refresh_token_hash_sha256,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7)
+        )
+        db_session.add(refresh_token_record)
+        db_session.commit()
+
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # Refresh token
+            response = client.post("/api/auth/refresh", json={"refresh_token": refresh_token_string})
+            assert response.status_code == 200
+            data = response.json()
+
+            # Verify token - should select first association (by id, which is clinic1)
+            access_token_payload = jwt_service.verify_token(data["access_token"])
+            assert access_token_payload is not None
+            assert access_token_payload.active_clinic_id == clinic1.id
+            assert set(access_token_payload.roles) == {"admin"}
+            assert access_token_payload.name == "User at Clinic 1"
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_signup_creates_user_clinic_association(self, client, db_session):
+        """Test that signup creates UserClinicAssociation and token includes correct data."""
+        from services.jwt_service import jwt_service
+        from datetime import datetime, timezone, timedelta
+
+        # Create clinic and signup token
+        clinic = Clinic(
+            name="Signup Test Clinic",
+            line_channel_id="signup_channel",
+            line_channel_secret="signup_secret",
+            line_channel_access_token="signup_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        signup_token = SignupToken(
+            token="signup_test_token",
+            clinic_id=clinic.id,
+            default_roles=["admin", "practitioner"],
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+            is_revoked=False
+        )
+        db_session.add(signup_token)
+        db_session.commit()
+
+        # Create temporary JWT token for name confirmation
+        temp_data = {
+            "type": "name_confirmation",
+            "signup_token": "signup_test_token",
+            "email": "signup@example.com",
+            "google_subject_id": "signup_subject",
+            "roles": ["admin", "practitioner"],
+            "clinic_id": clinic.id
+        }
+        temp_token = jwt_service.sign_oauth_state(temp_data)
+
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # Complete signup
+            response = client.post(
+                f"/api/signup/confirm-name?token={temp_token}",
+                json={"full_name": "Signup Test User"}
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert "redirect_url" in data
+            assert "refresh_token" in data
+
+            # Extract access token from redirect URL
+            redirect_url = data["redirect_url"]
+            access_token = redirect_url.split("token=")[1].split("&")[0] if "token=" in redirect_url else None
+            assert access_token is not None
+
+            # Verify token includes active_clinic_id and clinic-specific data
+            access_token_payload = jwt_service.verify_token(access_token)
+            assert access_token_payload is not None
+            assert access_token_payload.active_clinic_id == clinic.id
+            assert access_token_payload.clinic_id == clinic.id
+            assert set(access_token_payload.roles) == {"admin", "practitioner"}
+            assert access_token_payload.name == "Signup Test User"
+            assert access_token_payload.email == "signup@example.com"
+
+            # Verify UserClinicAssociation was created
+            user = db_session.query(User).filter(User.email == "signup@example.com").first()
+            assert user is not None
+            association = db_session.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == user.id,
+                UserClinicAssociation.clinic_id == clinic.id
+            ).first()
+            assert association is not None
+            assert set(association.roles) == {"admin", "practitioner"}
+            assert association.full_name == "Signup Test User"
+            assert association.is_active is True
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_dev_login_with_multiple_clinics(self, client, db_session):
+        """Test dev login with user having multiple clinic associations."""
+        from services.jwt_service import jwt_service
+        from datetime import datetime, timezone, timedelta
+
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Dev Clinic 1",
+            line_channel_id="dev1_channel",
+            line_channel_secret="dev1_secret",
+            line_channel_access_token="dev1_token"
+        )
+        clinic2 = Clinic(
+            name="Dev Clinic 2",
+            line_channel_id="dev2_channel",
+            line_channel_secret="dev2_secret",
+            line_channel_access_token="dev2_token"
+        )
+        db_session.add(clinic1)
+        db_session.add(clinic2)
+        db_session.commit()
+
+        # Create user with multiple associations
+        user = User(
+            clinic_id=clinic1.id,
+            email="devmulticlinic@example.com",
+            google_subject_id="devmulticlinic_subject",
+            full_name="Dev Multi Clinic User",
+            roles=["admin"]
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        # Create associations
+        now = datetime.now(timezone.utc)
+        association1 = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic1.id,
+            roles=["admin"],
+            full_name="Dev User at Clinic 1",
+            is_active=True,
+            last_accessed_at=now - timedelta(hours=1)
+        )
+        association2 = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic2.id,
+            roles=["practitioner"],
+            full_name="Dev User at Clinic 2",
+            is_active=True,
+            last_accessed_at=now  # Most recent
+        )
+        db_session.add(association1)
+        db_session.add(association2)
+        db_session.commit()
+
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # Dev login
+            response = client.post(
+                "/api/auth/dev/login",
+                params={"email": "devmulticlinic@example.com", "user_type": "clinic_user"}
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert "access_token" in data
+            assert "refresh_token" in data
+
+            # Verify token includes active_clinic_id (should be clinic2 - most recent)
+            access_token_payload = jwt_service.verify_token(data["access_token"])
+            assert access_token_payload is not None
+            assert access_token_payload.active_clinic_id == clinic2.id
+            assert set(access_token_payload.roles) == {"practitioner"}  # Roles from clinic2
+            assert access_token_payload.name == "Dev User at Clinic 2"  # Name from clinic2
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_refresh_token_fallback_to_deprecated_fields(self, client, db_session):
+        """Test that token refresh falls back to deprecated fields if no association exists."""
+        from services.jwt_service import jwt_service
+        from datetime import datetime, timezone, timedelta
+
+        # Create clinic
+        clinic = Clinic(
+            name="Fallback Clinic",
+            line_channel_id="fallback_channel",
+            line_channel_secret="fallback_secret",
+            line_channel_access_token="fallback_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create user WITHOUT UserClinicAssociation (legacy user)
+        user = User(
+            clinic_id=clinic.id,
+            email="legacy@example.com",
+            google_subject_id="legacy_subject",
+            full_name="Legacy User",
+            roles=["admin", "practitioner"]
+        )
+        db_session.add(user)
+        db_session.commit()
+
+        # Create refresh token
+        refresh_token_string = "legacy_refresh_token"
+        refresh_token_hash, refresh_token_hash_sha256 = jwt_service.create_refresh_token_hash(refresh_token_string)
+        refresh_token_record = RefreshToken(
+            user_id=user.id,
+            token_hash=refresh_token_hash,
+            token_hash_sha256=refresh_token_hash_sha256,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7)
+        )
+        db_session.add(refresh_token_record)
+        db_session.commit()
+
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # Refresh token - should fallback to deprecated fields
+            response = client.post("/api/auth/refresh", json={"refresh_token": refresh_token_string})
+            assert response.status_code == 200
+            data = response.json()
+
+            # Verify token uses deprecated fields as fallback
+            access_token_payload = jwt_service.verify_token(data["access_token"])
+            assert access_token_payload is not None
+            assert access_token_payload.active_clinic_id == clinic.id  # From deprecated clinic_id
+            assert access_token_payload.clinic_id == clinic.id
+            assert set(access_token_payload.roles) == {"admin", "practitioner"}  # From deprecated roles
+            assert access_token_payload.name == "Legacy User"  # From deprecated full_name
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)

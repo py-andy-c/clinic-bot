@@ -22,7 +22,8 @@ class TokenPayload(BaseModel):
     email: str
     user_type: str  # "system_admin" or "clinic_user"
     roles: list[str]  # For clinic users: ["admin"], ["practitioner"], ["admin", "practitioner"]
-    clinic_id: Optional[int] = None  # null for system admins
+    clinic_id: Optional[int] = None  # null for system admins (deprecated, use active_clinic_id)
+    active_clinic_id: Optional[int] = None  # Currently selected clinic for clinic users
     name: str
     iat: Optional[int] = None  # Set by JWT service
     exp: Optional[int] = None  # Set by JWT service

@@ -20,8 +20,61 @@ from core.config import API_BASE_URL, SYSTEM_ADMIN_EMAILS, FRONTEND_URL, GOOGLE_
 from services.jwt_service import jwt_service, TokenPayload
 from models import RefreshToken, User, Clinic
 from models.clinic import ClinicSettings
+from auth.dependencies import get_active_clinic_association
 
 router = APIRouter()
+
+
+def get_clinic_user_token_data(user: User, db: Session) -> Dict[str, Any]:
+    """
+    Get clinic-specific data for token creation.
+    
+    For clinic users, retrieves the active clinic association and returns
+    clinic-specific roles and name. Updates last_accessed_at for default
+    clinic selection. Falls back to deprecated fields if no association exists.
+    
+    Args:
+        user: User to get clinic data for
+        db: Database session
+        
+    Returns:
+        Dictionary with:
+        - active_clinic_id: Currently selected clinic ID (None for system admins)
+        - clinic_roles: Clinic-specific roles (empty list for system admins)
+        - clinic_name: Clinic-specific name (user.full_name for system admins)
+    """
+    active_clinic_id = None
+    clinic_roles: list[str] = []
+    clinic_name = user.full_name  # Fallback to user.full_name
+    
+    # Only process clinic users (system admins have clinic_id=None)
+    if user.clinic_id is not None:
+        association = get_active_clinic_association(user, db)
+        if association:
+            active_clinic_id = association.clinic_id
+            clinic_roles = association.roles or []
+            clinic_name = association.full_name or user.full_name
+            
+            # Update last_accessed_at for default clinic selection
+            try:
+                association.last_accessed_at = datetime.now(timezone.utc)
+                db.flush()  # Use flush instead of commit to reduce blocking
+            except Exception as e:
+                logger.warning(f"Failed to update last_accessed_at for user {user.id}: {e}")
+                # Don't fail authentication if update fails
+        else:
+            # User has no active clinic association - this shouldn't happen for valid users
+            # but handle gracefully by using deprecated fields
+            logger.warning(f"User {user.id} has no active clinic association, using deprecated fields")
+            active_clinic_id = user.clinic_id
+            clinic_roles = user.roles or []
+            clinic_name = user.full_name
+    
+    return {
+        "active_clinic_id": active_clinic_id,
+        "clinic_roles": clinic_roles,
+        "clinic_name": clinic_name
+    }
 
 
 @router.get("/google/login", summary="Initiate Google OAuth login")
@@ -474,15 +527,19 @@ async def refresh_access_token(
                 detail="Access denied"
             )
     
+    # Get clinic-specific data for token creation
+    clinic_data = get_clinic_user_token_data(user, db)
+    
     # Unified token payload creation for both system admins and clinic users
     payload = TokenPayload(
         sub=str(user.google_subject_id),
         user_id=user.id,
         email=user.email,
         user_type="system_admin" if is_system_admin else "clinic_user",
-        roles=[] if is_system_admin else user.roles,  # System admins don't have clinic roles
-        clinic_id=user.clinic_id,  # None for system admins, clinic_id for clinic users
-        name=user.full_name
+        roles=[] if is_system_admin else clinic_data["clinic_roles"],  # System admins don't have clinic roles
+        clinic_id=user.clinic_id,  # Deprecated: kept for backward compatibility
+        active_clinic_id=clinic_data["active_clinic_id"],  # Currently selected clinic for clinic users
+        name=clinic_data["clinic_name"]  # Clinic-specific name for clinic users
     )
     
     token_data = jwt_service.create_token_pair(payload)
@@ -581,7 +638,6 @@ async def dev_login(
     
     if not user:
         # Create a new user
-        from datetime import datetime, timezone
         now = datetime.now(timezone.utc)
         
         if user_type == "clinic_user":
@@ -625,15 +681,22 @@ async def dev_login(
         db.commit()
         db.refresh(user)
 
+    # Determine user type
+    is_system_admin = user.clinic_id is None or email in SYSTEM_ADMIN_EMAILS
+    
+    # Get clinic-specific data for token creation
+    clinic_data = get_clinic_user_token_data(user, db)
+    
     # Create JWT tokens
     token_payload = TokenPayload(
         sub=str(user.google_subject_id),
         user_id=user.id,
-        user_type="system_admin" if email in SYSTEM_ADMIN_EMAILS else "clinic_user",
+        user_type="system_admin" if is_system_admin else "clinic_user",
         email=user.email,
-        roles=user.roles,
-        clinic_id=user.clinic_id,
-        name=user.full_name
+        roles=[] if is_system_admin else clinic_data["clinic_roles"],  # System admins don't have clinic roles
+        clinic_id=user.clinic_id,  # Deprecated: kept for backward compatibility
+        active_clinic_id=clinic_data["active_clinic_id"],  # Currently selected clinic for clinic users
+        name=clinic_data["clinic_name"]  # Clinic-specific name for clinic users
     )
 
     token_data = jwt_service.create_token_pair(token_payload)
