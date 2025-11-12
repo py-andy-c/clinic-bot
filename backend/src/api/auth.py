@@ -8,21 +8,53 @@ system admins and clinic users.
 
 import logging
 import os
+from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, Query
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
 from core.database import get_db
 from core.config import API_BASE_URL, SYSTEM_ADMIN_EMAILS, FRONTEND_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
 from services.jwt_service import jwt_service, TokenPayload
-from models import RefreshToken, User, Clinic
+from models import RefreshToken, User, Clinic, UserClinicAssociation
 from models.clinic import ClinicSettings
-from auth.dependencies import get_active_clinic_association
+from auth.dependencies import get_active_clinic_association, require_authenticated, UserContext
+from pydantic import BaseModel
 
 router = APIRouter()
+
+# Rate limiting for clinic switching (in-memory, per-user)
+# Format: {user_id: [list of switch timestamps]}
+_clinic_switch_rate_limit: Dict[int, list[datetime]] = defaultdict(list)
+CLINIC_SWITCH_RATE_LIMIT = 10  # Max switches per minute
+CLINIC_SWITCH_RATE_WINDOW = timedelta(minutes=1)
+
+
+def check_clinic_switch_rate_limit(user_id: int) -> None:
+    """
+    Check if user has exceeded rate limit for clinic switching.
+    
+    Raises HTTPException if rate limit exceeded.
+    """
+    now = datetime.now(timezone.utc)
+    window_start = now - CLINIC_SWITCH_RATE_WINDOW
+    
+    # Clean old entries
+    user_switches = _clinic_switch_rate_limit[user_id]
+    user_switches[:] = [ts for ts in user_switches if ts > window_start]
+    
+    # Check limit
+    if len(user_switches) >= CLINIC_SWITCH_RATE_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many clinic switches. Maximum {CLINIC_SWITCH_RATE_LIMIT} switches per minute."
+        )
+    
+    # Record this switch
+    user_switches.append(now)
 
 
 def get_clinic_user_token_data(user: User, db: Session) -> Dict[str, Any]:
@@ -785,3 +817,256 @@ async def logout(
         logger.debug("No refresh token found in request body during logout")
 
     return {"message": "登出成功"}
+
+
+# ===== Request/Response Models for Clinic Switching =====
+
+class ClinicInfoResponse(BaseModel):
+    """Clinic information in clinics list response."""
+    id: int
+    name: str
+    display_name: str
+    roles: list[str]
+    is_active: bool
+    last_accessed_at: datetime | None
+
+
+class ClinicsListResponse(BaseModel):
+    """Response for listing available clinics."""
+    clinics: list[ClinicInfoResponse]
+    active_clinic_id: int | None
+
+
+class SwitchClinicRequest(BaseModel):
+    """Request to switch active clinic."""
+    clinic_id: int
+
+
+class SwitchClinicResponse(BaseModel):
+    """Response for clinic switching."""
+    access_token: str | None  # None when idempotent (use current token)
+    refresh_token: str | None  # None when idempotent (use current token)
+    active_clinic_id: int
+    roles: list[str]
+    name: str
+    clinic: dict[str, Any]
+
+
+# ===== Clinic Management Endpoints =====
+
+@router.get("/clinics", summary="List available clinics for current user")
+async def list_available_clinics(
+    current_user: UserContext = Depends(require_authenticated),
+    include_inactive: bool = Query(False, description="Include inactive associations"),
+    db: Session = Depends(get_db)
+) -> ClinicsListResponse:
+    """
+    Get list of clinics the user can access.
+    
+    For system admins, returns empty list (they don't have clinic associations).
+    For clinic users, returns all active clinic associations.
+    """
+    # System admins don't have clinic associations
+    if current_user.is_system_admin():
+        return ClinicsListResponse(
+            clinics=[],
+            active_clinic_id=None
+        )
+    
+    # Get user record
+    user = db.query(User).filter(User.id == current_user.user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Build query for clinic associations
+    query = db.query(UserClinicAssociation).filter(
+        UserClinicAssociation.user_id == user.id
+    ).join(Clinic).filter(
+        Clinic.is_active == True  # Only active clinics
+    )
+    
+    # Filter by is_active unless include_inactive is True
+    if not include_inactive:
+        query = query.filter(UserClinicAssociation.is_active == True)
+    
+    # Order by last_accessed_at DESC (most recently used first), then by id
+    associations = query.order_by(
+        UserClinicAssociation.last_accessed_at.desc().nulls_last(),
+        UserClinicAssociation.id.asc()
+    ).all()
+    
+    # Build response
+    clinic_list: list[ClinicInfoResponse] = []
+    for association in associations:
+        clinic_list.append(ClinicInfoResponse(
+            id=association.clinic_id,
+            name=association.clinic.name,
+            display_name=association.clinic.name,  # Use name as display_name for now
+            roles=association.roles or [],
+            is_active=association.is_active,
+            last_accessed_at=association.last_accessed_at
+        ))
+    
+    return ClinicsListResponse(
+        clinics=clinic_list,
+        active_clinic_id=current_user.active_clinic_id
+    )
+
+
+@router.post("/switch-clinic", summary="Switch active clinic context")
+async def switch_clinic(
+    request_data: SwitchClinicRequest,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> SwitchClinicResponse:
+    """
+    Switch active clinic context.
+    
+    Validates that the user has access to the requested clinic, updates
+    last_accessed_at, and returns a new JWT token with the new active_clinic_id.
+    """
+    # System admins cannot switch clinics (they don't have clinic associations)
+    if current_user.is_system_admin():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="System admins cannot switch clinics"
+        )
+    
+    # Check rate limit (skip for idempotent case)
+    if current_user.active_clinic_id != request_data.clinic_id:
+        if current_user.user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid user context"
+            )
+        check_clinic_switch_rate_limit(current_user.user_id)
+    
+    # Check if already on requested clinic (idempotent)
+    if current_user.active_clinic_id == request_data.clinic_id:
+        # Get clinic info for response
+        clinic = db.query(Clinic).filter(Clinic.id == request_data.clinic_id).first()
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Clinic not found"
+            )
+        
+        # Return current token info without generating new token
+        # Frontend should use current access_token and refresh_token
+        return SwitchClinicResponse(
+            access_token=None,  # None indicates to use current token
+            refresh_token=None,  # None indicates to use current token
+            active_clinic_id=request_data.clinic_id,
+            roles=current_user.roles,
+            name=current_user.name,
+            clinic={
+                "id": clinic.id,
+                "name": clinic.name,
+                "display_name": clinic.name
+            }
+        )
+    
+    # Get user record
+    user = db.query(User).filter(User.id == current_user.user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Verify association exists and is active
+    association = db.query(UserClinicAssociation).filter(
+        UserClinicAssociation.user_id == user.id,
+        UserClinicAssociation.clinic_id == request_data.clinic_id,
+        UserClinicAssociation.is_active == True
+    ).join(Clinic).filter(
+        Clinic.is_active == True  # Clinic must also be active
+    ).first()
+    
+    if not association:
+        # Check if clinic exists but association is inactive
+        clinic_exists = db.query(Clinic).filter(
+            Clinic.id == request_data.clinic_id,
+            Clinic.is_active == True
+        ).first()
+        
+        if not clinic_exists:
+            # Check if clinic exists but is inactive
+            inactive_clinic = db.query(Clinic).filter(Clinic.id == request_data.clinic_id).first()
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="此診所已停用" if inactive_clinic else "您沒有此診所的存取權限"
+            )
+        
+        # Check if association exists but is inactive
+        inactive_association = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == user.id,
+            UserClinicAssociation.clinic_id == request_data.clinic_id
+        ).first()
+        
+        if inactive_association:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您在此診所的存取權限已被停用"
+            )
+        
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="您沒有此診所的存取權限"
+        )
+    
+    # Update last_accessed_at
+    try:
+        association.last_accessed_at = datetime.now(timezone.utc)
+        db.flush()
+    except Exception as e:
+        logger.warning(f"Failed to update last_accessed_at for user {user.id}: {e}")
+        # Don't fail the request if update fails
+    
+    # Create new token payload with new active_clinic_id
+    # Use the association we just validated (not get_clinic_user_token_data which selects most recent)
+    payload = TokenPayload(
+        sub=str(user.google_subject_id),
+        user_id=user.id,
+        email=user.email,
+        user_type="clinic_user",
+        roles=association.roles or [],
+        clinic_id=user.clinic_id,  # Deprecated: kept for backward compatibility
+        active_clinic_id=request_data.clinic_id,
+        name=association.full_name or user.full_name
+    )
+    
+    # Create new token pair
+    token_data = jwt_service.create_token_pair(payload)
+    
+    # Store new refresh token
+    refresh_token_hash = token_data["refresh_token_hash"]
+    refresh_token_hash_sha256 = token_data.get("refresh_token_hash_sha256")
+    
+    new_refresh_token_record = RefreshToken(
+        user_id=user.id,
+        token_hash=refresh_token_hash,
+        token_hash_sha256=refresh_token_hash_sha256,
+        expires_at=jwt_service.get_token_expiry("refresh"),
+        email=None,
+        google_subject_id=None,
+        name=None
+    )
+    db.add(new_refresh_token_record)
+    db.commit()
+    
+    return SwitchClinicResponse(
+        access_token=token_data["access_token"],
+        refresh_token=token_data["refresh_token"],
+        active_clinic_id=request_data.clinic_id,
+        roles=association.roles or [],
+        name=association.full_name or user.full_name,
+        clinic={
+            "id": association.clinic_id,
+            "name": association.clinic.name,
+            "display_name": association.clinic.name  # Use name as display_name for now
+        }
+    )

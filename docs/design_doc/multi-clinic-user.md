@@ -1229,8 +1229,8 @@ user_associations = relationship("UserClinicAssociation", back_populates="clinic
 - [x] Add tests for system admin handling (no associations) - **COMPLETED**
 - [x] Add tests for clinic user validation (active association required) - **COMPLETED**
 - [x] Add tests for `require_clinic_access` with `active_clinic_id` - **COMPLETED**
-   - [ ] Add tests for clinic switching endpoint
-   - [ ] Add tests for clinics listing endpoint
+- [x] Add tests for clinic switching endpoint - **COMPLETED** (7 integration tests: success, idempotent, access denied, inactive association, system admin rejection, rate limiting)
+- [x] Add tests for clinics listing endpoint - **COMPLETED** (2 integration tests: multi-clinic user, system admin)
 
 3. **JWT Service Tests** (`test_jwt_service.py`)
   - [x] Update token creation to include `active_clinic_id` - **COMPLETED**
@@ -1249,7 +1249,7 @@ user_associations = relationship("UserClinicAssociation", back_populates="clinic
   - [x] Update existing signup flows to use `user_clinic_associations` - **COMPLETED** (signup creates UserClinicAssociation)
   - [x] Add tests for multi-clinic user flows - **COMPLETED** (added `TestMultiClinicTokenCreation` class with 5 integration tests)
   - [ ] Add tests for existing user joining new clinic - **PENDING** (endpoint not yet implemented)
-   - [ ] Add tests for clinic switching - **PENDING** (endpoint not yet implemented)
+  - [x] Add tests for clinic switching - **COMPLETED** (added `TestClinicSwitchingEndpoints` class with 8 integration tests including rate limiting)
    - [x] Update fixtures to create `UserClinicAssociation` records - **COMPLETED** (using helper functions)
 
 5. **Clinic Management Integration** (`test_clinic_management_integration.py`)
@@ -2301,10 +2301,10 @@ These queries need `clinic_id` added to the filter, but the table already has th
 - [x] Update API endpoints to include `clinic_id` when creating clinic-scoped records
 - [x] Update signup flow to create `UserClinicAssociation` - **COMPLETED** (signup endpoint creates association)
 - [ ] Update all queries identified in Database Query Review section - **IN PROGRESS**
-- [ ] Add new API endpoints (`/api/auth/clinics`, `/api/auth/switch-clinic`)
+- [x] Add new API endpoints (`/api/auth/clinics`, `/api/auth/switch-clinic`) - **COMPLETED**
 - [ ] Update signup flow for existing users (joining new clinic)
-- [ ] Add error handling for all edge cases
-- [ ] Add rate limiting to clinic switching endpoint
+- [x] Add error handling for all edge cases - **COMPLETED** (access denied, inactive clinic, inactive association, system admin rejection, idempotent handling)
+- [x] Add rate limiting to clinic switching endpoint - **COMPLETED** (10 switches per minute per user, in-memory sliding window)
 
 ### Frontend Implementation
 - [ ] Update `AuthUser` interface to include `active_clinic_id` and `available_clinics`

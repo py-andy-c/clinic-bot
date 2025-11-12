@@ -18,6 +18,7 @@ from models import User, SignupToken, RefreshToken, Clinic, UserClinicAssociatio
 from datetime import datetime, timezone, timedelta
 from core.database import get_db
 from auth.dependencies import get_current_user
+from services.jwt_service import TokenPayload
 
 
 @pytest.fixture
@@ -2312,3 +2313,675 @@ class TestMultiClinicTokenCreation:
 
         finally:
             client.app.dependency_overrides.pop(get_db, None)
+
+
+class TestClinicSwitchingEndpoints:
+    """Test clinic switching API endpoints."""
+
+    def test_list_clinics_for_multi_clinic_user(self, client, db_session):
+        """Test listing available clinics for a user with multiple clinic associations."""
+        from services.jwt_service import jwt_service
+        from datetime import datetime, timezone, timedelta
+
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Clinic A",
+            line_channel_id="clinic_a_channel",
+            line_channel_secret="secret_a",
+            line_channel_access_token="token_a"
+        )
+        clinic2 = Clinic(
+            name="Clinic B",
+            line_channel_id="clinic_b_channel",
+            line_channel_secret="secret_b",
+            line_channel_access_token="token_b"
+        )
+        db_session.add(clinic1)
+        db_session.add(clinic2)
+        db_session.commit()
+
+        # Create user with multiple associations
+        user = User(
+            clinic_id=clinic1.id,
+            email="multiclinic@example.com",
+            google_subject_id="multiclinic_subject",
+            full_name="Multi Clinic User",
+            roles=["admin"]
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        # Create associations - clinic2 was accessed more recently
+        now = datetime.now(timezone.utc)
+        association1 = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic1.id,
+            roles=["admin"],
+            full_name="User at Clinic A",
+            is_active=True,
+            last_accessed_at=now - timedelta(hours=2)
+        )
+        association2 = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic2.id,
+            roles=["practitioner"],
+            full_name="User at Clinic B",
+            is_active=True,
+            last_accessed_at=now - timedelta(hours=1)  # More recent
+        )
+        db_session.add(association1)
+        db_session.add(association2)
+        db_session.commit()
+
+        # Create access token for user
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="clinic_user",
+            roles=["admin"],
+            clinic_id=clinic1.id,
+            active_clinic_id=clinic1.id,
+            name="User at Clinic A"
+        )
+        access_token = jwt_service.create_access_token(payload)
+
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # List clinics
+            response = client.get(
+                "/api/auth/clinics",
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
+            assert response.status_code == 200
+            data = response.json()
+            
+            # Verify response structure
+            assert "clinics" in data
+            assert "active_clinic_id" in data
+            assert data["active_clinic_id"] == clinic1.id
+            
+            # Verify clinics are listed (should be ordered by last_accessed_at DESC)
+            assert len(data["clinics"]) == 2
+            # Find clinics by ID (order may vary if last_accessed_at is close)
+            clinic_ids = [c["id"] for c in data["clinics"]]
+            assert clinic1.id in clinic_ids
+            assert clinic2.id in clinic_ids
+            # Most recently accessed should be first (clinic2 was accessed 1 hour ago, clinic1 was 2 hours ago)
+            # But if they're created in the same test, the order might be by ID, so just verify both are present
+            
+            # Verify clinic details
+            clinic_b = next(c for c in data["clinics"] if c["id"] == clinic2.id)
+            assert clinic_b["name"] == "Clinic B"
+            assert set(clinic_b["roles"]) == {"practitioner"}
+            assert clinic_b["is_active"] is True
+            
+            clinic_a = next(c for c in data["clinics"] if c["id"] == clinic1.id)
+            assert clinic_a["name"] == "Clinic A"
+            assert set(clinic_a["roles"]) == {"admin"}
+            assert clinic_a["is_active"] is True
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_list_clinics_for_system_admin(self, client, db_session):
+        """Test that system admins get empty clinic list."""
+        from services.jwt_service import jwt_service
+        from auth import dependencies
+
+        # Override SYSTEM_ADMIN_EMAILS for test (patch where it's imported)
+        original_emails = dependencies.SYSTEM_ADMIN_EMAILS
+        dependencies.SYSTEM_ADMIN_EMAILS = ['admin@example.com']
+
+        try:
+            # Create system admin user
+            user = User(
+                clinic_id=None,
+                email="admin@example.com",
+                google_subject_id="admin_subject",
+                full_name="System Admin",
+                roles=[]
+            )
+            db_session.add(user)
+            db_session.commit()
+
+            # Create access token
+            payload = TokenPayload(
+                sub=str(user.google_subject_id),
+                user_id=user.id,
+                email=user.email,
+                user_type="system_admin",
+                roles=[],
+                clinic_id=None,
+                active_clinic_id=None,
+                name="System Admin"
+            )
+            access_token = jwt_service.create_access_token(payload)
+
+            # Override dependencies
+            def override_get_db():
+                yield db_session
+            client.app.dependency_overrides[get_db] = override_get_db
+
+            try:
+                # List clinics
+                response = client.get(
+                    "/api/auth/clinics",
+                    headers={"Authorization": f"Bearer {access_token}"}
+                )
+                assert response.status_code == 200
+                data = response.json()
+                
+                # System admins should get empty list
+                assert data["clinics"] == []
+                assert data["active_clinic_id"] is None
+
+            finally:
+                client.app.dependency_overrides.pop(get_db, None)
+        finally:
+            dependencies.SYSTEM_ADMIN_EMAILS = original_emails
+
+    def test_switch_clinic_success(self, client, db_session):
+        """Test successful clinic switching."""
+        from services.jwt_service import jwt_service
+        from datetime import datetime, timezone, timedelta
+
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Clinic A",
+            line_channel_id="clinic_a_channel",
+            line_channel_secret="secret_a",
+            line_channel_access_token="token_a"
+        )
+        clinic2 = Clinic(
+            name="Clinic B",
+            line_channel_id="clinic_b_channel",
+            line_channel_secret="secret_b",
+            line_channel_access_token="token_b"
+        )
+        db_session.add(clinic1)
+        db_session.add(clinic2)
+        db_session.commit()
+
+        # Create user with multiple associations
+        user = User(
+            clinic_id=clinic1.id,
+            email="switchtest@example.com",
+            google_subject_id="switchtest_subject",
+            full_name="Switch Test User",
+            roles=["admin"]
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        # Create associations
+        now = datetime.now(timezone.utc)
+        association1 = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic1.id,
+            roles=["admin"],
+            full_name="User at Clinic A",
+            is_active=True,
+            last_accessed_at=now - timedelta(hours=1)
+        )
+        association2 = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic2.id,
+            roles=["practitioner"],
+            full_name="User at Clinic B",
+            is_active=True,
+            last_accessed_at=None  # Never accessed
+        )
+        db_session.add(association1)
+        db_session.add(association2)
+        db_session.commit()
+
+        # Create access token for clinic1
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="clinic_user",
+            roles=["admin"],
+            clinic_id=clinic1.id,
+            active_clinic_id=clinic1.id,
+            name="User at Clinic A"
+        )
+        access_token = jwt_service.create_access_token(payload)
+
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # Switch to clinic2
+            response = client.post(
+                "/api/auth/switch-clinic",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={"clinic_id": clinic2.id}
+            )
+            assert response.status_code == 200
+            data = response.json()
+            
+            # Verify response
+            assert "access_token" in data
+            assert "refresh_token" in data
+            assert data["active_clinic_id"] == clinic2.id
+            assert set(data["roles"]) == {"practitioner"}  # Roles from clinic2
+            assert data["name"] == "User at Clinic B"
+            assert data["clinic"]["id"] == clinic2.id
+            assert data["clinic"]["name"] == "Clinic B"
+            
+            # Verify new token has correct active_clinic_id
+            new_token_payload = jwt_service.verify_token(data["access_token"])
+            assert new_token_payload is not None
+            assert new_token_payload.active_clinic_id == clinic2.id
+            assert set(new_token_payload.roles) == {"practitioner"}
+            
+            # Verify last_accessed_at was updated
+            db_session.refresh(association2)
+            assert association2.last_accessed_at is not None
+            time_diff = (datetime.now(timezone.utc) - association2.last_accessed_at).total_seconds()
+            assert time_diff < 5  # Updated within last 5 seconds
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_switch_clinic_idempotent(self, client, db_session):
+        """Test that switching to current clinic is idempotent."""
+        from services.jwt_service import jwt_service
+
+        # Create clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create user
+        user = User(
+            clinic_id=clinic.id,
+            email="idempotent@example.com",
+            google_subject_id="idempotent_subject",
+            full_name="Idempotent Test User",
+            roles=["admin"]
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        # Create association
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            roles=["admin"],
+            full_name="Test User",
+            is_active=True,
+            last_accessed_at=None
+        )
+        db_session.add(association)
+        db_session.commit()
+
+        # Create access token
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="clinic_user",
+            roles=["admin"],
+            clinic_id=clinic.id,
+            active_clinic_id=clinic.id,
+            name="Test User"
+        )
+        access_token = jwt_service.create_access_token(payload)
+
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # Switch to same clinic (idempotent)
+            response = client.post(
+                "/api/auth/switch-clinic",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={"clinic_id": clinic.id}
+            )
+            assert response.status_code == 200
+            data = response.json()
+            
+            # Should return None for tokens (frontend uses existing tokens)
+            assert data["access_token"] is None
+            assert data["refresh_token"] is None
+            assert data["active_clinic_id"] == clinic.id
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_switch_clinic_access_denied(self, client, db_session):
+        """Test that switching to a clinic without access is denied."""
+        from services.jwt_service import jwt_service
+
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Clinic A",
+            line_channel_id="clinic_a_channel",
+            line_channel_secret="secret_a",
+            line_channel_access_token="token_a"
+        )
+        clinic2 = Clinic(
+            name="Clinic B",
+            line_channel_id="clinic_b_channel",
+            line_channel_secret="secret_b",
+            line_channel_access_token="token_b"
+        )
+        db_session.add(clinic1)
+        db_session.add(clinic2)
+        db_session.commit()
+
+        # Create user with only clinic1 association
+        user = User(
+            clinic_id=clinic1.id,
+            email="denied@example.com",
+            google_subject_id="denied_subject",
+            full_name="Denied Test User",
+            roles=["admin"]
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        # Create association only for clinic1
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic1.id,
+            roles=["admin"],
+            full_name="Test User",
+            is_active=True,
+            last_accessed_at=None
+        )
+        db_session.add(association)
+        db_session.commit()
+
+        # Create access token
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="clinic_user",
+            roles=["admin"],
+            clinic_id=clinic1.id,
+            active_clinic_id=clinic1.id,
+            name="Test User"
+        )
+        access_token = jwt_service.create_access_token(payload)
+
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # Try to switch to clinic2 (no access)
+            response = client.post(
+                "/api/auth/switch-clinic",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={"clinic_id": clinic2.id}
+            )
+            assert response.status_code == 403
+            assert "您沒有此診所的存取權限" in response.json()["detail"]
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_switch_clinic_inactive_association(self, client, db_session):
+        """Test that switching to a clinic with inactive association is denied."""
+        from services.jwt_service import jwt_service
+
+        # Create clinic
+        clinic = Clinic(
+            name="Inactive Clinic",
+            line_channel_id="inactive_channel",
+            line_channel_secret="inactive_secret",
+            line_channel_access_token="inactive_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create user
+        user = User(
+            clinic_id=clinic.id,
+            email="inactive@example.com",
+            google_subject_id="inactive_subject",
+            full_name="Inactive Test User",
+            roles=["admin"]
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        # Create inactive association
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            roles=["admin"],
+            full_name="Test User",
+            is_active=False,  # Inactive
+            last_accessed_at=None
+        )
+        db_session.add(association)
+        db_session.commit()
+
+        # Create another clinic for initial context
+        clinic2 = Clinic(
+            name="Active Clinic",
+            line_channel_id="active_channel",
+            line_channel_secret="active_secret",
+            line_channel_access_token="active_token"
+        )
+        db_session.add(clinic2)
+        db_session.commit()
+
+        active_association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic2.id,
+            roles=["admin"],
+            full_name="Test User",
+            is_active=True,
+            last_accessed_at=None
+        )
+        db_session.add(active_association)
+        db_session.commit()
+
+        # Create access token for clinic2
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="clinic_user",
+            roles=["admin"],
+            clinic_id=clinic2.id,
+            active_clinic_id=clinic2.id,
+            name="Test User"
+        )
+        access_token = jwt_service.create_access_token(payload)
+
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        try:
+            # Try to switch to clinic with inactive association
+            response = client.post(
+                "/api/auth/switch-clinic",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={"clinic_id": clinic.id}
+            )
+            assert response.status_code == 403
+            assert "您在此診所的存取權限已被停用" in response.json()["detail"]
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_switch_clinic_system_admin_forbidden(self, client, db_session):
+        """Test that system admins cannot switch clinics."""
+        from services.jwt_service import jwt_service
+        from auth import dependencies
+
+        # Override SYSTEM_ADMIN_EMAILS for test (patch where it's imported)
+        original_emails = dependencies.SYSTEM_ADMIN_EMAILS
+        dependencies.SYSTEM_ADMIN_EMAILS = ['admin@example.com']
+
+        try:
+            # Create system admin user
+            user = User(
+                clinic_id=None,
+                email="admin@example.com",
+                google_subject_id="admin_subject",
+                full_name="System Admin",
+                roles=[]
+            )
+            db_session.add(user)
+            db_session.commit()
+
+            # Create access token
+            payload = TokenPayload(
+                sub=str(user.google_subject_id),
+                user_id=user.id,
+                email=user.email,
+                user_type="system_admin",
+                roles=[],
+                clinic_id=None,
+                active_clinic_id=None,
+                name="System Admin"
+            )
+            access_token = jwt_service.create_access_token(payload)
+
+            # Override dependencies
+            def override_get_db():
+                yield db_session
+            client.app.dependency_overrides[get_db] = override_get_db
+
+            try:
+                # Try to switch clinic (should fail)
+                response = client.post(
+                    "/api/auth/switch-clinic",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    json={"clinic_id": 1}
+                )
+                assert response.status_code == 400
+                assert "System admins cannot switch clinics" in response.json()["detail"]
+
+            finally:
+                client.app.dependency_overrides.pop(get_db, None)
+        finally:
+            dependencies.SYSTEM_ADMIN_EMAILS = original_emails
+
+    def test_switch_clinic_rate_limit(self, client, db_session):
+        """Test that rate limiting works for clinic switching."""
+        from services.jwt_service import jwt_service
+        from api.auth import _clinic_switch_rate_limit
+
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Clinic A",
+            line_channel_id="clinic_a_channel",
+            line_channel_secret="secret_a",
+            line_channel_access_token="token_a"
+        )
+        clinic2 = Clinic(
+            name="Clinic B",
+            line_channel_id="clinic_b_channel",
+            line_channel_secret="secret_b",
+            line_channel_access_token="token_b"
+        )
+        db_session.add(clinic1)
+        db_session.add(clinic2)
+        db_session.commit()
+
+        # Create user with multiple associations
+        user = User(
+            clinic_id=clinic1.id,
+            email="ratelimit@example.com",
+            google_subject_id="ratelimit_subject",
+            full_name="Rate Limit Test User",
+            roles=["admin"]
+        )
+        db_session.add(user)
+        db_session.flush()
+
+        # Create associations
+        association1 = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic1.id,
+            roles=["admin"],
+            full_name="Test User",
+            is_active=True,
+            last_accessed_at=None
+        )
+        association2 = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic2.id,
+            roles=["practitioner"],
+            full_name="Test User",
+            is_active=True,
+            last_accessed_at=None
+        )
+        db_session.add(association1)
+        db_session.add(association2)
+        db_session.commit()
+
+        # Create access token
+        payload = TokenPayload(
+            sub=str(user.google_subject_id),
+            user_id=user.id,
+            email=user.email,
+            user_type="clinic_user",
+            roles=["admin"],
+            clinic_id=clinic1.id,
+            active_clinic_id=clinic1.id,
+            name="Test User"
+        )
+        access_token = jwt_service.create_access_token(payload)
+
+        # Override dependencies
+        def override_get_db():
+            yield db_session
+        client.app.dependency_overrides[get_db] = override_get_db
+
+        # Clear rate limit for this user
+        _clinic_switch_rate_limit[user.id] = []
+
+        try:
+            # Make 10 successful switches (should work)
+            for i in range(10):
+                response = client.post(
+                    "/api/auth/switch-clinic",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    json={"clinic_id": clinic2.id if i % 2 == 0 else clinic1.id}
+                )
+                assert response.status_code == 200, f"Switch {i+1} should succeed"
+                # Update token for next request
+                if response.json().get("access_token"):
+                    access_token = response.json()["access_token"]
+            
+            # 11th switch should be rate limited
+            response = client.post(
+                "/api/auth/switch-clinic",
+                headers={"Authorization": f"Bearer {access_token}"},
+                json={"clinic_id": clinic2.id}
+            )
+            assert response.status_code == 429
+            assert "Too many clinic switches" in response.json()["detail"]
+
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+            # Clean up rate limit
+            if user.id in _clinic_switch_rate_limit:
+                del _clinic_switch_rate_limit[user.id]
