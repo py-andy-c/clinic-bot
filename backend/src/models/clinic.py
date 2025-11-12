@@ -216,8 +216,17 @@ class Clinic(Base):
     """
 
     # Relationships
+    # New: Multi-clinic support via associations
+    user_associations = relationship(
+        "UserClinicAssociation",
+        back_populates="clinic",
+        cascade="all, delete-orphan"
+    )
+    """User-clinic associations for multi-clinic support. Roles and names are clinic-specific."""
+    
+    # Deprecated: Keep for backward compatibility during transition
     users = relationship("User", back_populates="clinic")
-    """All clinic personnel (admins, practitioners)"""
+    """Deprecated: Use user_associations instead. Kept for backward compatibility."""
 
     patients = relationship("Patient", back_populates="clinic")
     """Patients registered with this clinic."""

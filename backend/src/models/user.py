@@ -21,14 +21,19 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    clinic_id: Mapped[Optional[int]] = mapped_column(ForeignKey("clinics.id"), nullable=True)  # Nullable for system admins
+    # Deprecated: clinic_id kept for backward compatibility during transition
+    # Will be removed after migration is complete
+    clinic_id: Mapped[Optional[int]] = mapped_column(ForeignKey("clinics.id"), nullable=True)  # Deprecated: Use clinic_associations instead
 
     # Authentication (all users)
-    email: Mapped[str] = mapped_column(String(255), unique=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True)  # Globally unique (not per-clinic)
     google_subject_id: Mapped[str] = mapped_column(String(255), unique=True)
-    full_name: Mapped[str] = mapped_column(String(255))
+    full_name: Mapped[str] = mapped_column(String(255))  # Default/fallback name
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    roles: Mapped[list[str]] = mapped_column(JSONB, default=list)  # ['admin'], ['practitioner'], or ['admin', 'practitioner']
+    
+    # Deprecated: roles kept for backward compatibility during transition
+    # Clinic-specific roles are now in UserClinicAssociation.roles
+    roles: Mapped[list[str]] = mapped_column(JSONB, default=list)  # Deprecated: Use clinic_associations[].roles instead
 
     # Metadata
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
@@ -36,14 +41,27 @@ class User(Base):
     last_login_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
 
     # Relationships
+    # New: Multi-clinic support via associations
+    clinic_associations = relationship(
+        "UserClinicAssociation",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    """User-clinic associations for multi-clinic support. Roles and names are clinic-specific."""
+    
+    # Deprecated: Keep for backward compatibility during transition
+    # Will be removed after migration is complete and all code is updated
     clinic = relationship("Clinic", back_populates="users")
+    """Deprecated: Use clinic_associations instead. Kept for backward compatibility."""
+    
     refresh_tokens = relationship("RefreshToken", back_populates="user")
     availability = relationship("PractitionerAvailability", back_populates="user", cascade="all, delete-orphan")
     calendar_events = relationship("CalendarEvent", back_populates="user", cascade="all, delete-orphan")
     practitioner_appointment_types = relationship("PractitionerAppointmentTypes", back_populates="user", cascade="all, delete-orphan")
 
     __table_args__ = (
-        UniqueConstraint('clinic_id', 'email', name='uq_clinic_user_email'),
+        # Note: uq_clinic_user_email constraint is removed by migration
+        # Email is now globally unique (not per-clinic)
         UniqueConstraint('google_subject_id', name='uq_google_subject_id'),
     )
 

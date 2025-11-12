@@ -30,9 +30,8 @@ class UserClinicAssociation(Base):
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default="now()")
     
     # Relationships
-    # Note: back_populates will be added when User and Clinic models are updated
-    user = relationship("User")
-    clinic = relationship("Clinic")
+    user = relationship("User", back_populates="clinic_associations")
+    clinic = relationship("Clinic", back_populates="user_associations")
     
     __table_args__ = (
         UniqueConstraint('user_id', 'clinic_id', name='uq_user_clinic'),

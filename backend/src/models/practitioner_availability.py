@@ -38,6 +38,9 @@ class PractitionerAvailability(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     """Reference to the practitioner user."""
 
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id", ondelete="CASCADE"))
+    """Reference to the clinic this availability belongs to."""
+
     day_of_week: Mapped[int] = mapped_column()
     """
     Day of the week (0=Monday, 1=Tuesday, ..., 6=Sunday).
@@ -65,6 +68,7 @@ class PractitionerAvailability(Base):
     __table_args__ = (
         Index('idx_practitioner_availability_user_day', 'user_id', 'day_of_week'),
         Index('idx_practitioner_availability_user_day_time', 'user_id', 'day_of_week', 'start_time'),
+        Index('idx_practitioner_availability_clinic', 'clinic_id'),
     )
 
     @property

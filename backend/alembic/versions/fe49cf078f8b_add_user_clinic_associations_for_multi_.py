@@ -36,6 +36,9 @@ def upgrade() -> None:
     """
     Add user_clinic_associations table and migrate data for multi-clinic support.
     """
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    
     # Step 1: Ensure all users have full_name (backfill if needed)
     op.execute("""
         UPDATE users 
@@ -43,8 +46,11 @@ def upgrade() -> None:
         WHERE full_name IS NULL OR full_name = ''
     """)
     
-    # Step 2: Create user_clinic_associations table
-    op.create_table(
+    # Step 2: Create user_clinic_associations table (if it doesn't exist)
+    # Note: The baseline migration may have already created this table from models
+    tables = inspector.get_table_names()
+    if 'user_clinic_associations' not in tables:
+        op.create_table(
         'user_clinic_associations',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('user_id', sa.Integer(), nullable=False),
@@ -58,15 +64,24 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['clinic_id'], ['clinics.id'], ondelete='CASCADE'),
         sa.UniqueConstraint('user_id', 'clinic_id', name='uq_user_clinic')
-    )
+        )
     
     # Step 3: Add clinic_id to clinic-scoped tables (nullable initially)
-    op.add_column('practitioner_availability', 
-                  sa.Column('clinic_id', sa.Integer(), nullable=True))
-    op.add_column('calendar_events', 
-                  sa.Column('clinic_id', sa.Integer(), nullable=True))
-    op.add_column('practitioner_appointment_types', 
-                  sa.Column('clinic_id', sa.Integer(), nullable=True))
+    # Check if columns already exist (baseline migration may have created them)
+    availability_columns = [col['name'] for col in inspector.get_columns('practitioner_availability')]
+    if 'clinic_id' not in availability_columns:
+        op.add_column('practitioner_availability', 
+                      sa.Column('clinic_id', sa.Integer(), nullable=True))
+    
+    events_columns = [col['name'] for col in inspector.get_columns('calendar_events')]
+    if 'clinic_id' not in events_columns:
+        op.add_column('calendar_events', 
+                      sa.Column('clinic_id', sa.Integer(), nullable=True))
+    
+    types_columns = [col['name'] for col in inspector.get_columns('practitioner_appointment_types')]
+    if 'clinic_id' not in types_columns:
+        op.add_column('practitioner_appointment_types', 
+                      sa.Column('clinic_id', sa.Integer(), nullable=True))
     
     # Step 4: Populate user_clinic_associations from users.clinic_id
     # CRITICAL: Include full_name in INSERT
@@ -132,7 +147,10 @@ def upgrade() -> None:
     
     # Step 9: Remove unique constraint on (clinic_id, email) from users table
     # Email remains globally unique via unique=True on the column
-    op.drop_constraint('uq_clinic_user_email', 'users', type_='unique')
+    # Check if constraint exists (baseline migration may not have created it if model was updated)
+    constraints = [c['name'] for c in inspector.get_unique_constraints('users')]
+    if 'uq_clinic_user_email' in constraints:
+        op.drop_constraint('uq_clinic_user_email', 'users', type_='unique')
     
     # Step 10: Create indexes for user_clinic_associations
     op.create_index('idx_user_clinic_associations_user', 'user_clinic_associations', ['user_id'])

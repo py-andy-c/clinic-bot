@@ -37,6 +37,9 @@ class CalendarEvent(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     """Reference to the practitioner/user who owns this calendar event."""
 
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id", ondelete="CASCADE"))
+    """Reference to the clinic this calendar event belongs to."""
+
     event_type: Mapped[str] = mapped_column(String(50))
     """
     Type of calendar event. Valid values:
@@ -89,6 +92,7 @@ class CalendarEvent(Base):
         Index('idx_calendar_events_user_date', 'user_id', 'date'),
         Index('idx_calendar_events_type', 'event_type'),
         Index('idx_calendar_events_user_date_type', 'user_id', 'date', 'event_type'),
+        Index('idx_calendar_events_clinic', 'clinic_id'),
     )
 
     @property

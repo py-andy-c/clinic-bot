@@ -33,6 +33,9 @@ class PractitionerAppointmentTypes(Base):
     appointment_type_id: Mapped[int] = mapped_column(ForeignKey("appointment_types.id", ondelete="CASCADE"))
     """Reference to the appointment type this practitioner can offer."""
 
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id", ondelete="CASCADE"))
+    """Reference to the clinic this mapping belongs to."""
+
     created_at: Mapped[TIMESTAMP] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     """Timestamp when the mapping was created."""
 
@@ -50,4 +53,5 @@ class PractitionerAppointmentTypes(Base):
         # Indexes for performance
         Index('idx_practitioner_types_user', 'user_id'),
         Index('idx_practitioner_types_type', 'appointment_type_id'),
+        Index('idx_practitioner_types_clinic', 'clinic_id'),
     )
