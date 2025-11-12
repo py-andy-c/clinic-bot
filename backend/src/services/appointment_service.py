@@ -140,11 +140,21 @@ class AppointmentService:
 
             logger.info(f"Created appointment {appointment.calendar_event_id} for patient {patient_id}")
 
+            # Get practitioner name from association
+            practitioner_name = ''
+            if practitioner:
+                association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == practitioner.id,
+                    UserClinicAssociation.clinic_id == clinic_id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                practitioner_name = association.full_name if association else practitioner.email
+
             return {
                 'appointment_id': appointment.calendar_event_id,
                 'calendar_event_id': calendar_event.id,
                 'patient_name': patient.full_name if patient else '',
-                'practitioner_name': practitioner.full_name if practitioner else '',
+                'practitioner_name': practitioner_name,
                 'appointment_type_name': get_appointment_type_name_safe(appointment_type_id, db),
                 'start_time': start_time,
                 'end_time': end_time,
@@ -370,6 +380,16 @@ class AppointmentService:
 
         # Format response
         result: List[Dict[str, Any]] = []
+        
+        # Get all practitioner associations in one query
+        practitioner_ids = [appt.calendar_event.user_id for appt in appointments if appt.calendar_event and appt.calendar_event.user_id]
+        associations = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id.in_(practitioner_ids),
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
+        ).all()
+        association_lookup: Dict[int, UserClinicAssociation] = {a.user_id: a for a in associations}
+        
         for appointment in appointments:
             # All relationships are now eagerly loaded, no database queries needed
             practitioner = appointment.calendar_event.user
@@ -383,6 +403,10 @@ class AppointmentService:
             assert practitioner is not None
             assert appointment_type is not None
             assert patient is not None
+
+            # Get practitioner name from association
+            association = association_lookup.get(practitioner.id)
+            practitioner_name = association.full_name if association else practitioner.email
 
             # Combine date and time into full datetime strings (Taiwan timezone)
             event_date = appointment.calendar_event.date
@@ -399,7 +423,7 @@ class AppointmentService:
                 "id": appointment.calendar_event_id,
                 "patient_id": appointment.patient_id,
                 "patient_name": patient.full_name,
-                "practitioner_name": practitioner.full_name,
+                "practitioner_name": practitioner_name,
                 "appointment_type_name": get_appointment_type_name_safe(appointment.appointment_type_id, db),
                 "start_time": start_datetime.isoformat() if start_datetime else "",
                 "end_time": end_datetime.isoformat() if end_datetime else "",
@@ -470,11 +494,25 @@ class AppointmentService:
 
         # Format response
         result: List[Dict[str, Any]] = []
+        
+        # Get all practitioner associations in one query
+        practitioner_ids = [appt.calendar_event.user_id for appt in appointments if appt.calendar_event and appt.calendar_event.user_id]
+        associations = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id.in_(practitioner_ids),
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
+        ).all()
+        association_lookup: Dict[int, UserClinicAssociation] = {a.user_id: a for a in associations}
+        
         for appointment in appointments:
             # All relationships are now eagerly loaded, no database queries needed
             practitioner = appointment.calendar_event.user
             if not practitioner:
                 continue  # Skip if practitioner not found
+
+            # Get practitioner name from association
+            association = association_lookup.get(practitioner.id)
+            practitioner_name = association.full_name if association else practitioner.email
 
             # Construct datetime from date and time (Taiwan timezone)
             start_datetime = datetime.combine(appointment.calendar_event.date, appointment.calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
@@ -485,7 +523,7 @@ class AppointmentService:
                 'calendar_event_id': appointment.calendar_event_id,
                 'patient_name': appointment.patient.full_name,
                 'patient_phone': appointment.patient.phone_number,
-                'practitioner_name': practitioner.full_name,
+                'practitioner_name': practitioner_name,
                 'appointment_type_name': get_appointment_type_name_safe(appointment.appointment_type_id, db),
                 'start_time': start_datetime,
                 'end_time': end_datetime,

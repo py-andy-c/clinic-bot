@@ -24,7 +24,6 @@ class User(Base):
     # Authentication (all users)
     email: Mapped[str] = mapped_column(String(255), unique=True)  # Globally unique (not per-clinic)
     google_subject_id: Mapped[str] = mapped_column(String(255), unique=True)
-    full_name: Mapped[str] = mapped_column(String(255))  # Default/fallback name
 
     # Metadata
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)

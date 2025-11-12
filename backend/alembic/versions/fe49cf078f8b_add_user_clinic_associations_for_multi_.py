@@ -40,11 +40,15 @@ def upgrade() -> None:
     inspector = sa.inspect(conn)
     
     # Step 1: Ensure all users have full_name (backfill if needed)
-    op.execute("""
-        UPDATE users 
-        SET full_name = COALESCE(full_name, email, 'User')
-        WHERE full_name IS NULL OR full_name = ''
-    """)
+    # NOTE: This step is skipped if full_name column doesn't exist (already removed by later migration)
+    users_columns = [col['name'] for col in inspector.get_columns('users')]
+    
+    if 'full_name' in users_columns:
+        op.execute("""
+            UPDATE users 
+            SET full_name = COALESCE(full_name, email, 'User')
+            WHERE full_name IS NULL OR full_name = ''
+        """)
     
     # Step 2: Create user_clinic_associations table (if it doesn't exist)
     # Note: The baseline migration may have already created this table from models
@@ -127,12 +131,22 @@ def upgrade() -> None:
     # Note: If users.clinic_id doesn't exist (baseline migration didn't create it), skip this step
     users_columns = [col['name'] for col in inspector.get_columns('users')]
     if 'clinic_id' in users_columns:
-        op.execute("""
-            INSERT INTO user_clinic_associations (user_id, clinic_id, roles, full_name, created_at, updated_at)
-            SELECT id, clinic_id, roles, COALESCE(full_name, email, 'User'), created_at, updated_at
-            FROM users
-            WHERE clinic_id IS NOT NULL
-        """)
+        # Check if full_name column exists (may have been removed by later migration)
+        if 'full_name' in users_columns:
+            op.execute("""
+                INSERT INTO user_clinic_associations (user_id, clinic_id, roles, full_name, created_at, updated_at)
+                SELECT id, clinic_id, roles, COALESCE(full_name, email, 'User'), created_at, updated_at
+                FROM users
+                WHERE clinic_id IS NOT NULL
+            """)
+        else:
+            # full_name column doesn't exist - use email as name
+            op.execute("""
+                INSERT INTO user_clinic_associations (user_id, clinic_id, roles, full_name, created_at, updated_at)
+                SELECT id, clinic_id, roles, COALESCE(email, 'User'), created_at, updated_at
+                FROM users
+                WHERE clinic_id IS NOT NULL
+            """)
     
     # Step 5: Populate clinic_id in clinic-scoped tables
     # Note: If users.clinic_id doesn't exist, we need to get clinic_id from user_clinic_associations instead

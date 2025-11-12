@@ -63,12 +63,12 @@ def create_clinic_user_token_and_redirect(
     if active_association:
         active_clinic_id = active_association.clinic_id
         clinic_roles: list[str] = active_association.roles or []
-        clinic_name = active_association.full_name or user.full_name
+        clinic_name = active_association.full_name  # Clinic users always have association.full_name
     else:
-        # Use fallback values if no association found
+        # Use fallback values if no association found (shouldn't happen for clinic users)
         active_clinic_id = fallback_clinic_id
         clinic_roles = fallback_roles or []
-        clinic_name = fallback_name or user.full_name
+        clinic_name = fallback_name or user.email  # Fallback to email if no name provided
     
     # Create JWT token payload
     payload = TokenPayload(
@@ -589,7 +589,6 @@ async def confirm_name(
         user = User(
             email=email,
             google_subject_id=google_subject_id,
-            full_name=request.full_name.strip(),
             created_at=now,
             updated_at=now
         )
@@ -623,12 +622,13 @@ async def confirm_name(
         if active_association:
             active_clinic_id = active_association.clinic_id
             clinic_roles: list[str] = active_association.roles or []
-            clinic_name = active_association.full_name or user.full_name
+            clinic_name = active_association.full_name  # Clinic users always have association.full_name
         else:
-            # Fallback (shouldn't happen, but handle gracefully)
-            active_clinic_id = clinic_id
-            clinic_roles: list[str] = roles or []
-            clinic_name = user.full_name
+            # This shouldn't happen - association was just created
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve clinic association"
+            )
         
         # Create JWT token payload
         payload = TokenPayload(

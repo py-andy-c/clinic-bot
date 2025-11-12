@@ -270,12 +270,10 @@ class TestAuthenticationFlow:
             user1 = User(
                 email="user1@test.com",
                 google_subject_id="sub1",
-                full_name="User 1",
             )
             user2 = User(
                 email="user2@test.com",
                 google_subject_id="sub2",
-                full_name="User 2",
             )
             db_session.add_all([user1, user2])
             db_session.flush()
@@ -366,19 +364,16 @@ class TestAuthenticationFlow:
             admin_user = User(
                 email="admin@test.com",
                 google_subject_id="admin_sub",
-                full_name="Admin User",
             )
 
             practitioner_user = User(
                 email="practitioner@test.com",
                 google_subject_id="pract_sub",
-                full_name="Practitioner User",
             )
 
             read_only_user = User(
                 email="readonly@test.com",
                 google_subject_id="readonly_sub",
-                full_name="Read Only User",
             )
 
             db_session.add_all([admin_user, practitioner_user, read_only_user])
@@ -548,7 +543,6 @@ class TestRefreshTokenFlow:
         user = User(
             email="test@example.com",
             google_subject_id="test_subject",
-            full_name="Test User",
         )
         db_session.add(user)
         db_session.flush()
@@ -630,7 +624,6 @@ class TestRefreshTokenFlow:
         user = User(
             email="test@example.com",
             google_subject_id="test_subject",
-            full_name="Test User",
         )
         db_session.add(user)
         db_session.flush()
@@ -734,7 +727,6 @@ class TestRefreshTokenFlow:
         user = User(
             email="test@example.com",
             google_subject_id="test_subject",
-            full_name="Test User",
         )
         db_session.add(user)
         db_session.flush()
@@ -798,7 +790,6 @@ class TestRefreshTokenFlow:
         user = User(
             email="test@example.com",
             google_subject_id="test_subject",
-            full_name="Test User",
         )
         db_session.add(user)
         db_session.flush()
@@ -867,7 +858,6 @@ class TestRefreshTokenFlow:
         user = User(
             email="test@example.com",
             google_subject_id="test_subject",
-            full_name="Test User",
         )
         db_session.add(user)
         db_session.flush()
@@ -1473,7 +1463,6 @@ class TestSignupCallbackFlow:
         user = User(
             email="member@test.com",
             google_subject_id="member_sub",
-            full_name="Test Member",
         )
         db_session.add(user)
         db_session.flush()
@@ -1683,7 +1672,6 @@ class TestSystemAdminRefreshTokenFlow:
                 id=dummy_user_id,  # Use the same dummy_user_id
                 email=f"dummy_{email}",
                 google_subject_id=f"dummy_{google_subject_id}",
-                full_name="Dummy User",
             )
             db_session.add(dummy_user)
             db_session.commit()
@@ -1745,7 +1733,6 @@ class TestSystemAdminRefreshTokenFlow:
             system_admin_user = User(
                 email=email,
                 google_subject_id=google_subject_id,
-                full_name=name,
                 created_at=now,
                 updated_at=now
             )
@@ -1809,7 +1796,7 @@ class TestSystemAdminRefreshTokenFlow:
                 # Verify user record is correct
                 assert new_token.user.email == email
                 assert new_token.user.google_subject_id == google_subject_id
-                assert new_token.user.full_name == name
+                # full_name removed from User model - system admins use email as name
                 # System admins have no clinic associations
                 from models import UserClinicAssociation
                 associations = db_session.query(UserClinicAssociation).filter(
@@ -1823,7 +1810,8 @@ class TestSystemAdminRefreshTokenFlow:
                 assert access_token_payload.email == email
                 assert access_token_payload.user_type == "system_admin"
                 assert access_token_payload.sub == google_subject_id
-                assert access_token_payload.name == name
+                # System admins use email as name (not the name variable from test setup)
+                assert access_token_payload.name == email
 
             finally:
                 # Clean up overrides
@@ -1854,7 +1842,6 @@ class TestSystemAdminRefreshTokenFlow:
             system_admin_user = User(
                 email=email,
                 google_subject_id=google_subject_id,
-                full_name=name,
                 created_at=now,
                 updated_at=now
             )
@@ -1916,7 +1903,7 @@ class TestSystemAdminRefreshTokenFlow:
                 # Verify user record is correct
                 assert new_token.user.email == email
                 assert new_token.user.google_subject_id == google_subject_id
-                assert new_token.user.full_name == name
+                # full_name removed from User model - system admins use email as name
                 # System admins have no clinic associations
                 from models import UserClinicAssociation
                 associations = db_session.query(UserClinicAssociation).filter(
@@ -1944,7 +1931,7 @@ class TestSystemAdminRefreshTokenFlow:
                 # Verify user record is correct
                 assert final_token.user.email == email
                 assert final_token.user.google_subject_id == google_subject_id
-                assert final_token.user.full_name == name
+                # System admins don't have full_name in User model (no clinic associations)
                 # System admins have no clinic associations
                 from models import UserClinicAssociation
                 associations = db_session.query(UserClinicAssociation).filter(
@@ -1989,7 +1976,6 @@ class TestSystemAdminRefreshTokenFlow:
                 id=dummy_user_id,
                 email=f"dummy_{email}",
                 google_subject_id=f"dummy_{google_subject_id}",
-                full_name="Dummy User",
             )
             db_session.add(dummy_user)
             db_session.commit()
@@ -2084,7 +2070,6 @@ class TestMultiClinicTokenCreation:
         user = User(
             email="multiclinic@example.com",
             google_subject_id="multiclinic_subject",
-            full_name="Multi Clinic User",
         )
         db_session.add(user)
         db_session.flush()
@@ -2180,7 +2165,6 @@ class TestMultiClinicTokenCreation:
         user = User(
             email="newuser@example.com",
             google_subject_id="newuser_subject",
-            full_name="New User",
         )
         db_session.add(user)
         db_session.flush()
@@ -2345,7 +2329,6 @@ class TestMultiClinicTokenCreation:
         user = User(
             email="devmulticlinic@example.com",
             google_subject_id="devmulticlinic_subject",
-            full_name="Dev Multi Clinic User",
         )
         db_session.add(user)
         db_session.flush()
@@ -2432,7 +2415,6 @@ class TestClinicSwitchingEndpoints:
         user = User(
             email="multiclinic@example.com",
             google_subject_id="multiclinic_subject",
-            full_name="Multi Clinic User",
         )
         db_session.add(user)
         db_session.flush()
@@ -2527,7 +2509,6 @@ class TestClinicSwitchingEndpoints:
             user = User(
                 email="admin@example.com",
                 google_subject_id="admin_subject",
-                full_name="System Admin",
             )
             db_session.add(user)
             db_session.commit()
@@ -2594,7 +2575,6 @@ class TestClinicSwitchingEndpoints:
         user = User(
             email="switchtest@example.com",
             google_subject_id="switchtest_subject",
-            full_name="Switch Test User",
         )
         db_session.add(user)
         db_session.flush()
@@ -2690,7 +2670,6 @@ class TestClinicSwitchingEndpoints:
         user = User(
             email="idempotent@example.com",
             google_subject_id="idempotent_subject",
-            full_name="Idempotent Test User",
         )
         db_session.add(user)
         db_session.flush()
@@ -2767,7 +2746,6 @@ class TestClinicSwitchingEndpoints:
         user = User(
             email="denied@example.com",
             google_subject_id="denied_subject",
-            full_name="Denied Test User",
         )
         db_session.add(user)
         db_session.flush()
@@ -2833,7 +2811,6 @@ class TestClinicSwitchingEndpoints:
         user = User(
             email="inactive@example.com",
             google_subject_id="inactive_subject",
-            full_name="Inactive Test User",
         )
         db_session.add(user)
         db_session.flush()
@@ -2916,7 +2893,6 @@ class TestClinicSwitchingEndpoints:
             user = User(
                 email="admin@example.com",
                 google_subject_id="admin_subject",
-                full_name="System Admin",
             )
             db_session.add(user)
             db_session.commit()
@@ -2980,7 +2956,6 @@ class TestClinicSwitchingEndpoints:
         user = User(
             email="ratelimit@example.com",
             google_subject_id="ratelimit_subject",
-            full_name="Rate Limit Test User",
         )
         db_session.add(user)
         db_session.flush()
@@ -3451,7 +3426,6 @@ class TestExistingUserJoinClinic:
             user = User(
                 email="admin@example.com",
                 google_subject_id="admin_subject",
-                full_name="System Admin",
             )
             db_session.add(user)
             db_session.commit()

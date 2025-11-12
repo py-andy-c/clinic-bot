@@ -73,18 +73,18 @@ def get_clinic_user_token_data(user: User, db: Session) -> Dict[str, Any]:
         Dictionary with:
         - active_clinic_id: Currently selected clinic ID (None for system admins)
         - clinic_roles: Clinic-specific roles (empty list for system admins)
-        - clinic_name: Clinic-specific name (user.full_name for system admins)
+        - clinic_name: Clinic-specific name (user.email for system admins)
     """
     active_clinic_id = None
     clinic_roles: list[str] = []
-    clinic_name = user.full_name  # Fallback to user.full_name
+    clinic_name = user.email  # System admins use email as name
     
     # Get active clinic association for clinic users
     association = get_active_clinic_association(user, db)
     if association:
         active_clinic_id = association.clinic_id
         clinic_roles = association.roles or []
-        clinic_name = association.full_name or user.full_name
+        clinic_name = association.full_name  # Clinic users always have association.full_name
         
         # Update last_accessed_at for default clinic selection
         try:
@@ -266,7 +266,6 @@ async def google_auth_callback(
                 existing_user = User(
                     email=email,
                     google_subject_id=google_subject_id,
-                    full_name=name,
                     created_at=now,
                     updated_at=now
                 )
@@ -277,7 +276,7 @@ async def google_auth_callback(
             else:
                 # Update existing system admin User record
                 existing_user.google_subject_id = google_subject_id
-                existing_user.full_name = name
+                # full_name removed from User model - system admins use email as name
                 existing_user.last_login_at = datetime.now(timezone.utc)
                 existing_user.updated_at = datetime.now(timezone.utc)
                 db.commit()
@@ -538,7 +537,6 @@ async def refresh_access_token(
                 user = User(
                     email=refresh_token_record.email,
                     google_subject_id=refresh_token_record.google_subject_id or refresh_token_record.email,
-                    full_name=refresh_token_record.name or refresh_token_record.email.split('@')[0].title(),
                     created_at=now,
                     updated_at=now
                 )
@@ -576,6 +574,13 @@ async def refresh_access_token(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied"
+            )
+    else:
+        # Clinic users MUST have at least one active association
+        if not has_association:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User must have at least one active clinic association"
             )
     
     # Get clinic-specific data for token creation
@@ -738,7 +743,6 @@ async def dev_login(
             user = User(
                 email=email,
                 google_subject_id=f"dev_{email.replace('@', '_').replace('.', '_')}",
-                full_name=email.split('@')[0].title(),
                 created_at=now,
                 updated_at=now
             )
@@ -792,7 +796,7 @@ async def dev_login(
         "user": {
             "user_id": user.id,
             "email": user.email,
-            "full_name": user.full_name,
+            "full_name": user.email,  # System admins use email as name
             "user_type": token_payload.user_type,
             "roles": token_payload.roles  # Clinic-specific roles from token
         }
@@ -1070,7 +1074,7 @@ async def switch_clinic(
         user_type="clinic_user",
         roles=association.roles or [],
         active_clinic_id=request_data.clinic_id,
-        name=association.full_name or user.full_name
+        name=association.full_name  # Clinic users always have association.full_name
     )
     
     # Create new token pair
@@ -1097,7 +1101,7 @@ async def switch_clinic(
         refresh_token=token_data["refresh_token"],
         active_clinic_id=request_data.clinic_id,
         roles=association.roles or [],
-        name=association.full_name or user.full_name,
+        name=association.full_name,  # Clinic users always have association.full_name
         clinic={
             "id": association.clinic_id,
             "name": association.clinic.name,

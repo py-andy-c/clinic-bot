@@ -22,6 +22,7 @@ from core.database import get_db_context
 from models.appointment import Appointment
 from models.calendar_event import CalendarEvent
 from models.clinic import Clinic
+from models.user_clinic_association import UserClinicAssociation
 from services.line_service import LINEService
 from utils.datetime_utils import taiwan_now, ensure_taiwan, format_datetime, TAIWAN_TZ
 
@@ -273,8 +274,15 @@ class ReminderService:
                 logger.warning(f"No LINE user found for patient {appointment.patient_id}")
                 return False
 
-            # Format reminder message
-            therapist_name = appointment.calendar_event.user.full_name
+            # Format reminder message - get practitioner name from association
+            user = appointment.calendar_event.user
+            clinic_id = appointment.patient.clinic_id
+            association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == user.id,
+                UserClinicAssociation.clinic_id == clinic_id,
+                UserClinicAssociation.is_active == True
+            ).first()
+            therapist_name = association.full_name if association else user.email
             appointment_datetime = ensure_taiwan(datetime.combine(
                 appointment.calendar_event.date,
                 appointment.calendar_event.start_time

@@ -127,13 +127,9 @@ async def update_profile(
             )
         
         # Update allowed fields only
-        # Note: full_name is clinic-specific, so we update UserClinicAssociation
-        # The user.full_name is kept as fallback but clinic-specific names take precedence
+        # Note: full_name is clinic-specific, stored in UserClinicAssociation
         association = None
         if profile_data.full_name is not None:
-            # Update fallback name in User model
-            user.full_name = profile_data.full_name
-            
             # Update clinic-specific name in UserClinicAssociation for active clinic
             if current_user.active_clinic_id:
                 association = db.query(UserClinicAssociation).filter(
@@ -145,7 +141,15 @@ async def update_profile(
                 if association:
                     association.full_name = profile_data.full_name
                     association.updated_at = taiwan_now()
-                # If no association exists (shouldn't happen for clinic users), just update user.full_name
+                else:
+                    # Clinic users must have an association - this shouldn't happen
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="找不到診所關聯"
+                    )
+            elif current_user.is_system_admin():
+                # System admins don't have associations - name is not used
+                pass
         
         # Update timestamp (Taiwan timezone)
         user.updated_at = taiwan_now()
@@ -160,14 +164,14 @@ async def update_profile(
         # Get roles and active clinic from UserClinicAssociation
         roles: list[str] = []
         active_clinic_id: Optional[int] = None
-        clinic_full_name = user.full_name  # Fallback to user.full_name
+        clinic_full_name = user.email  # Default to email (for system admins)
         
         if current_user.active_clinic_id:
             # Use refreshed association if available, otherwise query
             if association:
                 roles = association.roles or []
                 active_clinic_id = association.clinic_id
-                clinic_full_name = association.full_name or user.full_name  # Use clinic-specific name
+                clinic_full_name = association.full_name  # Clinic users always have association.full_name
             else:
                 # Query association if not already loaded (shouldn't happen for clinic users)
                 association = db.query(UserClinicAssociation).filter(
@@ -178,9 +182,13 @@ async def update_profile(
                 if association:
                     roles = association.roles or []
                     active_clinic_id = association.clinic_id
-                    clinic_full_name = association.full_name or user.full_name
+                    clinic_full_name = association.full_name  # Clinic users always have association.full_name
                 else:
-                    active_clinic_id = None
+                    # Clinic users must have an association
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="找不到診所關聯"
+                    )
         
         return ProfileResponse(
             id=user.id,

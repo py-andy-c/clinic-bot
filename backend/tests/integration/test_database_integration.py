@@ -32,12 +32,9 @@ def test_clinic_with_therapist(db_session):
     db_session.commit()  # Commit clinic first to get ID
 
     therapist = User(
-        clinic_id=clinic.id,
-        full_name="Dr. Test",
         email="dr.test@example.com",
-        google_subject_id="therapist_sub_123",
-        roles=["practitioner"],
-        is_active=True
+        google_subject_id="therapist_sub_123"
+        # full_name, clinic_id, roles, is_active removed - use UserClinicAssociation instead
     )
     db_session.add(therapist)
     db_session.commit()  # Commit therapist to get ID

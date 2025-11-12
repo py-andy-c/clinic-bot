@@ -162,7 +162,7 @@ async def list_members(
         query = db.query(User).join(UserClinicAssociation).filter(
             UserClinicAssociation.clinic_id == clinic_id,
             UserClinicAssociation.is_active == True
-        ).options(joinedload(User.clinic_associations))
+        ).options(joinedload(User.clinic_associations))  # Eager load associations for name lookup
         
         # Admins can see both active and inactive members
         if current_user.has_role("admin"):
@@ -184,7 +184,7 @@ async def list_members(
             member_list.append(MemberResponse(
                 id=member.id,
                 email=member.email,
-                full_name=association.full_name if association else member.full_name,
+                full_name=association.full_name if association else member.email,  # Clinic users must have association
                 roles=association.roles if association else [],
                 is_active=association.is_active if association else False,
                 created_at=member.created_at
@@ -627,7 +627,19 @@ async def validate_appointment_type_deletion(
             if has_blocking_issues or has_warnings:
                 warning_info = {}
                 if practitioners:
-                    warning_info["practitioners"] = [p.full_name for p in practitioners]
+                    # Get practitioner names from associations
+                    practitioner_ids: List[int] = [p.id for p in practitioners]
+                    associations = db.query(UserClinicAssociation).filter(
+                        UserClinicAssociation.user_id.in_(practitioner_ids),
+                        UserClinicAssociation.clinic_id == clinic_id,
+                        UserClinicAssociation.is_active == True
+                    ).all()
+                    association_lookup: Dict[int, UserClinicAssociation] = {a.user_id: a for a in associations}
+                    practitioner_names: List[str] = []
+                    for p in practitioners:
+                        association = association_lookup.get(p.id)
+                        practitioner_names.append(association.full_name if association else p.email)
+                    warning_info["practitioners"] = practitioner_names
                 if future_appointment_count > 0:
                     warning_info["future_appointment_count"] = future_appointment_count
                 if past_appointment_count > 0:
@@ -753,7 +765,18 @@ async def update_settings(
             )
             
             if practitioners:
-                practitioner_names = [p.full_name for p in practitioners]
+                # Get practitioner names from associations
+                practitioner_ids: List[int] = [p.id for p in practitioners]
+                associations = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id.in_(practitioner_ids),
+                    UserClinicAssociation.clinic_id == clinic_id,
+                    UserClinicAssociation.is_active == True
+                ).all()
+                association_lookup: Dict[int, UserClinicAssociation] = {a.user_id: a for a in associations}
+                practitioner_names: List[str] = []
+                for p in practitioners:
+                    association = association_lookup.get(p.id)
+                    practitioner_names.append(association.full_name if association else p.email)
                 blocked_types.append({
                     "id": appointment_type.id,
                     "name": appointment_type.name,

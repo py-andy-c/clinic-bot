@@ -474,7 +474,7 @@ class TestClinicAppointmentManagement:
             roles=admin_assoc.roles,
             active_clinic_id=admin_assoc.clinic_id,
             google_subject_id=admin.google_subject_id,
-            name=admin.full_name,
+            name=admin_assoc.full_name,
             user_id=admin.id
         )
 
@@ -530,7 +530,7 @@ class TestClinicAppointmentManagement:
             roles=admin_assoc.roles,
             active_clinic_id=admin_assoc.clinic_id,
             google_subject_id=admin.google_subject_id,
-            name=admin.full_name,
+            name=admin_assoc.full_name,
             user_id=admin.id
         )
 
@@ -596,7 +596,7 @@ class TestClinicAppointmentManagement:
             roles=admin_assoc.roles,
             active_clinic_id=admin_assoc.clinic_id,
             google_subject_id=admin.google_subject_id,
-            name=admin.full_name,
+            name=admin_assoc.full_name,
             user_id=admin.id
         )
 
@@ -661,7 +661,7 @@ class TestClinicAppointmentManagement:
             roles=practitioner_assoc.roles,
             active_clinic_id=practitioner_assoc.clinic_id,
             google_subject_id=practitioner.google_subject_id,
-            name=practitioner.full_name,
+            name=practitioner_assoc.full_name,
             user_id=practitioner.id
         )
 
@@ -716,7 +716,7 @@ class TestClinicAppointmentManagement:
             roles=therapist_assoc.roles,
             active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
-            name=therapist.full_name,
+            name=therapist_assoc.full_name,
             user_id=therapist.id
         )
 
@@ -777,7 +777,7 @@ class TestPractitionerAppointmentTypes:
             roles=therapist_assoc.roles,
             active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
-            name=therapist.full_name,
+            name=therapist_assoc.full_name,
             user_id=therapist.id
         )
 
@@ -813,7 +813,7 @@ class TestPractitionerAppointmentTypes:
             roles=therapist_assoc.roles,
             active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
-            name=therapist.full_name,
+            name=therapist_assoc.full_name,
             user_id=therapist.id
         )
 
@@ -854,7 +854,7 @@ class TestPractitionerAppointmentTypes:
             roles=therapist_assoc.roles,
             active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
-            name=therapist.full_name,
+            name=therapist_assoc.full_name,
             user_id=therapist.id
         )
 
@@ -886,7 +886,7 @@ class TestPractitionerAppointmentTypes:
             roles=therapist_assoc.roles,
             active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
-            name=therapist.full_name,
+            name=therapist_assoc.full_name,
             user_id=therapist.id
         )
 
@@ -941,7 +941,7 @@ class TestPractitionerAppointmentTypes:
             roles=therapist_assoc.roles,
             active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
-            name=therapist.full_name,
+            name=therapist_assoc.full_name,
             user_id=therapist.id
         )
 
@@ -979,7 +979,7 @@ class TestPractitionerAppointmentTypes:
             roles=therapist_assoc.roles,
             active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
-            name=therapist.full_name,
+            name=therapist_assoc.full_name,
             user_id=therapist.id
         )
 
@@ -1021,7 +1021,7 @@ class TestPractitionerAppointmentTypes:
             roles=therapist_assoc.roles,
             active_clinic_id=therapist_assoc.clinic_id,
             google_subject_id=therapist.google_subject_id,
-            name=therapist.full_name,
+            name=therapist_assoc.full_name,
             user_id=therapist.id
         )
 

@@ -476,6 +476,14 @@ async def get_calendar_data(
                 CalendarEvent.date == target_date
             ).order_by(CalendarEvent.start_time).all()
             
+            # Get practitioner association for name
+            practitioner_association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == user_id,
+                UserClinicAssociation.clinic_id == clinic_id,
+                UserClinicAssociation.is_active == True
+            ).first()
+            practitioner_name = practitioner_association.full_name if practitioner_association else user.email
+            
             event_responses: List[CalendarEventResponse] = []
             for event in events:
                 if event.event_type == 'appointment':
@@ -507,7 +515,7 @@ async def get_calendar_data(
                             patient_phone=appointment.patient.phone_number,
                             line_display_name=line_display_name,
                             patient_name=appointment.patient.full_name,
-                            practitioner_name=user.full_name,
+                            practitioner_name=practitioner_name,
                             appointment_type_name=appointment_type_name
                         ))
                 elif event.event_type == 'availability_exception':

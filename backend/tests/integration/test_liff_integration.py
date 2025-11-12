@@ -61,7 +61,7 @@ def test_clinic_with_liff(db_session: Session):
     db_session.commit()
 
     # Create practitioner with clinic association
-    practitioner, _ = create_user_with_clinic_association(
+    practitioner, practitioner_assoc = create_user_with_clinic_association(
         db_session,
         clinic=clinic,
         email="practitioner@liffclinic.com",
@@ -103,13 +103,13 @@ def test_clinic_with_liff(db_session: Session):
 
     db_session.commit()
 
-    return clinic, practitioner, appt_types
+    return clinic, practitioner, appt_types, practitioner_assoc
 
 
 @pytest.fixture
 def authenticated_line_user(db_session: Session, test_clinic_with_liff):
     """Create an authenticated LINE user with JWT token."""
-    clinic, practitioner, appt_types = test_clinic_with_liff
+    clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
     # Create LINE user
     line_user = LineUser(
@@ -130,7 +130,7 @@ class TestLiffDatabaseOperations:
 
     def test_patient_creation_database_operations(self, db_session: Session, test_clinic_with_liff):
         """Test patient creation with direct database operations (mimicking LIFF flow)."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         # Create LINE user directly (simulating LIFF login)
         line_user = LineUser(
@@ -193,7 +193,7 @@ class TestLiffDatabaseOperations:
 
     def test_patient_update_database_operations(self, db_session: Session, test_clinic_with_liff):
         """Test patient update with direct database operations."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         # Create LINE user
         line_user = LineUser(
@@ -287,7 +287,7 @@ class TestLiffDatabaseOperations:
 
     def test_patient_update_validation_errors(self, db_session: Session, test_clinic_with_liff):
         """Test patient update validation errors."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         # Create LINE user
         line_user = LineUser(
@@ -378,7 +378,7 @@ class TestLiffDatabaseOperations:
 
     def test_appointment_creation_database_operations(self, db_session: Session, test_clinic_with_liff):
         """Test appointment creation with database verification."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, practitioner_assoc = test_clinic_with_liff
 
         # Create LINE user and patient
         line_user = LineUser(
@@ -420,7 +420,7 @@ class TestLiffDatabaseOperations:
 
             appointment_result = response.json()
             assert appointment_result["patient_name"] == "Appointment Patient"
-            assert appointment_result["practitioner_name"] == practitioner.full_name
+            assert appointment_result["practitioner_name"] == practitioner_assoc.full_name
             assert appointment_result["notes"] == "Integration test appointment"
 
             # Verify database state (time is stored in Taiwan time)
@@ -447,7 +447,7 @@ class TestLiffDatabaseOperations:
 
     def test_appointment_listing_database_operations(self, db_session: Session, test_clinic_with_liff):
         """Test appointment listing with database verification."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         # Create LINE user and multiple patients with appointments
         line_user = LineUser(
@@ -524,7 +524,7 @@ class TestLiffDatabaseOperations:
 
     def test_first_time_user_complete_flow(self, db_session: Session, test_clinic_with_liff):
         """Test complete first-time user flow: registration -> appointment booking."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         # Create LINE user directly (simulating LIFF login)
         line_user = LineUser(
@@ -619,7 +619,7 @@ class TestLiffReturningUserFlow:
 
     def test_returning_user_lists_patients(self, db_session: Session, test_clinic_with_liff):
         """Test returning user can list their patients."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         # Create LINE user
         line_user = LineUser(
@@ -673,7 +673,7 @@ class TestLiffReturningUserFlow:
 
     def test_returning_user_books_for_different_patients(self, db_session: Session, test_clinic_with_liff):
         """Test returning user can book appointments for different family members."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         # Create LINE user
         line_user = LineUser(
@@ -746,7 +746,7 @@ class TestLiffReturningUserFlow:
 
     def test_user_views_appointment_history(self, db_session: Session, test_clinic_with_liff):
         """Test user can view their appointment history across all patients."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, practitioner_assoc = test_clinic_with_liff
 
         # Create LINE user
         line_user = LineUser(
@@ -808,7 +808,7 @@ class TestLiffReturningUserFlow:
             # Verify appointment details
             for appt in appointments_list:
                 assert appt["patient_name"] == "陳大華"
-                assert appt["practitioner_name"] == practitioner.full_name
+                assert appt["practitioner_name"] == practitioner_assoc.full_name
                 assert "notes" in appt
 
         finally:
@@ -817,7 +817,7 @@ class TestLiffReturningUserFlow:
 
     def test_user_cancels_appointment(self, db_session: Session, test_clinic_with_liff):
         """Test user can cancel their appointments."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         # Create LINE user
         line_user = LineUser(
@@ -884,7 +884,7 @@ class TestLiffAvailabilityAndScheduling:
 
     def test_availability_shows_correct_slots(self, db_session: Session, test_clinic_with_liff):
         """Test availability API returns correct time slots."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         # Create LINE user
         line_user = LineUser(
@@ -954,7 +954,7 @@ class TestLiffAvailabilityAndScheduling:
 
     def test_booking_creates_correct_database_records(self, db_session: Session, test_clinic_with_liff):
         """Test that booking creates all necessary database records."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         # Create LINE user
         line_user = LineUser(
@@ -1029,7 +1029,7 @@ class TestLiffAvailabilityAndScheduling:
 
     def test_practitioner_assignment_without_specification(self, db_session: Session, test_clinic_with_liff):
         """Test intelligent practitioner assignment when user doesn't specify."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, practitioner_assoc = test_clinic_with_liff
 
         # Create LINE user
         line_user = LineUser(
@@ -1080,7 +1080,7 @@ class TestLiffAvailabilityAndScheduling:
 
             # Verify appointment was assigned to the practitioner
             appointment_result = response.json()
-            assert appointment_result["practitioner_name"] == practitioner.full_name
+            assert appointment_result["practitioner_name"] == practitioner_assoc.full_name
 
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
@@ -1092,7 +1092,7 @@ class TestLiffErrorHandling:
 
     def test_invalid_patient_id_returns_403(self, db_session: Session, test_clinic_with_liff):
         """Test that booking with invalid patient ID returns 403."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         # Create LINE user
         line_user = LineUser(
@@ -1135,7 +1135,7 @@ class TestLiffErrorHandling:
 
     def test_invalid_line_user_id_returns_400(self, db_session: Session, test_clinic_with_liff):
         """Test that creating patient with invalid line_user_id returns 400."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         from services.patient_service import PatientService
 
@@ -1154,7 +1154,7 @@ class TestLiffErrorHandling:
 
     def test_past_appointment_returns_validation_error(self, db_session: Session, test_clinic_with_liff):
         """Test that booking appointments in the past fails."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         # Create LINE user
         line_user = LineUser(
@@ -1209,7 +1209,7 @@ class TestLiffErrorHandling:
 
     def test_double_booking_prevention(self, db_session: Session, test_clinic_with_liff):
         """Test that double booking at the same time is prevented."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         # Create LINE user
         line_user = LineUser(
@@ -1293,7 +1293,7 @@ class TestLiffErrorHandling:
 
     def test_too_far_future_booking_rejected(self, db_session: Session, test_clinic_with_liff):
         """Test that booking too far in the future is rejected."""
-        clinic, practitioner, appt_types = test_clinic_with_liff
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
 
         # Create LINE user
         line_user = LineUser(

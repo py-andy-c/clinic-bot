@@ -152,7 +152,7 @@ class TestUserModel:
             **sample_user_data
         )
 
-        assert user.full_name == "Dr. Test"
+        # full_name removed from User model - names are stored in UserClinicAssociation
         assert user.email == "dr.test@example.com"
         assert user.google_subject_id == "google_123"
         # is_active has default=True, but defaults aren't applied in memory-only objects

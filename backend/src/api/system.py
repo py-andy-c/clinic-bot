@@ -574,7 +574,7 @@ async def get_clinic_practitioners(
                 practitioners_list.append({
                     "id": user.id,
                     "email": user.email,
-                    "full_name": association.full_name if association else user.full_name,
+                    "full_name": association.full_name if association else user.email,  # Clinic users must have association
                     "appointment_types": [
                         {
                             "id": at.id,

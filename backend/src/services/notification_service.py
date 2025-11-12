@@ -45,6 +45,15 @@ class NotificationService:
 
             clinic = patient.clinic
 
+            # Get practitioner name from association
+            from models.user_clinic_association import UserClinicAssociation
+            association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == practitioner.id,
+                UserClinicAssociation.clinic_id == clinic.id,
+                UserClinicAssociation.is_active == True
+            ).first()
+            practitioner_name = association.full_name if association else practitioner.email
+
             # Format datetime - combine date and start_time (Taiwan timezone)
             start_datetime = datetime.combine(
                 appointment.calendar_event.date,
@@ -58,7 +67,7 @@ class NotificationService:
             # Generate message based on source
             message = NotificationService._get_cancellation_message(
                 formatted_datetime,
-                practitioner.full_name,
+                practitioner_name,
                 appointment_type_name,
                 patient.full_name,
                 source,

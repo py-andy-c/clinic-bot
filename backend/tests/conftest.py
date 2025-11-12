@@ -184,7 +184,7 @@ def sample_clinic_data():
 def sample_user_data():
     """Sample user data for tests."""
     return {
-        "full_name": "Dr. Test",
+        # full_name removed from User model - names are stored in UserClinicAssociation
         "email": "dr.test@example.com"
     }
 
@@ -228,9 +228,8 @@ def create_user_with_clinic_association(
     Returns:
         Tuple of (User, UserClinicAssociation)
     """
-    # Create user (is_active is now only in UserClinicAssociation)
+    # Create user (full_name is now only in UserClinicAssociation)
     user = User(
-        full_name=full_name,
         email=email,
         google_subject_id=google_subject_id
     )

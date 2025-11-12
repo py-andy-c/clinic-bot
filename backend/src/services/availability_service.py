@@ -323,10 +323,22 @@ class AvailabilityService:
         # Create a lookup dict for practitioner info
         practitioner_lookup = {p.id: p for p in practitioners}
         
+        # Get associations for all practitioners in one query
+        associations = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id.in_(practitioner_ids),
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
+        ).all()
+        association_lookup = {a.user_id: a for a in associations}
+        
         for practitioner_id, data in schedule_data.items():
             practitioner = practitioner_lookup.get(practitioner_id)
             if not practitioner:
                 continue
+            
+            # Get association for this practitioner
+            association = association_lookup.get(practitioner_id)
+            practitioner_name = association.full_name if association else practitioner.email
             
             default_intervals = data['default_intervals']
             if not default_intervals:
@@ -352,7 +364,7 @@ class AvailabilityService:
                         'start_time': AvailabilityService._format_time(slot_start),
                         'end_time': AvailabilityService._format_time(slot_end),
                         'practitioner_id': practitioner.id,
-                        'practitioner_name': practitioner.full_name
+                        'practitioner_name': practitioner_name
                     })
 
         # Apply clinic booking restrictions

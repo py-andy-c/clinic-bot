@@ -134,7 +134,7 @@ def get_current_user(
             email=user.email,
             roles=[],  # System admins don't have clinic-specific roles
             google_subject_id=user.google_subject_id,
-            name=user.full_name,
+            name=user.email,  # System admins use email as name (full_name not needed)
             user_id=user.id,  # System admins now have user_id
             active_clinic_id=None  # System admins don't have active clinic
         )

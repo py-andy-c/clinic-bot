@@ -58,9 +58,20 @@ class PractitionerService:
 
         practitioners = query.all()
 
+        # Get associations for all practitioners in one query
+        practitioner_ids = [p.id for p in practitioners]
+        associations = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id.in_(practitioner_ids),
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
+        ).all()
+        association_lookup = {a.user_id: a for a in associations}
+
         # Format response
         result: List[Dict[str, Any]] = []
         for practitioner in practitioners:
+            # Get association for this clinic
+            association = association_lookup.get(practitioner.id)
             offered_types = [
                 pat.appointment_type_id
                 for pat in practitioner.practitioner_appointment_types
@@ -68,7 +79,7 @@ class PractitionerService:
 
             result.append({
                 'id': practitioner.id,
-                'full_name': practitioner.full_name,
+                'full_name': association.full_name if association else practitioner.email,  # Clinic users must have association
                 'offered_types': offered_types
             })
 
