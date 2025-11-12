@@ -155,12 +155,13 @@ def _create_clinic_agent(clinic: Clinic) -> Agent:
     agent = Agent(
         name=f"Clinic Agent - {clinic.name}",
         instructions=instructions,
-        model="gpt-5-nano",
+        model="gpt-5-mini",
         model_settings=ModelSettings(
             reasoning=Reasoning(
                 effort="low",
-                summary="auto"
-            )
+                summary="auto",
+            ),
+            verbosity="low"
         )  
     )
     
