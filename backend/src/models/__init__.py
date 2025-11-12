@@ -2,6 +2,7 @@
 # Import all models to ensure relationships are properly established
 from .clinic import Clinic
 from .user import User
+from .user_clinic_association import UserClinicAssociation
 from .signup_token import SignupToken
 from .refresh_token import RefreshToken
 from .patient import Patient
@@ -16,6 +17,7 @@ from .practitioner_appointment_types import PractitionerAppointmentTypes
 __all__ = [
     "Clinic",
     "User",
+    "UserClinicAssociation",
     "SignupToken",
     "RefreshToken",
     "Patient",
