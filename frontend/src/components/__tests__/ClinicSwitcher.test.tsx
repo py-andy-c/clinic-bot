@@ -64,18 +64,26 @@ describe('ClinicSwitcher', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('should not render when user has only one clinic', () => {
-    const { container } = render(
+  it('should render current clinic name even when user has only one clinic', () => {
+    render(
       <ClinicSwitcher
         currentClinicId={1}
         availableClinics={[mockClinics[0]!]}
         onSwitch={mockOnSwitch}
       />
     );
-    expect(container.firstChild).toBeNull();
+    
+    // Should show clinic name
+    expect(screen.getByText('Clinic A')).toBeInTheDocument();
+    // Should not show dropdown arrow
+    const button = screen.getByRole('button');
+    expect(button).not.toBeDisabled();
+    // Should not have dropdown arrow icon
+    const arrowIcon = button.querySelector('svg[viewBox="0 0 24 24"]');
+    expect(arrowIcon).not.toBeInTheDocument();
   });
 
-  it('should render current clinic name and role badge', () => {
+  it('should render current clinic name', () => {
     render(
       <ClinicSwitcher
         currentClinicId={1}
@@ -85,7 +93,6 @@ describe('ClinicSwitcher', () => {
     );
 
     expect(screen.getByText('Clinic A')).toBeInTheDocument();
-    expect(screen.getByText('管理員')).toBeInTheDocument();
   });
 
   it('should open dropdown when clicked', async () => {
@@ -100,8 +107,9 @@ describe('ClinicSwitcher', () => {
     const button = screen.getByRole('button');
     fireEvent.click(button);
 
-    expect(screen.getByText('目前診所')).toBeInTheDocument();
-    expect(screen.getByText('其他診所')).toBeInTheDocument();
+    // Should show current clinic and other clinics
+    const clinicATexts = screen.getAllByText('Clinic A');
+    expect(clinicATexts.length).toBeGreaterThan(0);
     expect(screen.getByText('Clinic B')).toBeInTheDocument();
   });
 
@@ -117,8 +125,6 @@ describe('ClinicSwitcher', () => {
     const button = screen.getByRole('button');
     fireEvent.click(button);
 
-    // Current clinic should be highlighted
-    expect(screen.getByText('目前診所')).toBeInTheDocument();
     // Clinic A appears in both button and dropdown, use getAllByText
     const clinicATexts = screen.getAllByText('Clinic A');
     expect(clinicATexts.length).toBeGreaterThan(0);
@@ -201,13 +207,15 @@ describe('ClinicSwitcher', () => {
     const button = screen.getByRole('button');
     fireEvent.click(button);
 
-    expect(screen.getByText('目前診所')).toBeInTheDocument();
+    // Dropdown should be open (Clinic B should be visible)
+    expect(screen.getByText('Clinic B')).toBeInTheDocument();
 
     const outside = screen.getByTestId('outside');
     fireEvent.mouseDown(outside);
 
     await waitFor(() => {
-      expect(screen.queryByText('目前診所')).not.toBeInTheDocument();
+      // Dropdown should be closed (Clinic B should not be visible)
+      expect(screen.queryByText('Clinic B')).not.toBeInTheDocument();
     });
   });
 
@@ -223,30 +231,17 @@ describe('ClinicSwitcher', () => {
     const button = screen.getByRole('button');
     fireEvent.click(button);
 
-    expect(screen.getByText('目前診所')).toBeInTheDocument();
+    // Dropdown should be open (Clinic B should be visible)
+    expect(screen.getByText('Clinic B')).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: 'Escape' });
 
     await waitFor(() => {
-      expect(screen.queryByText('目前診所')).not.toBeInTheDocument();
+      // Dropdown should be closed (Clinic B should not be visible)
+      expect(screen.queryByText('Clinic B')).not.toBeInTheDocument();
     });
   });
 
-  it('should display last accessed time for clinics', async () => {
-    render(
-      <ClinicSwitcher
-        currentClinicId={1}
-        availableClinics={mockClinics}
-        onSwitch={mockOnSwitch}
-      />
-    );
-
-    const button = screen.getByRole('button');
-    fireEvent.click(button);
-
-    // Should show last accessed time for Clinic B
-    expect(screen.getByText(/上次使用/)).toBeInTheDocument();
-  });
 
   it('should display inactive status for inactive clinics', async () => {
     render(
@@ -263,18 +258,6 @@ describe('ClinicSwitcher', () => {
     expect(screen.getByText('已停用')).toBeInTheDocument();
   });
 
-  it('should format role badges correctly', () => {
-    render(
-      <ClinicSwitcher
-        currentClinicId={1}
-        availableClinics={mockClinics}
-        onSwitch={mockOnSwitch}
-      />
-    );
-
-    // Admin role
-    expect(screen.getByText('管理員')).toBeInTheDocument();
-  });
 
   it('should not call onSwitch when clicking current clinic', async () => {
     render(
@@ -309,7 +292,7 @@ describe('ClinicSwitcher', () => {
     fireEvent.click(button);
 
     // Should not open dropdown during switch
-    expect(screen.queryByText('目前診所')).not.toBeInTheDocument();
+    expect(screen.queryByText('Clinic B')).not.toBeInTheDocument();
   });
 });
 

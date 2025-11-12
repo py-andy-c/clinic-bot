@@ -161,7 +161,7 @@ async def initiate_clinic_admin_signup(token: str, db: Session = Depends(get_db)
 
 
 @router.get("/member", summary="Initiate team member signup")
-async def initiate_member_signup(token: str, db: Session = Depends(get_db)) -> dict[str, str]:
+async def initiate_member_signup(token: str, db: Session = Depends(get_db)) -> dict[str, Any]:
     """
     Validate team member signup token and redirect to Google OAuth.
 
@@ -169,7 +169,7 @@ async def initiate_member_signup(token: str, db: Session = Depends(get_db)) -> d
         token: Secure signup token
 
     Returns:
-        Google OAuth authorization URL
+        Google OAuth authorization URL and clinic information
     """
     try:
         # Validate signup token
@@ -184,6 +184,14 @@ async def initiate_member_signup(token: str, db: Session = Depends(get_db)) -> d
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="註冊連結已失效，請聯繫診所管理員。"
+            )
+
+        # Get clinic information
+        clinic = db.query(Clinic).filter(Clinic.id == signup_token.clinic_id).first()
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="診所不存在"
             )
 
         from urllib.parse import urlencode
@@ -212,7 +220,14 @@ async def initiate_member_signup(token: str, db: Session = Depends(get_db)) -> d
         }
 
         auth_url = f"https://accounts.google.com/o/oauth2/auth?{urlencode(params)}"
-        return {"auth_url": auth_url}
+        return {
+            "auth_url": auth_url,
+            "clinic": {
+                "id": clinic.id,
+                "name": clinic.name,
+                "display_name": clinic.name  # Use name as display_name for now
+            }
+        }
 
     except HTTPException:
         raise

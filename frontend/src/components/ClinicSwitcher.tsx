@@ -52,13 +52,14 @@ const ClinicSwitcher: React.FC<ClinicSwitcherProps> = ({
     };
   }, [isOpen]);
 
-  // Don't show switcher if user has no clinics or only one clinic
-  if (!availableClinics || availableClinics.length <= 1) {
+  // Don't show switcher if user has no clinics
+  if (!availableClinics || availableClinics.length === 0) {
     return null;
   }
 
   const currentClinic = availableClinics.find(c => c.id === currentClinicId);
   const otherClinics = availableClinics.filter(c => c.id !== currentClinicId);
+  const hasMultipleClinics = availableClinics.length > 1;
 
   const handleSwitch = async (clinicId: number): Promise<void> => {
     if (clinicId === currentClinicId || isSwitching) {
@@ -75,60 +76,23 @@ const ClinicSwitcher: React.FC<ClinicSwitcherProps> = ({
     }
   };
 
-  const formatRoleBadge = (roles: string[]): string => {
-    if (roles.includes('admin')) {
-      return '管理員';
-    } else if (roles.includes('practitioner')) {
-      return '治療師';
-    }
-    return '成員';
-  };
-
-  const formatLastAccessed = (lastAccessedAt: string | null): string => {
-    if (!lastAccessedAt) {
-      return '';
-    }
-    try {
-      const date = new Date(lastAccessedAt);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMs / 3600000);
-      const diffDays = Math.floor(diffMs / 86400000);
-
-      if (diffMins < 1) {
-        return '剛剛';
-      } else if (diffMins < 60) {
-        return `${diffMins}分鐘前`;
-      } else if (diffHours < 24) {
-        return `${diffHours}小時前`;
-      } else if (diffDays < 7) {
-        return `${diffDays}天前`;
-      } else {
-        return date.toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' });
-      }
-    } catch (e) {
-      logger.warn('Failed to format last accessed date:', e);
-      return '';
-    }
-  };
 
   return (
     <div className="relative" ref={dropdownRef}>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => hasMultipleClinics && setIsOpen(!isOpen)}
         disabled={isSwitching}
         className={`
           flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium
-          ${isSwitching 
+          ${isSwitching
             ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
             : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
           }
-          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500
+          ${hasMultipleClinics ? 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500' : 'cursor-default'}
         `}
-        aria-expanded={isOpen}
-        aria-haspopup="true"
+        aria-expanded={hasMultipleClinics ? isOpen : false}
+        aria-haspopup={hasMultipleClinics ? "true" : "false"}
       >
         {isSwitching ? (
           <>
@@ -141,19 +105,16 @@ const ClinicSwitcher: React.FC<ClinicSwitcherProps> = ({
         ) : (
           <>
             <span className="font-semibold">{currentClinic?.display_name || currentClinic?.name || '診所'}</span>
-            {currentClinic && (
-              <span className="px-2 py-0.5 text-xs font-medium bg-primary-100 text-primary-800 rounded">
-                {formatRoleBadge(currentClinic.roles)}
-              </span>
+            {hasMultipleClinics && (
+              <svg
+                className={`h-4 w-4 text-gray-500 transition-transform ${isOpen ? 'transform rotate-180' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
             )}
-            <svg
-              className={`h-4 w-4 text-gray-500 transition-transform ${isOpen ? 'transform rotate-180' : ''}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
           </>
         )}
       </button>
@@ -165,15 +126,7 @@ const ClinicSwitcher: React.FC<ClinicSwitcherProps> = ({
             {currentClinic && (
               <div className="px-4 py-3 bg-primary-50 border-b border-primary-200">
                 <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-semibold text-gray-900">{currentClinic.display_name || currentClinic.name}</span>
-                      <span className="px-2 py-0.5 text-xs font-medium bg-primary-200 text-primary-900 rounded">
-                        {formatRoleBadge(currentClinic.roles)}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-xs text-gray-500">目前診所</div>
-                  </div>
+                  <span className="font-semibold text-gray-900">{currentClinic.display_name || currentClinic.name}</span>
                   <svg className="h-5 w-5 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
@@ -196,52 +149,36 @@ const ClinicSwitcher: React.FC<ClinicSwitcherProps> = ({
             {/* Other Clinics */}
             {otherClinics.length > 0 && (
               <div className="py-1">
-                <div className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                  其他診所
-                </div>
-                {otherClinics.map((clinic) => {
-                  const lastAccessed = formatLastAccessed(clinic.last_accessed_at);
-                  return (
-                    <button
-                      key={clinic.id}
-                      type="button"
-                      onClick={() => handleSwitch(clinic.id)}
-                      className="w-full text-left px-4 py-3 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors"
-                      role="menuitem"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium text-gray-900 truncate">
-                              {clinic.display_name || clinic.name}
-                            </span>
-                            <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded flex-shrink-0">
-                              {formatRoleBadge(clinic.roles)}
-                            </span>
+                {otherClinics.map((clinic) => (
+                  <button
+                    key={clinic.id}
+                    type="button"
+                    onClick={() => handleSwitch(clinic.id)}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors"
+                    role="menuitem"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium text-gray-900 truncate">
+                          {clinic.display_name || clinic.name}
+                        </span>
+                        {!clinic.is_active && (
+                          <div className="mt-1 text-xs text-red-600">
+                            已停用
                           </div>
-                          {lastAccessed && (
-                            <div className="mt-1 text-xs text-gray-500">
-                              上次使用：{lastAccessed}
-                            </div>
-                          )}
-                          {!clinic.is_active && (
-                            <div className="mt-1 text-xs text-red-600">
-                              已停用
-                            </div>
-                          )}
-                        </div>
-                        <svg
-                          className="h-5 w-5 text-gray-400 flex-shrink-0 ml-2"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
+                        )}
                       </div>
-                    </button>
-                  );
-                })}
+                      <svg
+                        className="h-5 w-5 text-gray-400 flex-shrink-0 ml-2"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </button>
+                ))}
               </div>
             )}
 

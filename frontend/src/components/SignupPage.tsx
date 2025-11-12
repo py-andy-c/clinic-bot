@@ -10,7 +10,7 @@ interface SignupPageProps {
   title: string;
   icon: string;
   buttonText: string;
-  onSignup: (token: string) => Promise<{ auth_url: string }>;
+  onSignup: (token: string) => Promise<{ auth_url: string; clinic?: { id: number; name: string; display_name: string } }>;
 }
 
 const SignupPage: React.FC<SignupPageProps> = ({
@@ -29,6 +29,7 @@ const SignupPage: React.FC<SignupPageProps> = ({
   const [showJoinConfirmation, setShowJoinConfirmation] = useState(false);
   const [clinicName, setClinicName] = useState<string>('');
   const [joining, setJoining] = useState(false);
+  const [signupClinicName, setSignupClinicName] = useState<string | null>(null);
 
   const token = searchParams.get('token');
 
@@ -49,6 +50,10 @@ const SignupPage: React.FC<SignupPageProps> = ({
     try {
       setCompleting(true);
       const response = await onSignup(token!);
+      // Store clinic name if available (for member signup)
+      if (response.clinic) {
+        setSignupClinicName(response.clinic.display_name || response.clinic.name);
+      }
       window.location.href = response.auth_url;
     } catch (err: any) {
       logger.error('Signup error:', err);
@@ -62,6 +67,24 @@ const SignupPage: React.FC<SignupPageProps> = ({
       setCompleting(false);
     }
   };
+
+  // Fetch clinic name when component mounts (for member signup)
+  useEffect(() => {
+    if (token && signupType === 'member') {
+      const fetchClinicInfo = async () => {
+        try {
+          const response = await apiService.initiateMemberSignup(token);
+          if (response.clinic) {
+            setSignupClinicName(response.clinic.display_name || response.clinic.name);
+          }
+        } catch (err: any) {
+          // Silently fail - clinic name is optional
+          logger.warn('Failed to fetch clinic info:', err);
+        }
+      };
+      fetchClinicInfo();
+    }
+  }, [token, signupType]);
 
   const handleJoinExisting = async () => {
     if (!token) return;
@@ -136,6 +159,11 @@ const SignupPage: React.FC<SignupPageProps> = ({
             <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
               加入新診所
             </h2>
+            {signupClinicName && (
+              <p className="mt-2 text-center text-lg text-gray-700">
+                <strong>{signupClinicName}</strong>
+              </p>
+            )}
             <p className="mt-2 text-center text-sm text-gray-600">
               您已經登入為 <strong>{currentClinicName}</strong>
             </p>
@@ -244,6 +272,11 @@ const SignupPage: React.FC<SignupPageProps> = ({
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             {title}
           </h2>
+          {signupClinicName && (
+            <p className="mt-2 text-center text-lg text-gray-700">
+              <strong>{signupClinicName}</strong>
+            </p>
+          )}
         </div>
 
         {/* Token Info Card */}

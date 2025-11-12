@@ -378,7 +378,7 @@ export class ApiService {
     return response.data;
   }
 
-  async initiateMemberSignup(token: string): Promise<OAuthResponse> {
+  async initiateMemberSignup(token: string): Promise<OAuthResponse & { clinic?: { id: number; name: string; display_name: string } }> {
     const response = await this.client.get(`/signup/member?token=${token}`);
     return response.data;
   }
