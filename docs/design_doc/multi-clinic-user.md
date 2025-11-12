@@ -1193,55 +1193,260 @@ user_associations = relationship("UserClinicAssociation", back_populates="clinic
 
 ### Step 5: Testing
 
-1. **Single-clinic users** (backward compatibility)
-   - Verify existing users continue to work
-   - Verify no errors or warnings
-   - Verify data access unchanged
+#### Test Strategy Overview
 
-2. **Multi-clinic users**
-   - Test user with 2+ clinics
-   - Test clinic switching
-   - Test role-based access per clinic
-   - Test different roles at different clinics
+**Key Changes for Multi-Clinic Support:**
 
-3. **Clinic switching**
-   - Test normal switch flow
-   - Test switching to inactive clinic (should fail)
-   - Test switching when association is inactive (should fail)
-   - Test concurrent switches (race conditions)
-   - Test token expiry during switch
-   - Test rate limiting (10 switches/minute)
+1. **Database Schema Changes**: All tests must work with the new schema where users don't have `clinic_id` directly, but through `user_clinic_associations`.
 
-4. **Data isolation**
-   - Verify no cross-clinic data leakage
-   - Verify availability is clinic-scoped
-   - Verify calendar events are clinic-scoped
-   - Verify appointments are clinic-scoped
+2. **Authentication Changes**: Tests must use `active_clinic_id` instead of `clinic_id` in `UserContext`.
 
-5. **Authentication edge cases**
-   - Test token refresh when association becomes inactive
-   - Test token refresh when clinic is deactivated
-   - Test user removed from clinic while logged in
-   - Test invalid `active_clinic_id` in token
+3. **Query Changes**: All database queries that previously filtered by `User.clinic_id` must now join with `UserClinicAssociation` and filter by `active_clinic_id`.
 
-6. **Signup flow**
-   - Test new user signup
-   - Test existing user joining new clinic
-   - Test signup token reuse (should fail)
-   - Test concurrent signup requests (race conditions)
-   - Test signup for already-member clinic
+4. **Fixture Updates**: Test fixtures must create `UserClinicAssociation` records alongside users.
 
-7. **Migration validation**
-   - Test migration on production-like data
-   - Test rollback procedure
-   - Test data validation queries
-   - Test with edge cases (NULL values, orphaned data)
+5. **Isolation Testing**: New tests must verify clinic isolation works correctly.
 
-8. **Performance testing**
-   - Benchmark queries with joins to `user_clinic_associations`
-   - Test clinic switching latency
-   - Test calendar queries with clinic filters
-   - Load testing with multi-clinic users
+**Test Categories:**
+- **Backward Compatibility**: Existing single-clinic functionality must continue working
+- **Multi-Clinic Functionality**: New features for multi-clinic users
+- **Security**: Clinic isolation must be enforced
+- **Performance**: Query performance with new joins
+- **Migration**: Data integrity during schema changes
+
+#### Unit Tests
+
+1. **Model Tests** (`test_models.py`)
+   - [ ] Test `UserClinicAssociation` model creation
+   - [ ] Test relationships (`User.user_associations`, `Clinic.user_associations`)
+   - [ ] Test unique constraints (`user_id, clinic_id`)
+   - [ ] Test cascade deletes
+   - [ ] Update existing `User` model tests to work without `clinic_id`
+
+2. **Authentication Tests** (`test_auth_dependencies.py`)
+   - [ ] Update `UserContext` tests to include `active_clinic_id`
+   - [ ] Update `get_current_user` tests to validate against `user_clinic_associations`
+   - [ ] Add tests for system admin handling (no associations)
+   - [ ] Add tests for clinic user validation (active association required)
+   - [ ] Add tests for `require_clinic_access` with `active_clinic_id`
+   - [ ] Add tests for clinic switching endpoint
+   - [ ] Add tests for clinics listing endpoint
+
+3. **JWT Service Tests** (`test_jwt_service.py`)
+   - [ ] Update token creation to include `active_clinic_id`
+   - [ ] Update token validation tests
+   - [ ] Add tests for clinic-specific roles in tokens
+
+#### Integration Tests
+
+4. **Authentication Integration** (`test_auth_integration.py`)
+   - [ ] Update existing signup flows to use `user_clinic_associations`
+   - [ ] Add tests for existing user joining new clinic
+   - [ ] Add tests for clinic switching
+   - [ ] Add tests for multi-clinic user flows
+   - [ ] Update fixtures to create `UserClinicAssociation` records
+
+5. **Clinic Management Integration** (`test_clinic_management_integration.py`)
+   - [ ] Update all user queries to use `active_clinic_id` instead of `clinic_id`
+   - [ ] Update fixtures to create `UserClinicAssociation` records
+   - [ ] Add tests for cross-clinic isolation (user can only see own clinics)
+   - [ ] Add tests for clinic-specific roles
+   - [ ] Update member management tests to use associations
+
+6. **Clinic Admin Isolation** (`test_clinic_admin_isolation.py`)
+   - [ ] Update fixtures to create `UserClinicAssociation` records
+   - [ ] Update user context creation to use `active_clinic_id`
+   - [ ] Add tests for multi-clinic admin isolation
+   - [ ] Add tests for role-based access across clinics
+
+7. **LIFF Integration** (`test_liff_integration.py`)
+   - [ ] Update JWT creation to include `active_clinic_id`
+   - [ ] Update clinic validation tests
+   - [ ] Update fixtures to create `UserClinicAssociation` records
+   - [ ] Add tests for clinic isolation in LIFF context
+
+8. **Practitioner Availability** (`test_practitioner_availability.py`)
+   - [ ] Update fixtures to create `UserClinicAssociation` records
+   - [ ] Update tests to use `active_clinic_id` instead of `clinic_id`
+   - [ ] Add tests for clinic-scoped availability
+
+9. **Practitioner Calendar API** (`test_practitioner_calendar_api.py`)
+   - [ ] Update fixtures to create `UserClinicAssociation` records
+   - [ ] Update all user creation to use associations
+   - [ ] Add tests for clinic-scoped calendar events
+   - [ ] Update clinic isolation tests
+
+#### Test Fixtures Updates
+
+10. **conftest.py**
+    - [ ] Add `UserClinicAssociation` import
+    - [ ] Update `sample_user_data` fixture to work without `clinic_id`
+    - [ ] Add fixtures for creating multi-clinic users
+    - [ ] Add fixtures for creating `UserClinicAssociation` records
+    - [ ] Add fixtures for testing clinic switching
+
+11. **Helper Functions**
+    - [ ] Create helper functions for creating users with associations
+    - [ ] Create helper functions for mocking `active_clinic_id` context
+    - [ ] Create helper functions for testing clinic isolation
+
+#### Critical Test Updates
+
+**Files Requiring Major Changes:**
+
+1. **`conftest.py`** - Test fixtures
+   - Add `UserClinicAssociation` import
+   - Update user creation helpers to create associations
+   - Add fixtures for multi-clinic scenarios
+
+2. **`test_auth_dependencies.py`** - Authentication logic
+   - Update `get_current_user` tests to validate associations
+   - Update `UserContext` tests for `active_clinic_id`
+   - Add tests for clinic switching
+
+3. **`test_models.py`** - Model validation
+   - Remove `clinic_id` from `User` model tests
+   - Add `UserClinicAssociation` model tests
+   - Update relationship tests
+
+**Common Test Patterns That Must Change:**
+
+4. **User Context Creation** (used in ~50+ tests)
+    ```python
+    # BEFORE (used throughout tests)
+    def _uc(user_id, clinic_id, roles):
+        return UserContext(
+            user_type="clinic_user",
+            email=f"u{user_id}@ex.com",
+            roles=roles,
+            clinic_id=clinic_id,  # ❌ This becomes active_clinic_id
+            google_subject_id=f"sub-{user_id}",
+            name=f"User {user_id}",
+            user_id=user_id,
+        )
+
+    # AFTER
+    def _uc(user_id, active_clinic_id, roles, name="User"):
+        return UserContext(
+            user_type="clinic_user",
+            email=f"u{user_id}@ex.com",
+            roles=roles,
+            active_clinic_id=active_clinic_id,  # ✅ Changed
+            google_subject_id=f"sub-{user_id}",
+            name=name,  # ✅ Clinic-specific name
+            user_id=user_id,
+        )
+    ```
+
+5. **User Creation in Tests** (~100+ instances)
+    ```python
+    # BEFORE
+    user = User(
+        clinic_id=clinic.id,  # ❌ Removed
+        full_name="Test User",
+        email="test@example.com",
+        google_subject_id="sub123",
+        roles=["practitioner"]
+    )
+
+    # AFTER
+    user = User(
+        # clinic_id removed ✅
+        full_name="Test User",
+        email="test@example.com",
+        google_subject_id="sub123"
+        # roles moved to association ✅
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    # Create association separately
+    association = UserClinicAssociation(
+        user_id=user.id,
+        clinic_id=clinic.id,
+        roles=["practitioner"],
+        full_name="Test User",
+    )
+    db_session.add(association)
+    ```
+
+6. **Database Queries in Tests** (~200+ instances)
+    ```python
+    # BEFORE - Direct clinic_id filter
+    users = db_session.query(User).filter(User.clinic_id == clinic.id).all()
+
+    # AFTER - Join with associations
+    users = db_session.query(User).join(UserClinicAssociation).filter(
+        UserClinicAssociation.clinic_id == clinic.id,
+        UserClinicAssociation.is_active == True
+    ).all()
+    ```
+
+7. **Clinic Isolation Assertions** (existing tests that need updates)
+    ```python
+    # BEFORE - Direct property check
+    assert user.clinic_id == clinic.id
+
+    # AFTER - Association-based check
+    association = db_session.query(UserClinicAssociation).filter(
+        UserClinicAssociation.user_id == user.id,
+        UserClinicAssociation.clinic_id == clinic.id,
+        UserClinicAssociation.is_active == True
+    ).first()
+    assert association is not None
+    assert association.roles == ["practitioner"]
+    ```
+
+#### New Test Requirements
+
+8. **Multi-Clinic User Tests**
+    - [ ] Test user with associations to multiple clinics
+    - [ ] Test clinic switching API endpoints
+    - [ ] Test role differences across clinics
+    - [ ] Test name differences across clinics
+
+9. **Clinic Isolation Security Tests**
+    - [ ] Test that users cannot access other clinics
+    - [ ] Test that inactive associations block access
+    - [ ] Test that deactivated clinics block access
+    - [ ] Test token validation with wrong `active_clinic_id`
+
+10. **Migration Tests**
+    - [ ] Test migration on clean database
+    - [ ] Test migration with existing data
+    - [ ] Test rollback procedure
+    - [ ] Test pre-migration validation
+    - [ ] Test post-migration validation
+
+#### Test Execution Strategy
+
+**Phase 1: Schema Migration Testing**
+- Run migration on test database
+- Execute pre/post-migration validation
+- Test basic model operations
+
+**Phase 2: Unit Test Updates**
+- Update unit tests to work with new schema
+- Add new model tests
+- Verify authentication logic
+
+**Phase 3: Integration Test Updates**
+- Update fixtures and helpers
+- Fix broken queries
+- Add multi-clinic scenarios
+
+**Phase 4: End-to-End Testing**
+- Test complete user flows
+- Performance testing
+- Security testing
+
+#### Test Coverage Requirements
+
+- **Backward Compatibility**: All existing single-clinic functionality
+- **Multi-Clinic Features**: Clinic switching, role management, data isolation
+- **Security**: Clinic isolation enforcement
+- **Edge Cases**: Inactive associations, concurrent operations, token validation
+- **Performance**: Query performance with new joins
 
 ## Security Considerations
 
@@ -2097,6 +2302,21 @@ These queries need `clinic_id` added to the filter, but the table already has th
 - [ ] Deploy application code
 - [ ] Monitor for issues
 - [ ] User communication
+
+### Risk Mitigation
+
+**High-Risk Areas:**
+1. **Authentication Logic**: `get_current_user` changes affect all requests
+2. **Database Queries**: ~200+ query updates across codebase
+3. **Migration**: Schema changes with data transformation
+4. **Test Coverage**: Extensive test changes required
+
+**Mitigation Strategies:**
+- **Phased Deployment**: Deploy schema changes first, then application code
+- **Feature Flags**: Use feature flags to enable multi-clinic gradually
+- **Rollback Plan**: Complete rollback procedures documented
+- **Monitoring**: Enhanced monitoring for authentication failures
+- **Testing**: Comprehensive test coverage before deployment
 
 ## Conclusion
 
