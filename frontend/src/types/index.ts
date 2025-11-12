@@ -25,6 +25,35 @@ export interface Clinic {
   webhook_count_24h: number;
   last_health_check_at?: string;
   health_check_errors?: string;
+  settings?: {
+    notification_settings?: {
+      reminder_hours_before?: number;
+    };
+    booking_restriction_settings?: {
+      booking_restriction_type?: string;
+      minimum_booking_hours_ahead?: number;
+    };
+    clinic_info_settings?: {
+      display_name?: string | null;
+      address?: string | null;
+      phone_number?: string | null;
+      appointment_type_instructions?: string | null;
+    };
+    chat_settings?: {
+      chat_enabled?: boolean;
+      clinic_description?: string | null;
+      therapist_info?: string | null;
+      treatment_details?: string | null;
+      service_item_selection_guide?: string | null;
+      operating_hours?: string | null;
+      location_details?: string | null;
+      booking_policy?: string | null;
+      payment_methods?: string | null;
+      equipment_facilities?: string | null;
+      common_questions?: string | null;
+      other_info?: string | null;
+    };
+  };
 }
 
 // User types (unified model)
@@ -50,6 +79,27 @@ export interface Practitioner {
   full_name: string;
   picture_url?: string;
   offered_types: number[];
+}
+
+// Practitioner details for system admin view
+export interface PractitionerAppointmentType {
+  id: number;
+  name: string;
+  duration_minutes: number;
+}
+
+export interface PractitionerScheduleInterval {
+  start_time: string;
+  end_time: string;
+}
+
+export interface PractitionerWithDetails {
+  id: number;
+  email: string;
+  full_name: string;
+  roles: string[];
+  appointment_types: PractitionerAppointmentType[];
+  default_schedule: Record<string, PractitionerScheduleInterval[]>;
 }
 
 // Patient types

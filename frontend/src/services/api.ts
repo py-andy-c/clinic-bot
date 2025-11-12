@@ -14,7 +14,8 @@ import {
   OAuthResponse,
   UserRole,
   ClinicsListResponse,
-  SwitchClinicResponse
+  SwitchClinicResponse,
+  PractitionerWithDetails
 } from '../types';
 import {
   validateClinicSettings,
@@ -189,6 +190,11 @@ export class ApiService {
     return response.data;
   }
 
+  async updateClinic(clinicId: number, clinicData: Partial<ClinicCreateData>): Promise<Clinic> {
+    const response = await this.client.put(`/system/clinics/${clinicId}`, clinicData);
+    return response.data;
+  }
+
   async getClinicHealth(clinicId: number): Promise<ClinicHealth> {
     const response = await this.client.get(`/system/clinics/${clinicId}/health`);
     return response.data;
@@ -196,6 +202,11 @@ export class ApiService {
 
   async generateClinicSignupLink(clinicId: number): Promise<{ signup_url: string }> {
     const response = await this.client.post(`/system/clinics/${clinicId}/signup-link`);
+    return response.data;
+  }
+
+  async getClinicPractitioners(clinicId: number): Promise<{ practitioners: PractitionerWithDetails[] }> {
+    const response = await this.client.get(`/system/clinics/${clinicId}/practitioners`);
     return response.data;
   }
 
