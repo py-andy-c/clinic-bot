@@ -68,9 +68,9 @@ const AdminRoutes: React.FC = () => {
       <SystemAdminLayout>
         <Routes>
           <Route path="/" element={<Navigate to="/admin/system/clinics" replace />} />
-          <Route path="/system/clinics" element={<SystemClinicsPage />} />
-          <Route path="/system/clinics/:id" element={<SystemClinicsPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="system/clinics" element={<SystemClinicsPage />} />
+          <Route path="system/clinics/:id" element={<SystemClinicsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/admin/system/clinics" replace />} />
         </Routes>
       </SystemAdminLayout>
@@ -91,11 +91,11 @@ const AdminRoutes: React.FC = () => {
       <ClinicLayout>
         <Routes>
           <Route path="/" element={<Navigate to={getDefaultRoute()} replace />} />
-          <Route path="/clinic/members" element={<MembersPage />} />
-          <Route path="/clinic/patients" element={<PatientsPage />} />
-          <Route path="/clinic/settings" element={<SettingsPage />} />
-          <Route path="/calendar" element={<AvailabilityPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="clinic/members" element={<MembersPage />} />
+          <Route path="clinic/patients" element={<PatientsPage />} />
+          <Route path="clinic/settings" element={<SettingsPage />} />
+          <Route path="calendar" element={<AvailabilityPage />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to={getDefaultRoute()} replace />} />
         </Routes>
       </ClinicLayout>

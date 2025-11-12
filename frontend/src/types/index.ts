@@ -129,7 +129,9 @@ export interface ClinicCreateData {
 export interface ClinicHealth {
   clinic_id: number;
   line_integration_status: 'healthy' | 'warning' | 'error';
-  webhook_status: 'active' | 'inactive';
+  webhook_status: 'very_active' | 'active' | 'moderate' | 'inactive' | 'stale';
+  last_webhook_received_at?: string | null;
+  last_webhook_age_hours?: number | null;
   webhook_count_24h: number;
   signature_verification_capable: boolean;
   api_connectivity: string;

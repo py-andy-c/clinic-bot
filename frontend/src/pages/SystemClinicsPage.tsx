@@ -77,11 +77,23 @@ const SystemClinicsPage: React.FC = () => {
     try {
       const result = await apiService.generateClinicSignupLink(clinicId);
       // Copy to clipboard with fallback
+      let copied = false;
+      
+      // Try modern Clipboard API first
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(result.signup_url);
-        alert('註冊連結已複製到剪貼簿！');
-      } else {
-        // Fallback for browsers/environments without Clipboard API
+        try {
+          await navigator.clipboard.writeText(result.signup_url);
+          alert('註冊連結已複製到剪貼簿！');
+          copied = true;
+        } catch (clipboardErr) {
+          // Clipboard API failed (permission denied, not secure context, etc.)
+          // Fall through to fallback method
+          logger.warn('Clipboard API failed, using fallback:', clipboardErr);
+        }
+      }
+      
+      // Fallback for browsers/environments without Clipboard API or when it fails
+      if (!copied) {
         const textArea = document.createElement('textarea');
         textArea.value = result.signup_url;
         textArea.style.position = 'fixed';
@@ -91,13 +103,18 @@ const SystemClinicsPage: React.FC = () => {
         textArea.focus();
         textArea.select();
         try {
-          document.execCommand('copy');
-          alert('註冊連結已複製到剪貼簿！');
+          const success = document.execCommand('copy');
+          if (success) {
+            alert('註冊連結已複製到剪貼簿！');
+          } else {
+            throw new Error('execCommand copy failed');
+          }
         } catch (fallbackErr) {
           // If fallback also fails, show the URL to user
-          alert(`註冊連結：\n${result.signup_url}\n\n請手動複製此連結。`);
+          alert(`註冊連結：\n${result.signup_url}`);
+        } finally {
+          document.body.removeChild(textArea);
         }
-        document.body.removeChild(textArea);
       }
     } catch (err) {
       logger.error('Generate signup link error:', err);
@@ -112,6 +129,21 @@ const SystemClinicsPage: React.FC = () => {
       case 'warning':
         return 'text-yellow-600 bg-yellow-100';
       case 'error':
+        return 'text-red-600 bg-red-100';
+      default:
+        return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  const getWebhookStatusColor = (status: string) => {
+    switch (status) {
+      case 'very_active':
+      case 'active':
+        return 'text-green-600 bg-green-100';
+      case 'moderate':
+        return 'text-yellow-600 bg-yellow-100';
+      case 'inactive':
+      case 'stale':
         return 'text-red-600 bg-red-100';
       default:
         return 'text-gray-600 bg-gray-100';
@@ -240,7 +272,7 @@ const SystemClinicsPage: React.FC = () => {
               <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt className="text-sm font-medium text-gray-500">Webhook Activity</dt>
                 <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getHealthStatusColor(clinicHealth.webhook_status)}`}>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getWebhookStatusColor(clinicHealth.webhook_status)}`}>
                     {clinicHealth.webhook_status}
                   </span>
                   <span className="ml-2">{clinicHealth.webhook_count_24h} webhooks in last 24 hours</span>
@@ -341,7 +373,7 @@ const SystemClinicsPage: React.FC = () => {
 
               <div className="mt-6 flex space-x-3">
                 <Link
-                  to={`/system/clinics/${clinic.id}`}
+                  to={`/admin/system/clinics/${clinic.id}`}
                   className="flex-1 bg-primary-600 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 text-center"
                 >
                   View Details
