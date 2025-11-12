@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 
 interface PublicHeaderProps {
   /** Optional active path to highlight in navigation */
@@ -9,9 +10,36 @@ interface PublicHeaderProps {
 const PublicHeader: React.FC<PublicHeaderProps> = ({ activePath }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated, isSystemAdmin, isClinicUser, user } = useAuth();
   const currentPath = activePath || location.pathname;
 
   const isActive = (path: string) => currentPath === path;
+
+  const getAdminRoute = () => {
+    if (!isAuthenticated) {
+      return '/admin/login';
+    }
+    
+    if (isSystemAdmin) {
+      return '/admin/system/clinics';
+    }
+    
+    if (isClinicUser) {
+      // Practitioners go to calendar, others go to members page
+      if (user?.roles?.includes('practitioner')) {
+        return '/admin/calendar';
+      }
+      return '/admin/clinic/members';
+    }
+    
+    return '/admin/login';
+  };
+
+  const handleAdminClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    navigate(getAdminRoute());
+  };
 
   return (
     <header className="bg-white shadow-sm">
@@ -44,12 +72,12 @@ const PublicHeader: React.FC<PublicHeaderProps> = ({ activePath }) => {
             >
               聯絡我們
             </Link>
-            <Link
-              to="/admin/login"
+            <button
+              onClick={handleAdminClick}
               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
             >
-              後台登入
-            </Link>
+              {isAuthenticated ? '後台管理' : '後台登入'}
+            </button>
           </nav>
 
           {/* Mobile Menu Button */}
@@ -96,13 +124,15 @@ const PublicHeader: React.FC<PublicHeaderProps> = ({ activePath }) => {
               >
                 聯絡我們
               </Link>
-              <Link
-                to="/admin/login"
-                onClick={() => setIsMobileMenuOpen(false)}
+              <button
+                onClick={(e) => {
+                  setIsMobileMenuOpen(false);
+                  handleAdminClick(e);
+                }}
                 className="px-4 py-2 text-base font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
               >
-                後台登入
-              </Link>
+                {isAuthenticated ? '後台管理' : '後台登入'}
+              </button>
             </div>
           </div>
         )}
