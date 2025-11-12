@@ -334,8 +334,6 @@ def get_active_clinic_association(user: User, db: Session) -> Optional[UserClini
     """
     # Get all active associations for this user
     # System admins will have no associations, which is expected
-    
-    # Get all active associations for this user
     associations = db.query(UserClinicAssociation).filter(
         UserClinicAssociation.user_id == user.id,
         UserClinicAssociation.is_active == True
