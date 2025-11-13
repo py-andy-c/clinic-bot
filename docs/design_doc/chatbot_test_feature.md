@@ -551,11 +551,27 @@ Response:
 
 ## Future Enhancements
 
+### Phase 3 (Not Yet Implemented)
+
+1. **Rate Limiting**: Enforce 20 messages per test session
+   - Show message counter (e.g., "已發送 15/20 則訊息")
+   - Disable input when limit reached
+   - Clear warning when approaching limit
+
+2. **Session Expiration**: Expire test sessions after 30 minutes of inactivity
+   - Track last activity timestamp
+   - Clear session data on expiration
+   - Show notification when session expires
+
+### Phase 4 (Future Ideas)
+
 1. **Save Test Conversations**: Allow saving test scenarios
 2. **A/B Testing**: Test multiple setting configurations
 3. **Analytics**: Show response quality metrics
 4. **Template Scenarios**: Pre-built test scenarios
 5. **Export Results**: Download test conversation as PDF
+6. **Error Retry Mechanism**: Add retry button for failed messages
+7. **Cost Tracking**: Monitor OpenAI API usage for tests
 
 ---
 

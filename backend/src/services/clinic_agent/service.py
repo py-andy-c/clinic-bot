@@ -192,7 +192,7 @@ class ClinicAgentService:
         """
         Process a patient message and generate AI response.
         
-        Limits conversation history to the last 10 messages to manage
+        Limits conversation history to the last 25 messages to manage
         token usage and keep context relevant. Includes clinic-specific
         context (name, address, phone, services) in the agent's knowledge.
         
@@ -313,7 +313,8 @@ class ClinicAgentService:
                 create_tables=True
             )
             
-            # Limit conversation history to last 10 messages
+            # Limit conversation history to last 25 messages
+            # This helps manage token usage and keeps context relevant
             MAX_HISTORY_MESSAGES = 25
             
             # Trim session to limit conversation history while preserving related items
