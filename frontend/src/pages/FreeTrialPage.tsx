@@ -1,8 +1,23 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect } from 'react';
 import PublicHeader from '../components/PublicHeader';
 
+const CALENDLY_EVENT_URL = 'https://calendly.com/pychen1017/30min';
+
 const FreeTrialPage: React.FC = () => {
+  // Load Calendly widget script
+  useEffect(() => {
+    // Check if script already exists
+    const existingScript = document.querySelector('script[src="https://assets.calendly.com/assets/external/widget.js"]');
+    if (existingScript) {
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://assets.calendly.com/assets/external/widget.js';
+    script.async = true;
+    document.body.appendChild(script);
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <PublicHeader activePath="/free-trial" />
@@ -15,49 +30,14 @@ const FreeTrialPage: React.FC = () => {
               <span className="text-4xl">🎁</span>
             </div>
             <h1 className="mt-6 text-3xl md:text-4xl font-extrabold text-gray-900">
-              免費試用
+              預約免費示範
             </h1>
-          </div>
-
-          <div className="prose max-w-none">
-            <p className="text-lg text-gray-600 mb-6">
-              歡迎體驗診所小幫手！我們提供完整的免費試用方案，讓您無風險地體驗所有功能。
+            <p className="mt-4 text-lg text-gray-600">
+              選擇適合的時間，與我們預約一對一示範會議
             </p>
-
-            <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">試用方案內容</h2>
-            <ul className="list-disc list-inside space-y-2 text-gray-700 mb-8">
-              <li>完整的預約管理系統</li>
-              <li>AI 智能客服功能</li>
-              <li>病患資料管理</li>
-              <li>LINE 官方帳號整合</li>
-              <li>無限制的預約數量</li>
-              <li>完整的技術支援</li>
-            </ul>
-
-            <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">如何開始</h2>
-            <ol className="list-decimal list-inside space-y-2 text-gray-700 mb-8">
-              <li>填寫基本診所資訊</li>
-              <li>設定您的 LINE 官方帳號</li>
-              <li>開始使用所有功能</li>
-              <li>試用期間完全免費，無需信用卡</li>
-            </ol>
-
-            <div className="mt-10 text-center">
-              {/* TODO: Implement free trial signup flow - connect to clinic signup endpoint */}
-              <button 
-                onClick={() => {
-                  // TODO: Navigate to signup flow or open signup modal
-                  window.location.href = '/signup/clinic';
-                }}
-                className="w-full sm:w-auto px-8 py-3 bg-primary-600 text-white font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-              >
-                立即開始免費試用
-              </button>
-              <p className="mt-4 text-sm text-gray-500 px-4">
-                或 <Link to="/contact" className="text-primary-600 hover:text-primary-700">聯絡我們</Link> 了解更多資訊
-              </p>
-            </div>
           </div>
+
+          <div className="calendly-inline-widget" data-url={CALENDLY_EVENT_URL} style={{ minWidth: '320px', height: '700px' }}></div>
         </div>
       </main>
     </div>
