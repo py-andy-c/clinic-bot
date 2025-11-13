@@ -20,10 +20,11 @@ from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
 from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation
-from models.clinic import ClinicSettings
+from models.clinic import ClinicSettings, ChatSettings as ChatSettingsModel
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
 from services.availability_service import AvailabilityService
 from services.notification_service import NotificationService, CancellationSource
+from services.clinic_agent import ClinicAgentService
 from utils.appointment_type_queries import count_active_appointment_types_for_practitioner
 from api.responses import (
     ClinicPatientResponse, ClinicPatientListResponse,
@@ -1019,6 +1020,82 @@ async def generate_cancellation_preview(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法產生取消預覽訊息"
+        )
+
+
+class ChatTestRequest(BaseModel):
+    """Request model for testing chatbot with current settings."""
+    message: str
+    session_id: Optional[str] = None
+    chat_settings: ChatSettingsModel
+
+
+class ChatTestResponse(BaseModel):
+    """Response model for chatbot test."""
+    response: str
+    session_id: str
+
+
+@router.post("/chat/test", summary="Test chatbot with current settings")
+async def test_chatbot(
+    request: ChatTestRequest,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> ChatTestResponse:
+    """
+    Test chatbot with current (unsaved) chat settings.
+    
+    This endpoint allows clinic users to test how the chatbot will respond
+    using their current settings before saving them. The test uses the provided
+    chat_settings instead of the clinic's saved settings.
+    
+    Available to all clinic members (including read-only users).
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        if not clinic_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="使用者不屬於任何診所"
+            )
+
+        clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="診所不存在"
+            )
+
+        # Validate that chat is enabled in the provided settings
+        if not request.chat_settings.chat_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="請先啟用 AI 聊天功能"
+            )
+
+        # Generate session ID if not provided
+        session_id = request.session_id or f"test-{clinic_id}-{current_user.user_id}"
+
+        # Process test message using provided chat settings
+        response_text = await ClinicAgentService.process_test_message(
+            message=request.message,
+            clinic=clinic,
+            chat_settings=request.chat_settings,
+            session_id=session_id
+        )
+
+        return ChatTestResponse(
+            response=response_text,
+            session_id=session_id
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error testing chatbot: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法處理測試訊息"
         )
 
 

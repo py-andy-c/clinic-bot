@@ -15,6 +15,7 @@ from agents.extensions.memory import SQLAlchemySession
 from openai.types.shared.reasoning import Reasoning
 
 from models import Clinic
+from models.clinic import ChatSettings
 from core.config import DATABASE_URL
 from .utils import trim_session
 from .prompts.base_system_prompt import BASE_SYSTEM_PROMPT
@@ -49,7 +50,7 @@ def get_async_engine() -> AsyncEngine:
     return _async_engine
 
 
-def _build_clinic_context(clinic: Clinic) -> str:
+def _build_clinic_context(clinic: Clinic, chat_settings_override: Optional[ChatSettings] = None) -> str:
     """
     Build clinic context string for the AI agent in XML format.
     
@@ -58,12 +59,13 @@ def _build_clinic_context(clinic: Clinic) -> str:
     
     Args:
         clinic: Clinic entity
+        chat_settings_override: Optional ChatSettings to use instead of clinic's saved settings
         
     Returns:
         str: Formatted clinic context string in XML format
     """
     validated_settings = clinic.get_validated_settings()
-    chat_settings = validated_settings.chat_settings
+    chat_settings = chat_settings_override if chat_settings_override is not None else validated_settings.chat_settings
     
     xml_parts = ["<診所資訊>"]
     
@@ -123,23 +125,24 @@ def _build_clinic_context(clinic: Clinic) -> str:
     return "\n".join(xml_parts)
 
 
-def _build_agent_instructions(clinic: Clinic) -> str:
+def _build_agent_instructions(clinic: Clinic, chat_settings_override: Optional[ChatSettings] = None) -> str:
     """
     Build agent instructions with clinic context.
     
     Args:
         clinic: Clinic entity
+        chat_settings_override: Optional ChatSettings to use instead of clinic's saved settings
         
     Returns:
         str: Complete agent instructions with clinic context
     """
-    clinic_context = _build_clinic_context(clinic)
+    clinic_context = _build_clinic_context(clinic, chat_settings_override)
     clinic_name = clinic.effective_display_name
 
     return BASE_SYSTEM_PROMPT.format(clinic_name=clinic_name, clinic_context=clinic_context)
 
 
-def _create_clinic_agent(clinic: Clinic) -> Agent:
+def _create_clinic_agent(clinic: Clinic, chat_settings_override: Optional[ChatSettings] = None) -> Agent:
     """
     Create clinic-specific agent with clinic context in instructions.
     
@@ -147,12 +150,13 @@ def _create_clinic_agent(clinic: Clinic) -> Agent:
     
     Args:
         clinic: Clinic entity
+        chat_settings_override: Optional ChatSettings to use instead of clinic's saved settings
         
     Returns:
         Agent: Clinic-specific agent with context in instructions
     """
     # Build instructions with clinic context
-    instructions = _build_agent_instructions(clinic)
+    instructions = _build_agent_instructions(clinic, chat_settings_override)
     
     # Create agent with clinic-specific instructions
     agent = Agent(
@@ -264,5 +268,88 @@ class ClinicAgentService:
                 f"line_user_id={line_user_id}: {e}"
             )
             # Return fallback message
+            return "抱歉，我暫時無法處理您的訊息。請稍後再試，或直接聯繫診所。"
+    
+    @staticmethod
+    async def process_test_message(
+        message: str,
+        clinic: Clinic,
+        chat_settings: ChatSettings,
+        session_id: Optional[str] = None
+    ) -> str:
+        """
+        Process a test message and generate AI response using provided chat settings.
+        
+        This method is used for testing chatbot settings before saving. It uses
+        the provided chat_settings instead of the clinic's saved settings.
+        
+        Args:
+            message: Test message text
+            clinic: Clinic entity
+            chat_settings: ChatSettings to use for this test (from frontend, unsaved)
+            session_id: Optional session ID for conversation continuity
+            
+        Returns:
+            str: AI-generated response text
+            
+        Raises:
+            Exception: If agent processing fails
+        """
+        try:
+            # Use provided session_id or generate test session ID
+            if session_id is None:
+                # Generate test session ID: format is "test-{clinic_id}-{user_id}"
+                # For now, use a simple format since we don't have user_id in this context
+                # The API endpoint will provide a proper session_id
+                session_id = f"test-{clinic.id}"
+            
+            # Get async engine for SDK
+            engine = get_async_engine()
+            
+            # Create SQLAlchemySession for conversation persistence
+            session = SQLAlchemySession(
+                session_id=session_id,
+                engine=engine,
+                create_tables=True
+            )
+            
+            # Limit conversation history to last 10 messages
+            MAX_HISTORY_MESSAGES = 25
+            
+            # Trim session to limit conversation history while preserving related items
+            await trim_session(
+                session=session,
+                max_items=MAX_HISTORY_MESSAGES
+            )
+            
+            # Create clinic-specific agent with context in system prompt
+            # Use provided chat_settings instead of clinic's saved settings
+            agent = _create_clinic_agent(clinic, chat_settings_override=chat_settings)
+            
+            # Run agent with session (SDK handles conversation history automatically)
+            result = await Runner.run(
+                agent,
+                input=message,
+                session=session,
+                run_config=RunConfig(trace_metadata={"clinic_id": str(clinic.id), "test_mode": True})
+            )
+            
+            # Extract response text
+            response_text = result.final_output_as(str)
+            
+            logger.info(
+                f"Generated test response for clinic_id={clinic.id}, "
+                f"session_id={session_id}, "
+                f"response_length={len(response_text)}"
+            )
+            
+            return response_text
+            
+        except Exception as e:
+            logger.exception(
+                f"Error processing test message for clinic_id={clinic.id}, "
+                f"session_id={session_id}: {e}"
+            )
+            # Return fallback message (same as actual endpoint)
             return "抱歉，我暫時無法處理您的訊息。請稍後再試，或直接聯繫診所。"
 
