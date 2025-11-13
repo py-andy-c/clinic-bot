@@ -466,7 +466,7 @@ This scenario teaches the agent how to follow special instructions when they are
 2. 是否有特定動作會加劇疼痛
 3. 此症狀持續多久
 
-⚠️ 以上為初步分析，無法取代專業醫療評估，建議您預約門診進行詳細檢查。</assistant_round_2>
+以上為初步分析，無法取代專業醫療評估，建議您預約門診進行詳細檢查。</assistant_round_2>
 
 ##### Analysis
 -   **What the Good Assistant did right:**
