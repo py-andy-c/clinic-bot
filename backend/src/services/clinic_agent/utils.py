@@ -59,16 +59,21 @@ async def trim_session(
     )
 
 def _is_legal_start_item(item: dict[str, Any]) -> bool:
-    # TODO support tool call
-    if item["role"] == "user":
-        return True
-    elif item["role"] == "assistant":
-        if item["type"] == "message":
-            item_id: str = item["id"]
-            assert item_id.startswith("msg_")
-            return False # assistant message should have a reasoning item before it
-        elif item["type"] == "reasoning":
-            item_id: str = item["id"]
-            assert item_id.startswith("rs_")
+    try:
+        # TODO support tool call
+        if item["role"] == "user":
             return True
-    raise ValueError(f"Converation item: {item}")
+        elif item["role"] == "assistant":
+            if item["type"] == "message":
+                item_id: str = item["id"]
+                assert item_id.startswith("msg_")
+                return False # assistant message should have a reasoning item before it
+            elif item["type"] == "reasoning":
+                item_id: str = item["id"]
+                assert item_id.startswith("rs_")
+                return True
+        logger.exception(f"Unexpected conversation item: {item}")
+        return False
+    except Exception as e:
+        logger.exception(f"Error checking if item is a legal start item: {e}, item: {item}")
+        return False
