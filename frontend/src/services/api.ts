@@ -273,6 +273,15 @@ export class ApiService {
     return response.data;
   }
 
+  async testChatbot(data: {
+    message: string;
+    session_id?: string | null;
+    chat_settings: any;
+  }): Promise<{ response: string; session_id: string }> {
+    const response = await this.client.post('/api/clinic/chat/test', data);
+    return response.data;
+  }
+
   async validateAppointmentTypeDeletion(appointmentTypeIds: number[]): Promise<{ can_delete: boolean; error?: any; message?: string }> {
     const response = await this.client.post('/clinic/appointment-types/validate-deletion', {
       appointment_type_ids: appointmentTypeIds
