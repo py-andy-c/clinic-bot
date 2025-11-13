@@ -162,10 +162,6 @@ Here are examples demonstrating the desired behavior.
 <assistant_round_1>您好，我們診所有提供徒手治療，可以處理您的問題喔！</assistant_round_1>
 
 **GOOD Example ✅ (Value-First, Patient-Led)**
-Of course. Using emojis to format lists is a great way to improve readability in a chat interface like LINE. I have updated the example to incorporate emojis for bullet points and lists while keeping the content and tone consistent with the previous version.
-
-Here is the final refined example:
-
 <patient_round_1>爬山膝蓋痛怎麼辦</patient_round_1>
 <assistant_round_1>爬山造成膝蓋痛是個很常見的問題，尤其在下山時，膝蓋需要承受體重好幾倍的壓力，很容易引發不適。原因通常和肌肉力量不足、姿勢不正確或單次運動量過大有關。
 
