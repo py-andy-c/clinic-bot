@@ -210,24 +210,56 @@ def upgrade() -> None:
     if null_availability > 0 or null_events > 0 or null_types > 0:
         raise Exception(f"Migration failed: Found NULL clinic_id values (availability: {null_availability}, events: {null_events}, types: {null_types})")
     
-    # Step 7: Make clinic_id NOT NULL after populating
-    op.alter_column('practitioner_availability', 'clinic_id', nullable=False)
-    op.alter_column('calendar_events', 'clinic_id', nullable=False)
-    op.alter_column('practitioner_appointment_types', 'clinic_id', nullable=False)
+    # Step 7: Make clinic_id NOT NULL after populating (only if not already NOT NULL)
+    # Check if columns are already NOT NULL to avoid errors on re-run
+    # Note: conn is already defined in Step 6 above
+    def column_is_nullable(table_name: str, column_name: str) -> bool:
+        result = conn.execute(sa.text("""
+            SELECT is_nullable 
+            FROM information_schema.columns 
+            WHERE table_name = :table_name 
+            AND column_name = :column_name
+        """), {"table_name": table_name, "column_name": column_name}).fetchone()
+        return result and result[0] == 'YES'
     
-    # Step 8: Add foreign key constraints
-    op.create_foreign_key(
-        'fk_practitioner_availability_clinic',
-        'practitioner_availability', 'clinics', ['clinic_id'], ['id'], ondelete='CASCADE'
-    )
-    op.create_foreign_key(
-        'fk_calendar_events_clinic',
-        'calendar_events', 'clinics', ['clinic_id'], ['id'], ondelete='CASCADE'
-    )
-    op.create_foreign_key(
-        'fk_practitioner_appointment_types_clinic',
-        'practitioner_appointment_types', 'clinics', ['clinic_id'], ['id'], ondelete='CASCADE'
-    )
+    if column_is_nullable('practitioner_availability', 'clinic_id'):
+        op.alter_column('practitioner_availability', 'clinic_id', nullable=False)
+    if column_is_nullable('calendar_events', 'clinic_id'):
+        op.alter_column('calendar_events', 'clinic_id', nullable=False)
+    if column_is_nullable('practitioner_appointment_types', 'clinic_id'):
+        op.alter_column('practitioner_appointment_types', 'clinic_id', nullable=False)
+    
+    # Step 8: Add foreign key constraints (only if they don't already exist)
+    # Check existing foreign keys to avoid duplicate constraint errors
+    
+    # Check if foreign key constraints already exist
+    def foreign_key_exists(table_name: str, constraint_name: str) -> bool:
+        result = conn.execute(sa.text("""
+            SELECT constraint_name 
+            FROM information_schema.table_constraints 
+            WHERE table_name = :table_name 
+            AND constraint_name = :constraint_name 
+            AND constraint_type = 'FOREIGN KEY'
+        """), {"table_name": table_name, "constraint_name": constraint_name}).fetchone()
+        return result is not None
+    
+    if not foreign_key_exists('practitioner_availability', 'fk_practitioner_availability_clinic'):
+        op.create_foreign_key(
+            'fk_practitioner_availability_clinic',
+            'practitioner_availability', 'clinics', ['clinic_id'], ['id'], ondelete='CASCADE'
+        )
+    
+    if not foreign_key_exists('calendar_events', 'fk_calendar_events_clinic'):
+        op.create_foreign_key(
+            'fk_calendar_events_clinic',
+            'calendar_events', 'clinics', ['clinic_id'], ['id'], ondelete='CASCADE'
+        )
+    
+    if not foreign_key_exists('practitioner_appointment_types', 'fk_practitioner_appointment_types_clinic'):
+        op.create_foreign_key(
+            'fk_practitioner_appointment_types_clinic',
+            'practitioner_appointment_types', 'clinics', ['clinic_id'], ['id'], ondelete='CASCADE'
+        )
     
     # Step 9: Remove unique constraint on (clinic_id, email) from users table
     # Email remains globally unique via unique=True on the column
