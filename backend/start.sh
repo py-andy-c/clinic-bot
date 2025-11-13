@@ -5,9 +5,20 @@ set -e
 # Ensures proper directory structure and runs migrations before starting the app
 # Best practice: Fail fast if migrations fail - do not start app with inconsistent schema
 
+# Enable verbose output for debugging (shows each command as it runs)
+# Comment out if too verbose: set -x
+
 # Ensure we're in the backend directory (where alembic.ini is)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
+
+echo "=========================================="
+echo "🚀 Starting Railway deployment"
+echo "=========================================="
+echo "Working directory: $(pwd)"
+echo "Python version: $(python3 --version 2>&1 || echo 'Python not found')"
+echo "PORT: ${PORT:-8000}"
+echo "=========================================="
 
 # Fix alembic directory structure if Nixpacks flattened it
 # This handles a known Nixpacks quirk where subdirectories may be flattened
@@ -48,8 +59,9 @@ if [ -d "alembic" ] && [ -f "alembic.ini" ]; then
     # Run migrations - baseline migration handles everything (fresh or existing)
     echo "Running migrations..."
     if ! alembic upgrade head; then
-        echo "ERROR: Database migrations failed. Aborting startup." >&2
+        echo "❌ ERROR: Database migrations failed. Aborting startup." >&2
         echo "The application will not start with an inconsistent database schema." >&2
+        echo "Check the migration output above for details." >&2
         exit 1
     fi
     echo "✅ Migrations completed successfully"
@@ -59,9 +71,43 @@ else
     exit 1
 fi
 
+# Validate critical environment variables
+echo "=========================================="
+echo "🔍 Validating environment variables..."
+echo "=========================================="
+if [ -z "$DATABASE_URL" ]; then
+    echo "❌ ERROR: DATABASE_URL environment variable is not set" >&2
+    exit 1
+fi
+echo "✅ DATABASE_URL is set"
+
+# Check if we can import the main module (catches import errors early)
+echo "=========================================="
+echo "🔍 Testing Python imports..."
+echo "=========================================="
+if ! python3 -c "import sys; sys.path.insert(0, 'src'); from main import app; print('✅ Main module imports successfully')" 2>&1; then
+    echo "❌ ERROR: Failed to import main module" >&2
+    echo "This usually indicates:" >&2
+    echo "  1. Missing Python dependencies" >&2
+    echo "  2. Import errors in the code" >&2
+    echo "  3. Missing environment variables required at import time" >&2
+    exit 1
+fi
+
+# Check if uvicorn is available
+if ! command -v uvicorn &> /dev/null; then
+    echo "❌ ERROR: uvicorn command not found" >&2
+    echo "This usually indicates missing dependencies. Check requirements.txt installation." >&2
+    exit 1
+fi
+
 # Start the application only after successful migrations
 # Railway sets PORT environment variable automatically
-echo "Starting application..."
+echo "=========================================="
+echo "🚀 Starting application server..."
+echo "=========================================="
+echo "Command: uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
+echo "=========================================="
 cd src
 exec uvicorn main:app --host 0.0.0.0 --port "${PORT:-8000}"
 
