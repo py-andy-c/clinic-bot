@@ -97,6 +97,7 @@ class ChatSettings(BaseModel):
     equipment_facilities: Optional[str] = None
     common_questions: Optional[str] = None
     other_info: Optional[str] = None
+    ai_guidance: Optional[str] = None
 
 
 class SettingsResponse(BaseModel):

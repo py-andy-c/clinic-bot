@@ -52,6 +52,7 @@ export interface Clinic {
       equipment_facilities?: string | null;
       common_questions?: string | null;
       other_info?: string | null;
+      ai_guidance?: string | null;
     };
   };
 }

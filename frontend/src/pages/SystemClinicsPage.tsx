@@ -665,6 +665,12 @@ const SystemClinicsPage: React.FC = () => {
                             <div className="text-gray-600 whitespace-pre-wrap">{selectedClinic.settings.chat_settings.other_info}</div>
                           </div>
                         )}
+                        {selectedClinic.settings.chat_settings.ai_guidance && (
+                          <div>
+                            <div className="font-medium">AI指引:</div>
+                            <div className="text-gray-600 whitespace-pre-wrap">{selectedClinic.settings.chat_settings.ai_guidance}</div>
+                          </div>
+                        )}
                       </div>
                     </dd>
                   </div>

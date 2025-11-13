@@ -37,6 +37,7 @@ export const ChatSettingsSchema = z.object({
   equipment_facilities: z.string().nullable().optional(),
   common_questions: z.string().nullable().optional(),
   other_info: z.string().nullable().optional(),
+  ai_guidance: z.string().nullable().optional(),
 });
 
 export const BusinessHoursSchema = z.record(z.string(), z.object({

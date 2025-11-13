@@ -52,6 +52,7 @@ class ChatSettings(BaseModel):
     equipment_facilities: Optional[str] = Field(default=None, max_length=10000, description="Equipment and facilities available at the clinic")
     common_questions: Optional[str] = Field(default=None, max_length=10000, description="Frequently asked questions and answers")
     other_info: Optional[str] = Field(default=None, max_length=10000, description="Other information about the clinic")
+    ai_guidance: Optional[str] = Field(default=None, max_length=10000, description="AI guidance instructions for the chatbot")
 
 
 class ClinicSettings(BaseModel):
@@ -193,7 +194,8 @@ class Clinic(Base):
             "payment_methods": null,
             "equipment_facilities": null,
             "common_questions": null,
-            "other_info": null
+            "other_info": null,
+            "ai_guidance": null
         }
     }
     """

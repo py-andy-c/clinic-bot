@@ -115,6 +115,9 @@ def _build_clinic_context(clinic: Clinic) -> str:
     if chat_settings.other_info:
         xml_parts.append(f"  <其他資訊>{chat_settings.other_info}</其他資訊>")
     
+    if chat_settings.ai_guidance:
+        xml_parts.append(f"  <AI指引>{chat_settings.ai_guidance}</AI指引>")
+    
     xml_parts.append("</診所資訊>")
     
     return "\n".join(xml_parts)

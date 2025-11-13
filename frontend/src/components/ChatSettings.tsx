@@ -390,6 +390,13 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
               '其他診所相關資訊...',
               false
             )}
+
+            {renderField(
+              'AI指引',
+              'ai_guidance',
+              'AI聊天機器人的指引和說明...',
+              false
+            )}
           </div>
         )}
       </div>
