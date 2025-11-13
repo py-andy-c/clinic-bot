@@ -278,7 +278,10 @@ export class ApiService {
     session_id?: string | null;
     chat_settings: any;
   }): Promise<{ response: string; session_id: string }> {
-    const response = await this.client.post('/api/clinic/chat/test', data);
+    // Use longer timeout for AI responses (60 seconds)
+    const response = await this.client.post('/clinic/chat/test', data, {
+      timeout: 60000,
+    });
     return response.data;
   }
 

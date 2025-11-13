@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { BaseModal } from './calendar/BaseModal';
 import { ChatSettings as ChatSettingsType } from '../schemas/api';
 import { apiService } from '../services/api';
+import { logger } from '../utils/logger';
 
 interface Message {
   id: string;
@@ -122,8 +123,17 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
 
       setMessages((prev) => [...prev, aiMessage]);
       setSessionId(response.session_id);
-    } catch (err) {
+    } catch (err: any) {
       clearTimeout(timeoutId);
+      
+      // Log error for debugging
+      if (err?.response) {
+        // Axios error with response
+        logger.error('Chat test API error:', err.response.status, err.response.data);
+      } else {
+        // Other error
+        logger.error('Chat test error:', err);
+      }
       
       // Use the same error message as the actual LINE endpoint
       const errorMessage = "抱歉，我暫時無法處理您的訊息。請稍後再試，或直接聯繫診所。";

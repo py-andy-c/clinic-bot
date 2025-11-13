@@ -331,7 +331,7 @@ class ClinicAgentService:
                 agent,
                 input=message,
                 session=session,
-                run_config=RunConfig(trace_metadata={"clinic_id": str(clinic.id), "test_mode": True})
+                run_config=RunConfig(trace_metadata={"clinic_id": str(clinic.id), "test_mode": "true"})
             )
             
             # Extract response text
