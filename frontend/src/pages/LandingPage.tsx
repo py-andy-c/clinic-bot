@@ -29,13 +29,30 @@ const LandingPage: React.FC = () => {
               透過診所LINE官方帳號，提供諮詢、客服、到預約的全自動化服務
             </p>
 
+            {/* Try It Out Section with QR Code */}
+            <div className="mt-8 sm:mt-12 mb-8 sm:mb-12">
+              <div className="inline-flex flex-col items-center bg-white rounded-lg shadow-md p-6 sm:p-8 border border-gray-200">
+                <p className="text-xs sm:text-sm text-gray-600 mb-4 text-center max-w-xs">
+                  掃描QR碼，從患者視角體驗智能診所助理
+                </p>
+                <img 
+                  src="https://qr-official.line.me/gs/M_769dzbuz_BW.png?oat_content=qr" 
+                  alt="Line官方帳號QR碼" 
+                  className="w-48 h-48 sm:w-56 sm:h-56 rounded-lg border-2 border-gray-200"
+                />
+                <p className="text-xs sm:text-sm text-gray-500 mt-4 text-center">
+                  Line ID: @769dzbuz
+                </p>
+              </div>
+            </div>
+
             {/* Call to Action */}
-            <div className="mt-8 sm:mt-12">
+            <div className="mt-4 sm:mt-8">
               <Link
                 to="/free-trial"
                 className="inline-block w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3 bg-primary-600 text-white text-base sm:text-lg font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
               >
-                免費試用
+                申請診所免費試用
               </Link>
               {/* TODO: Implement free trial signup flow - currently redirects to /free-trial page */}
             </div>
