@@ -138,6 +138,7 @@ def upgrade() -> None:
                 SELECT id, clinic_id, roles, COALESCE(full_name, email, 'User'), created_at, updated_at
                 FROM users
                 WHERE clinic_id IS NOT NULL
+                ON CONFLICT ON CONSTRAINT uq_user_clinic DO NOTHING
             """)
         else:
             # full_name column doesn't exist - use email as name
@@ -146,6 +147,7 @@ def upgrade() -> None:
                 SELECT id, clinic_id, roles, COALESCE(email, 'User'), created_at, updated_at
                 FROM users
                 WHERE clinic_id IS NOT NULL
+                ON CONFLICT ON CONSTRAINT uq_user_clinic DO NOTHING
             """)
     
     # Step 5: Populate clinic_id in clinic-scoped tables
