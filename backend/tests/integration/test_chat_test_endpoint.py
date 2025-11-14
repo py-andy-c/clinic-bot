@@ -89,8 +89,11 @@ class TestChatTestEndpoint:
                     ai_guidance="測試 AI 指引"
                 )
                 
+                # Frontend provides UUID, backend prepends clinic info
+                test_uuid = "abc-123-def-456"
                 request_data = {
                     "message": "你好",
+                    "session_id": test_uuid,
                     "chat_settings": chat_settings.model_dump()
                 }
                 
@@ -101,7 +104,9 @@ class TestChatTestEndpoint:
                 assert "response" in data
                 assert "session_id" in data
                 assert data["response"] == "這是一個測試回應"
-                assert data["session_id"].startswith("test-")
+                # Backend returns full format: test-{clinic_id}-{uuid}
+                expected_session_id = f"test-{clinic.id}-{test_uuid}"
+                assert data["session_id"] == expected_session_id
                 
                 # Verify the service was called with correct parameters
                 mock_process.assert_called_once()
@@ -110,7 +115,8 @@ class TestChatTestEndpoint:
                 assert call_args.kwargs["clinic"].id == clinic.id
                 assert call_args.kwargs["chat_settings_override"].chat_enabled is True
                 assert call_args.kwargs["chat_settings_override"].clinic_description == "測試診所描述"
-                assert call_args.kwargs["session_id"].startswith("test-")
+                # Backend prepends clinic info to UUID
+                assert call_args.kwargs["session_id"] == expected_session_id
         finally:
             if original_override is not None:
                 client.app.dependency_overrides[get_current_user] = original_override
@@ -118,7 +124,7 @@ class TestChatTestEndpoint:
                 client.app.dependency_overrides.pop(get_current_user, None)
     
     def test_chat_test_with_session_id(self, client, db_session, test_clinic_and_user):
-        """Test chatbot test with provided session_id for conversation continuity."""
+        """Test chatbot test with provided UUID for conversation continuity."""
         clinic, user = test_clinic_and_user
         
         mock_user = UserContext(
@@ -140,9 +146,11 @@ class TestChatTestEndpoint:
                 
                 chat_settings = ChatSettings(chat_enabled=True)
                 
+                # Frontend provides UUID, backend prepends clinic info
+                test_uuid = "custom-session-123"
                 request_data = {
                     "message": "繼續對話",
-                    "session_id": "test-custom-session-123",
+                    "session_id": test_uuid,
                     "chat_settings": chat_settings.model_dump()
                 }
                 
@@ -150,11 +158,13 @@ class TestChatTestEndpoint:
                 
                 assert response.status_code == 200
                 data = response.json()
-                assert data["session_id"] == "test-custom-session-123"
+                # Backend returns full format: test-{clinic_id}-{uuid}
+                expected_session_id = f"test-{clinic.id}-{test_uuid}"
+                assert data["session_id"] == expected_session_id
                 
-                # Verify session_id was passed to service
+                # Verify session_id was passed to service with prepended format
                 call_args = mock_process.call_args
-                assert call_args.kwargs["session_id"] == "test-custom-session-123"
+                assert call_args.kwargs["session_id"] == expected_session_id
                 assert call_args.kwargs["chat_settings_override"] is not None
         finally:
             if original_override is not None:
@@ -182,8 +192,10 @@ class TestChatTestEndpoint:
         try:
             chat_settings = ChatSettings(chat_enabled=False)
             
+            test_uuid = "test-uuid-123"
             request_data = {
                 "message": "你好",
+                "session_id": test_uuid,
                 "chat_settings": chat_settings.model_dump()
             }
             
@@ -236,8 +248,10 @@ class TestChatTestEndpoint:
                     ai_guidance="未儲存的測試指引"
                 )
                 
+                test_uuid = "test-uuid-456"
                 request_data = {
                     "message": "測試",
+                    "session_id": test_uuid,
                     "chat_settings": test_chat_settings.model_dump()
                 }
                 
@@ -282,8 +296,10 @@ class TestChatTestEndpoint:
                 
                 chat_settings = ChatSettings(chat_enabled=True)
                 
+                test_uuid = "test-uuid-789"
                 request_data = {
                     "message": "測試",
+                    "session_id": test_uuid,
                     "chat_settings": chat_settings.model_dump()
                 }
                 
@@ -304,8 +320,10 @@ class TestChatTestEndpoint:
         # Don't set up authentication override
         chat_settings = ChatSettings(chat_enabled=True)
         
+        test_uuid = "test-uuid-auth"
         request_data = {
             "message": "測試",
+            "session_id": test_uuid,
             "chat_settings": chat_settings.model_dump()
         }
         
@@ -313,4 +331,41 @@ class TestChatTestEndpoint:
         
         # Should return 401 or 403 (depending on auth setup)
         assert response.status_code in [401, 403]
+    
+    def test_chat_test_missing_session_id(self, client, db_session, test_clinic_and_user):
+        """Test that endpoint requires session_id."""
+        clinic, user = test_clinic_and_user
+        
+        mock_user = UserContext(
+            user_type="clinic_user",
+            email=user.email,
+            roles=["admin"],
+            active_clinic_id=clinic.id,
+            google_subject_id=user.google_subject_id,
+            name="Test User",
+            user_id=user.id
+        )
+        
+        original_override = client.app.dependency_overrides.get(get_current_user)
+        client.app.dependency_overrides[get_current_user] = lambda: mock_user
+        
+        try:
+            chat_settings = ChatSettings(chat_enabled=True)
+            
+            # Request without session_id
+            request_data = {
+                "message": "測試",
+                "chat_settings": chat_settings.model_dump()
+            }
+            
+            response = client.post("/api/clinic/chat/test", json=request_data)
+            
+            assert response.status_code == 400
+            data = response.json()
+            assert "session_id 是必需的" in data["detail"]
+        finally:
+            if original_override is not None:
+                client.app.dependency_overrides[get_current_user] = original_override
+            else:
+                client.app.dependency_overrides.pop(get_current_user, None)
 

@@ -1073,8 +1073,16 @@ async def test_chatbot(
                 detail="請先啟用 AI 聊天功能"
             )
 
-        # Generate session ID if not provided
-        session_id = request.session_id or f"test-{clinic_id}-{current_user.user_id}"
+        # Require session_id from frontend (must be provided)
+        # Frontend always provides just the UUID, backend prepends clinic info
+        if not request.session_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="session_id 是必需的"
+            )
+        
+        # Always prepend clinic info to create full session_id format
+        session_id = f"test-{clinic_id}-{request.session_id}"
 
         # Process test message using provided chat settings
         # Use chat_settings_override to use unsaved settings from frontend

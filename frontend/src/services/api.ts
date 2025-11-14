@@ -285,6 +285,7 @@ export class ApiService {
     return response.data;
   }
 
+
   async validateAppointmentTypeDeletion(appointmentTypeIds: number[]): Promise<{ can_delete: boolean; error?: any; message?: string }> {
     const response = await this.client.post('/clinic/appointment-types/validate-deletion', {
       appointment_type_ids: appointmentTypeIds

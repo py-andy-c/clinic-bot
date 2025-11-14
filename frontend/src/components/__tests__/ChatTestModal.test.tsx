@@ -128,9 +128,10 @@ describe('ChatTestModal', () => {
       expect(screen.getByText('這是測試回應')).toBeInTheDocument();
     }, { timeout: 3000 });
 
+    // Frontend generates UUID when modal opens, so session_id should be a UUID string
     expect(apiService.testChatbot).toHaveBeenCalledWith({
       message: '你好',
-      session_id: null,
+      session_id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
       chat_settings: mockChatSettings,
     });
   }, 10000);

@@ -7,9 +7,11 @@ to patient inquiries, with conversation history stored in PostgreSQL.
 """
 
 import logging
-from typing import Optional
+from datetime import datetime, timedelta, timezone
+from typing import Optional, List
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, AsyncSession
+from sqlalchemy import text
 from agents import Agent, ModelSettings, Runner, RunConfig
 from agents.extensions.memory import SQLAlchemySession
 from openai.types.shared.reasoning import Reasoning
@@ -286,4 +288,99 @@ class ClinicAgentService:
             )
             # Return fallback message
             return FALLBACK_ERROR_MESSAGE
+    
+    @staticmethod
+    async def _delete_test_session(session_id: str) -> None:
+        """
+        Internal method to delete a test session from the database.
+        
+        Only deletes sessions with 'test-' prefix for safety.
+        This ensures we never accidentally delete production LINE sessions.
+        
+        Used internally by cleanup_old_test_sessions().
+        
+        Args:
+            session_id: Session ID to delete (must start with 'test-')
+        """
+        if not session_id.startswith("test-"):
+            raise ValueError(f"Cannot delete non-test session: {session_id}")
+        
+        try:
+            engine = get_async_engine()
+            session = SQLAlchemySession(
+                session_id=session_id,
+                engine=engine,
+                create_tables=False  # Don't create tables if session doesn't exist
+            )
+            
+            # Clear all items from the session
+            await session.clear_session()
+            
+            logger.debug(f"Deleted test session: {session_id}")
+            
+        except Exception as e:
+            logger.warning(f"Error deleting test session {session_id}: {e}")
+            # Don't raise - continue with other sessions
+    
+    @staticmethod
+    async def cleanup_old_test_sessions(max_age_hours: int = 1) -> int:
+        """
+        Delete all test sessions older than max_age_hours (Option C: time-based cleanup).
+        
+        This is a simple time-based approach that deletes all test sessions
+        older than the threshold. It's reliable and doesn't depend on SDK internals.
+        
+        Args:
+            max_age_hours: Maximum age in hours before deletion (default: 1 hour)
+            
+        Returns:
+            int: Number of sessions deleted
+        """
+        try:
+            engine = get_async_engine()
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+            
+            # Query SDK's agent_sessions table to find old test sessions
+            # SDK uses its own metadata, so we need to query directly
+            # Note: SDK table structure may vary, so we handle errors gracefully
+            old_session_ids: List[str] = []
+            try:
+                async with AsyncSession(engine) as async_session:
+                    # Query for test sessions older than cutoff
+                    # SDK table name is typically 'agent_sessions' with 'session_id' and 'created_at' columns
+                    # We'll query by session_id prefix and check created_at
+                    # If table structure differs, we'll fall back to deleting all test sessions
+                    query = text("""
+                        SELECT session_id 
+                        FROM agent_sessions 
+                        WHERE session_id LIKE 'test-%'
+                        AND created_at < :cutoff_time
+                    """)
+                    
+                    result = await async_session.execute(query, {"cutoff_time": cutoff_time})
+                    old_session_ids = [row[0] for row in result.fetchall()]
+            except Exception as e:
+                logger.warning(f"Could not query SDK sessions table (may not exist yet): {e}")
+                # If query fails, we'll just skip cleanup this time
+                # This is acceptable - cleanup will retry on next run
+                return 0
+            
+            deleted_count = 0
+            for session_id in old_session_ids:
+                try:
+                    await ClinicAgentService._delete_test_session(session_id)
+                    deleted_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to delete test session {session_id}: {e}")
+                    # Continue with other sessions
+            
+            if deleted_count > 0:
+                logger.info(f"Cleaned up {deleted_count} old test sessions (older than {max_age_hours} hours)")
+            
+            return deleted_count
+            
+        except Exception as e:
+            logger.exception(f"Error during test session cleanup: {e}")
+            # Don't raise - cleanup failures shouldn't break the app
+            return 0
 

@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from api import auth, signup, system, clinic, profile, practitioner_calendar, liff, line_webhook
 from core.constants import CORS_ORIGINS
 from services.reminder_service import start_reminder_scheduler, stop_reminder_scheduler
+from services.test_session_cleanup import start_test_session_cleanup, stop_test_session_cleanup
 
 # Configure logging
 logging.basicConfig(
@@ -47,6 +48,13 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Appointment reminder scheduler started")
     except Exception as e:
         logger.exception(f"❌ Failed to start reminder scheduler: {e}")
+    
+    # Start test session cleanup scheduler
+    try:
+        await start_test_session_cleanup()
+        logger.info("✅ Test session cleanup scheduler started")
+    except Exception as e:
+        logger.exception(f"❌ Failed to start test session cleanup scheduler: {e}")
 
     yield
 
@@ -56,6 +64,13 @@ async def lifespan(app: FastAPI):
         logger.info("🛑 Appointment reminder scheduler stopped")
     except Exception as e:
         logger.exception(f"❌ Error stopping reminder scheduler: {e}")
+    
+    # Stop test session cleanup scheduler
+    try:
+        await stop_test_session_cleanup()
+        logger.info("🛑 Test session cleanup scheduler stopped")
+    except Exception as e:
+        logger.exception(f"❌ Error stopping test session cleanup scheduler: {e}")
 
     logger.info("🛑 Shutting down Clinic Bot Backend API")
 

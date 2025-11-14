@@ -61,7 +61,17 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
     }
   }, [inputText]);
 
+  // Generate UUID-based session ID when modal opens
+  useEffect(() => {
+    if (isOpen && !sessionId) {
+      // Generate UUID for unique session per tab/device
+      const testUuid = crypto.randomUUID();
+      setSessionId(testUuid);
+    }
+  }, [isOpen, sessionId]);
+
   // Reset state when modal closes
+  // Note: Session cleanup is handled by periodic background job (Option C: time-based)
   useEffect(() => {
     if (!isOpen) {
       setMessages([]);
@@ -70,6 +80,7 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
       setIsLoading(false);
     }
   }, [isOpen]);
+
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
@@ -100,12 +111,22 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
       setMessages((prev) => [...prev, timeoutMessage]);
     }, 30000);
 
+    // Ensure sessionId is set before sending (should be set when modal opens)
+    if (!sessionId) {
+      logger.error('Cannot send message: sessionId not set');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const response = await apiService.testChatbot({
         message: userMessage.text,
-        session_id: sessionId,
+        session_id: sessionId, // Frontend always provides UUID
         chat_settings: chatSettings,
       });
+      
+      // Keep using the same UUID for subsequent messages
+      // Backend handles the full session_id format internally
 
       clearTimeout(timeoutId);
       
@@ -122,7 +143,6 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
       };
 
       setMessages((prev) => [...prev, aiMessage]);
-      setSessionId(response.session_id);
     } catch (err: any) {
       clearTimeout(timeoutId);
       
