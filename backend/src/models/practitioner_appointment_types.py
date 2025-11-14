@@ -49,12 +49,12 @@ class PractitionerAppointmentTypes(Base):
     __table_args__ = (
         # Composite unique constraint prevents duplicate mappings per clinic
         # Note: clinic_id is included to allow same practitioner to have same appointment type in different clinics
+        # The unique constraint automatically creates an index on (user_id, clinic_id, appointment_type_id)
         Index('uq_practitioner_type_clinic', 'user_id', 'clinic_id', 'appointment_type_id', unique=True),
 
         # Indexes for performance
         Index('idx_practitioner_types_user', 'user_id'),
         Index('idx_practitioner_types_type', 'appointment_type_id'),
         Index('idx_practitioner_types_clinic', 'clinic_id'),
-        # Composite index for common query pattern
-        Index('idx_practitioner_types_user_clinic_type', 'user_id', 'clinic_id', 'appointment_type_id'),
+        # Removed idx_practitioner_types_user_clinic_type as it's redundant with the unique constraint index
     )

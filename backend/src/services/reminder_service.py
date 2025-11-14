@@ -22,6 +22,7 @@ from core.database import get_db_context
 from models.appointment import Appointment
 from models.calendar_event import CalendarEvent
 from models.clinic import Clinic
+from models.patient import Patient
 from models.user_clinic_association import UserClinicAssociation
 from services.line_service import LINEService
 from utils.datetime_utils import taiwan_now, ensure_taiwan, format_datetime, TAIWAN_TZ
@@ -182,11 +183,12 @@ class ReminderService:
         
         # Build SQL query with date/time filtering
         # Filter by date range first, then by time for boundary dates
+        # Optimized: Use direct join with Patient instead of .has() subquery
         query = db.query(Appointment).join(CalendarEvent).join(
-            Appointment.patient
+            Patient, Appointment.patient_id == Patient.id
         ).filter(
             Appointment.status == "confirmed",
-            Appointment.patient.has(clinic_id=clinic_id),
+            Patient.clinic_id == clinic_id,
             Appointment.reminder_sent_at.is_(None),  # Only get appointments that haven't received reminders
             # Appointment date is after window start date, or on window start date with time after/equal to window start time
             or_(

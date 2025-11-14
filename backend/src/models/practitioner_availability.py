@@ -66,7 +66,8 @@ class PractitionerAvailability(Base):
 
     # Table indexes for performance
     __table_args__ = (
-        Index('idx_practitioner_availability_user_day', 'user_id', 'day_of_week'),
+        # idx_practitioner_availability_user_day_time covers queries filtering by user_id and day_of_week alone (left-prefix rule)
+        # Removed idx_practitioner_availability_user_day as it's redundant
         Index('idx_practitioner_availability_user_day_time', 'user_id', 'day_of_week', 'start_time'),
         Index('idx_practitioner_availability_clinic', 'clinic_id'),
     )

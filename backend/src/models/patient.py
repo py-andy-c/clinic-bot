@@ -64,8 +64,9 @@ class Patient(Base):
 
     __table_args__ = (
         # Regular index for performance (no uniqueness constraint to allow phone number corrections)
+        # idx_patients_clinic_phone covers queries filtering by clinic_id alone (left-prefix rule)
         Index('idx_patients_clinic_phone', 'clinic_id', 'phone_number'),
         Index('idx_patients_line_user', 'line_user_id'),
-        Index('idx_patients_clinic', 'clinic_id'),
+        # Removed idx_patients_clinic as it's redundant with idx_patients_clinic_phone
         Index('idx_patients_created_at', 'created_at'),
     )

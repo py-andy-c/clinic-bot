@@ -43,6 +43,8 @@ class PractitionerService:
             List of practitioner dictionaries
         """
         # Base query for practitioners via UserClinicAssociation
+        # Optimized: Eagerly load practitioner_appointment_types to avoid N+1 queries
+        from sqlalchemy.orm import joinedload
         query = db.query(User).join(UserClinicAssociation).filter(
             UserClinicAssociation.clinic_id == clinic_id,
             UserClinicAssociation.is_active == True
@@ -56,7 +58,8 @@ class PractitionerService:
                 PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
             )
 
-        practitioners = query.all()
+        # Eagerly load practitioner_appointment_types to avoid N+1 queries when accessing offered_types
+        practitioners = query.options(joinedload(User.practitioner_appointment_types)).all()
 
         # Get associations for all practitioners in one query
         practitioner_ids = [p.id for p in practitioners]

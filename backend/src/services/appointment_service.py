@@ -624,9 +624,23 @@ class AppointmentService:
             This method is idempotent - if the appointment is already cancelled,
             it returns success without making changes.
         """
-        # Find appointment
-        appointment = db.query(Appointment).filter(
-            Appointment.calendar_event_id == appointment_id
+        # Optimized: Combine multiple queries into a single query with joins
+        # Find appointment, verify it belongs to clinic, and get practitioner in one query
+        # Use contains_eager since we're already joining these relationships
+        from sqlalchemy.orm import contains_eager
+        appointment = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).join(
+            User, CalendarEvent.user_id == User.id
+        ).join(
+            UserClinicAssociation, User.id == UserClinicAssociation.user_id
+        ).options(
+            contains_eager(Appointment.calendar_event).contains_eager(CalendarEvent.user)
+        ).filter(
+            Appointment.calendar_event_id == appointment_id,
+            CalendarEvent.clinic_id == clinic_id,
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
         ).first()
 
         if not appointment:
@@ -635,23 +649,8 @@ class AppointmentService:
                 detail="預約不存在"
             )
 
-        # Verify appointment belongs to current clinic
-        calendar_event = db.query(CalendarEvent).filter(
-            CalendarEvent.id == appointment_id
-        ).first()
-
-        if not calendar_event:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="預約不存在"
-            )
-
-        # Verify practitioner is in the clinic via association
-        practitioner = db.query(User).join(UserClinicAssociation).filter(
-            User.id == calendar_event.user_id,
-            UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True
-        ).first()
+        calendar_event = appointment.calendar_event
+        practitioner = calendar_event.user
 
         if not practitioner:
             raise HTTPException(

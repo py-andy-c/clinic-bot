@@ -38,26 +38,16 @@ class UserClinicAssociation(Base):
         # Indexes for query performance
         Index('idx_user_clinic_associations_user', 'user_id'),
         Index('idx_user_clinic_associations_clinic', 'clinic_id'),
-        # Partial index for active associations filtered by user
-        Index(
-            'idx_user_clinic_associations_active',
-            'user_id', 'is_active',
-            postgresql_where=text('is_active = TRUE')
-        ),
         # Composite index for user + active + clinic lookups
         Index(
             'idx_user_clinic_associations_user_active_clinic',
             'user_id', 'is_active', 'clinic_id',
             postgresql_where=text('is_active = TRUE')
         ),
-        # Optimized index for get_active_clinic_association query pattern
-        # Covers: filter by user_id + is_active, order by last_accessed_at DESC, id ASC
-        Index(
-            'idx_user_clinic_associations_last_accessed',
-            'user_id', 'last_accessed_at',
-            postgresql_where=text('is_active = TRUE')
-        ),
         # Covering index for get_active_clinic_association with id for fallback ordering
+        # This index covers: filter by user_id + is_active, order by last_accessed_at DESC, id ASC
+        # Removed idx_user_clinic_associations_active and idx_user_clinic_associations_last_accessed
+        # as they are redundant with this more comprehensive index
         Index(
             'idx_user_clinic_associations_user_active_accessed_id',
             'user_id', 'is_active', 'last_accessed_at', 'id',
