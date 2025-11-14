@@ -1077,11 +1077,12 @@ async def test_chatbot(
         session_id = request.session_id or f"test-{clinic_id}-{current_user.user_id}"
 
         # Process test message using provided chat settings
-        response_text = await ClinicAgentService.process_test_message(
+        # Use chat_settings_override to use unsaved settings from frontend
+        response_text = await ClinicAgentService.process_message(
+            session_id=session_id,
             message=request.message,
             clinic=clinic,
-            chat_settings=request.chat_settings,
-            session_id=session_id
+            chat_settings_override=request.chat_settings
         )
 
         return ChatTestResponse(

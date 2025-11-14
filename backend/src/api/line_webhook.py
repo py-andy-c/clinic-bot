@@ -133,9 +133,14 @@ async def line_webhook(
         # Animation will automatically stop when we send the response message
         line_service.start_loading_animation(line_user_id, loading_seconds=60)
         
+        # Generate session ID: format is "{clinic_id}-{line_user_id}"
+        # Note: We use the LINE user ID string directly - no need to create LineUser entity
+        # LineUser records are created when users first use LIFF (appointment booking)
+        session_id = f"{clinic.id}-{line_user_id}"
+        
         # Process message through AI agent
         response_text = await ClinicAgentService.process_message(
-            line_user_id=line_user_id,
+            session_id=session_id,
             message=message_text,
             clinic=clinic
         )

@@ -78,8 +78,8 @@ class TestChatTestEndpoint:
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
         
         try:
-            # Mock the ClinicAgentService.process_test_message to avoid actual OpenAI calls
-            with patch('api.clinic.ClinicAgentService.process_test_message', new_callable=AsyncMock) as mock_process:
+            # Mock the ClinicAgentService.process_message to avoid actual OpenAI calls
+            with patch('api.clinic.ClinicAgentService.process_message', new_callable=AsyncMock) as mock_process:
                 mock_process.return_value = "這是一個測試回應"
                 
                 # Create test chat settings
@@ -108,8 +108,9 @@ class TestChatTestEndpoint:
                 call_args = mock_process.call_args
                 assert call_args.kwargs["message"] == "你好"
                 assert call_args.kwargs["clinic"].id == clinic.id
-                assert call_args.kwargs["chat_settings"].chat_enabled is True
-                assert call_args.kwargs["chat_settings"].clinic_description == "測試診所描述"
+                assert call_args.kwargs["chat_settings_override"].chat_enabled is True
+                assert call_args.kwargs["chat_settings_override"].clinic_description == "測試診所描述"
+                assert call_args.kwargs["session_id"].startswith("test-")
         finally:
             if original_override is not None:
                 client.app.dependency_overrides[get_current_user] = original_override
@@ -134,7 +135,7 @@ class TestChatTestEndpoint:
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
         
         try:
-            with patch('api.clinic.ClinicAgentService.process_test_message', new_callable=AsyncMock) as mock_process:
+            with patch('api.clinic.ClinicAgentService.process_message', new_callable=AsyncMock) as mock_process:
                 mock_process.return_value = "這是第二個回應"
                 
                 chat_settings = ChatSettings(chat_enabled=True)
@@ -154,6 +155,7 @@ class TestChatTestEndpoint:
                 # Verify session_id was passed to service
                 call_args = mock_process.call_args
                 assert call_args.kwargs["session_id"] == "test-custom-session-123"
+                assert call_args.kwargs["chat_settings_override"] is not None
         finally:
             if original_override is not None:
                 client.app.dependency_overrides[get_current_user] = original_override
@@ -224,7 +226,7 @@ class TestChatTestEndpoint:
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
         
         try:
-            with patch('api.clinic.ClinicAgentService.process_test_message', new_callable=AsyncMock) as mock_process:
+            with patch('api.clinic.ClinicAgentService.process_message', new_callable=AsyncMock) as mock_process:
                 mock_process.return_value = "測試回應"
                 
                 # Provide different settings (unsaved)
@@ -245,7 +247,7 @@ class TestChatTestEndpoint:
                 
                 # Verify the service was called with the provided settings, not saved ones
                 call_args = mock_process.call_args
-                provided_settings = call_args.kwargs["chat_settings"]
+                provided_settings = call_args.kwargs["chat_settings_override"]
                 assert provided_settings.clinic_description == "未儲存的測試描述"
                 assert provided_settings.ai_guidance == "未儲存的測試指引"
                 # Should NOT be the saved settings
@@ -274,7 +276,7 @@ class TestChatTestEndpoint:
         client.app.dependency_overrides[get_current_user] = lambda: mock_user
         
         try:
-            with patch('api.clinic.ClinicAgentService.process_test_message', new_callable=AsyncMock) as mock_process:
+            with patch('api.clinic.ClinicAgentService.process_message', new_callable=AsyncMock) as mock_process:
                 # Mock service to raise an exception
                 mock_process.side_effect = Exception("Service error")
                 

@@ -175,6 +175,11 @@ def _create_clinic_agent(clinic: Clinic, chat_settings_override: Optional[ChatSe
     return agent
 
 
+# Constants
+MAX_HISTORY_MESSAGES = 25
+FALLBACK_ERROR_MESSAGE = "抱歉，我暫時無法處理您的訊息。請稍後再試，或直接聯繫診所。"
+
+
 class ClinicAgentService:
     """
     Service for processing patient messages through AI agent.
@@ -185,21 +190,26 @@ class ClinicAgentService:
     
     @staticmethod
     async def process_message(
-        line_user_id: str,
+        session_id: str,
         message: str,
-        clinic: Clinic
+        clinic: Clinic,
+        chat_settings_override: Optional[ChatSettings] = None
     ) -> str:
         """
-        Process a patient message and generate AI response.
+        Process a message and generate AI response.
+        
+        This unified method handles both actual LINE messages and test messages.
+        For test mode, provide chat_settings_override to use unsaved settings.
         
         Limits conversation history to the last 25 messages to manage
         token usage and keep context relevant. Includes clinic-specific
         context (name, address, phone, services) in the agent's knowledge.
         
         Args:
-            line_user_id: LINE user ID from webhook
-            message: Patient's message text
+            session_id: Session ID for conversation continuity (format: "{clinic_id}-{line_user_id}" for LINE, "test-{clinic_id}-{user_id}" for tests)
+            message: Message text
             clinic: Clinic entity
+            chat_settings_override: Optional ChatSettings to use instead of clinic's saved settings (for test mode)
             
         Returns:
             str: AI-generated response text
@@ -208,101 +218,6 @@ class ClinicAgentService:
             Exception: If agent processing fails
         """
         try:
-            # Create session ID: format is "{clinic_id}-{line_user_id}"
-            # Note: We use the LINE user ID string directly - no need to create LineUser entity
-            # LineUser records are created when users first use LIFF (appointment booking)
-            session_id = f"{clinic.id}-{line_user_id}"
-            
-            # Get async engine for SDK
-            engine = get_async_engine()
-            
-            # Create SQLAlchemySession for conversation persistence
-            session = SQLAlchemySession(
-                session_id=session_id,
-                engine=engine,
-                create_tables=True
-            )
-            
-            # Limit conversation history to last 10 messages
-            # This helps manage token usage and keeps context relevant
-            # IMPORTANT: We need to truncate carefully to preserve related items
-            # (e.g., message items and their reasoning items, tool calls and results)
-            MAX_HISTORY_MESSAGES = 25
-            
-            # Trim session to limit conversation history while preserving related items
-            # This ensures message items keep their reasoning items, tool calls keep results, etc.
-            await trim_session(
-                session=session,
-                max_items=MAX_HISTORY_MESSAGES
-            )
-            
-            # Create clinic-specific agent with context in system prompt
-            # Create fresh agent each time to ensure latest clinic context
-            agent = _create_clinic_agent(clinic)
-            
-            # Run agent with session (SDK handles conversation history automatically)
-            # Note: When using session memory, pass input as string, not list
-            # The SDK will automatically manage conversation history
-            # Clinic context is already in the agent's instructions (system prompt)
-            result = await Runner.run(
-                agent,
-                input=message,  # Pass user message directly - context is in system prompt
-                session=session,
-                run_config=RunConfig(trace_metadata={"clinic_id": str(clinic.id)})
-            )
-            
-            # Extract response text
-            response_text = result.final_output_as(str)
-            
-            logger.info(
-                f"Generated response for clinic_id={clinic.id}, "
-                f"line_user_id={line_user_id}, "
-                f"response_length={len(response_text)}"
-            )
-            
-            return response_text
-            
-        except Exception as e:
-            logger.exception(
-                f"Error processing message for clinic_id={clinic.id}, "
-                f"line_user_id={line_user_id}: {e}"
-            )
-            # Return fallback message
-            return "抱歉，我暫時無法處理您的訊息。請稍後再試，或直接聯繫診所。"
-    
-    @staticmethod
-    async def process_test_message(
-        message: str,
-        clinic: Clinic,
-        chat_settings: ChatSettings,
-        session_id: Optional[str] = None
-    ) -> str:
-        """
-        Process a test message and generate AI response using provided chat settings.
-        
-        This method is used for testing chatbot settings before saving. It uses
-        the provided chat_settings instead of the clinic's saved settings.
-        
-        Args:
-            message: Test message text
-            clinic: Clinic entity
-            chat_settings: ChatSettings to use for this test (from frontend, unsaved)
-            session_id: Optional session ID for conversation continuity
-            
-        Returns:
-            str: AI-generated response text
-            
-        Raises:
-            Exception: If agent processing fails
-        """
-        try:
-            # Use provided session_id or generate test session ID
-            if session_id is None:
-                # Generate test session ID: format is "test-{clinic_id}-{user_id}"
-                # For now, use a simple format since we don't have user_id in this context
-                # The API endpoint will provide a proper session_id
-                session_id = f"test-{clinic.id}"
-            
             # Get async engine for SDK
             engine = get_async_engine()
             
@@ -315,42 +230,60 @@ class ClinicAgentService:
             
             # Limit conversation history to last 25 messages
             # This helps manage token usage and keeps context relevant
-            MAX_HISTORY_MESSAGES = 25
-            
-            # Trim session to limit conversation history while preserving related items
+            # IMPORTANT: We need to truncate carefully to preserve related items
+            # (e.g., message items and their reasoning items, tool calls and results)
             await trim_session(
                 session=session,
                 max_items=MAX_HISTORY_MESSAGES
             )
             
             # Create clinic-specific agent with context in system prompt
-            # Use provided chat_settings instead of clinic's saved settings
-            agent = _create_clinic_agent(clinic, chat_settings_override=chat_settings)
+            # Use chat_settings_override if provided (test mode), otherwise use clinic's saved settings
+            agent = _create_clinic_agent(clinic, chat_settings_override=chat_settings_override)
+            
+            # Determine if this is a test mode based on session_id prefix
+            is_test_mode = session_id.startswith("test-")
+            
+            # Build trace metadata
+            trace_metadata = {"clinic_id": str(clinic.id)}
+            if is_test_mode:
+                trace_metadata["test_mode"] = "true"
             
             # Run agent with session (SDK handles conversation history automatically)
+            # Note: When using session memory, pass input as string, not list
+            # The SDK will automatically manage conversation history
+            # Clinic context is already in the agent's instructions (system prompt)
             result = await Runner.run(
                 agent,
-                input=message,
+                input=message,  # Pass user message directly - context is in system prompt
                 session=session,
-                run_config=RunConfig(trace_metadata={"clinic_id": str(clinic.id), "test_mode": "true"})
+                run_config=RunConfig(trace_metadata=trace_metadata)
             )
             
             # Extract response text
             response_text = result.final_output_as(str)
             
-            logger.info(
-                f"Generated test response for clinic_id={clinic.id}, "
-                f"session_id={session_id}, "
-                f"response_length={len(response_text)}"
-            )
+            # Log with appropriate context
+            if is_test_mode:
+                logger.info(
+                    f"Generated test response for clinic_id={clinic.id}, "
+                    f"session_id={session_id}, "
+                    f"response_length={len(response_text)}"
+                )
+            else:
+                logger.info(
+                    f"Generated response for clinic_id={clinic.id}, "
+                    f"session_id={session_id}, "
+                    f"response_length={len(response_text)}"
+                )
             
             return response_text
             
         except Exception as e:
             logger.exception(
-                f"Error processing test message for clinic_id={clinic.id}, "
+                f"Error processing message for clinic_id={clinic.id}, "
                 f"session_id={session_id}: {e}"
             )
-            # Return fallback message (same as actual endpoint)
-            return "抱歉，我暫時無法處理您的訊息。請稍後再試，或直接聯繫診所。"
+            # Return fallback message
+            return FALLBACK_ERROR_MESSAGE
 
