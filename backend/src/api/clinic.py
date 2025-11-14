@@ -7,7 +7,7 @@ including member management, settings, patients, and appointments.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -26,6 +26,7 @@ from services.availability_service import AvailabilityService
 from services.notification_service import NotificationService, CancellationSource
 from services.clinic_agent import ClinicAgentService
 from utils.appointment_type_queries import count_active_appointment_types_for_practitioner
+from utils.datetime_utils import taiwan_now
 from api.responses import (
     ClinicPatientResponse, ClinicPatientListResponse,
     AppointmentTypeResponse, PractitionerAppointmentTypesResponse, PractitionerStatusResponse,
@@ -226,7 +227,7 @@ async def invite_member(
         # Generate secure token
         import secrets
         token = secrets.token_urlsafe(32)
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=48)  # 48 hours
+        expires_at = taiwan_now() + timedelta(hours=48)  # 48 hours
 
         clinic_id = ensure_clinic_access(current_user)
         
@@ -331,7 +332,7 @@ async def update_member_roles(
 
         # Update roles in association
         association.roles = new_roles
-        association.updated_at = datetime.now(timezone.utc)
+        # updated_at will be set automatically by database event listener
         db.commit()
         db.refresh(association)
 
@@ -412,7 +413,7 @@ async def remove_member(
 
         # Deactivate association (not the user, since they may be in other clinics)
         association.is_active = False
-        association.updated_at = datetime.now(timezone.utc)
+        # updated_at will be set automatically by database event listener
         db.commit()
 
         return {"message": "成員已停用"}
@@ -469,7 +470,7 @@ async def reactivate_member(
 
         # Reactivate association
         association.is_active = True
-        association.updated_at = datetime.now(timezone.utc)
+        # updated_at will be set automatically by database event listener
         db.commit()
 
         return {"message": "成員已重新啟用"}
@@ -799,7 +800,6 @@ async def update_settings(
 
         # Process appointment types: update existing, create new, soft delete removed ones
         from models import AppointmentType
-        from datetime import datetime, timezone
         
         # Track which (name, duration) combinations we've processed
         processed_combinations: set[tuple[str, int]] = set()
@@ -835,7 +835,7 @@ async def update_settings(
                 # Soft delete it
                 if not existing_type.is_deleted:
                     existing_type.is_deleted = True
-                    existing_type.deleted_at = datetime.now(timezone.utc)
+                    existing_type.deleted_at = taiwan_now()
 
         # Create new appointment types (ones not matched to existing types)
         for at_data in appointment_types_data:

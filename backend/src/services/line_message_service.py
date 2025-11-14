@@ -127,6 +127,9 @@ class LineMessageService:
                 return None
             
             # Return text content and sender information
+            # message_text is guaranteed to be non-None due to query filter (message_text.isnot(None))
+            if quoted_message.message_text is None:
+                return None
             return (quoted_message.message_text, quoted_message.is_from_user)
             
         except Exception as e:

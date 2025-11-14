@@ -7,7 +7,7 @@ to patient inquiries, with conversation history stored in PostgreSQL.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Optional, List
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, AsyncSession
@@ -26,6 +26,7 @@ from core.constants import (
     CHAT_SESSION_EXPIRY_HOURS
 )
 from services.line_message_service import QUOTE_ATTEMPTED_BUT_NOT_AVAILABLE
+from utils.datetime_utils import taiwan_now
 from .utils import trim_session
 from .prompts.base_system_prompt import BASE_SYSTEM_PROMPT
 
@@ -410,9 +411,10 @@ class ClinicAgentService:
         """
         try:
             engine = get_async_engine()
-            # Use timezone-naive datetime to match database column (timestamp without time zone)
-            # Convert UTC-aware datetime to naive to match database column type
-            cutoff_time = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=max_age_hours)
+            # Use timezone-naive datetime to match SDK's database column (timestamp without time zone)
+            # SDK tables store timestamps as naive, representing Taiwan timezone
+            # Convert Taiwan timezone-aware datetime to naive to match database column type
+            cutoff_time = taiwan_now().replace(tzinfo=None) - timedelta(hours=max_age_hours)
             
             # Query SDK's agent_sessions table to find old test sessions
             # SDK uses its own metadata, so we need to query directly

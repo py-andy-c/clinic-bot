@@ -25,6 +25,7 @@ from models import (
 )
 from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
+from utils.datetime_utils import TAIWAN_TZ, taiwan_now
 from api.responses import (
     PatientResponse, PatientCreateResponse, PatientListResponse,
     AppointmentTypeResponse, AppointmentTypeListResponse,
@@ -133,17 +134,14 @@ def parse_datetime(v: str | datetime) -> datetime:
             
             # If it has timezone info, convert to Taiwan time
             if dt.tzinfo:
-                taiwan_tz = timezone(timedelta(hours=8))
-                return dt.astimezone(taiwan_tz)
+                return dt.astimezone(TAIWAN_TZ)
             else:
                 # No timezone, assume Taiwan time
-                taiwan_tz = timezone(timedelta(hours=8))
-                return dt.replace(tzinfo=taiwan_tz)
+                return dt.replace(tzinfo=TAIWAN_TZ)
         except ValueError:
             # Fallback: parse and assume Taiwan time
             dt = datetime.fromisoformat(v)
-            taiwan_tz = timezone(timedelta(hours=8))
-            return dt.replace(tzinfo=taiwan_tz)
+            return dt.replace(tzinfo=TAIWAN_TZ)
     return v
 
 
@@ -184,15 +182,14 @@ class AppointmentCreateRequest(BaseModel):
     @classmethod
     def validate_time(cls, v: datetime) -> datetime:
         # Use Taiwan time for all validations
-        taiwan_tz = timezone(timedelta(hours=8))
-        now = datetime.now(taiwan_tz)
+        now = taiwan_now()
         # Ensure v is timezone-aware in Taiwan timezone
         if v.tzinfo is None:
             # If naive, assume it's in Taiwan time
-            v = v.replace(tzinfo=taiwan_tz)
+            v = v.replace(tzinfo=TAIWAN_TZ)
         else:
             # Convert to Taiwan timezone for comparison
-            v = v.astimezone(taiwan_tz)
+            v = v.astimezone(TAIWAN_TZ)
         # Must be in future
         if v < now:
             raise ValueError('無法預約過去的時間')

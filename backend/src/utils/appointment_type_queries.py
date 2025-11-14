@@ -9,6 +9,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session, Query
 
 from models import AppointmentType
+from utils.datetime_utils import taiwan_now
 
 
 def filter_active_appointment_types(query: Query[AppointmentType]) -> Query[AppointmentType]:
@@ -97,14 +98,12 @@ def soft_delete_appointment_type(
     Raises:
         ValueError: If appointment type not found or doesn't belong to clinic
     """
-    from datetime import datetime, timezone
-
     appointment_type = get_appointment_type_by_id_with_soft_delete_check(
         db, appointment_type_id, clinic_id, include_deleted=False
     )
 
     appointment_type.is_deleted = True
-    appointment_type.deleted_at = datetime.now(timezone.utc)
+    appointment_type.deleted_at = taiwan_now()
 
     return appointment_type
 

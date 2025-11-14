@@ -8,12 +8,13 @@ and other agent-related operations.
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy import text
 from agents.extensions.memory import SQLAlchemySession
+from utils.datetime_utils import taiwan_now
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +119,8 @@ async def _get_item_timestamps(
                     message_data = json.loads(message_data_str)
                     item_id = message_data.get("id")
                     if item_id and created_at:
-                        # Normalize to timezone-naive to match database column type
+                        # Normalize to timezone-naive to match SDK's database column type
+                        # SDK tables store timestamps as naive, representing Taiwan timezone
                         if created_at.tzinfo is not None:
                             item_timestamps[item_id] = created_at.replace(tzinfo=None)
                         else:
@@ -152,9 +154,10 @@ async def _trim_by_time(
     3. Minimum guarantee (min_items)
     4. Upper bound (max_items)
     """
-    # Use timezone-naive datetime to match database columns (timestamp without time zone)
-    # Convert UTC-aware datetime to naive to match database column type
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    # Use timezone-naive datetime to match SDK's database columns (timestamp without time zone)
+    # SDK tables store timestamps as naive, representing Taiwan timezone
+    # Convert Taiwan timezone-aware datetime to naive to match database column type
+    now = taiwan_now().replace(tzinfo=None)
 
     # Get timestamps for all items
     item_timestamps = await _get_item_timestamps(session_id, engine)

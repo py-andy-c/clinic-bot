@@ -8,7 +8,7 @@ including clinic creation, monitoring, and billing management.
 
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -19,6 +19,7 @@ from core.database import get_db
 from auth.dependencies import require_system_admin, UserContext
 from models import Clinic, SignupToken
 from models.clinic import ClinicSettings
+from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,7 @@ async def create_clinic(
             line_channel_access_token=clinic_data.line_channel_access_token,
             line_official_account_user_id=bot_user_id,
             subscription_status=clinic_data.subscription_status,
-            trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14) if clinic_data.subscription_status == "trial" else None,
+            trial_ends_at=taiwan_now() + timedelta(days=14) if clinic_data.subscription_status == "trial" else None,
             settings=ClinicSettings().model_dump()  # Use all defaults from Pydantic model
         )
 
@@ -335,7 +336,7 @@ async def generate_clinic_signup_link(
 
         # Create signup token for clinic admin (admin + practitioner roles)
         token = secrets.token_urlsafe(32)
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=48)  # 48 hours
+        expires_at = taiwan_now() + timedelta(hours=48)  # 48 hours
 
         signup_token = SignupToken(
             token=token,
@@ -393,11 +394,11 @@ async def check_clinic_health(
                 detail="找不到診所"
             )
 
-        from datetime import datetime, timezone, timedelta
+        from datetime import timedelta
         import json
         from services.line_service import LINEService
 
-        now = datetime.now(timezone.utc)
+        now = taiwan_now()
         errors: List[str] = []
         health_status = "healthy"
 
@@ -409,9 +410,8 @@ async def check_clinic_health(
             # Ensure both datetimes are timezone-aware for comparison
             webhook_time = clinic.last_webhook_received_at
             if webhook_time.tzinfo is None:
-                # Assume database datetime is UTC if naive
-                from datetime import timezone
-                webhook_time = webhook_time.replace(tzinfo=timezone.utc)
+                # Assume database datetime is Taiwan timezone if naive (per database event listener convention)
+                webhook_time = webhook_time.replace(tzinfo=TAIWAN_TZ)
 
             age = now - webhook_time
             last_webhook_age_hours = age.total_seconds() / 3600

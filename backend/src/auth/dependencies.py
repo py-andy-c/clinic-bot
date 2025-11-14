@@ -13,7 +13,7 @@ MIGRATION NOTE (2025-01-27):
 """
 
 import logging
-from datetime import datetime, timezone
+# datetime and timezone imports removed - using taiwan_now() from utils.datetime_utils instead
 from typing import Optional, Dict, Any, List
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -24,6 +24,7 @@ from core.database import get_db
 from core.config import SYSTEM_ADMIN_EMAILS
 from services.jwt_service import jwt_service, TokenPayload
 from models import User, LineUser, Clinic, UserClinicAssociation
+from utils.datetime_utils import taiwan_now
 
 logger = logging.getLogger(__name__)
 
@@ -192,7 +193,7 @@ def get_current_user(
         # The session will commit at the end of the request lifecycle
         # If this fails, log but don't fail authentication
         try:
-            association.last_accessed_at = datetime.now(timezone.utc)
+            association.last_accessed_at = taiwan_now()
             db.flush()  # Flush instead of commit to reduce blocking
         except Exception as e:
             # Log but don't fail authentication if last_accessed_at update fails

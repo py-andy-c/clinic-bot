@@ -20,6 +20,7 @@ from services.jwt_service import jwt_service, TokenPayload
 from models import User, SignupToken, RefreshToken, UserClinicAssociation, Clinic
 from auth.dependencies import get_active_clinic_association, require_authenticated, UserContext
 from sqlalchemy.exc import IntegrityError
+from utils.datetime_utils import taiwan_now
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,7 @@ async def initiate_clinic_admin_signup(token: str, db: Session = Depends(get_db)
         # Validate signup token
         signup_token = db.query(SignupToken).filter(
             SignupToken.token == token,
-            SignupToken.expires_at > datetime.now(timezone.utc),
+            SignupToken.expires_at > taiwan_now(),
             SignupToken.is_revoked == False,
             SignupToken.used_at == None
         ).first()
@@ -175,7 +176,7 @@ async def initiate_member_signup(token: str, db: Session = Depends(get_db)) -> d
         # Validate signup token
         signup_token = db.query(SignupToken).filter(
             SignupToken.token == token,
-            SignupToken.expires_at > datetime.now(timezone.utc),
+            SignupToken.expires_at > taiwan_now(),
             SignupToken.is_revoked == False,
             SignupToken.used_at == None
         ).first()
@@ -300,7 +301,7 @@ async def signup_oauth_callback(
         # Validate signup token
         signup_token = db.query(SignupToken).filter(
             SignupToken.token == token,
-            SignupToken.expires_at > datetime.now(timezone.utc),
+            SignupToken.expires_at > taiwan_now(),
             SignupToken.is_revoked == False,
             SignupToken.used_at == None
         ).first()
@@ -378,9 +379,9 @@ async def signup_oauth_callback(
                     existing_association.is_active = True
                     existing_association.roles = signup_token.default_roles or []
                     existing_association.full_name = name
-                    existing_association.last_accessed_at = datetime.now(timezone.utc)
-                    existing_association.updated_at = datetime.now(timezone.utc)
-                    signup_token.used_at = datetime.now(timezone.utc)
+                    existing_association.last_accessed_at = taiwan_now()
+                    # updated_at will be set automatically by database event listener
+                    signup_token.used_at = taiwan_now()
                     signup_token.used_by_email = email
                     db.commit()
                     
@@ -403,14 +404,13 @@ async def signup_oauth_callback(
                     roles=signup_token.default_roles or [],
                     full_name=name,
                     is_active=True,
-                    last_accessed_at=datetime.now(timezone.utc),
-                    created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc)
+                    last_accessed_at=taiwan_now()
+                    # created_at and updated_at will be set automatically by database event listener
                 )
                 
                 try:
                     db.add(association)
-                    signup_token.used_at = datetime.now(timezone.utc)
+                    signup_token.used_at = taiwan_now()
                     signup_token.used_by_email = email
                     db.commit()
                 except IntegrityError:
@@ -612,7 +612,7 @@ async def confirm_name(
         db.refresh(association)
         
         # Mark signup token as used
-        signup_token.used_at = datetime.now(timezone.utc)
+        signup_token.used_at = taiwan_now()
         signup_token.used_by_email = email
         db.commit()
         
@@ -690,13 +690,12 @@ def _reactivate_association(
     Updates the association to active, sets roles from signup token,
     optionally updates name, and updates last_accessed_at.
     """
-    now = datetime.now(timezone.utc)
     association.is_active = True
     association.roles = signup_token.default_roles or []
     if request.full_name and request.full_name.strip():
         association.full_name = request.full_name.strip()
-    association.last_accessed_at = now
-    association.updated_at = now
+    association.last_accessed_at = taiwan_now()
+    # updated_at will be set automatically by database event listener
     db.commit()
     db.refresh(association)
 
@@ -800,7 +799,7 @@ async def join_clinic_as_existing_user(
                 association = existing
                 # Mark token as used (user is using the token to reactivate)
                 if signup_token.used_at is None:
-                    signup_token.used_at = datetime.now(timezone.utc)
+                    signup_token.used_at = taiwan_now()
                     signup_token.used_by_email = current_user.email
                     db.commit()
         else:
@@ -813,9 +812,8 @@ async def join_clinic_as_existing_user(
                 roles=signup_token.default_roles or [],
                 full_name=clinic_name,
                 is_active=True,
-                last_accessed_at=datetime.now(timezone.utc),
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc)
+                last_accessed_at=taiwan_now()
+                # created_at and updated_at will be set automatically by database event listener
             )
             
             try:
@@ -823,7 +821,7 @@ async def join_clinic_as_existing_user(
                 # Mark signup token as used (if not already used)
                 # Note: Token is marked as used when creating new association or reactivating
                 if signup_token.used_at is None:
-                    signup_token.used_at = datetime.now(timezone.utc)
+                    signup_token.used_at = taiwan_now()
                     signup_token.used_by_email = current_user.email
                 db.commit()
                 db.refresh(association)
