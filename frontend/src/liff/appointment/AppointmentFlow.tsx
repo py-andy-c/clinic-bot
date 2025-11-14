@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAppointmentStore } from '../../stores/appointmentStore';
+import { useAppointmentBackButton } from '../../hooks/useAppointmentBackButton';
 
 // Import step components (we'll create these next)
 import Step1SelectType from './Step1SelectType';
@@ -12,6 +13,10 @@ import Step7Success from './Step7Success';
 
 const AppointmentFlow: React.FC = () => {
   const { step } = useAppointmentStore();
+
+  // Enable back button navigation during appointment flow
+  // The back button will navigate to previous steps or home as appropriate
+  useAppointmentBackButton(true);
 
   // Progress indicator
   const steps = [

@@ -5,7 +5,7 @@ import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 
 const Step3SelectDateTime: React.FC = () => {
-  const { appointmentTypeId, practitionerId, setDateTime, clinicId, step, setStep } = useAppointmentStore();
+  const { appointmentTypeId, practitionerId, setDateTime, clinicId } = useAppointmentStore();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -371,16 +371,6 @@ const Step3SelectDateTime: React.FC = () => {
           <h3 className="font-medium text-gray-900 mb-2">可預約時段</h3>
         </div>
       )}
-
-      {/* Back button */}
-      <div className="mt-6">
-        <button
-          onClick={() => setStep(step - 1)}
-          className="w-full bg-white border-2 border-gray-300 text-gray-700 py-3 px-4 rounded-md hover:border-gray-400 hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 font-medium"
-        >
-          返回上一步
-        </button>
-      </div>
     </div>
   );
 };

@@ -2,7 +2,8 @@ import React from 'react';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 
 const Step5AddNotes: React.FC = () => {
-  const { notes, updateNotesOnly, step, setStep } = useAppointmentStore();
+  // Note: setStep is used in the "下一步" button onClick handler below
+  const { notes, updateNotesOnly, setStep } = useAppointmentStore();
 
   const handleNotesChange = (value: string) => {
     updateNotesOnly(value);
@@ -35,13 +36,6 @@ const Step5AddNotes: React.FC = () => {
           className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700"
         >
           下一步
-        </button>
-
-        <button
-          onClick={() => setStep(step - 1)}
-          className="w-full bg-white border-2 border-gray-300 text-gray-700 py-3 px-4 rounded-md hover:border-gray-400 hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 font-medium"
-        >
-          返回上一步
         </button>
       </div>
     </div>

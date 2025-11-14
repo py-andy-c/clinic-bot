@@ -1,11 +1,17 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { preserveQueryParams } from '../../utils/urlUtils';
+import { useAppointmentStore } from '../../stores/appointmentStore';
 
 const LiffHome: React.FC = () => {
   const navigate = useNavigate();
+  const reset = useAppointmentStore(state => state.reset);
 
   const handleNavigate = (mode: 'book' | 'query' | 'settings') => {
+    // Reset appointment store when starting a new appointment
+    if (mode === 'book') {
+      reset();
+    }
     const newUrl = preserveQueryParams('/liff', { mode });
     navigate(newUrl);
   };

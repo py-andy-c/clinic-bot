@@ -6,7 +6,7 @@ import { liffApiService } from '../../services/liffApi';
 import { formatDateTime as formatDateTimeUtil } from '../../utils/calendarUtils';
 
 const Step6Confirmation: React.FC = () => {
-  const { appointmentType, practitioner, practitionerId, isAutoAssigned, date, startTime, patient, notes, clinicId, step, setStep, updateAssignedPractitioner, setCreatedAppointment } = useAppointmentStore();
+  const { appointmentType, practitioner, practitionerId, isAutoAssigned, date, startTime, patient, notes, clinicId, updateAssignedPractitioner, setCreatedAppointment } = useAppointmentStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -140,13 +140,6 @@ const Step6Confirmation: React.FC = () => {
           className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700 disabled:opacity-50"
         >
           {isSubmitting ? '預約中...' : '確認預約'}
-        </button>
-
-        <button
-          onClick={() => setStep(step - 1)}
-          className="w-full bg-white border-2 border-gray-300 text-gray-700 py-3 px-4 rounded-md hover:border-gray-400 hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 font-medium"
-        >
-          返回修改
         </button>
       </div>
     </div>

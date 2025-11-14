@@ -7,7 +7,7 @@ import { useAppointmentStore, Patient } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 
 const Step4SelectPatient: React.FC = () => {
-  const { setPatient, clinicId, step, setStep } = useAppointmentStore();
+  const { setPatient, clinicId } = useAppointmentStore();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -168,15 +168,6 @@ const Step4SelectPatient: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
-
-      <div className="mt-6">
-        <button
-          onClick={() => setStep(step - 1)}
-          className="w-full bg-white border-2 border-gray-300 text-gray-700 py-3 px-4 rounded-md hover:border-gray-400 hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 font-medium"
-        >
-          返回上一步
-        </button>
       </div>
     </div>
   );
