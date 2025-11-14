@@ -116,7 +116,8 @@ class TestLineApiIntegration:
         }
 
         result = service.extract_message_data(payload)
-        assert result == ("U1234567890abcdef", "Hello from LINE", "test_reply_token_123")
+        # extract_message_data now returns (line_user_id, message_text, reply_token, message_id, quoted_message_id)
+        assert result == ("U1234567890abcdef", "Hello from LINE", "test_reply_token_123", None, None)
         
         # Test text message parsing without reply_token
         payload_no_token = {
@@ -133,7 +134,8 @@ class TestLineApiIntegration:
         }
 
         result = service.extract_message_data(payload_no_token)
-        assert result == ("U1234567890abcdef", "Hello from LINE", None)
+        # extract_message_data now returns (line_user_id, message_text, reply_token, message_id, quoted_message_id)
+        assert result == ("U1234567890abcdef", "Hello from LINE", None, None, None)
 
         # Test non-text message (should return None)
         payload_non_text = {

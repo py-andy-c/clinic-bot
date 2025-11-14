@@ -111,7 +111,7 @@ class TestLineWebhookOptOutCommands:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
-            mock_service.extract_message_data.return_value = (line_user_id, OPT_OUT_COMMAND, "test_reply_token")
+            mock_service.extract_message_data.return_value = (line_user_id, OPT_OUT_COMMAND, "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
             mock_line_service_class.return_value = mock_service
@@ -158,7 +158,7 @@ class TestLineWebhookOptOutCommands:
             with patch('api.line_webhook.LINEService') as mock_line_service_class:
                 mock_service = MagicMock()
                 mock_service.verify_signature.return_value = True
-                mock_service.extract_message_data.return_value = (line_user_id, message, "test_reply_token")
+                mock_service.extract_message_data.return_value = (line_user_id, message, "test_reply_token", "msg_123", None)
                 mock_service.send_text_message = MagicMock()
                 mock_service.start_loading_animation = MagicMock()
                 mock_line_service_class.return_value = mock_service
@@ -206,7 +206,7 @@ class TestLineWebhookOptOutCommands:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
-            mock_service.extract_message_data.return_value = (line_user_id, RE_ENABLE_COMMAND, "test_reply_token")
+            mock_service.extract_message_data.return_value = (line_user_id, RE_ENABLE_COMMAND, "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
             mock_line_service_class.return_value = mock_service
@@ -253,7 +253,7 @@ class TestLineWebhookOptOutCommands:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
-            mock_service.extract_message_data.return_value = (line_user_id, "重啟ai", "test_reply_token")
+            mock_service.extract_message_data.return_value = (line_user_id, "重啟ai", "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
             mock_line_service_class.return_value = mock_service
@@ -298,7 +298,7 @@ class TestLineWebhookOptOutMessageHandling:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
-            mock_service.extract_message_data.return_value = (line_user_id, "這是一個測試訊息", "test_reply_token")
+            mock_service.extract_message_data.return_value = (line_user_id, "這是一個測試訊息", "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
             mock_line_service_class.return_value = mock_service
@@ -339,7 +339,7 @@ class TestLineWebhookOptOutMessageHandling:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
-            mock_service.extract_message_data.return_value = (line_user_id, "這是一個測試訊息", "test_reply_token")
+            mock_service.extract_message_data.return_value = (line_user_id, "這是一個測試訊息", "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
             mock_line_service_class.return_value = mock_service
@@ -393,7 +393,7 @@ class TestLineWebhookOptOutMessageHandling:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
-            mock_service.extract_message_data.return_value = (line_user_id, "這是一個測試訊息", "test_reply_token")
+            mock_service.extract_message_data.return_value = (line_user_id, "這是一個測試訊息", "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
             mock_line_service_class.return_value = mock_service
@@ -456,7 +456,7 @@ class TestLineWebhookOptOutMessageHandling:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
-            mock_service.extract_message_data.return_value = (line_user_id, "測試訊息", "test_reply_token")
+            mock_service.extract_message_data.return_value = (line_user_id, "測試訊息", "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
             mock_line_service_class.return_value = mock_service
@@ -483,7 +483,7 @@ class TestLineWebhookOptOutMessageHandling:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
-            mock_service.extract_message_data.return_value = (line_user_id, "測試訊息", "test_reply_token")
+            mock_service.extract_message_data.return_value = (line_user_id, "測試訊息", "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
             mock_line_service_class.return_value = mock_service

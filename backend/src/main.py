@@ -24,6 +24,7 @@ from api import auth, signup, system, clinic, profile, practitioner_calendar, li
 from core.constants import CORS_ORIGINS
 from services.reminder_service import start_reminder_scheduler, stop_reminder_scheduler
 from services.test_session_cleanup import start_test_session_cleanup, stop_test_session_cleanup
+from services.line_message_cleanup import start_line_message_cleanup, stop_line_message_cleanup
 
 # Configure logging
 logging.basicConfig(
@@ -55,6 +56,13 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Test session cleanup scheduler started")
     except Exception as e:
         logger.exception(f"❌ Failed to start test session cleanup scheduler: {e}")
+    
+    # Start LINE message cleanup scheduler
+    try:
+        await start_line_message_cleanup()
+        logger.info("✅ LINE message cleanup scheduler started")
+    except Exception as e:
+        logger.exception(f"❌ Failed to start LINE message cleanup scheduler: {e}")
 
     yield
 
@@ -71,6 +79,13 @@ async def lifespan(app: FastAPI):
         logger.info("🛑 Test session cleanup scheduler stopped")
     except Exception as e:
         logger.exception(f"❌ Error stopping test session cleanup scheduler: {e}")
+    
+    # Stop LINE message cleanup scheduler
+    try:
+        await stop_line_message_cleanup()
+        logger.info("🛑 LINE message cleanup scheduler stopped")
+    except Exception as e:
+        logger.exception(f"❌ Error stopping LINE message cleanup scheduler: {e}")
 
     logger.info("🛑 Shutting down Clinic Bot Backend API")
 

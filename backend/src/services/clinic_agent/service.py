@@ -25,6 +25,7 @@ from core.constants import (
     CHAT_MAX_HISTORY_MESSAGES,
     CHAT_SESSION_EXPIRY_HOURS
 )
+from services.line_message_service import QUOTE_ATTEMPTED_BUT_NOT_AVAILABLE
 from .utils import trim_session
 from .prompts.base_system_prompt import BASE_SYSTEM_PROMPT
 
@@ -133,6 +134,54 @@ def _build_clinic_context(clinic: Clinic, chat_settings_override: Optional[ChatS
     return "\n".join(xml_parts)
 
 
+def _format_message_with_quote(
+    message: str, 
+    quoted_message_text: Optional[str],
+    quoted_is_from_user: Optional[bool] = None
+) -> str:
+    """
+    Format message with quoted content for the AI agent.
+    
+    If quoted_message_text is provided, includes it in the formatted message.
+    If quoted_message_text is None but a quote was attempted (indicated by special value),
+    informs the AI that the user attempted to quote a message.
+    
+    Args:
+        message: User's message text
+        quoted_message_text: Text content of quoted message, or None if not available
+        quoted_is_from_user: Whether the quoted message was from the user (True) or bot (False).
+                            None if unknown or not available.
+        
+    Returns:
+        Formatted message string with quoted content
+    """
+    # Use a special sentinel value to indicate quote was attempted but failed
+    # This is passed from line_webhook when quoted_message_id exists but retrieval failed
+    if quoted_message_text == QUOTE_ATTEMPTED_BUT_NOT_AVAILABLE:
+        # User attempted to quote a message but we couldn't retrieve it
+        return (
+            "<quote_unavailable>用戶嘗試引用一則訊息，但無法取得該訊息的內容</quote_unavailable>\n\n"
+            f"<user_message>{message}</user_message>"
+        )
+    elif quoted_message_text:
+        # User quoted a message and we have the content
+        # Include sender information if available to help AI understand context
+        if quoted_is_from_user is True:
+            quote_tag = '<quoted_message from="user">'
+        elif quoted_is_from_user is False:
+            quote_tag = '<quoted_message from="ai">'
+        else:
+            quote_tag = '<quoted_message>'
+        
+        return (
+            f"{quote_tag}{quoted_message_text}</quoted_message>\n\n"
+            f"<user_message>{message}</user_message>"
+        )
+    else:
+        # No quote, return message as-is
+        return message
+
+
 def _build_agent_instructions(clinic: Clinic, chat_settings_override: Optional[ChatSettings] = None) -> str:
     """
     Build agent instructions with clinic context.
@@ -200,7 +249,9 @@ class ClinicAgentService:
         session_id: str,
         message: str,
         clinic: Clinic,
-        chat_settings_override: Optional[ChatSettings] = None
+        chat_settings_override: Optional[ChatSettings] = None,
+        quoted_message_text: Optional[str] = None,
+        quoted_is_from_user: Optional[bool] = None
     ) -> str:
         """
         Process a message and generate AI response.
@@ -217,6 +268,11 @@ class ClinicAgentService:
             message: Message text
             clinic: Clinic entity
             chat_settings_override: Optional ChatSettings to use instead of clinic's saved settings (for test mode)
+            quoted_message_text: Optional text content of quoted message. If None but quote was attempted,
+                                the AI will be informed that the user attempted to quote a message.
+            quoted_is_from_user: Optional bool indicating if quoted message was from user (True) or bot (False).
+                                None if unknown. Helps AI understand context (e.g., user quoting their own message
+                                vs. quoting bot's response).
             
         Returns:
             str: AI-generated response text
@@ -260,13 +316,20 @@ class ClinicAgentService:
             if is_test_mode:
                 trace_metadata["test_mode"] = "true"
             
+            # Format message with quoted content if available
+            formatted_message = _format_message_with_quote(
+                message, 
+                quoted_message_text, 
+                quoted_is_from_user
+            )
+            
             # Run agent with session (SDK handles conversation history automatically)
             # Note: When using session memory, pass input as string, not list
             # The SDK will automatically manage conversation history
             # Clinic context is already in the agent's instructions (system prompt)
             result = await Runner.run(
                 agent,
-                input=message,  # Pass user message directly - context is in system prompt
+                input=formatted_message,  # Pass formatted message with quoted content
                 session=session,
                 run_config=RunConfig(trace_metadata=trace_metadata)
             )

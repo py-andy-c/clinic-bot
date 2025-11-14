@@ -14,6 +14,7 @@ from .calendar_event import CalendarEvent
 from .availability_exception import AvailabilityException
 from .practitioner_appointment_types import PractitionerAppointmentTypes
 from .line_user_ai_opt_out import LineUserAiOptOut
+from .line_message import LineMessage
 
 __all__ = [
     "Clinic",
@@ -29,5 +30,6 @@ __all__ = [
     "CalendarEvent",
     "AvailabilityException",
     "PractitionerAppointmentTypes",
-    "LineUserAiOptOut"
+    "LineUserAiOptOut",
+    "LineMessage"
 ]

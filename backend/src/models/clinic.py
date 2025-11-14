@@ -238,6 +238,9 @@ class Clinic(Base):
     line_user_ai_opt_outs = relationship("LineUserAiOptOut", back_populates="clinic", cascade="all, delete-orphan")
     """LINE user AI opt-out records for this clinic."""
 
+    line_messages = relationship("LineMessage", back_populates="clinic", cascade="all, delete-orphan")
+    """LINE messages associated with this clinic."""
+
 
     # Settings convenience properties (match API keys)
     @property

@@ -19,13 +19,18 @@ from core.database import get_db
 from models import Clinic
 from services.line_service import LINEService
 from services.clinic_agent import ClinicAgentService
+from services.line_message_service import LineMessageService, QUOTE_ATTEMPTED_BUT_NOT_AVAILABLE
 from services.line_opt_out_service import (
     normalize_message_text,
     set_ai_opt_out,
     clear_ai_opt_out,
     is_ai_opted_out
 )
-from core.constants import OPT_OUT_COMMAND, RE_ENABLE_COMMAND, AI_OPT_OUT_DURATION_HOURS
+from core.constants import (
+    OPT_OUT_COMMAND,
+    RE_ENABLE_COMMAND,
+    AI_OPT_OUT_DURATION_HOURS
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +134,7 @@ async def line_webhook(
             logger.debug("Webhook event is not a text message, ignoring")
             return {"status": "ok", "message": "Event ignored (not a text message)"}
         
-        line_user_id, message_text, reply_token = message_data
+        line_user_id, message_text, reply_token, message_id, quoted_message_id = message_data
         
         logger.info(
             f"Processing message from clinic_id={clinic.id}, "
@@ -229,21 +234,85 @@ async def line_webhook(
         # LineUser records are created when users first use LIFF (appointment booking)
         session_id = f"{clinic.id}-{line_user_id}"
         
-        # Process message through AI agent
+        # Store incoming message (if message_id is available)
+        if message_id:
+            try:
+                LineMessageService.store_message(
+                    db=db,
+                    line_message_id=message_id,
+                    line_user_id=line_user_id,
+                    clinic_id=clinic.id,
+                    message_text=message_text,
+                    message_type="text",
+                    is_from_user=True,
+                    quoted_message_id=quoted_message_id,
+                    session_id=session_id
+                )
+            except Exception as e:
+                # Log but don't fail - message storage is not critical for processing
+                logger.warning(f"Failed to store incoming message: {e}")
+        
+        # Retrieve quoted message content if present
+        quoted_message_text = None
+        quoted_is_from_user = None
+        if quoted_message_id:
+            try:
+                quoted_result = LineMessageService.get_quoted_message(
+                    db=db,
+                    quoted_message_id=quoted_message_id,
+                    clinic_id=clinic.id,
+                    line_user_id=line_user_id
+                )
+                if quoted_result:
+                    quoted_message_text, quoted_is_from_user = quoted_result
+                else:
+                    # Quoted message not found or is non-text - inform the AI
+                    quoted_message_text = QUOTE_ATTEMPTED_BUT_NOT_AVAILABLE
+                    logger.info(
+                        f"Quoted message not found or is non-text: "
+                        f"quoted_message_id={quoted_message_id[:10]}..., "
+                        f"clinic_id={clinic.id}, line_user_id={line_user_id[:10]}..."
+                    )
+            except Exception as e:
+                # Log but don't fail - quoted message retrieval is not critical
+                quoted_message_text = QUOTE_ATTEMPTED_BUT_NOT_AVAILABLE
+                logger.warning(f"Failed to retrieve quoted message: {e}")
+        
+        # Process message through AI agent (with quoted content if available)
         response_text = await ClinicAgentService.process_message(
             session_id=session_id,
             message=message_text,
-            clinic=clinic
+            clinic=clinic,
+            quoted_message_text=quoted_message_text,
+            quoted_is_from_user=quoted_is_from_user
         )
         
         # Send response back to patient via LINE
         # This will automatically stop the loading animation
         # Use reply_message if reply_token is available, otherwise fall back to push_message
-        line_service.send_text_message(
+        bot_message_id = line_service.send_text_message(
             line_user_id=line_user_id,
             text=response_text,
             reply_token=reply_token
         )
+        
+        # Store bot response message (if message_id is available)
+        if bot_message_id:
+            try:
+                LineMessageService.store_message(
+                    db=db,
+                    line_message_id=bot_message_id,
+                    line_user_id=line_user_id,
+                    clinic_id=clinic.id,
+                    message_text=response_text,
+                    message_type="text",
+                    is_from_user=False,
+                    quoted_message_id=None,
+                    session_id=session_id
+                )
+            except Exception as e:
+                # Log but don't fail - message storage is not critical
+                logger.warning(f"Failed to store bot response message: {e}")
         
         logger.info(
             f"Successfully processed and sent response for clinic_id={clinic.id}, "

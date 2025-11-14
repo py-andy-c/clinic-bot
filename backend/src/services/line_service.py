@@ -96,21 +96,22 @@ class LINEService:
             logger.exception(f"Signature verification error: {e}")
             return False
 
-    def extract_message_data(self, payload: dict[str, Any]) -> Optional[Tuple[str, str, Optional[str]]]:
+    def extract_message_data(self, payload: dict[str, Any]) -> Optional[Tuple[str, str, Optional[str], Optional[str], Optional[str]]]:
         """
-        Extract LINE user ID, message text, and reply token from webhook payload.
+        Extract LINE user ID, message text, reply token, message ID, and quoted message ID from webhook payload.
 
         Parses the LINE webhook payload to extract the sender's LINE user ID,
-        the text content of their message, and the reply token (if available).
+        the text content of their message, the reply token (if available),
+        the message ID, and the quoted message ID (if the message quotes another).
         Only processes text messages.
 
         Args:
             payload: Parsed JSON payload from LINE webhook
 
         Returns:
-            Tuple of (line_user_id, message_text, reply_token) for text messages,
+            Tuple of (line_user_id, message_text, reply_token, message_id, quoted_message_id) for text messages,
             None for non-text messages or invalid payloads.
-            reply_token may be None if not available in the event.
+            reply_token, message_id, and quoted_message_id may be None if not available in the event.
         """
         try:
             # Check for events array
@@ -128,18 +129,22 @@ class LINEService:
             message_text = event['message']['text']
             # Extract reply_token if available (may not be present in all events)
             reply_token = event.get('replyToken')
+            # Extract message ID (LINE's unique identifier for this message)
+            message_id = event.get('message', {}).get('id')
+            # Extract quoted message ID (if this message quotes another)
+            quoted_message_id = event.get('message', {}).get('quotedMessageId')
 
             if not line_user_id or not message_text:
                 return None
 
-            return (line_user_id, message_text, reply_token)
+            return (line_user_id, message_text, reply_token, message_id, quoted_message_id)
 
         except (KeyError, IndexError, TypeError) as e:
             # Invalid payload structure - could be external input issue or internal parsing bug
             logger.exception(f"Invalid LINE payload structure: {e}")
             return None
 
-    def send_text_message(self, line_user_id: str, text: str, reply_token: Optional[str] = None) -> None:
+    def send_text_message(self, line_user_id: str, text: str, reply_token: Optional[str] = None) -> Optional[str]:
         """
         Send text message to LINE user.
 
@@ -151,6 +156,10 @@ class LINEService:
             text: Text content to send
             reply_token: Optional reply token from webhook event. If provided, uses reply_message.
                         If None, uses push_message as fallback.
+
+        Returns:
+            LINE message ID if successful, None otherwise. The message ID can be used
+            to track the message for quoted message functionality.
 
         Raises:
             Exception: If LINE API call fails
@@ -166,7 +175,7 @@ class LINEService:
                     messages=messages,
                     notificationDisabled=False
                 )
-                self.api.reply_message(request)
+                response = self.api.reply_message(request)
                 logger.debug(f"Sent reply message using reply_token for user {line_user_id[:10]}...")
             else:
                 # Fall back to push_message for proactive messages (notifications, reminders, etc.)
@@ -176,8 +185,28 @@ class LINEService:
                     notificationDisabled=False,
                     customAggregationUnits=None
                 )
-                self.api.push_message(request)
+                response = self.api.push_message(request)
                 logger.debug(f"Sent push message for user {line_user_id[:10]}...")
+            
+            # Extract message ID from response
+            # LINE API returns message IDs in the response
+            # Both ReplyMessageResponse and PushMessageResponse use sent_messages (snake_case)
+            # which contains SentMessage objects with 'id' field
+            message_id: Optional[str] = None
+            try:
+                if hasattr(response, 'sent_messages') and response.sent_messages:
+                    # Both reply_message and push_message use sent_messages
+                    # Type ignore: LINE SDK response types don't expose sent_messages in type hints
+                    sent_messages_list = response.sent_messages  # type: ignore
+                    if sent_messages_list and len(sent_messages_list) > 0:  # type: ignore
+                        sent_msg = sent_messages_list[0]  # type: ignore
+                        message_id = getattr(sent_msg, 'id', None)  # type: ignore
+            except (AttributeError, IndexError, TypeError) as e:
+                # If we can't extract message ID, log but don't fail
+                logger.debug(f"Could not extract message ID from LINE API response: {e}")
+                message_id = None
+            
+            return message_id
         except Exception as e:
             # Log the error but let caller handle it
             logger.exception(f"Failed to send LINE message to {line_user_id}: {e}")
