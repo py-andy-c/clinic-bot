@@ -5,9 +5,6 @@ interface ClinicInfoSettingsProps {
   clinicInfoSettings: ClinicInfoSettingsType;
   clinicName: string;
   onClinicInfoSettingsChange: (clinicInfoSettings: ClinicInfoSettingsType) => void;
-  showSaveButton?: boolean;
-  onSave?: () => void;
-  saving?: boolean;
   isClinicAdmin?: boolean;
 }
 
@@ -15,9 +12,6 @@ const ClinicInfoSettings: React.FC<ClinicInfoSettingsProps> = ({
   clinicInfoSettings,
   clinicName,
   onClinicInfoSettingsChange,
-  showSaveButton = false,
-  onSave,
-  saving = false,
   isClinicAdmin = false,
 }) => {
   const handleFieldChange = (field: keyof ClinicInfoSettingsType, value: string) => {
@@ -28,22 +22,7 @@ const ClinicInfoSettings: React.FC<ClinicInfoSettingsProps> = ({
   };
 
   return (
-    <div className="mb-8">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">診所資訊</h2>
-        {showSaveButton && onSave && (
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={saving}
-            className="btn-primary"
-          >
-            {saving ? '儲存中...' : '儲存更變'}
-          </button>
-        )}
-      </div>
-
-      <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-2xl">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             顯示名稱
@@ -107,7 +86,6 @@ const ClinicInfoSettings: React.FC<ClinicInfoSettingsProps> = ({
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 };

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { logger } from '../../utils/logger';
-import { LoadingSpinner, ErrorMessage, NameWarning } from '../../components/shared';
+import { LoadingSpinner, ErrorMessage, NameWarning, DateInput } from '../../components/shared';
 import { validatePhoneNumber } from '../../utils/phoneValidation';
+import { formatDateForApi, formatDateForDisplay } from '../../utils/dateFormat';
 import { ApiErrorType, getErrorMessage, AxiosErrorResponse } from '../../types';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
@@ -11,6 +12,7 @@ interface Patient {
   id: number;
   full_name: string;
   phone_number: string;
+  birthday?: string;
   created_at: string;
 }
 
@@ -23,14 +25,32 @@ const PatientManagement: React.FC = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newPatientName, setNewPatientName] = useState('');
   const [newPatientPhone, setNewPatientPhone] = useState('');
+  const [newPatientBirthday, setNewPatientBirthday] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [editingPatientId, setEditingPatientId] = useState<number | null>(null);
   const [editPatientName, setEditPatientName] = useState('');
   const [editPatientPhone, setEditPatientPhone] = useState('');
+  const [editPatientBirthday, setEditPatientBirthday] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [requireBirthday, setRequireBirthday] = useState(false);
 
   useEffect(() => {
     loadPatients();
+  }, [clinicId]);
+
+  // Fetch clinic settings to check if birthday is required
+  useEffect(() => {
+    const fetchClinicSettings = async () => {
+      if (!clinicId) return;
+      try {
+        const clinicInfo = await liffApiService.getClinicInfo();
+        setRequireBirthday(clinicInfo.require_birthday || false);
+      } catch (err) {
+        logger.error('Failed to fetch clinic settings:', err);
+        // Don't block if we can't fetch settings
+      }
+    };
+    fetchClinicSettings();
   }, [clinicId]);
 
   const loadPatients = async () => {
@@ -63,18 +83,29 @@ const PatientManagement: React.FC = () => {
       return;
     }
 
+    // Validate required birthday
+    if (requireBirthday && !newPatientBirthday.trim()) {
+      setError('請輸入生日');
+      return;
+    }
+
     try {
       setIsAdding(true);
       setError(null);
-      await liffApiService.createPatient({
+      const patientData: { full_name: string; phone_number: string; birthday?: string } = {
         full_name: newPatientName.trim(),
         phone_number: newPatientPhone.replace(/[\s\-\(\)]/g, ''),
-      });
+      };
+      if (newPatientBirthday.trim()) {
+        patientData.birthday = formatDateForApi(newPatientBirthday.trim());
+      }
+      await liffApiService.createPatient(patientData);
 
       // Reload patients to get the full data including phone number
       await loadPatients();
       setNewPatientName('');
       setNewPatientPhone('');
+      setNewPatientBirthday('');
       setShowAddForm(false);
     } catch (err: ApiErrorType) {
       logger.error('Failed to add patient:', err);
@@ -89,6 +120,7 @@ const PatientManagement: React.FC = () => {
     setEditingPatientId(patient.id);
     setEditPatientName(patient.full_name);
     setEditPatientPhone(patient.phone_number);
+    setEditPatientBirthday(formatDateForDisplay(patient.birthday));
     setError(null);
   };
 
@@ -96,6 +128,7 @@ const PatientManagement: React.FC = () => {
     setEditingPatientId(null);
     setEditPatientName('');
     setEditPatientPhone('');
+    setEditPatientBirthday('');
     setError(null);
   };
 
@@ -119,10 +152,14 @@ const PatientManagement: React.FC = () => {
     try {
       setIsUpdating(true);
       setError(null);
-      await liffApiService.updatePatient(patientId, {
+      const updateData: { full_name?: string; phone_number?: string; birthday?: string } = {
         full_name: editPatientName.trim(),
         phone_number: editPatientPhone.replace(/[\s\-\(\)]/g, ''),
-      });
+      };
+      if (editPatientBirthday.trim()) {
+        updateData.birthday = formatDateForApi(editPatientBirthday.trim());
+      }
+      await liffApiService.updatePatient(patientId, updateData);
 
       // Reload patients to get updated data
       await loadPatients();
@@ -217,20 +254,42 @@ const PatientManagement: React.FC = () => {
                 {editingPatientId === patient.id ? (
                   <div className="border border-gray-200 rounded-md p-4 bg-white">
                     <h3 className="font-medium text-gray-900 mb-3">編輯就診人</h3>
-                    <input
-                      type="text"
-                      value={editPatientName}
-                      onChange={(e) => setEditPatientName(e.target.value)}
-                      placeholder="請輸入姓名"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md mb-3"
-                    />
-                    <input
-                      type="tel"
-                      value={editPatientPhone}
-                      onChange={(e) => setEditPatientPhone(e.target.value)}
-                      placeholder="請輸入手機號碼 (0912345678)"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md mb-3"
-                    />
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        姓名
+                      </label>
+                      <input
+                        type="text"
+                        value={editPatientName}
+                        onChange={(e) => setEditPatientName(e.target.value)}
+                        placeholder="請輸入姓名"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        手機號碼
+                      </label>
+                      <input
+                        type="tel"
+                        value={editPatientPhone}
+                        onChange={(e) => setEditPatientPhone(e.target.value)}
+                        placeholder="請輸入手機號碼 (0912345678)"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      />
+                    </div>
+                    {requireBirthday && (
+                      <div className="mb-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          生日
+                        </label>
+                        <DateInput
+                          value={editPatientBirthday}
+                          onChange={setEditPatientBirthday}
+                          className="w-full"
+                        />
+                      </div>
+                    )}
                     {error && (
                       <div className="bg-red-50 border border-red-200 rounded-md p-2 mb-3">
                         <p className="text-sm text-red-600">{error}</p>
@@ -257,6 +316,9 @@ const PatientManagement: React.FC = () => {
                     <div className="flex-1">
                       <div className="font-medium text-gray-900">{patient.full_name}</div>
                       <div className="text-sm text-gray-600 mt-1">{patient.phone_number}</div>
+                      {patient.birthday && (
+                        <div className="text-sm text-gray-500 mt-1">生日: {formatDateForDisplay(patient.birthday)}</div>
+                      )}
                     </div>
                     <div className="flex space-x-2">
                       <button
@@ -314,6 +376,18 @@ const PatientManagement: React.FC = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md mb-3"
                 onKeyPress={(e) => e.key === 'Enter' && handleAddPatient()}
               />
+              {requireBirthday && (
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    生日
+                  </label>
+                  <DateInput
+                    value={newPatientBirthday}
+                    onChange={setNewPatientBirthday}
+                    className="w-full"
+                  />
+                </div>
+              )}
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-md p-2 mb-3">
                   <p className="text-sm text-red-600">{error}</p>
@@ -332,6 +406,7 @@ const PatientManagement: React.FC = () => {
                     setShowAddForm(false);
                     setNewPatientName('');
                     setNewPatientPhone('');
+                    setNewPatientBirthday('');
                     setError(null);
                   }}
                   className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200"

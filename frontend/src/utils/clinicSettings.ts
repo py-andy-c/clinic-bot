@@ -42,18 +42,22 @@ export const validateClinicSettings = (settings: ClinicSettings): string | null 
 
 // Get section-specific changes for clinic settings
 export const getClinicSectionChanges = (current: ClinicSettings, original: ClinicSettings): Record<string, boolean> => {
+  // Check if appointment settings section has changes
+  // This includes: appointment types, appointment type instructions, booking restrictions, and require_birthday
+  const appointmentSettingsChanged =
+    JSON.stringify(current.appointment_types) !== JSON.stringify(original.appointment_types) ||
+    current.clinic_info_settings.appointment_type_instructions !== original.clinic_info_settings.appointment_type_instructions ||
+    current.booking_restriction_settings.booking_restriction_type !== original.booking_restriction_settings.booking_restriction_type ||
+    current.booking_restriction_settings.minimum_booking_hours_ahead !== original.booking_restriction_settings.minimum_booking_hours_ahead ||
+    (current.clinic_info_settings.require_birthday || false) !== (original.clinic_info_settings.require_birthday || false);
+
   return {
+    appointmentSettings: appointmentSettingsChanged,
     clinicInfoSettings:
       current.clinic_info_settings.display_name !== original.clinic_info_settings.display_name ||
       current.clinic_info_settings.address !== original.clinic_info_settings.address ||
       current.clinic_info_settings.phone_number !== original.clinic_info_settings.phone_number,
-    appointmentTypeInstructions:
-      current.clinic_info_settings.appointment_type_instructions !== original.clinic_info_settings.appointment_type_instructions,
-    appointmentTypes: JSON.stringify(current.appointment_types) !== JSON.stringify(original.appointment_types),
     reminderSettings: current.notification_settings.reminder_hours_before !== original.notification_settings.reminder_hours_before,
-    bookingRestrictionSettings:
-      current.booking_restriction_settings.booking_restriction_type !== original.booking_restriction_settings.booking_restriction_type ||
-      current.booking_restriction_settings.minimum_booking_hours_ahead !== original.booking_restriction_settings.minimum_booking_hours_ahead,
     chatSettings: JSON.stringify(current.chat_settings) !== JSON.stringify(original.chat_settings),
   };
 };

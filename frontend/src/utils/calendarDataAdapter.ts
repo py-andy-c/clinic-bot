@@ -16,6 +16,7 @@ export interface CalendarEvent {
     appointment_id?: number; // For appointment cancellation
     notes?: string;
     patient_phone?: string;
+    patient_birthday?: string;
     line_display_name?: string;
     patient_name?: string;
     practitioner_name?: string;
@@ -54,6 +55,7 @@ export const transformToCalendarEvents = (apiEvents: (ApiCalendarEvent | any)[])
         appointment_id: event.appointment_id,
         notes: event.notes,
         patient_phone: event.patient_phone,
+        patient_birthday: event.patient_birthday,
         line_display_name: event.line_display_name,
         patient_name: event.patient_name,
         practitioner_name: event.practitioner_name,

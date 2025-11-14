@@ -39,6 +39,9 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
               {event.resource.patient_phone && (
                 <p><strong>電話:</strong> {event.resource.patient_phone}</p>
               )}
+              {event.resource.patient_birthday && (
+                <p><strong>生日:</strong> {event.resource.patient_birthday}</p>
+              )}
               {event.resource.line_display_name && (
                 <p><strong>LINE:</strong> {event.resource.line_display_name}</p>
               )}

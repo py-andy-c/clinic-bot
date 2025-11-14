@@ -1,18 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { logger } from '../../utils/logger';
 import { validatePhoneNumber } from '../../utils/phoneValidation';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 import { preserveQueryParams } from '../../utils/urlUtils';
-import { NameWarning } from '../../components/shared';
+import { formatDateForApi } from '../../utils/dateFormat';
+import { NameWarning, DateInput } from '../../components/shared';
 
 const FirstTimeRegister: React.FC = () => {
   const { clinicId } = useAppointmentStore();
   // For first-time registration, we don't have a display name from LINE yet
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [birthday, setBirthday] = useState('');
+  const [requireBirthday, setRequireBirthday] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch clinic settings to check if birthday is required
+  useEffect(() => {
+    const fetchClinicSettings = async () => {
+      if (!clinicId) return;
+      try {
+        const clinicInfo = await liffApiService.getClinicInfo();
+        setRequireBirthday(clinicInfo.require_birthday || false);
+      } catch (err) {
+        logger.error('Failed to fetch clinic settings:', err);
+        // Don't block registration if we can't fetch settings
+      }
+    };
+    fetchClinicSettings();
+  }, [clinicId]);
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,6 +52,11 @@ const FirstTimeRegister: React.FC = () => {
       return;
     }
 
+    if (requireBirthday && !birthday.trim()) {
+      setError('請輸入您的生日');
+      return;
+    }
+
     if (!clinicId) {
       setError('診所資訊無效，請重新整理頁面');
       return;
@@ -43,10 +66,14 @@ const FirstTimeRegister: React.FC = () => {
     setError(null);
 
     try {
-      await liffApiService.createPrimaryPatient({
+      const patientData: { full_name: string; phone_number: string; birthday?: string } = {
         full_name: fullName.trim(),
         phone_number: phoneNumber.replace(/[\s\-\(\)]/g, ''),
-      });
+      };
+      if (birthday.trim()) {
+        patientData.birthday = formatDateForApi(birthday.trim());
+      }
+      await liffApiService.createPrimaryPatient(patientData);
 
       // Registration successful - update URL and trigger auth refresh
       // Preserve clinic_id and other query parameters while updating mode
@@ -113,6 +140,25 @@ const FirstTimeRegister: React.FC = () => {
                 請輸入您的手機號碼 (09開頭的10位數字)
               </p>
             </div>
+
+            {/* Birthday Field - Only show when required */}
+            {requireBirthday && (
+              <div>
+                <label htmlFor="birthday" className="block text-sm font-medium text-gray-700 mb-2">
+                  生日 <span className="text-red-500">*</span>
+                </label>
+                <DateInput
+                  id="birthday"
+                  value={birthday}
+                  onChange={setBirthday}
+                  className="w-full"
+                  required={requireBirthday}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  請輸入您的生日，格式：YYYY/MM/DD (例如：1990/05/15)
+                </p>
+              </div>
+            )}
 
             {/* Error Message */}
             {error && (

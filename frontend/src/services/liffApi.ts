@@ -23,12 +23,14 @@ export interface LiffLoginResponse {
 export interface PatientCreateRequest {
   full_name: string;
   phone_number: string;
+  birthday?: string; // YYYY-MM-DD format
 }
 
 export interface PatientResponse {
   patient_id: number;
   full_name: string;
   phone_number: string;
+  birthday?: string; // YYYY-MM-DD format
   created_at: string;
 }
 
@@ -36,6 +38,7 @@ export interface PatientSummary {
   id: number;
   full_name: string;
   phone_number: string;
+  birthday?: string; // YYYY-MM-DD format
   created_at: string;
 }
 
@@ -102,6 +105,7 @@ export interface ClinicInfoResponse {
   display_name: string;
   address: string | null;
   phone_number: string | null;
+  require_birthday?: boolean;
 }
 
 class LiffApiService {
@@ -165,12 +169,12 @@ class LiffApiService {
     return response.data;
   }
 
-  async createPatient(request: { full_name: string; phone_number: string }): Promise<{ patient_id: number; full_name: string }> {
+  async createPatient(request: { full_name: string; phone_number: string; birthday?: string }): Promise<{ patient_id: number; full_name: string }> {
     const response = await this.client.post('/liff/patients', request);
     return response.data;
   }
 
-  async updatePatient(patientId: number, request: { full_name?: string; phone_number?: string }): Promise<{ patient_id: number; full_name: string; phone_number: string }> {
+  async updatePatient(patientId: number, request: { full_name?: string; phone_number?: string; birthday?: string }): Promise<{ patient_id: number; full_name: string; phone_number: string }> {
     const response = await this.client.put(`/liff/patients/${patientId}`, request);
     return response.data;
   }

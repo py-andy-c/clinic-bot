@@ -38,6 +38,7 @@ export interface Clinic {
       address?: string | null;
       phone_number?: string | null;
       appointment_type_instructions?: string | null;
+      require_birthday?: boolean;
     };
     chat_settings?: {
       chat_enabled?: boolean;
@@ -109,6 +110,7 @@ export interface Patient {
   clinic_id: number;
   full_name: string;
   phone_number: string;
+  birthday?: string; // YYYY-MM-DD format
   created_at: string;
   line_user_id?: string;
   line_user_display_name?: string;
@@ -304,6 +306,7 @@ export interface ApiCalendarEvent {
   appointment_id?: number; // For appointment cancellation
   notes?: string;
   patient_phone?: string;
+  patient_birthday?: string; // YYYY-MM-DD format
   line_display_name?: string;
   patient_name?: string;
   practitioner_name?: string;

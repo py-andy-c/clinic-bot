@@ -6,9 +6,6 @@ import { hasChatSettingsChanged } from '../utils/chatSettingsComparison';
 interface ChatSettingsProps {
   chatSettings: ChatSettingsType;
   onChatSettingsChange: (chatSettings: ChatSettingsType) => void;
-  showSaveButton?: boolean;
-  onSave?: () => void;
-  saving?: boolean;
   isClinicAdmin?: boolean;
 }
 
@@ -195,9 +192,6 @@ A: 是的，我們是健保特約診所。健保給付的項目包括：物理�
 const ChatSettings: React.FC<ChatSettingsProps> = ({
   chatSettings,
   onChatSettingsChange,
-  showSaveButton = false,
-  onSave,
-  saving = false,
   isClinicAdmin = false,
 }) => {
   const [showAiGuidancePopup, setShowAiGuidancePopup] = useState(false);
@@ -206,6 +200,19 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const previousChatSettingsRef = useRef<ChatSettingsType | null>(null);
   const isInitialMountRef = useRef(true);
+
+  // Listen for custom event to open test modal from header button
+  useEffect(() => {
+    const handleOpenTest = () => {
+      if (chatSettings.chat_enabled) {
+        setShowTestModal(true);
+      }
+    };
+    window.addEventListener('open-chat-test', handleOpenTest);
+    return () => {
+      window.removeEventListener('open-chat-test', handleOpenTest);
+    };
+  }, [chatSettings.chat_enabled]);
 
   // Auto-close test modal when chat settings change
   useEffect(() => {
@@ -344,61 +351,25 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
   };
 
   return (
-    <div className="mb-8">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">AI 聊天功能</h2>
-        <div className="flex items-center gap-3">
-          {chatSettings.chat_enabled && (
-            <button
-              type="button"
-              onClick={() => setShowTestModal(true)}
-              className="px-4 py-2 bg-[#EFF6FF] text-[#1E40AF] rounded-lg font-medium text-sm hover:bg-[#DBEAFE] transition-colors flex items-center gap-2"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-                />
-              </svg>
-              測試聊天機器人
-            </button>
-          )}
-          {showSaveButton && onSave && (
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={saving}
-              className="btn-primary"
-            >
-              {saving ? '儲存中...' : '儲存更變'}
-            </button>
-          )}
-        </div>
-      </div>
-
+    <>
       <div className="space-y-6 max-w-2xl">
         {/* Toggle */}
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
-          <label className="text-sm font-medium text-gray-900">
-            啟用 AI 聊天功能
-          </label>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={chatSettings.chat_enabled}
-              onChange={(e) => handleToggle(e.target.checked)}
-              disabled={!isClinicAdmin}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"></div>
-          </label>
+        <div>
+          <div className="flex items-center justify-between max-w-2xl">
+            <label className="block text-sm font-medium text-gray-700">
+              啟用 AI 聊天功能
+            </label>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={chatSettings.chat_enabled}
+                onChange={(e) => handleToggle(e.target.checked)}
+                disabled={!isClinicAdmin}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"></div>
+            </label>
+          </div>
         </div>
 
         {/* Expanded form - only show when toggle is ON */}
@@ -606,7 +577,7 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
         onClose={() => setShowTestModal(false)}
         chatSettings={chatSettings}
       />
-    </div>
+    </>
   );
 };
 

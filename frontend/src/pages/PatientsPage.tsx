@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import moment from 'moment-timezone';
 import { apiService } from '../services/api';
@@ -6,10 +6,13 @@ import { Patient } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { useApiData } from '../hooks/useApiData';
 import PageHeader from '../components/PageHeader';
+import { ClinicSettings } from '../schemas/api';
+import { logger } from '../utils/logger';
 
 const PatientsPage: React.FC = () => {
   const { isLoading, isAuthenticated, user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
+  const [requireBirthday, setRequireBirthday] = useState(false);
 
   const { data: patients, loading, error, refetch } = useApiData<Patient[]>(
     () => apiService.getPatients(),
@@ -20,6 +23,22 @@ const PatientsPage: React.FC = () => {
       initialData: [],
     }
   );
+
+  // Fetch clinic settings to check if birthday column should be shown
+  useEffect(() => {
+    const fetchClinicSettings = async () => {
+      if (!isLoading && isAuthenticated) {
+        try {
+          const settings: ClinicSettings = await apiService.getClinicSettings();
+          setRequireBirthday(settings.clinic_info_settings?.require_birthday || false);
+        } catch (err) {
+          // Don't block if we can't fetch settings, default to false
+          logger.error('Failed to fetch clinic settings:', err);
+        }
+      }
+    };
+    fetchClinicSettings();
+  }, [isLoading, isAuthenticated]);
 
   if (loading) {
     return (
@@ -62,6 +81,11 @@ const PatientsPage: React.FC = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       手機號碼
                     </th>
+                    {requireBirthday && (
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        生日
+                      </th>
+                    )}
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       LINE 使用者
                     </th>
@@ -81,6 +105,11 @@ const PatientsPage: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {patient.phone_number}
                       </td>
+                      {requireBirthday && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {patient.birthday ? moment(patient.birthday).format('YYYY/MM/DD') : '-'}
+                        </td>
+                      )}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm text-gray-900">
                           {patient.line_user_display_name || '-'}

@@ -101,17 +101,31 @@ export const useSettingsPage = <T extends Record<string, any>>(
       alert('設定已更新');
     } catch (err: any) {
       logger.error('Save settings error:', err);
+      // Extract error message from response
+      const errorMessage = err.response?.data?.detail || err.response?.data?.message || err.message || '儲存設定失敗，請稍後再試';
+      logger.error('Error details:', {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: errorMessage
+      });
       setUiState(prev => ({
         ...prev,
-        error: err.message || err.response?.data?.message || err.response?.data?.detail || '儲存設定失敗，請稍後再試'
+        error: errorMessage
       }));
     } finally {
       setUiState(prev => ({ ...prev, saving: false }));
     }
   };
 
-  const updateData = (updates: Partial<T>) => {
-    setData(prev => prev ? { ...prev, ...updates } : null);
+  const updateData = (updates: Partial<T> | ((prev: T) => Partial<T>)) => {
+    setData(prev => {
+      if (!prev) return null;
+      if (typeof updates === 'function') {
+        const partialUpdates = updates(prev);
+        return { ...prev, ...partialUpdates };
+      }
+      return { ...prev, ...updates };
+    });
   };
 
   const resetData = () => {
