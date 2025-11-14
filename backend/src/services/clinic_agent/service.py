@@ -19,6 +19,12 @@ from openai.types.shared.reasoning import Reasoning
 from models import Clinic
 from models.clinic import ChatSettings
 from core.config import DATABASE_URL
+from core.constants import (
+    CHAT_MAX_HISTORY_HOURS,
+    CHAT_MIN_HISTORY_MESSAGES,
+    CHAT_MAX_HISTORY_MESSAGES,
+    CHAT_SESSION_EXPIRY_HOURS
+)
 from .utils import trim_session
 from .prompts.base_system_prompt import BASE_SYSTEM_PROMPT
 
@@ -178,7 +184,6 @@ def _create_clinic_agent(clinic: Clinic, chat_settings_override: Optional[ChatSe
 
 
 # Constants
-MAX_HISTORY_MESSAGES = 25
 FALLBACK_ERROR_MESSAGE = "抱歉，我暫時無法處理您的訊息。請稍後再試，或直接聯繫診所。"
 
 
@@ -230,13 +235,17 @@ class ClinicAgentService:
                 create_tables=True
             )
             
-            # Limit conversation history to last 25 messages
+            # Limit conversation history using time-based filtering
             # This helps manage token usage and keeps context relevant
-            # IMPORTANT: We need to truncate carefully to preserve related items
-            # (e.g., message items and their reasoning items, tool calls and results)
+            # Filtered items are validated to ensure they start with a legal item type
             await trim_session(
                 session=session,
-                max_items=MAX_HISTORY_MESSAGES
+                session_id=session_id,
+                engine=engine,
+                max_items=CHAT_MAX_HISTORY_MESSAGES,
+                max_age_hours=CHAT_MAX_HISTORY_HOURS,
+                min_items=CHAT_MIN_HISTORY_MESSAGES,
+                session_expiry_hours=CHAT_SESSION_EXPIRY_HOURS
             )
             
             # Create clinic-specific agent with context in system prompt

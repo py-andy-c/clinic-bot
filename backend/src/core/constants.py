@@ -49,3 +49,10 @@ REMINDER_WINDOW_SIZE_MINUTES = 35  # ±35 minutes window around reminder time
 
 # Reminder scheduler settings
 REMINDER_SCHEDULER_MAX_INSTANCES = 1  # Prevent overlapping scheduler runs
+
+# Chat conversation history settings
+CHAT_MAX_HISTORY_HOURS = 24  # Preferred time window: keep messages from last 24 hours
+CHAT_MIN_HISTORY_MESSAGES = 0  # Minimum messages to keep (even if older than MAX_HISTORY_HOURS)
+CHAT_MAX_HISTORY_MESSAGES = 35  # Upper bound: never keep more than this many messages
+CHAT_SESSION_EXPIRY_HOURS = 168  # Hard cutoff: delete messages older than 7 days (even if below MIN)
+CHAT_TEST_SESSION_EXPIRY_HOURS = 12  # Test sessions expire after 12 hour
