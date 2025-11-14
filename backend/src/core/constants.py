@@ -56,3 +56,8 @@ CHAT_MIN_HISTORY_MESSAGES = 0  # Minimum messages to keep (even if older than MA
 CHAT_MAX_HISTORY_MESSAGES = 35  # Upper bound: never keep more than this many messages
 CHAT_SESSION_EXPIRY_HOURS = 168  # Hard cutoff: delete messages older than 7 days (even if below MIN)
 CHAT_TEST_SESSION_EXPIRY_HOURS = 12  # Test sessions expire after 12 hour
+
+# LINE AI opt-out settings
+OPT_OUT_COMMAND = "人工回覆"  # Command to opt out of AI replies
+RE_ENABLE_COMMAND = "重啟AI"  # Command to re-enable AI replies
+AI_OPT_OUT_DURATION_HOURS = 24  # Duration in hours that AI replies are disabled when user opts out

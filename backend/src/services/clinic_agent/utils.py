@@ -118,7 +118,11 @@ async def _get_item_timestamps(
                     message_data = json.loads(message_data_str)
                     item_id = message_data.get("id")
                     if item_id and created_at:
-                        item_timestamps[item_id] = created_at
+                        # Normalize to timezone-naive to match database column type
+                        if created_at.tzinfo is not None:
+                            item_timestamps[item_id] = created_at.replace(tzinfo=None)
+                        else:
+                            item_timestamps[item_id] = created_at
                 except (json.JSONDecodeError, KeyError) as e:
                     logger.debug(f"Could not parse message_data for timestamp: {e}")
                     continue
@@ -148,7 +152,9 @@ async def _trim_by_time(
     3. Minimum guarantee (min_items)
     4. Upper bound (max_items)
     """
-    now = datetime.now(timezone.utc)
+    # Use timezone-naive datetime to match database columns (timestamp without time zone)
+    # Convert UTC-aware datetime to naive to match database column type
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     # Get timestamps for all items
     item_timestamps = await _get_item_timestamps(session_id, engine)
@@ -193,7 +199,7 @@ async def _trim_by_time(
         # Sort all items after expiry by timestamp (newest first)
         sorted_items = sorted(
             items_after_expiry.items(),
-            key=lambda x: x[1][1] or datetime.min.replace(tzinfo=timezone.utc),
+            key=lambda x: x[1][1] or datetime.min,
             reverse=True
         )
         # Take at least min_items (or all if fewer)
@@ -206,7 +212,7 @@ async def _trim_by_time(
         # Keep only most recent max_items
         sorted_all = sorted(
             items_after_expiry.items(),
-            key=lambda x: x[1][1] or datetime.min.replace(tzinfo=timezone.utc),
+            key=lambda x: x[1][1] or datetime.min,
             reverse=True
         )
         items_to_keep_ids = {item_id for item_id, _ in sorted_all[:max_items]}
@@ -258,6 +264,8 @@ def _is_legal_start_item(item: dict[str, Any]) -> bool:
     """
     try:
         # TODO support tool call
+        if "summary" in item and item["summary"] is not None:
+            return True
         if item["role"] == "user":
             return True
         elif item["role"] == "assistant":

@@ -35,24 +35,30 @@ fi
 # Run database migrations - CRITICAL: Must succeed before starting app
 if [ -d "alembic" ] && [ -f "alembic.ini" ]; then
     # Handle migration history reset transition
-    # If database has old migration revision, stamp it to baseline
+    # Only stamp to baseline if we have an invalid/unknown revision
+    # Valid revisions in the chain should be upgraded normally
     CURRENT_REV=$(alembic current 2>&1 | grep -oE '[a-f0-9]{12}' | head -1 || echo "")
     BASELINE_REV="680334b106f8"
     
-    # Check if we have a revision that's not our baseline (old migration system)
-    if [ -n "$CURRENT_REV" ] && [ "$CURRENT_REV" != "$BASELINE_REV" ]; then
-        echo "⚠️  Detected old migration revision: $CURRENT_REV"
-        echo "📋 This database was created with old migrations (pre-baseline reset)."
-        echo "🔄 Stamping database to new baseline migration ($BASELINE_REV)..."
-        echo "   Note: This assumes the schema already matches the baseline."
-        echo "   If schema differs, you may need to create a bridge migration."
-        
-        if alembic stamp "$BASELINE_REV" 2>&1; then
-            echo "✅ Database stamped to baseline successfully"
+    # Check if current revision is valid in the migration chain
+    if [ -n "$CURRENT_REV" ]; then
+        # Check if the revision exists in our migration history
+        if ! alembic history | grep -q "$CURRENT_REV"; then
+            echo "⚠️  Detected invalid/unknown migration revision: $CURRENT_REV"
+            echo "📋 This database has a revision not in the current migration chain."
+            echo "🔄 Stamping database to baseline migration ($BASELINE_REV)..."
+            echo "   Note: This assumes the schema already matches the baseline."
+            echo "   If schema differs, you may need to create a bridge migration."
+            
+            if alembic stamp "$BASELINE_REV" 2>&1; then
+                echo "✅ Database stamped to baseline successfully"
+            else
+                echo "❌ ERROR: Failed to stamp database to baseline" >&2
+                echo "   You may need to manually verify the schema matches" >&2
+                exit 1
+            fi
         else
-            echo "❌ ERROR: Failed to stamp database to baseline" >&2
-            echo "   You may need to manually verify the schema matches" >&2
-            exit 1
+            echo "✅ Current revision $CURRENT_REV is valid in migration chain"
         fi
     fi
     

@@ -19,8 +19,19 @@ from core.database import get_db
 from models import Clinic
 from services.line_service import LINEService
 from services.clinic_agent import ClinicAgentService
+from services.line_opt_out_service import (
+    normalize_message_text,
+    set_ai_opt_out,
+    clear_ai_opt_out,
+    is_ai_opted_out
+)
+from core.constants import OPT_OUT_COMMAND, RE_ENABLE_COMMAND, AI_OPT_OUT_DURATION_HOURS
 
 logger = logging.getLogger(__name__)
+
+# Cache normalized commands for efficient comparison
+_NORMALIZED_OPT_OUT_COMMAND = normalize_message_text(OPT_OUT_COMMAND)
+_NORMALIZED_RE_ENABLE_COMMAND = normalize_message_text(RE_ENABLE_COMMAND)
 
 router = APIRouter()
 
@@ -57,6 +68,10 @@ async def line_webhook(
     Raises:
         HTTPException: If signature verification fails or clinic not found
     """
+    # Initialize context variables for error logging
+    clinic_id = None
+    line_user_id = None
+    
     try:
         # Get raw request body for signature verification
         # Note: We need to read body first before parsing JSON
@@ -90,6 +105,9 @@ async def line_webhook(
                 detail=f"Clinic not found for destination: {destination}"
             )
         
+        # Store clinic_id for error logging
+        clinic_id = clinic.id
+        
         # Verify webhook signature
         line_service = LINEService(
             channel_secret=clinic.line_channel_secret,
@@ -118,6 +136,79 @@ async def line_webhook(
             f"line_user_id={line_user_id}, "
             f"message={message_text[:30]}..."
         )
+        
+        # Normalize message text for command matching
+        # Removes whitespace and common quote/parenthesis characters
+        normalized_message = normalize_message_text(message_text)
+        
+        # Handle special commands FIRST (before any other processing)
+        # These commands work even if chat is disabled or user is opted out
+        
+        # Command: "人工回覆" - Opt out of AI replies (case-insensitive)
+        if normalized_message == _NORMALIZED_OPT_OUT_COMMAND:
+            try:
+                set_ai_opt_out(db, line_user_id, clinic.id, hours=AI_OPT_OUT_DURATION_HOURS)
+                
+                # Send confirmation message with configurable duration
+                opt_out_message = (
+                    "好的，診所人員會盡快回覆您！\n\n"
+                    f"AI回覆功能將在接下來{AI_OPT_OUT_DURATION_HOURS}小時關閉。如果要重新啟用AI回覆功能，請在聊天室說「重啟AI」。"
+                )
+                line_service.send_text_message(
+                    line_user_id=line_user_id,
+                    text=opt_out_message,
+                    reply_token=reply_token
+                )
+                
+                logger.info(
+                    f"User opted out of AI replies: clinic_id={clinic.id}, "
+                    f"line_user_id={line_user_id}"
+                )
+                return {"status": "ok", "message": "User opted out of AI replies"}
+            except Exception as e:
+                logger.exception(
+                    f"Error setting opt-out for clinic_id={clinic.id}, "
+                    f"line_user_id={line_user_id}: {e}"
+                )
+                # Opt-out may have been set but message send failed - return OK to prevent retry
+                return {"status": "ok", "message": "Opt-out processed (message may have failed)"}
+        
+        # Command: "重啟AI" - Re-enable AI replies (case-insensitive)
+        if normalized_message == _NORMALIZED_RE_ENABLE_COMMAND:
+            try:
+                cleared = clear_ai_opt_out(db, line_user_id, clinic.id)
+                
+                # Send confirmation message (even if already enabled)
+                re_enable_message = "AI回覆功能已重新啟用。"
+                line_service.send_text_message(
+                    line_user_id=line_user_id,
+                    text=re_enable_message,
+                    reply_token=reply_token
+                )
+                
+                logger.info(
+                    f"User re-enabled AI replies: clinic_id={clinic.id}, "
+                    f"line_user_id={line_user_id}, was_opted_out={cleared}"
+                )
+                return {"status": "ok", "message": "User re-enabled AI replies"}
+            except Exception as e:
+                logger.exception(
+                    f"Error clearing opt-out for clinic_id={clinic.id}, "
+                    f"line_user_id={line_user_id}: {e}"
+                )
+                # Opt-out may have been cleared but message send failed - return OK to prevent retry
+                return {"status": "ok", "message": "Re-enable processed (message may have failed)"}
+        
+        # Check if user is opted out (and not expired)
+        # If opted out, ignore the message - don't process, don't store
+        if is_ai_opted_out(db, line_user_id, clinic.id):
+            logger.info(
+                f"Message from opted-out user ignored: clinic_id={clinic.id}, "
+                f"line_user_id={line_user_id}, message={message_text[:30]}..."
+            )
+            # Return OK to LINE but don't process the message
+            # Messages during opt-out period are not stored in conversation history
+            return {"status": "ok", "message": "User opted out, message ignored"}
         
         # Check if chat feature is enabled for this clinic
         validated_settings = clinic.get_validated_settings()
@@ -165,7 +256,12 @@ async def line_webhook(
         # Re-raise HTTP exceptions
         raise
     except Exception as e:
-        logger.exception(f"Unexpected error processing LINE webhook: {e}")
+        # clinic_id and line_user_id are initialized at function start
+        # and set when available, so they're safe to use here
+        logger.exception(
+            f"Unexpected error processing LINE webhook: {e} "
+            f"(clinic_id={clinic_id}, line_user_id={line_user_id})"
+        )
         # Return 200 OK to LINE even on errors to prevent retries
         # LINE will retry if we return error status codes
         return {"status": "error", "message": "Internal server error"}

@@ -175,6 +175,7 @@ def sample_clinic_data():
         "name": "Test Clinic",
         "line_channel_id": "test_channel_123",
         "line_channel_secret": "test_secret_456",
+        "line_channel_access_token": "test_token",
         "subscription_status": "trial",
         "settings": {}
     }
