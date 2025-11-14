@@ -11,6 +11,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore
 from apscheduler.triggers.cron import CronTrigger  # type: ignore
 
 from services.clinic_agent import ClinicAgentService
+from utils.datetime_utils import TAIWAN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,8 @@ class TestSessionCleanupService:
     
     def __init__(self):
         """Initialize the cleanup service."""
-        self.scheduler = AsyncIOScheduler()
+        # Configure scheduler to use Taiwan timezone to ensure correct timing
+        self.scheduler = AsyncIOScheduler(timezone=TAIWAN_TZ)
         self._is_started = False
     
     async def start_scheduler(self) -> None:
@@ -33,16 +35,16 @@ class TestSessionCleanupService:
         Start the background scheduler for cleaning up old test sessions.
         
         This should be called during application startup.
-        Runs cleanup every hour.
+        Runs cleanup daily at 3 AM Taiwan time.
         """
         if self._is_started:
             logger.warning("Test session cleanup scheduler is already started")
             return
         
-        # Schedule cleanup to run every hour
+        # Schedule cleanup to run daily at 3 AM Taiwan time
         self.scheduler.add_job(  # type: ignore
             self._cleanup_old_sessions,
-            CronTrigger(hour="*"),  # Run every hour
+            CronTrigger(hour=3, minute=0),  # Run daily at 3 AM Taiwan time
             id="cleanup_test_sessions",
             name="Cleanup old test chat sessions",
             max_instances=1,  # Prevent overlapping runs
@@ -72,6 +74,7 @@ class TestSessionCleanupService:
         Clean up old test sessions.
         
         Deletes all test sessions older than 1 hour (Option C: time-based).
+        Runs daily at 3 AM Taiwan time.
         """
         try:
             deleted_count = await ClinicAgentService.cleanup_old_test_sessions(max_age_hours=1)

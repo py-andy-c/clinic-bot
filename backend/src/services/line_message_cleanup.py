@@ -15,7 +15,7 @@ from apscheduler.triggers.cron import CronTrigger  # type: ignore
 
 from core.database import SessionLocal
 from core.constants import LINE_MESSAGE_RETENTION_HOURS
-from utils.datetime_utils import taiwan_now
+from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,8 @@ class LineMessageCleanupService:
     
     def __init__(self):
         """Initialize the cleanup service."""
-        self.scheduler = AsyncIOScheduler()
+        # Configure scheduler to use Taiwan timezone to ensure correct timing
+        self.scheduler = AsyncIOScheduler(timezone=TAIWAN_TZ)
         self._is_started = False
     
     async def start_scheduler(self) -> None:
@@ -39,16 +40,16 @@ class LineMessageCleanupService:
         Start the background scheduler for cleaning up old LINE messages.
         
         This should be called during application startup.
-        Runs cleanup daily at 2 AM.
+        Runs cleanup daily at 3 AM Taiwan time.
         """
         if self._is_started:
             logger.warning("LINE message cleanup scheduler is already started")
             return
         
-        # Schedule cleanup to run daily at 2 AM
+        # Schedule cleanup to run daily at 3 AM Taiwan time
         self.scheduler.add_job(  # type: ignore
             self._cleanup_old_messages,
-            CronTrigger(hour=2, minute=0),  # Run daily at 2 AM
+            CronTrigger(hour=3, minute=0),  # Run daily at 3 AM Taiwan time
             id="cleanup_line_messages",
             name="Cleanup old LINE messages",
             max_instances=1,  # Prevent overlapping runs
