@@ -285,6 +285,225 @@ class TestLiffDatabaseOperations:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
+    def test_patient_creation_with_birthday(self, db_session: Session, test_clinic_with_liff):
+        """Test patient creation with birthday."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_birthday",
+            display_name="Birthday Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create primary patient
+        primary_patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Primary Patient",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        db_session.add(primary_patient)
+        db_session.commit()
+
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Test creating patient with birthday
+            patient_data = {
+                "full_name": "Patient With Birthday",
+                "phone_number": "0912345679",
+                "birthday": "1990-05-15"
+            }
+
+            response = client.post("/api/liff/patients", json=patient_data)
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["full_name"] == "Patient With Birthday"
+            assert data["birthday"] == "1990-05-15"
+
+            # Verify database state
+            patient = db_session.query(Patient).filter_by(
+                full_name="Patient With Birthday",
+                clinic_id=clinic.id
+            ).first()
+            assert patient is not None
+            assert patient.birthday is not None
+            assert str(patient.birthday) == "1990-05-15"
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_patient_creation_requires_birthday_when_setting_enabled(self, db_session: Session, test_clinic_with_liff):
+        """Test that patient creation requires birthday when clinic setting is enabled."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Enable require_birthday setting
+        clinic_settings = clinic.get_validated_settings()
+        clinic_settings.clinic_info_settings.require_birthday = True
+        clinic.set_validated_settings(clinic_settings)
+        db_session.commit()
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_require_birthday",
+            display_name="Require Birthday Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create primary patient
+        primary_patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Primary Patient",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        db_session.add(primary_patient)
+        db_session.commit()
+
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Test creating patient without birthday (should fail)
+            patient_data = {
+                "full_name": "Patient Without Birthday",
+                "phone_number": "0912345679"
+            }
+
+            response = client.post("/api/liff/patients", json=patient_data)
+            assert response.status_code == 400
+            assert "生日" in response.json()["detail"]
+
+            # Test creating patient with birthday (should succeed)
+            patient_data["birthday"] = "1990-05-15"
+            response = client.post("/api/liff/patients", json=patient_data)
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["birthday"] == "1990-05-15"
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_patient_update_with_birthday(self, db_session: Session, test_clinic_with_liff):
+        """Test patient update with birthday."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_update_birthday",
+            display_name="Update Birthday Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create patient without birthday
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Test updating patient with birthday
+            update_data = {
+                "birthday": "1990-05-15"
+            }
+            response = client.put(f"/api/liff/patients/{patient.id}", json=update_data)
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["birthday"] == "1990-05-15"
+
+            # Verify database state
+            db_session.refresh(patient)
+            assert patient.birthday is not None
+            assert str(patient.birthday) == "1990-05-15"
+
+            # Test updating birthday
+            update_data = {
+                "birthday": "1985-10-20"
+            }
+            response = client.put(f"/api/liff/patients/{patient.id}", json=update_data)
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["birthday"] == "1985-10-20"
+
+            # Verify database state
+            db_session.refresh(patient)
+            assert str(patient.birthday) == "1985-10-20"
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_patient_list_includes_birthday(self, db_session: Session, test_clinic_with_liff):
+        """Test that patient list includes birthday."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_list_birthday",
+            display_name="List Birthday Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create patients with and without birthday
+        from datetime import date
+        patient1 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient With Birthday",
+            phone_number="0912345678",
+            birthday=date(1990, 5, 15),
+            line_user_id=line_user.id
+        )
+        patient2 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient Without Birthday",
+            phone_number="0912345679",
+            line_user_id=line_user.id
+        )
+        db_session.add(patient1)
+        db_session.add(patient2)
+        db_session.commit()
+
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            response = client.get("/api/liff/patients")
+            assert response.status_code == 200
+
+            data = response.json()
+            patients = data["patients"]
+            assert len(patients) == 2
+
+            # Find patients by name
+            patient_with_bday = next(p for p in patients if p["full_name"] == "Patient With Birthday")
+            patient_without_bday = next(p for p in patients if p["full_name"] == "Patient Without Birthday")
+
+            assert patient_with_bday["birthday"] == "1990-05-15"
+            assert patient_without_bday["birthday"] is None
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
     def test_patient_update_validation_errors(self, db_session: Session, test_clinic_with_liff):
         """Test patient update validation errors."""
         clinic, practitioner, appt_types, _ = test_clinic_with_liff

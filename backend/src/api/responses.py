@@ -5,7 +5,7 @@ This module contains Pydantic response models that are shared across
 multiple API endpoints to ensure consistency and reduce duplication.
 """
 
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Optional, Dict, Any
 
 from pydantic import BaseModel
@@ -16,6 +16,7 @@ class PatientResponse(BaseModel):
     id: int
     full_name: str
     phone_number: str
+    birthday: Optional[date] = None  # Python date object (serialized to YYYY-MM-DD in JSON)
     created_at: datetime
 
 
@@ -24,6 +25,7 @@ class PatientCreateResponse(BaseModel):
     patient_id: int
     full_name: str
     phone_number: str
+    birthday: Optional[date] = None
     created_at: datetime
 
 
@@ -109,6 +111,7 @@ class ClinicPatientResponse(PatientResponse):
     """Response model for patient information in clinic context (includes line_user_id and display_name)."""
     line_user_id: Optional[str]
     line_user_display_name: Optional[str]
+    # birthday is inherited from PatientResponse
 
 
 class ClinicPatientListResponse(BaseModel):

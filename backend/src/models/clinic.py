@@ -36,6 +36,7 @@ class ClinicInfoSettings(BaseModel):
     address: Optional[str] = Field(default=None)
     phone_number: Optional[str] = Field(default=None)
     appointment_type_instructions: Optional[str] = Field(default=None, description="Instructions to guide patients when selecting appointment types")
+    require_birthday: bool = Field(default=False, description="Whether to require birthday during patient registration")
 
 
 class ChatSettings(BaseModel):

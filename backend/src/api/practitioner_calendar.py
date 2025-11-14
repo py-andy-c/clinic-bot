@@ -91,6 +91,7 @@ class CalendarEventResponse(BaseModel):
     appointment_id: Optional[int] = None  # For appointment cancellation
     notes: Optional[str] = None  # Appointment notes
     patient_phone: Optional[str] = None  # Patient phone number
+    patient_birthday: Optional[str] = None  # Patient birthday (YYYY-MM-DD format, string for calendar display)
     line_display_name: Optional[str] = None  # LINE display name
     patient_name: Optional[str] = None  # Patient full name for cancellation preview
     practitioner_name: Optional[str] = None  # Practitioner full name for cancellation preview
@@ -501,6 +502,11 @@ async def get_calendar_data(
                         # Get appointment type name safely (handles cases where appointment_type may be None)
                         appointment_type_name = _get_appointment_type_name(appointment)
                         
+                        # Format birthday as string if available
+                        patient_birthday_str = None
+                        if appointment.patient.birthday:
+                            patient_birthday_str = appointment.patient.birthday.strftime('%Y-%m-%d')
+                        
                         event_responses.append(CalendarEventResponse(
                             calendar_event_id=event.id,
                             type='appointment',
@@ -513,6 +519,7 @@ async def get_calendar_data(
                             appointment_id=appointment.calendar_event_id,
                             notes=appointment.notes,
                             patient_phone=appointment.patient.phone_number,
+                            patient_birthday=patient_birthday_str,
                             line_display_name=line_display_name,
                             patient_name=appointment.patient.full_name,
                             practitioner_name=practitioner_name,

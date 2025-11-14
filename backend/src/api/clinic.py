@@ -83,6 +83,7 @@ class ClinicInfoSettings(BaseModel):
     address: Optional[str] = None
     phone_number: Optional[str] = None
     appointment_type_instructions: Optional[str] = None
+    require_birthday: bool = False
 
 
 class ChatSettings(BaseModel):
@@ -557,7 +558,8 @@ async def get_settings(
                display_name=clinic.display_name,
                address=clinic.address,
                phone_number=clinic.phone_number,
-               appointment_type_instructions=clinic.appointment_type_instructions
+               appointment_type_instructions=clinic.appointment_type_instructions,
+               require_birthday=validated_settings.clinic_info_settings.require_birthday
            ),
            chat_settings=ChatSettings.model_validate(validated_settings.chat_settings.model_dump())
         )
@@ -1132,6 +1134,7 @@ async def get_patients(
                 id=patient.id,
                 full_name=patient.full_name,
                 phone_number=patient.phone_number,
+                birthday=patient.birthday,
                 line_user_id=patient.line_user.line_user_id if patient.line_user else None,
                 line_user_display_name=patient.line_user.display_name if patient.line_user else None,
                 created_at=patient.created_at

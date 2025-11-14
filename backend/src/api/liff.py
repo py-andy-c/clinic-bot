@@ -11,7 +11,7 @@ All endpoints require JWT authentication from LIFF login flow.
 
 import logging
 import jwt
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from typing import Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -41,6 +41,49 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+# ===== Helper Functions =====
+
+def validate_birthday_field(v: Any) -> Optional[date]:
+    """
+    Validate birthday format (YYYY-MM-DD) and reasonable range.
+    
+    Validates that:
+    - Date is not in the future
+    - Date is not unreasonably old (> 150 years, approximate)
+    
+    Note: The 150-year check uses days (150 * 365) as an approximation.
+    For exact calendar years accounting for leap years, consider using
+    dateutil.relativedelta, but the current approach is simpler and sufficient.
+    """
+    if v is None:
+        return None
+    if isinstance(v, date):
+        # Already a date object, just validate range
+        today = datetime.now().date()
+        if v > today:
+            raise ValueError('生日不能是未來日期')
+        # Approximate 150 years check (doesn't account for leap years, but sufficient)
+        if (today - v).days > 150 * 365:
+            raise ValueError('生日日期不合理')
+        return v
+    if isinstance(v, str):
+        try:
+            birthday_date = datetime.strptime(v, '%Y-%m-%d').date()
+            # Validate reasonable range: not in the future, not too old (e.g., > 150 years)
+            today = datetime.now().date()
+            if birthday_date > today:
+                raise ValueError('生日不能是未來日期')
+            # Approximate 150 years check (doesn't account for leap years, but sufficient)
+            if (today - birthday_date).days > 150 * 365:
+                raise ValueError('生日日期不合理')
+            return birthday_date
+        except ValueError as e:
+            if '生日' in str(e) or '日期' in str(e):
+                raise
+            raise ValueError('生日格式錯誤，請使用 YYYY-MM-DD 格式')
+    raise ValueError('生日格式錯誤，請使用 YYYY-MM-DD 格式')
+
+
 # ===== Request/Response Models =====
 
 class LiffLoginRequest(BaseModel):
@@ -65,6 +108,7 @@ class PatientCreateRequest(BaseModel):
     """Request model for creating patient."""
     full_name: str
     phone_number: str
+    birthday: Optional[date] = None
 
     @field_validator('full_name')
     @classmethod
@@ -84,11 +128,18 @@ class PatientCreateRequest(BaseModel):
     def validate_phone(cls, v: str) -> str:
         return validate_taiwanese_phone(v)
 
+    @field_validator('birthday', mode='before')
+    @classmethod
+    def validate_birthday(cls, v: Any) -> Optional[date]:
+        """Validate birthday format (YYYY-MM-DD) and reasonable range."""
+        return validate_birthday_field(v)
+
 
 class PatientUpdateRequest(BaseModel):
     """Request model for updating patient."""
     full_name: Optional[str] = None
     phone_number: Optional[str] = None
+    birthday: Optional[date] = None
 
     @field_validator('full_name')
     @classmethod
@@ -110,10 +161,16 @@ class PatientUpdateRequest(BaseModel):
     def validate_phone(cls, v: Optional[str]) -> Optional[str]:
         return validate_taiwanese_phone_optional(v)
 
+    @field_validator('birthday', mode='before')
+    @classmethod
+    def validate_birthday(cls, v: Any) -> Optional[date]:
+        """Validate birthday format (YYYY-MM-DD) and reasonable range."""
+        return validate_birthday_field(v)
+
     @model_validator(mode='after')
     def validate_at_least_one_field(self):
         """Ensure at least one field is provided for update."""
-        if self.full_name is None and self.phone_number is None:
+        if self.full_name is None and self.phone_number is None and self.birthday is None:
             raise ValueError('至少需提供一個欄位進行更新')
         return self
 
@@ -303,18 +360,31 @@ async def create_patient(
     line_user, clinic = line_user_clinic
 
     try:
+        # Check if clinic requires birthday
+        clinic_settings = clinic.get_validated_settings()
+        require_birthday = clinic_settings.clinic_info_settings.require_birthday
+
+        # Validate birthday is provided if required
+        if require_birthday and not request.birthday:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="此診所要求填寫生日"
+            )
+
         patient = PatientService.create_patient(
             db=db,
             clinic_id=clinic.id,
             full_name=request.full_name,
             phone_number=request.phone_number,
-            line_user_id=line_user.id
+            line_user_id=line_user.id,
+            birthday=request.birthday
         )
 
         return PatientCreateResponse(
             patient_id=patient.id,
             full_name=patient.full_name,
             phone_number=patient.phone_number,
+            birthday=patient.birthday,
             created_at=patient.created_at
         )
 
@@ -356,6 +426,7 @@ async def list_patients(
                     id=p.id,
                     full_name=p.full_name,
                     phone_number=p.phone_number,
+                    birthday=p.birthday,
                     created_at=p.created_at
                 ) for p in patients
             ]
@@ -375,8 +446,13 @@ async def update_patient(
     """
     Update a patient record for a LINE user.
 
-    Allows updating patient name and/or phone number.
+    Allows updating patient name, phone number, and/or birthday.
     Clinic isolation is enforced through LIFF token context.
+    
+    Note: The `require_birthday` clinic setting does NOT apply to updates.
+    This allows existing patients without birthdays to be updated even after
+    the clinic enables the requirement. Birthday can be added via update
+    when convenient, but is not enforced on updates.
     """
     line_user, clinic = line_user_clinic
 
@@ -387,13 +463,15 @@ async def update_patient(
             line_user_id=line_user.id,
             clinic_id=clinic.id,
             full_name=request.full_name,
-            phone_number=request.phone_number
+            phone_number=request.phone_number,
+            birthday=request.birthday
         )
 
         return PatientCreateResponse(
             patient_id=patient.id,
             full_name=patient.full_name,
             phone_number=patient.phone_number,
+            birthday=patient.birthday,
             created_at=patient.created_at
         )
 
@@ -677,6 +755,7 @@ async def get_clinic_info(
     """
     try:
         _, clinic = line_user_clinic
+        clinic_settings = clinic.get_validated_settings()
 
         return {
             "clinic_id": clinic.id,
@@ -684,6 +763,7 @@ async def get_clinic_info(
             "display_name": clinic.effective_display_name,
             "address": clinic.address,
             "phone_number": clinic.phone_number,
+            "require_birthday": clinic_settings.clinic_info_settings.require_birthday,
         }
 
     except Exception as e:

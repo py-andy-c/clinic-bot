@@ -7,6 +7,7 @@ between different API endpoints (LIFF, clinic admin, etc.).
 
 import logging
 from typing import List, Optional
+from datetime import date
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -29,7 +30,8 @@ class PatientService:
         clinic_id: int,
         full_name: str,
         phone_number: str,
-        line_user_id: Optional[int] = None
+        line_user_id: Optional[int] = None,
+        birthday: Optional[date] = None
     ) -> Patient:
         """
         Create a new patient record.
@@ -40,6 +42,7 @@ class PatientService:
             full_name: Patient's full name
             phone_number: Phone number (required)
             line_user_id: Optional LINE user ID for association
+            birthday: Optional patient birthday
 
         Returns:
             Created Patient object
@@ -61,7 +64,8 @@ class PatientService:
                 clinic_id=clinic_id,
                 full_name=full_name,
                 phone_number=phone_number,
-                line_user_id=line_user_id
+                line_user_id=line_user_id,
+                birthday=birthday
             )
 
             db.add(patient)
@@ -225,7 +229,8 @@ class PatientService:
         line_user_id: int,
         clinic_id: int,
         full_name: Optional[str] = None,
-        phone_number: Optional[str] = None
+        phone_number: Optional[str] = None,
+        birthday: Optional[date] = None
     ) -> Patient:
         """
         Update a patient record for a LINE user.
@@ -237,6 +242,7 @@ class PatientService:
             clinic_id: Clinic ID
             full_name: Optional new full name
             phone_number: Optional new phone number
+            birthday: Optional new birthday
 
         Returns:
             Updated Patient object
@@ -256,6 +262,8 @@ class PatientService:
                 patient.full_name = full_name.strip()
             if phone_number is not None:
                 patient.phone_number = phone_number
+            if birthday is not None:
+                patient.birthday = birthday
 
             db.commit()
             db.refresh(patient)
