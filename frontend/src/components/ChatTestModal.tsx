@@ -157,38 +157,22 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
     }
   };
 
-  const handleReset = () => {
-    setMessages([]);
-    setInputText('');
-    setSessionId(null);
-    setIsLoading(false);
-  };
-
   if (!isOpen) return null;
 
   return (
     <BaseModal
       onClose={onClose}
-      className="max-w-2xl w-full h-[90vh] max-h-[800px] flex flex-col p-0"
+      className="!w-full !h-full !p-0 !mx-0 !rounded-none !pb-4 sm:!max-w-2xl sm:!h-[90vh] sm:!max-h-[800px] sm:!rounded-lg sm:!mx-4 sm:!pb-0 flex flex-col"
       aria-label="測試聊天機器人"
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white rounded-t-lg">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white sm:rounded-t-lg">
         <div className="flex-1">
-          <h2 className="text-lg font-semibold text-gray-900">測試聊天機器人</h2>
-          <p className="text-xs text-gray-500 mt-1">
-            使用當前設定進行測試 • 此為測試模式，不會影響實際病患對話
+          <p className="text-sm text-gray-500">
+            使用當前設定（含未儲存變更）測試 • 測試模式，不影響實際病患對話 • 需點擊「儲存更變」才會套用
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {messages.length > 0 && (
-            <button
-              onClick={handleReset}
-              className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-            >
-              重新開始
-            </button>
-          )}
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -240,18 +224,15 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
             {isLoading && (
               <div className="flex justify-start">
                 <div className="bg-white border border-gray-200 rounded-2xl px-4 py-2">
-                  <div className="flex items-center gap-1 text-sm text-gray-500">
-                    <span>正在思考</span>
-                    <span className="flex gap-0.5">
-                      <span className="animate-bounce" style={{ animationDelay: '0ms' }}>
-                        ●
-                      </span>
-                      <span className="animate-bounce" style={{ animationDelay: '150ms' }}>
-                        ●
-                      </span>
-                      <span className="animate-bounce" style={{ animationDelay: '300ms' }}>
-                        ●
-                      </span>
+                  <div className="flex items-center gap-0.5 text-sm text-gray-500">
+                    <span className="animate-bounce" style={{ animationDelay: '0ms' }}>
+                      ●
+                    </span>
+                    <span className="animate-bounce" style={{ animationDelay: '150ms' }}>
+                      ●
+                    </span>
+                    <span className="animate-bounce" style={{ animationDelay: '300ms' }}>
+                      ●
                     </span>
                   </div>
                 </div>
@@ -263,7 +244,7 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
       </div>
 
       {/* Input Area */}
-      <div className="p-4 border-t border-gray-200 bg-white rounded-b-lg">
+      <div className="p-4 pb-6 border-t border-gray-200 bg-white sm:rounded-b-lg sm:pb-4">
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}

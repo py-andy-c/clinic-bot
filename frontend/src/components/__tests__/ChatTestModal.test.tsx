@@ -67,8 +67,7 @@ describe('ChatTestModal', () => {
       />
     );
 
-    expect(screen.getByText('測試聊天機器人')).toBeInTheDocument();
-    expect(screen.getByText('使用當前設定進行測試 • 此為測試模式，不會影響實際病患對話')).toBeInTheDocument();
+    expect(screen.getByText('使用當前設定（含未儲存變更）測試 • 測試模式，不影響實際病患對話 • 需點擊「儲存更變」才會套用')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('輸入訊息...')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '傳送' })).toBeInTheDocument();
   });
