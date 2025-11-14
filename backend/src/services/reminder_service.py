@@ -7,12 +7,12 @@ Reminders are sent via LINE messaging and scheduled using APScheduler.
 
 import logging
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore
 from apscheduler.triggers.cron import CronTrigger  # type: ignore
 from sqlalchemy import and_, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, contains_eager
 
 from core.constants import (
     REMINDER_WINDOW_SIZE_MINUTES,
@@ -22,7 +22,6 @@ from core.database import get_db_context
 from models.appointment import Appointment
 from models.calendar_event import CalendarEvent
 from models.clinic import Clinic
-from models.patient import Patient
 from models.user_clinic_association import UserClinicAssociation
 from services.line_service import LINEService
 from utils.datetime_utils import taiwan_now, ensure_taiwan, format_datetime, TAIWAN_TZ
@@ -140,9 +139,29 @@ class ReminderService:
                     if appointments_needing_reminders:
                         logger.info(f"Found {len(appointments_needing_reminders)} appointment(s) for clinic {clinic.id} needing reminders")
 
+                        # Batch load practitioner associations to avoid N+1 queries
+                        practitioner_ids = [
+                            appt.calendar_event.user_id 
+                            for appt in appointments_needing_reminders 
+                            if appt.calendar_event and appt.calendar_event.user_id
+                        ]
+                        
+                        # Guard against empty practitioner_ids list to avoid unnecessary query
+                        if not practitioner_ids:
+                            logger.warning(f"No practitioner IDs found for appointments needing reminders in clinic {clinic.id}")
+                            practitioner_associations = []
+                        else:
+                            practitioner_associations = db.query(UserClinicAssociation).filter(
+                                UserClinicAssociation.user_id.in_(practitioner_ids),
+                                UserClinicAssociation.clinic_id == clinic.id,
+                                UserClinicAssociation.is_active == True
+                            ).all()
+                        
+                        association_lookup = {a.user_id: a for a in practitioner_associations}
+
                         # Send reminders for each appointment
                         for appointment in appointments_needing_reminders:
-                            if await self._send_reminder_for_appointment(db, appointment):
+                            if await self._send_reminder_for_appointment(db, appointment, association_lookup):
                                 total_sent += 1
 
                         total_appointments_found += len(appointments_needing_reminders)
@@ -183,12 +202,11 @@ class ReminderService:
         
         # Build SQL query with date/time filtering
         # Filter by date range first, then by time for boundary dates
-        # Optimized: Use direct join with Patient instead of .has() subquery
-        query = db.query(Appointment).join(CalendarEvent).join(
-            Patient, Appointment.patient_id == Patient.id
-        ).filter(
+        # Optimized: Use CalendarEvent.clinic_id directly instead of joining Patient
+        # This avoids an unnecessary join since CalendarEvent already has clinic_id
+        query = db.query(Appointment).join(CalendarEvent).filter(
             Appointment.status == "confirmed",
-            Patient.clinic_id == clinic_id,
+            CalendarEvent.clinic_id == clinic_id,
             Appointment.reminder_sent_at.is_(None),  # Only get appointments that haven't received reminders
             # Appointment date is after window start date, or on window start date with time after/equal to window start time
             or_(
@@ -208,8 +226,13 @@ class ReminderService:
             )
         )
         
-        # Execute query and return results
-        return query.all()
+        # Eagerly load calendar_event to avoid N+1 queries when accessing appt.calendar_event.user_id
+        # Since we already joined CalendarEvent, use contains_eager for it
+        appointments = query.options(
+            contains_eager(Appointment.calendar_event)
+        ).all()
+        
+        return appointments
 
     def format_reminder_message(
         self,
@@ -245,13 +268,19 @@ class ReminderService:
 
         return message
 
-    async def _send_reminder_for_appointment(self, db: Session, appointment: Appointment) -> bool:
+    async def _send_reminder_for_appointment(
+        self, 
+        db: Session, 
+        appointment: Appointment, 
+        association_lookup: Dict[int, UserClinicAssociation]
+    ) -> bool:
         """
         Send a reminder for a specific appointment.
 
         Args:
             db: Database session
             appointment: The appointment to send reminder for
+            association_lookup: Pre-loaded dictionary mapping user_id to UserClinicAssociation
 
         Returns:
             True if reminder was sent successfully, False otherwise
@@ -276,14 +305,14 @@ class ReminderService:
                 logger.warning(f"No LINE user found for patient {appointment.patient_id}")
                 return False
 
-            # Format reminder message - get practitioner name from association
+            # Format reminder message - get practitioner name from pre-loaded association lookup
             user = appointment.calendar_event.user
-            clinic_id = appointment.patient.clinic_id
-            association = db.query(UserClinicAssociation).filter(
-                UserClinicAssociation.user_id == user.id,
-                UserClinicAssociation.clinic_id == clinic_id,
-                UserClinicAssociation.is_active == True
-            ).first()
+            association = association_lookup.get(user.id)
+            if not association:
+                logger.warning(
+                    f"No active association found for user {user.id} in clinic {clinic.id}. "
+                    f"Using email as fallback."
+                )
             therapist_name = association.full_name if association else user.email
             appointment_datetime = ensure_taiwan(datetime.combine(
                 appointment.calendar_event.date,

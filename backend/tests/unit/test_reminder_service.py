@@ -143,7 +143,7 @@ class TestReminderServiceDuplicatePrevention:
         db_session.add(clinic)
         db_session.flush()
 
-        user, _ = create_user_with_clinic_association(
+        user, association = create_user_with_clinic_association(
             db_session, clinic,
             full_name="Test Therapist",
             email="therapist@test.com",
@@ -208,8 +208,11 @@ class TestReminderServiceDuplicatePrevention:
         # Create reminder service
         reminder_service = ReminderService()
 
+        # Create association lookup for the test
+        association_lookup = {user.id: association}
+
         # Send reminder
-        result = await reminder_service._send_reminder_for_appointment(db_session, appointment)
+        result = await reminder_service._send_reminder_for_appointment(db_session, appointment, association_lookup)
 
         # Verify reminder was sent
         assert result is True
@@ -236,7 +239,7 @@ class TestReminderServiceDuplicatePrevention:
         db_session.add(clinic)
         db_session.flush()
 
-        user, _ = create_user_with_clinic_association(
+        user, association = create_user_with_clinic_association(
             db_session, clinic,
             full_name="Test Therapist",
             email="therapist@test.com",
@@ -302,8 +305,11 @@ class TestReminderServiceDuplicatePrevention:
         # Create reminder service
         reminder_service = ReminderService()
 
+        # Create association lookup for the test
+        association_lookup = {user.id: association}
+
         # Send reminder (should fail)
-        result = await reminder_service._send_reminder_for_appointment(db_session, appointment)
+        result = await reminder_service._send_reminder_for_appointment(db_session, appointment, association_lookup)
 
         # Verify reminder sending failed
         assert result is False
@@ -329,7 +335,7 @@ class TestReminderServiceDuplicatePrevention:
         db_session.add(clinic)
         db_session.flush()
 
-        user, _ = create_user_with_clinic_association(
+        user, association = create_user_with_clinic_association(
             db_session, clinic,
             full_name="Test Therapist",
             email="therapist@test.com",
@@ -408,8 +414,11 @@ class TestReminderServiceDuplicatePrevention:
         # Patch the commit method
         db_session.commit = failing_commit
 
+        # Create association lookup for the test
+        association_lookup = {user.id: association}
+
         # Send reminder (should fail on commit)
-        result = await reminder_service._send_reminder_for_appointment(db_session, appointment)
+        result = await reminder_service._send_reminder_for_appointment(db_session, appointment, association_lookup)
 
         # Verify reminder sending failed
         assert result is False
@@ -605,7 +614,7 @@ class TestReminderServiceWindowBoundaries:
         db_session.add(clinic)
         db_session.flush()
 
-        user, _ = create_user_with_clinic_association(
+        user, association = create_user_with_clinic_association(
             db_session, clinic,
             full_name="Test Therapist",
             email="therapist@test.com",
@@ -708,8 +717,11 @@ class TestReminderServiceWindowBoundaries:
             mock_line_service.send_text_message.return_value = None
             mock_line_service_class.return_value = mock_line_service
 
+            # Create association lookup for the test
+            association_lookup = {user.id: association}
+
             # Send reminder
-            result = await reminder_service._send_reminder_for_appointment(db_session, appointment)
+            result = await reminder_service._send_reminder_for_appointment(db_session, appointment, association_lookup)
             assert result is True
 
         # Refresh appointment to get updated reminder_sent_at

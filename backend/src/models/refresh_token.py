@@ -62,4 +62,4 @@ class RefreshToken(Base):
         self.revoked = True
 
     def __repr__(self) -> str:
-        return f"<RefreshToken(id={self.id}, user_id={self.user_id}, email={self.email}, is_valid={self.is_valid})>"
+        return f"<RefreshToken(id={self.id}, user_id={self.user_id}, is_valid={self.is_valid})>"
