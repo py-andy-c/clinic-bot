@@ -143,9 +143,36 @@ def _get_day_name(day_of_week: int) -> str:
 
 def _get_day_of_week(day_name: str) -> int:
     """Get day of week number from day name."""
-    days = {'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3, 
+    days = {'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
             'friday': 4, 'saturday': 5, 'sunday': 6}
     return days[day_name]
+
+
+def _get_day_name_chinese(day_name: str) -> str:
+    """Get Traditional Chinese day name from English day name."""
+    days = {
+        'monday': '星期一',
+        'tuesday': '星期二',
+        'wednesday': '星期三',
+        'thursday': '星期四',
+        'friday': '星期五',
+        'saturday': '星期六',
+        'sunday': '星期日'
+    }
+    return days[day_name]
+
+
+def _format_time_12h(time_str: str) -> str:
+    """Format 24-hour time string to 12-hour format with AM/PM."""
+    hour, minute = map(int, time_str.split(':'))
+    if hour == 0:
+        return f"12:{minute:02d} AM"
+    elif hour < 12:
+        return f"{hour}:{minute:02d} AM"
+    elif hour == 12:
+        return f"12:{minute:02d} PM"
+    else:
+        return f"{hour-12}:{minute:02d} PM"
 
 
 def _check_time_overlap(start1: time, end1: time, start2: time, end2: time) -> bool:
@@ -360,9 +387,12 @@ async def update_default_schedule(
                 end1 = _parse_time(interval1.end_time)
                 
                 if start1 >= end1:
+                    day_chinese = _get_day_name_chinese(day_name)
+                    start_formatted = _format_time_12h(interval1.start_time)
+                    end_formatted = _format_time_12h(interval1.end_time)
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"無效的時間範圍 {day_name}: {interval1.start_time}-{interval1.end_time}"
+                        detail=f"無效的時間範圍 {day_chinese}: {start_formatted}-{end_formatted}"
                     )
                 
                 for j, interval2 in enumerate(intervals):
@@ -371,9 +401,14 @@ async def update_default_schedule(
                         end2 = _parse_time(interval2.end_time)
                         
                         if _check_time_overlap(start1, end1, start2, end2):
+                            day_chinese = _get_day_name_chinese(day_name)
+                            start1_formatted = _format_time_12h(interval1.start_time)
+                            end1_formatted = _format_time_12h(interval1.end_time)
+                            start2_formatted = _format_time_12h(interval2.start_time)
+                            end2_formatted = _format_time_12h(interval2.end_time)
                             raise HTTPException(
                                 status_code=status.HTTP_400_BAD_REQUEST,
-                                detail=f"{day_name} 的時段重疊: {interval1.start_time}-{interval1.end_time} 和 {interval2.start_time}-{interval2.end_time}"
+                                detail=f"{day_chinese} 的時段重疊: {start1_formatted}-{end1_formatted} 和 {start2_formatted}-{end2_formatted}"
                             )
         
         # TODO: Implement future appointment conflict checking
@@ -725,9 +760,11 @@ async def create_availability_exception(
             end_time = _parse_time(exception_data.end_time)
             
             if start_time >= end_time:
+                start_formatted = _format_time_12h(exception_data.start_time)
+                end_formatted = _format_time_12h(exception_data.end_time)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="開始時間必須早於結束時間"
+                    detail=f"開始時間必須早於結束時間: {start_formatted} - {end_formatted}"
                 )
         elif exception_data.start_time or exception_data.end_time:
             raise HTTPException(

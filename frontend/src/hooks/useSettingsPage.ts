@@ -14,6 +14,7 @@ interface SettingsPageConfig<T> {
   validateData: (data: T) => string | null;
   getSectionChanges: (current: T, original: T) => Record<string, boolean>;
   onValidationError?: (error: string) => Promise<void>;
+  onSaveError?: (error: string) => Promise<void>;
   onSuccess?: (data: T) => void;
 }
 
@@ -108,6 +109,14 @@ export const useSettingsPage = <T extends Record<string, any>>(
         data: err.response?.data,
         message: errorMessage
       });
+
+      // Use custom save error handler if provided, otherwise set inline error
+      if (config.onSaveError) {
+        await config.onSaveError(errorMessage);
+        setUiState(prev => ({ ...prev, saving: false }));
+        return;
+      }
+
       setUiState(prev => ({
         ...prev,
         error: errorMessage
