@@ -542,11 +542,11 @@ async def get_availability(
         else:
             # All practitioners in clinic
             slots_data = AvailabilityService.get_available_slots_for_clinic(
-            db=db,
+                db=db,
                 clinic_id=clinic.id,
-            date=date,
+                date=date,
                 appointment_type_id=appointment_type_id
-        )
+            )
 
         # Convert dicts to response objects
         slots = [
@@ -558,6 +558,16 @@ async def get_availability(
 
     except HTTPException:
         raise
+    except Exception as e:
+        logger.exception(
+            f"Unexpected error in availability endpoint: date={date}, "
+            f"appointment_type_id={appointment_type_id}, practitioner_id={practitioner_id}, "
+            f"clinic_id={clinic.id}, error={e}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得可用時間"
+        )
 
 
 @router.post("/appointments", response_model=AppointmentResponse)

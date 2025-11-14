@@ -96,7 +96,6 @@ class AvailabilityService:
         # in contexts where clinic_id is already validated elsewhere.
         # The caller should ensure the practitioner belongs to the correct clinic.
         # Join with UserClinicAssociation to check roles
-        from models import UserClinicAssociation
         query = db.query(User).join(UserClinicAssociation).filter(
             User.id == practitioner_id,
             UserClinicAssociation.is_active == True
@@ -154,11 +153,17 @@ class AvailabilityService:
             # Verify practitioner exists, is active, and is a practitioner
             practitioner = AvailabilityService._get_practitioner_by_id(db, practitioner_id)
 
-            # Verify appointment type belongs to practitioner's clinic
-            # Get practitioner's clinic from UserClinicAssociation
-            from models import UserClinicAssociation
+            # Verify appointment type belongs to the requested clinic
+            if appointment_type.clinic_id != clinic_id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="找不到預約類型"
+                )
+
+            # Verify practitioner has an active association with the requested clinic
             practitioner_association = db.query(UserClinicAssociation).filter(
                 UserClinicAssociation.user_id == practitioner.id,
+                UserClinicAssociation.clinic_id == clinic_id,
                 UserClinicAssociation.is_active == True
             ).first()
             
@@ -168,14 +173,14 @@ class AvailabilityService:
                     detail="找不到治療師"
                 )
             
-            if appointment_type.clinic_id != practitioner_association.clinic_id:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="找不到預約類型"
-                )
-
-            # Verify clinic_id matches practitioner's clinic
-            if practitioner_association.clinic_id != clinic_id:
+            # Verify practitioner offers this appointment type at this clinic
+            practitioner_appointment_type = db.query(PractitionerAppointmentTypes).filter(
+                PractitionerAppointmentTypes.user_id == practitioner.id,
+                PractitionerAppointmentTypes.appointment_type_id == appointment_type_id,
+                PractitionerAppointmentTypes.clinic_id == clinic_id
+            ).first()
+            
+            if not practitioner_appointment_type:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="找不到治療師"

@@ -952,6 +952,150 @@ class TestLiffAvailabilityAndScheduling:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
+    def test_availability_with_practitioner_id_multi_clinic(self, db_session: Session):
+        """Test availability endpoint with practitioner_id for multi-clinic practitioner.
+        
+        This test ensures that when a practitioner is associated with multiple clinics,
+        the availability endpoint correctly validates the practitioner's association
+        with the requested clinic (not just any clinic).
+        """
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Multi-Clinic Test Clinic 1",
+            line_channel_id="multiclinic1_channel",
+            line_channel_secret="multiclinic1_secret",
+            line_channel_access_token="multiclinic1_token",
+            settings={}
+        )
+        clinic2 = Clinic(
+            name="Multi-Clinic Test Clinic 2",
+            line_channel_id="multiclinic2_channel",
+            line_channel_secret="multiclinic2_secret",
+            line_channel_access_token="multiclinic2_token",
+            settings={}
+        )
+        db_session.add_all([clinic1, clinic2])
+        db_session.commit()
+
+        # Create practitioner associated with BOTH clinics
+        # Associate with clinic1 first (this was the bug - it checked first association)
+        practitioner, assoc1 = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic1,
+            email="multiclinic_practitioner@test.com",
+            google_subject_id="multiclinic_google_123",
+            full_name="Dr. Multi-Clinic",
+            roles=["practitioner"]
+        )
+        
+        # Associate with clinic2 second
+        from models import UserClinicAssociation
+        assoc2 = UserClinicAssociation(
+            user_id=practitioner.id,
+            clinic_id=clinic2.id,
+            roles=["practitioner"],
+            full_name="Dr. Multi-Clinic at Clinic 2",
+            is_active=True
+        )
+        db_session.add(assoc2)
+        db_session.commit()
+
+        # Create appointment types for both clinics
+        appt_type1 = AppointmentType(
+            clinic_id=clinic1.id,
+            name="Clinic 1 Consultation",
+            duration_minutes=30
+        )
+        appt_type2 = AppointmentType(
+            clinic_id=clinic2.id,
+            name="Clinic 2 Consultation",
+            duration_minutes=30
+        )
+        db_session.add_all([appt_type1, appt_type2])
+        db_session.commit()
+
+        # Associate practitioner with appointment types at both clinics
+        pat1 = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic1.id,
+            appointment_type_id=appt_type1.id
+        )
+        pat2 = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic2.id,
+            appointment_type_id=appt_type2.id
+        )
+        db_session.add_all([pat1, pat2])
+        db_session.commit()
+
+        # Create availability for practitioner at clinic2
+        tomorrow = (taiwan_now() + timedelta(days=1)).date()
+        day_of_week = tomorrow.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic2,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.commit()
+
+        # Create LINE user for clinic2
+        line_user = LineUser(
+            line_user_id="U_multiclinic_test_123",
+            display_name="Multi-Clinic Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Mock authentication for clinic2 (not clinic1)
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic2)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Create primary patient for clinic2
+            primary_patient = Patient(
+                clinic_id=clinic2.id,
+                full_name="Multi-Clinic Patient",
+                phone_number="0912345678",
+                line_user_id=line_user.id
+            )
+            db_session.add(primary_patient)
+            db_session.commit()
+
+            tomorrow_iso = tomorrow.isoformat()
+
+            # Test availability with practitioner_id for clinic2
+            # This should work even though practitioner's first association is with clinic1
+            response = client.get(
+                f"/api/liff/availability?date={tomorrow_iso}&appointment_type_id={appt_type2.id}&practitioner_id={practitioner.id}"
+            )
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+            data = response.json()
+            assert data["date"] == tomorrow_iso
+            assert "slots" in data
+            slots = data["slots"]
+            assert len(slots) > 0, "Should have available slots"
+
+            # Verify all slots are for the correct practitioner
+            for slot in slots:
+                assert slot["practitioner_id"] == practitioner.id
+                assert "start_time" in slot
+                assert "end_time" in slot
+                assert "practitioner_name" in slot
+
+            # Test that requesting availability for clinic1's appointment type with clinic2 context fails
+            # (practitioner is associated with clinic1, but we're in clinic2 context)
+            response = client.get(
+                f"/api/liff/availability?date={tomorrow_iso}&appointment_type_id={appt_type1.id}&practitioner_id={practitioner.id}"
+            )
+            assert response.status_code == 404, "Should fail when appointment type belongs to different clinic"
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
     def test_booking_creates_correct_database_records(self, db_session: Session, test_clinic_with_liff):
         """Test that booking creates all necessary database records."""
         clinic, practitioner, appt_types, _ = test_clinic_with_liff

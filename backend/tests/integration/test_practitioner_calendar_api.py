@@ -329,6 +329,16 @@ class TestPractitionerCalendarAPI:
         db_session.add(appointment_type)
         db_session.flush()
 
+        # Associate practitioner with appointment type (required for availability check)
+        from models import PractitionerAppointmentTypes
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appointment_type.id
+        )
+        db_session.add(pat)
+        db_session.flush()
+
         # Create a patient
         patient = Patient(
             clinic_id=clinic.id,
@@ -717,6 +727,16 @@ class TestPractitionerCalendarAPI:
             duration_minutes=60
         )
         db_session.add(appointment_type)
+        db_session.flush()
+
+        # Associate practitioner with appointment type (required for availability check)
+        from models import PractitionerAppointmentTypes
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appointment_type.id
+        )
+        db_session.add(pat)
         db_session.flush()
 
         # Create patients
