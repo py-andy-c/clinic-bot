@@ -24,6 +24,8 @@ from models.appointment_type import AppointmentType
 from models.line_user import LineUser
 from models.calendar_event import CalendarEvent
 from models.practitioner_availability import PractitionerAvailability
+from models.user_clinic_association import UserClinicAssociation
+from models.practitioner_appointment_types import PractitionerAppointmentTypes
 
 
 @pytest.fixture
@@ -1039,6 +1041,358 @@ class TestPractitionerAppointmentTypes:
             assert "無權限修改其他治療師的設定" in response.json()["detail"]
         finally:
             # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+
+class TestPractitionerCrossClinicIsolation:
+    """Test that practitioner appointment types, status, and availability are properly isolated by clinic.
+    
+    This test verifies the fix for the bug where practitioners with appointment types
+    in one clinic would not show warnings in another clinic where they have no types.
+    """
+
+    def test_practitioner_appointment_types_cross_clinic_isolation(self, db_session):
+        """Test that practitioner appointment types are isolated by clinic."""
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Clinic 1",
+            line_channel_id="clinic1_channel",
+            line_channel_secret="clinic1_secret",
+            line_channel_access_token="clinic1_token"
+        )
+        clinic2 = Clinic(
+            name="Clinic 2",
+            line_channel_id="clinic2_channel",
+            line_channel_secret="clinic2_secret",
+            line_channel_access_token="clinic2_token"
+        )
+        db_session.add_all([clinic1, clinic2])
+        db_session.commit()
+
+        # Create appointment types for each clinic
+        appt_type1 = AppointmentType(
+            clinic_id=clinic1.id,
+            name="Clinic 1 Service",
+            duration_minutes=30
+        )
+        appt_type2 = AppointmentType(
+            clinic_id=clinic2.id,
+            name="Clinic 2 Service",
+            duration_minutes=45
+        )
+        db_session.add_all([appt_type1, appt_type2])
+        db_session.commit()
+
+        # Create a practitioner who belongs to both clinics
+        practitioner, p1_assoc = create_user_with_clinic_association(
+            db_session, clinic1, "Dr. Multi-Clinic", "dr.multiclinic@example.com",
+            "multi_sub", ["practitioner"], True
+        )
+        # Add association to clinic2
+        p2_assoc = UserClinicAssociation(
+            user_id=practitioner.id,
+            clinic_id=clinic2.id,
+            roles=["practitioner"],
+            full_name="Dr. Multi-Clinic",
+            is_active=True
+        )
+        db_session.add(p2_assoc)
+        db_session.commit()
+
+        # Associate practitioner with appointment type in clinic1 only
+        pat1 = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic1.id,
+            appointment_type_id=appt_type1.id
+        )
+        db_session.add(pat1)
+        db_session.commit()
+
+        # Mock authentication for clinic1 context
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        user_context_clinic1 = UserContext(
+            user_type="clinic_user",
+            email=practitioner.email,
+            roles=p1_assoc.roles,
+            active_clinic_id=clinic1.id,
+            google_subject_id=practitioner.google_subject_id,
+            name=p1_assoc.full_name,
+            user_id=practitioner.id
+        )
+
+        user_context_clinic2 = UserContext(
+            user_type="clinic_user",
+            email=practitioner.email,
+            roles=p2_assoc.roles,
+            active_clinic_id=clinic2.id,
+            google_subject_id=practitioner.google_subject_id,
+            name=p2_assoc.full_name,
+            user_id=practitioner.id
+        )
+
+        # Test 1: In clinic1, practitioner should see their appointment types
+        client.app.dependency_overrides[get_current_user] = lambda: user_context_clinic1
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            response = client.get(f"/api/clinic/practitioners/{practitioner.id}/appointment-types")
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["appointment_types"]) == 1
+            assert data["appointment_types"][0]["id"] == appt_type1.id
+            assert data["appointment_types"][0]["name"] == "Clinic 1 Service"
+        finally:
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+        # Test 2: In clinic2, practitioner should NOT see clinic1 appointment types
+        client.app.dependency_overrides[get_current_user] = lambda: user_context_clinic2
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            response = client.get(f"/api/clinic/practitioners/{practitioner.id}/appointment-types")
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["appointment_types"]) == 0, "Should not see appointment types from clinic1"
+        finally:
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_practitioner_status_cross_clinic_isolation(self, db_session):
+        """Test that practitioner status correctly shows warnings per clinic.
+        
+        This test verifies the original bug fix: a practitioner with appointment types
+        in Clinic A but not Clinic B should show a warning in Clinic B.
+        """
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Clinic 1",
+            line_channel_id="clinic1_channel",
+            line_channel_secret="clinic1_secret",
+            line_channel_access_token="clinic1_token"
+        )
+        clinic2 = Clinic(
+            name="Clinic 2",
+            line_channel_id="clinic2_channel",
+            line_channel_secret="clinic2_secret",
+            line_channel_access_token="clinic2_token"
+        )
+        db_session.add_all([clinic1, clinic2])
+        db_session.commit()
+
+        # Create appointment types for each clinic
+        appt_type1 = AppointmentType(
+            clinic_id=clinic1.id,
+            name="Clinic 1 Service",
+            duration_minutes=30
+        )
+        appt_type2 = AppointmentType(
+            clinic_id=clinic2.id,
+            name="Clinic 2 Service",
+            duration_minutes=45
+        )
+        db_session.add_all([appt_type1, appt_type2])
+        db_session.commit()
+
+        # Create a practitioner who belongs to both clinics
+        practitioner, p1_assoc = create_user_with_clinic_association(
+            db_session, clinic1, "Dr. Multi-Clinic", "dr.multiclinic@example.com",
+            "multi_sub", ["practitioner"], True
+        )
+        # Add association to clinic2
+        p2_assoc = UserClinicAssociation(
+            user_id=practitioner.id,
+            clinic_id=clinic2.id,
+            roles=["practitioner"],
+            full_name="Dr. Multi-Clinic",
+            is_active=True
+        )
+        db_session.add(p2_assoc)
+        db_session.commit()
+
+        # Associate practitioner with appointment type in clinic1 only
+        pat1 = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic1.id,
+            appointment_type_id=appt_type1.id
+        )
+        db_session.add(pat1)
+        db_session.commit()
+
+        # Add availability in clinic1 only
+        availability1 = PractitionerAvailability(
+            user_id=practitioner.id,
+            clinic_id=clinic1.id,
+            day_of_week=1,  # Tuesday
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.add(availability1)
+        db_session.commit()
+
+        # Mock authentication for clinic1 context (admin viewing practitioner)
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        # Create admin in clinic1
+        admin1, a1_assoc = create_user_with_clinic_association(
+            db_session, clinic1, "Admin 1", "admin1@example.com",
+            "admin1_sub", ["admin"], True
+        )
+        # Create admin in clinic2
+        admin2, a2_assoc = create_user_with_clinic_association(
+            db_session, clinic2, "Admin 2", "admin2@example.com",
+            "admin2_sub", ["admin"], True
+        )
+        db_session.commit()
+
+        user_context_clinic1 = UserContext(
+            user_type="clinic_user",
+            email=admin1.email,
+            roles=a1_assoc.roles,
+            active_clinic_id=clinic1.id,
+            google_subject_id=admin1.google_subject_id,
+            name=a1_assoc.full_name,
+            user_id=admin1.id
+        )
+
+        user_context_clinic2 = UserContext(
+            user_type="clinic_user",
+            email=admin2.email,
+            roles=a2_assoc.roles,
+            active_clinic_id=clinic2.id,
+            google_subject_id=admin2.google_subject_id,
+            name=a2_assoc.full_name,
+            user_id=admin2.id
+        )
+
+        # Test 1: In clinic1, practitioner should have appointment types and availability
+        client.app.dependency_overrides[get_current_user] = lambda: user_context_clinic1
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            response = client.get(f"/api/clinic/practitioners/{practitioner.id}/status")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["has_appointment_types"] == True, "Should have appointment types in clinic1"
+            assert data["has_availability"] == True, "Should have availability in clinic1"
+            assert data["appointment_types_count"] == 1
+        finally:
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+        # Test 2: In clinic2, practitioner should NOT have appointment types or availability
+        # This is the bug fix - should show warning in clinic2
+        client.app.dependency_overrides[get_current_user] = lambda: user_context_clinic2
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            response = client.get(f"/api/clinic/practitioners/{practitioner.id}/status")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["has_appointment_types"] == False, "Should NOT have appointment types in clinic2 (this was the bug)"
+            assert data["has_availability"] == False, "Should NOT have availability in clinic2"
+            assert data["appointment_types_count"] == 0
+        finally:
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_practitioner_availability_cross_clinic_isolation(self, db_session):
+        """Test that practitioner availability is isolated by clinic."""
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Clinic 1",
+            line_channel_id="clinic1_channel",
+            line_channel_secret="clinic1_secret",
+            line_channel_access_token="clinic1_token"
+        )
+        clinic2 = Clinic(
+            name="Clinic 2",
+            line_channel_id="clinic2_channel",
+            line_channel_secret="clinic2_secret",
+            line_channel_access_token="clinic2_token"
+        )
+        db_session.add_all([clinic1, clinic2])
+        db_session.commit()
+
+        # Create a practitioner who belongs to both clinics
+        practitioner, p1_assoc = create_user_with_clinic_association(
+            db_session, clinic1, "Dr. Multi-Clinic", "dr.multiclinic@example.com",
+            "multi_sub", ["practitioner"], True
+        )
+        # Add association to clinic2
+        p2_assoc = UserClinicAssociation(
+            user_id=practitioner.id,
+            clinic_id=clinic2.id,
+            roles=["practitioner"],
+            full_name="Dr. Multi-Clinic",
+            is_active=True
+        )
+        db_session.add(p2_assoc)
+        db_session.commit()
+
+        # Add availability in clinic1 only
+        availability1 = PractitionerAvailability(
+            user_id=practitioner.id,
+            clinic_id=clinic1.id,
+            day_of_week=1,  # Tuesday
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.add(availability1)
+        db_session.commit()
+
+        # Mock authentication
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        user_context_clinic1 = UserContext(
+            user_type="clinic_user",
+            email=practitioner.email,
+            roles=p1_assoc.roles,
+            active_clinic_id=clinic1.id,
+            google_subject_id=practitioner.google_subject_id,
+            name=p1_assoc.full_name,
+            user_id=practitioner.id
+        )
+
+        user_context_clinic2 = UserContext(
+            user_type="clinic_user",
+            email=practitioner.email,
+            roles=p2_assoc.roles,
+            active_clinic_id=clinic2.id,
+            google_subject_id=practitioner.google_subject_id,
+            name=p2_assoc.full_name,
+            user_id=practitioner.id
+        )
+
+        # Test 1: In clinic1, practitioner should see their availability
+        client.app.dependency_overrides[get_current_user] = lambda: user_context_clinic1
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            response = client.get(f"/api/clinic/practitioners/{practitioner.id}/availability")
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["availability"]) == 1
+            assert data["availability"][0]["day_of_week"] == 1
+        finally:
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+        # Test 2: In clinic2, practitioner should NOT see clinic1 availability
+        client.app.dependency_overrides[get_current_user] = lambda: user_context_clinic2
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            response = client.get(f"/api/clinic/practitioners/{practitioner.id}/availability")
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["availability"]) == 0, "Should not see availability from clinic1"
+        finally:
             client.app.dependency_overrides.pop(get_current_user, None)
             client.app.dependency_overrides.pop(get_db, None)
 

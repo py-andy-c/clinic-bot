@@ -543,9 +543,9 @@ async def get_clinic_practitioners(
             
             # Only include users with practitioner role
             if association and 'practitioner' in (association.roles or []):
-                # Get appointment types for this practitioner
+                # Get appointment types for this practitioner in this clinic
                 appointment_types = PractitionerService.get_practitioner_appointment_types(
-                    db, user.id
+                    db, user.id, clinic_id
                 )
                 
                 # Get default schedule

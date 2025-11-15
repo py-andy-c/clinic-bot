@@ -241,19 +241,21 @@ class PractitionerService:
     @staticmethod
     def get_practitioner_appointment_types(
         db: Session,
-        practitioner_id: int
+        practitioner_id: int,
+        clinic_id: int
     ) -> List[AppointmentType]:
         """
-        Get all active (non-deleted) appointment types offered by a practitioner.
+        Get all active (non-deleted) appointment types offered by a practitioner for a specific clinic.
 
         Args:
             db: Database session
             practitioner_id: Practitioner user ID
+            clinic_id: Clinic ID to filter by (required for clinic isolation).
 
         Returns:
-            List of active AppointmentType objects
+            List of active AppointmentType objects for the specified clinic
         """
-        return get_active_appointment_types_for_practitioner(db, practitioner_id)
+        return get_active_appointment_types_for_practitioner(db, practitioner_id, clinic_id)
 
     @staticmethod
     def update_practitioner_appointment_types(

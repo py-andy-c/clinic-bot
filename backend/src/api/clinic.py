@@ -1250,9 +1250,10 @@ async def get_practitioner_availability(
                 detail="存取被拒絕：您只能查看自己的可用時間"
             )
 
-        # Get availability
+        # Get availability for this clinic
         availability = db.query(PractitionerAvailability).filter(
-            PractitionerAvailability.user_id == user_id
+            PractitionerAvailability.user_id == user_id,
+            PractitionerAvailability.clinic_id == clinic_id
         ).order_by(PractitionerAvailability.day_of_week).all()
 
         availability_list = [
@@ -1328,9 +1329,10 @@ async def create_practitioner_availability(
                 detail="存取被拒絕：您只能修改自己的可用時間"
             )
 
-        # Check if availability already exists for this day
+        # Check if availability already exists for this day in this clinic
         existing = db.query(PractitionerAvailability).filter(
             PractitionerAvailability.user_id == user_id,
+            PractitionerAvailability.clinic_id == clinic_id,
             PractitionerAvailability.day_of_week == availability_data.day_of_week
         ).first()
 
@@ -1357,8 +1359,6 @@ async def create_practitioner_availability(
             )
 
         # Create availability
-        clinic_id = ensure_clinic_access(current_user)
-        
         availability = PractitionerAvailability(
             user_id=user_id,
             clinic_id=clinic_id,
@@ -1412,10 +1412,14 @@ async def update_practitioner_availability(
     try:
         from datetime import time
 
-        # Find the availability
+        # Verify the practitioner belongs to current clinic
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Find the availability for this clinic
         availability = db.query(PractitionerAvailability).filter(
             PractitionerAvailability.id == availability_id,
-            PractitionerAvailability.user_id == user_id
+            PractitionerAvailability.user_id == user_id,
+            PractitionerAvailability.clinic_id == clinic_id
         ).first()
 
         if not availability:
@@ -1423,9 +1427,6 @@ async def update_practitioner_availability(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="找不到可用時間"
             )
-
-        # Verify the practitioner belongs to current clinic
-        clinic_id = ensure_clinic_access(current_user)
         
         # Get practitioner with association
         result = db.query(User, UserClinicAssociation).join(UserClinicAssociation).filter(
@@ -1457,6 +1458,7 @@ async def update_practitioner_availability(
         if availability_data.day_of_week != availability.day_of_week:
             existing = db.query(PractitionerAvailability).filter(
                 PractitionerAvailability.user_id == user_id,
+                PractitionerAvailability.clinic_id == clinic_id,
                 PractitionerAvailability.day_of_week == availability_data.day_of_week,
                 PractitionerAvailability.id != availability_id
             ).first()
@@ -1529,10 +1531,14 @@ async def delete_practitioner_availability(
     Admins can delete availability for any practitioner.
     """
     try:
-        # Find the availability
+        # Verify the practitioner belongs to current clinic
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Find the availability for this clinic
         availability = db.query(PractitionerAvailability).filter(
             PractitionerAvailability.id == availability_id,
-            PractitionerAvailability.user_id == user_id
+            PractitionerAvailability.user_id == user_id,
+            PractitionerAvailability.clinic_id == clinic_id
         ).first()
 
         if not availability:
@@ -1540,9 +1546,6 @@ async def delete_practitioner_availability(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="找不到可用時間"
             )
-
-        # Verify the practitioner belongs to current clinic
-        clinic_id = ensure_clinic_access(current_user)
         
         # Get practitioner with association
         result = db.query(User, UserClinicAssociation).join(UserClinicAssociation).filter(
@@ -1701,9 +1704,11 @@ async def get_practitioner_appointment_types(
         )
 
     try:
+        clinic_id = ensure_clinic_access(current_user)
         appointment_types = PractitionerService.get_practitioner_appointment_types(
             db=db,
-            practitioner_id=user_id
+            practitioner_id=user_id,
+            clinic_id=clinic_id
         )
 
         return PractitionerAppointmentTypesResponse(
@@ -1777,9 +1782,6 @@ async def update_practitioner_appointment_types(
                 )
 
         # Update the practitioner's appointment types
-        # Ensure clinic_id is not None (this endpoint is for clinic users only)
-        clinic_id = ensure_clinic_access(current_user)
-        
         success = PractitionerService.update_practitioner_appointment_types(
             db=db,
             practitioner_id=user_id,
@@ -1836,8 +1838,8 @@ async def get_practitioner_status(
 
     try:
 
-        # Check if practitioner has appointment types configured
-        appointment_types_count = count_active_appointment_types_for_practitioner(db, user_id)
+        # Check if practitioner has appointment types configured for this clinic
+        appointment_types_count = count_active_appointment_types_for_practitioner(db, user_id, clinic_id)
 
         # Check if practitioner has availability configured
         availability_count = db.query(PractitionerAvailability).filter(

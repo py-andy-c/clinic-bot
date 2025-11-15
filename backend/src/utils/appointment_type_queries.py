@@ -110,17 +110,19 @@ def soft_delete_appointment_type(
 
 def get_active_appointment_types_for_practitioner(
     db: Session,
-    practitioner_id: int
+    practitioner_id: int,
+    clinic_id: int
 ) -> List[AppointmentType]:
     """
-    Get all active (non-deleted) appointment types offered by a practitioner.
+    Get all active (non-deleted) appointment types offered by a practitioner for a specific clinic.
 
     Args:
         db: Database session
         practitioner_id: Practitioner user ID
+        clinic_id: Clinic ID to filter by (required for clinic isolation).
 
     Returns:
-        List of active AppointmentType objects offered by the practitioner
+        List of active AppointmentType objects offered by the practitioner in the specified clinic
     """
     from models import PractitionerAppointmentTypes
 
@@ -128,7 +130,8 @@ def get_active_appointment_types_for_practitioner(
         PractitionerAppointmentTypes,
         AppointmentType.id == PractitionerAppointmentTypes.appointment_type_id
     ).filter(
-        PractitionerAppointmentTypes.user_id == practitioner_id
+        PractitionerAppointmentTypes.user_id == practitioner_id,
+        PractitionerAppointmentTypes.clinic_id == clinic_id
     )
 
     return filter_active_appointment_types(query).all()
@@ -136,27 +139,32 @@ def get_active_appointment_types_for_practitioner(
 
 def count_active_appointment_types_for_practitioner(
     db: Session,
-    practitioner_id: int
+    practitioner_id: int,
+    clinic_id: int
 ) -> int:
     """
-    Count active (non-deleted) appointment types offered by a practitioner.
+    Count active (non-deleted) appointment types offered by a practitioner for a specific clinic.
 
     Args:
         db: Database session
         practitioner_id: Practitioner user ID
+        clinic_id: Clinic ID to filter by (required for clinic isolation).
 
     Returns:
-        Count of active appointment types offered by the practitioner
+        Count of active appointment types offered by the practitioner in the specified clinic
     """
     from models import PractitionerAppointmentTypes
 
-    return db.query(PractitionerAppointmentTypes).join(
+    query = db.query(PractitionerAppointmentTypes).join(
         AppointmentType,
         PractitionerAppointmentTypes.appointment_type_id == AppointmentType.id
     ).filter(
         PractitionerAppointmentTypes.user_id == practitioner_id,
+        PractitionerAppointmentTypes.clinic_id == clinic_id,
         AppointmentType.is_deleted == False
-    ).count()
+    )
+    
+    return query.count()
 
 
 def get_active_appointment_types_for_clinic_with_active_practitioners(
