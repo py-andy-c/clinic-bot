@@ -153,9 +153,6 @@ export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
           {event.title && (
             <span className="ml-1">{event.title}</span>
           )}
-          {showPractitionerName && (
-            <span className="ml-1 text-gray-600 text-[10px]">({practitionerName})</span>
-          )}
         </div>
       </div>
     </div>

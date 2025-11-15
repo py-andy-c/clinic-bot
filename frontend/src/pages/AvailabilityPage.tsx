@@ -115,24 +115,26 @@ const AvailabilityPage: React.FC = () => {
       <PageHeader
         title="行事曆"
         action={
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4 w-full md:w-auto">
             {/* Practitioner Selector */}
             {practitioners.length > 0 && (
-              <PractitionerSelector
-                practitioners={practitioners}
-                selectedPractitionerIds={additionalPractitionerIds}
-                currentUserId={user?.user_id || null}
-                isPractitioner={isPractitioner || false}
-                onChange={setAdditionalPractitionerIds}
-                maxSelectable={5}
-              />
+              <div className="w-full md:w-auto">
+                <PractitionerSelector
+                  practitioners={practitioners}
+                  selectedPractitionerIds={additionalPractitionerIds}
+                  currentUserId={user?.user_id || null}
+                  isPractitioner={isPractitioner || false}
+                  onChange={setAdditionalPractitionerIds}
+                  maxSelectable={5}
+                />
+              </div>
             )}
             
             {/* Add Unavailable Time button - only show for practitioners */}
             {addExceptionHandler && isPractitioner && (
               <button
                 onClick={addExceptionHandler}
-                className="inline-flex items-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+                className="w-full md:w-auto inline-flex items-center justify-center rounded-md bg-primary-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 whitespace-nowrap"
               >
                 新增休診時段
               </button>
