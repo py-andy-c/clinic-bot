@@ -1041,3 +1041,235 @@ class TestPractitionerAppointmentTypes:
             # Clean up overrides
             client.app.dependency_overrides.pop(get_current_user, None)
             client.app.dependency_overrides.pop(get_db, None)
+
+
+class TestPractitionersList:
+    """Test practitioners list endpoint."""
+
+    def test_list_practitioners(self, db_session, test_clinic_with_therapist):
+        """Test listing all practitioners for a clinic."""
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
+
+        # Create another practitioner
+        therapist2, therapist2_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Dr. Test 2", "dr.test2@example.com", "therapist_sub_456", ["practitioner"], True
+        )
+        
+        # Create a non-practitioner (admin)
+        admin, admin_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Admin User", "admin@example.com", "admin_sub_789", ["admin"], True
+        )
+        db_session.commit()
+
+        # Mock authentication for admin
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=admin.email,
+            roles=admin_assoc.roles,
+            active_clinic_id=admin_assoc.clinic_id,
+            google_subject_id=admin.google_subject_id,
+            name=admin_assoc.full_name,
+            user_id=admin.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Test listing practitioners
+            response = client.get("/api/clinic/practitioners")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "practitioners" in data
+            practitioners = data["practitioners"]
+            
+            # Should return both practitioners, not the admin
+            assert len(practitioners) == 2
+            
+            # Check that both practitioners are in the list
+            practitioner_ids = [p["id"] for p in practitioners]
+            assert therapist.id in practitioner_ids
+            assert therapist2.id in practitioner_ids
+            
+            # Check that admin is not in the list
+            assert admin.id not in practitioner_ids
+            
+            # Check response structure
+            for p in practitioners:
+                assert "id" in p
+                assert "full_name" in p
+                assert p["full_name"] in ["Dr. Test", "Dr. Test 2"]
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_list_practitioners_as_practitioner(self, db_session, test_clinic_with_therapist):
+        """Test that practitioners can also list practitioners."""
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
+
+        # Create another practitioner
+        therapist2, therapist2_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Dr. Test 2", "dr.test2@example.com", "therapist_sub_456", ["practitioner"], True
+        )
+        db_session.commit()
+
+        # Mock authentication for therapist
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=therapist.email,
+            roles=therapist_assoc.roles,
+            active_clinic_id=therapist_assoc.clinic_id,
+            google_subject_id=therapist.google_subject_id,
+            name=therapist_assoc.full_name,
+            user_id=therapist.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Test listing practitioners
+            response = client.get("/api/clinic/practitioners")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "practitioners" in data
+            practitioners = data["practitioners"]
+            
+            # Should return both practitioners
+            assert len(practitioners) == 2
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_list_practitioners_empty_clinic(self, db_session):
+        """Test listing practitioners when clinic has none."""
+        # Create clinic without practitioners
+        clinic = Clinic(
+            name="Empty Clinic",
+            line_channel_id="empty_channel",
+            line_channel_secret="empty_secret",
+            line_channel_access_token="empty_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        # Create admin user (non-practitioner)
+        admin, admin_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Admin User", "admin@example.com", "admin_sub", ["admin"], True
+        )
+        db_session.commit()
+
+        # Mock authentication for admin
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=admin.email,
+            roles=admin_assoc.roles,
+            active_clinic_id=admin_assoc.clinic_id,
+            google_subject_id=admin.google_subject_id,
+            name=admin_assoc.full_name,
+            user_id=admin.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Test listing practitioners - should return empty list, not error
+            response = client.get("/api/clinic/practitioners")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "practitioners" in data
+            practitioners = data["practitioners"]
+            
+            # Should return empty list
+            assert len(practitioners) == 0
+            assert isinstance(practitioners, list)
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_list_practitioners_cross_clinic_isolation(self, db_session):
+        """Test that users can't see practitioners from other clinics."""
+        # Create two clinics
+        clinic1 = Clinic(
+            name="Clinic 1",
+            line_channel_id="clinic1_channel",
+            line_channel_secret="clinic1_secret",
+            line_channel_access_token="clinic1_token"
+        )
+        clinic2 = Clinic(
+            name="Clinic 2",
+            line_channel_id="clinic2_channel",
+            line_channel_secret="clinic2_secret",
+            line_channel_access_token="clinic2_token"
+        )
+        db_session.add_all([clinic1, clinic2])
+        db_session.commit()
+        
+        # Create practitioners in each clinic
+        practitioner1, p1_assoc = create_user_with_clinic_association(
+            db_session, clinic1, "Dr. Clinic1", "p1@example.com", "p1_sub", ["practitioner"], True
+        )
+        practitioner2, p2_assoc = create_user_with_clinic_association(
+            db_session, clinic2, "Dr. Clinic2", "p2@example.com", "p2_sub", ["practitioner"], True
+        )
+        
+        # Create admin in clinic1
+        admin1, a1_assoc = create_user_with_clinic_association(
+            db_session, clinic1, "Admin Clinic1", "admin1@example.com", "admin1_sub", ["admin"], True
+        )
+        db_session.commit()
+
+        # Mock authentication for admin1 (clinic1)
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=admin1.email,
+            roles=a1_assoc.roles,
+            active_clinic_id=a1_assoc.clinic_id,
+            google_subject_id=admin1.google_subject_id,
+            name=a1_assoc.full_name,
+            user_id=admin1.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Test listing practitioners - should only see clinic1 practitioners
+            response = client.get("/api/clinic/practitioners")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "practitioners" in data
+            practitioners = data["practitioners"]
+            
+            # Should only return practitioner from clinic1
+            assert len(practitioners) == 1
+            assert practitioners[0]["id"] == practitioner1.id
+            assert practitioners[0]["full_name"] == "Dr. Clinic1"
+            
+            # Should NOT include practitioner from clinic2
+            practitioner_ids = [p["id"] for p in practitioners]
+            assert practitioner2.id not in practitioner_ids
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)

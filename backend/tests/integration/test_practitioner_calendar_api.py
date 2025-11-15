@@ -787,3 +787,190 @@ class TestPractitionerCalendarAPI:
         # Check that 10:00 slot is available (cancelled appointment doesn't block it)
         available_10am_slot = next((s for s in slots if s["start_time"] == "10:00"), None)
         assert available_10am_slot is not None, "10:00 slot should be available since appointment is cancelled"
+
+    def test_practitioner_can_view_other_practitioner_calendar(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test that a practitioner can view another practitioner's calendar."""
+        clinic, practitioner1 = test_clinic_and_practitioner
+        
+        # Create second practitioner
+        practitioner2, _ = create_user_with_clinic_association(
+            db_session=db_session,
+            clinic=clinic,
+            full_name="Dr. Second",
+            email="practitioner2@example.com",
+            google_subject_id="practitioner2_subject",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.flush()
+        
+        # Create appointment for practitioner2
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+        
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+        
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner2, clinic,
+            event_type="appointment",
+            event_date=date(2025, 1, 15),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.flush()
+        
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.commit()
+        
+        # Get authentication token for practitioner1
+        token = get_auth_token(client, practitioner1.email)
+        
+        # Test getting calendar data for practitioner2 (should succeed)
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner2.id}/availability/calendar?date=2025-01-15",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["date"] == "2025-01-15"
+        assert len(data["events"]) == 1
+        assert data["events"][0]["type"] == "appointment"
+
+    def test_non_practitioner_can_view_practitioner_calendar(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test that a non-practitioner (admin/read-only) can view a practitioner's calendar."""
+        clinic, practitioner = test_clinic_and_practitioner
+        
+        # Create non-practitioner user (admin)
+        admin, _ = create_user_with_clinic_association(
+            db_session=db_session,
+            clinic=clinic,
+            full_name="Admin User",
+            email="admin@example.com",
+            google_subject_id="admin_subject",
+            roles=["admin"],
+            is_active=True
+        )
+        db_session.flush()
+        
+        # Create appointment for practitioner
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+        
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+        
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="appointment",
+            event_date=date(2025, 1, 15),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.flush()
+        
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.commit()
+        
+        # Get authentication token for admin
+        token = get_auth_token(client, admin.email)
+        
+        # Test getting calendar data for practitioner (should succeed)
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/calendar?date=2025-01-15",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["date"] == "2025-01-15"
+        assert len(data["events"]) == 1
+        assert data["events"][0]["type"] == "appointment"
+
+    def test_practitioner_can_view_own_calendar(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test that a practitioner can still view their own calendar (backward compatibility)."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment for practitioner
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="appointment",
+            event_date=date(2025, 1, 15),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Get authentication token for practitioner
+        token = get_auth_token(client, practitioner.email)
+
+        # Test getting calendar data for own calendar (should succeed)
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/calendar?date=2025-01-15",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["date"] == "2025-01-15"
+        assert len(data["events"]) == 1
+        assert data["events"][0]["type"] == "appointment"
+        assert data["events"][0]["title"] == "Test Patient - Test Appointment"

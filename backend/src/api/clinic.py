@@ -204,6 +204,60 @@ async def list_members(
         )
 
 
+class PractitionerListItemResponse(BaseModel):
+    """Response model for practitioner list item."""
+    id: int
+    full_name: str
+
+
+class PractitionerListResponse(BaseModel):
+    """Response model for practitioner list."""
+    practitioners: List[PractitionerListItemResponse]
+
+
+@router.get("/practitioners", summary="List all practitioners for current clinic")
+async def list_practitioners(
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> PractitionerListResponse:
+    """
+    Get all practitioners for the current user's clinic.
+    
+    Returns basic information (id, full_name) for all practitioners.
+    Available to all clinic members (including read-only users).
+    """
+    # Check clinic access first (raises HTTPException if denied)
+    clinic_id = ensure_clinic_access(current_user)
+    
+    try:
+        # Get practitioners using service
+        practitioners_data = PractitionerService.list_practitioners_for_clinic(
+            db=db,
+            clinic_id=clinic_id,
+            appointment_type_id=None  # Get all practitioners, not filtered by appointment type
+        )
+        
+        # Build response
+        practitioner_list = [
+            PractitionerListItemResponse(
+                id=p['id'],
+                full_name=p['full_name']
+            )
+            for p in practitioners_data
+        ]
+        
+        return PractitionerListResponse(practitioners=practitioner_list)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting practitioners list: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得治療師列表"
+        )
+
+
 @router.post("/members/invite", summary="Invite a new team member")
 async def invite_member(
     invite_data: MemberInviteRequest,

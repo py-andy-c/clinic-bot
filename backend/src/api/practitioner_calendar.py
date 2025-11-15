@@ -478,17 +478,11 @@ async def get_calendar_data(
     detailed daily calendar data (events and default schedule).
     """
     try:
-        # Check permissions - practitioners can only view their own calendar
-        if current_user.user_type == 'clinic_user' and not current_user.has_role("admin"):
-            if current_user.user_id != user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="您只能查看自己的行事曆"
-                )
-        
+        # Check clinic access first (raises HTTPException if denied)
         clinic_id = ensure_clinic_access(current_user)
         
-        # Verify user exists, is active, and is a practitioner
+        # Verify user exists, is active, and is a practitioner in the same clinic
+        # All clinic users can view any practitioner's calendar within their clinic
         user, _ = _verify_practitioner_in_clinic(db, user_id, clinic_id)
         
         if date:
