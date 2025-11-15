@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from './shared';
+import { useModal } from '../contexts/ModalContext';
 import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment-timezone';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -10,6 +11,7 @@ import {
   transformToCalendarEvents, 
   CalendarEvent 
 } from '../utils/calendarDataAdapter';
+import { getPractitionerColor } from '../utils/practitionerColors';
 import { CustomToolbar, CustomEventComponent, CustomDateHeader, CustomDayHeader, CustomWeekdayHeader } from './CalendarComponents';
 import {
   EventModal,
@@ -51,6 +53,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   onNavigate,
   onAddExceptionHandlerReady
 }) => {
+  const { alert } = useModal();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<View>(Views.DAY);
   const [allEvents, setAllEvents] = useState<ApiCalendarEvent[]>([]);
@@ -71,6 +74,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [cancellationPreviewLoading, setCancellationPreviewLoading] = useState(false);
   const [isFullDay, setIsFullDay] = useState(false);
   const scrollYRef = useRef(0);
+
+  // Helper function to check if user can edit an event
+  const canEditEvent = useCallback((event: CalendarEvent | null): boolean => {
+    if (!event) return false;
+    const eventPractitionerId = event.resource.practitioner_id || userId;
+    return eventPractitionerId === userId;
+  }, [userId]);
 
   // Lock body scroll when modal is open (prevents background scrolling on mobile)
   useEffect(() => {
@@ -201,48 +211,15 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
   };
 
-  // Generate dynamic colors for practitioners
-  const generatePractitionerColors = useCallback((count: number): string[] => {
-    if (count <= 6) {
-      // Use predefined colors for small counts
-      return [
-        '#10B981', // Green
-        '#F59E0B', // Amber
-        '#EF4444', // Red
-        '#8B5CF6', // Purple
-        '#EC4899', // Pink
-        '#06B6D4', // Cyan
-      ];
-    }
-    
-    // Generate colors dynamically using HSL for better distribution
-    const colors: string[] = [];
-    const hueStep = 360 / count;
-    for (let i = 0; i < count; i++) {
-      const hue = (i * hueStep) % 360;
-      // Use medium saturation and lightness for good visibility
-      colors.push(`hsl(${hue}, 65%, 50%)`);
-    }
-    return colors;
-  }, []);
 
   // Event styling based on document requirements and practitioner
   const eventStyleGetter = useCallback((event: CalendarEvent) => {
     const practitionerId = event.resource.practitioner_id || userId;
     const isPrimary = practitionerId === userId;
     
-    // Get color for this practitioner (if not primary)
-    // All practitioner IDs (primary + additional) for indexing
+    // Get color for this practitioner using shared utility
     const allPractitionerIds = [userId, ...additionalPractitionerIds];
-    const practitionerIndex = allPractitionerIds.indexOf(practitionerId);
-    
-    // Generate colors dynamically based on total practitioner count
-    const totalPractitioners = allPractitionerIds.length;
-    const additionalPractitionerCount = Math.max(totalPractitioners - 1, 1); // -1 because primary uses blue, min 1
-    const colors = generatePractitionerColors(additionalPractitionerCount);
-    
-    // Primary (index 0) uses blue, others use colors starting from index 1
-    const practitionerColor = practitionerIndex > 0 ? colors[(practitionerIndex - 1) % colors.length] : null;
+    const practitionerColor = getPractitionerColor(practitionerId, userId, allPractitionerIds);
     
     let style: any = {
       borderRadius: '6px',
@@ -295,7 +272,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
     
     return { style };
-  }, [userId, additionalPractitionerIds, generatePractitionerColors]);
+  }, [userId, additionalPractitionerIds]);
 
   // Handle event selection
   const handleSelectEvent = useCallback((event: CalendarEvent) => {
@@ -366,7 +343,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Create availability exception with conflict checking
   const handleCreateException = async () => {
     if (!exceptionData.date || !exceptionData.startTime || !exceptionData.endTime) {
-      alert('請輸入日期、開始和結束時間');
+      await alert('請輸入日期、開始和結束時間');
       return;
     }
 
@@ -401,17 +378,23 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       setModalState({ type: null, data: null });
       setExceptionData({ date: '', startTime: '', endTime: '' });
       setIsFullDay(false);
-      alert('休診時段已建立');
+      await alert('休診時段已建立');
     } catch (error) {
       logger.error('Error creating exception:', error);
-      alert('建立休診時段失敗，請稍後再試');
+      await alert('建立休診時段失敗，請稍後再試');
     }
   };
 
 
   // Show delete confirmation for appointments
-  const handleDeleteAppointment = () => {
+  const handleDeleteAppointment = async () => {
     if (!modalState.data || !modalState.data.resource.appointment_id) return;
+    
+    if (!canEditEvent(modalState.data)) {
+      await alert('您只能取消自己的預約');
+      return;
+    }
+    
     // Reset cancellation note and show note input modal
     setCancellationNote('');
     setCancellationPreviewMessage('');
@@ -436,7 +419,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       setModalState({ type: 'cancellation_preview', data: modalState.data });
     } catch (error) {
       logger.error('Error generating cancellation preview:', error);
-      alert('無法產生預覽訊息，請稍後再試');
+      await alert('無法產生預覽訊息，請稍後再試');
     } finally {
       setCancellationPreviewLoading(false);
     }
@@ -445,6 +428,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Confirm and perform appointment deletion
   const handleConfirmDeleteAppointment = async () => {
     if (!modalState.data || !modalState.data.resource.appointment_id) return;
+
+    if (!canEditEvent(modalState.data)) {
+      await alert('您只能取消自己的預約');
+      return;
+    }
 
     try {
       await apiService.cancelClinicAppointment(modalState.data.resource.appointment_id, cancellationNote.trim() || undefined);
@@ -456,13 +444,19 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       setCancellationPreviewMessage('');
     } catch (error) {
       logger.error('Error deleting appointment:', error);
-      alert('取消預約失敗，請稍後再試');
+      await alert('取消預約失敗，請稍後再試');
     }
   };
 
   // Show delete confirmation for availability exceptions
-  const handleDeleteException = () => {
+  const handleDeleteException = async () => {
     if (!modalState.data || !modalState.data.resource.exception_id) return;
+    
+    if (!canEditEvent(modalState.data)) {
+      await alert('您只能刪除自己的休診時段');
+      return;
+    }
+    
     // Show confirmation modal instead of deleting directly
     setModalState({ type: 'delete_confirmation', data: modalState.data });
   };
@@ -470,6 +464,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Confirm and perform exception deletion
   const handleConfirmDeleteException = async () => {
     if (!modalState.data || !modalState.data.resource.exception_id) return;
+
+    if (!canEditEvent(modalState.data)) {
+      await alert('您只能刪除自己的休診時段');
+      return;
+    }
 
     try {
       await apiService.deleteAvailabilityException(userId, modalState.data.resource.exception_id);
@@ -479,7 +478,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       setModalState({ type: null, data: null });
     } catch (error) {
       logger.error('Error deleting availability exception:', error);
-      alert('刪除休診時段失敗，請稍後再試');
+      await alert('刪除休診時段失敗，請稍後再試');
     }
   };
 
@@ -572,15 +571,27 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       </div>
 
       {/* Event Modal */}
-      {modalState.type === 'event' && modalState.data && (
-        <EventModal
-          event={modalState.data}
-          onClose={() => setModalState({ type: null, data: null })}
-          onDeleteAppointment={modalState.data.resource.type === 'appointment' ? handleDeleteAppointment : undefined}
-          onDeleteException={modalState.data.resource.type === 'availability_exception' ? handleDeleteException : undefined}
-          formatAppointmentTime={formatAppointmentTime}
-        />
-      )}
+      {modalState.type === 'event' && modalState.data && (() => {
+        const canEdit = canEditEvent(modalState.data);
+        
+        return (
+          <EventModal
+            event={modalState.data}
+            onClose={() => setModalState({ type: null, data: null })}
+            onDeleteAppointment={
+              canEdit && modalState.data.resource.type === 'appointment' 
+                ? handleDeleteAppointment 
+                : undefined
+            }
+            onDeleteException={
+              canEdit && modalState.data.resource.type === 'availability_exception' 
+                ? handleDeleteException 
+                : undefined
+            }
+            formatAppointmentTime={formatAppointmentTime}
+          />
+        );
+      })()}
 
       {/* Exception Modal */}
       {modalState.type === 'exception' && (
@@ -627,7 +638,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       )}
 
       {/* Delete Confirmation Modal */}
-      {modalState.type === 'delete_confirmation' && modalState.data && (
+      {modalState.type === 'delete_confirmation' && modalState.data && canEditEvent(modalState.data) && (
         <DeleteConfirmationModal
           event={modalState.data}
           onCancel={() => setModalState({ type: 'event', data: modalState.data })}

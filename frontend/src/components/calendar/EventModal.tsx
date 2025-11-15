@@ -11,8 +11,8 @@ import { BaseModal } from './BaseModal';
 export interface EventModalProps {
   event: CalendarEvent;
   onClose: () => void;
-  onDeleteAppointment?: (() => void) | undefined;
-  onDeleteException?: (() => void) | undefined;
+  onDeleteAppointment?: (() => void | Promise<void>) | undefined;
+  onDeleteException?: (() => void | Promise<void>) | undefined;
   formatAppointmentTime: (start: Date, end: Date) => string;
 }
 

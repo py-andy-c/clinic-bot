@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { getPractitionerColor } from '../utils/practitionerColors';
 
 interface Practitioner {
   id: number;
@@ -68,6 +69,59 @@ const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
     selectedPractitionerIds.includes(p.id)
   );
 
+  // Calculate all practitioner IDs for color indexing
+  // For practitioners: [currentUserId, ...selectedPractitionerIds]
+  // For non-practitioners: selectedPractitionerIds (no primary, all use colors)
+  const allPractitionerIds = useMemo(() => {
+    return currentUserId && isPractitioner
+      ? [currentUserId, ...selectedPractitionerIds]
+      : selectedPractitionerIds;
+  }, [currentUserId, isPractitioner, selectedPractitionerIds]);
+
+  // Memoize color calculations for each selected practitioner
+  const chipColors = useMemo(() => {
+    const primaryId = (currentUserId && isPractitioner) ? currentUserId : -1;
+    
+    return selectedPractitioners.map((p) => {
+      const color = getPractitionerColor(p.id, primaryId, allPractitionerIds);
+      
+      if (!color) {
+        // Primary practitioner (only for practitioners) - use blue
+        return {
+          id: p.id,
+          bg: 'bg-blue-100',
+          text: 'text-blue-800',
+          border: 'border-blue-200',
+          practitionerColor: null
+        };
+      }
+
+      // Use the practitioner's color for the chip
+      return {
+        id: p.id,
+        bg: '', // Will use inline style
+        text: 'text-white',
+        border: '', // Will use inline style
+        practitionerColor: color
+      };
+    });
+  }, [selectedPractitioners, currentUserId, isPractitioner, allPractitionerIds]);
+
+  // Get color for a specific practitioner (for use in render)
+  const getChipColor = (practitionerId: number): { bg: string; text: string; border: string; practitionerColor: string | null } => {
+    const chipColor = chipColors.find(c => c.id === practitionerId);
+    if (!chipColor) {
+      // Fallback (shouldn't happen)
+      return {
+        bg: 'bg-gray-100',
+        text: 'text-gray-800',
+        border: 'border-gray-200',
+        practitionerColor: null
+      };
+    }
+    return chipColor;
+  };
+
   const handleTogglePractitioner = (practitionerId: number) => {
     if (selectedPractitionerIds.includes(practitionerId)) {
       // Remove practitioner
@@ -119,7 +173,7 @@ const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
   }, [isOpen]);
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative w-full" ref={dropdownRef}>
       <div className="flex flex-col gap-2">
         {/* Error message */}
         {errorMessage && (
@@ -128,20 +182,40 @@ const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
           </div>
         )}
         
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center w-full">
         {/* Selected practitioners as chips */}
-        {selectedPractitioners.map((practitioner) => (
-          <span
-            key={practitioner.id}
-            className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800"
-          >
-            {practitioner.full_name}
-            <button
-              type="button"
-              onClick={() => handleRemovePractitioner(practitioner.id)}
-              className="ml-2 inline-flex items-center justify-center w-4 h-4 rounded-full text-primary-600 hover:bg-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              aria-label={`移除 ${practitioner.full_name}`}
+        {selectedPractitioners.map((practitioner) => {
+          const chipColor = getChipColor(practitioner.id);
+          
+          // Use inline style if we have a specific color, otherwise use classes
+          const chipStyle = chipColor.practitionerColor && chipColor.bg === ''
+            ? {
+                backgroundColor: chipColor.practitionerColor,
+                borderColor: chipColor.practitionerColor,
+              }
+            : undefined;
+          
+          const chipClassName = chipColor.bg
+            ? `inline-flex items-center px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-medium ${chipColor.bg} ${chipColor.text} border ${chipColor.border}`
+            : 'inline-flex items-center px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-medium border';
+          
+          return (
+            <span
+              key={practitioner.id}
+              className={chipClassName}
+              style={chipStyle}
             >
+              {practitioner.full_name}
+              <button
+                type="button"
+                onClick={() => handleRemovePractitioner(practitioner.id)}
+                className={`ml-2 inline-flex items-center justify-center w-4 h-4 rounded-full ${
+                  chipColor.practitionerColor
+                    ? 'text-white hover:opacity-80'
+                    : 'text-primary-600 hover:bg-primary-200'
+                } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                aria-label={`移除 ${practitioner.full_name}`}
+              >
               <svg
                 className="w-3 h-3"
                 fill="none"
@@ -157,17 +231,18 @@ const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
               </svg>
             </button>
           </span>
-        ))}
+          );
+        })}
 
         {/* Dropdown button */}
         <button
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="inline-flex items-center px-3 py-1 rounded-md text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          className="flex-1 md:flex-initial inline-flex items-center justify-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
           aria-expanded={isOpen}
           aria-haspopup="true"
         >
-          <span className="mr-2">加入其他治療師</span>
+          <span className="mr-2 whitespace-nowrap">加入其他治療師</span>
           <svg
             className={`h-4 w-4 text-gray-500 transition-transform ${
               isOpen ? 'transform rotate-180' : ''
@@ -191,7 +266,7 @@ const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
       {isOpen && (
         <div 
           ref={dropdownMenuRef}
-          className="absolute z-50 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none"
+          className="absolute z-50 w-full md:w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none"
         >
           <div className="py-1 max-h-64 overflow-y-auto" role="menu">
             {availablePractitioners.map((practitioner) => {
@@ -213,14 +288,6 @@ const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
                   role="menuitem"
                   title={isDisabled ? `最多只能選擇 ${maxSelectable} 位治療師` : undefined}
                 >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    disabled={isDisabled}
-                    onChange={() => {}} // Handled by button click
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded mr-3 disabled:opacity-50"
-                    onClick={(e) => e.stopPropagation()}
-                  />
                   <span>{practitioner.full_name}</span>
                 </button>
               );
