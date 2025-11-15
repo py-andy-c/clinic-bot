@@ -32,6 +32,9 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
           <>
             <h3 className="text-lg font-semibold mb-4">{event.title}</h3>
             <div className="space-y-2">
+              {(event.resource.event_practitioner_name || (event.resource.practitioner_name && !event.resource.is_primary)) && (
+                <p><strong>治療師:</strong> {event.resource.event_practitioner_name || event.resource.practitioner_name}</p>
+              )}
               <p><strong>時間:</strong> {formatAppointmentTime(event.start, event.end)}</p>
               {event.resource.notes && (
                 <p><strong>備註:</strong> {event.resource.notes}</p>
@@ -51,6 +54,9 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
           <>
             <h3 className="text-lg font-semibold mb-4">休診</h3>
             <div className="space-y-2">
+              {(event.resource.event_practitioner_name || (event.resource.practitioner_name && !event.resource.is_primary)) && (
+                <p><strong>治療師:</strong> {event.resource.event_practitioner_name || event.resource.practitioner_name}</p>
+              )}
               <p><strong>時間:</strong> {formatAppointmentTime(event.start, event.end)}</p>
             </div>
           </>

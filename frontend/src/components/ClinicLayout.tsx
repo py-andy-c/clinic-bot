@@ -221,7 +221,6 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   const { 
     user, 
     logout, 
-    isPractitioner, 
     switchClinic, 
     availableClinics, 
     isSwitchingClinic 
@@ -250,12 +249,12 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   }, [hasUnsavedChanges, location.pathname, navigate]);
 
   const navigation = useMemo(() => [
-    { name: '行事曆', href: '/admin/calendar', icon: '📅', show: isPractitioner },
+    { name: '行事曆', href: '/admin/calendar', icon: '📅', show: true }, // All clinic users can view calendar
     { name: '團隊成員', href: '/admin/clinic/members', icon: '👥', show: true }, // All clinic members can view
     { name: '病患管理', href: '/admin/clinic/patients', icon: '👥', show: true },
     { name: '診所設定', href: '/admin/clinic/settings', icon: '⚙️', show: true }, // All clinic members can view settings
     { name: '個人設定', href: '/admin/profile', icon: '👤', show: true }, // All users can access profile
-  ].filter(item => item.show), [isPractitioner]);
+  ].filter(item => item.show), []);
 
   const isActive = (href: string) => {
     return location.pathname === href;

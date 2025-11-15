@@ -134,14 +134,27 @@ export const CustomDayHeader = ({ date }: any) => {
 // Custom Event Component
 export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
   const timeStr = formatEventTimeRange(event.start, event.end);
+  const practitionerName = event.resource.event_practitioner_name || event.resource.practitioner_name;
+  const showPractitionerName = practitionerName && !event.resource.is_primary;
+  
+  // Build tooltip with practitioner name if available
+  const tooltipText = showPractitionerName 
+    ? `${practitionerName} - ${timeStr} ${event.title || ''}`.trim()
+    : `${timeStr} ${event.title || ''}`.trim();
 
   return (
-    <div className="flex items-center space-x-1">
+    <div 
+      className="flex items-center space-x-1"
+      title={tooltipText}
+    >
       <div className="flex-1 min-w-0 overflow-hidden">
         <div className="text-xs leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
           <span className="font-medium">{timeStr}</span>
           {event.title && (
             <span className="ml-1">{event.title}</span>
+          )}
+          {showPractitionerName && (
+            <span className="ml-1 text-gray-600 text-[10px]">({practitionerName})</span>
           )}
         </div>
       </div>

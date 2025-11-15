@@ -218,6 +218,12 @@ export class ApiService {
     return response.data.members;
   }
 
+  async getPractitioners(signal?: AbortSignal): Promise<{ id: number; full_name: string }[]> {
+    const config = signal ? { signal } : {};
+    const response = await this.client.get('/clinic/practitioners', config);
+    return response.data.practitioners;
+  }
+
   async inviteMember(inviteData: MemberInviteData): Promise<{ signup_url: string; expires_at: string }> {
     const response = await this.client.post('/clinic/members/invite', inviteData);
     return response.data;

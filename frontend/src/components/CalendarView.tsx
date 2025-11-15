@@ -36,6 +36,8 @@ moment.tz.setDefault('Asia/Taipei');
 
 interface CalendarViewProps {
   userId: number;
+  additionalPractitionerIds?: number[];
+  practitioners?: { id: number; full_name: string }[]; // Practitioner names for display
   onSelectEvent?: (event: CalendarEvent) => void;
   onNavigate?: (date: Date) => void;
   onAddExceptionHandlerReady?: (handler: () => void, view: View) => void;
@@ -43,6 +45,8 @@ interface CalendarViewProps {
 
 const CalendarView: React.FC<CalendarViewProps> = ({ 
   userId, 
+  additionalPractitionerIds = [],
+  practitioners = [],
   onSelectEvent, 
   onNavigate,
   onAddExceptionHandlerReady
@@ -113,7 +117,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   useEffect(() => {
     fetchCalendarData();
     fetchDefaultSchedule();
-  }, [userId, currentDate, view]);
+  }, [userId, additionalPractitionerIds, currentDate, view]);
 
   // Fetch default schedule
   const fetchDefaultSchedule = async () => {
@@ -144,26 +148,45 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       const { start, end } = getDateRange(currentDate, 'day');
       const events: ApiCalendarEvent[] = [];
 
+      // Collect all practitioner IDs to fetch (primary + additional)
+      const allPractitionerIds = [userId, ...additionalPractitionerIds];
+
       // Fetch events for each day in the range (only for daily view)
       const current = moment(start);
       const endMoment = moment(end);
 
       while (current.isSameOrBefore(endMoment, 'day')) {
-        try {
-          const dateStr = current.format('YYYY-MM-DD');
-          const data: any = await apiService.getDailyCalendar(userId, dateStr);
-          
-          if (data.events) {
-            // Add date to each event for proper display
-            const eventsWithDate = data.events.map((event: any) => ({
-              ...event,
-              date: dateStr
-            }));
-            events.push(...eventsWithDate);
+        const dateStr = current.format('YYYY-MM-DD');
+        
+        // Fetch events for all practitioners in parallel
+        const fetchPromises = allPractitionerIds.map(async (practitionerId) => {
+          try {
+            const data: any = await apiService.getDailyCalendar(practitionerId, dateStr);
+            
+            if (data.events) {
+              // Find practitioner name
+              const practitioner = practitioners.find(p => p.id === practitionerId);
+              const practitionerName = practitioner?.full_name || '';
+              
+              // Add date and practitioner ID to each event for proper display and color-coding
+              return data.events.map((event: any) => ({
+                ...event,
+                date: dateStr,
+                practitioner_id: practitionerId, // Add practitioner ID for color-coding
+                practitioner_name: practitionerName, // Add practitioner name for display
+                is_primary: practitionerId === userId // Mark primary practitioner's events
+              }));
+            }
+            return [];
+          } catch (err) {
+            logger.warn(`Failed to fetch events for practitioner ${practitionerId} on ${dateStr}:`, err);
+            return [];
           }
-        } catch (err) {
-          logger.warn(`Failed to fetch events for ${current.format('YYYY-MM-DD')}:`, err);
-        }
+        });
+
+        const results = await Promise.all(fetchPromises);
+        // Flatten and add all events
+        events.push(...results.flat());
         
         current.add(1, 'day');
       }
@@ -178,8 +201,49 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
   };
 
-  // Event styling based on document requirements
+  // Generate dynamic colors for practitioners
+  const generatePractitionerColors = useCallback((count: number): string[] => {
+    if (count <= 6) {
+      // Use predefined colors for small counts
+      return [
+        '#10B981', // Green
+        '#F59E0B', // Amber
+        '#EF4444', // Red
+        '#8B5CF6', // Purple
+        '#EC4899', // Pink
+        '#06B6D4', // Cyan
+      ];
+    }
+    
+    // Generate colors dynamically using HSL for better distribution
+    const colors: string[] = [];
+    const hueStep = 360 / count;
+    for (let i = 0; i < count; i++) {
+      const hue = (i * hueStep) % 360;
+      // Use medium saturation and lightness for good visibility
+      colors.push(`hsl(${hue}, 65%, 50%)`);
+    }
+    return colors;
+  }, []);
+
+  // Event styling based on document requirements and practitioner
   const eventStyleGetter = useCallback((event: CalendarEvent) => {
+    const practitionerId = event.resource.practitioner_id || userId;
+    const isPrimary = practitionerId === userId;
+    
+    // Get color for this practitioner (if not primary)
+    // All practitioner IDs (primary + additional) for indexing
+    const allPractitionerIds = [userId, ...additionalPractitionerIds];
+    const practitionerIndex = allPractitionerIds.indexOf(practitionerId);
+    
+    // Generate colors dynamically based on total practitioner count
+    const totalPractitioners = allPractitionerIds.length;
+    const additionalPractitionerCount = Math.max(totalPractitioners - 1, 1); // -1 because primary uses blue, min 1
+    const colors = generatePractitionerColors(additionalPractitionerCount);
+    
+    // Primary (index 0) uses blue, others use colors starting from index 1
+    const practitionerColor = practitionerIndex > 0 ? colors[(practitionerIndex - 1) % colors.length] : null;
+    
     let style: any = {
       borderRadius: '6px',
       color: 'white',
@@ -187,24 +251,51 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       display: 'block'
     };
 
-    // Style based on event type
+    // Style based on event type and practitioner
     if (event.resource.type === 'appointment') {
-      style = {
-        ...style,
-        backgroundColor: '#3B82F6', // Blue for appointments
-        opacity: 1
-      };
+      if (isPrimary) {
+        // Primary practitioner: blue
+        style = {
+          ...style,
+          backgroundColor: '#3B82F6',
+          opacity: 1
+        };
+      } else if (practitionerColor) {
+        // Other practitioners: use assigned color
+        style = {
+          ...style,
+          backgroundColor: practitionerColor,
+          opacity: 0.9
+        };
+      } else {
+        // Fallback: blue
+        style = {
+          ...style,
+          backgroundColor: '#3B82F6',
+          opacity: 1
+        };
+      }
     } else if (event.resource.type === 'availability_exception') {
-      style = {
-        ...style,
-        backgroundColor: '#E5E7EB', // Light gray for exceptions
-        color: '#1F2937', // Dark gray text for readability
-        opacity: 1
-      };
+      // Exceptions: light gray for primary, slightly different for others
+      if (isPrimary) {
+        style = {
+          ...style,
+          backgroundColor: '#E5E7EB',
+          color: '#1F2937',
+          opacity: 1
+        };
+      } else {
+        style = {
+          ...style,
+          backgroundColor: '#D1D5DB',
+          color: '#111827',
+          opacity: 0.8
+        };
+      }
     }
     
     return { style };
-  }, []);
+  }, [userId, additionalPractitionerIds, generatePractitionerColors]);
 
   // Handle event selection
   const handleSelectEvent = useCallback((event: CalendarEvent) => {
@@ -298,7 +389,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         return;
       }
 
-      // Create exception
+      // Create exception (only for primary practitioner)
       await apiService.createAvailabilityException(userId, {
         date: dateStr,
         start_time: exceptionData.startTime,
