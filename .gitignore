@@ -284,3 +284,6 @@ Thumbs.db
 # Vercel specific
 .vercel/
 backend/:memory:
+
+# Evaluation suite outputs
+backend/eval_outputs/
