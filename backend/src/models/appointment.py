@@ -9,7 +9,7 @@ calendar management while maintaining specialized appointment-specific data.
 
 from datetime import date as date_type, datetime
 from typing import Optional
-from sqlalchemy import String, ForeignKey, Index, TIMESTAMP
+from sqlalchemy import String, ForeignKey, Index, TIMESTAMP, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -63,6 +63,38 @@ class Appointment(Base):
     notes: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     """Optional patient-provided notes about the appointment (備註)."""
 
+    is_auto_assigned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    """
+    Current auto-assignment state.
+    
+    True: Appointment is currently auto-assigned (system assigned practitioner, but shows "不指定" to patient)
+    False: Appointment is manually assigned (shows practitioner name to patient)
+    """
+
+    originally_auto_assigned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    """
+    Historical flag indicating if appointment was originally created without practitioner specified.
+    
+    This flag never changes once set, preserving the historical fact that the appointment
+    was originally auto-assigned. Used for analytics and tracking.
+    """
+
+    reassigned_by_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
+    """
+    Tracks which user reassigned this appointment from auto-assigned state.
+    
+    NULL if appointment was never reassigned or was manually assigned from the start.
+    Set when appointment is reassigned from auto-assigned (不指定) to specific practitioner.
+    """
+
+    reassigned_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    """
+    Timestamp when appointment was reassigned from auto-assigned state.
+    
+    NULL if appointment was never reassigned or was manually assigned from the start.
+    Set when appointment is reassigned from auto-assigned (不指定) to specific practitioner.
+    """
+
     # Relationships
     calendar_event = relationship("CalendarEvent", back_populates="appointment")
     """Relationship to the CalendarEvent entity containing timing and metadata."""
@@ -111,4 +143,7 @@ class Appointment(Base):
         Index('idx_appointments_status', 'status'),
         # Composite index for load balancing query (status + calendar_event_id for JOIN efficiency)
         Index('idx_appointments_status_calendar_event', 'status', 'calendar_event_id'),
+        # Index for querying auto-assigned appointments
+        Index('idx_appointments_is_auto_assigned', 'is_auto_assigned'),
+        Index('idx_appointments_originally_auto_assigned', 'originally_auto_assigned'),
     )

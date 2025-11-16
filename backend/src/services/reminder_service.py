@@ -306,14 +306,18 @@ class ReminderService:
                 return False
 
             # Format reminder message - get practitioner name from pre-loaded association lookup
-            user = appointment.calendar_event.user
-            association = association_lookup.get(user.id)
-            if not association:
-                logger.warning(
-                    f"No active association found for user {user.id} in clinic {clinic.id}. "
-                    f"Using email as fallback."
-                )
-            therapist_name = association.full_name if association else user.email
+            # Show "不指定" if appointment is auto-assigned
+            if appointment.is_auto_assigned:
+                therapist_name = "不指定"
+            else:
+                user = appointment.calendar_event.user
+                association = association_lookup.get(user.id)
+                if not association:
+                    logger.warning(
+                        f"No active association found for user {user.id} in clinic {clinic.id}. "
+                        f"Using email as fallback."
+                    )
+                therapist_name = association.full_name if association else user.email
             appointment_datetime = ensure_taiwan(datetime.combine(
                 appointment.calendar_event.date,
                 appointment.calendar_event.start_time

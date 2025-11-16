@@ -152,6 +152,194 @@ class NotificationService:
             return f"{patient_name}，您的預約已取消：{base}。{note_str}"
 
     @staticmethod
+    def generate_edit_notification(
+        old_datetime: str,
+        old_practitioner: str | None,  # None or "不指定" if auto-assigned
+        new_datetime: str,
+        new_practitioner: str | None,  # None or "不指定" if auto-assigned
+        appointment_type: str,
+        patient_name: str,
+        note: str | None = None
+    ) -> str:
+        """
+        Generate edit notification message.
+        
+        Args:
+            old_datetime: Old appointment datetime (formatted)
+            old_practitioner: Old practitioner name or None/"不指定" if auto-assigned
+            new_datetime: New appointment datetime (formatted)
+            new_practitioner: New practitioner name or None/"不指定" if auto-assigned
+            appointment_type: Appointment type name
+            patient_name: Patient name
+            note: Optional custom note
+            
+        Returns:
+            Formatted edit notification message
+        """
+        # Format practitioner names (show "不指定" if None or empty)
+        old_practitioner_display = old_practitioner if old_practitioner else "不指定"
+        new_practitioner_display = new_practitioner if new_practitioner else "不指定"
+        
+        message = f"{patient_name}，您的預約已調整：\n\n"
+        message += f"原預約：{old_datetime} - 【{appointment_type}】{old_practitioner_display}治療師\n"
+        message += f"新預約：{new_datetime} - 【{appointment_type}】{new_practitioner_display}治療師\n"
+        if note:
+            message += f"\n備註：{note}\n"
+        message += "\n如有疑問，請聯繫診所。"
+        return message
+
+    @staticmethod
+    def send_appointment_edit_notification(
+        db: Session,
+        appointment: Appointment,
+        old_practitioner: User | None,
+        new_practitioner: User | None,
+        old_start_time: datetime,
+        new_start_time: datetime,
+        note: str | None = None
+    ) -> bool:
+        """
+        Send appointment edit notification to patient.
+        
+        Args:
+            db: Database session
+            appointment: Edited appointment
+            old_practitioner: Old practitioner (None if was auto-assigned)
+            new_practitioner: New practitioner (None if now auto-assigned)
+            old_start_time: Old appointment start time
+            new_start_time: New appointment start time
+            note: Optional custom note
+            
+        Returns:
+            True if notification sent successfully, False otherwise
+        """
+        try:
+            patient = appointment.patient
+            if not patient.line_user:
+                logger.info(f"Patient {patient.id} has no LINE user, skipping notification")
+                return False
+
+            clinic = patient.clinic
+
+            # Get practitioner names from associations
+            from models.user_clinic_association import UserClinicAssociation
+            
+            old_practitioner_name: str | None = None
+            if old_practitioner:
+                association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == old_practitioner.id,
+                    UserClinicAssociation.clinic_id == clinic.id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                old_practitioner_name = association.full_name if association else old_practitioner.email
+            
+            new_practitioner_name: str | None = None
+            if new_practitioner:
+                association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == new_practitioner.id,
+                    UserClinicAssociation.clinic_id == clinic.id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                new_practitioner_name = association.full_name if association else new_practitioner.email
+
+            # Format datetimes
+            old_formatted = format_datetime(old_start_time)
+            new_formatted = format_datetime(new_start_time)
+
+            # Get appointment type name
+            appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
+
+            # Generate message
+            message = NotificationService.generate_edit_notification(
+                old_datetime=old_formatted,
+                old_practitioner=old_practitioner_name,
+                new_datetime=new_formatted,
+                new_practitioner=new_practitioner_name,
+                appointment_type=appointment_type_name,
+                patient_name=patient.full_name,
+                note=note
+            )
+
+            # Send notification
+            line_service = NotificationService._get_line_service(clinic)
+            line_service.send_text_message(patient.line_user.line_user_id, message)
+
+            logger.info(
+                f"Sent edit notification to patient {patient.id} "
+                f"for appointment {appointment.calendar_event_id}"
+            )
+            return True
+
+        except Exception as e:
+            logger.exception(f"Failed to send edit notification: {e}")
+            return False
+
+    @staticmethod
+    def generate_edit_preview(
+        db: Session,
+        appointment: Appointment,
+        old_practitioner: User | None,
+        new_practitioner: User | None,
+        old_start_time: datetime,
+        new_start_time: datetime,
+        note: str | None = None
+    ) -> str:
+        """
+        Generate preview of edit notification message.
+        
+        Args:
+            db: Database session
+            appointment: Appointment being edited
+            old_practitioner: Old practitioner (None if was auto-assigned)
+            new_practitioner: New practitioner (None if now auto-assigned)
+            old_start_time: Old appointment start time
+            new_start_time: New appointment start time
+            note: Optional custom note
+            
+        Returns:
+            Preview message string
+        """
+        clinic = appointment.patient.clinic
+        
+        # Get practitioner names from associations
+        from models.user_clinic_association import UserClinicAssociation
+        
+        old_practitioner_name: str | None = None
+        if old_practitioner:
+            association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == old_practitioner.id,
+                UserClinicAssociation.clinic_id == clinic.id,
+                UserClinicAssociation.is_active == True
+            ).first()
+            old_practitioner_name = association.full_name if association else old_practitioner.email
+        
+        new_practitioner_name: str | None = None
+        if new_practitioner:
+            association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == new_practitioner.id,
+                UserClinicAssociation.clinic_id == clinic.id,
+                UserClinicAssociation.is_active == True
+            ).first()
+            new_practitioner_name = association.full_name if association else new_practitioner.email
+
+        # Format datetimes
+        old_formatted = format_datetime(old_start_time)
+        new_formatted = format_datetime(new_start_time)
+
+        # Get appointment type name
+        appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
+
+        return NotificationService.generate_edit_notification(
+            old_datetime=old_formatted,
+            old_practitioner=old_practitioner_name,
+            new_datetime=new_formatted,
+            new_practitioner=new_practitioner_name,
+            appointment_type=appointment_type_name,
+            patient_name=appointment.patient.full_name,
+            note=note
+        )
+
+    @staticmethod
     def _get_line_service(clinic: Clinic):
         """Get LINE service for clinic."""
         from services.line_service import LINEService

@@ -7,7 +7,7 @@ between different API endpoints (LIFF, clinic admin, etc.).
 
 import logging
 from datetime import datetime, timedelta, time
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 
 from fastapi import HTTPException, status
 from sqlalchemy import func
@@ -121,13 +121,19 @@ class AppointmentService:
             db.add(calendar_event)
             db.flush()  # Get calendar_event.id
 
+            # Determine auto-assignment flags
+            # If practitioner_id was None, it was auto-assigned
+            was_auto_assigned = practitioner_id is None
+            
             # Create appointment
             appointment = Appointment(
                 calendar_event_id=calendar_event.id,
                 patient_id=patient_id,
                 appointment_type_id=appointment_type_id,
                 status='confirmed',
-                notes=notes
+                notes=notes,
+                is_auto_assigned=was_auto_assigned,
+                originally_auto_assigned=was_auto_assigned
             )
 
             db.add(appointment)
@@ -679,3 +685,401 @@ class AppointmentService:
             'appointment': appointment,
             'practitioner': practitioner
         }
+
+    @staticmethod
+    def create_appointment_for_patient(
+        db: Session,
+        clinic_id: int,
+        patient_id: int,
+        appointment_type_id: int,
+        start_time: datetime,
+        practitioner_id: Optional[int] = None,
+        notes: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Create an appointment on behalf of a patient (clinic user version).
+        
+        This is similar to create_appointment but without LINE user validation,
+        allowing clinic users to create appointments for any patient.
+        
+        Args:
+            db: Database session
+            clinic_id: Clinic ID
+            patient_id: Patient ID
+            appointment_type_id: Appointment type ID
+            start_time: Appointment start time
+            practitioner_id: Specific practitioner ID or None for auto-assignment
+            notes: Optional appointment notes
+            
+        Returns:
+            Dict with appointment details
+            
+        Raises:
+            HTTPException: If creation fails or validation errors
+        """
+        # Use the existing create_appointment method but without line_user_id
+        return AppointmentService.create_appointment(
+            db=db,
+            clinic_id=clinic_id,
+            patient_id=patient_id,
+            appointment_type_id=appointment_type_id,
+            start_time=start_time,
+            practitioner_id=practitioner_id,
+            notes=notes,
+            line_user_id=None  # No LINE validation for clinic users
+        )
+
+    @staticmethod
+    def check_appointment_edit_conflicts(
+        db: Session,
+        appointment_id: int,
+        new_practitioner_id: Optional[int],
+        new_start_time: Optional[datetime],
+        appointment_type_id: int,
+        clinic_id: int
+    ) -> Tuple[bool, Optional[str], List[str]]:
+        """
+        Check if appointment edit would cause conflicts.
+        
+        Args:
+            appointment_id: ID of appointment being edited (exclude from conflict check)
+            new_practitioner_id: New practitioner ID (None = keep current)
+            new_start_time: New start time (None = keep current)
+            appointment_type_id: Appointment type ID (for duration)
+            clinic_id: Clinic ID
+            
+        Returns:
+            (is_valid, error_message, conflict_details)
+            - is_valid: True if no conflicts
+            - error_message: Human-readable error if invalid
+            - conflict_details: List of specific conflicts found
+        """
+        conflicts: List[str] = []
+        
+        # Get appointment type for duration
+        appointment_type = AppointmentTypeService.get_appointment_type_by_id(
+            db, appointment_type_id, clinic_id=clinic_id
+        )
+        duration_minutes = appointment_type.duration_minutes
+        
+        # Get current appointment to determine what we're changing
+        appointment = db.query(Appointment).filter(
+            Appointment.calendar_event_id == appointment_id
+        ).first()
+        
+        if not appointment:
+            return (False, "預約不存在", [])
+        
+        calendar_event = appointment.calendar_event
+        if not calendar_event:
+            return (False, "找不到預約事件", [])
+        
+        # Determine actual values to check
+        practitioner_id_to_check = new_practitioner_id if new_practitioner_id is not None else calendar_event.user_id
+        start_time_to_check = new_start_time if new_start_time is not None else datetime.combine(
+            calendar_event.date, calendar_event.start_time
+        ).replace(tzinfo=TAIWAN_TZ)
+        
+        # Calculate end time
+        end_time_to_check = start_time_to_check + timedelta(minutes=duration_minutes)
+        
+        # Check practitioner offers appointment type
+        if new_practitioner_id is not None:
+            practitioners = AvailabilityService.get_practitioners_for_appointment_type(
+                db, appointment_type_id, clinic_id
+            )
+            if not any(p.id == new_practitioner_id for p in practitioners):
+                conflicts.append("此治療師不提供此預約類型")
+                return (False, "此治療師不提供此預約類型", conflicts)
+        
+        # Check availability at new time/practitioner
+        schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
+            db, [practitioner_id_to_check], start_time_to_check.date(), clinic_id
+        )
+        
+        slot_start_time = start_time_to_check.time()
+        slot_end_time = end_time_to_check.time()
+        
+        if not AppointmentService._is_practitioner_available_at_slot(
+            schedule_data, practitioner_id_to_check, slot_start_time, slot_end_time
+        ):
+            conflicts.append("此時段不可用")
+        
+        # Check for conflicts with other appointments (exclude current appointment)
+        # Note: CalendarEvent.end_time should always be set, but we add a check for safety
+        conflicting_appointments = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).filter(
+            CalendarEvent.user_id == practitioner_id_to_check,
+            CalendarEvent.date == start_time_to_check.date(),
+            CalendarEvent.event_type == 'appointment',
+            Appointment.status == 'confirmed',
+            Appointment.calendar_event_id != appointment_id,  # Exclude current appointment
+            CalendarEvent.end_time.isnot(None),  # Ensure end_time is set
+            # Check for time overlap: appointments overlap if start < other_end AND end > other_start
+            CalendarEvent.start_time < slot_end_time,
+            CalendarEvent.end_time > slot_start_time
+        ).all()
+        
+        if conflicting_appointments:
+            conflicts.append(f"此時段與 {len(conflicting_appointments)} 個其他預約衝突")
+        
+        is_valid = len(conflicts) == 0
+        error_message = conflicts[0] if conflicts else None
+        
+        return (is_valid, error_message, conflicts)
+
+    @staticmethod
+    def should_send_edit_notification(
+        old_appointment: Appointment,
+        new_practitioner_id: Optional[int],
+        new_start_time: Optional[datetime],
+        old_notes: Optional[str],
+        new_notes: Optional[str]
+    ) -> bool:
+        """
+        Determine if LINE notification should be sent for appointment edit.
+        
+        Rules (in priority order):
+        1. No notification if only notes changed
+        2. No notification if no changes made
+        3. No notification if changing from 不指定 (is_auto_assigned=True) to specific practitioner
+           (patient never saw practitioner name)
+        4. Send notification if time changed (regardless of practitioner state)
+        5. Send notification if practitioner changed from specific to another specific
+        6. Send notification if practitioner changed from specific to 不指定
+        
+        Args:
+            old_appointment: Current appointment state
+            new_practitioner_id: New practitioner ID (None = keep current)
+            new_start_time: New start time (None = keep current)
+            old_notes: Current notes
+            new_notes: New notes
+            
+        Returns:
+            True if notification should be sent, False otherwise
+        """
+        # Check if only notes changed
+        if (old_notes != new_notes and 
+            new_practitioner_id is None and 
+            new_start_time is None):
+            return False
+        
+        # Check if no changes
+        if new_practitioner_id is None and new_start_time is None:
+            return False
+        
+        # Check if changing from 不指定 to specific (highest priority - no notification, even if time changes)
+        # According to the doc: "No notification if changing from 不指定 to specific practitioner"
+        # This takes priority over time changes because patient never saw practitioner name
+        if old_appointment.is_auto_assigned and new_practitioner_id is not None:
+            return False  # No notification (patient never saw practitioner, even if time changes)
+        
+        # Check if time changed (only if not the above case)
+        if new_start_time is not None:
+            # Compare with old time to ensure it actually changed
+            old_start_time = datetime.combine(
+                old_appointment.calendar_event.date,
+                old_appointment.calendar_event.start_time
+            ).replace(tzinfo=TAIWAN_TZ)
+            if new_start_time != old_start_time:
+                return True  # Time actually changed
+        
+        # Check if practitioner changed
+        if new_practitioner_id is not None and not old_appointment.is_auto_assigned:
+            # Get current practitioner ID from calendar event
+            current_practitioner_id = old_appointment.calendar_event.user_id
+            # Only send notification if practitioner actually changed
+            if new_practitioner_id != current_practitioner_id:
+                return True  # Practitioner changed (specific to specific or specific to 不指定)
+        
+        return False
+
+    @staticmethod
+    def edit_appointment(
+        db: Session,
+        appointment_id: int,
+        clinic_id: int,
+        current_user_id: int,
+        new_practitioner_id: Optional[int] = None,
+        new_start_time: Optional[datetime] = None,
+        new_notes: Optional[str] = None,
+        is_admin: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Edit an appointment (time and/or practitioner).
+        
+        Note: This method uses database transactions internally. The appointment update
+        is committed before sending notifications. If notification sending fails, the
+        appointment update is not rolled back (notification failures are logged but
+        don't block the operation).
+        
+        Args:
+            db: Database session
+            appointment_id: Calendar event ID of the appointment
+            clinic_id: Clinic ID
+            current_user_id: Current user ID (for permission check)
+            new_practitioner_id: New practitioner ID (None = keep current)
+            new_start_time: New start time (None = keep current)
+            new_notes: New notes (None = keep current)
+            is_admin: Whether current user is admin (can edit any appointment)
+            
+        Returns:
+            Dict with updated appointment details
+            
+        Raises:
+            HTTPException: If edit fails or validation errors
+        """
+        # Get appointment
+        appointment = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).filter(
+            Appointment.calendar_event_id == appointment_id,
+            CalendarEvent.clinic_id == clinic_id
+        ).first()
+        
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約不存在"
+            )
+        
+        # Check if appointment is cancelled
+        if appointment.status in ['canceled_by_patient', 'canceled_by_clinic']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="此預約已取消，無法編輯"
+            )
+        
+        # Check permissions
+        calendar_event = appointment.calendar_event
+        if not is_admin:
+            # Practitioners can only edit their own appointments
+            if calendar_event.user_id != current_user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="您只能編輯自己的預約"
+                )
+        
+        # Validate new practitioner exists and belongs to clinic if provided
+        if new_practitioner_id is not None:
+            practitioner = db.query(User).get(new_practitioner_id)
+            if not practitioner:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="治療師不存在"
+                )
+            # Verify practitioner belongs to clinic and is active
+            association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == new_practitioner_id,
+                UserClinicAssociation.clinic_id == clinic_id,
+                UserClinicAssociation.is_active == True
+            ).first()
+            if not association:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="此治療師不屬於此診所"
+                )
+        
+        # Check for conflicts (re-check immediately before saving to handle race conditions)
+        is_valid, error_message, _ = AppointmentService.check_appointment_edit_conflicts(
+            db, appointment_id, new_practitioner_id, new_start_time,
+            appointment.appointment_type_id, clinic_id
+        )
+        
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=error_message or "編輯預約時發生衝突"
+            )
+        
+        # Store old values for notification (before any updates)
+        old_is_auto_assigned = appointment.is_auto_assigned
+        current_practitioner_id = calendar_event.user_id
+        
+        # Check if practitioner actually changed (optimization)
+        practitioner_actually_changed = (
+            new_practitioner_id is not None and 
+            new_practitioner_id != current_practitioner_id
+        )
+        
+        # Update appointment
+        if new_notes is not None:
+            appointment.notes = new_notes
+        
+        # Update tracking fields based on practitioner change
+        # Only update if practitioner actually changed
+        # Note: new_practitioner_id=None means "keep current" (per API contract), not "change to auto-assigned"
+        if practitioner_actually_changed and old_is_auto_assigned:
+            # Changing from auto-assigned to specific
+            appointment.is_auto_assigned = False
+            appointment.reassigned_by_user_id = current_user_id
+            appointment.reassigned_at = taiwan_now()
+            # Keep originally_auto_assigned=True (preserve historical fact)
+        elif practitioner_actually_changed and not old_is_auto_assigned:
+            # Changing from specific to specific - keep is_auto_assigned=False
+            pass
+        # Note: Changing from specific to auto-assigned is not supported via edit endpoint
+        # (would require explicit API design change or separate endpoint)
+        
+        # Update calendar event if time or practitioner changed
+        if new_start_time is not None:
+            calendar_event.date = new_start_time.date()
+            calendar_event.start_time = new_start_time.time()
+            # Calculate end time
+            appointment_type = AppointmentTypeService.get_appointment_type_by_id(
+                db, appointment.appointment_type_id, clinic_id=clinic_id
+            )
+            end_time = new_start_time + timedelta(minutes=appointment_type.duration_minutes)
+            calendar_event.end_time = end_time.time()
+        
+        if new_practitioner_id is not None:
+            calendar_event.user_id = new_practitioner_id
+        
+        db.commit()
+        db.refresh(appointment)
+        
+        logger.info(f"Edited appointment {appointment_id} by user {current_user_id}")
+        
+        return {
+            'success': True,
+            'appointment_id': appointment_id,
+            'message': '預約已更新'
+        }
+
+    @staticmethod
+    def reassign_appointment(
+        db: Session,
+        appointment_id: int,
+        clinic_id: int,
+        current_user_id: int,
+        new_practitioner_id: int,
+        new_start_time: Optional[datetime] = None
+    ) -> Dict[str, Any]:
+        """
+        Reassign an appointment to a different practitioner.
+        
+        Args:
+            db: Database session
+            appointment_id: Calendar event ID of the appointment
+            clinic_id: Clinic ID
+            current_user_id: Current user ID (for tracking)
+            new_practitioner_id: New practitioner ID
+            new_start_time: Optional new start time (None = keep current)
+            
+        Returns:
+            Dict with updated appointment details
+            
+        Raises:
+            HTTPException: If reassignment fails or validation errors
+        """
+        # Use edit_appointment with is_admin=True (reassign allows any practitioner to reassign)
+        return AppointmentService.edit_appointment(
+            db=db,
+            appointment_id=appointment_id,
+            clinic_id=clinic_id,
+            current_user_id=current_user_id,
+            new_practitioner_id=new_practitioner_id,
+            new_start_time=new_start_time,
+            is_admin=True  # Reassign allows any practitioner to reassign
+        )

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
-from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation
+from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation, Appointment
 from models.clinic import ClinicSettings, ChatSettings as ChatSettingsModel
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
 from services.availability_service import AvailabilityService
@@ -1679,6 +1679,492 @@ async def cancel_clinic_appointment(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="取消預約失敗"
+        )
+
+
+# ===== Appointment Management (Create, Edit, Reassign) =====
+
+class ClinicAppointmentCreateRequest(BaseModel):
+    """Request model for creating appointment on behalf of patient."""
+    patient_id: int
+    appointment_type_id: int
+    start_time: datetime
+    practitioner_id: Optional[int] = None  # None = auto-assign
+    notes: Optional[str] = None
+
+
+class AppointmentEditRequest(BaseModel):
+    """Request model for editing appointment."""
+    practitioner_id: Optional[int] = None  # None = keep current
+    start_time: Optional[datetime] = None  # None = keep current
+    notes: Optional[str] = None
+
+
+class AppointmentEditPreviewRequest(BaseModel):
+    """Request model for previewing edit notification."""
+    new_practitioner_id: Optional[int] = None
+    new_start_time: Optional[datetime] = None
+    note: Optional[str] = None
+
+
+class AppointmentReassignRequest(BaseModel):
+    """Request model for reassigning appointment."""
+    new_practitioner_id: int
+    new_start_time: Optional[datetime] = None
+    notification_note: Optional[str] = None
+
+
+@router.post("/appointments", summary="Create appointment on behalf of patient")
+async def create_clinic_appointment(
+    request: ClinicAppointmentCreateRequest,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Create an appointment on behalf of an existing patient.
+    
+    Admin and practitioners can create appointments for any patient.
+    Read-only users cannot create appointments.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Check if user is read-only
+        if current_user.has_role('read-only'):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您沒有權限建立預約"
+            )
+        
+        # Create appointment
+        result = AppointmentService.create_appointment_for_patient(
+            db=db,
+            clinic_id=clinic_id,
+            patient_id=request.patient_id,
+            appointment_type_id=request.appointment_type_id,
+            start_time=request.start_time,
+            practitioner_id=request.practitioner_id,
+            notes=request.notes
+        )
+        
+        # Send LINE notification
+        try:
+            appointment = db.query(Appointment).filter(
+                Appointment.calendar_event_id == result['appointment_id']
+            ).first()
+            if appointment and appointment.patient:
+                patient = appointment.patient
+                if patient.line_user:
+                    # Format appointment time for notification
+                    from utils.datetime_utils import format_datetime
+                    appointment_time = format_datetime(request.start_time)
+                    # Get appointment type name from appointment object (more reliable)
+                    appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else '預約'
+                    
+                    # Determine practitioner name - check request.practitioner_id directly
+                    practitioner_name = "不指定"
+                    if request.practitioner_id is not None:
+                        practitioner = db.query(User).get(request.practitioner_id)
+                        if practitioner:
+                            # Get practitioner name from association
+                            association = db.query(UserClinicAssociation).filter(
+                                UserClinicAssociation.user_id == practitioner.id,
+                                UserClinicAssociation.clinic_id == clinic_id,
+                                UserClinicAssociation.is_active == True
+                            ).first()
+                            practitioner_name = association.full_name if association else practitioner.email
+                    
+                    # Generate and send notification
+                    from services.line_service import LINEService
+                    clinic = patient.clinic
+                    line_service = LINEService(
+                        channel_secret=clinic.line_channel_secret,
+                        channel_access_token=clinic.line_channel_access_token
+                    )
+                    message = f"{patient.full_name}，您的預約已建立：\n\n{appointment_time} - 【{appointment_type_name}】{practitioner_name}治療師"
+                    if request.notes:
+                        message += f"\n\n備註：{request.notes}"
+                    message += "\n\n期待為您服務！"
+                    line_service.send_text_message(patient.line_user.line_user_id, message)
+        except Exception as e:
+            logger.exception(f"Failed to send LINE notification for appointment creation: {e}")
+            # Don't fail the request if notification fails
+        
+        return {
+            "success": True,
+            "appointment_id": result['appointment_id'],
+            "message": "預約已建立"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to create appointment: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="建立預約失敗"
+        )
+
+
+@router.post("/appointments/{appointment_id}/edit-preview", summary="Preview edit notification")
+async def preview_edit_notification(
+    appointment_id: int,
+    request: AppointmentEditPreviewRequest,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Preview edit notification message before confirming edit.
+    
+    Also validates conflicts and returns whether notification will be sent.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Get appointment
+        appointment = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).filter(
+            Appointment.calendar_event_id == appointment_id,
+            CalendarEvent.clinic_id == clinic_id
+        ).first()
+        
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約不存在"
+            )
+        
+        # Check if appointment is cancelled
+        if appointment.status in ['canceled_by_patient', 'canceled_by_clinic']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="此預約已取消，無法編輯"
+            )
+        
+        # Check permissions before preview
+        calendar_event = appointment.calendar_event
+        is_admin = current_user.has_role('admin')
+        if not is_admin:
+            # Practitioners can only preview their own appointments
+            if calendar_event.user_id != current_user.user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="您只能預覽自己的預約"
+                )
+        
+        # Check conflicts (after permission check)
+        is_valid, _, conflicts = AppointmentService.check_appointment_edit_conflicts(
+            db, appointment_id, request.new_practitioner_id, request.new_start_time,
+            appointment.appointment_type_id, clinic_id
+        )
+        
+        # Determine if notification will be sent
+        from utils.datetime_utils import TAIWAN_TZ
+        old_start_time = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+        new_start_time = request.new_start_time if request.new_start_time else old_start_time
+        
+        will_send_notification = AppointmentService.should_send_edit_notification(
+            old_appointment=appointment,
+            new_practitioner_id=request.new_practitioner_id,
+            new_start_time=request.new_start_time,
+            old_notes=appointment.notes,
+            new_notes=appointment.notes  # Notes not changed in preview
+        )
+        
+        # Generate preview message if notification will be sent
+        preview_message: Optional[str] = None
+        if will_send_notification:
+            old_practitioner = None
+            if not appointment.is_auto_assigned:
+                old_practitioner = db.query(User).get(calendar_event.user_id)
+            
+            new_practitioner = None
+            if request.new_practitioner_id:
+                new_practitioner = db.query(User).get(request.new_practitioner_id)
+            
+            preview_message = NotificationService.generate_edit_preview(
+                db=db,
+                appointment=appointment,
+                old_practitioner=old_practitioner,
+                new_practitioner=new_practitioner,
+                old_start_time=old_start_time,
+                new_start_time=new_start_time,
+                note=request.note
+            )
+        
+        return {
+            "preview_message": preview_message,
+            "old_appointment_details": {
+                "practitioner_id": calendar_event.user_id,
+                "start_time": old_start_time.isoformat(),
+                "is_auto_assigned": appointment.is_auto_assigned
+            },
+            "new_appointment_details": {
+                "practitioner_id": request.new_practitioner_id if request.new_practitioner_id else calendar_event.user_id,
+                "start_time": new_start_time.isoformat()
+            },
+            "conflicts": conflicts,
+            "is_valid": is_valid,
+            "will_send_notification": will_send_notification
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to preview edit notification: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="預覽失敗"
+        )
+
+
+@router.put("/appointments/{appointment_id}", summary="Edit appointment")
+async def edit_clinic_appointment(
+    appointment_id: int,
+    request: AppointmentEditRequest,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Edit an appointment (time and/or practitioner).
+    
+    Admin can edit any appointment.
+    Practitioners can only edit their own appointments.
+    Read-only users cannot edit.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Check if user is read-only
+        if current_user.has_role('read-only'):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您沒有權限編輯預約"
+            )
+        
+        # Get appointment before edit (for notification)
+        appointment = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).filter(
+            Appointment.calendar_event_id == appointment_id,
+            CalendarEvent.clinic_id == clinic_id
+        ).first()
+        
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約不存在"
+            )
+        
+        calendar_event = appointment.calendar_event
+        from utils.datetime_utils import TAIWAN_TZ
+        old_start_time = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+        old_practitioner_id = calendar_event.user_id
+        old_is_auto_assigned = appointment.is_auto_assigned
+        old_notes_value = appointment.notes  # Store before edit
+        
+        # Check permissions
+        is_admin = current_user.has_role('admin')
+        if not is_admin:
+            # Practitioners can only edit their own appointments
+            if calendar_event.user_id != current_user.user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="您只能編輯自己的預約"
+                )
+        
+        # Edit appointment
+        if current_user.user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="未授權"
+            )
+        result = AppointmentService.edit_appointment(
+            db=db,
+            appointment_id=appointment_id,
+            clinic_id=clinic_id,
+            current_user_id=current_user.user_id,
+            new_practitioner_id=request.practitioner_id,
+            new_start_time=request.start_time,
+            new_notes=request.notes,
+            is_admin=is_admin
+        )
+        
+        # Refresh appointment to get updated values
+        db.refresh(appointment)
+        calendar_event = appointment.calendar_event
+        
+        # Determine if notification should be sent using stored old values
+        temp_is_auto_assigned = appointment.is_auto_assigned
+        appointment.is_auto_assigned = old_is_auto_assigned  # Use old value for check
+        
+        new_start_time = request.start_time if request.start_time else old_start_time
+        should_send = AppointmentService.should_send_edit_notification(
+            old_appointment=appointment,  # Use appointment with old is_auto_assigned value
+            new_practitioner_id=request.practitioner_id,
+            new_start_time=request.start_time,
+            old_notes=old_notes_value,
+            new_notes=request.notes if request.notes is not None else appointment.notes
+        )
+        
+        # Restore is_auto_assigned (will be refreshed anyway, but good practice)
+        appointment.is_auto_assigned = temp_is_auto_assigned
+        
+        # Send notification if needed
+        if should_send:
+            try:
+                old_practitioner = None
+                if not old_is_auto_assigned:
+                    old_practitioner = db.query(User).get(old_practitioner_id)
+                
+                new_practitioner = None
+                if request.practitioner_id:
+                    new_practitioner = db.query(User).get(request.practitioner_id)
+                elif not appointment.is_auto_assigned:
+                    new_practitioner = db.query(User).get(calendar_event.user_id)
+                
+                NotificationService.send_appointment_edit_notification(
+                    db=db,
+                    appointment=appointment,
+                    old_practitioner=old_practitioner,
+                    new_practitioner=new_practitioner,
+                    old_start_time=old_start_time,
+                    new_start_time=new_start_time,
+                    note=request.notes
+                )
+            except Exception as e:
+                logger.exception(f"Failed to send LINE notification for appointment edit: {e}")
+                # Don't fail the request if notification fails
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to edit appointment: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="編輯預約失敗"
+        )
+
+
+@router.post("/appointments/{appointment_id}/reassign", summary="Reassign appointment")
+async def reassign_appointment(
+    appointment_id: int,
+    request: AppointmentReassignRequest,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Reassign an appointment to a different practitioner.
+    
+    Admin and practitioners can reassign any appointment.
+    Read-only users cannot reassign.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Check if user is read-only
+        if current_user.has_role('read-only'):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您沒有權限重新指派預約"
+            )
+        
+        # Get appointment before reassignment (for notification)
+        appointment = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).filter(
+            Appointment.calendar_event_id == appointment_id,
+            CalendarEvent.clinic_id == clinic_id
+        ).first()
+        
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約不存在"
+            )
+        
+        calendar_event = appointment.calendar_event
+        from utils.datetime_utils import TAIWAN_TZ
+        old_start_time = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+        old_practitioner_id = calendar_event.user_id
+        old_is_auto_assigned = appointment.is_auto_assigned
+        old_notes_value = appointment.notes  # Store before reassignment
+        
+        # Reassign appointment
+        # Note: reassign_appointment uses is_admin=True to allow any practitioner to reassign
+        # any appointment, which matches the requirement that practitioners can reassign
+        # any appointment (not just their own)
+        if current_user.user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="未授權"
+            )
+        result = AppointmentService.reassign_appointment(
+            db=db,
+            appointment_id=appointment_id,
+            clinic_id=clinic_id,
+            current_user_id=current_user.user_id,
+            new_practitioner_id=request.new_practitioner_id,
+            new_start_time=request.new_start_time
+        )
+        
+        # Refresh appointment to get updated values
+        db.refresh(appointment)
+        calendar_event = appointment.calendar_event
+        
+        # Determine if notification should be sent using stored old values
+        temp_is_auto_assigned = appointment.is_auto_assigned
+        appointment.is_auto_assigned = old_is_auto_assigned  # Use old value for check
+        
+        new_start_time = request.new_start_time if request.new_start_time else old_start_time
+        should_send = AppointmentService.should_send_edit_notification(
+            old_appointment=appointment,  # Use appointment with old is_auto_assigned value
+            new_practitioner_id=request.new_practitioner_id,
+            new_start_time=request.new_start_time,
+            old_notes=old_notes_value,
+            new_notes=appointment.notes
+        )
+        
+        # Restore is_auto_assigned (will be refreshed anyway, but good practice)
+        appointment.is_auto_assigned = temp_is_auto_assigned
+        
+        # Send notification if needed
+        if should_send:
+            try:
+                old_practitioner = None
+                if not old_is_auto_assigned:
+                    old_practitioner = db.query(User).get(old_practitioner_id)
+                
+                new_practitioner = db.query(User).get(request.new_practitioner_id)
+                
+                NotificationService.send_appointment_edit_notification(
+                    db=db,
+                    appointment=appointment,
+                    old_practitioner=old_practitioner,
+                    new_practitioner=new_practitioner,
+                    old_start_time=old_start_time,
+                    new_start_time=new_start_time,
+                    note=request.notification_note
+                )
+            except Exception as e:
+                logger.exception(f"Failed to send LINE notification for appointment reassignment: {e}")
+                # Don't fail the request if notification fails
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to reassign appointment: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="重新指派預約失敗"
         )
 
 
