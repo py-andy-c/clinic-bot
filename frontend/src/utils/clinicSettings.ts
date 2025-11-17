@@ -37,6 +37,15 @@ export const validateClinicSettings = (settings: ClinicSettings): string | null 
     }
   }
 
+  // Validate step_size_minutes
+  const stepSizeValue = settings.booking_restriction_settings.step_size_minutes;
+  if (stepSizeValue !== undefined && stepSizeValue !== null) {
+    const stepSize = typeof stepSizeValue === 'string' ? parseFloat(stepSizeValue) : stepSizeValue;
+    if (isNaN(stepSize) || stepSize < 5 || stepSize > 60) {
+      return '時段間隔必須在 5-60 分鐘之間';
+    }
+  }
+
   return null; // Valid
 };
 
@@ -49,6 +58,7 @@ export const getClinicSectionChanges = (current: ClinicSettings, original: Clini
     current.clinic_info_settings.appointment_type_instructions !== original.clinic_info_settings.appointment_type_instructions ||
     current.booking_restriction_settings.booking_restriction_type !== original.booking_restriction_settings.booking_restriction_type ||
     current.booking_restriction_settings.minimum_booking_hours_ahead !== original.booking_restriction_settings.minimum_booking_hours_ahead ||
+    (current.booking_restriction_settings.step_size_minutes ?? 30) !== (original.booking_restriction_settings.step_size_minutes ?? 30) ||
     (current.clinic_info_settings.require_birthday || false) !== (original.clinic_info_settings.require_birthday || false);
 
   return {

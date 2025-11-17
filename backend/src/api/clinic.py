@@ -76,6 +76,7 @@ class BookingRestrictionSettings(BaseModel):
     """Booking restriction settings for clinic."""
     booking_restriction_type: str = "same_day_disallowed"
     minimum_booking_hours_ahead: int = 24
+    step_size_minutes: int = 30
 
 
 class ClinicInfoSettings(BaseModel):
@@ -607,7 +608,8 @@ async def get_settings(
            ),
            booking_restriction_settings=BookingRestrictionSettings(
                booking_restriction_type=clinic.booking_restriction_type,
-               minimum_booking_hours_ahead=clinic.minimum_booking_hours_ahead
+               minimum_booking_hours_ahead=clinic.minimum_booking_hours_ahead,
+               step_size_minutes=validated_settings.booking_restriction_settings.step_size_minutes
            ),
            clinic_info_settings=ClinicInfoSettings(
                display_name=clinic.display_name,

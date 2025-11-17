@@ -435,8 +435,11 @@ class AvailabilityService:
             
             # Generate all candidate slots from default intervals
             # and filter out slots that overlap with exceptions or appointments
+            # Get step_size_minutes from clinic settings (default: 30)
+            validated_settings = clinic.get_validated_settings()
+            step_size_minutes = validated_settings.booking_restriction_settings.step_size_minutes
             candidate_slots = AvailabilityService._generate_candidate_slots(
-                default_intervals, duration_minutes, step_size_minutes=15
+                default_intervals, duration_minutes, step_size_minutes=step_size_minutes
             )
             
             # Filter out slots that overlap with exceptions or appointments
@@ -464,7 +467,7 @@ class AvailabilityService:
     def _generate_candidate_slots(
         default_intervals: List[PractitionerAvailability],
         duration_minutes: int,
-        step_size_minutes: int = 15
+        step_size_minutes: int = 30
     ) -> List[tuple[time, time]]:
         """
         Generate candidate time slots from default availability intervals.
@@ -475,7 +478,7 @@ class AvailabilityService:
         Args:
             default_intervals: List of practitioner's default availability intervals
             duration_minutes: Duration of each slot in minutes
-            step_size_minutes: Step size between slots in minutes (default: 15)
+            step_size_minutes: Step size between slots in minutes (default: 30)
 
         Returns:
             List of (start_time, end_time) tuples for candidate slots
@@ -484,6 +487,7 @@ class AvailabilityService:
 
         for interval in default_intervals:
             # Round up interval start to next step_size_minutes boundary
+            # For step_size_minutes=30, this rounds to half hours (00, 30)
             # For step_size_minutes=15, this rounds to quarter hours (00, 15, 30, 45)
             current_time = AvailabilityService._round_up_to_interval(
                 interval.start_time, step_size_minutes
