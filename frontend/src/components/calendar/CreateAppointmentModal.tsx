@@ -421,7 +421,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   return (
     <BaseModal onClose={handleClose} aria-label="建立預約">
-      <div className="space-y-4">
+      <div className="space-y-4 pb-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">{STEP_TITLES[step]}</h2>

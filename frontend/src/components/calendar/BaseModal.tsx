@@ -41,7 +41,7 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
       aria-labelledby={ariaLabelledBy}
     >
       <div
-        className={`bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto ${className}`}
+        className={`bg-white rounded-lg p-6 max-w-md w-full mx-4 mb-4 max-h-[90vh] overflow-y-auto ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {children}
