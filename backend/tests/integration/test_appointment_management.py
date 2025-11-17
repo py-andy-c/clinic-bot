@@ -101,13 +101,14 @@ class TestAppointmentManagement:
 
         # Create appointment with auto-assignment
         start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
-        result = AppointmentService.create_appointment_for_patient(
+        result = AppointmentService.create_appointment(
             db=db_session,
             clinic_id=clinic.id,
             patient_id=patient.id,
             appointment_type_id=appointment_type.id,
             start_time=start_time,
-            practitioner_id=None  # Auto-assign
+            practitioner_id=None,  # Auto-assign
+            line_user_id=None
         )
 
         # Verify appointment was created
@@ -174,13 +175,14 @@ class TestAppointmentManagement:
 
         # Create appointment with specific practitioner
         start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
-        result = AppointmentService.create_appointment_for_patient(
+        result = AppointmentService.create_appointment(
             db=db_session,
             clinic_id=clinic.id,
             patient_id=patient.id,
             appointment_type_id=appointment_type.id,
             start_time=start_time,
-            practitioner_id=practitioner.id
+            practitioner_id=practitioner.id,
+            line_user_id=None
         )
 
         # Verify appointment was created
@@ -245,13 +247,14 @@ class TestAppointmentManagement:
 
         # Create appointment
         start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
-        result = AppointmentService.create_appointment_for_patient(
+        result = AppointmentService.create_appointment(
             db=db_session,
             clinic_id=clinic.id,
             patient_id=patient.id,
             appointment_type_id=appointment_type.id,
             start_time=start_time,
-            practitioner_id=practitioner.id
+            practitioner_id=practitioner.id,
+            line_user_id=None
         )
         appointment_id = result['appointment_id']
 
@@ -360,13 +363,14 @@ class TestAppointmentManagement:
 
         # Create auto-assigned appointment
         start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
-        result = AppointmentService.create_appointment_for_patient(
+        result = AppointmentService.create_appointment(
             db=db_session,
             clinic_id=clinic.id,
             patient_id=patient.id,
             appointment_type_id=appointment_type.id,
             start_time=start_time,
-            practitioner_id=None  # Auto-assign
+            practitioner_id=None,  # Auto-assign
+            line_user_id=None
         )
         appointment_id = result['appointment_id']
 
@@ -461,13 +465,14 @@ class TestAppointmentManagement:
 
         # Create auto-assigned appointment
         start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
-        result = AppointmentService.create_appointment_for_patient(
+        result = AppointmentService.create_appointment(
             db=db_session,
             clinic_id=clinic.id,
             patient_id=patient.id,
             appointment_type_id=appointment_type.id,
             start_time=start_time,
-            practitioner_id=None  # Auto-assign
+            practitioner_id=None,  # Auto-assign
+            line_user_id=None
         )
         appointment_id = result['appointment_id']
         appointment = db_session.query(Appointment).filter(
@@ -554,13 +559,14 @@ class TestAppointmentManagement:
                 db_session, practitioner2, clinic, day_of_week2, time(9, 0), time(17, 0)
             )
         
-        result2 = AppointmentService.create_appointment_for_patient(
+        result2 = AppointmentService.create_appointment(
             db=db_session,
             clinic_id=clinic.id,
             patient_id=patient.id,
             appointment_type_id=appointment_type.id,
             start_time=start_time2,
-            practitioner_id=practitioner1.id
+            practitioner_id=practitioner1.id,
+            line_user_id=None
         )
         appointment2 = db_session.query(Appointment).filter(
             Appointment.calendar_event_id == result2['appointment_id']
@@ -663,25 +669,27 @@ class TestAppointmentManagement:
 
         # Create first appointment at 10:00
         start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
-        result = AppointmentService.create_appointment_for_patient(
+        result = AppointmentService.create_appointment(
             db=db_session,
             clinic_id=clinic.id,
             patient_id=patient.id,
             appointment_type_id=appointment_type.id,
             start_time=start_time,
-            practitioner_id=practitioner.id
+            practitioner_id=practitioner.id,
+            line_user_id=None
         )
         appointment_id = result['appointment_id']
 
         # Create second appointment at 10:30 (doesn't overlap with 10:00-10:30)
         second_appointment_time = start_time + timedelta(minutes=30)
-        AppointmentService.create_appointment_for_patient(
+        AppointmentService.create_appointment(
             db=db_session,
             clinic_id=clinic.id,
             patient_id=patient.id,
             appointment_type_id=appointment_type.id,
             start_time=second_appointment_time,
-            practitioner_id=practitioner.id
+            practitioner_id=practitioner.id,
+            line_user_id=None
         )
 
         # Try to edit first appointment to 10:15 - should detect conflict with second appointment (10:30-11:00)
@@ -765,13 +773,14 @@ class TestAppointmentManagement:
 
         # Create auto-assigned appointment
         start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
-        result = AppointmentService.create_appointment_for_patient(
+        result = AppointmentService.create_appointment(
             db=db_session,
             clinic_id=clinic.id,
             patient_id=patient.id,
             appointment_type_id=appointment_type.id,
             start_time=start_time,
-            practitioner_id=None  # Auto-assign
+            practitioner_id=None,  # Auto-assign
+            line_user_id=None
         )
         appointment_id = result['appointment_id']
 
@@ -850,13 +859,14 @@ class TestAppointmentManagement:
 
         # Create appointment at 11:00 AM Taiwan time
         start_time = taiwan_now().replace(hour=11, minute=0, second=0, microsecond=0) + timedelta(days=1)
-        result = AppointmentService.create_appointment_for_patient(
+        result = AppointmentService.create_appointment(
             db=db_session,
             clinic_id=clinic.id,
             patient_id=patient.id,
             appointment_type_id=appointment_type.id,
             start_time=start_time,
-            practitioner_id=practitioner.id
+            practitioner_id=practitioner.id,
+            line_user_id=None
         )
         appointment_id = result['appointment_id']
 

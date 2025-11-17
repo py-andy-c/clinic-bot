@@ -727,15 +727,16 @@ async def cancel_appointment(
     Verifies ownership and updates appointment status.
     Clinic isolation is enforced through LIFF token context.
     """
-    line_user, clinic = line_user_clinic
+    # Permission validation is handled by get_current_line_user_with_clinic dependency
+    # which ensures the LINE user is authenticated and belongs to the clinic
+    _line_user, _clinic = line_user_clinic
 
     try:
         # Cancel appointment using service
-        result = AppointmentService.cancel_appointment_by_patient(
+        result = AppointmentService.cancel_appointment(
             db=db,
             appointment_id=appointment_id,
-            line_user_id=line_user.id,
-            clinic_id=clinic.id
+            cancelled_by='patient'
         )
 
         return result

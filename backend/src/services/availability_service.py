@@ -111,6 +111,104 @@ class AvailabilityService:
         
         return practitioner
 
+    @staticmethod
+    def validate_practitioner_for_clinic(
+        db: Session,
+        practitioner_id: int,
+        clinic_id: int
+    ) -> User:
+        """
+        Validate that a practitioner exists, is active, and belongs to the clinic.
+
+        Shared validation function used by both AppointmentService and AvailabilityService.
+
+        Args:
+            db: Database session
+            practitioner_id: Practitioner user ID
+            clinic_id: Clinic ID
+
+        Returns:
+            User object (practitioner)
+
+        Raises:
+            HTTPException: If practitioner not found, inactive, or doesn't belong to clinic
+        """
+        # Single query to get practitioner with association and verify role
+        query = db.query(User).join(UserClinicAssociation).filter(
+            User.id == practitioner_id,
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
+        )
+        query = filter_by_role(query, 'practitioner')
+        practitioner = query.first()
+
+        if not practitioner:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="治療師不存在"
+            )
+
+        return practitioner
+
+    @staticmethod
+    def validate_practitioner_offers_appointment_type(
+        db: Session,
+        practitioner_id: int,
+        appointment_type_id: int,
+        clinic_id: int
+    ) -> bool:
+        """
+        Check if a practitioner offers a specific appointment type at a clinic.
+
+        Shared validation function used by both AppointmentService and AvailabilityService.
+
+        Args:
+            db: Database session
+            practitioner_id: Practitioner user ID
+            appointment_type_id: Appointment type ID
+            clinic_id: Clinic ID
+
+        Returns:
+            True if practitioner offers the appointment type, False otherwise
+        """
+        practitioner_appointment_type = db.query(PractitionerAppointmentTypes).filter(
+            PractitionerAppointmentTypes.user_id == practitioner_id,
+            PractitionerAppointmentTypes.appointment_type_id == appointment_type_id,
+            PractitionerAppointmentTypes.clinic_id == clinic_id
+        ).first()
+
+        return practitioner_appointment_type is not None
+
+    @staticmethod
+    def get_practitioner_associations_batch(
+        db: Session,
+        practitioner_ids: List[int],
+        clinic_id: int
+    ) -> Dict[int, UserClinicAssociation]:
+        """
+        Batch fetch practitioner associations for multiple practitioners.
+
+        Shared utility function to avoid N+1 queries when fetching practitioner names.
+
+        Args:
+            db: Database session
+            practitioner_ids: List of practitioner user IDs
+            clinic_id: Clinic ID
+
+        Returns:
+            Dict mapping practitioner_id to UserClinicAssociation
+        """
+        if not practitioner_ids:
+            return {}
+
+        associations = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id.in_(practitioner_ids),
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
+        ).all()
+
+        return {a.user_id: a for a in associations}
+
 
     @staticmethod
     def get_available_slots_for_practitioner(
@@ -151,9 +249,6 @@ class AvailabilityService:
             requested_date = AvailabilityService._validate_date(date)
             appointment_type = AppointmentTypeService.get_appointment_type_by_id(db, appointment_type_id)
 
-            # Verify practitioner exists, is active, and is a practitioner
-            practitioner = AvailabilityService._get_practitioner_by_id(db, practitioner_id)
-
             # Verify appointment type belongs to the requested clinic
             if appointment_type.clinic_id != clinic_id:
                 raise HTTPException(
@@ -161,27 +256,14 @@ class AvailabilityService:
                     detail="找不到預約類型"
                 )
 
-            # Verify practitioner has an active association with the requested clinic
-            practitioner_association = db.query(UserClinicAssociation).filter(
-                UserClinicAssociation.user_id == practitioner.id,
-                UserClinicAssociation.clinic_id == clinic_id,
-                UserClinicAssociation.is_active == True
-            ).first()
+            # Verify practitioner exists, is active, belongs to clinic, and offers appointment type
+            practitioner = AvailabilityService.validate_practitioner_for_clinic(
+                db, practitioner_id, clinic_id
+            )
             
-            if not practitioner_association:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="找不到治療師"
-                )
-            
-            # Verify practitioner offers this appointment type at this clinic
-            practitioner_appointment_type = db.query(PractitionerAppointmentTypes).filter(
-                PractitionerAppointmentTypes.user_id == practitioner.id,
-                PractitionerAppointmentTypes.appointment_type_id == appointment_type_id,
-                PractitionerAppointmentTypes.clinic_id == clinic_id
-            ).first()
-            
-            if not practitioner_appointment_type:
+            if not AvailabilityService.validate_practitioner_offers_appointment_type(
+                db, practitioner_id, appointment_type_id, clinic_id
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="找不到治療師"
@@ -331,12 +413,9 @@ class AvailabilityService:
         practitioner_lookup = {p.id: p for p in practitioners}
         
         # Get associations for all practitioners in one query
-        associations = db.query(UserClinicAssociation).filter(
-            UserClinicAssociation.user_id.in_(practitioner_ids),
-            UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True
-        ).all()
-        association_lookup = {a.user_id: a for a in associations}
+        association_lookup = AvailabilityService.get_practitioner_associations_batch(
+            db, practitioner_ids, clinic_id
+        )
         
         for practitioner_id, data in schedule_data.items():
             practitioner = practitioner_lookup.get(practitioner_id)

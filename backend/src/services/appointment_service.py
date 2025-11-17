@@ -389,12 +389,9 @@ class AppointmentService:
         
         # Get all practitioner associations in one query
         practitioner_ids = [appt.calendar_event.user_id for appt in appointments if appt.calendar_event and appt.calendar_event.user_id]
-        associations = db.query(UserClinicAssociation).filter(
-            UserClinicAssociation.user_id.in_(practitioner_ids),
-            UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True
-        ).all()
-        association_lookup: Dict[int, UserClinicAssociation] = {a.user_id: a for a in associations}
+        association_lookup = AvailabilityService.get_practitioner_associations_batch(
+            db, practitioner_ids, clinic_id
+        )
         
         for appointment in appointments:
             # All relationships are now eagerly loaded, no database queries needed
@@ -440,127 +437,29 @@ class AppointmentService:
         return result
 
     @staticmethod
-    def list_appointments_for_clinic(
-        db: Session,
-        clinic_id: int,
-        date_filter: Optional[str] = None,
-        practitioner_id: Optional[int] = None,
-        status_filter: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        List all appointments for a clinic (admin view).
-
-        Args:
-            db: Database session
-            clinic_id: Clinic ID
-            date_filter: Optional date filter (YYYY-MM-DD)
-            practitioner_id: Optional practitioner filter
-            status_filter: Optional status filter
-
-        Returns:
-            List of appointment dictionaries
-        """
-        # Base query - join appointments with calendar events
-        query = db.query(Appointment).join(CalendarEvent).join(Patient).join(User, CalendarEvent.user_id == User.id)
-
-        # Filter by clinic (use CalendarEvent.clinic_id for clinic isolation)
-        query = query.filter(CalendarEvent.clinic_id == clinic_id)
-
-        # Filter by date if provided
-        if date_filter:
-            try:
-                from datetime import datetime as dt
-                filter_date = dt.fromisoformat(date_filter).date()
-                query = query.filter(CalendarEvent.date == filter_date)
-            except ValueError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="無效的日期格式，請使用 YYYY-MM-DD"
-                )
-
-        # Filter by practitioner if provided
-        if practitioner_id:
-            query = query.filter(CalendarEvent.user_id == practitioner_id)
-
-        # Filter by status if provided
-        if status_filter:
-            if status_filter not in ['confirmed', 'canceled_by_patient', 'canceled_by_clinic']:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="無效的狀態。必須是 'confirmed'、'canceled_by_patient' 或 'canceled_by_clinic'"
-                )
-            query = query.filter(Appointment.status == status_filter)
-
-        # Eagerly load all relationships to avoid N+1 queries
-        appointments = query.options(
-            joinedload(Appointment.calendar_event).joinedload(CalendarEvent.user),
-            joinedload(Appointment.appointment_type),
-            joinedload(Appointment.patient)
-        ).order_by(CalendarEvent.start_time.desc()).all()
-
-        # Format response
-        result: List[Dict[str, Any]] = []
-        
-        # Get all practitioner associations in one query
-        practitioner_ids = [appt.calendar_event.user_id for appt in appointments if appt.calendar_event and appt.calendar_event.user_id]
-        associations = db.query(UserClinicAssociation).filter(
-            UserClinicAssociation.user_id.in_(practitioner_ids),
-            UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True
-        ).all()
-        association_lookup: Dict[int, UserClinicAssociation] = {a.user_id: a for a in associations}
-        
-        for appointment in appointments:
-            # All relationships are now eagerly loaded, no database queries needed
-            practitioner = appointment.calendar_event.user
-            if not practitioner:
-                continue  # Skip if practitioner not found
-
-            # Get practitioner name from association
-            association = association_lookup.get(practitioner.id)
-            practitioner_name = association.full_name if association else practitioner.email
-
-            # Construct datetime from date and time (Taiwan timezone)
-            start_datetime = datetime.combine(appointment.calendar_event.date, appointment.calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
-            end_datetime = datetime.combine(appointment.calendar_event.date, appointment.calendar_event.end_time).replace(tzinfo=TAIWAN_TZ)
-
-            result.append({
-                'appointment_id': appointment.calendar_event_id,
-                'calendar_event_id': appointment.calendar_event_id,
-                'patient_name': appointment.patient.full_name,
-                'patient_phone': appointment.patient.phone_number,
-                'practitioner_name': practitioner_name,
-                'appointment_type_name': get_appointment_type_name_safe(appointment.appointment_type_id, db),
-                'start_time': start_datetime,
-                'end_time': end_datetime,
-                'status': appointment.status,
-                'notes': appointment.notes,
-                'created_at': appointment.patient.created_at
-            })
-
-        return result
-
-    @staticmethod
-    def cancel_appointment_by_patient(
+    def cancel_appointment(
         db: Session,
         appointment_id: int,
-        line_user_id: int,
-        clinic_id: int
+        cancelled_by: str,
+        return_details: bool = False
     ) -> Dict[str, Any]:
         """
-        Cancel an appointment by patient (LINE user).
+        Cancel an appointment by patient or clinic admin.
+
+        Note: Permission checks are handled by the API endpoints.
+        This method assumes the caller has already validated access.
 
         Args:
             db: Database session
             appointment_id: Calendar event ID of the appointment
-            line_user_id: LINE user ID for ownership validation
-            clinic_id: Clinic ID
+            cancelled_by: Who is cancelling - 'patient' or 'clinic'
+            return_details: If True, return appointment and practitioner objects (for clinic notifications)
 
         Returns:
-            Success message
+            Dict with success message. If return_details=True, also includes 'appointment' and 'practitioner'.
 
         Raises:
-            HTTPException: If appointment not found or access denied
+            HTTPException: If appointment not found
 
         Note:
             This method is idempotent - if the appointment is already cancelled,
@@ -577,161 +476,42 @@ class AppointmentService:
                 detail="預約不存在"
             )
 
-        # Verify ownership through patient
-        patient = db.query(Patient).filter(
-            Patient.id == appointment.patient_id,
-            Patient.line_user_id == line_user_id,
-            Patient.clinic_id == clinic_id
-        ).first()
-
-        if not patient:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="無權限取消此預約"
-            )
-
         # Check if appointment is already cancelled - if so, return success (idempotent)
         if appointment.status in ['canceled_by_patient', 'canceled_by_clinic']:
             logger.info(f"Appointment {appointment_id} already cancelled with status {appointment.status}, returning success")
+            if return_details:
+                # Load practitioner for return_details
+                calendar_event = appointment.calendar_event
+                practitioner = calendar_event.user if calendar_event else None
+                return {
+                    'appointment': appointment,
+                    'practitioner': practitioner,
+                    'already_cancelled': True
+                }
             return {"success": True, "message": "預約已取消"}
 
-        # Update status
-        appointment.status = 'canceled_by_patient'
-        appointment.canceled_at = taiwan_now()
+        # Update status based on who is cancelling
+        if cancelled_by == 'patient':
+            appointment.status = 'canceled_by_patient'
+            logger.info(f"Patient cancelled appointment {appointment_id}")
+        elif cancelled_by == 'clinic':
+            appointment.status = 'canceled_by_clinic'
+            logger.info(f"Clinic admin cancelled appointment {appointment_id}")
+        else:
+            raise ValueError(f"Invalid cancelled_by value: {cancelled_by}. Must be 'patient' or 'clinic'")
 
+        appointment.canceled_at = taiwan_now()
         db.commit()
 
-        logger.info(f"Patient {line_user_id} cancelled appointment {appointment_id}")
-        return {"success": True, "message": "預約已取消"}
-
-    @staticmethod
-    def cancel_appointment_by_clinic_admin(
-        db: Session,
-        appointment_id: int,
-        clinic_id: int
-    ) -> Dict[str, Any]:
-        """
-        Cancel an appointment by clinic admin.
-
-        Updates status and prepares for LINE notification.
-
-        Args:
-            db: Database session
-            appointment_id: Calendar event ID of the appointment
-            clinic_id: Clinic ID
-
-        Returns:
-            Dict with appointment and practitioner details for notification
-
-        Raises:
-            HTTPException: If appointment not found
-
-        Note:
-            This method is idempotent - if the appointment is already cancelled,
-            it returns success without making changes.
-        """
-        # Optimized: Combine multiple queries into a single query with joins
-        # Find appointment, verify it belongs to clinic, and get practitioner in one query
-        # Use contains_eager since we're already joining these relationships
-        from sqlalchemy.orm import contains_eager
-        appointment = db.query(Appointment).join(
-            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
-        ).join(
-            User, CalendarEvent.user_id == User.id
-        ).join(
-            UserClinicAssociation, User.id == UserClinicAssociation.user_id
-        ).options(
-            contains_eager(Appointment.calendar_event).contains_eager(CalendarEvent.user)
-        ).filter(
-            Appointment.calendar_event_id == appointment_id,
-            CalendarEvent.clinic_id == clinic_id,
-            UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True
-        ).first()
-
-        if not appointment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="預約不存在"
-            )
-
-        calendar_event = appointment.calendar_event
-        practitioner = calendar_event.user
-
-        if not practitioner:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到相關治療師"
-            )
-
-        # Check if appointment is already cancelled - if so, return success (idempotent)
-        if appointment.status in ['canceled_by_patient', 'canceled_by_clinic']:
-            logger.info(f"Appointment {appointment_id} already cancelled with status {appointment.status}, returning success")
+        # Return response
+        if return_details:
+            calendar_event = appointment.calendar_event
+            practitioner = calendar_event.user if calendar_event else None
             return {
                 'appointment': appointment,
-                'practitioner': practitioner,
-                'already_cancelled': True
+                'practitioner': practitioner
             }
-
-        # Update appointment status
-        appointment.status = 'canceled_by_clinic'
-        appointment.canceled_at = taiwan_now()
-
-        db.commit()
-
-        logger.info(f"Clinic admin cancelled appointment {appointment_id}")
-
-        return {
-            'appointment': appointment,
-            'practitioner': practitioner
-        }
-
-    @staticmethod
-    def create_appointment_for_patient(
-        db: Session,
-        clinic_id: int,
-        patient_id: int,
-        appointment_type_id: int,
-        start_time: datetime,
-        practitioner_id: Optional[int] = None,  # Optional for backward compatibility, but required by API endpoint
-        notes: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Create an appointment on behalf of a patient (clinic user version).
-        
-        This is similar to create_appointment but without LINE user validation,
-        allowing clinic users to create appointments for any patient.
-        
-        Note: The API endpoint requires practitioner_id, but this method accepts
-        Optional for backward compatibility with tests. For clinic-initiated
-        appointments via the API, practitioner_id is always provided.
-        
-        Args:
-            db: Database session
-            clinic_id: Clinic ID
-            patient_id: Patient ID
-            appointment_type_id: Appointment type ID
-            start_time: Appointment start time
-            practitioner_id: Practitioner ID (Optional for backward compatibility)
-            notes: Optional appointment notes
-            
-        Returns:
-            Dict with appointment details
-            
-        Raises:
-            HTTPException: If creation fails or validation errors
-        """
-        # Use the existing create_appointment method but without line_user_id
-        return AppointmentService.create_appointment(
-            db=db,
-            clinic_id=clinic_id,
-            patient_id=patient_id,
-            appointment_type_id=appointment_type_id,
-            start_time=start_time,
-            practitioner_id=practitioner_id,
-            notes=notes,
-            line_user_id=None  # No LINE validation for clinic users
-        )
+        return {"success": True, "message": "預約已取消"}
 
     @staticmethod
     def check_appointment_edit_conflicts(
@@ -789,15 +569,16 @@ class AppointmentService:
         
         # Check practitioner offers appointment type
         if new_practitioner_id is not None:
-            practitioners = AvailabilityService.get_practitioners_for_appointment_type(
-                db, appointment_type_id, clinic_id
-            )
-            if not any(p.id == new_practitioner_id for p in practitioners):
+            if not AvailabilityService.validate_practitioner_offers_appointment_type(
+                db, new_practitioner_id, appointment_type_id, clinic_id
+            ):
                 conflicts.append("此治療師不提供此預約類型")
                 return (False, "此治療師不提供此預約類型", conflicts)
         
         # Check availability at new time/practitioner
         # Exclude current appointment from conflict checking
+        # Note: fetch_practitioner_schedule_data already includes all confirmed appointments
+        # and excludes the current appointment via exclude_calendar_event_id parameter
         schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
             db, [practitioner_id_to_check], start_time_to_check.date(), clinic_id, exclude_calendar_event_id=appointment_id
         )
@@ -811,25 +592,6 @@ class AppointmentService:
         
         if not is_available:
             conflicts.append("此時段不可用")
-        
-        # Check for conflicts with other appointments (exclude current appointment)
-        # Note: CalendarEvent.end_time should always be set, but we add a check for safety
-        conflicting_appointments = db.query(Appointment).join(
-            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
-        ).filter(
-            CalendarEvent.user_id == practitioner_id_to_check,
-            CalendarEvent.date == start_time_to_check.date(),
-            CalendarEvent.event_type == 'appointment',
-            Appointment.status == 'confirmed',
-            Appointment.calendar_event_id != appointment_id,  # Exclude current appointment
-            CalendarEvent.end_time.isnot(None),  # Ensure end_time is set
-            # Check for time overlap: appointments overlap if start < other_end AND end > other_start
-            CalendarEvent.start_time < slot_end_time,
-            CalendarEvent.end_time > slot_start_time
-        ).all()
-        
-        if conflicting_appointments:
-            conflicts.append(f"此時段與 {len(conflicting_appointments)} 個其他預約衝突")
         
         is_valid = len(conflicts) == 0
         error_message = conflicts[0] if conflicts else None
@@ -907,11 +669,9 @@ class AppointmentService:
             HTTPException: If edit fails or validation errors
         """
         # Get appointment
-        appointment = db.query(Appointment).join(
-            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
-        ).filter(
-            Appointment.calendar_event_id == appointment_id,
-            CalendarEvent.clinic_id == clinic_id
+        # Note: API endpoint already validates appointment belongs to clinic
+        appointment = db.query(Appointment).filter(
+            Appointment.calendar_event_id == appointment_id
         ).first()
         
         if not appointment:
@@ -931,23 +691,9 @@ class AppointmentService:
         
         # Validate new practitioner exists and belongs to clinic if provided
         if new_practitioner_id is not None:
-            practitioner = db.query(User).get(new_practitioner_id)
-            if not practitioner:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="治療師不存在"
-                )
-            # Verify practitioner belongs to clinic and is active
-            association = db.query(UserClinicAssociation).filter(
-                UserClinicAssociation.user_id == new_practitioner_id,
-                UserClinicAssociation.clinic_id == clinic_id,
-                UserClinicAssociation.is_active == True
-            ).first()
-            if not association:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="此治療師不屬於此診所"
-                )
+            AvailabilityService.validate_practitioner_for_clinic(
+                db, new_practitioner_id, clinic_id
+            )
         
         # Check if practitioner or time actually changed (not just provided)
         # Skip conflict check if only notes are being changed
@@ -962,6 +708,12 @@ class AppointmentService:
             ).replace(tzinfo=TAIWAN_TZ)
             time_actually_changed = new_start_time != current_start_time
         
+        # Get appointment type for duration (needed for conflict check and/or time update)
+        appointment_type = AppointmentTypeService.get_appointment_type_by_id(
+            db, appointment.appointment_type_id, clinic_id=clinic_id
+        )
+        duration_minutes = appointment_type.duration_minutes
+
         # Check for conflicts only if time or practitioner is actually being changed
         if practitioner_actually_changed or time_actually_changed:
             is_valid, error_message, _ = AppointmentService.check_appointment_edit_conflicts(
@@ -1003,11 +755,8 @@ class AppointmentService:
         if new_start_time is not None:
             calendar_event.date = new_start_time.date()
             calendar_event.start_time = new_start_time.time()
-            # Calculate end time
-            appointment_type = AppointmentTypeService.get_appointment_type_by_id(
-                db, appointment.appointment_type_id, clinic_id=clinic_id
-            )
-            end_time = new_start_time + timedelta(minutes=appointment_type.duration_minutes)
+            # Calculate end time (reuse duration_minutes from above)
+            end_time = new_start_time + timedelta(minutes=duration_minutes)
             calendar_event.end_time = end_time.time()
         
         if new_practitioner_id is not None:

@@ -1631,12 +1631,13 @@ async def cancel_clinic_appointment(
                     )
                 # If event doesn't exist, let service handle 404
         
-        # Cancel appointment using service (will verify appointment exists, clinic matches, etc.)
-        clinic_id = ensure_clinic_access(current_user)
-        result = AppointmentService.cancel_appointment_by_clinic_admin(
+        # Cancel appointment using service
+        # Note: Permission validation is already done above (practitioners can only cancel their own, admins can cancel any)
+        result = AppointmentService.cancel_appointment(
             db=db,
             appointment_id=appointment_id,
-            clinic_id=clinic_id
+            cancelled_by='clinic',
+            return_details=True
         )
 
         appointment = result['appointment']
@@ -1772,15 +1773,16 @@ async def create_clinic_appointment(
                 detail="您沒有權限建立預約"
             )
         
-        # Create appointment
-        result = AppointmentService.create_appointment_for_patient(
+        # Create appointment (no LINE user validation for clinic users)
+        result = AppointmentService.create_appointment(
             db=db,
             clinic_id=clinic_id,
             patient_id=request.patient_id,
             appointment_type_id=request.appointment_type_id,
             start_time=request.start_time,
             practitioner_id=request.practitioner_id,
-            notes=request.notes
+            notes=request.notes,
+            line_user_id=None  # No LINE validation for clinic users
         )
         
         # Send LINE notification
@@ -2042,7 +2044,7 @@ async def edit_clinic_appointment(
         
         # Refresh appointment to get updated values for notification
         db.refresh(appointment)
-                
+
         # Send notification if needed
         # Note: Notification failures are caught and logged but don't fail the request.
         # This ensures appointment edits succeed even if LINE service is temporarily unavailable.

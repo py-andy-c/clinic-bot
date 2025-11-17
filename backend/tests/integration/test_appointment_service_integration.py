@@ -397,8 +397,8 @@ class TestAppointmentServiceIntegration:
         db_session.refresh(appointment)  # Refresh to ensure appointment.patient_id is set
 
         # Cancel appointment
-        result = AppointmentService.cancel_appointment_by_patient(
-            db_session, event.id, line_user.id, clinic.id
+        result = AppointmentService.cancel_appointment(
+            db_session, event.id, cancelled_by='patient'
         )
 
         assert result["success"] is True
