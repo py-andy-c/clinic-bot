@@ -61,7 +61,6 @@ class TestCreateNotification:
             db=db_session,
             line_user_id=line_user.id,
             clinic_id=clinic.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             date=notification_date,
             time_windows=["morning", "afternoon"],
@@ -75,15 +74,14 @@ class TestCreateNotification:
         assert notification is not None
         assert notification.line_user_id == line_user.id
         assert notification.clinic_id == clinic.id
-        assert notification.patient_id == patient.id
         assert notification.appointment_type_id == appt_type.id
         assert notification.date == notification_date
         assert notification.time_windows == ["morning", "afternoon"]
         assert notification.practitioner_id is None
         assert notification.status == "active"
 
-    def test_create_notification_updates_existing(self, db_session: Session):
-        """Test that creating duplicate notification updates existing."""
+    def test_create_notification_merges_time_windows(self, db_session: Session):
+        """Test that creating duplicate notification merges time windows."""
         # Setup
         clinic = Clinic(
             name="Test Clinic",
@@ -123,7 +121,6 @@ class TestCreateNotification:
             db=db_session,
             line_user_id=line_user.id,
             clinic_id=clinic.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             date=notification_date,
             time_windows=["morning"],
@@ -136,7 +133,6 @@ class TestCreateNotification:
             db=db_session,
             line_user_id=line_user.id,
             clinic_id=clinic.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             date=notification_date,
             time_windows=["afternoon", "evening"],
@@ -144,9 +140,70 @@ class TestCreateNotification:
         )
         assert was_created2 is False  # Should be an update
 
-        # Assert - should be same notification, updated
+        # Assert - should be same notification, with merged time windows
         assert notification1.id == notification2.id
-        assert notification2.time_windows == ["afternoon", "evening"]
+        # Time windows should be merged and sorted: ["afternoon", "evening", "morning"]
+        assert set(notification2.time_windows) == {"morning", "afternoon", "evening"}
+        assert notification2.time_windows == ["afternoon", "evening", "morning"]  # Sorted alphabetically
+
+    def test_create_notification_merges_overlapping_time_windows(self, db_session: Session):
+        """Test that merging time windows deduplicates overlapping windows."""
+        # Setup
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            settings={}
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        line_user = LineUser(line_user_id="test_user_merge", display_name="Test User")
+        db_session.add(line_user)
+        db_session.commit()
+
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=30
+        )
+        db_session.add(appt_type)
+        db_session.commit()
+
+        notification_date = (taiwan_now().date() + timedelta(days=1))
+
+        # Create first notification with ["morning", "afternoon"]
+        notification1, was_created1 = AvailabilityNotificationService.create_notification(
+            db=db_session,
+            line_user_id=line_user.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type.id,
+            date=notification_date,
+            time_windows=["morning", "afternoon"],
+            practitioner_id=None
+        )
+        assert was_created1 is True
+        assert set(notification1.time_windows) == {"morning", "afternoon"}
+
+        # Create duplicate with overlapping windows: ["afternoon", "evening"]
+        notification2, was_created2 = AvailabilityNotificationService.create_notification(
+            db=db_session,
+            line_user_id=line_user.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type.id,
+            date=notification_date,
+            time_windows=["afternoon", "evening"],  # "afternoon" overlaps
+            practitioner_id=None
+        )
+        assert was_created2 is False  # Should be an update
+
+        # Assert - should be same notification, with merged and deduplicated time windows
+        assert notification1.id == notification2.id
+        # Should have all three windows, with "afternoon" only once
+        assert set(notification2.time_windows) == {"morning", "afternoon", "evening"}
+        assert len(notification2.time_windows) == 3  # No duplicates
+        assert notification2.time_windows == ["afternoon", "evening", "morning"]  # Sorted
 
     def test_create_notification_invalid_time_windows(self, db_session: Session):
         """Test that invalid time windows raise error."""
@@ -189,7 +246,6 @@ class TestCreateNotification:
                 db=db_session,
                 line_user_id=line_user.id,
                 clinic_id=clinic.id,
-                patient_id=patient.id,
                 appointment_type_id=appt_type.id,
                 date=notification_date,
                 time_windows=["invalid"],
@@ -241,7 +297,6 @@ class TestCancelOnAppointmentCreation:
             db=db_session,
             line_user_id=line_user.id,
             clinic_id=clinic.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             date=notification_date,
             time_windows=["morning"],
@@ -254,7 +309,6 @@ class TestCancelOnAppointmentCreation:
         AvailabilityNotificationService.cancel_on_appointment_creation(
             db=db_session,
             line_user_id=line_user.id,
-            patient_id=patient.id,
             date=notification_date
         )
 
@@ -307,7 +361,6 @@ class TestListNotifications:
             db=db_session,
             line_user_id=line_user.id,
             clinic_id=clinic.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             date=notification_date,
             time_windows=["morning"],
@@ -373,7 +426,6 @@ class TestRateLimiting:
         notification = AvailabilityNotification(
             line_user_id=line_user.id,
             clinic_id=clinic.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             practitioner_id=None,
             date=notification_date,
@@ -444,7 +496,6 @@ class TestRateLimiting:
         notification = AvailabilityNotification(
             line_user_id=line_user.id,
             clinic_id=clinic.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             practitioner_id=None,
             date=notification_date,
@@ -527,7 +578,6 @@ class TestAppointmentConflict:
         notification = AvailabilityNotification(
             line_user_id=line_user.id,
             clinic_id=clinic.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             practitioner_id=None,
             date=notification_date,
@@ -553,7 +603,6 @@ class TestAppointmentConflict:
 
         appointment = Appointment(
             calendar_event_id=calendar_event.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             status="confirmed"
         )
@@ -659,7 +708,6 @@ class TestCheckAndNotify:
         notification = AvailabilityNotification(
             line_user_id=line_user.id,
             clinic_id=clinic.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             practitioner_id=None,
             date=notification_date,
@@ -721,7 +769,6 @@ class TestCheckAndNotify:
         notification = AvailabilityNotification(
             line_user_id=line_user.id,
             clinic_id=clinic.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             practitioner_id=None,
             date=notification_date,
@@ -791,7 +838,6 @@ class TestListNotificationsEdgeCases:
         active_notification = AvailabilityNotification(
             line_user_id=line_user.id,
             clinic_id=clinic.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             practitioner_id=None,
             date=notification_date,
@@ -806,7 +852,6 @@ class TestListNotificationsEdgeCases:
         cancelled_notification = AvailabilityNotification(
             line_user_id=line_user.id,
             clinic_id=clinic.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             practitioner_id=None,
             date=notification_date + timedelta(days=1),

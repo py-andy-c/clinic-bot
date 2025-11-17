@@ -816,7 +816,6 @@ async def get_clinic_info(
 
 class AvailabilityNotificationCreateRequest(BaseModel):
     """Request model for creating availability notification(s)."""
-    patient_id: int
     appointment_type_id: int
     practitioner_id: Optional[int] = None  # null for "不指定"
     date: Optional[str] = None  # Single date (YYYY-MM-DD)
@@ -918,7 +917,6 @@ async def create_availability_notifications(
                     db=db,
                     line_user_id=line_user.id,
                     clinic_id=clinic.id,
-                    patient_id=request.patient_id,
                     appointment_type_id=request.appointment_type_id,
                     date=notification_date,
                     time_windows=request.time_windows,

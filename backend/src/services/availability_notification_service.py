@@ -35,8 +35,8 @@ class NotificationListItem:
     """Notification item for listing."""
     id: int
     date: str  # ISO format date string
-    appointment_type_name: str
-    practitioner_name: Optional[str]
+    appointment_type_names: List[str]  # List of appointment type names
+    practitioner_names: List[str]  # List of practitioner names (empty if "不指定")
     time_windows: List[str]
     expires_at: str  # ISO format datetime string
     status: str
@@ -66,7 +66,6 @@ class AvailabilityNotificationService:
         db: Session,
         line_user_id: int,
         clinic_id: int,
-        patient_id: int,
         appointment_type_id: int,
         date: date,
         time_windows: List[str],
@@ -75,14 +74,13 @@ class AvailabilityNotificationService:
         """
         Create a notification request with duplicate checking.
         
-        If a notification already exists for the same date/windows,
-        it will be replaced (updated) with the new request.
+        If a notification already exists for the same line_user, appointment_type,
+        practitioner, and date, the time windows will be merged (combined and deduplicated).
         
         Args:
             db: Database session
             line_user_id: LINE user ID
             clinic_id: Clinic ID
-            patient_id: Patient ID
             appointment_type_id: Appointment type ID
             date: Date for notification
             time_windows: List of time windows ["morning", "afternoon", "evening"]
@@ -101,20 +99,6 @@ class AvailabilityNotificationService:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="無效的時段選擇"
-            )
-        
-        # Validate patient ownership
-        patient = db.query(Patient).filter(
-            Patient.id == patient_id,
-            Patient.clinic_id == clinic_id,
-            Patient.line_user_id == line_user_id,
-            Patient.is_deleted == False
-        ).first()
-        
-        if not patient:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="找不到病患"
             )
         
         # Validate appointment type
@@ -147,37 +131,54 @@ class AvailabilityNotificationService:
                     detail="找不到治療師"
                 )
         
-        # Check for existing notification
+        # Check for existing notification with same line_user, date, and time_windows
+        # (regardless of appointment_type or practitioner - we'll merge them)
         existing = db.query(AvailabilityNotification).filter(
             AvailabilityNotification.line_user_id == line_user_id,
             AvailabilityNotification.clinic_id == clinic_id,
-            AvailabilityNotification.patient_id == patient_id,
-            AvailabilityNotification.appointment_type_id == appointment_type_id,
             AvailabilityNotification.date == date,
-            AvailabilityNotification.practitioner_id == (practitioner_id if practitioner_id else None),
             AvailabilityNotification.status == 'active'
         ).first()
         
         # Calculate expiration (end of requested date)
         expires_at = datetime.combine(date, time(23, 59, 59)).replace(tzinfo=TAIWAN_TZ)
         
+        # Prepare practitioner_ids list (empty list means "不指定")
+        new_practitioner_ids = [practitioner_id] if practitioner_id else []
+        
         if existing:
-            # Update existing notification
-            existing.time_windows = time_windows
+            # Merge time windows: combine existing and new, remove duplicates, sort
+            existing_windows = set(existing.time_windows)
+            new_windows = set(time_windows)
+            merged_windows = sorted(list(existing_windows | new_windows))
+            
+            # Merge appointment_type_ids: combine existing and new, remove duplicates, sort
+            existing_appointment_type_ids = set(existing.appointment_type_ids)
+            existing_appointment_type_ids.add(appointment_type_id)
+            merged_appointment_type_ids = sorted(list(existing_appointment_type_ids))
+            
+            # Merge practitioner_ids: combine existing and new, remove duplicates, sort
+            existing_practitioner_ids = set(existing.practitioner_ids)
+            existing_practitioner_ids.update(new_practitioner_ids)
+            merged_practitioner_ids = sorted(list(existing_practitioner_ids))
+            
+            # Update existing notification with merged data
+            existing.time_windows = merged_windows
+            existing.appointment_type_ids = merged_appointment_type_ids
+            existing.practitioner_ids = merged_practitioner_ids
             existing.expires_at = expires_at
             existing.last_notified_at = None  # Reset notification timestamp
             db.commit()
             db.refresh(existing)
-            logger.info(f"Updated notification {existing.id} for date {date}")
+            logger.info(f"Updated notification {existing.id} for date {date}, merged appointment_types: {merged_appointment_type_ids}, practitioners: {merged_practitioner_ids}, time_windows: {merged_windows}")
             return (existing, False)  # False = was updated
         else:
             # Create new notification
             notification = AvailabilityNotification(
                 line_user_id=line_user_id,
                 clinic_id=clinic_id,
-                patient_id=patient_id,
-                appointment_type_id=appointment_type_id,
-                practitioner_id=practitioner_id,
+                appointment_type_ids=[appointment_type_id],
+                practitioner_ids=new_practitioner_ids,
                 date=date,
                 time_windows=time_windows,
                 status='active',
@@ -200,22 +201,31 @@ class AvailabilityNotificationService:
         """
         Find all active notifications matching the criteria.
         
-        Returns notifications for this specific practitioner OR "不指定" (any practitioner).
+        Returns notifications where:
+        - practitioner_ids is empty (any practitioner/"不指定") OR
+        - practitioner_id is in practitioner_ids list
+        
         Includes notifications for all appointment types.
         Filters out expired notifications.
         """
         now = taiwan_now()
-        query = db.query(AvailabilityNotification).filter(
+        all_notifications = db.query(AvailabilityNotification).filter(
             AvailabilityNotification.clinic_id == clinic_id,
             AvailabilityNotification.date == date,
             AvailabilityNotification.status == 'active',
-            AvailabilityNotification.expires_at > now,  # Filter expired notifications
-            or_(
-                AvailabilityNotification.practitioner_id == practitioner_id,
-                AvailabilityNotification.practitioner_id.is_(None)
-            )
-        )
-        return query.all()
+            AvailabilityNotification.expires_at > now  # Filter expired notifications
+        ).all()
+        
+        # Filter by practitioner: match if practitioner_ids is empty OR practitioner_id is in the list
+        matching = []
+        for notification in all_notifications:
+            # Empty practitioner_ids means "不指定" (any practitioner)
+            if not notification.practitioner_ids:
+                matching.append(notification)
+            elif practitioner_id in notification.practitioner_ids:
+                matching.append(notification)
+        
+        return matching
 
     @staticmethod
     def _get_line_service(
@@ -340,8 +350,9 @@ class AvailabilityNotificationService:
         # Check if user already has appointment for this date
         # Use pre-fetched appointment if provided, otherwise query
         if existing_appointment is None:
-            has_appointment = db.query(Appointment).join(CalendarEvent).filter(
-                Appointment.patient_id == notification.patient_id,
+            # Check if line_user has any appointment on this date (via Patient relationship)
+            has_appointment = db.query(Appointment).join(CalendarEvent).join(Patient).filter(
+                Patient.line_user_id == notification.line_user_id,
                 Appointment.status == 'confirmed',
                 CalendarEvent.date == date
             ).first()
@@ -412,8 +423,10 @@ class AvailabilityNotificationService:
         date: date,
         matching_slots_by_window: Dict[str, List[Slot]],
         clinic_id: int,
-        appointment_type_id: int,
-        practitioner_id: Optional[int] = None
+        appointment_type_ids: List[int],
+        practitioner_ids: List[int],
+        current_appointment_type_id: int,
+        current_practitioner_id: int
     ) -> str:
         """
         Format notification message for LINE with available slots and practitioner name.
@@ -421,20 +434,14 @@ class AvailabilityNotificationService:
         Args:
             date: Date of available slots
             matching_slots_by_window: Dictionary mapping window names to their available slots.
-                All slots come from the same practitioner (since check_and_notify calls
-                get_available_slots_for_practitioner with a specific practitioner_id).
             clinic_id: Clinic ID for LIFF URL generation
-            appointment_type_id: Appointment type ID for LIFF URL generation
-            practitioner_id: Optional practitioner ID for LIFF URL generation
+            appointment_type_ids: List of all appointment type IDs in the notification
+            practitioner_ids: List of practitioner IDs (empty means "不指定")
+            current_appointment_type_id: The appointment type ID for which slots are available
+            current_practitioner_id: The practitioner ID for which slots are available
             
         Returns:
             Formatted message string
-            
-        Note:
-            Logically, all slots will have the same practitioner_name since they come from
-            get_available_slots_for_practitioner which only returns slots for one practitioner.
-            The code handles multiple practitioner names defensively, but this should never
-            occur in practice.
         """
         # Format window displays (preserve order from dict keys)
         window_displays: List[str] = []
@@ -492,12 +499,12 @@ class AvailabilityNotificationService:
                 slots_display += f" 等 {len(slot_times)} 個時段"
             message_parts.append(f"可用時段：{slots_display}\n")
         
-        # Generate LIFF URL for booking
+        # Generate LIFF URL for booking (use current appointment type and practitioner)
         liff_url = AvailabilityNotificationService._generate_liff_url(
             clinic_id=clinic_id,
             date=date,
-            appointment_type_id=appointment_type_id,
-            practitioner_id=practitioner_id,
+            appointment_type_id=current_appointment_type_id,
+            practitioner_id=current_practitioner_id if current_practitioner_id else None,
             time_windows=window_names
         )
         
@@ -586,36 +593,37 @@ class AvailabilityNotificationService:
         if not line_service:
             return 0
         
-        # Group notifications by appointment_type_id to check availability efficiently
-        notifications_by_type: Dict[int, List[AvailabilityNotification]] = defaultdict(list)
+        # Collect all unique appointment_type_ids from all notifications
+        all_appointment_type_ids = set()
         for notification in notifications:
-            notifications_by_type[notification.appointment_type_id].append(notification)
+            all_appointment_type_ids.update(notification.appointment_type_ids)
         
         # Batch fetch LINE users and appointments to optimize queries
         line_user_ids = list(set(n.line_user_id for n in notifications))
-        patient_ids = list(set(n.patient_id for n in notifications))
         
         # Batch fetch LINE users
         line_users = db.query(LineUser).filter(LineUser.id.in_(line_user_ids)).all()
         line_users_by_id = {u.id: u for u in line_users}
         
-        # Batch fetch appointments for all patients on this date
-        existing_appointments = db.query(Appointment).join(CalendarEvent).filter(
-            Appointment.patient_id.in_(patient_ids),
+        # Batch fetch appointments for all line users on this date
+        existing_appointments = db.query(Appointment).join(CalendarEvent).join(Patient).filter(
+            Patient.line_user_id.in_(line_user_ids),
             Appointment.status == 'confirmed',
             CalendarEvent.date == date
         ).all()
-        appointments_by_patient = {a.patient_id: a for a in existing_appointments}
+        appointments_by_line_user = {a.patient.line_user_id: a for a in existing_appointments}
         
-        # Process notifications grouped by appointment type
+        # Process notifications: check availability for each appointment type
         notifications_sent = 0
         now = taiwan_now()
         date_str = date.isoformat()
         
-        for appointment_type_id, type_notifications in notifications_by_type.items():
+        # Track which notifications we've already sent to avoid duplicates
+        sent_notification_ids: set[int] = set()
+        
+        for appointment_type_id in all_appointment_type_ids:
             try:
                 # Get available slots for this appointment type (already filtered by booking restrictions)
-                # Returns List[Slot] directly
                 filtered_slots = AvailabilityService.get_available_slots_for_practitioner(
                     db=db,
                     practitioner_id=practitioner_id,
@@ -629,11 +637,19 @@ class AvailabilityNotificationService:
                     filtered_slots
                 )
                 
-                # Process each notification for this appointment type
-                for notification in type_notifications:
+                # Process each notification that includes this appointment type
+                for notification in notifications:
+                    # Skip if already sent
+                    if notification.id in sent_notification_ids:
+                        continue
+                    
+                    # Skip if this notification doesn't include this appointment type
+                    if appointment_type_id not in notification.appointment_type_ids:
+                        continue
+                    
                     # Check if notification should be sent (using batched appointment check)
                     should_send, matching_slots_by_window = AvailabilityNotificationService._should_send_notification(
-                        db, notification, date, now, slots_by_window, appointments_by_patient.get(notification.patient_id)
+                        db, notification, date, now, slots_by_window, appointments_by_line_user.get(notification.line_user_id)
                     )
                     
                     if not should_send:
@@ -646,19 +662,22 @@ class AvailabilityNotificationService:
                         logger.warning(f"LINE user {notification.line_user_id} not found")
                         continue
                     
-                    # Format and send message
+                    # Format and send message (include all appointment types and practitioners)
                     message = AvailabilityNotificationService._format_notification_message(
                         date=date,
                         matching_slots_by_window=matching_slots_by_window,
                         clinic_id=clinic_id,
-                        appointment_type_id=appointment_type_id,
-                        practitioner_id=practitioner_id
+                        appointment_type_ids=notification.appointment_type_ids,
+                        practitioner_ids=notification.practitioner_ids,
+                        current_appointment_type_id=appointment_type_id,
+                        current_practitioner_id=practitioner_id
                     )
                     
                     if AvailabilityNotificationService._send_notification_message(
                         db, notification, line_user, line_service, message, now
                     ):
                         notifications_sent += 1
+                        sent_notification_ids.add(notification.id)
             except Exception as e:
                 # Log error but continue processing other appointment types
                 logger.exception(f"Error processing notifications for appointment_type {appointment_type_id}: {e}")
@@ -670,7 +689,6 @@ class AvailabilityNotificationService:
     def cancel_on_appointment_creation(
         db: Session,
         line_user_id: int,
-        patient_id: int,
         date: date
     ) -> None:
         """
@@ -679,12 +697,10 @@ class AvailabilityNotificationService:
         Args:
             db: Database session
             line_user_id: LINE user ID
-            patient_id: Patient ID
             date: Date of appointment
         """
         notifications = db.query(AvailabilityNotification).filter(
             AvailabilityNotification.line_user_id == line_user_id,
-            AvailabilityNotification.patient_id == patient_id,
             AvailabilityNotification.date == date,
             AvailabilityNotification.status == 'active'
         ).all()
@@ -727,27 +743,32 @@ class AvailabilityNotificationService:
         
         result: List[NotificationListItem] = []
         for notification in notifications:
-            # Get appointment type name
-            appointment_type = db.query(AppointmentType).filter(
-                AppointmentType.id == notification.appointment_type_id
-            ).first()
-            
-            # Get practitioner name if specified
-            practitioner_name: Optional[str] = None
-            if notification.practitioner_id:
-                association = db.query(UserClinicAssociation).filter(
-                    UserClinicAssociation.user_id == notification.practitioner_id,
-                    UserClinicAssociation.clinic_id == clinic_id,
-                    UserClinicAssociation.is_active == True
+            # Get appointment type names
+            appointment_type_names: List[str] = []
+            for appointment_type_id in notification.appointment_type_ids:
+                appointment_type = db.query(AppointmentType).filter(
+                    AppointmentType.id == appointment_type_id
                 ).first()
-                if association:
-                    practitioner_name = association.full_name
+                if appointment_type:
+                    appointment_type_names.append(appointment_type.name)
+            
+            # Get practitioner names
+            practitioner_names: List[str] = []
+            if notification.practitioner_ids:
+                for practitioner_id in notification.practitioner_ids:
+                    association = db.query(UserClinicAssociation).filter(
+                        UserClinicAssociation.user_id == practitioner_id,
+                        UserClinicAssociation.clinic_id == clinic_id,
+                        UserClinicAssociation.is_active == True
+                    ).first()
+                    if association:
+                        practitioner_names.append(association.full_name)
             
             result.append(NotificationListItem(
                 id=notification.id,
                 date=notification.date.isoformat(),
-                appointment_type_name=appointment_type.name if appointment_type else '未知類型',
-                practitioner_name=practitioner_name,
+                appointment_type_names=appointment_type_names if appointment_type_names else ["未知"],
+                practitioner_names=practitioner_names,
                 time_windows=notification.time_windows,
                 expires_at=notification.expires_at.isoformat(),
                 status=notification.status

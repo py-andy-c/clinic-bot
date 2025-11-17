@@ -34,14 +34,11 @@ class AvailabilityNotification(Base):
     clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"), nullable=False)
     """Reference to the clinic."""
 
-    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), nullable=False)
-    """Reference to the patient for whom the notification is requested."""
+    appointment_type_ids: Mapped[List[int]] = mapped_column(JSON, nullable=False)
+    """List of appointment type IDs. Allows multiple appointment types per notification."""
 
-    appointment_type_id: Mapped[int] = mapped_column(ForeignKey("appointment_types.id"), nullable=False)
-    """Reference to the appointment type."""
-
-    practitioner_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
-    """Optional reference to specific practitioner. None means "不指定" (any practitioner)."""
+    practitioner_ids: Mapped[List[int]] = mapped_column(JSON, nullable=False, default=list)
+    """List of practitioner IDs. Empty list means "不指定" (any practitioner)."""
 
     date: Mapped[date_type] = mapped_column(Date, nullable=False)
     """Date for which notification is requested."""
@@ -68,18 +65,8 @@ class AvailabilityNotification(Base):
     clinic = relationship("Clinic")
     """Relationship to the clinic."""
 
-    patient = relationship("Patient")
-    """Relationship to the patient."""
-
-    appointment_type = relationship("AppointmentType")
-    """Relationship to the appointment type."""
-
-    practitioner = relationship("User")
-    """Optional relationship to the practitioner."""
-
     __table_args__ = (
-        Index('idx_notification_lookup', 'clinic_id', 'appointment_type_id', 'date', 'status'),
-        Index('idx_notification_user', 'line_user_id', 'status'),
+        Index('idx_notification_user', 'line_user_id', 'clinic_id', 'status'),
         Index('idx_notification_date', 'date', 'status'),
         CheckConstraint(
             "status IN ('active', 'fulfilled', 'expired', 'cancelled')",

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import moment from 'moment-timezone';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner, ErrorMessage, DateInput } from '../../components/shared';
 import { formatDateForApi, formatDateForDisplay } from '../../utils/dateFormat';
 import { validatePhoneNumber } from '../../utils/phoneValidation';
 import { ApiErrorType, getErrorMessage, AxiosErrorResponse } from '../../types';
 import { useAppointmentStore } from '../../stores/appointmentStore';
-import { liffApiService } from '../../services/liffApi';
+import { liffApiService, AvailabilityNotificationResponse } from '../../services/liffApi';
 import { useModal } from '../../contexts/ModalContext';
 import { PatientForm, PatientFormData } from '../components/PatientForm';
 
@@ -31,9 +32,13 @@ const PatientManagement: React.FC = () => {
   const [editPatientBirthday, setEditPatientBirthday] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [requireBirthday, setRequireBirthday] = useState(false);
+  const [notifications, setNotifications] = useState<AvailabilityNotificationResponse[]>([]);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  const [isCancellingNotification, setIsCancellingNotification] = useState<number | null>(null);
 
   useEffect(() => {
     loadPatients();
+    loadNotifications();
   }, [clinicId]);
 
   // Fetch clinic settings to check if birthday is required
@@ -63,6 +68,47 @@ const PatientManagement: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const loadNotifications = async () => {
+    try {
+      setIsLoadingNotifications(true);
+      const response = await liffApiService.listAvailabilityNotifications('active');
+      setNotifications(response.notifications);
+    } catch (err) {
+      logger.error('Failed to load notifications:', err);
+    } finally {
+      setIsLoadingNotifications(false);
+    }
+  };
+
+  const handleCancelNotification = async (notificationId: number) => {
+    const confirmed = await showConfirm(
+      '取消通知',
+      '確定要取消這個空位通知嗎？'
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsCancellingNotification(notificationId);
+      await liffApiService.cancelAvailabilityNotification(notificationId);
+      await loadNotifications();
+      showAlert('成功', '已取消通知');
+    } catch (err) {
+      logger.error('Failed to cancel notification:', err);
+      showAlert('錯誤', '取消通知失敗，請稍後再試');
+    } finally {
+      setIsCancellingNotification(null);
+    }
+  };
+
+  const formatTimeWindows = (windows: string[]): string => {
+    const labels: Record<string, string> = {
+      morning: '上午',
+      afternoon: '下午',
+      evening: '晚上',
+    };
+    return windows.map((w) => labels[w] || w).join('、');
   };
 
 
@@ -338,6 +384,61 @@ const PatientManagement: React.FC = () => {
               />
             </div>
           )}
+        </div>
+
+        {/* Notifications Section */}
+        <div className="mt-8">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">我的通知設定</h2>
+          <div className="bg-white rounded-lg shadow-md p-6">
+            {isLoadingNotifications ? (
+              <div className="flex items-center justify-center py-8">
+                <LoadingSpinner size="sm" />
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">目前沒有設定任何通知</p>
+                <p className="text-sm text-gray-400 mt-2">在預約流程中可以設定空位通知</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {notifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className="border border-gray-200 rounded-md p-4"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">
+                          {moment.tz(notification.date, 'Asia/Taipei').format('YYYY年MM月DD日')}
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">
+                          {notification.appointment_type_name}
+                        </div>
+                        {notification.practitioner_name && (
+                          <div className="text-sm text-gray-600">
+                            治療師：{notification.practitioner_name}
+                          </div>
+                        )}
+                        <div className="text-sm text-gray-600 mt-1">
+                          時段：{formatTimeWindows(notification.time_windows)}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          到期時間：{moment.tz(notification.expires_at, 'Asia/Taipei').format('YYYY-MM-DD HH:mm')}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleCancelNotification(notification.id)}
+                        disabled={isCancellingNotification === notification.id}
+                        className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-50"
+                      >
+                        {isCancellingNotification === notification.id ? '取消中...' : '取消'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

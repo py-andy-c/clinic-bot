@@ -109,6 +109,35 @@ export interface ClinicInfoResponse {
   require_birthday?: boolean;
 }
 
+export interface AvailabilityNotificationCreateRequest {
+  appointment_type_id: number;
+  practitioner_id?: number | null;
+  date?: string; // Single date (YYYY-MM-DD)
+  dates?: string[]; // Multiple dates (YYYY-MM-DD)
+  time_windows: string[]; // ['morning', 'afternoon', 'evening']
+}
+
+export interface AvailabilityNotificationResponse {
+  id: number;
+  date: string;
+  appointment_type_name: string;
+  practitioner_name: string | null;
+  time_windows: string[];
+  expires_at: string;
+  status: string;
+}
+
+export interface AvailabilityNotificationListResponse {
+  notifications: AvailabilityNotificationResponse[];
+}
+
+export interface AvailabilityNotificationCreateResponse {
+  notifications_created: number;
+  notifications_updated: number;
+  notification_ids: number[];
+  message: string;
+}
+
 class LiffApiService {
   private client: AxiosInstance;
 
@@ -234,6 +263,27 @@ class LiffApiService {
   // Clinic Info
   async getClinicInfo(): Promise<ClinicInfoResponse> {
     const response = await this.client.get('/liff/clinic-info');
+    return response.data;
+  }
+
+  // Availability Notifications
+  async createAvailabilityNotification(
+    request: AvailabilityNotificationCreateRequest
+  ): Promise<AvailabilityNotificationCreateResponse> {
+    const response = await this.client.post('/liff/availability-notifications', request);
+    return response.data;
+  }
+
+  async listAvailabilityNotifications(
+    status?: string
+  ): Promise<AvailabilityNotificationListResponse> {
+    const params = status ? { status } : {};
+    const response = await this.client.get('/liff/availability-notifications', { params });
+    return response.data;
+  }
+
+  async cancelAvailabilityNotification(notificationId: number): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(`/liff/availability-notifications/${notificationId}`);
     return response.data;
   }
 }

@@ -709,7 +709,6 @@ class TestLiffDatabaseOperations:
             # Create appointment
             appointment = Appointment(
                 calendar_event_id=calendar_event.id,
-                patient_id=patient.id,
                 appointment_type_id=appt_types[0].id,
                 status="confirmed",
                 notes=f"Appointment for {patient.full_name}"
@@ -2442,7 +2441,6 @@ class TestCompactScheduleFeature:
         
         appointment = Appointment(
             calendar_event_id=event.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             status='confirmed'
         )
@@ -2529,7 +2527,6 @@ class TestCompactScheduleFeature:
         
         appointment1 = Appointment(
             calendar_event_id=event1.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             status='confirmed'
         )
@@ -2547,7 +2544,6 @@ class TestCompactScheduleFeature:
         
         appointment2 = Appointment(
             calendar_event_id=event2.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             status='confirmed'
         )
@@ -2631,7 +2627,6 @@ class TestCompactScheduleFeature:
         
         appointment = Appointment(
             calendar_event_id=event.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             status='confirmed'
         )
@@ -2740,7 +2735,6 @@ class TestAvailabilityNotifications:
             response = client.post(
                 "/api/liff/availability-notifications",
                 json={
-                    "patient_id": patient.id,
                     "appointment_type_id": appt_type.id,
                     "practitioner_id": None,
                     "date": future_date.isoformat(),
@@ -2792,7 +2786,6 @@ class TestAvailabilityNotifications:
         notification = AvailabilityNotification(
             line_user_id=line_user.id,
             clinic_id=clinic.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             practitioner_id=None,
             date=future_date,
@@ -2847,7 +2840,6 @@ class TestAvailabilityNotifications:
         notification = AvailabilityNotification(
             line_user_id=line_user.id,
             clinic_id=clinic.id,
-            patient_id=patient.id,
             appointment_type_id=appt_type.id,
             practitioner_id=None,
             date=future_date,
@@ -2909,7 +2901,6 @@ class TestAvailabilityNotifications:
             response = client.post(
                 "/api/liff/availability-notifications",
                 json={
-                    "patient_id": patient.id,
                     "appointment_type_id": appt_type.id,
                     "practitioner_id": None,
                     "dates": [future_date1.isoformat(), future_date2.isoformat(), future_date3.isoformat()],
@@ -2958,7 +2949,6 @@ class TestAvailabilityNotifications:
             response = client.post(
                 "/api/liff/availability-notifications",
                 json={
-                    "patient_id": patient.id,
                     "appointment_type_id": appt_type.id,
                     "practitioner_id": None,
                     "dates": [
@@ -3012,7 +3002,6 @@ class TestAvailabilityNotifications:
             response = client.post(
                 "/api/liff/availability-notifications",
                 json={
-                    "patient_id": patient.id,
                     "appointment_type_id": appt_type.id,
                     "practitioner_id": None,
                     "dates": [
@@ -3061,7 +3050,6 @@ class TestAvailabilityNotifications:
             response = client.post(
                 "/api/liff/availability-notifications",
                 json={
-                    "patient_id": patient.id,
                     "appointment_type_id": appt_type.id,
                     "practitioner_id": None,
                     "dates": [
@@ -3111,7 +3099,6 @@ class TestAvailabilityNotifications:
             response = client.post(
                 "/api/liff/availability-notifications",
                 json={
-                    "patient_id": patient.id,
                     "appointment_type_id": appt_type.id,
                     "practitioner_id": practitioner.id,  # Specific practitioner
                     "date": future_date.isoformat(),

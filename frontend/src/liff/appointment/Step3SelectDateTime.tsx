@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger';
 import { LoadingSpinner } from '../../components/shared';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
+import NotificationModal from './NotificationModal';
 import {
   formatTo12Hour,
   groupTimeSlots,
@@ -12,6 +13,49 @@ import {
   formatMonthYear,
   formatDateString,
 } from '../../utils/calendarUtils';
+
+interface NotificationPromptProps {
+  onOpenModal: () => void;
+}
+
+const NotificationPrompt: React.FC<NotificationPromptProps> = ({
+  onOpenModal,
+}) => {
+  return (
+    <div className="mt-6 border-t border-gray-200 pt-6">
+      <div className="bg-gradient-to-r from-teal-50 to-blue-50 border-2 border-teal-300 rounded-lg p-5 shadow-sm">
+        <div className="flex items-start">
+          <div className="flex-shrink-0">
+            <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center">
+              <svg className="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </div>
+          </div>
+          <div className="ml-4 flex-1">
+            <h4 className="text-base font-bold text-gray-900 mb-2">
+              找不到合適的時段？
+            </h4>
+            <p className="text-sm text-gray-700 mb-4 leading-relaxed">
+              設定<strong className="text-teal-700">空位通知</strong>，當有符合您需求的時段開放時，我們會立即透過 <strong>LINE</strong> 推播通知您，讓您第一時間搶先預約！
+            </p>
+            <button
+              onClick={onOpenModal}
+              className="w-full bg-teal-600 text-white py-3 px-4 rounded-lg hover:bg-teal-700 transition-all text-sm font-semibold shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+            >
+              <span className="flex items-center justify-center">
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                立即設定通知
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Step3SelectDateTime: React.FC = () => {
   const { appointmentTypeId, practitionerId, setDateTime, clinicId } = useAppointmentStore();
@@ -23,9 +67,28 @@ const Step3SelectDateTime: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [datesWithSlots, setDatesWithSlots] = useState<Set<string>>(new Set());
   const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [notificationsByDate, setNotificationsByDate] = useState<Set<string>>(new Set());
+  const [timeWindowFilter, setTimeWindowFilter] = useState<string | null>(null);
 
   // Generate calendar days using shared utility
   const calendarDays = generateCalendarDays(currentMonth);
+
+  // Handle time_window URL parameter and auto-select date from URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const timeWindow = urlParams.get('time_window');
+    const urlDate = urlParams.get('date');
+    
+    if (timeWindow && ['morning', 'afternoon', 'evening'].includes(timeWindow)) {
+      setTimeWindowFilter(timeWindow);
+    }
+    
+    // Auto-select date from URL if provided
+    if (urlDate && !selectedDate) {
+      setSelectedDate(urlDate);
+    }
+  }, [selectedDate]);
 
   // Load availability for all dates in current month
   useEffect(() => {
@@ -88,6 +151,23 @@ const Step3SelectDateTime: React.FC = () => {
       loadAvailableSlots(selectedDate);
     }
   }, [selectedDate, appointmentTypeId, practitionerId, clinicId]);
+
+  // Load notifications to show badges
+  useEffect(() => {
+    if (clinicId) {
+      loadNotifications();
+    }
+  }, [clinicId]);
+
+  const loadNotifications = async () => {
+    try {
+      const response = await liffApiService.listAvailabilityNotifications('active');
+      const dates = new Set(response.notifications.map((n) => n.date));
+      setNotificationsByDate(dates);
+    } catch (err) {
+      logger.error('Failed to load notifications:', err);
+    }
+  };
 
   const loadAvailableSlots = async (date: string) => {
     if (!clinicId || !appointmentTypeId) return;
@@ -238,6 +318,9 @@ const Step3SelectDateTime: React.FC = () => {
                     {todayDate && (
                       <div className={`w-4 h-0.5 mt-0.5 ${selected ? 'bg-white' : 'bg-gray-500'}`} />
                     )}
+                    {notificationsByDate.has(dateString) && (
+                      <div className={`w-2 h-2 rounded-full mt-0.5 ${selected ? 'bg-white' : 'bg-teal-500'}`} />
+                    )}
                   </div>
                 </button>
               );
@@ -261,9 +344,43 @@ const Step3SelectDateTime: React.FC = () => {
             </div>
           ) : availableSlots.length > 0 ? (
             (() => {
-              const { amSlots, pmSlots } = groupTimeSlots(availableSlots);
+              // Filter slots by time window if specified
+              let filteredSlots = availableSlots;
+              if (timeWindowFilter) {
+                const timeWindowRanges: Record<string, { start: number; end: number }> = {
+                  morning: { start: 8, end: 12 },
+                  afternoon: { start: 12, end: 18 },
+                  evening: { start: 18, end: 22 },
+                };
+                const range = timeWindowRanges[timeWindowFilter];
+                if (range) {
+                  filteredSlots = availableSlots.filter((time) => {
+                    const parts = time.split(':');
+                    const hour = parts[0] ? Number(parts[0]) : undefined;
+                    if (hour === undefined) return false;
+                    return hour >= range.start && hour < range.end;
+                  });
+                }
+              }
+
+              const { amSlots, pmSlots } = groupTimeSlots(filteredSlots);
+              
+              // Show message if filtering is active
+              const timeWindowLabels: Record<string, string> = {
+                morning: '上午',
+                afternoon: '下午',
+                evening: '晚上',
+              };
+              
               return (
                 <div className="space-y-4">
+                  {timeWindowFilter && (
+                    <div className="bg-teal-50 border border-teal-200 rounded-md p-2 mb-2">
+                      <p className="text-xs text-teal-800">
+                        已篩選：僅顯示 {timeWindowLabels[timeWindowFilter]} 時段
+                      </p>
+                    </div>
+                  )}
                   {amSlots.length > 0 && (
                     <div>
                       <h4 className="text-sm font-medium text-gray-700 mb-2">上午</h4>
@@ -318,6 +435,13 @@ const Step3SelectDateTime: React.FC = () => {
                       </div>
                     </div>
                   )}
+                  {filteredSlots.length === 0 && availableSlots.length > 0 && (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-gray-500">
+                        {timeWindowFilter ? `此日期在 ${timeWindowLabels[timeWindowFilter]} 時段沒有可用時段` : '沒有可用時段'}
+                      </p>
+                    </div>
+                  )}
                 </div>
               );
             })()
@@ -333,6 +457,21 @@ const Step3SelectDateTime: React.FC = () => {
           <h3 className="font-medium text-gray-900 mb-2">可預約時段</h3>
         </div>
       )}
+
+      {/* Notification Section */}
+      <NotificationPrompt
+        onOpenModal={() => setShowNotificationModal(true)}
+      />
+
+      {/* Notification Modal */}
+      <NotificationModal
+        isOpen={showNotificationModal}
+        onClose={() => setShowNotificationModal(false)}
+        onSuccess={() => {
+          loadNotifications();
+          setShowNotificationModal(false);
+        }}
+      />
     </div>
   );
 };
