@@ -170,6 +170,7 @@ class AppointmentService:
                     AvailabilityNotificationService.cancel_on_appointment_creation(
                         db=db,
                         line_user_id=line_user_id,
+                        patient_id=patient_id,
                         date=start_time.date()
                     )
                 except Exception as e:

@@ -1,9 +1,6 @@
-import React, { useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React from 'react';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { useAppointmentBackButton } from '../../hooks/useAppointmentBackButton';
-import { liffApiService } from '../../services/liffApi';
-import { logger } from '../../utils/logger';
 
 // Import step components (we'll create these next)
 import Step1SelectType from './Step1SelectType';
@@ -15,64 +12,7 @@ import Step6Confirmation from './Step6Confirmation';
 import Step7Success from './Step7Success';
 
 const AppointmentFlow: React.FC = () => {
-  const { step, setAppointmentType, setPractitioner, setDateTime, setStep, clinicId, appointmentTypeId } = useAppointmentStore();
-  const [searchParams] = useSearchParams();
-  const [hasPrefilled, setHasPrefilled] = React.useState(false);
-
-  // Handle URL parameters for pre-filling booking form (from notification links)
-  useEffect(() => {
-    const urlAppointmentTypeId = searchParams.get('appointment_type_id');
-    const urlPractitionerId = searchParams.get('practitioner_id');
-    const urlDate = searchParams.get('date');
-
-    // Only pre-fill if we're starting fresh (step 1), have clinicId, URL params exist, and haven't prefilled yet
-    if (step === 1 && clinicId && urlAppointmentTypeId && urlDate && !hasPrefilled && !appointmentTypeId) {
-      const prefillFromUrl = async () => {
-        try {
-          setHasPrefilled(true);
-          
-          // Pre-select appointment type
-          const appointmentTypesResponse = await liffApiService.getAppointmentTypes(clinicId);
-          const appointmentType = appointmentTypesResponse.appointment_types.find(
-            (at) => at.id === Number(urlAppointmentTypeId)
-          );
-          if (appointmentType) {
-            // Add clinic_id to match AppointmentType interface
-            const fullAppointmentType = {
-              ...appointmentType,
-              clinic_id: clinicId,
-              is_deleted: false,
-            };
-            setAppointmentType(fullAppointmentType.id, fullAppointmentType);
-          }
-
-          // Pre-select practitioner if specified
-          if (urlPractitionerId) {
-            const practitionersResponse = await liffApiService.getPractitioners(clinicId, Number(urlAppointmentTypeId));
-            const practitioner = practitionersResponse.practitioners.find(
-              (p) => p.id === Number(urlPractitionerId)
-            );
-            if (practitioner) {
-              setPractitioner(practitioner.id, practitioner);
-            }
-          } else {
-            // Set to "不指定" if no practitioner_id
-            setPractitioner(null);
-          }
-
-          // Pre-select date (time will be selected by user)
-          setDateTime(urlDate, '');
-          setStep(3); // Jump to date/time selection step
-        } catch (err) {
-          logger.error('Failed to pre-fill from URL params:', err);
-          setHasPrefilled(false); // Allow retry
-          // Continue with normal flow if pre-fill fails
-        }
-      };
-
-      prefillFromUrl();
-    }
-  }, [searchParams, step, clinicId, hasPrefilled, appointmentTypeId, setAppointmentType, setPractitioner, setDateTime, setStep]);
+  const { step } = useAppointmentStore();
 
   // Enable back button navigation during appointment flow
   // The back button will navigate to previous steps or home as appropriate
