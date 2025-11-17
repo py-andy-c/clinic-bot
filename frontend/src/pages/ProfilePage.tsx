@@ -10,12 +10,18 @@ import { apiService } from '../services/api';
 import ProfileForm from '../components/ProfileForm';
 import AvailabilitySettings from '../components/AvailabilitySettings';
 import PractitionerAppointmentTypes from '../components/PractitionerAppointmentTypes';
+import CompactScheduleSettings from '../components/CompactScheduleSettings';
 import PageHeader from '../components/PageHeader';
+
+interface PractitionerSettings {
+  compact_schedule_enabled: boolean;
+}
 
 interface ProfileData {
   fullName: string;
   schedule: any;
   selectedAppointmentTypeIds: number[];
+  settings?: PractitionerSettings;
 }
 
 const ProfilePage: React.FC = () => {
@@ -55,6 +61,9 @@ const ProfilePage: React.FC = () => {
         fullName: '',
         schedule: {},
         selectedAppointmentTypeIds: [],
+        settings: {
+          compact_schedule_enabled: false,
+        },
       };
 
       // Fetch profile if not already loaded
@@ -71,6 +80,13 @@ const ProfilePage: React.FC = () => {
       // Set the full name from the profile
       if (profileToUse) {
         result.fullName = profileToUse.full_name || '';
+        // Set settings from profile (only for practitioners)
+        if (profileToUse.settings && user?.roles?.includes('practitioner')) {
+          const settings = profileToUse.settings as PractitionerSettings;
+          result.settings = {
+            compact_schedule_enabled: Boolean(settings?.compact_schedule_enabled),
+          };
+        }
       }
 
       // Fetch availability schedule (only for practitioners)
@@ -94,9 +110,28 @@ const ProfilePage: React.FC = () => {
       return result;
     },
     saveData: async (data: ProfileData) => {
-      // Save profile changes
+      // Prepare profile update data
+      const profileUpdate: { full_name?: string; settings?: PractitionerSettings } = {};
+      
+      // Check if full name changed
       if (data.fullName !== profile?.full_name) {
-        const updatedProfile = await apiService.updateProfile({ full_name: data.fullName });
+        profileUpdate.full_name = data.fullName;
+      }
+      
+      // Check if settings changed (only for practitioners)
+      if (user?.roles?.includes('practitioner') && data.settings) {
+        const currentSettings = (profile?.settings as PractitionerSettings | undefined) || { compact_schedule_enabled: false };
+        const newSettings = data.settings;
+        
+        // Only update if compact_schedule_enabled actually changed
+        if (currentSettings.compact_schedule_enabled !== newSettings.compact_schedule_enabled) {
+          profileUpdate.settings = newSettings;
+        }
+      }
+      
+      // Save profile changes if any
+      if (Object.keys(profileUpdate).length > 0) {
+        const updatedProfile = await apiService.updateProfile(profileUpdate);
         setProfile(updatedProfile);
       }
 
@@ -252,6 +287,22 @@ const ProfilePage: React.FC = () => {
                     saving={uiState.saving}
                   />
                 </div>
+              )}
+
+              {/* Compact Schedule Settings (Only for practitioners) */}
+              {profile?.roles?.includes('practitioner') && (
+                <CompactScheduleSettings
+                  compactScheduleEnabled={profileData?.settings?.compact_schedule_enabled || false}
+                  onToggle={(enabled) => updateData({ 
+                    settings: { 
+                      ...profileData?.settings, 
+                      compact_schedule_enabled: enabled 
+                    } 
+                  })}
+                  showSaveButton={sectionChanges.settings || false}
+                  onSave={saveData}
+                  saving={uiState.saving}
+                />
               )}
           </form>
         </div>

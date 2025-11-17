@@ -443,7 +443,7 @@ export class ApiService {
     return response.data;
   }
 
-  async updateProfile(profileData: { full_name?: string }): Promise<any> {
+  async updateProfile(profileData: { full_name?: string; settings?: { compact_schedule_enabled?: boolean } }): Promise<any> {
     const response = await this.client.put('/profile', profileData);
     return response.data;
   }

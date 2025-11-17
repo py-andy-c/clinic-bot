@@ -55,6 +55,7 @@ export interface AvailabilitySlot {
   end_time: string;
   practitioner_id: number;
   practitioner_name: string;
+  is_recommended?: boolean; // True if slot is recommended for compact scheduling
 }
 
 export interface AvailabilityResponse {

@@ -17,6 +17,7 @@ const Step3SelectDateTime: React.FC = () => {
   const { appointmentTypeId, practitionerId, setDateTime, clinicId } = useAppointmentStore();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [slotDetails, setSlotDetails] = useState<Map<string, { is_recommended?: boolean }>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
@@ -94,6 +95,7 @@ const Step3SelectDateTime: React.FC = () => {
     try {
       setIsLoading(true);
       setError(null);
+      setSlotDetails(new Map()); // Clear previous slot details
 
       const response = await liffApiService.getAvailability({
         date,
@@ -104,9 +106,19 @@ const Step3SelectDateTime: React.FC = () => {
       // Extract time slots from response
       const slots = response.slots.map(slot => slot.start_time);
       setAvailableSlots(slots);
+      
+      // Store slot details for recommended badge display
+      const detailsMap = new Map<string, { is_recommended?: boolean }>();
+      response.slots.forEach(slot => {
+        if (slot.is_recommended !== undefined) {
+          detailsMap.set(slot.start_time, { is_recommended: slot.is_recommended });
+        }
+      });
+      setSlotDetails(detailsMap);
     } catch (err) {
       logger.error('Failed to load available slots:', err);
       setError('無法載入可用時段');
+      setSlotDetails(new Map()); // Clear on error
     } finally {
       setIsLoading(false);
     }
@@ -258,13 +270,21 @@ const Step3SelectDateTime: React.FC = () => {
                       <div className="grid grid-cols-3 gap-2">
                         {amSlots.map((time) => {
                           const formatted = formatTo12Hour(time);
+                          const isRecommended = slotDetails.get(time)?.is_recommended === true;
                           return (
                             <button
                               key={time}
                               onClick={() => handleTimeSelect(time)}
-                              className="bg-white border border-gray-200 rounded-md py-2 px-2 hover:border-primary-300 hover:bg-primary-50 transition-colors text-sm font-medium text-gray-900"
+                              className={`relative bg-white border rounded-md py-2 px-2 hover:border-primary-300 hover:bg-primary-50 transition-colors text-sm font-medium text-gray-900 ${
+                                isRecommended ? 'border-teal-400 border-2' : 'border-gray-200'
+                              }`}
                             >
                               {formatted.time12}
+                              {isRecommended && (
+                                <span className="absolute -top-2 -right-2 bg-teal-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
+                                  建議
+                                </span>
+                              )}
                             </button>
                           );
                         })}
@@ -277,13 +297,21 @@ const Step3SelectDateTime: React.FC = () => {
                       <div className="grid grid-cols-3 gap-2">
                         {pmSlots.map((time) => {
                           const formatted = formatTo12Hour(time);
+                          const isRecommended = slotDetails.get(time)?.is_recommended === true;
                           return (
                             <button
                               key={time}
                               onClick={() => handleTimeSelect(time)}
-                              className="bg-white border border-gray-200 rounded-md py-2 px-2 hover:border-primary-300 hover:bg-primary-50 transition-colors text-sm font-medium text-gray-900"
+                              className={`relative bg-white border rounded-md py-2 px-2 hover:border-primary-300 hover:bg-primary-50 transition-colors text-sm font-medium text-gray-900 ${
+                                isRecommended ? 'border-teal-400 border-2' : 'border-gray-200'
+                              }`}
                             >
                               {formatted.time12}
+                              {isRecommended && (
+                                <span className="absolute -top-2 -right-2 bg-teal-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
+                                  建議
+                                </span>
+                              )}
                             </button>
                           );
                         })}
