@@ -14,7 +14,6 @@ from unittest.mock import Mock, patch
 from models.clinic import Clinic
 from services.availability_service import AvailabilityService
 from utils.datetime_utils import taiwan_now
-from shared_types.availability import Slot
 
 
 class TestQuarterHourRounding:
@@ -101,18 +100,18 @@ class TestBookingRestrictionFiltering:
     def mock_slots_today(self):
         """Mock available slots for today."""
         return [
-            Slot(start_time='09:00', end_time='09:30', practitioner_id=1, practitioner_name='Dr. Test'),
-            Slot(start_time='10:00', end_time='10:30', practitioner_id=1, practitioner_name='Dr. Test'),
-            Slot(start_time='14:00', end_time='14:30', practitioner_id=1, practitioner_name='Dr. Test'),
+            {'start_time': '09:00', 'end_time': '09:30', 'practitioner_id': 1, 'practitioner_name': 'Dr. Test'},
+            {'start_time': '10:00', 'end_time': '10:30', 'practitioner_id': 1, 'practitioner_name': 'Dr. Test'},
+            {'start_time': '14:00', 'end_time': '14:30', 'practitioner_id': 1, 'practitioner_name': 'Dr. Test'},
         ]
 
     @pytest.fixture
     def mock_slots_tomorrow(self):
         """Mock available slots for tomorrow."""
         return [
-            Slot(start_time='09:00', end_time='09:30', practitioner_id=1, practitioner_name='Dr. Test'),
-            Slot(start_time='10:00', end_time='10:30', practitioner_id=1, practitioner_name='Dr. Test'),
-            Slot(start_time='14:00', end_time='14:30', practitioner_id=1, practitioner_name='Dr. Test'),
+            {'start_time': '09:00', 'end_time': '09:30', 'practitioner_id': 1, 'practitioner_name': 'Dr. Test'},
+            {'start_time': '10:00', 'end_time': '10:30', 'practitioner_id': 1, 'practitioner_name': 'Dr. Test'},
+            {'start_time': '14:00', 'end_time': '14:30', 'practitioner_id': 1, 'practitioner_name': 'Dr. Test'},
         ]
 
     def test_same_day_disallowed_filters_today_slots(self, mock_slots_today):
@@ -201,7 +200,7 @@ class TestBookingRestrictionFiltering:
 
         today = taiwan_now().date()
         slots = [
-            Slot(start_time='16:00', end_time='16:30', practitioner_id=1, practitioner_name='Dr. Test'),
+            {'start_time': '16:00', 'end_time': '16:30', 'practitioner_id': 1, 'practitioner_name': 'Dr. Test'},
         ]
 
         # Mock taiwan_now to return a time where the slot is far enough ahead

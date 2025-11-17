@@ -163,20 +163,6 @@ class AppointmentService:
             db.commit()
             db.refresh(appointment)
 
-            # Cancel notifications for this date when appointment is created
-            if line_user_id:
-                try:
-                    from services.availability_notification_service import AvailabilityNotificationService
-                    AvailabilityNotificationService.cancel_on_appointment_creation(
-                        db=db,
-                        line_user_id=line_user_id,
-                        patient_id=patient_id,
-                        date=start_time.date()
-                    )
-                except Exception as e:
-                    # Log error but don't fail appointment creation
-                    logger.warning(f"Failed to cancel notifications on appointment creation: {e}")
-
             # Get related objects for response
             practitioner = db.query(User).get(assigned_practitioner_id)
             patient = db.query(Patient).get(patient_id)

@@ -11,7 +11,6 @@ from .availability_service import AvailabilityService
 from .practitioner_service import PractitionerService
 from .appointment_type_service import AppointmentTypeService
 from .reminder_service import ReminderService
-from .availability_notification_service import AvailabilityNotificationService
 
 __all__ = [
     "PatientService",
@@ -20,5 +19,4 @@ __all__ = [
     "PractitionerService",
     "AppointmentTypeService",
     "ReminderService",
-    "AvailabilityNotificationService",
 ]

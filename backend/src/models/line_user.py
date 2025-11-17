@@ -38,6 +38,3 @@ class LineUser(Base):
     # Relationships
     patients = relationship("Patient", back_populates="line_user")
     """Relationship to Patient entities associated with this LINE user."""
-
-    availability_notifications = relationship("AvailabilityNotification", back_populates="line_user")
-    """Relationship to availability notifications requested by this LINE user."""

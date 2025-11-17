@@ -12,7 +12,7 @@ All endpoints require JWT authentication from LIFF login flow.
 import logging
 import jwt
 from datetime import datetime, timedelta, timezone, date
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, field_validator, model_validator
@@ -20,11 +20,10 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.config import JWT_SECRET_KEY, JWT_ACCESS_TOKEN_EXPIRE_MINUTES
-from core.constants import MAX_NOTIFICATION_DAYS_AHEAD
 from models import (
-    LineUser, Clinic, Patient, AvailabilityNotification, Appointment, CalendarEvent
+    LineUser, Clinic, Patient
 )
-from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService, AvailabilityNotificationService
+from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
 from utils.datetime_utils import TAIWAN_TZ, taiwan_now
 from api.responses import (
@@ -251,9 +250,9 @@ class AppointmentCreateRequest(BaseModel):
         # Must be in future
         if v < now:
             raise ValueError('無法預約過去的時間')
-        # Must be within MAX_NOTIFICATION_DAYS_AHEAD days
-        if v > now + timedelta(days=MAX_NOTIFICATION_DAYS_AHEAD):
-            raise ValueError(f'最多只能預約 {MAX_NOTIFICATION_DAYS_AHEAD} 天內的時段')
+        # Must be within 90 days
+        if v > now + timedelta(days=90):
+            raise ValueError('最多只能預約 90 天內的時段')
         return v
 
 
@@ -627,15 +626,9 @@ async def get_availability(
                 appointment_type_id=appointment_type_id
             )
 
-        # Convert Slot objects to AvailabilitySlot Pydantic models
+        # Convert dicts to response objects
         slots = [
-            AvailabilitySlot(
-                start_time=slot.start_time,
-                end_time=slot.end_time,
-                practitioner_id=slot.practitioner_id,
-                practitioner_name=slot.practitioner_name,
-                is_recommended=slot.is_recommended
-            )
+            AvailabilitySlot(**slot)
             for slot in slots_data
         ]
 
@@ -739,42 +732,12 @@ async def cancel_appointment(
     _line_user, _clinic = line_user_clinic
 
     try:
-        # Get appointment details before cancellation for notification checking
-        appointment = db.query(Appointment).filter(
-            Appointment.calendar_event_id == appointment_id
-        ).first()
-        
-        if not appointment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="預約不存在"
-            )
-        
-        # Get calendar event for date/practitioner info
-        calendar_event = db.query(CalendarEvent).filter(
-            CalendarEvent.id == appointment_id
-        ).first()
-        
         # Cancel appointment using service
         result = AppointmentService.cancel_appointment(
             db=db,
             appointment_id=appointment_id,
             cancelled_by='patient'
         )
-
-        # Check and send notifications after cancellation (synchronous)
-        # Notifies users waiting for any appointment type, not just the cancelled one
-        if calendar_event and appointment and calendar_event.user_id:
-            try:
-                AvailabilityNotificationService.check_and_notify(
-                    db=db,
-                    clinic_id=_clinic.id,
-                    date=calendar_event.date,
-                    practitioner_id=calendar_event.user_id
-                )
-            except Exception as e:
-                # Log error but don't fail cancellation
-                logger.exception(f"Failed to check notifications after cancellation: {e}")
 
         return result
 
@@ -810,252 +773,3 @@ async def get_clinic_info(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得診所資訊"
         )
-
-
-# ===== Availability Notification Models =====
-
-class AvailabilityNotificationCreateRequest(BaseModel):
-    """Request model for creating availability notification(s)."""
-    patient_id: int
-    appointment_type_id: int
-    practitioner_id: Optional[int] = None  # null for "不指定"
-    date: Optional[str] = None  # Single date (YYYY-MM-DD)
-    dates: Optional[List[str]] = None  # Multiple dates (YYYY-MM-DD)
-    time_windows: List[str]  # ["morning", "afternoon", "evening"]
-
-    @model_validator(mode='after')
-    def validate_date_or_dates(self):
-        """Ensure either date or dates is provided, but not both."""
-        if not self.date and not self.dates:
-            raise ValueError('必須提供 date 或 dates')
-        if self.date and self.dates:
-            raise ValueError('不能同時提供 date 和 dates')
-        return self
-
-    @field_validator('time_windows')
-    @classmethod
-    def validate_time_windows(cls, v: List[str]) -> List[str]:
-        valid_windows = {'morning', 'afternoon', 'evening'}
-        if not v:
-            raise ValueError('至少需選擇一個時段')
-        if not all(w in valid_windows for w in v):
-            raise ValueError('無效的時段選擇')
-        return v
-
-
-class AvailabilityNotificationResponse(BaseModel):
-    """Response model for availability notification."""
-    id: int
-    date: str
-    appointment_type_name: str
-    practitioner_name: Optional[str]
-    time_windows: List[str]
-    expires_at: str
-    status: str
-
-
-class AvailabilityNotificationListResponse(BaseModel):
-    """Response model for listing availability notifications."""
-    notifications: List[AvailabilityNotificationResponse]
-
-
-class AvailabilityNotificationCreateResponse(BaseModel):
-    """Response model for creating availability notifications."""
-    notifications_created: int
-    notifications_updated: int
-    notification_ids: List[int]
-    message: str
-
-
-# ===== Availability Notification Endpoints =====
-
-@router.post("/availability-notifications", response_model=AvailabilityNotificationCreateResponse)
-async def create_availability_notifications(
-    request: AvailabilityNotificationCreateRequest,
-    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
-    db: Session = Depends(get_db)
-):
-    """
-    Create availability notification request(s) for one or multiple dates.
-    
-    Users can request to be notified when appointment slots become available
-    in specific time windows for specific dates.
-    """
-    line_user, clinic = line_user_clinic
-
-    try:
-        # Determine dates to process
-        if request.date:
-            dates = [request.date]
-        else:
-            dates = request.dates or []
-
-        notifications_created = 0
-        notifications_updated = 0
-        notification_ids: List[int] = []
-        invalid_dates: List[str] = []
-
-        # Validate date range once
-        today = taiwan_now().date()
-        max_date = today + timedelta(days=MAX_NOTIFICATION_DAYS_AHEAD)
-
-        for date_str in dates:
-            try:
-                # Parse date
-                notification_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-                
-                # Validate date range
-                if notification_date < today:
-                    invalid_dates.append(f"{date_str} (過去日期)")
-                    continue
-                if notification_date > max_date:
-                    invalid_dates.append(f"{date_str} (超過{MAX_NOTIFICATION_DAYS_AHEAD}天)")
-                    continue
-
-                # Use service method which handles both create and update
-                # This removes code duplication - the service already checks for duplicates
-                notification, was_created = AvailabilityNotificationService.create_notification(
-                    db=db,
-                    line_user_id=line_user.id,
-                    clinic_id=clinic.id,
-                    patient_id=request.patient_id,
-                    appointment_type_id=request.appointment_type_id,
-                    date=notification_date,
-                    time_windows=request.time_windows,
-                    practitioner_id=request.practitioner_id
-                )
-                
-                if was_created:
-                    notifications_created += 1
-                else:
-                    notifications_updated += 1
-                notification_ids.append(notification.id)
-
-            except ValueError as e:
-                logger.warning(f"Invalid date format {date_str}: {e}")
-                invalid_dates.append(f"{date_str} (格式錯誤)")
-                continue
-            except HTTPException:
-                raise
-            except Exception as e:
-                logger.exception(f"Error creating notification for date {date_str}: {e}")
-                continue
-
-        # Return error if no valid notifications were created/updated
-        if notifications_created == 0 and notifications_updated == 0:
-            error_detail = "無法建立通知"
-            if invalid_dates:
-                error_detail += f"。無效日期：{', '.join(invalid_dates)}"
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error_detail
-            )
-
-        # Build success message
-        message = f"已為 {notifications_created + notifications_updated} 個日期設定通知"
-        if invalid_dates:
-            message += f"。已跳過無效日期：{', '.join(invalid_dates)}"
-
-        return AvailabilityNotificationCreateResponse(
-            notifications_created=notifications_created,
-            notifications_updated=notifications_updated,
-            notification_ids=notification_ids,
-            message=message
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Error creating availability notifications: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="建立通知失敗"
-        )
-
-
-@router.get("/availability-notifications", response_model=AvailabilityNotificationListResponse)
-async def list_availability_notifications(
-    notification_status: Optional[str] = Query('active', alias='status'),
-    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
-    db: Session = Depends(get_db)
-):
-    """
-    List availability notifications for the LINE user.
-    
-    Returns all active (or specified status) notifications for the user at this clinic.
-    """
-    line_user, clinic = line_user_clinic
-
-    try:
-        notifications_data = AvailabilityNotificationService.list_notifications(
-            db=db,
-            line_user_id=line_user.id,
-            clinic_id=clinic.id,
-            status=notification_status
-        )
-
-        notifications = [
-            AvailabilityNotificationResponse(
-                id=item.id,
-                date=item.date,
-                appointment_type_name=item.appointment_type_name,
-                practitioner_name=item.practitioner_name,
-                time_windows=item.time_windows,
-                expires_at=item.expires_at,
-                status=item.status
-            )
-            for item in notifications_data
-        ]
-
-        return AvailabilityNotificationListResponse(notifications=notifications)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Error listing availability notifications: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,  # type: ignore
-            detail="無法取得通知列表"
-        )
-
-
-@router.delete("/availability-notifications/{notification_id}")
-async def cancel_availability_notification(
-    notification_id: int,
-    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
-    db: Session = Depends(get_db)
-):
-    """
-    Cancel an availability notification.
-    
-    Verifies ownership and updates notification status to 'cancelled'.
-    """
-    line_user, clinic = line_user_clinic
-
-    try:
-        notification = db.query(AvailabilityNotification).filter(
-            AvailabilityNotification.id == notification_id,
-            AvailabilityNotification.line_user_id == line_user.id,
-            AvailabilityNotification.clinic_id == clinic.id
-        ).first()
-
-        if not notification:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="通知不存在"
-            )
-
-        notification.status = 'cancelled'
-        db.commit()
-
-        return {"success": True, "message": "已取消通知"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Error cancelling availability notification: {e}")
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="取消通知失敗"
-        ) from e
