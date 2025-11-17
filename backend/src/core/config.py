@@ -51,4 +51,5 @@ SYSTEM_ADMIN_EMAILS = [email.strip() for email in os.getenv("SYSTEM_ADMIN_EMAILS
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 JWT_REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+LIFF_ID = os.getenv("LIFF_ID", "")  # LINE LIFF ID for generating booking URLs
 

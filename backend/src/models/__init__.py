@@ -15,6 +15,7 @@ from .availability_exception import AvailabilityException
 from .practitioner_appointment_types import PractitionerAppointmentTypes
 from .line_user_ai_opt_out import LineUserAiOptOut
 from .line_message import LineMessage
+from .availability_notification import AvailabilityNotification
 
 __all__ = [
     "Clinic",
@@ -31,5 +32,6 @@ __all__ = [
     "AvailabilityException",
     "PractitionerAppointmentTypes",
     "LineUserAiOptOut",
-    "LineMessage"
+    "LineMessage",
+    "AvailabilityNotification"
 ]

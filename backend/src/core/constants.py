@@ -64,3 +64,6 @@ AI_OPT_OUT_DURATION_HOURS = 24  # Duration in hours that AI replies are disabled
 
 # LINE message metadata retention
 LINE_MESSAGE_RETENTION_HOURS = 240  # 10 days (longer than CHAT_SESSION_EXPIRY_HOURS for safety)
+
+# Availability notification settings
+MAX_NOTIFICATION_DAYS_AHEAD = 90  # Maximum days in advance users can request availability notifications

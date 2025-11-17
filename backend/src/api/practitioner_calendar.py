@@ -692,8 +692,8 @@ async def get_available_slots(
         # Strip practitioner info for response (not needed since it's always same practitioner)
         available_slots = [
             AvailableSlotResponse(
-                start_time=slot['start_time'],
-                end_time=slot['end_time']
+                start_time=slot.start_time,
+                end_time=slot.end_time
             )
             for slot in slots_data
         ]

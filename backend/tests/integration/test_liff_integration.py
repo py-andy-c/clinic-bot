@@ -17,13 +17,13 @@ from main import app
 from models import (
     Clinic, User, AppointmentType, PractitionerAppointmentTypes,
     Patient, LineUser, Appointment, CalendarEvent, PractitionerAvailability,
-    UserClinicAssociation
+    UserClinicAssociation, AvailabilityNotification
 )
 from models.user_clinic_association import PractitionerSettings
 from core.config import JWT_SECRET_KEY
 from core.database import get_db
 from auth.dependencies import get_current_line_user_with_clinic
-from utils.datetime_utils import taiwan_now
+from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 from tests.conftest import (
     create_practitioner_availability_with_clinic,
     create_calendar_event_with_clinic,
@@ -2703,6 +2703,432 @@ class TestCompactScheduleFeature:
             recommended_slots = [s for s in slots if s.get('is_recommended') == True]
             assert len(recommended_slots) == 0
         
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+class TestAvailabilityNotifications:
+    """Test availability notification endpoints."""
+
+    def test_create_notification_single_date(self, db_session: Session, test_clinic_with_liff):
+        """Test creating a notification for a single date."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+        appt_type = appt_types[0]
+
+        line_user = LineUser(
+            line_user_id="U_notification_test_001",
+            display_name="Notification Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            line_user_id=line_user.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        future_date = (taiwan_now().date() + timedelta(days=2))
+
+        try:
+            client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+            client.app.dependency_overrides[get_db] = lambda: db_session
+
+            response = client.post(
+                "/api/liff/availability-notifications",
+                json={
+                    "patient_id": patient.id,
+                    "appointment_type_id": appt_type.id,
+                    "practitioner_id": None,
+                    "date": future_date.isoformat(),
+                    "time_windows": ["morning", "afternoon"]
+                }
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["notifications_created"] == 1
+            assert len(data["notification_ids"]) == 1
+
+            # Verify notification was created
+            notification = db_session.query(AvailabilityNotification).filter(
+                AvailabilityNotification.id == data["notification_ids"][0]
+            ).first()
+            assert notification is not None
+            assert notification.status == "active"
+            assert notification.time_windows == ["morning", "afternoon"]
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_list_notifications(self, db_session: Session, test_clinic_with_liff):
+        """Test listing notifications."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+        appt_type = appt_types[0]
+
+        line_user = LineUser(
+            line_user_id="U_notification_test_003",
+            display_name="Notification Test User 3"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            line_user_id=line_user.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        future_date = (taiwan_now().date() + timedelta(days=2))
+
+        # Create notification directly
+        notification = AvailabilityNotification(
+            line_user_id=line_user.id,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type.id,
+            practitioner_id=None,
+            date=future_date,
+            time_windows=["morning"],
+            status="active",
+            created_at=taiwan_now(),
+            expires_at=datetime.combine(future_date, time(23, 59, 59)).replace(tzinfo=TAIWAN_TZ)
+        )
+        db_session.add(notification)
+        db_session.commit()
+
+        try:
+            client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+            client.app.dependency_overrides[get_db] = lambda: db_session
+
+            response = client.get("/api/liff/availability-notifications?status=active")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["notifications"]) == 1
+            assert data["notifications"][0]["id"] == notification.id
+            assert data["notifications"][0]["date"] == future_date.isoformat()
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_cancel_notification(self, db_session: Session, test_clinic_with_liff):
+        """Test cancelling a notification."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+        appt_type = appt_types[0]
+
+        line_user = LineUser(
+            line_user_id="U_notification_test_004",
+            display_name="Notification Test User 4"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            line_user_id=line_user.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        future_date = (taiwan_now().date() + timedelta(days=2))
+
+        # Create notification directly
+        notification = AvailabilityNotification(
+            line_user_id=line_user.id,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type.id,
+            practitioner_id=None,
+            date=future_date,
+            time_windows=["morning"],
+            status="active",
+            created_at=taiwan_now(),
+            expires_at=datetime.combine(future_date, time(23, 59, 59)).replace(tzinfo=TAIWAN_TZ)
+        )
+        db_session.add(notification)
+        db_session.commit()
+
+        try:
+            client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+            client.app.dependency_overrides[get_db] = lambda: db_session
+
+            response = client.delete(f"/api/liff/availability-notifications/{notification.id}")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+
+            # Verify notification was cancelled
+            db_session.refresh(notification)
+            assert notification.status == "cancelled"
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_create_notification_multiple_dates(self, db_session: Session, test_clinic_with_liff):
+        """Test creating notifications for multiple dates."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+        appt_type = appt_types[0]
+
+        line_user = LineUser(
+            line_user_id="U_notification_test_005",
+            display_name="Notification Test User 5"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            line_user_id=line_user.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        future_date1 = (taiwan_now().date() + timedelta(days=2))
+        future_date2 = (taiwan_now().date() + timedelta(days=3))
+        future_date3 = (taiwan_now().date() + timedelta(days=4))
+
+        try:
+            client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+            client.app.dependency_overrides[get_db] = lambda: db_session
+
+            response = client.post(
+                "/api/liff/availability-notifications",
+                json={
+                    "patient_id": patient.id,
+                    "appointment_type_id": appt_type.id,
+                    "practitioner_id": None,
+                    "dates": [future_date1.isoformat(), future_date2.isoformat(), future_date3.isoformat()],
+                    "time_windows": ["morning"]
+                }
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["notifications_created"] == 3
+            assert len(data["notification_ids"]) == 3
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_create_notification_invalid_dates(self, db_session: Session, test_clinic_with_liff):
+        """Test creating notifications with invalid dates."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+        appt_type = appt_types[0]
+
+        line_user = LineUser(
+            line_user_id="U_notification_test_006",
+            display_name="Notification Test User 6"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            line_user_id=line_user.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        past_date = (taiwan_now().date() - timedelta(days=1))
+        future_date_far = (taiwan_now().date() + timedelta(days=100))
+        valid_date = (taiwan_now().date() + timedelta(days=2))
+
+        try:
+            client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+            client.app.dependency_overrides[get_db] = lambda: db_session
+
+            response = client.post(
+                "/api/liff/availability-notifications",
+                json={
+                    "patient_id": patient.id,
+                    "appointment_type_id": appt_type.id,
+                    "practitioner_id": None,
+                    "dates": [
+                        past_date.isoformat(),  # Past date - should be skipped
+                        future_date_far.isoformat(),  # >90 days - should be skipped
+                        valid_date.isoformat()  # Valid date
+                    ],
+                    "time_windows": ["morning"]
+                }
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["notifications_created"] == 1  # Only valid date
+            assert len(data["notification_ids"]) == 1
+            # Should mention skipped dates in message
+            assert "已跳過無效日期" in data["message"] or data["notifications_created"] == 1
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_create_notification_all_invalid_dates(self, db_session: Session, test_clinic_with_liff):
+        """Test creating notifications with all invalid dates."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+        appt_type = appt_types[0]
+
+        line_user = LineUser(
+            line_user_id="U_notification_test_007",
+            display_name="Notification Test User 7"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            line_user_id=line_user.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        past_date = (taiwan_now().date() - timedelta(days=1))
+        future_date_far = (taiwan_now().date() + timedelta(days=100))
+
+        try:
+            client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+            client.app.dependency_overrides[get_db] = lambda: db_session
+
+            response = client.post(
+                "/api/liff/availability-notifications",
+                json={
+                    "patient_id": patient.id,
+                    "appointment_type_id": appt_type.id,
+                    "practitioner_id": None,
+                    "dates": [
+                        past_date.isoformat(),  # Past date
+                        future_date_far.isoformat()  # >90 days
+                    ],
+                    "time_windows": ["morning"]
+                }
+            )
+
+            assert response.status_code == 400
+            data = response.json()
+            assert "無法建立通知" in data["detail"]
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_create_notification_invalid_date_format(self, db_session: Session, test_clinic_with_liff):
+        """Test creating notifications with invalid date format."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+        appt_type = appt_types[0]
+
+        line_user = LineUser(
+            line_user_id="U_notification_test_008",
+            display_name="Notification Test User 8"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            line_user_id=line_user.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        valid_date = (taiwan_now().date() + timedelta(days=2))
+
+        try:
+            client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+            client.app.dependency_overrides[get_db] = lambda: db_session
+
+            response = client.post(
+                "/api/liff/availability-notifications",
+                json={
+                    "patient_id": patient.id,
+                    "appointment_type_id": appt_type.id,
+                    "practitioner_id": None,
+                    "dates": [
+                        "invalid-date-format",  # Invalid format
+                        valid_date.isoformat()  # Valid date
+                    ],
+                    "time_windows": ["morning"]
+                }
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["notifications_created"] == 1  # Only valid date processed
+            assert len(data["notification_ids"]) == 1
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_create_notification_practitioner_specific(self, db_session: Session, test_clinic_with_liff):
+        """Test creating notification for specific practitioner."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+        appt_type = appt_types[0]
+
+        line_user = LineUser(
+            line_user_id="U_notification_test_009",
+            display_name="Notification Test User 9"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            line_user_id=line_user.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        future_date = (taiwan_now().date() + timedelta(days=2))
+
+        try:
+            client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+            client.app.dependency_overrides[get_db] = lambda: db_session
+
+            response = client.post(
+                "/api/liff/availability-notifications",
+                json={
+                    "patient_id": patient.id,
+                    "appointment_type_id": appt_type.id,
+                    "practitioner_id": practitioner.id,  # Specific practitioner
+                    "date": future_date.isoformat(),
+                    "time_windows": ["morning", "afternoon"]
+                }
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["notifications_created"] == 1
+
+            # Verify notification was created with practitioner_id
+            notification = db_session.query(AvailabilityNotification).filter(
+                AvailabilityNotification.id == data["notification_ids"][0]
+            ).first()
+            assert notification.practitioner_id == practitioner.id
+
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)

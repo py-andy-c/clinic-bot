@@ -20,6 +20,7 @@ from models import (
 from services.appointment_type_service import AppointmentTypeService
 from utils.query_helpers import filter_by_role
 from utils.datetime_utils import taiwan_now
+from shared_types.availability import Slot
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +219,7 @@ class AvailabilityService:
         appointment_type_id: int,
         clinic_id: int,
         exclude_calendar_event_id: int | None = None
-    ) -> List[Dict[str, Any]]:
+    ) -> List[Slot]:
         """
         Get available time slots for a specific practitioner.
 
@@ -235,11 +236,7 @@ class AvailabilityService:
             clinic_id: Clinic ID (for booking restriction validation)
 
         Returns:
-            List of available slot dictionaries with:
-            - start_time: str (HH:MM)
-            - end_time: str (HH:MM)
-            - practitioner_id: int
-            - practitioner_name: str
+            List of available Slot objects
 
         Raises:
             HTTPException: If validation fails
@@ -318,9 +315,17 @@ class AvailabilityService:
                         recommended_slots = AvailabilityService._calculate_compact_schedule_recommendations(
                             confirmed_appointments, slots
                         )
-                        # Mark recommended slots
-                        for slot in slots:
-                            slot['is_recommended'] = slot['start_time'] in recommended_slots
+                        # Mark recommended slots (create new Slot objects with is_recommended set)
+                        slots = [
+                            Slot(
+                                start_time=slot.start_time,
+                                end_time=slot.end_time,
+                                practitioner_id=slot.practitioner_id,
+                                practitioner_name=slot.practitioner_name,
+                                is_recommended=slot.start_time in recommended_slots
+                            )
+                            for slot in slots
+                        ]
                 except (ValueError, AttributeError, KeyError) as e:
                     # If settings validation fails, continue without recommendations
                     logger.warning(f"Failed to get practitioner settings for compact schedule: {e}")
@@ -342,7 +347,7 @@ class AvailabilityService:
         clinic_id: int,
         date: str,
         appointment_type_id: int
-    ) -> List[Dict[str, Any]]:
+    ) -> List[Slot]:
         """
         Get available time slots for all practitioners in a clinic.
         
@@ -356,11 +361,7 @@ class AvailabilityService:
             appointment_type_id: Appointment type ID
             
         Returns:
-            List of available slot dictionaries with:
-            - start_time: str (HH:MM)
-            - end_time: str (HH:MM)
-            - practitioner_id: int
-            - practitioner_name: str
+            List of available Slot objects
             
         Raises:
             HTTPException: If validation fails
@@ -421,7 +422,7 @@ class AvailabilityService:
         clinic_id: int,
         exclude_calendar_event_id: int | None = None,
         schedule_data: Dict[int, Dict[str, Any]] | None = None
-    ) -> List[Dict[str, Any]]:
+    ) -> List[Slot]:
         """
         Calculate available time slots for the given date and practitioners.
 
@@ -439,7 +440,7 @@ class AvailabilityService:
             clinic: Clinic object with booking restriction settings
 
         Returns:
-            List of available slot dictionaries with practitioner_id and practitioner_name
+            List of available Slot objects
         """
         if not practitioners:
             return []
@@ -452,7 +453,7 @@ class AvailabilityService:
                 db, practitioner_ids, requested_date, clinic_id, exclude_calendar_event_id
             )
         
-        available_slots: List[Dict[str, Any]] = []
+        available_slots: List[Slot] = []
         
         # Create a lookup dict for practitioner info
         practitioner_lookup = {p.id: p for p in practitioners}
@@ -494,12 +495,12 @@ class AvailabilityService:
                 if not AvailabilityService.has_slot_conflicts(
                     events, slot_start, slot_end
                 ):
-                    available_slots.append({
-                        'start_time': AvailabilityService._format_time(slot_start),
-                        'end_time': AvailabilityService._format_time(slot_end),
-                        'practitioner_id': practitioner.id,
-                        'practitioner_name': practitioner_name
-                    })
+                    available_slots.append(Slot(
+                        start_time=AvailabilityService._format_time(slot_start),
+                        end_time=AvailabilityService._format_time(slot_end),
+                        practitioner_id=practitioner.id,
+                        practitioner_name=practitioner_name
+                    ))
 
         # Apply clinic booking restrictions
         filtered_slots = AvailabilityService._filter_slots_by_booking_restrictions(
@@ -784,15 +785,15 @@ class AvailabilityService:
 
     @staticmethod
     def _filter_slots_by_booking_restrictions(
-        slots: List[Dict[str, Any]],
+        slots: List[Slot],
         requested_date: date_type,
         clinic: Clinic
-    ) -> List[Dict[str, Any]]:
+    ) -> List[Slot]:
         """
         Filter available slots based on clinic booking restrictions.
 
         Args:
-            slots: List of available slot dictionaries
+            slots: List of available Slot objects
             requested_date: Date for which slots are requested
             clinic: Clinic object with booking restriction settings
 
@@ -806,12 +807,11 @@ class AvailabilityService:
         now: datetime = taiwan_now()
         today = now.date()
 
-        filtered_slots: List[Dict[str, Any]] = []
+        filtered_slots: List[Slot] = []
 
         for slot in slots:
             # Parse slot time
-            slot_time_str = slot['start_time']
-            hour, minute = map(int, slot_time_str.split(':'))
+            hour, minute = map(int, slot.start_time.split(':'))
             slot_time = time(hour, minute)
 
             # Create datetime for the slot
@@ -842,7 +842,7 @@ class AvailabilityService:
     @staticmethod
     def _calculate_compact_schedule_recommendations(
         confirmed_appointments: List[CalendarEvent],
-        available_slots: List[Dict[str, Any]]
+        available_slots: List[Slot]
     ) -> set[str]:
         """
         Calculate which available slots are recommended for compact scheduling.
@@ -856,7 +856,7 @@ class AvailabilityService:
         Args:
             confirmed_appointments: List of confirmed appointment CalendarEvents (already fetched).
                                    Must have non-None start_time and end_time.
-            available_slots: List of available slot dicts with 'start_time' and 'end_time' keys.
+            available_slots: List of available Slot objects.
             
         Returns:
             Set of recommended slot start times (as HH:MM strings). Empty set if no recommendations
@@ -904,8 +904,8 @@ class AvailabilityService:
         
         # Process all available slots
         for slot in available_slots:
-            slot_start_str = slot['start_time']
-            slot_end_str = slot['end_time']
+            slot_start_str = slot.start_time
+            slot_end_str = slot.end_time
             
             try:
                 slot_start_hour, slot_start_min = map(int, slot_start_str.split(':'))
