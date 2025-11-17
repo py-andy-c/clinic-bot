@@ -66,6 +66,7 @@ class AvailabilitySlot(BaseModel):
     end_time: str
     practitioner_id: int
     practitioner_name: str
+    is_recommended: Optional[bool] = None  # True if slot is recommended for compact scheduling
 
 
 class AvailabilityResponse(BaseModel):

@@ -8,7 +8,7 @@ Email cannot be changed as it's tied to the Google account used for signup.
 
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from auth.dependencies import get_current_user, UserContext
 from models import User, UserClinicAssociation
+from models.user_clinic_association import PractitionerSettings
 from utils.datetime_utils import taiwan_now
 
 router = APIRouter()
@@ -33,11 +34,13 @@ class ProfileResponse(BaseModel):
     active_clinic_id: Optional[int]  # Currently active clinic ID (None for system admins)
     created_at: datetime
     last_login_at: Optional[datetime]
+    settings: Optional[Dict[str, Any]] = None  # Practitioner settings (only for practitioners)
 
 
 class ProfileUpdateRequest(BaseModel):
     """Request model for updating user profile."""
     full_name: Optional[str] = None
+    settings: Optional[Dict[str, Any]] = None  # Practitioner settings (only for practitioners)
     # Note: email is intentionally excluded - cannot be changed
 
 
@@ -69,6 +72,7 @@ async def get_profile(
         roles: list[str] = []
         active_clinic_id: Optional[int] = None
         
+        settings: Optional[Dict[str, Any]] = None
         if current_user.active_clinic_id:
             association = db.query(UserClinicAssociation).filter(
                 UserClinicAssociation.user_id == user.id,
@@ -78,6 +82,9 @@ async def get_profile(
             if association:
                 roles = association.roles or []
                 active_clinic_id = association.clinic_id
+                # Include settings if user is a practitioner
+                if 'practitioner' in roles:
+                    settings = association.get_validated_settings().model_dump()
         
         return ProfileResponse(
             id=user.id,
@@ -86,7 +93,8 @@ async def get_profile(
             roles=roles,
             active_clinic_id=active_clinic_id,
             created_at=user.created_at,
-            last_login_at=user.last_login_at
+            last_login_at=user.last_login_at,
+            settings=settings
         )
         
     except HTTPException:
@@ -129,27 +137,49 @@ async def update_profile(
         # Update allowed fields only
         # Note: full_name is clinic-specific, stored in UserClinicAssociation
         association = None
-        if profile_data.full_name is not None:
-            # Update clinic-specific name in UserClinicAssociation for active clinic
-            if current_user.active_clinic_id:
-                association = db.query(UserClinicAssociation).filter(
-                    UserClinicAssociation.user_id == user.id,
-                    UserClinicAssociation.clinic_id == current_user.active_clinic_id,
-                    UserClinicAssociation.is_active == True
-                ).first()
-                
-                if association:
-                    association.full_name = profile_data.full_name
-                    association.updated_at = taiwan_now()
-                else:
-                    # Clinic users must have an association - this shouldn't happen
+        if current_user.active_clinic_id:
+            association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == user.id,
+                UserClinicAssociation.clinic_id == current_user.active_clinic_id,
+                UserClinicAssociation.is_active == True
+            ).first()
+            
+            if not association:
+                # Clinic users must have an association - this shouldn't happen
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="找不到診所關聯"
+                )
+            
+            # Update full_name if provided
+            if profile_data.full_name is not None:
+                association.full_name = profile_data.full_name
+                association.updated_at = taiwan_now()
+            
+            # Update settings if provided (only for practitioners)
+            if profile_data.settings is not None:
+                if 'practitioner' not in (association.roles or []):
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="找不到診所關聯"
+                        detail="只有治療師可以更新設定"
                     )
-            elif current_user.is_system_admin():
-                # System admins don't have associations - name is not used
-                pass
+                try:
+                    # Validate settings schema
+                    validated_settings = PractitionerSettings.model_validate(profile_data.settings)
+                    association.set_validated_settings(validated_settings)
+                    association.updated_at = taiwan_now()
+                except Exception as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"無效的設定格式: {str(e)}"
+                    )
+        elif current_user.is_system_admin():
+            # System admins don't have associations - name is not used
+            if profile_data.full_name is not None or profile_data.settings is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="系統管理員無法更新這些設定"
+                )
         
         # Update timestamp (Taiwan timezone)
         user.updated_at = taiwan_now()
@@ -165,30 +195,31 @@ async def update_profile(
         roles: list[str] = []
         active_clinic_id: Optional[int] = None
         clinic_full_name = user.email  # Default to email (for system admins)
+        settings: Optional[Dict[str, Any]] = None
         
         if current_user.active_clinic_id:
             # Use refreshed association if available, otherwise query
-            if association:
-                roles = association.roles or []
-                active_clinic_id = association.clinic_id
-                clinic_full_name = association.full_name  # Clinic users always have association.full_name
-            else:
+            if not association:
                 # Query association if not already loaded (shouldn't happen for clinic users)
                 association = db.query(UserClinicAssociation).filter(
                     UserClinicAssociation.user_id == user.id,
                     UserClinicAssociation.clinic_id == current_user.active_clinic_id,
                     UserClinicAssociation.is_active == True
                 ).first()
-                if association:
-                    roles = association.roles or []
-                    active_clinic_id = association.clinic_id
-                    clinic_full_name = association.full_name  # Clinic users always have association.full_name
-                else:
-                    # Clinic users must have an association
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="找不到診所關聯"
-                    )
+            
+            if association:
+                roles = association.roles or []
+                active_clinic_id = association.clinic_id
+                clinic_full_name = association.full_name  # Clinic users always have association.full_name
+                # Include settings if user is a practitioner
+                if 'practitioner' in roles:
+                    settings = association.get_validated_settings().model_dump()
+            else:
+                # Clinic users must have an association
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="找不到診所關聯"
+                )
         
         return ProfileResponse(
             id=user.id,
@@ -197,7 +228,8 @@ async def update_profile(
             roles=roles,
             active_clinic_id=active_clinic_id,
             created_at=user.created_at,
-            last_login_at=user.last_login_at
+            last_login_at=user.last_login_at,
+            settings=settings
         )
         
     except HTTPException:

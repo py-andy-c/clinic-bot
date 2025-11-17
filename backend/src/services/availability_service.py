@@ -7,7 +7,7 @@ between different API endpoints (LIFF, clinic admin, practitioner calendar).
 
 import logging
 from datetime import datetime, date as date_type, time, timedelta
-from typing import List, Dict, Any
+from typing import List, Dict, Any, cast
 
 from fastapi import HTTPException, status
 from sqlalchemy import or_, and_
@@ -280,10 +280,52 @@ class AvailabilityService:
                     detail="診所不存在或已停用"
                 )
 
-            # Calculate available slots for this practitioner
-            return AvailabilityService._calculate_available_slots(
-                db, requested_date, [practitioner], appointment_type.duration_minutes, clinic, clinic_id, exclude_calendar_event_id
+            # Fetch schedule data once and reuse it
+            practitioner_ids = [practitioner.id]
+            schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
+                db, practitioner_ids, requested_date, clinic_id, exclude_calendar_event_id
             )
+            
+            # Calculate available slots for this practitioner (reusing schedule_data)
+            slots = AvailabilityService._calculate_available_slots(
+                db, requested_date, [practitioner], appointment_type.duration_minutes, 
+                clinic, clinic_id, exclude_calendar_event_id, schedule_data=schedule_data
+            )
+            
+            # Apply compact schedule recommendations if enabled
+            # Only apply for LIFF flow (when practitioner_id is specified)
+            association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == practitioner_id,
+                UserClinicAssociation.clinic_id == clinic_id,
+                UserClinicAssociation.is_active == True
+            ).first()
+            
+            if association:
+                try:
+                    settings = association.get_validated_settings()
+                    if settings.compact_schedule_enabled:
+                        # Extract confirmed appointments from already-fetched schedule data
+                        # (reusing data fetched by _calculate_available_slots via fetch_practitioner_schedule_data)
+                        practitioner_data = schedule_data.get(practitioner_id, {})
+                        events = practitioner_data.get('events', [])
+                        confirmed_appointments = [
+                            event for event in events 
+                            if event.event_type == 'appointment' and 
+                            event.appointment and 
+                            event.appointment.status == 'confirmed'
+                        ]
+                        
+                        recommended_slots = AvailabilityService._calculate_compact_schedule_recommendations(
+                            confirmed_appointments, slots
+                        )
+                        # Mark recommended slots
+                        for slot in slots:
+                            slot['is_recommended'] = slot['start_time'] in recommended_slots
+                except (ValueError, AttributeError, KeyError) as e:
+                    # If settings validation fails, continue without recommendations
+                    logger.warning(f"Failed to get practitioner settings for compact schedule: {e}")
+            
+            return slots
             
         except HTTPException:
             raise
@@ -377,7 +419,8 @@ class AvailabilityService:
         duration_minutes: int,
         clinic: Clinic,
         clinic_id: int,
-        exclude_calendar_event_id: int | None = None
+        exclude_calendar_event_id: int | None = None,
+        schedule_data: Dict[int, Dict[str, Any]] | None = None
     ) -> List[Dict[str, Any]]:
         """
         Calculate available time slots for the given date and practitioners.
@@ -402,10 +445,12 @@ class AvailabilityService:
             return []
         
         # Batch fetch schedule data for all practitioners (2 queries total instead of N×2)
+        # Use provided schedule_data if available, otherwise fetch it
         practitioner_ids = [p.id for p in practitioners]
-        schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
-            db, practitioner_ids, requested_date, clinic_id, exclude_calendar_event_id
-        )
+        if schedule_data is None:
+            schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
+                db, practitioner_ids, requested_date, clinic_id, exclude_calendar_event_id
+            )
         
         available_slots: List[Dict[str, Any]] = []
         
@@ -793,6 +838,114 @@ class AvailabilityService:
             filtered_slots.append(slot)
 
         return filtered_slots
+    
+    @staticmethod
+    def _calculate_compact_schedule_recommendations(
+        confirmed_appointments: List[CalendarEvent],
+        available_slots: List[Dict[str, Any]]
+    ) -> set[str]:
+        """
+        Calculate which available slots are recommended for compact scheduling.
+        
+        Logic (regardless of number of appointments):
+        1. Recommend slots that don't expand the total time (fully within span)
+        2. If no slots exist that don't expand total time, recommend:
+           - The latest slot before the first appointment (if exists)
+           - The earliest slot after the last appointment (if exists)
+        
+        Args:
+            confirmed_appointments: List of confirmed appointment CalendarEvents (already fetched).
+                                   Must have non-None start_time and end_time.
+            available_slots: List of available slot dicts with 'start_time' and 'end_time' keys.
+            
+        Returns:
+            Set of recommended slot start times (as HH:MM strings). Empty set if no recommendations
+            should be shown (e.g., all slots extend or none extend).
+        """
+        if not confirmed_appointments:
+            # No appointments → no recommendations
+            return set()
+        
+        # Filter out appointments with None start_time or end_time
+        valid_appointments = [
+            a for a in confirmed_appointments 
+            if a.start_time is not None and a.end_time is not None
+        ]
+        
+        if not valid_appointments:
+            return set()
+        
+        # Sort appointments by start_time to find earliest and latest
+        # Use cast to help type checker understand that start_time is not None after filtering
+        sorted_appointments = sorted(
+            valid_appointments, 
+            key=lambda a: cast(time, a.start_time)
+        )
+        
+        # Find earliest start and latest end
+        # We know these are not None because we filtered them
+        earliest_start = cast(time, sorted_appointments[0].start_time)
+        latest_end = cast(time, sorted_appointments[0].end_time)
+        
+        for appointment in sorted_appointments[1:]:  # Start from second element
+            appt_start = cast(time, appointment.start_time)
+            appt_end = cast(time, appointment.end_time)
+            if appt_start < earliest_start:
+                earliest_start = appt_start
+            if appt_end > latest_end:
+                latest_end = appt_end
+        
+        earliest_start_minutes = earliest_start.hour * 60 + earliest_start.minute
+        latest_end_minutes = latest_end.hour * 60 + latest_end.minute
+        
+        recommended_slots: set[str] = set()
+        latest_before_first: tuple[str, int] | None = None  # (slot_start_str, slot_end_minutes)
+        earliest_after_last: tuple[str, int] | None = None  # (slot_start_str, slot_start_minutes)
+        
+        # Process all available slots
+        for slot in available_slots:
+            slot_start_str = slot['start_time']
+            slot_end_str = slot['end_time']
+            
+            try:
+                slot_start_hour, slot_start_min = map(int, slot_start_str.split(':'))
+                slot_end_hour, slot_end_min = map(int, slot_end_str.split(':'))
+                slot_start_minutes = slot_start_hour * 60 + slot_start_min
+                slot_end_minutes = slot_end_hour * 60 + slot_end_min
+                
+                # 1. Slots that don't expand total time (fully within span)
+                if (slot_start_minutes >= earliest_start_minutes and 
+                    slot_end_minutes <= latest_end_minutes):
+                    recommended_slots.add(slot_start_str)
+                
+                # 2. Find latest slot before first appointment (ends before earliest_start)
+                # Only track this if we don't have slots that don't extend total time
+                if slot_end_minutes <= earliest_start_minutes:
+                    if latest_before_first is None or slot_end_minutes > latest_before_first[1]:
+                        latest_before_first = (slot_start_str, slot_end_minutes)
+                
+                # 3. Find earliest slot after last appointment (starts after latest_end)
+                # Only track this if we don't have slots that don't extend total time
+                if slot_start_minutes >= latest_end_minutes:
+                    if earliest_after_last is None or slot_start_minutes < earliest_after_last[1]:
+                        earliest_after_last = (slot_start_str, slot_start_minutes)
+                        
+            except (ValueError, AttributeError):
+                continue
+        
+        # Only add latest_before_first and earliest_after_last if there are NO slots that don't extend total time
+        if not recommended_slots:
+            if latest_before_first:
+                recommended_slots.add(latest_before_first[0])
+            if earliest_after_last:
+                recommended_slots.add(earliest_after_last[0])
+        
+        # Only return recommendations if some slots extend and some don't
+        # If all slots extend or none extend, return empty set (display all normally)
+        if recommended_slots and len(recommended_slots) < len(available_slots):
+            return recommended_slots
+        else:
+            return set()
 
     @staticmethod
     def _format_time(time_obj: time) -> str:

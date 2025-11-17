@@ -16,8 +16,10 @@ from unittest.mock import patch
 from main import app
 from models import (
     Clinic, User, AppointmentType, PractitionerAppointmentTypes,
-    Patient, LineUser, Appointment, CalendarEvent, PractitionerAvailability
+    Patient, LineUser, Appointment, CalendarEvent, PractitionerAvailability,
+    UserClinicAssociation
 )
+from models.user_clinic_association import PractitionerSettings
 from core.config import JWT_SECRET_KEY
 from core.database import get_db
 from auth.dependencies import get_current_line_user_with_clinic
@@ -2376,6 +2378,331 @@ class TestClinicIsolationSecurity:
             # Should be rejected due to clinic mismatch
             assert response.status_code == 403
 
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+class TestCompactScheduleFeature:
+    """Test compact schedule recommendation feature."""
+    
+    def _setup_test_user_and_patient(self, db_session: Session, clinic: Clinic, line_user_id: str, patient_name: str, phone: str):
+        """Helper to create LINE user and patient for tests."""
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            display_name=f"Compact Schedule User {line_user_id[-3:]}"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name=patient_name,
+            phone_number=phone,
+            line_user_id=line_user.id
+        )
+        db_session.add(patient)
+        db_session.commit()
+        
+        return line_user, patient
+    
+    def _enable_compact_schedule(self, db_session: Session, practitioner: User, clinic: Clinic, enabled: bool = True):
+        """Helper to enable/disable compact schedule for a practitioner."""
+        association = db_session.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == practitioner.id,
+            UserClinicAssociation.clinic_id == clinic.id
+        ).first()
+        settings = PractitionerSettings(compact_schedule_enabled=enabled)
+        association.set_validated_settings(settings)
+        db_session.commit()
+    
+    def test_compact_schedule_single_appointment_recommends_before_after(self, db_session: Session, test_clinic_with_liff):
+        """Test that compact schedule recommends slots right before and after a single appointment."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+        appt_type = appt_types[0]  # 30-minute appointment
+        
+        # Create LINE user and patient
+        line_user, patient = self._setup_test_user_and_patient(
+            db_session, clinic, "U_compact_schedule_test_123", 
+            "Compact Schedule Patient", "0912345678"
+        )
+        
+        # Enable compact schedule for practitioner
+        self._enable_compact_schedule(db_session, practitioner, clinic, enabled=True)
+        
+        # Create a single appointment at 10:00-10:30
+        tomorrow = (taiwan_now().date() + timedelta(days=1))
+        event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type='appointment',
+            event_date=tomorrow,
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.commit()
+        
+        appointment = Appointment(
+            calendar_event_id=event.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type.id,
+            status='confirmed'
+        )
+        db_session.add(appointment)
+        db_session.commit()
+        
+        # Get availability
+        try:
+            client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+            client.app.dependency_overrides[get_db] = lambda: db_session
+            
+            response = client.get(
+                f"/api/liff/availability",
+                params={
+                    "date": tomorrow.strftime("%Y-%m-%d"),
+                    "appointment_type_id": appt_type.id,
+                    "practitioner_id": practitioner.id
+                }
+            )
+            assert response.status_code == 200
+            data = response.json()
+            slots = data['slots']
+            
+            # Find recommended slots
+            recommended_slots = [s for s in slots if s.get('is_recommended') == True]
+            
+            # Should have some recommended slots
+            assert len(recommended_slots) > 0
+            
+            # Verify recommended slots are:
+            # 1. Within the span (10:00-10:30) - but there are no slots within a single 30-min appointment
+            # 2. Latest slot before 10:00 (if exists)
+            # 3. Earliest slot after 10:30 (if exists)
+            appt_start_minutes = 10 * 60 + 0  # 10:00
+            appt_end_minutes = 10 * 60 + 30  # 10:30
+            
+            for slot in recommended_slots:
+                slot_end = slot['end_time']
+                slot_start = slot['start_time']
+                slot_start_hour, slot_start_min = map(int, slot_start.split(':'))
+                slot_end_hour, slot_end_min = map(int, slot_end.split(':'))
+                slot_start_minutes = slot_start_hour * 60 + slot_start_min
+                slot_end_minutes = slot_end_hour * 60 + slot_end_min
+                
+                # Should be: within span OR latest before OR earliest after
+                within_span = (slot_start_minutes >= appt_start_minutes and 
+                              slot_end_minutes <= appt_end_minutes)
+                before_first = slot_end_minutes <= appt_start_minutes
+                after_last = slot_start_minutes >= appt_end_minutes
+                
+                assert within_span or before_first or after_last, \
+                    f"Slot {slot_start}-{slot_end} should be within span, before first, or after last"
+        
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_compact_schedule_multiple_appointments_recommends_within_span(self, db_session: Session, test_clinic_with_liff):
+        """Test that compact schedule recommends slots within total time span for multiple appointments."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+        appt_type = appt_types[0]  # 30-minute appointment
+        
+        # Create LINE user and patient
+        line_user, patient = self._setup_test_user_and_patient(
+            db_session, clinic, "U_compact_schedule_test_456",
+            "Compact Schedule Patient 2", "0912345679"
+        )
+        
+        # Enable compact schedule for practitioner
+        self._enable_compact_schedule(db_session, practitioner, clinic, enabled=True)
+        
+        # Create two appointments: 10:00-10:30 and 14:00-14:30
+        # Total span: 10:00 to 14:30
+        tomorrow = (taiwan_now().date() + timedelta(days=1))
+        
+        event1 = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type='appointment',
+            event_date=tomorrow,
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.commit()
+        
+        appointment1 = Appointment(
+            calendar_event_id=event1.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type.id,
+            status='confirmed'
+        )
+        db_session.add(appointment1)
+        db_session.commit()
+        
+        event2 = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type='appointment',
+            event_date=tomorrow,
+            start_time=time(14, 0),
+            end_time=time(14, 30)
+        )
+        db_session.commit()
+        
+        appointment2 = Appointment(
+            calendar_event_id=event2.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type.id,
+            status='confirmed'
+        )
+        db_session.add(appointment2)
+        db_session.commit()
+        
+        # Get availability
+        try:
+            client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+            client.app.dependency_overrides[get_db] = lambda: db_session
+            
+            response = client.get(
+                f"/api/liff/availability",
+                params={
+                    "date": tomorrow.strftime("%Y-%m-%d"),
+                    "appointment_type_id": appt_type.id,
+                    "practitioner_id": practitioner.id
+                }
+            )
+            assert response.status_code == 200
+            data = response.json()
+            slots = data['slots']
+            
+            # Find recommended and non-recommended slots
+            recommended_slots = [s for s in slots if s.get('is_recommended') == True]
+            
+            # Should have some recommended slots (those within 10:00-14:30 OR extending the least)
+            assert len(recommended_slots) > 0
+            
+            # Verify recommended slots are either:
+            # 1. Within the span [10:00, 14:30]
+            # 2. Extend the total time the least (right before first or right after last)
+            earliest_start_minutes = 10 * 60 + 0  # 10:00
+            latest_end_minutes = 14 * 60 + 30  # 14:30
+            
+            for slot in recommended_slots:
+                slot_start_str = slot['start_time']
+                slot_end_str = slot['end_time']
+                slot_start_hour, slot_start_min = map(int, slot_start_str.split(':'))
+                slot_end_hour, slot_end_min = map(int, slot_end_str.split(':'))
+                slot_start_minutes = slot_start_hour * 60 + slot_start_min
+                slot_end_minutes = slot_end_hour * 60 + slot_end_min
+                
+                # Check if slot is within span OR extends the least
+                within_span = (slot_start_minutes >= earliest_start_minutes and 
+                              slot_end_minutes <= latest_end_minutes)
+                extends_least_before = slot_end_minutes == earliest_start_minutes  # Right before first
+                extends_least_after = slot_start_minutes == latest_end_minutes  # Right after last
+                
+                assert within_span or extends_least_before or extends_least_after, \
+                    f"Slot {slot_start_str}-{slot_end_str} should be within 10:00-14:30 or extend the least (right before 10:00 or right after 14:30)"
+        
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_compact_schedule_disabled_no_recommendations(self, db_session: Session, test_clinic_with_liff):
+        """Test that when compact schedule is disabled, no recommendations are made."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+        appt_type = appt_types[0]  # 30-minute appointment
+        
+        # Create LINE user and patient
+        line_user, patient = self._setup_test_user_and_patient(
+            db_session, clinic, "U_compact_schedule_test_789",
+            "Compact Schedule Patient 3", "0912345680"
+        )
+        
+        # Ensure compact schedule is disabled (default)
+        self._enable_compact_schedule(db_session, practitioner, clinic, enabled=False)
+        
+        # Create an appointment
+        tomorrow = (taiwan_now().date() + timedelta(days=1))
+        event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type='appointment',
+            event_date=tomorrow,
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.commit()
+        
+        appointment = Appointment(
+            calendar_event_id=event.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type.id,
+            status='confirmed'
+        )
+        db_session.add(appointment)
+        db_session.commit()
+        
+        # Get availability
+        try:
+            client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+            client.app.dependency_overrides[get_db] = lambda: db_session
+            
+            response = client.get(
+                f"/api/liff/availability",
+                params={
+                    "date": tomorrow.strftime("%Y-%m-%d"),
+                    "appointment_type_id": appt_type.id,
+                    "practitioner_id": practitioner.id
+                }
+            )
+            assert response.status_code == 200
+            data = response.json()
+            slots = data['slots']
+            
+            # No slots should have is_recommended set (or all should be None/False)
+            recommended_slots = [s for s in slots if s.get('is_recommended') == True]
+            assert len(recommended_slots) == 0
+        
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_compact_schedule_no_appointments_no_recommendations(self, db_session: Session, test_clinic_with_liff):
+        """Test that when there are no appointments, no recommendations are made."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+        appt_type = appt_types[0]  # 30-minute appointment
+        
+        # Create LINE user (no patient needed for this test)
+        line_user = LineUser(
+            line_user_id="U_compact_schedule_test_000",
+            display_name="Compact Schedule User 4"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
+        # Enable compact schedule
+        self._enable_compact_schedule(db_session, practitioner, clinic, enabled=True)
+        
+        # No appointments created
+        
+        # Get availability
+        try:
+            client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+            client.app.dependency_overrides[get_db] = lambda: db_session
+            
+            tomorrow = (taiwan_now().date() + timedelta(days=1))
+            response = client.get(
+                f"/api/liff/availability",
+                params={
+                    "date": tomorrow.strftime("%Y-%m-%d"),
+                    "appointment_type_id": appt_type.id,
+                    "practitioner_id": practitioner.id
+                }
+            )
+            assert response.status_code == 200
+            data = response.json()
+            slots = data['slots']
+            
+            # No slots should have is_recommended set
+            recommended_slots = [s for s in slots if s.get('is_recommended') == True]
+            assert len(recommended_slots) == 0
+        
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
