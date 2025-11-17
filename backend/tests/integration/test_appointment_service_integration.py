@@ -144,6 +144,13 @@ class TestAppointmentServiceIntegration:
         db_session.add(clinic)
         db_session.commit()
 
+        # Set max_future_appointments to 10 for this test to avoid hitting limit
+        from models.clinic import ClinicSettings
+        settings = clinic.get_validated_settings()
+        settings.booking_restriction_settings.max_future_appointments = 10
+        clinic.set_validated_settings(settings)
+        db_session.commit()
+
         # Create two practitioners with clinic associations
         practitioner1, _ = create_user_with_clinic_association(
             db_session,

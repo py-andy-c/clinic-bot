@@ -15,7 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from models import (
-    Appointment, CalendarEvent, User, Patient, UserClinicAssociation
+    Appointment, CalendarEvent, User, Patient, UserClinicAssociation, Clinic
 )
 from services.patient_service import PatientService
 from services.availability_service import AvailabilityService
@@ -91,6 +91,29 @@ class AppointmentService:
             if line_user_id:
                 PatientService.validate_patient_ownership(
                     db, patient_id, line_user_id, clinic_id
+                )
+
+            # Get clinic to check max_future_appointments setting
+            clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+            if not clinic:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="診所不存在"
+                )
+            
+            # Check max future appointments limit
+            settings = clinic.get_validated_settings()
+            max_future_appointments = settings.booking_restriction_settings.max_future_appointments
+            
+            from utils.appointment_queries import count_future_appointments_for_patient
+            current_future_count = count_future_appointments_for_patient(
+                db, patient_id, status="confirmed"
+            )
+            
+            if current_future_count >= max_future_appointments:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"您已有 {current_future_count} 個未來的預約，最多只能有 {max_future_appointments} 個未來預約"
                 )
 
             # Get appointment type and validate it belongs to clinic

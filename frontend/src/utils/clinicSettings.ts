@@ -46,6 +46,15 @@ export const validateClinicSettings = (settings: ClinicSettings): string | null 
     }
   }
 
+  // Validate max_future_appointments
+  const maxFutureAppointmentsValue = settings.booking_restriction_settings.max_future_appointments;
+  if (maxFutureAppointmentsValue !== undefined && maxFutureAppointmentsValue !== null) {
+    const maxFutureAppointments = typeof maxFutureAppointmentsValue === 'string' ? parseFloat(maxFutureAppointmentsValue) : maxFutureAppointmentsValue;
+    if (isNaN(maxFutureAppointments) || maxFutureAppointments < 1 || maxFutureAppointments > 100) {
+      return '患者未來預約上限必須在 1-100 之間';
+    }
+  }
+
   return null; // Valid
 };
 
@@ -59,6 +68,7 @@ export const getClinicSectionChanges = (current: ClinicSettings, original: Clini
     current.booking_restriction_settings.booking_restriction_type !== original.booking_restriction_settings.booking_restriction_type ||
     current.booking_restriction_settings.minimum_booking_hours_ahead !== original.booking_restriction_settings.minimum_booking_hours_ahead ||
     (current.booking_restriction_settings.step_size_minutes ?? 30) !== (original.booking_restriction_settings.step_size_minutes ?? 30) ||
+    (current.booking_restriction_settings.max_future_appointments ?? 3) !== (original.booking_restriction_settings.max_future_appointments ?? 3) ||
     (current.clinic_info_settings.require_birthday || false) !== (original.clinic_info_settings.require_birthday || false);
 
   return {

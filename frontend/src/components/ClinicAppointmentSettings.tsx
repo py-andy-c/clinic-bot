@@ -55,6 +55,13 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
     });
   };
 
+  const handleMaxFutureAppointmentsChange = (value: string) => {
+    onBookingRestrictionSettingsChange({
+      ...bookingRestrictionSettings,
+      max_future_appointments: value,
+    });
+  };
+
   const [showStepSizePopup, setShowStepSizePopup] = useState(false);
   const stepSizeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -205,6 +212,29 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 患者未來預約上限 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            患者未來預約上限
+          </label>
+          <div className="space-y-4 max-w-xs">
+            <div>
+              <input
+                type="number"
+                value={bookingRestrictionSettings.max_future_appointments ?? 3}
+                onChange={(e) => handleMaxFutureAppointmentsChange(e.target.value)}
+                className="input"
+                min="1"
+                max="100"
+                disabled={!isClinicAdmin}
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                每位患者最多可同時擁有的未來預約數量
+              </p>
             </div>
           </div>
         </div>

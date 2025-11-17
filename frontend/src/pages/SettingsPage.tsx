@@ -64,7 +64,8 @@ const SettingsPage: React.FC = () => {
         },
         booking_restriction_settings: {
           ...data.booking_restriction_settings,
-          minimum_booking_hours_ahead: parseInt(String(data.booking_restriction_settings.minimum_booking_hours_ahead)) || 24
+          minimum_booking_hours_ahead: parseInt(String(data.booking_restriction_settings.minimum_booking_hours_ahead)) || 24,
+          max_future_appointments: parseInt(String(data.booking_restriction_settings.max_future_appointments || 3)) || 3
         }
       };
       try {

@@ -29,6 +29,7 @@ class BookingRestrictionSettings(BaseModel):
     booking_restriction_type: str = Field(default="same_day_disallowed")
     minimum_booking_hours_ahead: int = Field(default=24, ge=1, le=168)
     step_size_minutes: int = Field(default=30, ge=5, le=60, description="Time interval in minutes for appointment slot granularity. Patients can only book appointments at these intervals. For example, 30 means patients can select 09:00, 09:30, 10:00, etc. A smaller value provides more time options (e.g., 15 minutes = 09:00, 09:15, 09:30, 09:45), while a larger value provides fewer options.")
+    max_future_appointments: int = Field(default=3, ge=1, le=100, description="Maximum number of active future appointments a patient can have")
 
 
 class ClinicInfoSettings(BaseModel):
