@@ -11,8 +11,9 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy.orm import Session
+from utils.datetime_utils import parse_datetime_string_to_taiwan
 
 logger = logging.getLogger(__name__)
 
@@ -1684,20 +1685,56 @@ async def cancel_clinic_appointment(
 
 # ===== Appointment Management (Create, Edit, Reassign) =====
 
+def parse_datetime_field_validator(values: Dict[str, Any], field_name: str) -> Dict[str, Any]:
+    """
+    Shared validator to parse datetime string fields to Taiwan timezone.
+    
+    This function is used by Pydantic model validators to convert datetime strings
+    to timezone-aware datetime objects in Taiwan timezone.
+    
+    Args:
+        values: Dictionary of field values (from Pydantic model_validator)
+        field_name: Name of the datetime field to parse
+        
+    Returns:
+        Updated values dictionary with parsed datetime
+    """
+    if field_name in values and values.get(field_name):
+        if isinstance(values[field_name], str):
+            try:
+                values[field_name] = parse_datetime_string_to_taiwan(values[field_name])
+            except ValueError:
+                pass  # Let Pydantic handle the error
+    return values
+
+
 class ClinicAppointmentCreateRequest(BaseModel):
     """Request model for creating appointment on behalf of patient."""
     patient_id: int
     appointment_type_id: int
     start_time: datetime
-    practitioner_id: Optional[int] = None  # None = auto-assign
+    practitioner_id: int  # Required - clinic users must select a practitioner
     notes: Optional[str] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def parse_datetime_fields(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse datetime strings before validation, converting to Taiwan timezone."""
+        return parse_datetime_field_validator(values, 'start_time')
 
 
 class AppointmentEditRequest(BaseModel):
     """Request model for editing appointment."""
     practitioner_id: Optional[int] = None  # None = keep current
     start_time: Optional[datetime] = None  # None = keep current
-    notes: Optional[str] = None
+    notes: Optional[str] = None  # If provided, updates appointment.notes. If None, preserves original patient notes.
+    notification_note: Optional[str] = None  # Optional note to include in edit notification (does not update appointment.notes)
+
+    @model_validator(mode='before')
+    @classmethod
+    def parse_datetime_fields(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse datetime strings before validation, converting to Taiwan timezone."""
+        return parse_datetime_field_validator(values, 'start_time')
 
 
 class AppointmentEditPreviewRequest(BaseModel):
@@ -1706,12 +1743,11 @@ class AppointmentEditPreviewRequest(BaseModel):
     new_start_time: Optional[datetime] = None
     note: Optional[str] = None
 
-
-class AppointmentReassignRequest(BaseModel):
-    """Request model for reassigning appointment."""
-    new_practitioner_id: int
-    new_start_time: Optional[datetime] = None
-    notification_note: Optional[str] = None
+    @model_validator(mode='before')
+    @classmethod
+    def parse_datetime_fields(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse datetime strings before validation, converting to Taiwan timezone."""
+        return parse_datetime_field_validator(values, 'new_start_time')
 
 
 @router.post("/appointments", summary="Create appointment on behalf of patient")
@@ -1761,18 +1797,18 @@ async def create_clinic_appointment(
                     # Get appointment type name from appointment object (more reliable)
                     appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else '預約'
                     
-                    # Determine practitioner name - check request.practitioner_id directly
-                    practitioner_name = "不指定"
-                    if request.practitioner_id is not None:
-                        practitioner = db.query(User).get(request.practitioner_id)
-                        if practitioner:
-                            # Get practitioner name from association
-                            association = db.query(UserClinicAssociation).filter(
-                                UserClinicAssociation.user_id == practitioner.id,
-                                UserClinicAssociation.clinic_id == clinic_id,
-                                UserClinicAssociation.is_active == True
-                            ).first()
-                            practitioner_name = association.full_name if association else practitioner.email
+                    # Get practitioner name (practitioner_id is always provided for clinic-initiated appointments)
+                    practitioner = db.query(User).get(request.practitioner_id)
+                    if practitioner:
+                        # Get practitioner name from association
+                        association = db.query(UserClinicAssociation).filter(
+                            UserClinicAssociation.user_id == practitioner.id,
+                            UserClinicAssociation.clinic_id == clinic_id,
+                            UserClinicAssociation.is_active == True
+                        ).first()
+                        practitioner_name = association.full_name if association else practitioner.email
+                    else:
+                        practitioner_name = "未知治療師"
                     
                     # Generate and send notification
                     from services.line_service import LINEService
@@ -1862,15 +1898,15 @@ async def preview_edit_notification(
         
         # Determine if notification will be sent
         from utils.datetime_utils import TAIWAN_TZ
-        old_start_time = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
-        new_start_time = request.new_start_time if request.new_start_time else old_start_time
+        old_start_time_for_preview = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+        old_practitioner_id_for_preview = calendar_event.user_id
+        new_start_time = request.new_start_time if request.new_start_time else old_start_time_for_preview
+        new_practitioner_id = request.new_practitioner_id if request.new_practitioner_id else old_practitioner_id_for_preview
         
         will_send_notification = AppointmentService.should_send_edit_notification(
             old_appointment=appointment,
-            new_practitioner_id=request.new_practitioner_id,
-            new_start_time=request.new_start_time,
-            old_notes=appointment.notes,
-            new_notes=appointment.notes  # Notes not changed in preview
+            new_practitioner_id=new_practitioner_id,
+            new_start_time=new_start_time
         )
         
         # Generate preview message if notification will be sent
@@ -1889,7 +1925,7 @@ async def preview_edit_notification(
                 appointment=appointment,
                 old_practitioner=old_practitioner,
                 new_practitioner=new_practitioner,
-                old_start_time=old_start_time,
+                old_start_time=old_start_time_for_preview,
                 new_start_time=new_start_time,
                 note=request.note
             )
@@ -1898,7 +1934,7 @@ async def preview_edit_notification(
             "preview_message": preview_message,
             "old_appointment_details": {
                 "practitioner_id": calendar_event.user_id,
-                "start_time": old_start_time.isoformat(),
+                "start_time": old_start_time_for_preview.isoformat(),
                 "is_auto_assigned": appointment.is_auto_assigned
             },
             "new_appointment_details": {
@@ -1944,7 +1980,7 @@ async def edit_clinic_appointment(
                 detail="您沒有權限編輯預約"
             )
         
-        # Get appointment before edit (for notification)
+        # Get appointment before edit (for notification and permission check)
         appointment = db.query(Appointment).join(
             CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
         ).filter(
@@ -1958,14 +1994,8 @@ async def edit_clinic_appointment(
                 detail="預約不存在"
             )
         
+        # Check permissions (before any other operations)
         calendar_event = appointment.calendar_event
-        from utils.datetime_utils import TAIWAN_TZ
-        old_start_time = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
-        old_practitioner_id = calendar_event.user_id
-        old_is_auto_assigned = appointment.is_auto_assigned
-        old_notes_value = appointment.notes  # Store before edit
-        
-        # Check permissions
         is_admin = current_user.has_role('admin')
         if not is_admin:
             # Practitioners can only edit their own appointments
@@ -1975,12 +2005,31 @@ async def edit_clinic_appointment(
                     detail="您只能編輯自己的預約"
                 )
         
-        # Edit appointment
+        # Ensure user_id is available (should always be true with require_practitioner_or_admin)
         if current_user.user_id is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="未授權"
             )
+        
+        # Store old values for notification (before edit)
+        from utils.datetime_utils import TAIWAN_TZ
+        old_start_time = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+        old_practitioner_id = calendar_event.user_id
+        old_is_auto_assigned = appointment.is_auto_assigned
+        
+        # Determine if notification should be sent BEFORE updating appointment
+        # Calculate actual values (use current if None provided)
+        new_practitioner_id = request.practitioner_id if request.practitioner_id is not None else old_practitioner_id
+        new_start_time = request.start_time if request.start_time is not None else old_start_time
+        
+        should_send = AppointmentService.should_send_edit_notification(
+            old_appointment=appointment,
+            new_practitioner_id=new_practitioner_id,
+            new_start_time=new_start_time
+        )
+        
+        # Edit appointment (service handles business logic, not permissions)
         result = AppointmentService.edit_appointment(
             db=db,
             appointment_id=appointment_id,
@@ -1988,33 +2037,18 @@ async def edit_clinic_appointment(
             current_user_id=current_user.user_id,
             new_practitioner_id=request.practitioner_id,
             new_start_time=request.start_time,
-            new_notes=request.notes,
-            is_admin=is_admin
+            new_notes=request.notes
         )
         
-        # Refresh appointment to get updated values
+        # Refresh appointment to get updated values for notification
         db.refresh(appointment)
-        calendar_event = appointment.calendar_event
-        
-        # Determine if notification should be sent using stored old values
-        temp_is_auto_assigned = appointment.is_auto_assigned
-        appointment.is_auto_assigned = old_is_auto_assigned  # Use old value for check
-        
-        new_start_time = request.start_time if request.start_time else old_start_time
-        should_send = AppointmentService.should_send_edit_notification(
-            old_appointment=appointment,  # Use appointment with old is_auto_assigned value
-            new_practitioner_id=request.practitioner_id,
-            new_start_time=request.start_time,
-            old_notes=old_notes_value,
-            new_notes=request.notes if request.notes is not None else appointment.notes
-        )
-        
-        # Restore is_auto_assigned (will be refreshed anyway, but good practice)
-        appointment.is_auto_assigned = temp_is_auto_assigned
-        
+                
         # Send notification if needed
+        # Note: Notification failures are caught and logged but don't fail the request.
+        # This ensures appointment edits succeed even if LINE service is temporarily unavailable.
         if should_send:
             try:
+                # Get practitioners for notification
                 old_practitioner = None
                 if not old_is_auto_assigned:
                     old_practitioner = db.query(User).get(old_practitioner_id)
@@ -2023,17 +2057,19 @@ async def edit_clinic_appointment(
                 if request.practitioner_id:
                     new_practitioner = db.query(User).get(request.practitioner_id)
                 elif not appointment.is_auto_assigned:
-                    new_practitioner = db.query(User).get(calendar_event.user_id)
+                    new_practitioner = db.query(User).get(appointment.calendar_event.user_id)
                 
-                NotificationService.send_appointment_edit_notification(
+                notification_sent = NotificationService.send_appointment_edit_notification(
                     db=db,
                     appointment=appointment,
                     old_practitioner=old_practitioner,
                     new_practitioner=new_practitioner,
                     old_start_time=old_start_time,
                     new_start_time=new_start_time,
-                    note=request.notes
+                    note=request.notification_note  # Use separate notification note, not appointment notes
                 )
+                if not notification_sent:
+                    logger.warning(f"Failed to send edit notification for appointment {appointment_id} (check logs above)")
             except Exception as e:
                 logger.exception(f"Failed to send LINE notification for appointment edit: {e}")
                 # Don't fail the request if notification fails
@@ -2048,123 +2084,6 @@ async def edit_clinic_appointment(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="編輯預約失敗"
-        )
-
-
-@router.post("/appointments/{appointment_id}/reassign", summary="Reassign appointment")
-async def reassign_appointment(
-    appointment_id: int,
-    request: AppointmentReassignRequest,
-    current_user: UserContext = Depends(require_practitioner_or_admin),
-    db: Session = Depends(get_db)
-):
-    """
-    Reassign an appointment to a different practitioner.
-    
-    Admin and practitioners can reassign any appointment.
-    Read-only users cannot reassign.
-    """
-    try:
-        clinic_id = ensure_clinic_access(current_user)
-        
-        # Check if user is read-only
-        if current_user.has_role('read-only'):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="您沒有權限重新指派預約"
-            )
-        
-        # Get appointment before reassignment (for notification)
-        appointment = db.query(Appointment).join(
-            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
-        ).filter(
-            Appointment.calendar_event_id == appointment_id,
-            CalendarEvent.clinic_id == clinic_id
-        ).first()
-        
-        if not appointment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="預約不存在"
-            )
-        
-        calendar_event = appointment.calendar_event
-        from utils.datetime_utils import TAIWAN_TZ
-        old_start_time = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
-        old_practitioner_id = calendar_event.user_id
-        old_is_auto_assigned = appointment.is_auto_assigned
-        old_notes_value = appointment.notes  # Store before reassignment
-        
-        # Reassign appointment
-        # Note: reassign_appointment uses is_admin=True to allow any practitioner to reassign
-        # any appointment, which matches the requirement that practitioners can reassign
-        # any appointment (not just their own)
-        if current_user.user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="未授權"
-            )
-        result = AppointmentService.reassign_appointment(
-            db=db,
-            appointment_id=appointment_id,
-            clinic_id=clinic_id,
-            current_user_id=current_user.user_id,
-            new_practitioner_id=request.new_practitioner_id,
-            new_start_time=request.new_start_time
-        )
-        
-        # Refresh appointment to get updated values
-        db.refresh(appointment)
-        calendar_event = appointment.calendar_event
-        
-        # Determine if notification should be sent using stored old values
-        temp_is_auto_assigned = appointment.is_auto_assigned
-        appointment.is_auto_assigned = old_is_auto_assigned  # Use old value for check
-        
-        new_start_time = request.new_start_time if request.new_start_time else old_start_time
-        should_send = AppointmentService.should_send_edit_notification(
-            old_appointment=appointment,  # Use appointment with old is_auto_assigned value
-            new_practitioner_id=request.new_practitioner_id,
-            new_start_time=request.new_start_time,
-            old_notes=old_notes_value,
-            new_notes=appointment.notes
-        )
-        
-        # Restore is_auto_assigned (will be refreshed anyway, but good practice)
-        appointment.is_auto_assigned = temp_is_auto_assigned
-        
-        # Send notification if needed
-        if should_send:
-            try:
-                old_practitioner = None
-                if not old_is_auto_assigned:
-                    old_practitioner = db.query(User).get(old_practitioner_id)
-                
-                new_practitioner = db.query(User).get(request.new_practitioner_id)
-                
-                NotificationService.send_appointment_edit_notification(
-                    db=db,
-                    appointment=appointment,
-                    old_practitioner=old_practitioner,
-                    new_practitioner=new_practitioner,
-                    old_start_time=old_start_time,
-                    new_start_time=new_start_time,
-                    note=request.notification_note
-                )
-            except Exception as e:
-                logger.exception(f"Failed to send LINE notification for appointment reassignment: {e}")
-                # Don't fail the request if notification fails
-        
-        return result
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Failed to reassign appointment: {e}")
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="重新指派預約失敗"
         )
 
 

@@ -1,23 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { logger } from '../../utils/logger';
-import { LoadingSpinner, NameWarning } from '../../components/shared';
-import { validatePhoneNumber } from '../../utils/phoneValidation';
+import { LoadingSpinner } from '../../components/shared';
 import { ApiErrorType, getErrorMessage } from '../../types';
 import { useAppointmentStore, Patient } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
+import { PatientForm, PatientFormData } from '../components/PatientForm';
 
 const Step4SelectPatient: React.FC = () => {
   const { setPatient, clinicId } = useAppointmentStore();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newPatientName, setNewPatientName] = useState('');
-  const [newPatientPhone, setNewPatientPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [requireBirthday, setRequireBirthday] = useState(false);
 
   useEffect(() => {
     loadPatients();
+  }, [clinicId]);
+
+  // Fetch clinic settings to check if birthday is required
+  useEffect(() => {
+    const fetchClinicSettings = async () => {
+      if (!clinicId) return;
+      try {
+        const clinicInfo = await liffApiService.getClinicInfo();
+        setRequireBirthday(clinicInfo.require_birthday || false);
+      } catch (err) {
+        logger.error('Failed to fetch clinic settings:', err);
+        // Don't block if we can't fetch settings
+      }
+    };
+    fetchClinicSettings();
   }, [clinicId]);
 
   const loadPatients = async () => {
@@ -37,28 +51,11 @@ const Step4SelectPatient: React.FC = () => {
   };
 
 
-  const handleAddPatient = async () => {
-    if (!newPatientName.trim() || !clinicId) return;
-
-    // Validate phone number
-    if (!newPatientPhone.trim()) {
-      setError('請輸入手機號碼');
-      return;
-    }
-
-    const phoneValidation = validatePhoneNumber(newPatientPhone);
-    if (!phoneValidation.isValid && phoneValidation.error) {
-      setError(phoneValidation.error);
-      return;
-    }
-
+  const handleAddPatient = async (formData: PatientFormData) => {
     try {
       setIsAdding(true);
       setError(null);
-      const response = await liffApiService.createPatient({
-        full_name: newPatientName.trim(),
-        phone_number: newPatientPhone.replace(/[\s\-\(\)]/g, ''),
-      });
+      const response = await liffApiService.createPatient(formData);
 
       const newPatient: Patient = {
         id: response.patient_id,
@@ -67,14 +64,12 @@ const Step4SelectPatient: React.FC = () => {
       };
 
       setPatients(prev => [...prev, newPatient]);
-      setNewPatientName('');
-      setNewPatientPhone('');
       setShowAddForm(false);
       setPatient(newPatient.id, newPatient);
     } catch (err: ApiErrorType) {
       logger.error('Failed to add patient:', err);
-      
       setError(getErrorMessage(err));
+      throw err; // Re-throw so PatientForm can handle it
     } finally {
       setIsAdding(false);
     }
@@ -124,48 +119,17 @@ const Step4SelectPatient: React.FC = () => {
         {showAddForm && (
           <div className="bg-white border border-gray-200 rounded-lg p-4">
             <h3 className="font-medium text-gray-900 mb-3">新增就診人</h3>
-            <input
-              type="text"
-              value={newPatientName}
-              onChange={(e) => setNewPatientName(e.target.value)}
-              placeholder="請輸入姓名"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md mb-2"
-            />
-            <div className="mb-3">
-              <NameWarning />
-            </div>
-            <input
-              type="tel"
-              value={newPatientPhone}
-              onChange={(e) => setNewPatientPhone(e.target.value)}
-              placeholder="請輸入手機號碼 (0912345678)"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md mb-3"
-            />
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-2 mb-3">
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
-            )}
-            <div className="flex space-x-2">
-              <button
-                onClick={handleAddPatient}
-                disabled={isAdding || !newPatientName.trim() || !newPatientPhone.trim()}
-                className="flex-1 bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 disabled:opacity-50"
-              >
-                {isAdding ? '新增中...' : '確認'}
-              </button>
-              <button
-                onClick={() => {
+            <PatientForm
+              clinicId={clinicId}
+              requireBirthday={requireBirthday}
+              onSubmit={handleAddPatient}
+              onCancel={() => {
                   setShowAddForm(false);
-                  setNewPatientName('');
-                  setNewPatientPhone('');
                   setError(null);
                 }}
-                className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200"
-              >
-                取消
-              </button>
-            </div>
+              error={error}
+              isLoading={isAdding}
+            />
           </div>
         )}
       </div>

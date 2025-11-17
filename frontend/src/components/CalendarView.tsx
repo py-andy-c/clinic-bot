@@ -7,6 +7,7 @@ import moment from 'moment-timezone';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { apiService } from '../services/api';
 import { ApiCalendarEvent } from '../types';
+import { getErrorMessage } from '../types/api';
 import { 
   transformToCalendarEvents, 
   CalendarEvent 
@@ -20,6 +21,8 @@ import {
   CancellationNoteModal,
   CancellationPreviewModal,
   DeleteConfirmationModal,
+  EditAppointmentModal,
+  CreateAppointmentModal,
 } from './calendar';
 import {
   getDateString,
@@ -43,6 +46,8 @@ interface CalendarViewProps {
   onSelectEvent?: (event: CalendarEvent) => void;
   onNavigate?: (date: Date) => void;
   onAddExceptionHandlerReady?: (handler: () => void, view: View) => void;
+  onCreateAppointment?: (patientId?: number) => void; // Callback to open create appointment modal
+  preSelectedPatientId?: number; // Pre-selected patient ID from query parameter
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({ 
@@ -51,7 +56,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   practitioners = [],
   onSelectEvent, 
   onNavigate,
-  onAddExceptionHandlerReady
+  onAddExceptionHandlerReady,
+  preSelectedPatientId
 }) => {
   const { alert } = useModal();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -61,9 +67,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modalState, setModalState] = useState<{
-    type: 'event' | 'exception' | 'conflict' | 'delete_confirmation' | 'cancellation_note' | 'cancellation_preview' | null;
+    type: 'event' | 'exception' | 'conflict' | 'delete_confirmation' | 'cancellation_note' | 'cancellation_preview' | 'edit_appointment' | 'create_appointment' | null;
     data: any;
   }>({ type: null, data: null });
+  const [createModalKey, setCreateModalKey] = useState(0);
   const [exceptionData, setExceptionData] = useState({
     date: '',
     startTime: '',
@@ -72,6 +79,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [cancellationNote, setCancellationNote] = useState('');
   const [cancellationPreviewMessage, setCancellationPreviewMessage] = useState('');
   const [cancellationPreviewLoading, setCancellationPreviewLoading] = useState(false);
+  const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
+  const [availablePractitioners, setAvailablePractitioners] = useState<{ id: number; full_name: string }[]>([]);
+  const [appointmentTypes, setAppointmentTypes] = useState<{ id: number; name: string; duration_minutes: number }[]>([]);
   const [isFullDay, setIsFullDay] = useState(false);
   const scrollYRef = useRef(0);
 
@@ -124,9 +134,31 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Set scroll position to 9 AM for day view
   const scrollToTime = useMemo(() => getScrollToTime(currentDate), [currentDate]);
 
+  // Fetch practitioners for edit appointment
+  const fetchPractitioners = async () => {
+    try {
+      const response = await apiService.getPractitioners();
+      setAvailablePractitioners(response);
+    } catch (err) {
+      logger.error('Failed to fetch practitioners:', err);
+    }
+  };
+
+  // Fetch appointment types for edit appointment
+  const fetchAppointmentTypes = async () => {
+    try {
+      const settings = await apiService.getClinicSettings();
+      setAppointmentTypes(settings.appointment_types || []);
+    } catch (err) {
+      logger.error('Failed to fetch appointment types:', err);
+    }
+  };
+
   useEffect(() => {
     fetchCalendarData();
     fetchDefaultSchedule();
+    fetchPractitioners();
+    fetchAppointmentTypes();
   }, [userId, additionalPractitionerIds, currentDate, view]);
 
   // Fetch default schedule
@@ -482,6 +514,119 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
   };
 
+  // Handle edit appointment button click
+  const handleEditAppointment = async () => {
+    if (!modalState.data || !modalState.data.resource.appointment_id) return;
+    
+    if (!canEditEvent(modalState.data)) {
+      await alert('您只能編輯自己的預約');
+      return;
+    }
+    
+    // Reset error and show edit modal
+    setEditErrorMessage(null); // Clear any previous error
+    setModalState({ type: 'edit_appointment', data: modalState.data });
+  };
+
+  // Type definition for edit appointment form data
+  type EditAppointmentFormData = {
+    practitioner_id: number | null;
+    start_time: string;
+    notes?: string;
+    notification_note?: string;
+  };
+
+  // Handle appointment edit confirmation (called from EditAppointmentModal)
+  const handleConfirmEditAppointment = async (formData: EditAppointmentFormData) => {
+    if (!modalState.data) return;
+
+    if (!canEditEvent(modalState.data)) {
+      // Show error in edit modal
+      setEditErrorMessage('您只能編輯自己的預約');
+      return;
+    }
+
+    try {
+      await apiService.editClinicAppointment(
+        modalState.data.resource.calendar_event_id,
+        {
+          practitioner_id: formData.practitioner_id,
+          start_time: formData.start_time,
+          ...(formData.notes !== undefined ? { notes: formData.notes } : {}),
+          ...(formData.notification_note ? { notification_note: formData.notification_note } : {}),
+        }
+      );
+
+      // Refresh data
+      await fetchCalendarData();
+      setModalState({ type: null, data: null });
+      setEditErrorMessage(null);
+      await alert('預約已更新');
+    } catch (error) {
+      logger.error('Error editing appointment:', error);
+      // Extract error message from backend response
+      const errorMessage = getErrorMessage(error);
+      // Store error message - modal will display it
+      setEditErrorMessage(errorMessage);
+      throw error; // Re-throw so modal can handle it
+    }
+  };
+
+  // Handle create appointment button click
+  const handleCreateAppointment = useCallback((patientId?: number) => {
+    setCreateModalKey(prev => prev + 1); // Force remount to reset state
+    // Format current date as YYYY-MM-DD for initial date selection
+    const currentDateString = getDateString(currentDate);
+    // Use null to explicitly mean "no patient" (button click), undefined means "use prop" (URL-based)
+    setModalState({ type: 'create_appointment', data: { patientId: patientId ?? null, initialDate: currentDateString } });
+  }, [currentDate]);
+
+  // Expose create appointment handler to parent
+  useEffect(() => {
+    // Store the handler so parent can call it
+    (window as any).__calendarCreateAppointment = handleCreateAppointment;
+    return () => {
+      delete (window as any).__calendarCreateAppointment;
+    };
+  }, [handleCreateAppointment]);
+
+  // Open create appointment modal if preSelectedPatientId is provided
+  useEffect(() => {
+    if (preSelectedPatientId && modalState.type === null) {
+      handleCreateAppointment(preSelectedPatientId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preSelectedPatientId]);
+
+  // Handle create appointment confirmation
+  const handleConfirmCreateAppointment = async (formData: {
+    patient_id: number;
+    appointment_type_id: number;
+    practitioner_id: number;
+    start_time: string;
+    notes: string;
+  }) => {
+    try {
+      await apiService.createClinicAppointment(formData);
+
+      // Refresh data
+      await fetchCalendarData();
+      setModalState({ type: null, data: null });
+      await alert('預約已建立');
+      
+      // Clear query parameter if it exists
+      if (window.location.search.includes('createAppointment=')) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('createAppointment');
+        window.history.replaceState({}, '', url.toString());
+      }
+    } catch (error) {
+      logger.error('Error creating appointment:', error);
+      const errorMessage = getErrorMessage(error);
+      throw new Error(errorMessage);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -588,6 +733,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 ? handleDeleteException 
                 : undefined
             }
+            onEditAppointment={
+              canEdit && modalState.data.resource.type === 'appointment' 
+                ? handleEditAppointment 
+                : undefined
+            }
             formatAppointmentTime={formatAppointmentTime}
           />
         );
@@ -645,6 +795,48 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           onConfirm={modalState.data.resource.type === 'appointment' 
             ? handleConfirmDeleteAppointment 
             : handleConfirmDeleteException}
+        />
+      )}
+
+      {/* Edit Appointment Modal - handles all steps (form, note, preview) */}
+      {modalState.type === 'edit_appointment' && modalState.data && (
+        <EditAppointmentModal
+          event={modalState.data}
+          practitioners={availablePractitioners.length > 0 ? availablePractitioners : practitioners}
+          appointmentTypes={appointmentTypes}
+          onClose={() => {
+            setEditErrorMessage(null); // Clear error when closing
+            setModalState({ type: 'event', data: modalState.data });
+          }}
+          onConfirm={handleConfirmEditAppointment}
+          formatAppointmentTime={formatAppointmentTime}
+          errorMessage={editErrorMessage}
+        />
+      )}
+
+      {/* Create Appointment Modal */}
+      {modalState.type === 'create_appointment' && modalState.data && (
+        <CreateAppointmentModal
+          key={`create-${createModalKey}`}
+          // null from button click → undefined (no patient), number from URL → use it, undefined → fall back to prop
+          preSelectedPatientId={
+            modalState.data.patientId === null 
+              ? undefined 
+              : modalState.data.patientId ?? preSelectedPatientId
+          }
+          initialDate={modalState.data.initialDate || null}
+          practitioners={availablePractitioners.length > 0 ? availablePractitioners : practitioners}
+          appointmentTypes={appointmentTypes}
+          onClose={() => {
+            setModalState({ type: null, data: null });
+            // Clear query parameter if it exists
+            if (window.location.search.includes('createAppointment=')) {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('createAppointment');
+              window.history.replaceState({}, '', url.toString());
+            }
+          }}
+          onConfirm={handleConfirmCreateAppointment}
         />
       )}
     </div>

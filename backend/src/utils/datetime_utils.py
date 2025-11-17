@@ -97,3 +97,39 @@ def format_datetime(dt: datetime) -> str:
     time_str = f"{hour_12}:{minute:02d} {period}"
     
     return f"{local_datetime.strftime('%m/%d')} ({weekday_cn}) {time_str}"
+
+
+def parse_datetime_string_to_taiwan(dt_str: str) -> datetime:
+    """
+    Parse an ISO format datetime string and convert to Taiwan timezone.
+    
+    Handles various datetime string formats:
+    - ISO format with timezone (e.g., "2024-01-01T09:00:00+08:00")
+    - ISO format with Z (UTC) (e.g., "2024-01-01T01:00:00Z")
+    - ISO format without timezone (assumes Taiwan time)
+    
+    Args:
+        dt_str: ISO format datetime string
+        
+    Returns:
+        Datetime object in Taiwan timezone
+        
+    Raises:
+        ValueError: If datetime string cannot be parsed
+    """
+    try:
+        # Replace Z with +00:00 for UTC
+        dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+        # Convert to Taiwan timezone
+        if dt.tzinfo:
+            return dt.astimezone(TAIWAN_TZ)
+        else:
+            # No timezone, assume Taiwan time
+            return dt.replace(tzinfo=TAIWAN_TZ)
+    except ValueError:
+        # Fallback: try to parse without timezone handling
+        try:
+            dt = datetime.fromisoformat(dt_str)
+            return dt.replace(tzinfo=TAIWAN_TZ)
+        except ValueError as e:
+            raise ValueError(f"Invalid datetime string format: {dt_str}") from e

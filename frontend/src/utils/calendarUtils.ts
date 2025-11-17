@@ -101,6 +101,103 @@ export const formatTimeString = (timeStr: string): string => {
 };
 
 /**
+ * Format 24-hour time string to 12-hour format with AM/PM
+ * Returns object with time12 and period for flexible display
+ * Example: "09:00" -> { time12: "09:00", period: "AM" }
+ * Example: "14:30" -> { time12: "02:30", period: "PM" }
+ */
+export const formatTo12Hour = (time24: string): { time12: string; period: 'AM' | 'PM'; display: string } => {
+  const parts = time24.split(':').map(Number);
+  const hours = parts[0] ?? 0;
+  const minutes = parts[1] ?? 0;
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  const time12 = `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  // Display format without leading zero on hour: "1:45 PM" instead of "01:45 PM"
+  const displayHour = hours12; // No padding for display
+  const displayMinutes = String(minutes).padStart(2, '0');
+  return {
+    time12,
+    period,
+    display: `${displayHour}:${displayMinutes} ${period}` // "1:45 PM" format
+  };
+};
+
+/**
+ * Group time slots into AM and PM arrays
+ */
+export const groupTimeSlots = (slots: string[]): { amSlots: string[]; pmSlots: string[] } => {
+  const amSlots: string[] = [];
+  const pmSlots: string[] = [];
+
+  slots.forEach(slot => {
+    const formatted = formatTo12Hour(slot);
+    if (formatted.period === 'AM') {
+      amSlots.push(slot);
+    } else {
+      pmSlots.push(slot);
+    }
+  });
+
+  return { amSlots, pmSlots };
+};
+
+/**
+ * Generate calendar days for a given month
+ * Returns array of Date objects (or null for empty cells)
+ */
+export const generateCalendarDays = (month: Date): (Date | null)[] => {
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const firstDay = new Date(year, monthIndex, 1);
+  const lastDay = new Date(year, monthIndex + 1, 0);
+  const daysInMonth = lastDay.getDate();
+  const startingDayOfWeek = firstDay.getDay(); // 0 = Sunday
+
+  const days: (Date | null)[] = [];
+
+  // Add null for days before month starts
+  for (let i = 0; i < startingDayOfWeek; i++) {
+    days.push(null);
+  }
+
+  // Add all days in the month
+  for (let day = 1; day <= daysInMonth; day++) {
+    days.push(new Date(year, monthIndex, day));
+  }
+
+  return days;
+};
+
+/**
+ * Check if a date is today
+ */
+export const isToday = (date: Date): boolean => {
+  const today = new Date();
+  return date.toDateString() === today.toDateString();
+};
+
+/**
+ * Format month and year in Chinese locale
+ */
+export const formatMonthYear = (date: Date): string => {
+  return date.toLocaleDateString('zh-TW', {
+    year: 'numeric',
+    month: 'long'
+  });
+};
+
+/**
+ * Format date as YYYY-MM-DD string
+ */
+export const formatDateString = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+/**
  * Get scroll position for day view (9 AM)
  */
 export const getScrollToTime = (currentDate: Date): Date => {

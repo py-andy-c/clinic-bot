@@ -262,10 +262,14 @@ class NotificationService:
 
             # Send notification
             line_service = NotificationService._get_line_service(clinic)
+            logger.debug(
+                f"Sending edit notification to LINE user {patient.line_user.line_user_id} "
+                f"for patient {patient.id} ({patient.full_name}), appointment {appointment.calendar_event_id}"
+            )
             line_service.send_text_message(patient.line_user.line_user_id, message)
 
             logger.info(
-                f"Sent edit notification to patient {patient.id} "
+                f"Sent edit notification to patient {patient.id} ({patient.full_name}) "
                 f"for appointment {appointment.calendar_event_id}"
             )
             return True

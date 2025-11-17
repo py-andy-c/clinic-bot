@@ -118,7 +118,8 @@ class AvailabilityService:
         practitioner_id: int,
         date: str,
         appointment_type_id: int,
-        clinic_id: int
+        clinic_id: int,
+        exclude_calendar_event_id: int | None = None
     ) -> List[Dict[str, Any]]:
         """
         Get available time slots for a specific practitioner.
@@ -199,7 +200,7 @@ class AvailabilityService:
 
             # Calculate available slots for this practitioner
             return AvailabilityService._calculate_available_slots(
-                db, requested_date, [practitioner], appointment_type.duration_minutes, clinic, clinic_id
+                db, requested_date, [practitioner], appointment_type.duration_minutes, clinic, clinic_id, exclude_calendar_event_id
             )
             
         except HTTPException:
@@ -293,7 +294,8 @@ class AvailabilityService:
         practitioners: List[User],
         duration_minutes: int,
         clinic: Clinic,
-        clinic_id: int
+        clinic_id: int,
+        exclude_calendar_event_id: int | None = None
     ) -> List[Dict[str, Any]]:
         """
         Calculate available time slots for the given date and practitioners.
@@ -320,7 +322,7 @@ class AvailabilityService:
         # Batch fetch schedule data for all practitioners (2 queries total instead of N×2)
         practitioner_ids = [p.id for p in practitioners]
         schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
-            db, practitioner_ids, requested_date, clinic_id
+            db, practitioner_ids, requested_date, clinic_id, exclude_calendar_event_id
         )
         
         available_slots: List[Dict[str, Any]] = []
@@ -562,7 +564,8 @@ class AvailabilityService:
         db: Session,
         practitioner_ids: List[int],
         date: date_type,
-        clinic_id: int
+        clinic_id: int,
+        exclude_calendar_event_id: int | None = None
     ) -> Dict[int, Dict[str, Any]]:
         """
         Fetch schedule data for one or more practitioners.
@@ -604,9 +607,8 @@ class AvailabilityService:
             default_intervals_map[interval.user_id].append(interval)
 
         # Batch fetch all calendar events (exceptions and confirmed appointments) in a single query
-        events = db.query(CalendarEvent).outerjoin(
-            Appointment, CalendarEvent.id == Appointment.calendar_event_id
-        ).filter(
+        # Exclude the specified calendar_event_id if provided (for appointment editing)
+        event_filter = and_(
             CalendarEvent.user_id.in_(practitioner_ids),
             CalendarEvent.clinic_id == clinic_id,
             CalendarEvent.date == date,
@@ -617,7 +619,13 @@ class AvailabilityService:
                     Appointment.status == 'confirmed'
                 )
             )
-        ).all()
+        )
+        if exclude_calendar_event_id is not None:
+            event_filter = and_(event_filter, CalendarEvent.id != exclude_calendar_event_id)
+        
+        events = db.query(CalendarEvent).outerjoin(
+            Appointment, CalendarEvent.id == Appointment.calendar_event_id
+        ).filter(event_filter).all()
         
         # Group events by practitioner_id
         events_map: Dict[int, List[CalendarEvent]] = {}

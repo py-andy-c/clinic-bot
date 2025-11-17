@@ -323,8 +323,11 @@ export class ApiService {
     return response.data;
   }
 
-  async getAvailableSlots(userId: number, date: string, appointmentTypeId: number): Promise<AvailableSlotsResponse> {
-    const params = { date, appointment_type_id: appointmentTypeId };
+  async getAvailableSlots(userId: number, date: string, appointmentTypeId: number, excludeCalendarEventId?: number): Promise<AvailableSlotsResponse> {
+    const params: { date: string; appointment_type_id: number; exclude_calendar_event_id?: number } = { date, appointment_type_id: appointmentTypeId };
+    if (excludeCalendarEventId !== undefined) {
+      params.exclude_calendar_event_id = excludeCalendarEventId;
+    }
     const response = await this.client.get(`/clinic/practitioners/${userId}/availability/slots`, { params });
     return response.data;
   }
@@ -364,6 +367,50 @@ export class ApiService {
   async cancelClinicAppointment(appointmentId: number, note?: string): Promise<{ success: boolean; message: string; appointment_id: number }> {
     const params = note ? { note } : {};
     const response = await this.client.delete(`/clinic/appointments/${appointmentId}`, { params });
+    return response.data;
+  }
+
+  async createClinicAppointment(data: {
+    patient_id: number;
+    appointment_type_id: number;
+    start_time: string; // ISO datetime string
+    practitioner_id?: number | null;
+    notes?: string;
+  }): Promise<{ success: boolean; appointment_id: number; message: string }> {
+    const response = await this.client.post('/clinic/appointments', data);
+    return response.data;
+  }
+
+  async previewEditNotification(appointmentId: number, data: {
+    new_practitioner_id?: number | null;
+    new_start_time?: string | null; // ISO datetime string
+    note?: string;
+  }): Promise<{
+    preview_message: string | null;
+    old_appointment_details: {
+      practitioner_id: number;
+      start_time: string;
+      is_auto_assigned: boolean;
+    };
+    new_appointment_details: {
+      practitioner_id: number;
+      start_time: string;
+    };
+    conflicts: string[];
+    is_valid: boolean;
+    will_send_notification: boolean;
+  }> {
+    const response = await this.client.post(`/clinic/appointments/${appointmentId}/edit-preview`, data);
+    return response.data;
+  }
+
+  async editClinicAppointment(appointmentId: number, data: {
+    practitioner_id?: number | null;
+    start_time?: string | null; // ISO datetime string
+    notes?: string;
+    notification_note?: string; // Optional note for notification (does not update appointment.notes)
+  }): Promise<{ success: boolean; appointment_id: number; message: string }> {
+    const response = await this.client.put(`/clinic/appointments/${appointmentId}`, data);
     return response.data;
   }
 

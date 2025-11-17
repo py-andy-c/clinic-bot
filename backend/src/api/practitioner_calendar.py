@@ -646,6 +646,7 @@ async def get_available_slots(
     user_id: int,
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
     appointment_type_id: int = Query(..., description="Appointment type ID"),
+    exclude_calendar_event_id: int | None = Query(None, description="Calendar event ID to exclude from conflict checking (for appointment editing)"),
     db: Session = Depends(get_db),
     current_user: UserContext = Depends(require_authenticated)
 ) -> AvailableSlotsResponse:
@@ -684,7 +685,8 @@ async def get_available_slots(
             practitioner_id=user_id,
             date=date,
             appointment_type_id=appointment_type_id,
-            clinic_id=clinic_id
+            clinic_id=clinic_id,
+            exclude_calendar_event_id=exclude_calendar_event_id
         )
 
         # Strip practitioner info for response (not needed since it's always same practitioner)

@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import moment from 'moment-timezone';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner } from '../../components/shared';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
+import {
+  formatTo12Hour,
+  groupTimeSlots,
+  generateCalendarDays,
+  isToday,
+  formatMonthYear,
+  formatDateString,
+} from '../../utils/calendarUtils';
 
 const Step3SelectDateTime: React.FC = () => {
   const { appointmentTypeId, practitionerId, setDateTime, clinicId } = useAppointmentStore();
@@ -14,31 +23,8 @@ const Step3SelectDateTime: React.FC = () => {
   const [datesWithSlots, setDatesWithSlots] = useState<Set<string>>(new Set());
   const [loadingAvailability, setLoadingAvailability] = useState(false);
 
-  // Generate calendar days for current month
-  const generateCalendarDays = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay(); // 0 = Sunday
-
-    const days: (Date | null)[] = [];
-
-    // Add null for days before month starts
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(null);
-    }
-
-    // Add all days in the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      days.push(new Date(year, month, day));
-    }
-
-    return days;
-  };
-
-  const calendarDays = generateCalendarDays();
+  // Generate calendar days using shared utility
+  const calendarDays = generateCalendarDays(currentMonth);
 
   // Load availability for all dates in current month
   useEffect(() => {
@@ -50,17 +36,17 @@ const Step3SelectDateTime: React.FC = () => {
         const year = currentMonth.getFullYear();
         const month = currentMonth.getMonth();
         const lastDay = new Date(year, month + 1, 0).getDate();
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // Get today's date in Taiwan timezone to match backend validation
+        const todayTaiwan = moment.tz('Asia/Taipei').startOf('day');
+        const todayDateString = todayTaiwan.format('YYYY-MM-DD');
 
         // Build array of dates to check
         const datesToCheck: string[] = [];
         for (let day = 1; day <= lastDay; day++) {
-          const date = new Date(year, month, day);
-          // Skip past dates
-          if (date >= today) {
-            // Format date as YYYY-MM-DD using local date components (not UTC)
             const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          // Only check dates that are today or in the future (avoid 400 errors for past dates)
+          // Compare date strings to ensure we're using the same timezone as the backend
+          if (dateString >= todayDateString) {
             datesToCheck.push(dateString);
     }
         }
@@ -127,12 +113,8 @@ const Step3SelectDateTime: React.FC = () => {
   };
 
   const handleDateSelect = (date: Date) => {
-    // Format date as YYYY-MM-DD using local date components (not UTC)
-    // This ensures the calendar date stays the same regardless of timezone
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const dateString = `${year}-${month}-${day}`;
+    // Format date as YYYY-MM-DD using shared utility
+    const dateString = formatDateString(date);
     // Only allow selection if date has available slots
     if (datesWithSlots.has(dateString)) {
       setSelectedDate(dateString);
@@ -145,55 +127,10 @@ const Step3SelectDateTime: React.FC = () => {
     }
   };
 
-  // Convert 24-hour time to 12-hour format
-  const formatTo12Hour = (time24: string): { time12: string; period: 'AM' | 'PM' } => {
-    const parts = time24.split(':').map(Number);
-    const hours = parts[0] ?? 0;
-    const minutes = parts[1] ?? 0;
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-    return {
-      time12: `${hours12.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`,
-      period
-    };
-  };
-
-  // Group time slots into AM and PM
-  const groupTimeSlots = (slots: string[]) => {
-    const amSlots: string[] = [];
-    const pmSlots: string[] = [];
-
-    slots.forEach(slot => {
-      const formatted = formatTo12Hour(slot);
-      if (formatted.period === 'AM') {
-        amSlots.push(slot);
-      } else {
-        pmSlots.push(slot);
-      }
-    });
-
-    return { amSlots, pmSlots };
-  };
-
-  const isToday = (date: Date) => {
-    const today = new Date();
-    return date.toDateString() === today.toDateString();
-  };
-
+  // Use shared utility for date availability check
   const isDateAvailable = (date: Date): boolean => {
-    // Format date as YYYY-MM-DD using local date components (not UTC)
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const dateString = `${year}-${month}-${day}`;
+    const dateString = formatDateString(date);
     return datesWithSlots.has(dateString);
-  };
-
-  const formatMonthYear = (date: Date): string => {
-    return date.toLocaleDateString('zh-TW', {
-      year: 'numeric',
-      month: 'long'
-    });
   };
 
   const handlePrevMonth = () => {
@@ -263,14 +200,11 @@ const Step3SelectDateTime: React.FC = () => {
                 return <div key={`empty-${index}`} className="aspect-square" />;
               }
 
-              // Format date as YYYY-MM-DD using local date components (not UTC)
-              const year = date.getFullYear();
-              const month = String(date.getMonth() + 1).padStart(2, '0');
-              const day = String(date.getDate()).padStart(2, '0');
-              const dateString = `${year}-${month}-${day}`;
+              // Format date using shared utility
+              const dateString = formatDateString(date);
               const available = isDateAvailable(date);
               const selected = selectedDate === dateString;
-              const today = isToday(date);
+              const todayDate = isToday(date);
 
               return (
                 <button
@@ -289,7 +223,7 @@ const Step3SelectDateTime: React.FC = () => {
                     <span className={selected ? 'text-white' : available ? 'text-gray-900' : 'text-gray-400'}>
                       {date.getDate()}
                     </span>
-                    {today && (
+                    {todayDate && (
                       <div className={`w-4 h-0.5 mt-0.5 ${selected ? 'bg-white' : 'bg-gray-500'}`} />
                     )}
                   </div>
@@ -340,23 +274,23 @@ const Step3SelectDateTime: React.FC = () => {
                   {pmSlots.length > 0 && (
                     <div>
                       <h4 className="text-sm font-medium text-gray-700 mb-2">下午</h4>
-            <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         {pmSlots.map((time) => {
                           const formatted = formatTo12Hour(time);
                           return (
-                <button
-                  key={time}
-                  onClick={() => handleTimeSelect(time)}
+                            <button
+                              key={time}
+                              onClick={() => handleTimeSelect(time)}
                               className="bg-white border border-gray-200 rounded-md py-2 px-2 hover:border-primary-300 hover:bg-primary-50 transition-colors text-sm font-medium text-gray-900"
-                >
+                            >
                               {formatted.time12}
-                </button>
+                            </button>
                           );
                         })}
                       </div>
                     </div>
                   )}
-            </div>
+                </div>
               );
             })()
           ) : (

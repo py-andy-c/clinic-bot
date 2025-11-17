@@ -1,0 +1,177 @@
+import React, { useState, useEffect } from 'react';
+import { logger } from '../../utils/logger';
+import { NameWarning, DateInput } from '../../components/shared';
+import { validatePhoneNumber } from '../../utils/phoneValidation';
+import { formatDateForApi } from '../../utils/dateFormat';
+import { liffApiService } from '../../services/liffApi';
+
+export interface PatientFormData {
+  full_name: string;
+  phone_number: string;
+  birthday?: string;
+}
+
+export interface PatientFormProps {
+  clinicId: number | null;
+  requireBirthday?: boolean;
+  onSubmit: (data: PatientFormData) => Promise<void>;
+  onCancel?: () => void;
+  initialData?: Partial<PatientFormData>;
+  submitButtonText?: string;
+  cancelButtonText?: string;
+  showCancelButton?: boolean;
+  error?: string | null;
+  isLoading?: boolean;
+}
+
+export const PatientForm: React.FC<PatientFormProps> = ({
+  clinicId,
+  requireBirthday: requireBirthdayProp,
+  onSubmit,
+  onCancel,
+  initialData,
+  submitButtonText = '確認',
+  cancelButtonText = '取消',
+  showCancelButton = true,
+  error: externalError,
+  isLoading = false,
+}) => {
+  const [fullName, setFullName] = useState(initialData?.full_name || '');
+  const [phoneNumber, setPhoneNumber] = useState(initialData?.phone_number || '');
+  const [birthday, setBirthday] = useState(initialData?.birthday || '');
+  const [requireBirthday, setRequireBirthday] = useState(requireBirthdayProp || false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch clinic settings if requireBirthday is not provided
+  useEffect(() => {
+    const fetchClinicSettings = async () => {
+      if (requireBirthdayProp !== undefined || !clinicId) return;
+      try {
+        const clinicInfo = await liffApiService.getClinicInfo();
+        setRequireBirthday(clinicInfo.require_birthday || false);
+      } catch (err) {
+        logger.error('Failed to fetch clinic settings:', err);
+        // Don't block if we can't fetch settings
+      }
+    };
+    fetchClinicSettings();
+  }, [clinicId, requireBirthdayProp]);
+
+  // Update form when initialData changes
+  useEffect(() => {
+    if (initialData) {
+      if (initialData.full_name !== undefined) setFullName(initialData.full_name);
+      if (initialData.phone_number !== undefined) setPhoneNumber(initialData.phone_number);
+      if (initialData.birthday !== undefined) setBirthday(initialData.birthday);
+    }
+  }, [initialData]);
+
+  const handleSubmit = async () => {
+    if (!fullName.trim() || !clinicId) return;
+
+    // Validate phone number
+    if (!phoneNumber.trim()) {
+      setError('請輸入手機號碼');
+      return;
+    }
+
+    const phoneValidation = validatePhoneNumber(phoneNumber);
+    if (!phoneValidation.isValid && phoneValidation.error) {
+      setError(phoneValidation.error);
+      return;
+    }
+
+    // Validate required birthday
+    if (requireBirthday && !birthday.trim()) {
+      setError('請輸入生日');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setError(null);
+      const formData: PatientFormData = {
+        full_name: fullName.trim(),
+        phone_number: phoneNumber.replace(/[\s\-\(\)]/g, ''),
+      };
+      if (birthday.trim()) {
+        formData.birthday = formatDateForApi(birthday.trim());
+      }
+      await onSubmit(formData);
+    } catch (err) {
+      logger.error('Failed to submit patient form:', err);
+      // Error handling is done by parent component
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setFullName('');
+    setPhoneNumber('');
+    setBirthday('');
+    setError(null);
+    onCancel?.();
+  };
+
+  const displayError = externalError || error;
+  const isDisabled = isLoading || isSubmitting || !fullName.trim() || !phoneNumber.trim() || (requireBirthday && !birthday.trim());
+
+  return (
+    <div>
+      <input
+        type="text"
+        value={fullName}
+        onChange={(e) => setFullName(e.target.value)}
+        placeholder="請輸入姓名"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md mb-2"
+      />
+      <div className="mb-3">
+        <NameWarning />
+      </div>
+      <input
+        type="tel"
+        value={phoneNumber}
+        onChange={(e) => setPhoneNumber(e.target.value)}
+        placeholder="請輸入手機號碼 (0912345678)"
+        className="w-full px-3 py-2 border border-gray-300 rounded-md mb-3"
+      />
+      {requireBirthday && (
+        <div className="mb-3">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            生日
+          </label>
+          <DateInput
+            value={birthday}
+            onChange={setBirthday}
+            className="w-full"
+          />
+        </div>
+      )}
+      {displayError && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-2 mb-3">
+          <p className="text-sm text-red-600">{displayError}</p>
+        </div>
+      )}
+      <div className="flex space-x-2">
+        <button
+          onClick={handleSubmit}
+          disabled={isDisabled}
+          className="flex-1 bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 disabled:opacity-50"
+        >
+          {isSubmitting ? '處理中...' : submitButtonText}
+        </button>
+        {showCancelButton && (
+          <button
+            onClick={handleCancel}
+            className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200"
+          >
+            {cancelButtonText}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+

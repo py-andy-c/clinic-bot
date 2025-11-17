@@ -13,6 +13,7 @@ export interface EventModalProps {
   onClose: () => void;
   onDeleteAppointment?: (() => void | Promise<void>) | undefined;
   onDeleteException?: (() => void | Promise<void>) | undefined;
+  onEditAppointment?: (() => void | Promise<void>) | undefined;
   formatAppointmentTime: (start: Date, end: Date) => string;
 }
 
@@ -21,6 +22,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
   onClose,
   onDeleteAppointment,
   onDeleteException,
+  onEditAppointment,
   formatAppointmentTime,
 }) => {
   return (
@@ -28,9 +30,22 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
       onClose={onClose}
       aria-label={event.resource.type === 'appointment' ? '預約詳情' : '休診詳情'}
     >
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold">
+          {event.resource.type === 'appointment' ? event.title : '休診'}
+        </h3>
+        <button
+          onClick={onClose}
+          className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+          aria-label="關閉"
+        >
+          <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
         {event.resource.type === 'appointment' ? (
           <>
-            <h3 className="text-lg font-semibold mb-4">{event.title}</h3>
             <div className="space-y-2">
               {(event.resource.event_practitioner_name || (event.resource.practitioner_name && !event.resource.is_primary)) && (
                 <p><strong>治療師:</strong> {event.resource.event_practitioner_name || event.resource.practitioner_name}</p>
@@ -52,7 +67,6 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
           </>
         ) : (
           <>
-            <h3 className="text-lg font-semibold mb-4">休診</h3>
             <div className="space-y-2">
               {(event.resource.event_practitioner_name || (event.resource.practitioner_name && !event.resource.is_primary)) && (
                 <p><strong>治療師:</strong> {event.resource.event_practitioner_name || event.resource.practitioner_name}</p>
@@ -62,16 +76,18 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
           </>
         )}
         <div className="flex justify-end space-x-2 mt-6">
-          <button
-            onClick={onClose}
-            className="btn-secondary"
-          >
-            關閉
-          </button>
+          {event.resource.type === 'appointment' && onEditAppointment && (
+            <button
+              onClick={onEditAppointment}
+              className="btn-primary bg-blue-600 hover:bg-blue-700"
+            >
+              編輯預約
+            </button>
+          )}
           {event.resource.type === 'appointment' && onDeleteAppointment && (
             <button
               onClick={onDeleteAppointment}
-              className="btn-primary"
+              className="btn-primary bg-red-600 hover:bg-red-700"
             >
               刪除預約
             </button>

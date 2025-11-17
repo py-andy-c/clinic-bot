@@ -24,6 +24,7 @@ export interface CalendarEvent {
     practitioner_id?: number; // For multi-practitioner calendar view
     is_primary?: boolean; // Whether this is the primary practitioner's event
     event_practitioner_name?: string; // Name of practitioner who owns this event (for multi-practitioner view)
+    is_auto_assigned?: boolean; // Whether appointment is auto-assigned (shows "不指定" to patient)
   };
 }
 
@@ -65,7 +66,8 @@ export const transformToCalendarEvents = (apiEvents: (ApiCalendarEvent | any)[])
         appointment_type_name: event.appointment_type_name,
         practitioner_id: (event as any).practitioner_id, // Preserve practitioner ID for color-coding
         is_primary: (event as any).is_primary, // Preserve primary flag
-        event_practitioner_name: (event as any).practitioner_name || (event as any).event_practitioner_name // Preserve event practitioner name
+        event_practitioner_name: (event as any).practitioner_name || (event as any).event_practitioner_name, // Preserve event practitioner name
+        is_auto_assigned: (event as any).is_auto_assigned // Preserve auto-assignment flag
       }
     };
   });
