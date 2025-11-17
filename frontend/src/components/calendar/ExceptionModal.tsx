@@ -101,16 +101,17 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
             />
           </div>
         </div>
-        <div className="flex justify-end space-x-2 mt-6">
+        {/* Buttons: Stack vertically on mobile, horizontal on desktop */}
+        <div className="flex flex-col sm:flex-row sm:justify-end gap-2 sm:space-x-2 mt-6">
           <button 
             onClick={onClose}
-            className="btn-secondary"
+            className="btn-secondary w-full sm:w-auto"
           >
             取消
           </button>
           <button 
             onClick={onCreate}
-            className="btn-primary"
+            className="btn-primary w-full sm:w-auto"
           >
             儲存休診時段
           </button>
