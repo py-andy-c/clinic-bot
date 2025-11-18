@@ -33,12 +33,14 @@ class AvailabilityService:
     """
 
     @staticmethod
-    def _validate_date(date: str) -> date_type:
+    def _validate_date(date: str, clinic_id: int, db: Session) -> date_type:
         """
-        Validate date format and range.
+        Validate date format and range using clinic-specific booking window.
 
         Args:
             date: Date string in YYYY-MM-DD format
+            clinic_id: Clinic ID to get booking window setting
+            db: Database session
 
         Returns:
             Parsed date object
@@ -55,9 +57,20 @@ class AvailabilityService:
                 detail="無效的日期格式（請使用 YYYY-MM-DD）"
             )
 
+        # Get clinic settings for booking window
+        clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="診所不存在"
+            )
+        
+        settings = clinic.get_validated_settings()
+        max_booking_window_days = settings.booking_restriction_settings.max_booking_window_days
+
         # Validate date range (using Taiwan timezone)
         today = taiwan_now().date()
-        max_date = today + timedelta(days=90)
+        max_date = today + timedelta(days=max_booking_window_days)
 
         if requested_date < today:
             raise HTTPException(
@@ -67,7 +80,7 @@ class AvailabilityService:
         if requested_date > max_date:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="最多只能預約 90 天內的時段"
+                detail=f"最多只能預約 {max_booking_window_days} 天內的時段"
             )
 
         return requested_date
@@ -246,7 +259,7 @@ class AvailabilityService:
         """
         try:
             # Validate date and get appointment type
-            requested_date = AvailabilityService._validate_date(date)
+            requested_date = AvailabilityService._validate_date(date, clinic_id, db)
             appointment_type = AppointmentTypeService.get_appointment_type_by_id(db, appointment_type_id)
 
             # Verify appointment type belongs to the requested clinic
@@ -367,7 +380,7 @@ class AvailabilityService:
         """
         try:
             # Validate date and get appointment type
-            requested_date = AvailabilityService._validate_date(date)
+            requested_date = AvailabilityService._validate_date(date, clinic_id, db)
             appointment_type = AppointmentTypeService.get_appointment_type_by_id(db, appointment_type_id)
             
             # Verify appointment type belongs to clinic

@@ -62,6 +62,13 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
     });
   };
 
+  const handleMaxBookingWindowDaysChange = (value: string) => {
+    onBookingRestrictionSettingsChange({
+      ...bookingRestrictionSettings,
+      max_booking_window_days: value,
+    });
+  };
+
   const [showStepSizePopup, setShowStepSizePopup] = useState(false);
   const stepSizeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -216,10 +223,30 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
           </div>
         </div>
 
+        {/* 預約時間範圍 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            患者最多可預約多少天後的時段（天）
+          </label>
+          <div className="space-y-4 max-w-xs">
+            <div>
+              <input
+                type="number"
+                value={bookingRestrictionSettings.max_booking_window_days ?? 90}
+                onChange={(e) => handleMaxBookingWindowDaysChange(e.target.value)}
+                className="input"
+                min="1"
+                max="365"
+                disabled={!isClinicAdmin}
+              />
+            </div>
+          </div>
+        </div>
+
         {/* 患者未來預約上限 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            患者未來預約上限
+            患者未來預約上限（次）
           </label>
           <div className="space-y-4 max-w-xs">
             <div>
@@ -243,7 +270,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
         <div className="relative">
           <div className="flex items-center gap-2 mb-2">
             <label className="block text-sm font-medium text-gray-700">
-              預約起始時間間隔
+              預約起始時間間隔（分鐘）
             </label>
             <button
               ref={stepSizeButtonRef}

@@ -274,9 +274,9 @@ class AppointmentCreateRequest(BaseModel):
         # Must be in future
         if v < now:
             raise ValueError('無法預約過去的時間')
-        # Must be within 90 days
-        if v > now + timedelta(days=90):
-            raise ValueError('最多只能預約 90 天內的時段')
+        # System-wide maximum: 365 days (clinic-specific limit is checked in service layer)
+        if v > now + timedelta(days=365):
+            raise ValueError('最多只能預約 365 天內的時段')
         return v
 
 

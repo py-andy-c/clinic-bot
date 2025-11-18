@@ -17,6 +17,7 @@ export const BookingRestrictionSettingsSchema = z.object({
   minimum_booking_hours_ahead: z.union([z.number(), z.string()]),
   step_size_minutes: z.union([z.number(), z.string()]).optional(),
   max_future_appointments: z.union([z.number(), z.string()]).optional(),
+  max_booking_window_days: z.union([z.number(), z.string()]).optional(),
 });
 
 export const ClinicInfoSettingsSchema = z.object({

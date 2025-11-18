@@ -55,6 +55,15 @@ export const validateClinicSettings = (settings: ClinicSettings): string | null 
     }
   }
 
+  // Validate max_booking_window_days
+  const maxBookingWindowDaysValue = settings.booking_restriction_settings.max_booking_window_days;
+  if (maxBookingWindowDaysValue !== undefined && maxBookingWindowDaysValue !== null) {
+    const maxBookingWindowDays = typeof maxBookingWindowDaysValue === 'string' ? parseFloat(maxBookingWindowDaysValue) : maxBookingWindowDaysValue;
+    if (isNaN(maxBookingWindowDays) || maxBookingWindowDays < 1 || maxBookingWindowDays > 365) {
+      return '預約時間範圍必須在 1-365 天之間';
+    }
+  }
+
   return null; // Valid
 };
 
@@ -69,6 +78,7 @@ export const getClinicSectionChanges = (current: ClinicSettings, original: Clini
     current.booking_restriction_settings.minimum_booking_hours_ahead !== original.booking_restriction_settings.minimum_booking_hours_ahead ||
     (current.booking_restriction_settings.step_size_minutes ?? 30) !== (original.booking_restriction_settings.step_size_minutes ?? 30) ||
     (current.booking_restriction_settings.max_future_appointments ?? 3) !== (original.booking_restriction_settings.max_future_appointments ?? 3) ||
+    (current.booking_restriction_settings.max_booking_window_days ?? 90) !== (original.booking_restriction_settings.max_booking_window_days ?? 90) ||
     (current.clinic_info_settings.require_birthday || false) !== (original.clinic_info_settings.require_birthday || false);
 
   return {

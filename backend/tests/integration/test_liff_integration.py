@@ -1692,7 +1692,7 @@ class TestLiffErrorHandling:
             assert response.status_code == 200
             patient = response.json()
 
-            # Try to book more than 90 days in future
+            # Try to book more than 90 days in future (default booking window)
             far_future = (datetime.now() + timedelta(days=100)).isoformat()
 
             response = client.post(
@@ -1704,7 +1704,8 @@ class TestLiffErrorHandling:
                     "start_time": far_future,
                 }
             )
-            assert response.status_code == 422
+            # Service layer validation returns 400 (not 422 from Pydantic)
+            assert response.status_code == 400
             assert "最多只能預約 90 天內的時段" in str(response.json())
 
         finally:

@@ -93,7 +93,7 @@ class AppointmentService:
                     db, patient_id, line_user_id, clinic_id
                 )
 
-            # Get clinic to check max_future_appointments setting
+            # Get clinic to check settings
             clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
             if not clinic:
                 raise HTTPException(
@@ -101,9 +101,23 @@ class AppointmentService:
                     detail="診所不存在"
                 )
 
-            # Check max future appointments limit
+            # Get clinic settings
             settings = clinic.get_validated_settings()
-            max_future_appointments = settings.booking_restriction_settings.max_future_appointments
+            booking_settings = settings.booking_restriction_settings
+            
+            # Validate booking window
+            now = taiwan_now()
+            max_booking_window_days = booking_settings.max_booking_window_days
+            max_booking_date = now + timedelta(days=max_booking_window_days)
+            
+            if start_time > max_booking_date:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"最多只能預約 {max_booking_window_days} 天內的時段"
+                )
+
+            # Check max future appointments limit
+            max_future_appointments = booking_settings.max_future_appointments
 
             from utils.appointment_queries import count_future_appointments_for_patient
             current_future_count = count_future_appointments_for_patient(
