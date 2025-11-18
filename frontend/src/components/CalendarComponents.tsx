@@ -136,6 +136,7 @@ export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
   const timeStr = formatEventTimeRange(event.start, event.end);
   const practitionerName = event.resource.event_practitioner_name || event.resource.practitioner_name;
   const showPractitionerName = practitionerName && !event.resource.is_primary;
+  const isAutoAssigned = event.resource.is_auto_assigned === true;
   
   // Build tooltip with practitioner name if available
   const tooltipText = showPractitionerName 
@@ -152,6 +153,9 @@ export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
           <span className="font-medium">{timeStr}</span>
           {event.title && (
             <span className="ml-1">{event.title}</span>
+          )}
+          {isAutoAssigned && (
+            <span className="ml-1 text-white/80" title="系統自動指派">*</span>
           )}
         </div>
       </div>

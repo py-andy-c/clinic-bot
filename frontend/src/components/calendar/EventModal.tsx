@@ -48,7 +48,10 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
           <>
             <div className="space-y-2">
               {(event.resource.event_practitioner_name || (event.resource.practitioner_name && !event.resource.is_primary)) && (
-                <p><strong>治療師:</strong> {event.resource.event_practitioner_name || event.resource.practitioner_name}</p>
+                <p>
+                  <strong>治療師:</strong> {event.resource.event_practitioner_name || event.resource.practitioner_name}
+                  {event.resource.is_auto_assigned === true && ' (系統指派)'}
+                </p>
               )}
               <p><strong>時間:</strong> {formatAppointmentTime(event.start, event.end)}</p>
               {event.resource.notes && (

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from './shared';
 import { useModal } from '../contexts/ModalContext';
+import { useAuth } from '../hooks/useAuth';
 import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment-timezone';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -85,12 +86,21 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [isFullDay, setIsFullDay] = useState(false);
   const scrollYRef = useRef(0);
 
+  // Get current user for role checking
+  const { user } = useAuth();
+  const isAdmin = user?.roles?.includes('admin') ?? false;
+
   // Helper function to check if user can edit an event
   const canEditEvent = useCallback((event: CalendarEvent | null): boolean => {
     if (!event) return false;
+    // Admins can edit any appointment
+    if (isAdmin && event.resource.type === 'appointment') {
+      return true;
+    }
+    // For other events or non-admins, check if it's their own event
     const eventPractitionerId = event.resource.practitioner_id || userId;
     return eventPractitionerId === userId;
-  }, [userId]);
+  }, [userId, isAdmin]);
 
   // Lock body scroll when modal is open (prevents background scrolling on mobile)
   useEffect(() => {
@@ -262,6 +272,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
     // Style based on event type and practitioner
     if (event.resource.type === 'appointment') {
+      const isAutoAssigned = event.resource.is_auto_assigned === true;
+      
       if (isPrimary) {
         // Primary practitioner: blue
         style = {
@@ -282,6 +294,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           ...style,
           backgroundColor: '#3B82F6',
           opacity: 1
+        };
+      }
+      
+      // Add dashed border for auto-assigned appointments
+      if (isAutoAssigned) {
+        style = {
+          ...style,
+          border: '2px dashed rgba(255, 255, 255, 0.8)'
         };
       }
     } else if (event.resource.type === 'availability_exception') {

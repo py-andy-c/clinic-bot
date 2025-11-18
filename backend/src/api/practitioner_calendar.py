@@ -96,6 +96,7 @@ class CalendarEventResponse(BaseModel):
     patient_name: Optional[str] = None  # Patient full name for cancellation preview
     practitioner_name: Optional[str] = None  # Practitioner full name for cancellation preview
     appointment_type_name: Optional[str] = None  # Appointment type name for cancellation preview
+    is_auto_assigned: Optional[bool] = None  # Whether appointment is auto-assigned by system
 
 
 class CalendarDayDetailResponse(BaseModel):
@@ -552,7 +553,8 @@ async def get_calendar_data(
                             line_display_name=line_display_name,
                             patient_name=appointment.patient.full_name,
                             practitioner_name=practitioner_name,
-                            appointment_type_name=appointment_type_name
+                            appointment_type_name=appointment_type_name,
+                            is_auto_assigned=appointment.is_auto_assigned
                         ))
                 elif event.event_type == 'availability_exception':
                     exception = db.query(AvailabilityException).filter(

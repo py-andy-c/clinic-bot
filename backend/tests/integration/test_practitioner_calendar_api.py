@@ -974,3 +974,293 @@ class TestPractitionerCalendarAPI:
         assert len(data["events"]) == 1
         assert data["events"][0]["type"] == "appointment"
         assert data["events"][0]["title"] == "Test Patient - Test Appointment"
+
+    def test_calendar_api_includes_is_auto_assigned_for_auto_assigned_appointment(
+        self, client: TestClient, db_session: Session, test_clinic_and_practitioner
+    ):
+        """Test that calendar API response includes is_auto_assigned field for auto-assigned appointments."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create patient
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        # Create auto-assigned appointment
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="appointment",
+            event_date=date(2025, 1, 15),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed",
+            is_auto_assigned=True  # Mark as auto-assigned
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Get authentication token for practitioner
+        token = get_auth_token(client, practitioner.email)
+
+        # Test getting calendar data
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/calendar?date=2025-01-15",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["date"] == "2025-01-15"
+        assert len(data["events"]) == 1
+        assert data["events"][0]["type"] == "appointment"
+        assert data["events"][0]["is_auto_assigned"] is True
+
+    def test_calendar_api_includes_is_auto_assigned_false_for_manually_assigned_appointment(
+        self, client: TestClient, db_session: Session, test_clinic_and_practitioner
+    ):
+        """Test that calendar API response includes is_auto_assigned=False for manually assigned appointments."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create patient
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        # Create manually assigned appointment
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="appointment",
+            event_date=date(2025, 1, 15),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed",
+            is_auto_assigned=False  # Manually assigned
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Get authentication token for practitioner
+        token = get_auth_token(client, practitioner.email)
+
+        # Test getting calendar data
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/calendar?date=2025-01-15",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["date"] == "2025-01-15"
+        assert len(data["events"]) == 1
+        assert data["events"][0]["type"] == "appointment"
+        assert data["events"][0]["is_auto_assigned"] is False
+
+    def test_admin_can_edit_other_practitioner_appointment_via_api(
+        self, client: TestClient, db_session: Session, test_clinic_and_practitioner
+    ):
+        """Test that admin can edit appointments belonging to other practitioners via API."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create admin user
+        admin, _ = create_user_with_clinic_association(
+            db_session=db_session,
+            clinic=clinic,
+            full_name="Admin User",
+            email="admin@example.com",
+            google_subject_id="admin_subject",
+            roles=["admin"],
+            is_active=True
+        )
+        db_session.flush()
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Associate practitioner with appointment type
+        from models import PractitionerAppointmentTypes
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appointment_type.id
+        )
+        db_session.add(pat)
+        db_session.flush()
+
+        # Create availability for practitioner (9 AM - 6 PM on Wednesday, which is 2025-01-15)
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=2,  # Wednesday
+            start_time=time(9, 0),
+            end_time=time(18, 0)
+        )
+        db_session.flush()
+
+        # Create patient
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        # Create appointment for practitioner
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="appointment",
+            event_date=date(2025, 1, 15),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Get authentication token for admin
+        admin_token = get_auth_token(client, admin.email)
+
+        # Admin edits the appointment (changes time to 11:00, which is within availability)
+        edit_data = {
+            "start_time": "2025-01-15T11:00:00+08:00"
+        }
+        response = client.put(
+            f"/api/clinic/appointments/{calendar_event.id}",
+            json=edit_data,
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+
+        # Verify appointment was updated
+        db_session.refresh(appointment)
+        assert appointment.calendar_event.start_time == time(11, 0)
+
+    def test_practitioner_cannot_edit_other_practitioner_appointment_via_api(
+        self, client: TestClient, db_session: Session, test_clinic_and_practitioner
+    ):
+        """Test that practitioner cannot edit appointments belonging to other practitioners via API."""
+        clinic, practitioner1 = test_clinic_and_practitioner
+
+        # Create another practitioner
+        practitioner2, _ = create_user_with_clinic_association(
+            db_session=db_session,
+            clinic=clinic,
+            full_name="Practitioner Two",
+            email="practitioner2@example.com",
+            google_subject_id="practitioner2_subject",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.flush()
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create patient
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        # Create appointment for practitioner1
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner1, clinic,
+            event_type="appointment",
+            event_date=date(2025, 1, 15),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Get authentication token for practitioner2
+        practitioner2_token = get_auth_token(client, practitioner2.email)
+
+        # Practitioner2 tries to edit practitioner1's appointment (should fail)
+        edit_data = {
+            "start_time": "2025-01-15T11:00:00+08:00"
+        }
+        response = client.put(
+            f"/api/clinic/appointments/{calendar_event.id}",
+            json=edit_data,
+            headers={"Authorization": f"Bearer {practitioner2_token}"}
+        )
+
+        assert response.status_code == 403
+        assert "您只能編輯自己的預約" in response.json()["detail"]
+
+        # Verify appointment was not changed
+        db_session.refresh(appointment)
+        assert appointment.calendar_event.start_time == time(10, 0)

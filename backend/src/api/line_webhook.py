@@ -452,7 +452,7 @@ async def line_webhook(
 
     try:
         # Extract and validate webhook data
-        clinic, line_service, body_str, payload = await _extract_webhook_data(
+        clinic, line_service, _body_str, payload = await _extract_webhook_data(
             request, x_line_signature, db
         )
         clinic_id = clinic.id
@@ -479,15 +479,22 @@ async def line_webhook(
 
         # Handle special commands FIRST (before any other processing)
         # These commands work even if chat is disabled or user is opted out
+        # Note: These commands require a reply_token to send responses
 
         # Command: "人工回覆" - Opt out of AI replies (case-insensitive)
         if normalized_message == _NORMALIZED_OPT_OUT_COMMAND:
+            if not reply_token:
+                logger.warning("Opt-out command received but no reply_token available")
+                return {"status": "ok", "message": "Command received but cannot reply"}
             return _handle_opt_out_command(
                 db, line_service, line_user_id, reply_token, clinic
             )
 
         # Command: "重啟AI" - Re-enable AI replies (case-insensitive)
         if normalized_message == _NORMALIZED_RE_ENABLE_COMMAND:
+            if not reply_token:
+                logger.warning("Re-enable command received but no reply_token available")
+                return {"status": "ok", "message": "Command received but cannot reply"}
             return _handle_re_enable_command(
                 db, line_service, line_user_id, reply_token, clinic
             )
@@ -497,6 +504,9 @@ async def line_webhook(
         # Stricter check: must match exact format LINK-##### (5 digits)
         link_code_pattern = re.compile(r'^LINK-\d{5}$', re.IGNORECASE)
         if link_code_pattern.match(message_text.strip()):
+            if not reply_token:
+                logger.warning("Link code command received but no reply_token available")
+                return {"status": "ok", "message": "Command received but cannot reply"}
             return _handle_link_code_command(
                 db, line_service, line_user_id, reply_token, message_text, clinic
             )
@@ -523,6 +533,10 @@ async def line_webhook(
             return {"status": "ok", "message": "Chat feature is disabled"}
 
         # Process regular message through AI agent
+        # Regular messages require a reply_token to send responses
+        if not reply_token:
+            logger.warning("Regular message received but no reply_token available")
+            return {"status": "ok", "message": "Message received but cannot reply"}
         return await _process_regular_message(
             db, line_service, line_user_id, message_text, reply_token,
             message_id, quoted_message_id, clinic
