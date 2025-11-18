@@ -25,6 +25,10 @@ from core.constants import CORS_ORIGINS
 from services.reminder_service import start_reminder_scheduler, stop_reminder_scheduler
 from services.test_session_cleanup import start_test_session_cleanup, stop_test_session_cleanup
 from services.line_message_cleanup import start_line_message_cleanup, stop_line_message_cleanup
+from services.availability_notification_service import (
+    start_availability_notification_scheduler,
+    stop_availability_notification_scheduler
+)
 
 # Configure logging
 logging.basicConfig(
@@ -49,20 +53,27 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Appointment reminder scheduler started")
     except Exception as e:
         logger.exception(f"❌ Failed to start reminder scheduler: {e}")
-    
+
     # Start test session cleanup scheduler
     try:
         await start_test_session_cleanup()
         logger.info("✅ Test session cleanup scheduler started")
     except Exception as e:
         logger.exception(f"❌ Failed to start test session cleanup scheduler: {e}")
-    
+
     # Start LINE message cleanup scheduler
     try:
         await start_line_message_cleanup()
         logger.info("✅ LINE message cleanup scheduler started")
     except Exception as e:
         logger.exception(f"❌ Failed to start LINE message cleanup scheduler: {e}")
+
+    # Start availability notification scheduler
+    try:
+        await start_availability_notification_scheduler()
+        logger.info("✅ Availability notification scheduler started")
+    except Exception as e:
+        logger.exception(f"❌ Failed to start availability notification scheduler: {e}")
 
     yield
 
@@ -72,20 +83,27 @@ async def lifespan(app: FastAPI):
         logger.info("🛑 Appointment reminder scheduler stopped")
     except Exception as e:
         logger.exception(f"❌ Error stopping reminder scheduler: {e}")
-    
+
     # Stop test session cleanup scheduler
     try:
         await stop_test_session_cleanup()
         logger.info("🛑 Test session cleanup scheduler stopped")
     except Exception as e:
         logger.exception(f"❌ Error stopping test session cleanup scheduler: {e}")
-    
+
     # Stop LINE message cleanup scheduler
     try:
         await stop_line_message_cleanup()
         logger.info("🛑 LINE message cleanup scheduler stopped")
     except Exception as e:
         logger.exception(f"❌ Error stopping LINE message cleanup scheduler: {e}")
+
+    # Stop availability notification scheduler
+    try:
+        await stop_availability_notification_scheduler()
+        logger.info("🛑 Availability notification scheduler stopped")
+    except Exception as e:
+        logger.exception(f"❌ Error stopping availability notification scheduler: {e}")
 
     logger.info("🛑 Shutting down Clinic Bot Backend API")
 
@@ -243,10 +261,10 @@ async def health_check() -> dict[str, str]:
 async def serve_frontend(path: str):
     """
     Serve the frontend React app for non-API routes.
-    
+
     This catch-all route handles frontend routes like /liff/appointment
     by serving the index.html file, which allows React Router to handle routing.
-    
+
     Note: The path parameter does not include the leading slash, so /api/liff/something
     becomes path="api/liff/something" (hence path.startswith("api/") is correct).
     """
@@ -255,11 +273,11 @@ async def serve_frontend(path: str):
     # Note: "" is included for completeness, but root() will match "/" first
     if path.startswith("api/") or path in ["docs", "redoc", "openapi.json", "health", ""]:
         raise HTTPException(status_code=404, detail="Not found")
-    
+
     # Check if frontend dist exists
     if not frontend_dist_path.exists():
         raise HTTPException(status_code=404, detail="Frontend not built")
-    
+
     # Serve index.html for frontend routes (React Router will handle client-side routing)
     index_path = frontend_dist_path / "index.html"
     if index_path.exists():

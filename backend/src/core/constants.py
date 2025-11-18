@@ -64,3 +64,12 @@ AI_OPT_OUT_DURATION_HOURS = 24  # Duration in hours that AI replies are disabled
 
 # LINE message metadata retention
 LINE_MESSAGE_RETENTION_HOURS = 240  # 10 days (longer than CHAT_SESSION_EXPIRY_HOURS for safety)
+
+# Availability Notification Limits
+MAX_TIME_WINDOWS_PER_NOTIFICATION = 10
+MAX_NOTIFICATIONS_PER_USER = 3
+NOTIFICATION_DATE_RANGE_DAYS = 30
+
+# Notification Check Times (Taiwan time)
+NOTIFICATION_CHECK_HOURS = [9, 15, 21]  # 9am, 3pm, 9pm
+NOTIFICATION_CLEANUP_HOUR = 3  # 3 AM

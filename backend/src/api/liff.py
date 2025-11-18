@@ -12,7 +12,7 @@ All endpoints require JWT authentication from LIFF login flow.
 import logging
 import jwt
 from datetime import datetime, timedelta, timezone, date
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, field_validator, model_validator
@@ -20,8 +20,13 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.config import JWT_SECRET_KEY, JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+from core.constants import (
+    MAX_TIME_WINDOWS_PER_NOTIFICATION,
+    MAX_NOTIFICATIONS_PER_USER,
+    NOTIFICATION_DATE_RANGE_DAYS,
+)
 from models import (
-    LineUser, Clinic, Patient
+    LineUser, Clinic, Patient, AvailabilityNotification, AppointmentType, User
 )
 from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
@@ -43,14 +48,33 @@ router = APIRouter()
 
 # ===== Helper Functions =====
 
+def get_practitioner_name(db: Session, practitioner: Optional[User], clinic_id: int) -> Optional[str]:
+    """
+    Get practitioner display name from UserClinicAssociation.
+
+    Returns full_name from association if available, otherwise falls back to email.
+    Returns None if practitioner is None.
+    """
+    if not practitioner:
+        return None
+
+    from models.user_clinic_association import UserClinicAssociation
+    association = db.query(UserClinicAssociation).filter(
+        UserClinicAssociation.user_id == practitioner.id,
+        UserClinicAssociation.clinic_id == clinic_id,
+        UserClinicAssociation.is_active == True
+    ).first()
+
+    return association.full_name if association else practitioner.email
+
 def validate_birthday_field(v: Any) -> Optional[date]:
     """
     Validate birthday format (YYYY-MM-DD) and reasonable range.
-    
+
     Validates that:
     - Date is not in the future
     - Date is not unreasonably old (> 150 years, approximate)
-    
+
     Note: The 150-year check uses days (150 * 365) as an approximation.
     For exact calendar years accounting for leap years, consider using
     dateutil.relativedelta, but the current approach is simpler and sufficient.
@@ -59,7 +83,7 @@ def validate_birthday_field(v: Any) -> Optional[date]:
         return None
     if isinstance(v, date):
         # Already a date object, just validate range
-        today = datetime.now().date()
+        today = taiwan_now().date()
         if v > today:
             raise ValueError('生日不能是未來日期')
         # Approximate 150 years check (doesn't account for leap years, but sufficient)
@@ -70,7 +94,7 @@ def validate_birthday_field(v: Any) -> Optional[date]:
         try:
             birthday_date = datetime.strptime(v, '%Y-%m-%d').date()
             # Validate reasonable range: not in the future, not too old (e.g., > 150 years)
-            today = datetime.now().date()
+            today = taiwan_now().date()
             if birthday_date > today:
                 raise ValueError('生日不能是未來日期')
             # Approximate 150 years check (doesn't account for leap years, but sufficient)
@@ -179,7 +203,7 @@ class PatientUpdateRequest(BaseModel):
 
 def parse_datetime(v: str | datetime) -> datetime:
     """Parse datetime from string or return datetime object.
-    
+
     Expects Taiwan time (Asia/Taipei, UTC+8) with timezone indicator.
     If no timezone provided, assumes Taiwan time.
     """
@@ -188,7 +212,7 @@ def parse_datetime(v: str | datetime) -> datetime:
         try:
             # Parse the datetime string
             dt = datetime.fromisoformat(v.replace('Z', '+00:00'))
-            
+
             # If it has timezone info, convert to Taiwan time
             if dt.tzinfo:
                 return dt.astimezone(TAIWAN_TZ)
@@ -448,7 +472,7 @@ async def update_patient(
 
     Allows updating patient name, phone number, and/or birthday.
     Clinic isolation is enforced through LIFF token context.
-    
+
     Note: The `require_birthday` clinic setting does NOT apply to updates.
     This allows existing patients without birthdays to be updated even after
     the clinic enables the requirement. Birthday can be added via update
@@ -772,4 +796,276 @@ async def get_clinic_info(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得診所資訊"
+        )
+
+
+# ===== Availability Notification Models =====
+
+class TimeWindowEntry(BaseModel):
+    """Single time window entry."""
+    date: str  # YYYY-MM-DD format
+    time_window: Literal["morning", "afternoon", "evening"]
+
+    @field_validator('date')
+    @classmethod
+    def validate_date_format(cls, v: str) -> str:
+        """Validate date format."""
+        try:
+            datetime.strptime(v, '%Y-%m-%d').date()
+        except ValueError:
+            raise ValueError('日期格式錯誤，請使用 YYYY-MM-DD 格式')
+        return v
+
+
+class AvailabilityNotificationCreateRequest(BaseModel):
+    """Request model for creating availability notification."""
+    appointment_type_id: int
+    practitioner_id: Optional[int] = None  # null for "不指定"
+    time_windows: List[TimeWindowEntry]
+
+    @field_validator('time_windows')
+    @classmethod
+    def validate_time_windows(cls, v: List[TimeWindowEntry]) -> List[TimeWindowEntry]:
+        """Validate time windows."""
+        if len(v) > MAX_TIME_WINDOWS_PER_NOTIFICATION:
+            raise ValueError(f'最多只能設定{MAX_TIME_WINDOWS_PER_NOTIFICATION}個時段')
+        if len(v) == 0:
+            raise ValueError('至少需要設定1個時段')
+        
+        # Check for duplicate date+time_window combinations
+        seen = set()
+        for tw in v:
+            key = (tw.date, tw.time_window)
+            if key in seen:
+                raise ValueError(f'重複的時段設定：{tw.date} {tw.time_window}')
+            seen.add(key)
+        
+        # Validate dates are within 30 days
+        today = taiwan_now().date()
+        max_date = today + timedelta(days=NOTIFICATION_DATE_RANGE_DAYS)
+        
+        for tw in v:
+            tw_date = datetime.strptime(tw.date, '%Y-%m-%d').date()
+            if tw_date < today:
+                raise ValueError(f'日期 {tw.date} 不能是過去日期')
+            if tw_date > max_date:
+                raise ValueError(f'日期 {tw.date} 不能超過{NOTIFICATION_DATE_RANGE_DAYS}天後')
+        
+        return v
+
+
+class AvailabilityNotificationResponse(BaseModel):
+    """Response model for single notification."""
+    id: int
+    appointment_type_id: int
+    appointment_type_name: str
+    practitioner_id: Optional[int]
+    practitioner_name: Optional[str]  # "不指定" if None
+    time_windows: List[Dict[str, str]]
+    created_at: datetime
+    min_date: str  # YYYY-MM-DD
+    max_date: str  # YYYY-MM-DD
+
+
+class AvailabilityNotificationListResponse(BaseModel):
+    """Response model for notification list."""
+    notifications: List[AvailabilityNotificationResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+# ===== Availability Notification Endpoints =====
+
+@router.post("/availability-notifications", response_model=AvailabilityNotificationResponse)
+async def create_notification(
+    request: AvailabilityNotificationCreateRequest,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+) -> AvailabilityNotificationResponse:
+    """Create new availability notification."""
+    line_user, clinic = line_user_clinic
+
+    try:
+        # Check user notification limit
+        active_count = db.query(AvailabilityNotification).filter(
+            AvailabilityNotification.line_user_id == line_user.id,
+            AvailabilityNotification.clinic_id == clinic.id,
+            AvailabilityNotification.is_active == True
+        ).count()
+
+        if active_count >= MAX_NOTIFICATIONS_PER_USER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"已達到提醒上限（{MAX_NOTIFICATIONS_PER_USER}個），請先刪除現有提醒"
+            )
+
+        # Validate appointment type exists
+        appointment_type = db.query(AppointmentType).filter(
+            AppointmentType.id == request.appointment_type_id,
+            AppointmentType.clinic_id == clinic.id,
+            AppointmentType.is_deleted == False
+        ).first()
+
+        if not appointment_type:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "預約類型不存在")
+
+        # Validate practitioner if specified
+        if request.practitioner_id:
+            from models.user_clinic_association import UserClinicAssociation
+            practitioner = db.query(User).join(UserClinicAssociation).filter(
+                User.id == request.practitioner_id,
+                UserClinicAssociation.clinic_id == clinic.id,
+                UserClinicAssociation.is_active == True
+            ).first()
+
+            if not practitioner:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "治療師不存在")
+
+        # Create notification (clinic_id from JWT token, not request)
+        notification = AvailabilityNotification(
+            line_user_id=line_user.id,
+            clinic_id=clinic.id,  # From JWT token
+            appointment_type_id=request.appointment_type_id,
+            practitioner_id=request.practitioner_id,
+            time_windows=[tw.model_dump() for tw in request.time_windows],
+            is_active=True
+        )
+
+        db.add(notification)
+        try:
+            db.commit()
+            db.refresh(notification)
+        except Exception as e:
+            db.rollback()
+            raise
+
+        # Calculate min/max dates from time_windows
+        dates = [tw["date"] for tw in notification.time_windows]
+
+        # Get practitioner name safely
+        practitioner_name = get_practitioner_name(db, notification.practitioner, clinic.id)
+
+        return AvailabilityNotificationResponse(
+            id=notification.id,
+            appointment_type_id=notification.appointment_type_id,
+            appointment_type_name=appointment_type.name,
+            practitioner_id=notification.practitioner_id,
+            practitioner_name=practitioner_name,
+            time_windows=notification.time_windows,
+            created_at=notification.created_at,
+            min_date=min(dates),
+            max_date=max(dates)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error creating notification: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="建立提醒失敗"
+        )
+
+
+@router.get("/availability-notifications", response_model=AvailabilityNotificationListResponse)
+async def list_notifications(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+) -> AvailabilityNotificationListResponse:
+    """List all active notifications for LINE user."""
+    line_user, clinic = line_user_clinic
+
+    try:
+        query = db.query(AvailabilityNotification).filter(
+            AvailabilityNotification.line_user_id == line_user.id,
+            AvailabilityNotification.clinic_id == clinic.id,  # Clinic isolation
+            AvailabilityNotification.is_active == True
+        )
+
+        total = query.count()
+        notifications = query.order_by(
+            AvailabilityNotification.created_at.desc()
+        ).offset((page - 1) * page_size).limit(page_size).all()
+
+        # Convert to response models
+        notification_responses: List[AvailabilityNotificationResponse] = []
+        for notification in notifications:
+            dates = [tw["date"] for tw in notification.time_windows]
+
+            # Get appointment type name safely
+            appointment_type_name = "已刪除"
+            if notification.appointment_type:
+                appointment_type_name = notification.appointment_type.name
+
+            # Get practitioner name safely
+            practitioner_name = get_practitioner_name(db, notification.practitioner, clinic.id)
+
+            notification_responses.append(
+                AvailabilityNotificationResponse(
+                    id=notification.id,
+                    appointment_type_id=notification.appointment_type_id,
+                    appointment_type_name=appointment_type_name,
+                    practitioner_id=notification.practitioner_id,
+                    practitioner_name=practitioner_name,
+                    time_windows=notification.time_windows,
+                    created_at=notification.created_at,
+                    min_date=min(dates),
+                    max_date=max(dates)
+                )
+            )
+
+        return AvailabilityNotificationListResponse(
+            notifications=notification_responses,
+            total=total,
+            page=page,
+            page_size=page_size
+        )
+
+    except Exception as e:
+        logger.exception(f"Error listing notifications: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="取得提醒列表失敗"
+        )
+
+
+@router.delete("/availability-notifications/{notification_id}")
+async def delete_notification(
+    notification_id: int,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Delete notification (soft delete: set is_active=False)."""
+    line_user, clinic = line_user_clinic
+
+    try:
+        notification = db.query(AvailabilityNotification).filter(
+            AvailabilityNotification.id == notification_id,
+            AvailabilityNotification.clinic_id == clinic.id,  # Clinic isolation
+            AvailabilityNotification.is_active == True
+        ).first()
+
+        if not notification:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "提醒不存在")
+
+        # Authorization check: user must own the notification
+        if notification.line_user_id != line_user.id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "無權限刪除此提醒")
+
+        # Soft delete
+        notification.is_active = False
+        db.commit()
+
+        return {"success": True, "message": "提醒已刪除"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error deleting notification: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="刪除提醒失敗"
         )
