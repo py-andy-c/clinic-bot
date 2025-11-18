@@ -16,6 +16,7 @@ from .practitioner_appointment_types import PractitionerAppointmentTypes
 from .line_user_ai_opt_out import LineUserAiOptOut
 from .line_message import LineMessage
 from .availability_notification import AvailabilityNotification
+from .practitioner_link_code import PractitionerLinkCode
 
 __all__ = [
     "Clinic",
@@ -34,4 +35,5 @@ __all__ = [
     "LineUserAiOptOut",
     "LineMessage",
     "AvailabilityNotification",
+    "PractitionerLinkCode",
 ]

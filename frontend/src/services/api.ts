@@ -448,6 +448,16 @@ export class ApiService {
     return response.data;
   }
 
+  async generateLinkCode(): Promise<{ code: string; expires_at: string }> {
+    const response = await this.client.post('/profile/link-code');
+    return response.data;
+  }
+
+  async unlinkLineAccount(): Promise<{ message: string }> {
+    const response = await this.client.delete('/profile/unlink-line');
+    return response.data;
+  }
+
 
   // Signup APIs (public)
   async initiateClinicSignup(token: string): Promise<OAuthResponse> {

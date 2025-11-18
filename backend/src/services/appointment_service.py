@@ -100,16 +100,16 @@ class AppointmentService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="診所不存在"
                 )
-            
+
             # Check max future appointments limit
             settings = clinic.get_validated_settings()
             max_future_appointments = settings.booking_restriction_settings.max_future_appointments
-            
+
             from utils.appointment_queries import count_future_appointments_for_patient
             current_future_count = count_future_appointments_for_patient(
                 db, patient_id, status="confirmed"
             )
-            
+
             if current_future_count >= max_future_appointments:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -167,6 +167,13 @@ class AppointmentService:
             practitioner = db.query(User).get(assigned_practitioner_id)
             patient = db.query(Patient).get(patient_id)
 
+            # Send LINE notification to practitioner if they have LINE account linked
+            if practitioner:
+                from services.notification_service import NotificationService
+                NotificationService.send_practitioner_appointment_notification(
+                    db, practitioner, appointment, clinic
+                )
+
             logger.info(f"Created appointment {appointment.calendar_event_id} for patient {patient_id}")
 
             # Get practitioner name from association
@@ -218,13 +225,13 @@ class AppointmentService:
     ) -> bool:
         """
         Check if a practitioner is available at the given time slot.
-        
+
         Args:
             schedule_data: Schedule data from fetch_practitioner_schedule_data
             practitioner_id: Practitioner ID to check
             start_time: Slot start time
             end_time: Slot end time
-            
+
         Returns:
             True if practitioner is available, False otherwise
         """
@@ -232,19 +239,19 @@ class AppointmentService:
             'default_intervals': [],
             'events': []
         })
-        
+
         # Check if slot is within default intervals
         if not AvailabilityService.is_slot_within_default_intervals(
             data['default_intervals'], start_time, end_time
         ):
             return False
-        
+
         # Check if slot has conflicts
         if AvailabilityService.has_slot_conflicts(
             data['events'], start_time, end_time
         ):
             return False
-        
+
         return True
 
     @staticmethod
@@ -279,16 +286,16 @@ class AppointmentService:
         practitioners = AvailabilityService.get_practitioners_for_appointment_type(
             db, appointment_type_id, clinic_id
         )
-        
+
         # Batch fetch schedule data for all practitioners (2 queries total)
         practitioner_ids = [p.id for p in practitioners]
         schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
             db, practitioner_ids, start_time.date(), clinic_id
         )
-        
+
         slot_start_time = start_time.time()
         slot_end_time = end_time.time()
-        
+
         if requested_practitioner_id:
             # Specific practitioner requested - validate they're in the list and available
             practitioner = next(
@@ -409,13 +416,13 @@ class AppointmentService:
 
         # Format response
         result: List[Dict[str, Any]] = []
-        
+
         # Get all practitioner associations in one query
         practitioner_ids = [appt.calendar_event.user_id for appt in appointments if appt.calendar_event and appt.calendar_event.user_id]
         association_lookup = AvailabilityService.get_practitioner_associations_batch(
             db, practitioner_ids, clinic_id
         )
-        
+
         for appointment in appointments:
             # All relationships are now eagerly loaded, no database queries needed
             practitioner = appointment.calendar_event.user
@@ -526,6 +533,23 @@ class AppointmentService:
         appointment.canceled_at = taiwan_now()
         db.commit()
 
+        # Send notification to practitioner if they have LINE account linked
+        # Only send if appointment was not already cancelled (idempotent check)
+        try:
+            calendar_event = appointment.calendar_event
+            practitioner = calendar_event.user if calendar_event else None
+            if practitioner:
+                # Get clinic from appointment
+                clinic = db.query(Clinic).filter(Clinic.id == appointment.patient.clinic_id).first()
+                if clinic:
+                    from services.notification_service import NotificationService
+                    NotificationService.send_practitioner_cancellation_notification(
+                        db, practitioner, appointment, clinic, cancelled_by
+                    )
+        except Exception as e:
+            # Log but don't fail - notification failure shouldn't block cancellation
+            logger.warning(f"Failed to send practitioner cancellation notification: {e}")
+
         # Return response
         if return_details:
             calendar_event = appointment.calendar_event
@@ -547,14 +571,14 @@ class AppointmentService:
     ) -> Tuple[bool, Optional[str], List[str]]:
         """
         Check if appointment edit would cause conflicts.
-        
+
         Args:
             appointment_id: ID of appointment being edited (exclude from conflict check)
             new_practitioner_id: New practitioner ID (None = keep current)
             new_start_time: New start time (None = keep current)
             appointment_type_id: Appointment type ID (for duration)
             clinic_id: Clinic ID
-            
+
         Returns:
             (is_valid, error_message, conflict_details)
             - is_valid: True if no conflicts
@@ -562,34 +586,34 @@ class AppointmentService:
             - conflict_details: List of specific conflicts found
         """
         conflicts: List[str] = []
-        
+
         # Get appointment type for duration
         appointment_type = AppointmentTypeService.get_appointment_type_by_id(
             db, appointment_type_id, clinic_id=clinic_id
         )
         duration_minutes = appointment_type.duration_minutes
-        
+
         # Get current appointment to determine what we're changing
         appointment = db.query(Appointment).filter(
             Appointment.calendar_event_id == appointment_id
         ).first()
-        
+
         if not appointment:
             return (False, "預約不存在", [])
-        
+
         calendar_event = appointment.calendar_event
         if not calendar_event:
             return (False, "找不到預約事件", [])
-        
+
         # Determine actual values to check
         practitioner_id_to_check = new_practitioner_id if new_practitioner_id is not None else calendar_event.user_id
         start_time_to_check = new_start_time if new_start_time is not None else datetime.combine(
             calendar_event.date, calendar_event.start_time
         ).replace(tzinfo=TAIWAN_TZ)
-        
+
         # Calculate end time
         end_time_to_check = start_time_to_check + timedelta(minutes=duration_minutes)
-        
+
         # Check practitioner offers appointment type
         if new_practitioner_id is not None:
             if not AvailabilityService.validate_practitioner_offers_appointment_type(
@@ -597,7 +621,7 @@ class AppointmentService:
             ):
                 conflicts.append("此治療師不提供此預約類型")
                 return (False, "此治療師不提供此預約類型", conflicts)
-        
+
         # Check availability at new time/practitioner
         # Exclude current appointment from conflict checking
         # Note: fetch_practitioner_schedule_data already includes all confirmed appointments
@@ -605,20 +629,20 @@ class AppointmentService:
         schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
             db, [practitioner_id_to_check], start_time_to_check.date(), clinic_id, exclude_calendar_event_id=appointment_id
         )
-        
+
         slot_start_time = start_time_to_check.time()
         slot_end_time = end_time_to_check.time()
-        
+
         is_available = AppointmentService._is_practitioner_available_at_slot(
             schedule_data, practitioner_id_to_check, slot_start_time, slot_end_time
         )
-        
+
         if not is_available:
             conflicts.append("此時段不可用")
-        
+
         is_valid = len(conflicts) == 0
         error_message = conflicts[0] if conflicts else None
-        
+
         return (is_valid, error_message, conflicts)
 
     @staticmethod
@@ -629,16 +653,16 @@ class AppointmentService:
     ) -> bool:
         """
         Determine if LINE notification should be sent for appointment edit.
-        
+
         Rules:
         - Notify patient when either the practitioner OR time changes
         - This applies to both auto-assigned and non-auto-assigned appointments
-        
+
         Args:
             old_appointment: Current appointment state (must be unmodified)
             new_practitioner_id: New practitioner ID (must be the actual value, not None)
             new_start_time: New start time (must be the actual value, not None)
-            
+
         Returns:
             True if notification should be sent, False otherwise
         """
@@ -648,15 +672,15 @@ class AppointmentService:
             old_appointment.calendar_event.start_time
         ).replace(tzinfo=TAIWAN_TZ)
         old_practitioner_id = old_appointment.calendar_event.user_id
-        
+
         # Check if practitioner changed
         if new_practitioner_id != old_practitioner_id:
             return True
-        
+
         # Check if time changed
         if new_start_time != old_start_time:
             return True
-        
+
         # No changes detected
         return False
 
@@ -672,10 +696,10 @@ class AppointmentService:
     ) -> Dict[str, Any]:
         """
         Edit an appointment (time and/or practitioner).
-        
+
         Note: This method assumes permission checks have been performed by the caller.
         The appointment update is committed before returning.
-        
+
         Args:
             db: Database session
             appointment_id: Calendar event ID of the appointment
@@ -684,10 +708,10 @@ class AppointmentService:
             new_practitioner_id: New practitioner ID (None = keep current)
             new_start_time: New start time (None = keep current)
             new_notes: New notes (None = keep current)
-            
+
         Returns:
             Dict with updated appointment details
-            
+
         Raises:
             HTTPException: If edit fails or validation errors
         """
@@ -696,32 +720,32 @@ class AppointmentService:
         appointment = db.query(Appointment).filter(
             Appointment.calendar_event_id == appointment_id
         ).first()
-        
+
         if not appointment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="預約不存在"
             )
-        
+
         # Check if appointment is cancelled
         if appointment.status in ['canceled_by_patient', 'canceled_by_clinic']:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="此預約已取消，無法編輯"
             )
-        
+
         calendar_event = appointment.calendar_event
-        
+
         # Validate new practitioner exists and belongs to clinic if provided
         if new_practitioner_id is not None:
             AvailabilityService.validate_practitioner_for_clinic(
                 db, new_practitioner_id, clinic_id
             )
-        
+
         # Check if practitioner or time actually changed (not just provided)
         # Skip conflict check if only notes are being changed
         practitioner_actually_changed = (
-            new_practitioner_id is not None and 
+            new_practitioner_id is not None and
             new_practitioner_id != calendar_event.user_id
         )
         time_actually_changed = False
@@ -730,7 +754,7 @@ class AppointmentService:
                 calendar_event.date, calendar_event.start_time
             ).replace(tzinfo=TAIWAN_TZ)
             time_actually_changed = new_start_time != current_start_time
-        
+
         # Get appointment type for duration (needed for conflict check and/or time update)
         appointment_type = AppointmentTypeService.get_appointment_type_by_id(
             db, appointment.appointment_type_id, clinic_id=clinic_id
@@ -743,22 +767,23 @@ class AppointmentService:
                 db, appointment_id, new_practitioner_id, new_start_time,
                 appointment.appointment_type_id, clinic_id
             )
-            
+
             if not is_valid:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=error_message or "編輯預約時發生衝突"
                 )
-        
+
         # Store old values for notification (before any updates)
         old_is_auto_assigned = appointment.is_auto_assigned
-        
+        old_practitioner_id = calendar_event.user_id if calendar_event else None
+
         # practitioner_actually_changed and time_actually_changed were already calculated above for conflict check
-        
+
         # Update appointment
         if new_notes is not None:
             appointment.notes = new_notes
-        
+
         # Update tracking fields based on practitioner change
         # Only update if practitioner actually changed
         # Note: new_practitioner_id=None means "keep current" (per API contract), not "change to auto-assigned"
@@ -773,7 +798,7 @@ class AppointmentService:
             pass
         # Note: Changing from specific to auto-assigned is not supported via edit endpoint
         # (would require explicit API design change or separate endpoint)
-        
+
         # Update calendar event if time or practitioner changed
         if new_start_time is not None:
             calendar_event.date = new_start_time.date()
@@ -781,15 +806,34 @@ class AppointmentService:
             # Calculate end time (reuse duration_minutes from above)
             end_time = new_start_time + timedelta(minutes=duration_minutes)
             calendar_event.end_time = end_time.time()
-        
+
         if new_practitioner_id is not None:
             calendar_event.user_id = new_practitioner_id
-        
+
         db.commit()
         db.refresh(appointment)
-        
+
+        # Send notification to practitioners if reassigned
+        if practitioner_actually_changed:
+            try:
+                # Get clinic
+                clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+                if clinic:
+                    # Get old and new practitioners
+                    old_practitioner = db.query(User).filter(User.id == old_practitioner_id).first() if old_practitioner_id else None
+                    new_practitioner = db.query(User).filter(User.id == new_practitioner_id).first() if new_practitioner_id else None
+
+                    if new_practitioner:
+                        from services.notification_service import NotificationService
+                        NotificationService.send_practitioner_reassignment_notification(
+                            db, old_practitioner, new_practitioner, appointment, clinic
+                        )
+            except Exception as e:
+                # Log but don't fail - notification failure shouldn't block reassignment
+                logger.warning(f"Failed to send practitioner reassignment notification: {e}")
+
         logger.info(f"Edited appointment {appointment_id} by user {current_user_id}")
-        
+
         return {
             'success': True,
             'appointment_id': appointment_id,
