@@ -16,7 +16,12 @@ from typing import Any, Optional, Tuple
 
 import httpx
 from linebot.v3.messaging import MessagingApi, PushMessageRequest, ReplyMessageRequest
-from linebot.v3.messaging.models import TextMessage
+from linebot.v3.messaging.models import (
+    TextMessage,
+    TemplateMessage,
+    ButtonsTemplate,
+    URIAction,
+)
 from linebot.v3.messaging.api_client import ApiClient
 from linebot.v3.messaging.configuration import Configuration
 from linebot.v3.webhook import WebhookHandler
@@ -210,6 +215,94 @@ class LINEService:
         except Exception as e:
             # Log the error but let caller handle it
             logger.exception(f"Failed to send LINE message to {line_user_id}: {e}")
+            raise
+
+    def send_template_message_with_button(
+        self,
+        line_user_id: str,
+        text: str,
+        button_label: str,
+        button_uri: str,
+        reply_token: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Send template message with a button action to LINE user.
+        
+        This allows hiding URLs behind buttons instead of showing them in the message text.
+        
+        Args:
+            line_user_id: LINE user ID to send message to
+            text: Text content to send
+            button_label: Label for the action button
+            button_uri: URI to open when button is clicked
+            reply_token: Optional reply token from webhook event. If provided, uses reply_message.
+                        If None, uses push_message as fallback.
+        
+        Returns:
+            LINE message ID if successful, None otherwise.
+        
+        Raises:
+            Exception: If LINE API call fails
+        """
+        try:
+            # Create URI action for the button
+            # Type ignore: altUri is optional parameter
+            uri_action = URIAction(label=button_label, uri=button_uri)  # type: ignore[call-arg]
+            
+            # Create buttons template
+            # Type ignore: thumbnailImageUrl, imageAspectRatio, imageSize, imageBackgroundColor, defaultAction are optional
+            buttons_template = ButtonsTemplate(
+                text=text,
+                actions=[uri_action]
+            )  # type: ignore[call-arg]
+            
+            # Create template message
+            # Alt text for accessibility (max 400 chars)
+            # If text is minimal (like a space), use button label as alt text
+            alt_text = text.strip() if text.strip() else button_label
+            alt_text = alt_text[:400]  # Ensure within limit
+            
+            # Type ignore: quickReply is optional parameter
+            template_message = TemplateMessage(
+                altText=alt_text,
+                template=buttons_template
+            )  # type: ignore[call-arg]
+            
+            messages = [template_message]
+            
+            if reply_token:
+                request = ReplyMessageRequest(
+                    replyToken=reply_token,
+                    messages=messages,
+                    notificationDisabled=False
+                )
+                response = self.api.reply_message(request)
+                logger.debug(f"Sent template reply message for user {line_user_id[:10]}...")
+            else:
+                request = PushMessageRequest(
+                    to=line_user_id,
+                    messages=messages,
+                    notificationDisabled=False,
+                    customAggregationUnits=None
+                )
+                response = self.api.push_message(request)
+                logger.debug(f"Sent template push message for user {line_user_id[:10]}...")
+            
+            # Extract message ID from response
+            message_id: Optional[str] = None
+            try:
+                if hasattr(response, 'sent_messages') and response.sent_messages:
+                    sent_messages_list = response.sent_messages  # type: ignore
+                    if sent_messages_list and len(sent_messages_list) > 0:  # type: ignore
+                        sent_msg = sent_messages_list[0]  # type: ignore
+                        message_id = getattr(sent_msg, 'id', None)  # type: ignore
+            except (AttributeError, IndexError, TypeError) as e:
+                logger.debug(f"Could not extract message ID from LINE API response: {e}")
+                message_id = None
+            
+            return message_id
+        except Exception as e:
+            logger.exception(f"Failed to send template message to {line_user_id}: {e}")
             raise
 
     def start_loading_animation(self, line_user_id: str, loading_seconds: int = 60) -> bool:

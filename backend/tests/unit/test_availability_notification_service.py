@@ -142,7 +142,9 @@ class TestMessageFormatting:
         assert "01/15 (一)" in message
         assert "01/16 (二)" in message
         assert "9:00 AM" in message
-        assert "https://liff.line.me/1234567890" in message
+        # URL is no longer in message text (it's in a button)
+        assert "https://liff.line.me" not in message
+        assert "立即預約" not in message
     
     def test_format_notification_message_with_practitioner(self):
         """Test message formatting with specific practitioner."""
@@ -176,7 +178,9 @@ class TestMessageFormatting:
         message = service._format_notification_message(notification, slots_by_date, clinic, db)
         
         assert "治療師：王醫師" in message
-        assert "practitioner_id=2" in message or "practitioner_id=2" in message
+        # URL is no longer in message text (it's in a button)
+        assert "https://liff.line.me" not in message
+        assert "立即預約" not in message
 
 
 class TestURLGeneration:

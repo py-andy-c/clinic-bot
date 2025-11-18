@@ -142,6 +142,9 @@ const AddNotification: React.FC = () => {
       // Check total limit before adding
       const totalWindows = prev.reduce((sum, d) => sum + d.timeWindows.length, 0);
       const entry = prev[dateIndex];
+      if (!entry) {
+        return prev; // Invalid index, return unchanged
+      }
       const isSelected = entry.timeWindows.includes(timeWindow);
       
       if (!isSelected && totalWindows >= MAX_TIME_WINDOWS) {

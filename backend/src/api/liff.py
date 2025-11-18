@@ -833,7 +833,7 @@ class AvailabilityNotificationCreateRequest(BaseModel):
             raise ValueError('至少需要設定1個時段')
         
         # Check for duplicate date+time_window combinations
-        seen = set()
+        seen: set[tuple[str, str]] = set()
         for tw in v:
             key = (tw.date, tw.time_window)
             if key in seen:

@@ -509,25 +509,52 @@ class AvailabilityNotificationService:
                 logger.error(f"LINE user {notification.line_user_id} not found")
                 return False
             
-            # Format message
-            message = self._format_notification_message(
+            # Format full message text (without URL)
+            full_message_text = self._format_notification_message(
                 notification, slots_by_date, clinic, db
             )
             
-            if not message:
+            if not full_message_text:
                 logger.error(f"Failed to format message for notification {notification.id}")
                 return False
             
-            # Send LINE message
+            # Generate LIFF URL for button
+            liff_url = self._generate_liff_url(notification, clinic)
+            if not liff_url:
+                logger.error(f"Failed to generate LIFF URL for notification {notification.id}")
+                return False
+            
+            # Send LINE messages
             line_service = LINEService(
                 channel_secret=clinic.line_channel_secret,
                 channel_access_token=clinic.line_channel_access_token
             )
             
-            line_service.send_text_message(
-                line_user_id=line_user.line_user_id,
-                text=message
-            )
+            # Check if message fits in template (160 char limit)
+            if len(full_message_text) <= 160:
+                # Single template message with button and full text
+                line_service.send_template_message_with_button(
+                    line_user_id=line_user.line_user_id,
+                    text=full_message_text,
+                    button_label="立即預約",
+                    button_uri=liff_url
+                )
+            else:
+                # Message too long: send text message first, then template with button only
+                # Send full details as text message
+                line_service.send_text_message(
+                    line_user_id=line_user.line_user_id,
+                    text=full_message_text
+                )
+                
+                # Send template message with button only (minimal text - LINE requires non-empty text)
+                # Using a single space as minimal text since full details are already in the text message
+                line_service.send_template_message_with_button(
+                    line_user_id=line_user.line_user_id,
+                    text=" ",  # Minimal text (LINE requires non-empty text)
+                    button_label="立即預約",
+                    button_uri=liff_url
+                )
             
             return True
         
@@ -543,7 +570,9 @@ class AvailabilityNotificationService:
         db: Session
     ) -> str:
         """
-        Format batched notification message.
+        Format batched notification message text (without URL).
+        
+        The URL will be added as a button in the template message.
         
         Example output:
         【空位提醒】您關注的預約時段有新的空位了！
@@ -554,8 +583,6 @@ class AvailabilityNotificationService:
         可用時間：
         01/15 (一): 09:00 AM, 10:00 AM, 02:00 PM
         01/16 (二): 09:00 AM, 11:00 AM
-        
-        立即預約：{liff_url}
         """
         # Get appointment type name (with null check)
         if not notification.appointment_type:
@@ -594,23 +621,14 @@ class AvailabilityNotificationService:
             
             slots_lines.append(f"{formatted_date}: {formatted_slots}")
         
-        # Generate LIFF URL for booking page
-        liff_url = self._generate_liff_url(notification, clinic)
-        
-        if not liff_url:
-            logger.error(f"Failed to generate LIFF URL for notification {notification.id}")
-            return ""
-        
-        # Build message
+        # Build message (without URL - URL will be in button)
         message = f"""【空位提醒】您關注的預約時段有新的空位了！
 
 預約類型：{appointment_type_name}
 治療師：{practitioner_name}
 
 可用時間：
-{chr(10).join(slots_lines)}
-
-立即預約：{liff_url}"""
+{chr(10).join(slots_lines)}"""
         
         return message
     
