@@ -1,9 +1,14 @@
 import { DefaultScheduleResponse } from '../types';
 
+interface PractitionerSettings {
+  compact_schedule_enabled: boolean;
+}
+
 interface ProfileSettingsData {
   fullName: string;
   schedule: DefaultScheduleResponse;
   selectedAppointmentTypeIds: number[];
+  settings?: PractitionerSettings;
 }
 
 const DAYS_OF_WEEK = [
@@ -55,10 +60,14 @@ const validateIntervals = (intervals: TimeInterval[]): string | null => {
 
 // Get section-specific changes for profile settings
 export const getProfileSectionChanges = (current: ProfileSettingsData, original: ProfileSettingsData): Record<string, boolean> => {
+  const currentSettings = current.settings || { compact_schedule_enabled: false };
+  const originalSettings = original.settings || { compact_schedule_enabled: false };
+  
   return {
     profile: current.fullName !== original.fullName,
     schedule: original.schedule ?
       JSON.stringify(current.schedule) !== JSON.stringify(original.schedule) : false,
     appointmentTypes: JSON.stringify(current.selectedAppointmentTypeIds) !== JSON.stringify(original.selectedAppointmentTypeIds),
+    settings: currentSettings.compact_schedule_enabled !== originalSettings.compact_schedule_enabled,
   };
 };

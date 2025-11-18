@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { AppointmentType } from '../types';
 import { BookingRestrictionSettings } from '../schemas/api';
+import { InfoModal } from './shared/InfoModal';
 
 interface ClinicAppointmentSettingsProps {
   appointmentTypes: AppointmentType[];
@@ -46,6 +47,23 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
       minimum_booking_hours_ahead: hours,
     });
   };
+
+  const handleStepSizeChange = (minutes: string) => {
+    onBookingRestrictionSettingsChange({
+      ...bookingRestrictionSettings,
+      step_size_minutes: minutes,
+    });
+  };
+
+  const handleMaxFutureAppointmentsChange = (value: string) => {
+    onBookingRestrictionSettingsChange({
+      ...bookingRestrictionSettings,
+      max_future_appointments: value,
+    });
+  };
+
+  const [showStepSizePopup, setShowStepSizePopup] = useState(false);
+  const stepSizeButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div className="space-y-6">
@@ -194,6 +212,85 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 患者未來預約上限 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            患者未來預約上限
+          </label>
+          <div className="space-y-4 max-w-xs">
+            <div>
+              <input
+                type="number"
+                value={bookingRestrictionSettings.max_future_appointments ?? 3}
+                onChange={(e) => handleMaxFutureAppointmentsChange(e.target.value)}
+                className="input"
+                min="1"
+                max="100"
+                disabled={!isClinicAdmin}
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                每位患者最多可同時擁有的未來預約數量
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 可用時段生成間隔 */}
+        <div className="relative">
+          <div className="flex items-center gap-2 mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              預約起始時間間隔
+            </label>
+            <button
+              ref={stepSizeButtonRef}
+              type="button"
+              onClick={() => setShowStepSizePopup(!showStepSizePopup)}
+              className="text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded-full p-1"
+              title="預約起始時間間隔說明"
+              aria-label="顯示預約起始時間間隔說明"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </button>
+            <InfoModal
+              isOpen={showStepSizePopup}
+              onClose={() => setShowStepSizePopup(false)}
+              buttonRef={stepSizeButtonRef}
+            >
+              <p className="font-medium">範例說明（假設預約時長為 60 分鐘）：</p>
+              <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
+                <li><strong>設定為 30 分鐘：</strong>病患可選擇 09:00-10:00、09:30-10:30、10:00-11:00 等時段</li>
+                <li><strong>設定為 15 分鐘：</strong>病患可選擇 09:00-10:00、09:15-10:15、09:30-10:30 等更細的時段</li>
+              </ul>
+            </InfoModal>
+          </div>
+          <div className="space-y-4 max-w-xs">
+            <div>
+              <input
+                type="number"
+                value={bookingRestrictionSettings.step_size_minutes ?? 30}
+                onChange={(e) => handleStepSizeChange(e.target.value)}
+                className="input"
+                min="5"
+                max="60"
+                disabled={!isClinicAdmin}
+              />
             </div>
           </div>
         </div>

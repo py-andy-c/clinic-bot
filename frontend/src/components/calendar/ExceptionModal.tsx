@@ -35,7 +35,18 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
       onClose={onClose}
       aria-label="新增休診時段"
     >
-        <h3 className="text-lg font-semibold mb-4">新增休診時段</h3>
+        <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold">新增休診時段</h3>
+        <button
+          onClick={onClose}
+          className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+          aria-label="關閉"
+        >
+          <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -101,16 +112,10 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
             />
           </div>
         </div>
-        <div className="flex justify-end space-x-2 mt-6">
-          <button 
-            onClick={onClose}
-            className="btn-secondary"
-          >
-            取消
-          </button>
+        <div className="flex justify-end mt-6">
           <button 
             onClick={onCreate}
-            className="btn-primary"
+            className="btn-primary w-full sm:w-auto"
           >
             儲存休診時段
           </button>

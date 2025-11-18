@@ -34,6 +34,8 @@ from models.appointment import Appointment
 from models.line_user import LineUser
 from models.practitioner_availability import PractitionerAvailability
 from models.calendar_event import CalendarEvent
+from models.availability_notification import AvailabilityNotification
+from models.practitioner_link_code import PractitionerLinkCode
 
 
 # Test database URL
@@ -55,7 +57,7 @@ def event_loop():
 def db_engine():
     """
     Create a database engine for the test session.
-    
+
     This engine is shared across all tests for performance.
     Uses NullPool to avoid connection pool issues with transactions.
     """
@@ -64,9 +66,9 @@ def db_engine():
         poolclass=NullPool,  # Don't pool connections (each test gets fresh connection)
         echo=False,
     )
-    
+
     yield engine
-    
+
     engine.dispose()
 
 
@@ -80,7 +82,7 @@ def setup_test_database(db_engine):
 
     Strategy: Run all migrations from scratch (base → head).
     This tests that ALL migrations work correctly together.
-    
+
     After Path B Week 2 (migration history reset), we now have a baseline migration
     that creates all tables from scratch. This allows us to use the simplified
     approach of just running all migrations from scratch.
@@ -89,13 +91,15 @@ def setup_test_database(db_engine):
     alembic_cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
 
     # Drop all tables to start fresh (including alembic_version if it exists)
-    Base.metadata.drop_all(bind=db_engine)
-    
-    # Explicitly drop alembic_version table if it exists
-    # This ensures we start with a clean state after migration history reset
+    # Use CASCADE to handle any leftover tables from previous implementations
     with db_engine.connect() as conn:
-        conn.execute(text("DROP TABLE IF EXISTS alembic_version"))
+        # Drop any leftover tables from previous implementations first
+        conn.execute(text("DROP TABLE IF EXISTS practitioner_line_link_tokens CASCADE"))
+        conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
         conn.commit()
+
+    # Now drop all tables using SQLAlchemy metadata
+    Base.metadata.drop_all(bind=db_engine)
 
     # Run all migrations from scratch (base → head)
     # With the baseline migration, this creates all tables from scratch
@@ -112,31 +116,31 @@ def setup_test_database(db_engine):
 def db_session(db_engine) -> Generator[Session, None, None]:
     """
     Provide a database session for a test with automatic rollback.
-    
+
     This fixture uses the "nested transaction" pattern:
     1. Start a transaction
     2. Create a savepoint
     3. Run the test
     4. Rollback to savepoint (undoes all test changes)
     5. Close transaction
-    
+
     This ensures perfect test isolation - each test gets a clean database
     state, but we don't recreate the database between tests (fast!).
     """
     # Start a connection
     connection = db_engine.connect()
-    
+
     # Begin a transaction
     transaction = connection.begin()
-    
+
     # Create a session bound to the connection
     Session = sessionmaker(bind=connection)
     session = Session()
-    
+
     # Start a nested transaction (savepoint)
     # This allows the test to commit/rollback without affecting the outer transaction
     nested = connection.begin_nested()
-    
+
     # If the application code calls session.commit(), it will only commit to the savepoint
     # We need to intercept this and create a new savepoint
     @event.listens_for(session, "after_transaction_end")
@@ -144,9 +148,9 @@ def db_session(db_engine) -> Generator[Session, None, None]:
         if transaction.nested and not transaction._parent.nested:
             # Re-establish a new savepoint after the nested transaction ends
             session.begin_nested()
-    
+
     yield session
-    
+
     # Teardown: rollback everything
     session.close()
     transaction.rollback()  # Rollback the outer transaction
@@ -212,10 +216,10 @@ def create_user_with_clinic_association(
 ) -> tuple[User, UserClinicAssociation]:
     """
     Create a user and their clinic association.
-    
+
     This helper function creates both a User record and a UserClinicAssociation
     record, which is required for multi-clinic support.
-    
+
     Args:
         db_session: Database session
         clinic: Clinic to associate the user with
@@ -225,7 +229,7 @@ def create_user_with_clinic_association(
         roles: List of roles for this clinic (e.g., ["admin"], ["practitioner"])
         is_active: Whether the association is active (clinic-specific)
         clinic_name: Optional clinic-specific name (defaults to full_name)
-    
+
     Returns:
         Tuple of (User, UserClinicAssociation)
     """
@@ -236,7 +240,7 @@ def create_user_with_clinic_association(
     )
     db_session.add(user)
     db_session.flush()  # Flush to get user.id
-    
+
     # Create clinic association
     association = UserClinicAssociation(
         user_id=user.id,
@@ -247,41 +251,41 @@ def create_user_with_clinic_association(
     )
     db_session.add(association)
     db_session.commit()
-    
+
     return user, association
 
 
 def get_user_clinic_id(user: User, clinic: Clinic | None = None) -> int:
     """
     Get clinic_id for a user.
-    
+
     For backward compatibility, this function:
     1. Returns clinic_id from user.clinic_id if available (deprecated)
     2. Returns clinic_id from the first active association if available
     3. Returns the provided clinic.id if given
     4. Raises ValueError if none available
-    
+
     Args:
         user: User object
         clinic: Optional clinic to use if user has no clinic_id or associations
-    
+
     Returns:
         Clinic ID
     """
     # Try deprecated clinic_id first (for backward compatibility)
     if user.clinic_id is not None:
         return user.clinic_id
-    
+
     # Try associations
     if hasattr(user, 'clinic_associations') and user.clinic_associations:
         active_associations = [a for a in user.clinic_associations if a.is_active]
         if active_associations:
             return active_associations[0].clinic_id
-    
+
     # Fall back to provided clinic
     if clinic:
         return clinic.id
-    
+
     raise ValueError(f"User {user.id} has no clinic_id or active associations, and no clinic provided")
 
 
@@ -295,10 +299,10 @@ def create_practitioner_availability_with_clinic(
 ) -> PractitionerAvailability:
     """
     Helper to create PractitionerAvailability with clinic_id automatically set.
-    
+
     This ensures clinic_id is always provided when creating availability records,
     making it easier to maintain when schema changes occur.
-    
+
     Args:
         db_session: Database session
         practitioner: User (practitioner) to create availability for
@@ -306,7 +310,7 @@ def create_practitioner_availability_with_clinic(
         day_of_week: Day of week (0=Monday, 6=Sunday)
         start_time: Start time for availability
         end_time: End time for availability
-    
+
     Returns:
         Created PractitionerAvailability instance
     """
@@ -332,10 +336,10 @@ def create_calendar_event_with_clinic(
 ) -> CalendarEvent:
     """
     Helper to create CalendarEvent with clinic_id automatically set.
-    
+
     This ensures clinic_id is always provided when creating calendar events,
     making it easier to maintain when schema changes occur.
-    
+
     Args:
         db_session: Database session
         practitioner: User (practitioner) to create event for
@@ -344,7 +348,7 @@ def create_calendar_event_with_clinic(
         event_date: Date of the event
         start_time: Optional start time
         end_time: Optional end time
-    
+
     Returns:
         Created CalendarEvent instance
     """

@@ -1,7 +1,7 @@
 """add_line_user_id_to_users
 
 Revision ID: add_line_user_id_users
-Revises: d27dfa438bad
+Revises: a1b2c3d4e5f7
 Create Date: 2025-01-20 10:00:00.000000
 
 Add line_user_id field to users table for practitioner LINE account linking.
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'add_line_user_id_users'
-down_revision: Union[str, None] = 'd27dfa438bad'
+down_revision: Union[str, None] = 'a1b2c3d4e5f7'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

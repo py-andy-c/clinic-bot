@@ -11,9 +11,10 @@ import LiffHome from './home/LiffHome';
 import AppointmentFlow from './appointment/AppointmentFlow';
 import AppointmentList from './query/AppointmentList';
 import PatientManagement from './settings/PatientManagement';
+import NotificationsFlow from './notifications/NotificationsFlow';
 
-type AppMode = 'home' | 'book' | 'query' | 'settings';
-const VALID_MODES: AppMode[] = ['home', 'book', 'query', 'settings'];
+type AppMode = 'home' | 'book' | 'query' | 'settings' | 'notifications';
+const VALID_MODES: AppMode[] = ['home', 'book', 'query', 'settings', 'notifications'];
 const DEFAULT_MODE: AppMode = 'home';
 
 const MODE_COMPONENTS: Record<AppMode, FC> = {
@@ -21,6 +22,7 @@ const MODE_COMPONENTS: Record<AppMode, FC> = {
   book: AppointmentFlow,
   query: AppointmentList,
   settings: PatientManagement,
+  notifications: NotificationsFlow,
 };
 
 const LiffApp: FC = () => {

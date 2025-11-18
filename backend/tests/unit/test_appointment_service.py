@@ -118,81 +118,6 @@ class TestAppointmentServiceListAppointments:
             assert appt["practitioner_name"] == "Dr. Practitioner"
             assert appt["appointment_type_name"] == "Consultation"
 
-    def test_list_appointments_for_clinic_with_eager_loading(
-        self, db_session: Session
-    ):
-        """Test clinic appointment listing with eager loading."""
-        # Create clinic
-        clinic = Clinic(
-            name="Test Clinic",
-            line_channel_id="test_channel",
-            line_channel_secret="test_secret",
-            line_channel_access_token="test_token"
-        )
-        db_session.add(clinic)
-        db_session.commit()
-
-        # Create practitioner with clinic association
-        practitioner, _ = create_user_with_clinic_association(
-            db_session,
-            clinic=clinic,
-            email="practitioner@test.com",
-            google_subject_id="practitioner_123",
-            full_name="Dr. Practitioner",
-            roles=["practitioner"]
-        )
-
-        # Create appointment type
-        appt_type = AppointmentType(
-            clinic_id=clinic.id,
-            name="Consultation",
-            duration_minutes=30
-        )
-        db_session.add(appt_type)
-        db_session.commit()
-
-        # Create patient
-        patient = Patient(
-            clinic_id=clinic.id,
-            full_name="Test Patient",
-            phone_number="0912345678"
-        )
-        db_session.add(patient)
-        db_session.commit()
-
-        # Create appointment
-        today = taiwan_now().date()
-        calendar_event = create_calendar_event_with_clinic(
-            db_session, practitioner, clinic,
-            event_type="appointment",
-            event_date=today,
-            start_time=time(10, 0),
-            end_time=time(10, 30)
-        )
-        db_session.flush()
-
-        appointment = Appointment(
-            calendar_event_id=calendar_event.id,
-            patient_id=patient.id,
-            appointment_type_id=appt_type.id,
-            status="confirmed"
-        )
-        db_session.add(appointment)
-        db_session.commit()
-
-        # List appointments
-        appointments = AppointmentService.list_appointments_for_clinic(
-            db_session, clinic.id
-        )
-
-        assert len(appointments) >= 1
-
-        # Verify relationships are loaded
-        appt = appointments[0]
-        assert "patient_name" in appt
-        assert "practitioner_name" in appt
-        assert "appointment_type_name" in appt
-
     def test_list_appointments_upcoming_only_filter(
         self, db_session: Session
     ):
@@ -746,8 +671,8 @@ class TestAppointmentServiceTaiwanTimezone:
 
         # Cancel appointment
         before_cancel = taiwan_now()
-        AppointmentService.cancel_appointment_by_patient(
-            db_session, event.id, line_user.id, clinic.id
+        AppointmentService.cancel_appointment(
+            db_session, event.id, cancelled_by='patient'
         )
         after_cancel = taiwan_now()
         db_session.refresh(appointment)

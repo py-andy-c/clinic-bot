@@ -32,6 +32,7 @@ export interface Clinic {
     booking_restriction_settings?: {
       booking_restriction_type?: string;
       minimum_booking_hours_ahead?: number;
+      step_size_minutes?: number;
     };
     clinic_info_settings?: {
       display_name?: string | null;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TimeInterval } from '../types';
 import { logger } from '../utils/logger';
 import { LoadingSpinner } from '../components/shared';
@@ -10,12 +10,156 @@ import { apiService } from '../services/api';
 import ProfileForm from '../components/ProfileForm';
 import AvailabilitySettings from '../components/AvailabilitySettings';
 import PractitionerAppointmentTypes from '../components/PractitionerAppointmentTypes';
+import CompactScheduleSettings from '../components/CompactScheduleSettings';
 import PageHeader from '../components/PageHeader';
+
+interface LineLinkingSectionProps {
+  lineLinked: boolean;
+  onRefresh: () => void;
+  clinicName?: string | undefined;
+}
+
+const LineLinkingSection: React.FC<LineLinkingSectionProps> = ({ lineLinked, onRefresh, clinicName }) => {
+  const [linkCode, setLinkCode] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isUnlinking, setIsUnlinking] = useState(false);
+  const { alert, confirm } = useModal();
+
+  const handleGenerateCode = async () => {
+    setIsGenerating(true);
+    try {
+      const response = await apiService.generateLinkCode();
+      setLinkCode(response.code);
+      setExpiresAt(new Date(response.expires_at));
+    } catch (err: any) {
+      logger.error('Error generating link code:', err);
+      alert('產生連結代碼失敗', err?.response?.data?.detail || '請稍後再試');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleUnlink = async () => {
+    const confirmed = await confirm(
+      '取消連結 LINE 帳號',
+      '確定要取消連結 LINE 帳號嗎？您將不再收到預約通知。'
+    );
+    if (!confirmed) return;
+
+    setIsUnlinking(true);
+    try {
+      await apiService.unlinkLineAccount();
+      alert('成功', 'LINE 帳號已取消連結');
+      onRefresh();
+    } catch (err: any) {
+      logger.error('Error unlinking LINE account:', err);
+      alert('取消連結失敗', err?.response?.data?.detail || '請稍後再試');
+    } finally {
+      setIsUnlinking(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('已複製', '連結代碼已複製到剪貼簿');
+    }).catch(err => {
+      logger.error('Failed to copy:', err);
+    });
+  };
+
+  return (
+    <div className="pt-6 border-t border-gray-200">
+      <h3 className="text-lg font-medium text-gray-900 mb-4">LINE 通知設定</h3>
+
+      <div className="space-y-4">
+        {/* Status */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-700">
+              {lineLinked ? (
+                <span className="flex items-center">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  LINE 帳號已連結
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <span className="w-2 h-2 bg-gray-400 rounded-full mr-2"></span>
+                  LINE 帳號尚未連結
+                </span>
+              )}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              {lineLinked
+                ? `您將從${clinicName ? `「${clinicName}」` : '診所'}的 LINE 官方帳號收到新預約通知`
+                : `連結 LINE 帳號以從${clinicName ? `「${clinicName}」` : '診所'}的 LINE 官方帳號接收預約通知`}
+            </p>
+          </div>
+        </div>
+
+        {/* Link Code Display */}
+        {linkCode && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm font-medium text-blue-900 mb-2">
+              請在 LINE 中傳送以下訊息給{clinicName ? `「${clinicName}」` : '診所'}官方帳號：
+            </p>
+            <div className="flex items-center space-x-2 mb-2">
+              <code className="flex-1 bg-white border border-blue-300 rounded px-3 py-2 text-lg font-mono text-blue-900">
+                {linkCode}
+              </code>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(linkCode)}
+                className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+              >
+                複製
+              </button>
+            </div>
+            {expiresAt && (
+              <p className="text-xs text-blue-700">
+                此代碼將於 {expiresAt.toLocaleString('zh-TW')} 過期
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex space-x-3">
+          {!lineLinked && (
+            <button
+              type="button"
+              onClick={handleGenerateCode}
+              disabled={isGenerating}
+              className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              {isGenerating ? '產生中...' : '產生連結代碼'}
+            </button>
+          )}
+          {lineLinked && (
+            <button
+              type="button"
+              onClick={handleUnlink}
+              disabled={isUnlinking}
+              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              {isUnlinking ? '取消連結中...' : '取消連結'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface PractitionerSettings {
+  compact_schedule_enabled: boolean;
+}
 
 interface ProfileData {
   fullName: string;
   schedule: any;
   selectedAppointmentTypeIds: number[];
+  settings?: PractitionerSettings;
 }
 
 const ProfilePage: React.FC = () => {
@@ -55,6 +199,9 @@ const ProfilePage: React.FC = () => {
         fullName: '',
         schedule: {},
         selectedAppointmentTypeIds: [],
+        settings: {
+          compact_schedule_enabled: false,
+        },
       };
 
       // Fetch profile if not already loaded
@@ -71,6 +218,13 @@ const ProfilePage: React.FC = () => {
       // Set the full name from the profile
       if (profileToUse) {
         result.fullName = profileToUse.full_name || '';
+        // Set settings from profile (only for practitioners)
+        if (profileToUse.settings && user?.roles?.includes('practitioner')) {
+          const settings = profileToUse.settings as PractitionerSettings;
+          result.settings = {
+            compact_schedule_enabled: Boolean(settings?.compact_schedule_enabled),
+          };
+        }
       }
 
       // Fetch availability schedule (only for practitioners)
@@ -94,9 +248,28 @@ const ProfilePage: React.FC = () => {
       return result;
     },
     saveData: async (data: ProfileData) => {
-      // Save profile changes
+      // Prepare profile update data
+      const profileUpdate: { full_name?: string; settings?: PractitionerSettings } = {};
+
+      // Check if full name changed
       if (data.fullName !== profile?.full_name) {
-        const updatedProfile = await apiService.updateProfile({ full_name: data.fullName });
+        profileUpdate.full_name = data.fullName;
+      }
+
+      // Check if settings changed (only for practitioners)
+      if (user?.roles?.includes('practitioner') && data.settings) {
+        const currentSettings = (profile?.settings as PractitionerSettings | undefined) || { compact_schedule_enabled: false };
+        const newSettings = data.settings;
+
+        // Only update if compact_schedule_enabled actually changed
+        if (currentSettings.compact_schedule_enabled !== newSettings.compact_schedule_enabled) {
+          profileUpdate.settings = newSettings;
+        }
+      }
+
+      // Save profile changes if any
+      if (Object.keys(profileUpdate).length > 0) {
+        const updatedProfile = await apiService.updateProfile(profileUpdate);
         setProfile(updatedProfile);
       }
 
@@ -104,7 +277,7 @@ const ProfilePage: React.FC = () => {
       if (user?.roles?.includes('practitioner') && user.user_id) {
         // Always save schedule for practitioners
         await apiService.updatePractitionerDefaultSchedule(user.user_id, data.schedule);
-        
+
         // Filter appointment type IDs to only include valid ones for current clinic
         // This prevents errors when switching clinics (old clinic's appointment type IDs might still be in state)
         try {
@@ -115,7 +288,7 @@ const ProfilePage: React.FC = () => {
           const filteredAppointmentTypeIds = data.selectedAppointmentTypeIds.filter(
             (id: number) => validAppointmentTypeIds.has(id)
           );
-          
+
           await apiService.updatePractitionerAppointmentTypes(user.user_id, filteredAppointmentTypeIds);
         } catch (err) {
           logger.error('Error filtering appointment types before save:', err);
@@ -252,6 +425,40 @@ const ProfilePage: React.FC = () => {
                     saving={uiState.saving}
                   />
                 </div>
+              )}
+
+              {/* Compact Schedule Settings (Only for practitioners) */}
+              {profile?.roles?.includes('practitioner') && (
+                <CompactScheduleSettings
+                  compactScheduleEnabled={profileData?.settings?.compact_schedule_enabled || false}
+                  onToggle={(enabled) => updateData({
+                    settings: {
+                      ...profileData?.settings,
+                      compact_schedule_enabled: enabled
+                    }
+                  })}
+                  showSaveButton={sectionChanges.settings || false}
+                  onSave={saveData}
+                  saving={uiState.saving}
+                />
+              )}
+
+              {/* LINE Notification Settings (Only for practitioners) */}
+              {profile?.roles?.includes('practitioner') && (
+                <LineLinkingSection
+                  lineLinked={profile?.line_linked || false}
+                  onRefresh={() => {
+                    apiService.getProfile().then(setProfile).catch(err => logger.error('Error refreshing profile:', err));
+                  }}
+                  clinicName={(() => {
+                    // Get clinic name from available clinics
+                    if (user?.available_clinics && activeClinicId) {
+                      const activeClinic = user.available_clinics.find(c => c.id === activeClinicId);
+                      return activeClinic?.display_name || activeClinic?.name || undefined;
+                    }
+                    return undefined;
+                  })()}
+                />
               )}
           </form>
         </div>

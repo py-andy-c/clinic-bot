@@ -92,6 +92,9 @@ const PatientsPage: React.FC = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       註冊時間
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      操作
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -117,6 +120,17 @@ const PatientsPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {moment.tz(patient.created_at, 'Asia/Taipei').format('YYYY/MM/DD')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button
+                          onClick={() => {
+                            // Navigate to calendar page with pre-selected patient
+                            window.location.href = `/admin/calendar?createAppointment=${patient.id}`;
+                          }}
+                          className="text-blue-600 hover:text-blue-800 font-medium"
+                        >
+                          新增預約
+                        </button>
                       </td>
                     </tr>
                   ))}

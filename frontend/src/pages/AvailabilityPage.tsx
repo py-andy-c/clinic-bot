@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { LoadingSpinner } from '../components/shared';
 import { View } from 'react-big-calendar';
@@ -10,12 +11,18 @@ import { logger } from '../utils/logger';
 
 const AvailabilityPage: React.FC = () => {
   const { user, isPractitioner } = useAuth();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [practitionersLoading, setPractitionersLoading] = useState(true);
   const [addExceptionHandler, setAddExceptionHandler] = useState<(() => void) | null>(null);
   const [practitioners, setPractitioners] = useState<{ id: number; full_name: string }[]>([]);
   const [additionalPractitionerIds, setAdditionalPractitionerIds] = useState<number[]>([]);
   const [defaultPractitionerId, setDefaultPractitionerId] = useState<number | null>(null);
+  
+  // Get pre-selected patient ID from query parameter
+  const preSelectedPatientId = searchParams.get('createAppointment') 
+    ? parseInt(searchParams.get('createAppointment') || '0', 10) 
+    : undefined;
 
   // Determine which practitioner IDs to display
   const displayedPractitionerIds = React.useMemo(() => {
@@ -95,6 +102,12 @@ const AvailabilityPage: React.FC = () => {
     setAddExceptionHandler(() => handler);
   }, []);
 
+  // Handler for create appointment button
+  const handleCreateAppointment = useCallback(() => {
+    // Trigger create appointment modal in CalendarView
+    (window as any).__calendarCreateAppointment?.();
+  }, []);
+
   if (loading || practitionersLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -130,6 +143,14 @@ const AvailabilityPage: React.FC = () => {
               </div>
             )}
             
+            {/* Create Appointment button */}
+            <button
+              onClick={handleCreateAppointment}
+              className="w-full md:w-auto inline-flex items-center justify-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 whitespace-nowrap"
+            >
+              新增預約
+            </button>
+            
             {/* Add Unavailable Time button - only show for practitioners */}
             {addExceptionHandler && isPractitioner && (
               <button
@@ -151,6 +172,7 @@ const AvailabilityPage: React.FC = () => {
             additionalPractitionerIds={displayedPractitionerIds.filter(id => id !== primaryUserId)}
             practitioners={practitioners}
             onAddExceptionHandlerReady={handleAddExceptionHandlerReady}
+            {...(preSelectedPatientId !== undefined ? { preSelectedPatientId } : {})}
           />
         )}
         {!primaryUserId && practitioners.length === 0 && (

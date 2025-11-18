@@ -5,13 +5,22 @@ This model represents the many-to-many relationship between users and clinics,
 storing clinic-specific roles and names for each association.
 """
 
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime
 from sqlalchemy import String, TIMESTAMP, Boolean, ForeignKey, UniqueConstraint, Index, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pydantic import BaseModel, Field
 
 from core.database import Base
+
+
+class PractitionerSettings(BaseModel):
+    """Schema for practitioner settings per clinic."""
+    compact_schedule_enabled: bool = Field(
+        default=False,
+        description="Whether to recommend compact schedule slots that don't extend total time"
+    )
 
 
 class UserClinicAssociation(Base):
@@ -28,6 +37,16 @@ class UserClinicAssociation(Base):
     last_accessed_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default="now()")
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default="now()")
+    
+    settings: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    """
+    JSONB column containing practitioner settings per clinic with validated schema.
+    
+    Structure (matches PractitionerSettings Pydantic model):
+    {
+        "compact_schedule_enabled": false
+    }
+    """
     
     # Relationships
     user = relationship("User", back_populates="clinic_associations")
@@ -54,6 +73,14 @@ class UserClinicAssociation(Base):
             postgresql_where=text('is_active = TRUE')
         ),
     )
+    
+    def get_validated_settings(self) -> PractitionerSettings:
+        """Get settings with schema validation."""
+        return PractitionerSettings.model_validate(self.settings)
+    
+    def set_validated_settings(self, settings: PractitionerSettings):
+        """Set settings with schema validation."""
+        self.settings = settings.model_dump()
     
     def __repr__(self) -> str:
         return f"<UserClinicAssociation(id={self.id}, user_id={self.user_id}, clinic_id={self.clinic_id}, roles={self.roles})>"

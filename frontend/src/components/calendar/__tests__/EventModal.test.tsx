@@ -148,7 +148,7 @@ describe('EventModal', () => {
       />
     );
 
-    const closeButton = screen.getByText('關閉');
+    const closeButton = screen.getByLabelText('關閉');
     closeButton.click();
     expect(onClose).toHaveBeenCalledTimes(1);
   });

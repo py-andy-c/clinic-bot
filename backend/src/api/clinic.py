@@ -11,15 +11,16 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy.orm import Session
+from utils.datetime_utils import parse_datetime_string_to_taiwan
 
 logger = logging.getLogger(__name__)
 
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
-from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation
+from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation, Appointment
 from models.clinic import ClinicSettings, ChatSettings as ChatSettingsModel
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
 from services.availability_service import AvailabilityService
@@ -75,6 +76,8 @@ class BookingRestrictionSettings(BaseModel):
     """Booking restriction settings for clinic."""
     booking_restriction_type: str = "same_day_disallowed"
     minimum_booking_hours_ahead: int = 24
+    step_size_minutes: int = 30
+    max_future_appointments: int = 3
 
 
 class ClinicInfoSettings(BaseModel):
@@ -606,7 +609,9 @@ async def get_settings(
            ),
            booking_restriction_settings=BookingRestrictionSettings(
                booking_restriction_type=clinic.booking_restriction_type,
-               minimum_booking_hours_ahead=clinic.minimum_booking_hours_ahead
+               minimum_booking_hours_ahead=clinic.minimum_booking_hours_ahead,
+               step_size_minutes=validated_settings.booking_restriction_settings.step_size_minutes,
+               max_future_appointments=validated_settings.booking_restriction_settings.max_future_appointments
            ),
            clinic_info_settings=ClinicInfoSettings(
                display_name=clinic.display_name,
@@ -1630,12 +1635,13 @@ async def cancel_clinic_appointment(
                     )
                 # If event doesn't exist, let service handle 404
         
-        # Cancel appointment using service (will verify appointment exists, clinic matches, etc.)
-        clinic_id = ensure_clinic_access(current_user)
-        result = AppointmentService.cancel_appointment_by_clinic_admin(
+        # Cancel appointment using service
+        # Note: Permission validation is already done above (practitioners can only cancel their own, admins can cancel any)
+        result = AppointmentService.cancel_appointment(
             db=db,
             appointment_id=appointment_id,
-            clinic_id=clinic_id
+            cancelled_by='clinic',
+            return_details=True
         )
 
         appointment = result['appointment']
@@ -1679,6 +1685,411 @@ async def cancel_clinic_appointment(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="取消預約失敗"
+        )
+
+
+# ===== Appointment Management (Create, Edit, Reassign) =====
+
+def parse_datetime_field_validator(values: Dict[str, Any], field_name: str) -> Dict[str, Any]:
+    """
+    Shared validator to parse datetime string fields to Taiwan timezone.
+    
+    This function is used by Pydantic model validators to convert datetime strings
+    to timezone-aware datetime objects in Taiwan timezone.
+    
+    Args:
+        values: Dictionary of field values (from Pydantic model_validator)
+        field_name: Name of the datetime field to parse
+        
+    Returns:
+        Updated values dictionary with parsed datetime
+    """
+    if field_name in values and values.get(field_name):
+        if isinstance(values[field_name], str):
+            try:
+                values[field_name] = parse_datetime_string_to_taiwan(values[field_name])
+            except ValueError:
+                pass  # Let Pydantic handle the error
+    return values
+
+
+class ClinicAppointmentCreateRequest(BaseModel):
+    """Request model for creating appointment on behalf of patient."""
+    patient_id: int
+    appointment_type_id: int
+    start_time: datetime
+    practitioner_id: int  # Required - clinic users must select a practitioner
+    notes: Optional[str] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def parse_datetime_fields(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse datetime strings before validation, converting to Taiwan timezone."""
+        return parse_datetime_field_validator(values, 'start_time')
+
+
+class AppointmentEditRequest(BaseModel):
+    """Request model for editing appointment."""
+    practitioner_id: Optional[int] = None  # None = keep current
+    start_time: Optional[datetime] = None  # None = keep current
+    notes: Optional[str] = None  # If provided, updates appointment.notes. If None, preserves original patient notes.
+    notification_note: Optional[str] = None  # Optional note to include in edit notification (does not update appointment.notes)
+
+    @model_validator(mode='before')
+    @classmethod
+    def parse_datetime_fields(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse datetime strings before validation, converting to Taiwan timezone."""
+        return parse_datetime_field_validator(values, 'start_time')
+
+
+class AppointmentEditPreviewRequest(BaseModel):
+    """Request model for previewing edit notification."""
+    new_practitioner_id: Optional[int] = None
+    new_start_time: Optional[datetime] = None
+    note: Optional[str] = None
+
+    @model_validator(mode='before')
+    @classmethod
+    def parse_datetime_fields(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse datetime strings before validation, converting to Taiwan timezone."""
+        return parse_datetime_field_validator(values, 'new_start_time')
+
+
+@router.post("/appointments", summary="Create appointment on behalf of patient")
+async def create_clinic_appointment(
+    request: ClinicAppointmentCreateRequest,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Create an appointment on behalf of an existing patient.
+    
+    Admin and practitioners can create appointments for any patient.
+    Read-only users cannot create appointments.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Check if user is read-only
+        if current_user.has_role('read-only'):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您沒有權限建立預約"
+            )
+        
+        # Create appointment (no LINE user validation for clinic users)
+        result = AppointmentService.create_appointment(
+            db=db,
+            clinic_id=clinic_id,
+            patient_id=request.patient_id,
+            appointment_type_id=request.appointment_type_id,
+            start_time=request.start_time,
+            practitioner_id=request.practitioner_id,
+            notes=request.notes,
+            line_user_id=None  # No LINE validation for clinic users
+        )
+        
+        # Send LINE notification
+        try:
+            appointment = db.query(Appointment).filter(
+                Appointment.calendar_event_id == result['appointment_id']
+            ).first()
+            if appointment and appointment.patient:
+                patient = appointment.patient
+                if patient.line_user:
+                    # Format appointment time for notification
+                    from utils.datetime_utils import format_datetime
+                    appointment_time = format_datetime(request.start_time)
+                    # Get appointment type name from appointment object (more reliable)
+                    appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else '預約'
+                    
+                    # Get practitioner name (practitioner_id is always provided for clinic-initiated appointments)
+                    practitioner = db.query(User).get(request.practitioner_id)
+                    if practitioner:
+                        # Get practitioner name from association
+                        association = db.query(UserClinicAssociation).filter(
+                            UserClinicAssociation.user_id == practitioner.id,
+                            UserClinicAssociation.clinic_id == clinic_id,
+                            UserClinicAssociation.is_active == True
+                        ).first()
+                        practitioner_name = association.full_name if association else practitioner.email
+                    else:
+                        practitioner_name = "未知治療師"
+                    
+                    # Generate and send notification
+                    from services.line_service import LINEService
+                    clinic = patient.clinic
+                    line_service = LINEService(
+                        channel_secret=clinic.line_channel_secret,
+                        channel_access_token=clinic.line_channel_access_token
+                    )
+                    message = f"{patient.full_name}，您的預約已建立：\n\n{appointment_time} - 【{appointment_type_name}】{practitioner_name}治療師"
+                    if request.notes:
+                        message += f"\n\n備註：{request.notes}"
+                    message += "\n\n期待為您服務！"
+                    line_service.send_text_message(patient.line_user.line_user_id, message)
+        except Exception as e:
+            logger.exception(f"Failed to send LINE notification for appointment creation: {e}")
+            # Don't fail the request if notification fails
+        
+        return {
+            "success": True,
+            "appointment_id": result['appointment_id'],
+            "message": "預約已建立"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to create appointment: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="建立預約失敗"
+        )
+
+
+@router.post("/appointments/{appointment_id}/edit-preview", summary="Preview edit notification")
+async def preview_edit_notification(
+    appointment_id: int,
+    request: AppointmentEditPreviewRequest,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Preview edit notification message before confirming edit.
+    
+    Also validates conflicts and returns whether notification will be sent.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Get appointment
+        appointment = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).filter(
+            Appointment.calendar_event_id == appointment_id,
+            CalendarEvent.clinic_id == clinic_id
+        ).first()
+        
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約不存在"
+            )
+        
+        # Check if appointment is cancelled
+        if appointment.status in ['canceled_by_patient', 'canceled_by_clinic']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="此預約已取消，無法編輯"
+            )
+        
+        # Check permissions before preview
+        calendar_event = appointment.calendar_event
+        is_admin = current_user.has_role('admin')
+        if not is_admin:
+            # Practitioners can only preview their own appointments
+            if calendar_event.user_id != current_user.user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="您只能預覽自己的預約"
+                )
+        
+        # Check conflicts (after permission check)
+        is_valid, _, conflicts = AppointmentService.check_appointment_edit_conflicts(
+            db, appointment_id, request.new_practitioner_id, request.new_start_time,
+            appointment.appointment_type_id, clinic_id
+        )
+        
+        # Determine if notification will be sent
+        from utils.datetime_utils import TAIWAN_TZ
+        old_start_time_for_preview = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+        old_practitioner_id_for_preview = calendar_event.user_id
+        new_start_time = request.new_start_time if request.new_start_time else old_start_time_for_preview
+        new_practitioner_id = request.new_practitioner_id if request.new_practitioner_id else old_practitioner_id_for_preview
+        
+        will_send_notification = AppointmentService.should_send_edit_notification(
+            old_appointment=appointment,
+            new_practitioner_id=new_practitioner_id,
+            new_start_time=new_start_time
+        )
+        
+        # Generate preview message if notification will be sent
+        preview_message: Optional[str] = None
+        if will_send_notification:
+            old_practitioner = None
+            if not appointment.is_auto_assigned:
+                old_practitioner = db.query(User).get(calendar_event.user_id)
+            
+            new_practitioner = None
+            if request.new_practitioner_id:
+                new_practitioner = db.query(User).get(request.new_practitioner_id)
+            
+            preview_message = NotificationService.generate_edit_preview(
+                db=db,
+                appointment=appointment,
+                old_practitioner=old_practitioner,
+                new_practitioner=new_practitioner,
+                old_start_time=old_start_time_for_preview,
+                new_start_time=new_start_time,
+                note=request.note
+            )
+        
+        return {
+            "preview_message": preview_message,
+            "old_appointment_details": {
+                "practitioner_id": calendar_event.user_id,
+                "start_time": old_start_time_for_preview.isoformat(),
+                "is_auto_assigned": appointment.is_auto_assigned
+            },
+            "new_appointment_details": {
+                "practitioner_id": request.new_practitioner_id if request.new_practitioner_id else calendar_event.user_id,
+                "start_time": new_start_time.isoformat()
+            },
+            "conflicts": conflicts,
+            "is_valid": is_valid,
+            "will_send_notification": will_send_notification
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to preview edit notification: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="預覽失敗"
+        )
+
+
+@router.put("/appointments/{appointment_id}", summary="Edit appointment")
+async def edit_clinic_appointment(
+    appointment_id: int,
+    request: AppointmentEditRequest,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Edit an appointment (time and/or practitioner).
+    
+    Admin can edit any appointment.
+    Practitioners can only edit their own appointments.
+    Read-only users cannot edit.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Check if user is read-only
+        if current_user.has_role('read-only'):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您沒有權限編輯預約"
+            )
+        
+        # Get appointment before edit (for notification and permission check)
+        appointment = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).filter(
+            Appointment.calendar_event_id == appointment_id,
+            CalendarEvent.clinic_id == clinic_id
+        ).first()
+        
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約不存在"
+            )
+        
+        # Check permissions (before any other operations)
+        calendar_event = appointment.calendar_event
+        is_admin = current_user.has_role('admin')
+        if not is_admin:
+            # Practitioners can only edit their own appointments
+            if calendar_event.user_id != current_user.user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="您只能編輯自己的預約"
+                )
+        
+        # Ensure user_id is available (should always be true with require_practitioner_or_admin)
+        if current_user.user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="未授權"
+            )
+        
+        # Store old values for notification (before edit)
+        from utils.datetime_utils import TAIWAN_TZ
+        old_start_time = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+        old_practitioner_id = calendar_event.user_id
+        old_is_auto_assigned = appointment.is_auto_assigned
+        
+        # Determine if notification should be sent BEFORE updating appointment
+        # Calculate actual values (use current if None provided)
+        new_practitioner_id = request.practitioner_id if request.practitioner_id is not None else old_practitioner_id
+        new_start_time = request.start_time if request.start_time is not None else old_start_time
+        
+        should_send = AppointmentService.should_send_edit_notification(
+            old_appointment=appointment,
+            new_practitioner_id=new_practitioner_id,
+            new_start_time=new_start_time
+        )
+        
+        # Edit appointment (service handles business logic, not permissions)
+        result = AppointmentService.edit_appointment(
+            db=db,
+            appointment_id=appointment_id,
+            clinic_id=clinic_id,
+            current_user_id=current_user.user_id,
+            new_practitioner_id=request.practitioner_id,
+            new_start_time=request.start_time,
+            new_notes=request.notes
+        )
+        
+        # Refresh appointment to get updated values for notification
+        db.refresh(appointment)
+
+        # Send notification if needed
+        # Note: Notification failures are caught and logged but don't fail the request.
+        # This ensures appointment edits succeed even if LINE service is temporarily unavailable.
+        if should_send:
+            try:
+                # Get practitioners for notification
+                old_practitioner = None
+                if not old_is_auto_assigned:
+                    old_practitioner = db.query(User).get(old_practitioner_id)
+                
+                new_practitioner = None
+                if request.practitioner_id:
+                    new_practitioner = db.query(User).get(request.practitioner_id)
+                elif not appointment.is_auto_assigned:
+                    new_practitioner = db.query(User).get(appointment.calendar_event.user_id)
+                
+                notification_sent = NotificationService.send_appointment_edit_notification(
+                    db=db,
+                    appointment=appointment,
+                    old_practitioner=old_practitioner,
+                    new_practitioner=new_practitioner,
+                    old_start_time=old_start_time,
+                    new_start_time=new_start_time,
+                    note=request.notification_note  # Use separate notification note, not appointment notes
+                )
+                if not notification_sent:
+                    logger.warning(f"Failed to send edit notification for appointment {appointment_id} (check logs above)")
+            except Exception as e:
+                logger.exception(f"Failed to send LINE notification for appointment edit: {e}")
+                # Don't fail the request if notification fails
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to edit appointment: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="編輯預約失敗"
         )
 
 

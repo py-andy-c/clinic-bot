@@ -4,6 +4,7 @@ import moment from 'moment-timezone';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 import { formatDateTime as formatDateTimeUtil } from '../../utils/calendarUtils';
+import { getErrorMessage } from '../../types/api';
 
 const Step6Confirmation: React.FC = () => {
   const { appointmentType, practitioner, practitionerId, isAutoAssigned, date, startTime, patient, notes, clinicId, updateAssignedPractitioner, setCreatedAppointment } = useAppointmentStore();
@@ -65,7 +66,7 @@ const Step6Confirmation: React.FC = () => {
       useAppointmentStore.setState({ step: 7 });
     } catch (err) {
       logger.error('Failed to create appointment:', err);
-      setError(err instanceof Error ? err.message : '預約失敗，請稍後再試');
+      setError(getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }

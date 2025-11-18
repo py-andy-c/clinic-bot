@@ -144,6 +144,13 @@ class TestAppointmentServiceIntegration:
         db_session.add(clinic)
         db_session.commit()
 
+        # Set max_future_appointments to 10 for this test to avoid hitting limit
+        from models.clinic import ClinicSettings
+        settings = clinic.get_validated_settings()
+        settings.booking_restriction_settings.max_future_appointments = 10
+        clinic.set_validated_settings(settings)
+        db_session.commit()
+
         # Create two practitioners with clinic associations
         practitioner1, _ = create_user_with_clinic_association(
             db_session,
@@ -397,8 +404,8 @@ class TestAppointmentServiceIntegration:
         db_session.refresh(appointment)  # Refresh to ensure appointment.patient_id is set
 
         # Cancel appointment
-        result = AppointmentService.cancel_appointment_by_patient(
-            db_session, event.id, line_user.id, clinic.id
+        result = AppointmentService.cancel_appointment(
+            db_session, event.id, cancelled_by='patient'
         )
 
         assert result["success"] is True

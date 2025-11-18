@@ -56,7 +56,7 @@ describe('useApiData', () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
-  it('should use initial data when provided', () => {
+  it('should use initial data when provided', async () => {
     const initialData = { id: 0, name: 'Initial' };
     const fetchFn = vi.fn().mockResolvedValue({ id: 1, name: 'Test' });
 
@@ -66,6 +66,11 @@ describe('useApiData', () => {
 
     expect(result.current.data).toEqual(initialData);
     expect(result.current.loading).toBe(true);
+
+    // Wait for the fetch to complete to avoid act warnings
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
   });
 
   it('should handle fetch errors', async () => {

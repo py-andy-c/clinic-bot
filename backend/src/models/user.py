@@ -25,6 +25,15 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True)  # Globally unique (not per-clinic)
     google_subject_id: Mapped[str] = mapped_column(String(255), unique=True)
 
+    # LINE integration (optional - for practitioner notifications)
+    line_user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    """
+    LINE user ID for practitioner LINE account linking.
+
+    Used to send appointment notifications to practitioners via LINE.
+    Optional - practitioners can link their LINE account to receive notifications.
+    """
+
     # Metadata
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
@@ -38,7 +47,7 @@ class User(Base):
         cascade="all, delete-orphan"
     )
     """User-clinic associations for multi-clinic support. Roles and names are clinic-specific."""
-    
+
     refresh_tokens = relationship("RefreshToken", back_populates="user")
     availability = relationship("PractitionerAvailability", back_populates="user", cascade="all, delete-orphan")
     calendar_events = relationship("CalendarEvent", back_populates="user", cascade="all, delete-orphan")
