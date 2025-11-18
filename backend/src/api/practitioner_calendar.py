@@ -870,17 +870,10 @@ async def get_available_slots(
     - Appointment type duration
     """
     try:
-        # Check permissions - practitioners can only view their own availability
-        if current_user.user_type == 'clinic_user' and not current_user.has_role("admin"):
-            if current_user.user_id != user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="您只能查看自己的可用時間"
-                )
-        
         clinic_id = ensure_clinic_access(current_user)
         
-        # Verify user exists, is active, and is a practitioner
+        # Verify user exists, is active, and is a practitioner in the same clinic
+        # All clinic users can view any practitioner's availability in their clinic
         _verify_practitioner_in_clinic(db, user_id, clinic_id)
         
         # Verify appointment type exists
