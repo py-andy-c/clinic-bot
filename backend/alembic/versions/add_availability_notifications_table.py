@@ -1,7 +1,7 @@
 """add_availability_notifications_table
 
 Revision ID: a1b2c3d4e5f7
-Revises: 1b2375d21e4f
+Revises: add_settings_uca
 Create Date: 2025-01-16 12:00:00.000000
 
 Add availability_notifications table for LINE users to sign up for availability alerts.

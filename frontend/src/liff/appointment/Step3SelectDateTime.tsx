@@ -4,6 +4,7 @@ import { logger } from '../../utils/logger';
 import { LoadingSpinner } from '../../components/shared';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
+import AvailabilityNotificationButton from '../components/AvailabilityNotificationButton';
 import {
   formatTo12Hour,
   groupTimeSlots,
@@ -327,11 +328,21 @@ const Step3SelectDateTime: React.FC = () => {
               <p className="text-sm text-gray-400 mt-2">請選擇其他日期</p>
             </div>
           )}
+          
+          {/* Availability Notification Button - shown under time slots */}
+          {selectedDate && (
+            <AvailabilityNotificationButton className="mt-4" />
+          )}
         </div>
       ) : (
         <div className="mb-6">
           <h3 className="font-medium text-gray-900 mb-2">可預約時段</h3>
         </div>
+      )}
+
+      {/* Redirect to Availability Notification - shown when no date selected */}
+      {!selectedDate && (
+        <AvailabilityNotificationButton className="mt-6" />
       )}
     </div>
   );

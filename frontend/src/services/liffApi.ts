@@ -236,6 +236,54 @@ class LiffApiService {
     const response = await this.client.get('/liff/clinic-info');
     return response.data;
   }
+
+  // Availability Notifications
+  async createAvailabilityNotification(request: {
+    appointment_type_id: number;
+    practitioner_id?: number | null;
+    time_windows: Array<{ date: string; time_window: 'morning' | 'afternoon' | 'evening' }>;
+  }): Promise<{
+    id: number;
+    appointment_type_id: number;
+    appointment_type_name: string;
+    practitioner_id: number | null;
+    practitioner_name: string | null;
+    time_windows: Array<{ date: string; time_window: string }>;
+    created_at: string;
+    min_date: string;
+    max_date: string;
+  }> {
+    const response = await this.client.post('/liff/availability-notifications', request);
+    return response.data;
+  }
+
+  async getAvailabilityNotifications(params?: {
+    page?: number;
+    page_size?: number;
+  }): Promise<{
+    notifications: Array<{
+      id: number;
+      appointment_type_id: number;
+      appointment_type_name: string;
+      practitioner_id: number | null;
+      practitioner_name: string | null;
+      time_windows: Array<{ date: string; time_window: string }>;
+      created_at: string;
+      min_date: string;
+      max_date: string;
+    }>;
+    total: number;
+    page: number;
+    page_size: number;
+  }> {
+    const response = await this.client.get('/liff/availability-notifications', { params });
+    return response.data;
+  }
+
+  async deleteAvailabilityNotification(notificationId: number): Promise<{ success: boolean }> {
+    const response = await this.client.delete(`/liff/availability-notifications/${notificationId}`);
+    return response.data;
+  }
 }
 
 export const liffApiService = new LiffApiService();

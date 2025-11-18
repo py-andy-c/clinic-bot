@@ -189,6 +189,7 @@ class TestURLGeneration:
         notification = Mock(spec=AvailabilityNotification)
         notification.appointment_type_id = 1
         notification.practitioner_id = None
+        notification.clinic_id = 2
         
         clinic = Mock(spec=Clinic)
         clinic.id = 1
@@ -202,7 +203,9 @@ class TestURLGeneration:
         
         assert "https://liff.line.me/1234567890" in url
         assert "mode=book" in url
-        assert "appointment_type_id=1" in url
+        assert "clinic_id=2" in url
+        assert "appointment_type_id" not in url
+        assert "practitioner_id" not in url
     
     def test_generate_liff_url_with_practitioner(self, monkeypatch):
         """Test URL generation with practitioner."""
@@ -211,6 +214,7 @@ class TestURLGeneration:
         notification = Mock(spec=AvailabilityNotification)
         notification.appointment_type_id = 1
         notification.practitioner_id = 2
+        notification.clinic_id = 3
         
         clinic = Mock(spec=Clinic)
         clinic.id = 1
@@ -224,8 +228,9 @@ class TestURLGeneration:
         
         assert "https://liff.line.me/1234567890" in url
         assert "mode=book" in url
-        assert "appointment_type_id=1" in url
-        assert "practitioner_id=2" in url
+        assert "clinic_id=3" in url
+        assert "appointment_type_id" not in url
+        assert "practitioner_id" not in url
     
     def test_generate_liff_url_missing_liff_id(self, monkeypatch):
         """Test URL generation when LIFF_ID not configured."""
@@ -233,6 +238,7 @@ class TestURLGeneration:
         
         notification = Mock(spec=AvailabilityNotification)
         notification.appointment_type_id = 1
+        notification.clinic_id = 2
         
         clinic = Mock(spec=Clinic)
         clinic.id = 1
@@ -247,7 +253,9 @@ class TestURLGeneration:
         # Should use placeholder URL
         assert "clinic_1" in url
         assert "mode=book" in url
-        assert "appointment_type_id=1" in url
+        assert "clinic_id=2" in url
+        assert "appointment_type_id" not in url
+        assert "practitioner_id" not in url
 
 
 class TestDeduplication:

@@ -594,7 +594,7 @@ class AvailabilityNotificationService:
             
             slots_lines.append(f"{formatted_date}: {formatted_slots}")
         
-        # Generate LIFF URL with pre-filled parameters
+        # Generate LIFF URL for booking page
         liff_url = self._generate_liff_url(notification, clinic)
         
         if not liff_url:
@@ -652,9 +652,9 @@ class AvailabilityNotificationService:
         self, notification: AvailabilityNotification, clinic: Clinic
     ) -> str:
         """
-        Generate LIFF URL with pre-filled appointment parameters.
+        Generate LIFF URL for booking page.
         
-        Example: https://liff.line.me/{liff_id}?mode=book&appointment_type_id=1&practitioner_id=2
+        Example: https://liff.line.me/{liff_id}?mode=book&clinic_id=1
         """
         # LIFF ID comes from environment variable (LIFF_ID) in production and backend/.env for local development
         if LIFF_ID:
@@ -666,11 +666,8 @@ class AvailabilityNotificationService:
         
         params = {
             "mode": "book",
-            "appointment_type_id": notification.appointment_type_id
+            "clinic_id": notification.clinic_id,
         }
-        
-        if notification.practitioner_id:
-            params["practitioner_id"] = notification.practitioner_id
         
         query_string = "&".join([f"{k}={v}" for k, v in params.items()])
         
