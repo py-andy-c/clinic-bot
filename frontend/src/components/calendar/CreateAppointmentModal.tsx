@@ -16,6 +16,8 @@ import { LoadingSpinner } from '../shared';
 import { Patient } from '../../types';
 import moment from 'moment-timezone';
 import { formatTo12Hour } from '../../utils/calendarUtils';
+import { useApiData } from '../../hooks/useApiData';
+import { useAuth } from '../../hooks/useAuth';
 
 type CreateStep = 'patient' | 'appointmentType' | 'practitioner' | 'datetime' | 'confirm';
 
@@ -57,12 +59,41 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate || null);
   const [selectedTime, setSelectedTime] = useState<string>('');
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [isLoadingPatients, setIsLoadingPatients] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const isNavigatingBack = useRef(false);
+  
+  // Use useApiData for patients with caching and request deduplication
+  // This shares cache with PatientsPage, reducing redundant API calls
+  const { isLoading: authLoading, isAuthenticated } = useAuth();
+  const fetchPatientsFn = useCallback(() => apiService.getPatients(), []);
+  const shouldFetchPatients = step === 'patient' || !!preSelectedPatientId;
+  
+  const { 
+    data: patientsData, 
+    loading: isLoadingPatients,
+    error: patientsError 
+  } = useApiData<Patient[]>(
+    fetchPatientsFn,
+    {
+      enabled: !authLoading && isAuthenticated && shouldFetchPatients,
+      dependencies: [authLoading, isAuthenticated, step, preSelectedPatientId],
+      cacheTTL: 5 * 60 * 1000, // 5 minutes cache - shares with PatientsPage
+      defaultErrorMessage: '無法載入病患列表',
+      initialData: [],
+    }
+  );
+  
+  // Ensure patients is always an array (never null)
+  const patients = patientsData || [];
+  
+  // Update error state when patients fetch fails
+  useEffect(() => {
+    if (patientsError) {
+      setError(patientsError);
+    }
+  }, [patientsError]);
 
   // Derived values
   const selectedPatient = useMemo(() => 
@@ -143,24 +174,8 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     }
   }, [selectedTime, step]);
 
-  // Load patients (always load if preSelectedPatientId is provided to show patient name)
-  useEffect(() => {
-    if (step !== 'patient' && !preSelectedPatientId) return;
-    
-    const loadPatients = async () => {
-      try {
-        setIsLoadingPatients(true);
-        const data = await apiService.getPatients();
-        setPatients(data);
-      } catch (err) {
-        logger.error('Failed to load patients:', err);
-        setError('無法載入病患列表');
-      } finally {
-        setIsLoadingPatients(false);
-      }
-    };
-    loadPatients();
-  }, [step, preSelectedPatientId]);
+  // Patients are now loaded via useApiData hook above
+  // This provides caching and request deduplication, sharing cache with PatientsPage
 
 
   // Reset all state function

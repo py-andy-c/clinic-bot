@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { TimeInterval } from '../types';
 import { logger } from '../utils/logger';
 import { LoadingSpinner } from '../components/shared';
@@ -7,6 +7,8 @@ import { useSettingsPage } from '../hooks/useSettingsPage';
 import { useModal } from '../contexts/ModalContext';
 import { validateProfileSettings, getProfileSectionChanges } from '../utils/profileSettings';
 import { apiService } from '../services/api';
+import { useApiData } from '../hooks/useApiData';
+import { ClinicSettings } from '../schemas/api';
 import ProfileForm from '../components/ProfileForm';
 import AvailabilitySettings from '../components/AvailabilitySettings';
 import PractitionerAppointmentTypes from '../components/PractitionerAppointmentTypes';
@@ -170,6 +172,18 @@ const ProfilePage: React.FC = () => {
 
   // Profile state for display (set from useSettingsPage fetchData)
   const [profile, setProfile] = React.useState<any>(null);
+
+  // Fetch clinic settings with caching to pass to PractitionerAppointmentTypes
+  // This eliminates duplicate API calls
+  const fetchClinicSettingsFn = useCallback(() => apiService.getClinicSettings(), []);
+  const { data: clinicSettings } = useApiData<ClinicSettings>(
+    fetchClinicSettingsFn,
+    {
+      enabled: !isLoading && !!user,
+      dependencies: [isLoading, user, activeClinicId],
+      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
+    }
+  );
 
   const {
     data: profileData,
@@ -402,6 +416,7 @@ const ProfilePage: React.FC = () => {
                 <div className="pt-6">
                   <PractitionerAppointmentTypes
                     selectedAppointmentTypeIds={profileData?.selectedAppointmentTypeIds || []}
+                    {...(clinicSettings?.appointment_types ? { availableTypes: clinicSettings.appointment_types } : {})}
                     onAppointmentTypeChange={(selectedTypeIds) => updateData({ selectedAppointmentTypeIds: selectedTypeIds })}
                     showSaveButton={sectionChanges.appointmentTypes || false}
                     onSave={saveData}

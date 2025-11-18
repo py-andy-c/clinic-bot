@@ -7,6 +7,7 @@ import { LoadingSpinner } from './shared';
 
 interface PractitionerAppointmentTypesProps {
   selectedAppointmentTypeIds?: number[];
+  availableTypes?: Array<{ id: number; name: string; duration_minutes: number }> | undefined; // Available appointment types from clinic settings
   onAppointmentTypeChange?: (selectedTypeIds: number[]) => void;
   showSaveButton?: boolean;
   onSave?: () => void;
@@ -15,22 +16,34 @@ interface PractitionerAppointmentTypesProps {
 
 const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> = ({
   selectedAppointmentTypeIds: externalSelectedTypeIds,
+  availableTypes: externalAvailableTypes,
   onAppointmentTypeChange,
   showSaveButton = false,
   onSave,
   saving = false,
 }) => {
   const { user } = useAuth();
-  const [availableTypes, setAvailableTypes] = React.useState<any[]>([]);
+  const [availableTypes, setAvailableTypes] = React.useState<any[]>(externalAvailableTypes || []);
   const [selectedTypeIds, setSelectedTypeIds] = React.useState<number[]>(externalSelectedTypeIds || []);
-  const [loading, setLoading] = React.useState(true);
+  const [loading, setLoading] = React.useState(externalAvailableTypes === undefined); // Only show loading if we need to fetch
   const [error, setError] = React.useState<string | null>(null);
 
   // Use external state if provided, otherwise use internal state
   const currentSelectedTypeIds = externalSelectedTypeIds !== undefined ? externalSelectedTypeIds : selectedTypeIds;
+  const currentAvailableTypes = externalAvailableTypes || availableTypes;
 
+  // Update available types when external prop changes
   React.useEffect(() => {
-    fetchData();
+    if (externalAvailableTypes) {
+      setAvailableTypes(externalAvailableTypes);
+    }
+  }, [externalAvailableTypes]);
+
+  // Only fetch data if props are not provided (backward compatibility)
+  React.useEffect(() => {
+    if (externalAvailableTypes === undefined || externalSelectedTypeIds === undefined) {
+      fetchData();
+    }
   }, [user]);
 
   // Update internal state when external state changes
@@ -47,24 +60,32 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
       setLoading(true);
       setError(null);
 
-      // Get clinic settings to get all available appointment types
-      const clinicSettings = await apiService.getClinicSettings();
-      setAvailableTypes(clinicSettings.appointment_types);
+      let typesToUse = externalAvailableTypes || availableTypes;
 
-      // Get practitioner's current appointment types (only set internal state if not using external)
-      const practitionerData = await apiService.getPractitionerAppointmentTypes(user.user_id);
-      const selectedIds = practitionerData.appointment_types.map((at: { id: number }) => at.id);
-      
-      // Defensive filtering: only include IDs that exist in available types
-      const availableTypeIds = new Set(clinicSettings.appointment_types.map((at: { id: number }) => at.id));
-      const validSelectedIds = selectedIds.filter((id: number) => availableTypeIds.has(id));
-      
+      // Only fetch clinic settings if not provided as prop
+      if (externalAvailableTypes === undefined) {
+        const clinicSettings = await apiService.getClinicSettings();
+        const fetchedTypes = clinicSettings.appointment_types;
+        setAvailableTypes(fetchedTypes);
+        typesToUse = fetchedTypes;
+      }
+
+      // Only fetch practitioner's appointment types if not provided as prop
       if (externalSelectedTypeIds === undefined) {
+        const practitionerData = await apiService.getPractitionerAppointmentTypes(user.user_id);
+        const selectedIds = practitionerData.appointment_types.map((at: { id: number }) => at.id);
+        
+        // Defensive filtering: only include IDs that exist in available types
+        const availableTypeIds = new Set(typesToUse.map((at: { id: number }) => at.id));
+        const validSelectedIds = selectedIds.filter((id: number) => availableTypeIds.has(id));
         setSelectedTypeIds(validSelectedIds);
       }
 
-      // Get practitioner's status (includes availability check)
-      await apiService.getPractitionerStatus(user.user_id);
+      // Get practitioner's status (includes availability check) - only if we're fetching data
+      // This is still needed for the component to work properly
+      if (externalAvailableTypes === undefined || externalSelectedTypeIds === undefined) {
+        await apiService.getPractitionerStatus(user.user_id);
+      }
 
     } catch (err) {
       logger.error('Error fetching practitioner appointment types:', err);
@@ -118,7 +139,7 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
 
 
       <div className="space-y-3">
-        {availableTypes.map((type) => {
+        {currentAvailableTypes.map((type) => {
           // Defensive check: ensure type ID is valid
           const isSelected = currentSelectedTypeIds.includes(type.id);
           return (
@@ -140,7 +161,7 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
           );
         })}
 
-        {availableTypes.length === 0 && (
+        {currentAvailableTypes.length === 0 && (
           <div className="text-center py-8 text-gray-500">
             診所尚未設定任何預約類型，請至<Link to="/clinic/settings" className="text-primary-600 hover:text-primary-700 underline">診所設定頁面</Link>設定。
           </div>
