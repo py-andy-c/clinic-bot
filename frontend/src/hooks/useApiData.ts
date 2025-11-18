@@ -44,6 +44,50 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { logger } from '../utils/logger';
 import { ApiErrorType, getErrorMessage } from '../types';
 
+// Simple in-memory cache with TTL
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const cache = new Map<string, CacheEntry<any>>();
+const DEFAULT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Track in-flight requests to deduplicate concurrent requests for the same data
+const inFlightRequests = new Map<string, Promise<any>>();
+
+function getCacheKey(fetchFn: () => Promise<any>): string {
+  // Use function string representation as cache key
+  // In production, you might want a more sophisticated key generation
+  return fetchFn.toString();
+}
+
+// Export function to clear cache (useful for tests)
+export function clearApiDataCache(): void {
+  cache.clear();
+  inFlightRequests.clear();
+}
+
+function getCached<T>(key: string, ttl: number): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  
+  const age = Date.now() - entry.timestamp;
+  if (age > ttl) {
+    cache.delete(key);
+    return null;
+  }
+  
+  return entry.data as T;
+}
+
+function setCached<T>(key: string, data: T): void {
+  cache.set(key, {
+    data,
+    timestamp: Date.now(),
+  });
+}
+
 export interface UseApiDataOptions<T> {
   /**
    * Whether to automatically fetch data on mount and when dependencies change.
@@ -83,6 +127,12 @@ export interface UseApiDataOptions<T> {
    * @default true
    */
   logErrors?: boolean;
+
+  /**
+   * Cache TTL in milliseconds. Set to 0 to disable caching.
+   * @default 300000 (5 minutes)
+   */
+  cacheTTL?: number;
 }
 
 export interface UseApiDataResult<T> {
@@ -142,6 +192,7 @@ export function useApiData<T>(
     onSuccess,
     onError,
     logErrors = true,
+    cacheTTL = DEFAULT_CACHE_TTL,
   } = options;
 
   const [data, setData] = useState<T | null>(initialData ?? null);
@@ -150,6 +201,8 @@ export function useApiData<T>(
 
   // Track if component is mounted to avoid state updates after unmount
   const isMountedRef = useRef(true);
+  // Generate cache key synchronously to avoid race conditions
+  const cacheKeyRef = useRef<string | null>(getCacheKey(fetchFn));
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -158,16 +211,76 @@ export function useApiData<T>(
     };
   }, []);
 
+  // Update cache key when fetchFn changes
+  useEffect(() => {
+    cacheKeyRef.current = getCacheKey(fetchFn);
+  }, [fetchFn]);
+
   const performFetch = useCallback(async () => {
     if (!enabled) {
       return;
     }
 
+    // Check cache first if caching is enabled and no initial data is set
+    // (initial data takes precedence over cache)
+    let hasCachedData = false;
+    if (cacheTTL > 0 && cacheKeyRef.current && initialData === undefined) {
+      const cached = getCached<T>(cacheKeyRef.current, cacheTTL);
+      if (cached !== null) {
+        hasCachedData = true;
+        // Use cached data immediately
+        if (isMountedRef.current) {
+          setData(cached);
+          setLoading(false);
+          onSuccess?.(cached);
+        }
+        // Still fetch in background to refresh cache (stale-while-revalidate pattern)
+        // But don't show loading state if we have cached data
+      }
+    }
+
+    // Check if there's already an in-flight request for this cache key
+    // This prevents duplicate concurrent requests (e.g., from React StrictMode)
+    if (cacheKeyRef.current && inFlightRequests.has(cacheKeyRef.current)) {
+      try {
+        const result = await inFlightRequests.get(cacheKeyRef.current)!;
+        // Reuse the result from the in-flight request
+        if (isMountedRef.current) {
+          setData(result);
+          setLoading(false);
+          onSuccess?.(result);
+        }
+        return;
+      } catch (err) {
+        // If the in-flight request failed, continue to make a new request
+        inFlightRequests.delete(cacheKeyRef.current!);
+      }
+    }
+
     try {
-      setLoading(true);
+      // Only show loading if we don't have cached data
+      if (!hasCachedData) {
+        setLoading(true);
+      }
       setError(null);
 
-      const result = await fetchFn();
+      // Create the fetch promise and store it for deduplication
+      const fetchPromise = fetchFn();
+      if (cacheKeyRef.current) {
+        inFlightRequests.set(cacheKeyRef.current, fetchPromise);
+      }
+
+      const result = await fetchPromise;
+
+      // Cache the result if caching is enabled
+      if (cacheTTL > 0 && cacheKeyRef.current) {
+        setCached(cacheKeyRef.current, result);
+      }
+
+      // Remove from in-flight requests
+      if (cacheKeyRef.current) {
+        inFlightRequests.delete(cacheKeyRef.current);
+      }
 
       // Only update state if component is still mounted
       if (isMountedRef.current) {
@@ -176,10 +289,21 @@ export function useApiData<T>(
         onSuccess?.(result);
       }
     } catch (err: ApiErrorType) {
+      // Remove from in-flight requests on error
+      if (cacheKeyRef.current) {
+        inFlightRequests.delete(cacheKeyRef.current);
+      }
       const errorMessage = defaultErrorMessage || getErrorMessage(err);
+
+      // Clear cache on error to prevent stale data
+      if (cacheTTL > 0 && cacheKeyRef.current) {
+        cache.delete(cacheKeyRef.current);
+      }
 
       // Only update state if component is still mounted
       if (isMountedRef.current) {
+        // Clear data on error (don't keep stale cached data)
+        setData(null);
         setError(errorMessage);
         setLoading(false);
         onError?.(err);
@@ -189,7 +313,7 @@ export function useApiData<T>(
         logger.error('useApiData: Fetch error:', err);
       }
     }
-  }, [fetchFn, enabled, defaultErrorMessage, onSuccess, onError, logErrors]);
+  }, [fetchFn, enabled, defaultErrorMessage, onSuccess, onError, logErrors, cacheTTL, initialData]);
 
   // Auto-fetch on mount and when dependencies change
   useEffect(() => {

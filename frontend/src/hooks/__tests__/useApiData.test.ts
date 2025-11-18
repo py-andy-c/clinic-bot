@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { useApiData } from '../useApiData';
+import { useApiData, clearApiDataCache } from '../useApiData';
 import { logger } from '../../utils/logger';
 import { ApiErrorType } from '../../types';
 
@@ -18,10 +18,14 @@ vi.mock('../../utils/logger', () => ({
 describe('useApiData', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Clear cache before each test to prevent test interference
+    clearApiDataCache();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    // Clear cache after each test
+    clearApiDataCache();
   });
 
   it('should fetch data on mount when enabled', async () => {
@@ -61,7 +65,7 @@ describe('useApiData', () => {
     const fetchFn = vi.fn().mockResolvedValue({ id: 1, name: 'Test' });
 
     const { result } = renderHook(() =>
-      useApiData(fetchFn, { initialData })
+      useApiData(fetchFn, { initialData, cacheTTL: 0 }) // Disable cache for this test
     );
 
     expect(result.current.data).toEqual(initialData);
@@ -77,7 +81,7 @@ describe('useApiData', () => {
     const error = new Error('Fetch failed');
     const fetchFn = vi.fn().mockRejectedValue(error);
 
-    const { result } = renderHook(() => useApiData(fetchFn));
+    const { result } = renderHook(() => useApiData(fetchFn, { cacheTTL: 0 })); // Disable cache for this test
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -250,7 +254,7 @@ describe('useApiData', () => {
     });
     const fetchFn = vi.fn().mockReturnValue(promise);
 
-    const { result, unmount } = renderHook(() => useApiData(fetchFn));
+    const { result, unmount } = renderHook(() => useApiData(fetchFn, { cacheTTL: 0 })); // Disable cache for this test
 
     expect(result.current.loading).toBe(true);
 

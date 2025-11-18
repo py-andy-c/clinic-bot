@@ -24,7 +24,7 @@ from auth.dependencies import require_authenticated, UserContext, ensure_clinic_
 from models import (
     User,
     PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment,
-    UserClinicAssociation
+    UserClinicAssociation, Patient
 )
 from services import AvailabilityService, AppointmentTypeService
 from api.responses import AvailableSlotsResponse, AvailableSlotResponse, ConflictWarningResponse
@@ -104,6 +104,26 @@ class CalendarDayDetailResponse(BaseModel):
     date: str  # Format: "YYYY-MM-DD"
     default_schedule: List[TimeInterval]
     events: List[CalendarEventResponse]
+
+
+class BatchCalendarRequest(BaseModel):
+    """Request model for batch calendar data."""
+    practitioner_ids: List[int]
+    start_date: str  # Format: "YYYY-MM-DD"
+    end_date: str    # Format: "YYYY-MM-DD"
+
+
+class BatchCalendarDayResponse(BaseModel):
+    """Response model for batch calendar day data per practitioner."""
+    user_id: int
+    date: str  # Format: "YYYY-MM-DD"
+    default_schedule: List[TimeInterval]
+    events: List[CalendarEventResponse]
+
+
+class BatchCalendarResponse(BaseModel):
+    """Response model for batch calendar data."""
+    results: List[BatchCalendarDayResponse]
 
 
 class AvailabilityExceptionRequest(BaseModel):
@@ -500,11 +520,18 @@ async def get_calendar_data(
             day_of_week = target_date.weekday()
             default_schedule = _get_default_schedule_for_day(db, user_id, day_of_week, clinic_id)
             
-            # Get events for this date
+            # Get events for this date with eager loading to avoid N+1 queries
+            # Eagerly load all relationships: appointment -> patient -> line_user, appointment_type, and availability_exception
             events = db.query(CalendarEvent).filter(
                 CalendarEvent.user_id == user_id,
                 CalendarEvent.clinic_id == clinic_id,
                 CalendarEvent.date == target_date
+            ).options(
+                # Eagerly load appointment with all its relationships
+                joinedload(CalendarEvent.appointment).joinedload(Appointment.patient).joinedload(Patient.line_user),
+                joinedload(CalendarEvent.appointment).joinedload(Appointment.appointment_type),
+                # Eagerly load availability exception
+                joinedload(CalendarEvent.availability_exception)
             ).order_by(CalendarEvent.start_time).all()
             
             # Get practitioner association for name
@@ -518,15 +545,14 @@ async def get_calendar_data(
             event_responses: List[CalendarEventResponse] = []
             for event in events:
                 if event.event_type == 'appointment':
-                    appointment = db.query(Appointment).filter(
-                        Appointment.calendar_event_id == event.id
-                    ).first()
+                    # Appointment is already loaded via eager loading, no additional query needed
+                    appointment = event.appointment
                     
                     # Only show confirmed appointments (filter out cancelled ones)
                     if appointment and appointment.status == 'confirmed':
-                        # Get LINE display name if patient has LINE user
+                        # Get LINE display name if patient has LINE user (already loaded)
                         line_display_name = None
-                        if appointment.patient.line_user:
+                        if appointment.patient and appointment.patient.line_user:
                             line_display_name = appointment.patient.line_user.display_name
                         
                         # Get appointment type name safely (handles cases where appointment_type may be None)
@@ -534,7 +560,7 @@ async def get_calendar_data(
                         
                         # Format birthday as string if available
                         patient_birthday_str = None
-                        if appointment.patient.birthday:
+                        if appointment.patient and appointment.patient.birthday:
                             patient_birthday_str = appointment.patient.birthday.strftime('%Y-%m-%d')
                         
                         event_responses.append(CalendarEventResponse(
@@ -557,9 +583,8 @@ async def get_calendar_data(
                             is_auto_assigned=appointment.is_auto_assigned
                         ))
                 elif event.event_type == 'availability_exception':
-                    exception = db.query(AvailabilityException).filter(
-                        AvailabilityException.calendar_event_id == event.id
-                    ).first()
+                    # Exception is already loaded via eager loading, no additional query needed
+                    exception = event.availability_exception
                     
                     if exception:
                         event_responses.append(CalendarEventResponse(
@@ -636,6 +661,186 @@ async def get_calendar_data(
         raise
     except Exception as e:
         logger.exception(f"Failed to fetch calendar data for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得行事曆資料"
+        )
+
+
+@router.post("/practitioners/calendar/batch",
+           summary="Get calendar data for multiple practitioners and date range")
+async def get_batch_calendar(
+    request: BatchCalendarRequest,
+    db: Session = Depends(get_db),
+    current_user: UserContext = Depends(require_authenticated)
+) -> BatchCalendarResponse:
+    """
+    Get calendar data for multiple practitioners across a date range.
+    
+    This endpoint efficiently fetches calendar data for multiple practitioners
+    in a single request, reducing API calls from N to 1.
+    
+    Returns daily calendar data (events and default schedules) for each
+    practitioner for each day in the date range.
+    """
+    try:
+        # Check clinic access first
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Parse date range
+        try:
+            start_date = datetime.strptime(request.start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(request.end_date, '%Y-%m-%d').date()
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無效的日期格式，請使用 YYYY-MM-DD"
+            )
+        
+        if start_date > end_date:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="開始日期不能晚於結束日期"
+            )
+        
+        # Limit date range to prevent excessive queries
+        max_days = 31
+        if (end_date - start_date).days > max_days:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"日期範圍不能超過 {max_days} 天"
+            )
+        
+        # Limit number of practitioners
+        max_practitioners = 10
+        if len(request.practitioner_ids) > max_practitioners:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"一次最多只能查詢 {max_practitioners} 個治療師"
+            )
+        
+        # Verify all practitioners exist and belong to the clinic
+        practitioners = db.query(User).join(UserClinicAssociation).filter(
+            User.id.in_(request.practitioner_ids),
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
+        ).all()
+        
+        if len(practitioners) != len(request.practitioner_ids):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="部分治療師不存在或不在您的診所"
+            )
+        
+        # Get practitioner associations for names
+        associations = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id.in_(request.practitioner_ids),
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
+        ).all()
+        association_map = {a.user_id: a for a in associations}
+        
+        # Fetch all events for all practitioners and dates in a single query with eager loading
+        events = db.query(CalendarEvent).filter(
+            CalendarEvent.user_id.in_(request.practitioner_ids),
+            CalendarEvent.clinic_id == clinic_id,
+            CalendarEvent.date >= start_date,
+            CalendarEvent.date <= end_date
+        ).options(
+            # Eagerly load all relationships to avoid N+1 queries
+            joinedload(CalendarEvent.appointment).joinedload(Appointment.patient).joinedload(Patient.line_user),
+            joinedload(CalendarEvent.appointment).joinedload(Appointment.appointment_type),
+            joinedload(CalendarEvent.availability_exception)
+        ).order_by(CalendarEvent.user_id, CalendarEvent.date, CalendarEvent.start_time).all()
+        
+        # Group events by practitioner and date
+        events_by_practitioner_date: Dict[tuple[int, date_type], List[CalendarEvent]] = {}
+        for event in events:
+            key = (event.user_id, event.date)
+            if key not in events_by_practitioner_date:
+                events_by_practitioner_date[key] = []
+            events_by_practitioner_date[key].append(event)
+        
+        # Build response for each practitioner and date
+        results: List[BatchCalendarDayResponse] = []
+        current_date = start_date
+        
+        while current_date <= end_date:
+            for practitioner_id in request.practitioner_ids:
+                # Get default schedule for this day of week
+                day_of_week = current_date.weekday()
+                default_schedule = _get_default_schedule_for_day(db, practitioner_id, day_of_week, clinic_id)
+                
+                # Get practitioner name
+                association = association_map.get(practitioner_id)
+                practitioner_name = association.full_name if association else ""
+                
+                # Get events for this practitioner and date
+                key = (practitioner_id, current_date)
+                day_events = events_by_practitioner_date.get(key, [])
+                
+                # Build event responses
+                event_responses: List[CalendarEventResponse] = []
+                for event in day_events:
+                    if event.event_type == 'appointment':
+                        appointment = event.appointment
+                        if appointment and appointment.status == 'confirmed':
+                            line_display_name = None
+                            if appointment.patient and appointment.patient.line_user:
+                                line_display_name = appointment.patient.line_user.display_name
+                            
+                            appointment_type_name = _get_appointment_type_name(appointment)
+                            
+                            patient_birthday_str = None
+                            if appointment.patient and appointment.patient.birthday:
+                                patient_birthday_str = appointment.patient.birthday.strftime('%Y-%m-%d')
+                            
+                            event_responses.append(CalendarEventResponse(
+                                calendar_event_id=event.id,
+                                type='appointment',
+                                start_time=_format_time(event.start_time) if event.start_time else None,
+                                end_time=_format_time(event.end_time) if event.end_time else None,
+                                title=f"{appointment.patient.full_name} - {appointment_type_name or '未設定'}",
+                                patient_id=appointment.patient_id,
+                                appointment_type_id=appointment.appointment_type_id,
+                                status=appointment.status,
+                                appointment_id=appointment.calendar_event_id,
+                                notes=appointment.notes,
+                                patient_phone=appointment.patient.phone_number,
+                                patient_birthday=patient_birthday_str,
+                                line_display_name=line_display_name,
+                                patient_name=appointment.patient.full_name,
+                                practitioner_name=practitioner_name,
+                                appointment_type_name=appointment_type_name,
+                                is_auto_assigned=appointment.is_auto_assigned
+                            ))
+                    elif event.event_type == 'availability_exception':
+                        exception = event.availability_exception
+                        if exception:
+                            event_responses.append(CalendarEventResponse(
+                                calendar_event_id=event.id,
+                                type='availability_exception',
+                                start_time=_format_time(event.start_time) if event.start_time else None,
+                                end_time=_format_time(event.end_time) if event.end_time else None,
+                                title="休診",
+                                exception_id=exception.id
+                            ))
+                
+                results.append(BatchCalendarDayResponse(
+                    user_id=practitioner_id,
+                    date=current_date.strftime('%Y-%m-%d'),
+                    default_schedule=default_schedule,
+                    events=event_responses
+                ))
+            
+            current_date += timedelta(days=1)
+        
+        return BatchCalendarResponse(results=results)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to fetch batch calendar data: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得行事曆資料"

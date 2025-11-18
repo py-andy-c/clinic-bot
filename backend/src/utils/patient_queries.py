@@ -54,15 +54,21 @@ def get_active_patients_for_clinic(
     """
     Get all active (non-deleted) patients for a clinic.
 
+    Uses eager loading for line_user relationship to avoid N+1 queries
+    when accessing patient.line_user in the API response.
+
     Args:
         db: Database session
         clinic_id: Clinic ID
 
     Returns:
-        List of active Patient objects
+        List of active Patient objects with line_user relationship eagerly loaded
     """
     from sqlalchemy.orm import joinedload
 
+    # Eagerly load line_user relationship to avoid N+1 queries
+    # This is critical for the clinic patients endpoint which accesses
+    # patient.line_user.line_user_id and patient.line_user.display_name
     query = db.query(Patient).options(
         joinedload(Patient.line_user)
     ).filter(

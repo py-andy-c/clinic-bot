@@ -3,6 +3,7 @@ import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from './shared';
 import { useModal } from '../contexts/ModalContext';
 import { useAuth } from '../hooks/useAuth';
+import { useApiData } from '../hooks/useApiData';
 import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment-timezone';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -64,9 +65,34 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<View>(Views.DAY);
   const [allEvents, setAllEvents] = useState<ApiCalendarEvent[]>([]);
-  const [defaultSchedule, setDefaultSchedule] = useState<any>(null);
+  // Default schedule was removed - no longer needed (availability background events were removed)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Cache batch calendar data to avoid redundant API calls when navigating between dates
+  // Key: `${practitionerIds.join(',')}-${startDate}-${endDate}`
+  const cachedCalendarDataRef = useRef<Map<string, { data: ApiCalendarEvent[]; timestamp: number }>>(new Map());
+  // Track in-flight batch calendar requests to prevent duplicate concurrent requests
+  const inFlightBatchRequestsRef = useRef<Map<string, Promise<any>>>(new Map());
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  // Helper to invalidate cache for a specific date range
+  const invalidateCacheForDateRange = useCallback((startDate: string, endDate: string) => {
+    const keysToDelete: string[] = [];
+    for (const key of cachedCalendarDataRef.current.keys()) {
+      // Extract date range from cache key (format: "practitionerIds-startDate-endDate")
+      // Note: practitioner IDs may contain multiple numbers, so we need to extract the last two parts as dates
+      const parts = key.split('-');
+      if (parts.length >= 3) {
+        const cacheStartDate = parts[parts.length - 2];
+        const cacheEndDate = parts[parts.length - 1];
+        // Invalidate if date ranges overlap
+        if (cacheStartDate && cacheEndDate && cacheStartDate <= endDate && cacheEndDate >= startDate) {
+          keysToDelete.push(key);
+        }
+      }
+    }
+    keysToDelete.forEach(key => cachedCalendarDataRef.current.delete(key));
+  }, []);
   const [modalState, setModalState] = useState<{
     type: 'event' | 'exception' | 'conflict' | 'delete_confirmation' | 'cancellation_note' | 'cancellation_preview' | 'edit_appointment' | 'create_appointment' | null;
     data: any;
@@ -81,14 +107,50 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [cancellationPreviewMessage, setCancellationPreviewMessage] = useState('');
   const [cancellationPreviewLoading, setCancellationPreviewLoading] = useState(false);
   const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
-  const [availablePractitioners, setAvailablePractitioners] = useState<{ id: number; full_name: string }[]>([]);
-  const [appointmentTypes, setAppointmentTypes] = useState<{ id: number; name: string; duration_minutes: number }[]>([]);
   const [isFullDay, setIsFullDay] = useState(false);
   const scrollYRef = useRef(0);
 
   // Get current user for role checking
-  const { user } = useAuth();
+  const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const isAdmin = user?.roles?.includes('admin') ?? false;
+
+  // Memoize fetch functions to ensure stable cache keys and enable request deduplication
+  const fetchPractitionersFn = useCallback(() => apiService.getPractitioners(), []);
+  const fetchClinicSettingsFn = useCallback(() => apiService.getClinicSettings(), []);
+
+  // Use useApiData for practitioners with caching and request deduplication
+  // This is needed for initial render to show practitioner names on events
+  const { data: practitionersData } = useApiData(
+    fetchPractitionersFn,
+    {
+      enabled: !authLoading && isAuthenticated,
+      dependencies: [authLoading, isAuthenticated],
+      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
+    }
+  );
+
+  // Lazy-load clinic settings - only fetch when modals are opened
+  // This reduces initial page load since settings are only needed for create/edit modals
+  const [shouldFetchSettings, setShouldFetchSettings] = useState(false);
+  const { data: clinicSettingsData } = useApiData(
+    fetchClinicSettingsFn,
+    {
+      enabled: !authLoading && isAuthenticated && shouldFetchSettings,
+      dependencies: [authLoading, isAuthenticated, shouldFetchSettings],
+      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
+    }
+  );
+
+  // Update state from useApiData results
+  const availablePractitioners = practitionersData || [];
+  const appointmentTypes = clinicSettingsData?.appointment_types || [];
+
+  // Trigger settings fetch when modals that need it are opened
+  useEffect(() => {
+    if (modalState.type === 'create_appointment' || modalState.type === 'edit_appointment') {
+      setShouldFetchSettings(true);
+    }
+  }, [modalState.type]);
 
   // Helper function to check if user can edit an event
   const canEditEvent = useCallback((event: CalendarEvent | null): boolean => {
@@ -134,9 +196,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     const events = [...allEvents];
     
     // Availability background events removed - no longer showing default schedule as gray boxes
+    // Only allEvents is needed for transformation
     
     return transformToCalendarEvents(events);
-  }, [allEvents, defaultSchedule, currentDate, view]);
+  }, [allEvents]); // Removed unused dependencies: defaultSchedule, currentDate, view
 
   // Check for mobile view
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -144,47 +207,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Set scroll position to 9 AM for day view
   const scrollToTime = useMemo(() => getScrollToTime(currentDate), [currentDate]);
 
-  // Fetch practitioners for edit appointment
-  const fetchPractitioners = async () => {
-    try {
-      const response = await apiService.getPractitioners();
-      setAvailablePractitioners(response);
-    } catch (err) {
-      logger.error('Failed to fetch practitioners:', err);
-    }
-  };
-
-  // Fetch appointment types for edit appointment
-  const fetchAppointmentTypes = async () => {
-    try {
-      const settings = await apiService.getClinicSettings();
-      setAppointmentTypes(settings.appointment_types || []);
-    } catch (err) {
-      logger.error('Failed to fetch appointment types:', err);
-    }
-  };
-
-  useEffect(() => {
-    fetchCalendarData();
-    fetchDefaultSchedule();
-    fetchPractitioners();
-    fetchAppointmentTypes();
-  }, [userId, additionalPractitionerIds, currentDate, view]);
-
-  // Fetch default schedule
-  const fetchDefaultSchedule = async () => {
-    if (!userId) return;
-
-    try {
-      const schedule = await apiService.getPractitionerDefaultSchedule(userId);
-      setDefaultSchedule(schedule);
-    } catch (err) {
-      logger.error('Failed to fetch default schedule:', err);
-    }
-  };
-
-  // Fetch all events for the visible date range
-  const fetchCalendarData = async () => {
+  // Fetch all events for the visible date range using batch endpoint
+  // Memoize fetchCalendarData to prevent unnecessary re-renders and enable proper dependency tracking
+  const fetchCalendarData = useCallback(async () => {
     if (!userId) return;
 
     // Monthly view is just for navigation - don't fetch events
@@ -193,65 +218,129 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       return;
     }
 
+    const { start, end } = getDateRange(currentDate, 'day');
+    
+    // Collect all practitioner IDs to fetch (primary + additional)
+    const allPractitionerIds = [userId, ...additionalPractitionerIds].sort((a, b) => a - b); // Sort for consistent cache key
+
+    // Use batch endpoint to fetch all data in a single call
+    const startDateStr = moment(start).format('YYYY-MM-DD');
+    const endDateStr = moment(end).format('YYYY-MM-DD');
+    
+    // Create cache key
+    const cacheKey = `${allPractitionerIds.join(',')}-${startDateStr}-${endDateStr}`;
+    
+    // Check cache first
+    const cached = cachedCalendarDataRef.current.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      // Use cached data - no API call needed
+      setAllEvents(cached.data);
+      setError(null);
+      return;
+    }
+
+    // Check if there's already an in-flight request for this cache key
+    // This prevents duplicate concurrent requests (e.g., from React StrictMode)
+    if (inFlightBatchRequestsRef.current.has(cacheKey)) {
+      try {
+        const batchData = await inFlightBatchRequestsRef.current.get(cacheKey)!;
+        // Process the result from the in-flight request
+        const events: ApiCalendarEvent[] = [];
+        for (const result of batchData.results) {
+          const practitionerId = result.user_id;
+          const dateStr = result.date;
+          // Use availablePractitioners from useApiData instead of prop
+          const practitioner = availablePractitioners.find(p => p.id === practitionerId);
+          const practitionerName = practitioner?.full_name || '';
+          const transformedEvents = result.events.map((event: any) => ({
+            ...event,
+            date: dateStr,
+            practitioner_id: practitionerId,
+            practitioner_name: practitionerName,
+            is_primary: practitionerId === userId
+          }));
+          events.push(...transformedEvents);
+        }
+        setAllEvents(events);
+        setError(null);
+        return;
+      } catch (err) {
+        // If the in-flight request failed, continue to make a new request
+        inFlightBatchRequestsRef.current.delete(cacheKey);
+      }
+    }
+
+    // Data not in cache or expired - fetch it
     try {
       setLoading(true);
       setError(null);
 
-      const { start, end } = getDateRange(currentDate, 'day');
+      // Create the fetch promise and store it for deduplication
+      const fetchPromise = apiService.getBatchCalendar({
+        practitionerIds: allPractitionerIds,
+        startDate: startDateStr,
+        endDate: endDateStr,
+      });
+      inFlightBatchRequestsRef.current.set(cacheKey, fetchPromise);
+
+      const batchData = await fetchPromise;
+
+      // Transform batch response to flat events array
       const events: ApiCalendarEvent[] = [];
-
-      // Collect all practitioner IDs to fetch (primary + additional)
-      const allPractitionerIds = [userId, ...additionalPractitionerIds];
-
-      // Fetch events for each day in the range (only for daily view)
-      const current = moment(start);
-      const endMoment = moment(end);
-
-      while (current.isSameOrBefore(endMoment, 'day')) {
-        const dateStr = current.format('YYYY-MM-DD');
+      
+      for (const result of batchData.results) {
+        const practitionerId = result.user_id;
+        const dateStr = result.date;
         
-        // Fetch events for all practitioners in parallel
-        const fetchPromises = allPractitionerIds.map(async (practitionerId) => {
-          try {
-            const data: any = await apiService.getDailyCalendar(practitionerId, dateStr);
-            
-            if (data.events) {
-              // Find practitioner name
-              const practitioner = practitioners.find(p => p.id === practitionerId);
-              const practitionerName = practitioner?.full_name || '';
-              
-              // Add date and practitioner ID to each event for proper display and color-coding
-              return data.events.map((event: any) => ({
-                ...event,
-                date: dateStr,
-                practitioner_id: practitionerId, // Add practitioner ID for color-coding
-                practitioner_name: practitionerName, // Add practitioner name for display
-                is_primary: practitionerId === userId // Mark primary practitioner's events
-              }));
-            }
-            return [];
-          } catch (err) {
-            logger.warn(`Failed to fetch events for practitioner ${practitionerId} on ${dateStr}:`, err);
-            return [];
-          }
-        });
-
-        const results = await Promise.all(fetchPromises);
-        // Flatten and add all events
-        events.push(...results.flat());
+        // Find practitioner name - use availablePractitioners from useApiData instead of prop
+        const practitioner = availablePractitioners.find(p => p.id === practitionerId);
+        const practitionerName = practitioner?.full_name || '';
         
-        current.add(1, 'day');
+        // Add date and practitioner ID to each event for proper display and color-coding
+        const transformedEvents = result.events.map((event: any) => ({
+          ...event,
+          date: dateStr,
+          practitioner_id: practitionerId, // Add practitioner ID for color-coding
+          practitioner_name: practitionerName, // Add practitioner name for display
+          is_primary: practitionerId === userId // Mark primary practitioner's events
+        }));
+        
+        events.push(...transformedEvents);
       }
+
+      // Cache the data
+      cachedCalendarDataRef.current.set(cacheKey, {
+        data: events,
+        timestamp: Date.now()
+      });
+
+      // Clean up old cache entries (older than TTL)
+      const now = Date.now();
+      for (const [key, value] of cachedCalendarDataRef.current.entries()) {
+        if (now - value.timestamp >= CACHE_TTL) {
+          cachedCalendarDataRef.current.delete(key);
+        }
+      }
+
+      // Remove from in-flight requests
+      inFlightBatchRequestsRef.current.delete(cacheKey);
 
       setAllEvents(events);
 
     } catch (err) {
+      // Remove from in-flight requests on error
+      inFlightBatchRequestsRef.current.delete(cacheKey);
       setError('無法載入月曆資料');
       logger.error('Fetch calendar data error:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, additionalPractitionerIds, currentDate, view, availablePractitioners]);
+
+  // Fetch calendar data when date/view/practitioners change
+  useEffect(() => {
+    fetchCalendarData();
+  }, [fetchCalendarData]);
 
 
   // Event styling based on document requirements and practitioner
@@ -425,6 +514,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         end_time: exceptionData.endTime
       });
 
+      // Invalidate cache for this date
+      invalidateCacheForDateRange(dateStr, dateStr);
+
       // Refresh data
       await fetchCalendarData();
       setModalState({ type: null, data: null });
@@ -489,6 +581,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     try {
       await apiService.cancelClinicAppointment(modalState.data.resource.appointment_id, cancellationNote.trim() || undefined);
 
+      // Invalidate cache for the appointment's date
+      const appointmentDate = modalState.data.resource.date || getDateString(modalState.data.start);
+      invalidateCacheForDateRange(appointmentDate, appointmentDate);
+
       // Refresh data
       await fetchCalendarData();
       setModalState({ type: null, data: null });
@@ -524,6 +620,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
     try {
       await apiService.deleteAvailabilityException(userId, modalState.data.resource.exception_id);
+      
+      // Invalidate cache for the exception's date
+      const exceptionDate = modalState.data.resource.date || getDateString(modalState.data.start);
+      invalidateCacheForDateRange(exceptionDate, exceptionDate);
       
       // Refresh data
       await fetchCalendarData();
@@ -577,6 +677,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         }
       );
 
+      // Invalidate cache for both old and new dates (in case appointment moved to different day)
+      const oldDate = modalState.data.resource.date || getDateString(modalState.data.start);
+      const newDate = moment(formData.start_time).format('YYYY-MM-DD'); // Extract date from ISO datetime string
+      invalidateCacheForDateRange(oldDate, oldDate);
+      if (newDate !== oldDate) {
+        invalidateCacheForDateRange(newDate, newDate);
+      }
+
       // Refresh data
       await fetchCalendarData();
       setModalState({ type: null, data: null });
@@ -628,6 +736,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }) => {
     try {
       await apiService.createClinicAppointment(formData);
+
+      // Invalidate cache for the appointment's date
+      const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD'); // Extract date from ISO datetime string
+      invalidateCacheForDateRange(appointmentDate, appointmentDate);
 
       // Refresh data
       await fetchCalendarData();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import moment from 'moment-timezone';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner } from '../../components/shared';
@@ -24,6 +24,8 @@ const Step3SelectDateTime: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [datesWithSlots, setDatesWithSlots] = useState<Set<string>>(new Set());
   const [loadingAvailability, setLoadingAvailability] = useState(false);
+  // Cache batch availability data to avoid redundant API calls
+  const [cachedAvailabilityData, setCachedAvailabilityData] = useState<Map<string, { slots: any[] }>>(new Map());
 
   // Generate calendar days using shared utility
   const calendarDays = generateCalendarDays(currentMonth);
@@ -53,29 +55,32 @@ const Step3SelectDateTime: React.FC = () => {
     }
         }
 
-        // Load availability in parallel for all dates
-        const availabilityPromises = datesToCheck.map(async (dateString) => {
-          try {
-            const response = await liffApiService.getAvailability({
-              date: dateString,
-              appointment_type_id: appointmentTypeId,
-              practitioner_id: practitionerId ?? undefined,
-            });
-            return response.slots && response.slots.length > 0 ? dateString : null;
-          } catch (err) {
-            // Silently skip dates that fail (likely no availability)
-            return null;
-          }
+        // Load availability for all dates using batch endpoint
+        const batchResponse = await liffApiService.getAvailabilityBatch({
+          dates: datesToCheck,
+          appointment_type_id: appointmentTypeId,
+          practitioner_id: practitionerId ?? undefined,
         });
 
-        const results = await Promise.all(availabilityPromises);
+        // Cache the batch data for reuse when dates are selected
+        const newCache = new Map<string, { slots: any[] }>();
+        batchResponse.results.forEach(result => {
+          newCache.set(result.date, { slots: result.slots });
+        });
+        setCachedAvailabilityData(newCache);
+
+        // Extract dates that have available slots
         const datesWithAvailableSlots = new Set<string>(
-          results.filter((date): date is string => date !== null)
+          batchResponse.results
+            .filter(result => result.slots && result.slots.length > 0)
+            .map(result => result.date)
         );
 
         setDatesWithSlots(datesWithAvailableSlots);
       } catch (err) {
+        // If batch request fails, fall back to empty set
         logger.error('Failed to load month availability:', err);
+        setDatesWithSlots(new Set());
       } finally {
         setLoadingAvailability(false);
       }
@@ -84,15 +89,29 @@ const Step3SelectDateTime: React.FC = () => {
     loadMonthAvailability();
   }, [currentMonth, clinicId, appointmentTypeId, practitionerId]);
 
-  useEffect(() => {
-    if (selectedDate) {
-      loadAvailableSlots(selectedDate);
-    }
-  }, [selectedDate, appointmentTypeId, practitionerId, clinicId]);
-
-  const loadAvailableSlots = async (date: string) => {
+  const loadAvailableSlots = useCallback(async (date: string) => {
     if (!clinicId || !appointmentTypeId) return;
 
+    // Check if we already have this data cached from batch call
+    const cachedData = cachedAvailabilityData.get(date);
+    if (cachedData) {
+      // Use cached data - no API call needed
+      const slots = cachedData.slots.map((slot: any) => slot.start_time);
+      setAvailableSlots(slots);
+      
+      // Store slot details for recommended badge display
+      const detailsMap = new Map<string, { is_recommended?: boolean }>();
+      cachedData.slots.forEach((slot: any) => {
+        if (slot.is_recommended !== undefined) {
+          detailsMap.set(slot.start_time, { is_recommended: slot.is_recommended });
+        }
+      });
+      setSlotDetails(detailsMap);
+      setError(null);
+      return;
+    }
+
+    // Data not in cache (e.g., date from different month) - fetch it
     try {
       setIsLoading(true);
       setError(null);
@@ -123,7 +142,13 @@ const Step3SelectDateTime: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [clinicId, appointmentTypeId, practitionerId, cachedAvailabilityData]);
+
+  useEffect(() => {
+    if (selectedDate) {
+      loadAvailableSlots(selectedDate);
+    }
+  }, [selectedDate, loadAvailableSlots]);
 
   const handleDateSelect = (date: Date) => {
     // Format date as YYYY-MM-DD using shared utility

@@ -13,13 +13,13 @@ from typing import Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 logger = logging.getLogger(__name__)
 
 from core.database import get_db
 from auth.dependencies import get_current_user, UserContext, ensure_clinic_access
-from models import User, UserClinicAssociation, PractitionerLinkCode, Clinic
+from models import User, PractitionerLinkCode, Clinic
 from models.user_clinic_association import PractitionerSettings
 from utils.datetime_utils import taiwan_now
 
@@ -60,7 +60,10 @@ async def get_profile(
     """
     try:
         # Both system admins and clinic users now have User records
-        user = db.query(User).filter(
+        # Use eager loading to fetch User and UserClinicAssociation in a single query
+        user = db.query(User).options(
+            joinedload(User.clinic_associations)
+        ).filter(
             User.id == current_user.user_id
         ).first()
 
@@ -71,16 +74,18 @@ async def get_profile(
             )
 
         # Get roles and active clinic from UserClinicAssociation
+        # Find the association from eagerly loaded relationships (no additional query needed)
         roles: list[str] = []
         active_clinic_id: Optional[int] = None
-
         settings: Optional[Dict[str, Any]] = None
+
         if current_user.active_clinic_id:
-            association = db.query(UserClinicAssociation).filter(
-                UserClinicAssociation.user_id == user.id,
-                UserClinicAssociation.clinic_id == current_user.active_clinic_id,
-                UserClinicAssociation.is_active == True
-            ).first()
+            # Find association from eagerly loaded clinic_associations
+            association = next(
+                (a for a in user.clinic_associations
+                 if a.clinic_id == current_user.active_clinic_id and a.is_active),
+                None
+            )
             if association:
                 roles = association.roles or []
                 active_clinic_id = association.clinic_id
@@ -126,8 +131,10 @@ async def update_profile(
     """
     try:
         # Both system admins and clinic users now have User records
-        # Find user
-        user = db.query(User).filter(
+        # Use eager loading to fetch User and UserClinicAssociation in a single query
+        user = db.query(User).options(
+            joinedload(User.clinic_associations)
+        ).filter(
             User.id == current_user.user_id
         ).first()
 
@@ -139,13 +146,14 @@ async def update_profile(
 
         # Update allowed fields only
         # Note: full_name is clinic-specific, stored in UserClinicAssociation
+        # Find association from eagerly loaded relationships (no additional query needed)
         association = None
         if current_user.active_clinic_id:
-            association = db.query(UserClinicAssociation).filter(
-                UserClinicAssociation.user_id == user.id,
-                UserClinicAssociation.clinic_id == current_user.active_clinic_id,
-                UserClinicAssociation.is_active == True
-            ).first()
+            association = next(
+                (a for a in user.clinic_associations
+                 if a.clinic_id == current_user.active_clinic_id and a.is_active),
+                None
+            )
 
             if not association:
                 # Clinic users must have an association - this shouldn't happen
@@ -201,14 +209,8 @@ async def update_profile(
         settings: Optional[Dict[str, Any]] = None
 
         if current_user.active_clinic_id:
-            # Use refreshed association if available, otherwise query
-            if not association:
-                # Query association if not already loaded (shouldn't happen for clinic users)
-                association = db.query(UserClinicAssociation).filter(
-                    UserClinicAssociation.user_id == user.id,
-                    UserClinicAssociation.clinic_id == current_user.active_clinic_id,
-                    UserClinicAssociation.is_active == True
-                ).first()
+            # Use association from eagerly loaded relationships (already loaded above)
+            # No need for additional query
 
             if association:
                 roles = association.roles or []

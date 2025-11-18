@@ -1392,6 +1392,76 @@ class TestLiffAvailabilityAndScheduling:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
+    def test_batch_availability_endpoint(self, db_session: Session, test_clinic_with_liff):
+        """Test batch availability endpoint for multiple dates."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+        
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_batch_test_123",
+            display_name="Batch Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
+        # Mock authentication
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+        
+        try:
+            # Create primary patient
+            primary_patient = Patient(
+                clinic_id=clinic.id,
+                full_name="Batch Test User",
+                phone_number="0912345678",
+                line_user_id=line_user.id
+            )
+            db_session.add(primary_patient)
+            db_session.commit()
+            
+            # Calculate dates (next Monday and Tuesday)
+            from datetime import timedelta, date
+            today = date.today()
+            days_until_monday = (0 - today.weekday()) % 7
+            if days_until_monday == 0 and today.weekday() != 0:
+                days_until_monday = 7
+            monday = today + timedelta(days=days_until_monday)
+            tuesday = monday + timedelta(days=1)
+            
+            # Test batch endpoint
+            response = client.post(
+                "/api/liff/availability/batch",
+                json={
+                    "dates": [monday.strftime('%Y-%m-%d'), tuesday.strftime('%Y-%m-%d')],
+                    "appointment_type_id": appt_types[0].id,
+                    "practitioner_id": practitioner.id
+                }
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert "results" in data
+            assert len(data["results"]) == 2
+            
+            # Verify results contain data for both dates
+            result_dict = {r["date"]: r for r in data["results"]}
+            
+            # Both dates should have slots (default availability covers all days)
+            assert monday.strftime('%Y-%m-%d') in result_dict
+            monday_result = result_dict[monday.strftime('%Y-%m-%d')]
+            assert "slots" in monday_result
+            assert "date" in monday_result
+            
+            assert tuesday.strftime('%Y-%m-%d') in result_dict
+            tuesday_result = result_dict[tuesday.strftime('%Y-%m-%d')]
+            assert "slots" in tuesday_result
+            assert "date" in tuesday_result
+            
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
     def test_practitioner_assignment_without_specification(self, db_session: Session, test_clinic_with_liff):
         """Test intelligent practitioner assignment when user doesn't specify."""
         clinic, practitioner, appt_types, practitioner_assoc = test_clinic_with_liff

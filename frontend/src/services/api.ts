@@ -323,6 +323,26 @@ export class ApiService {
     return response.data;
   }
 
+  async getBatchCalendar(data: {
+    practitionerIds: number[];
+    startDate: string;
+    endDate: string;
+  }): Promise<{
+    results: Array<{
+      user_id: number;
+      date: string;
+      default_schedule: any;
+      events: any[];
+    }>;
+  }> {
+    const response = await this.client.post('/clinic/practitioners/calendar/batch', {
+      practitioner_ids: data.practitionerIds,
+      start_date: data.startDate,
+      end_date: data.endDate,
+    });
+    return response.data;
+  }
+
   async getAvailableSlots(userId: number, date: string, appointmentTypeId: number, excludeCalendarEventId?: number): Promise<AvailableSlotsResponse> {
     const params: { date: string; appointment_type_id: number; exclude_calendar_event_id?: number } = { date, appointment_type_id: appointmentTypeId };
     if (excludeCalendarEventId !== undefined) {
@@ -434,6 +454,20 @@ export class ApiService {
     appointment_types_count: number;
   }> {
     const response = await this.client.get(`/clinic/practitioners/${userId}/status`);
+    return response.data;
+  }
+
+  async getBatchPractitionerStatus(practitionerIds: number[]): Promise<{
+    results: Array<{
+      user_id: number;
+      has_appointment_types: boolean;
+      has_availability: boolean;
+      appointment_types_count: number;
+    }>;
+  }> {
+    const response = await this.client.post('/clinic/practitioners/status/batch', {
+      practitioner_ids: practitionerIds,
+    });
     return response.data;
   }
 

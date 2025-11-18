@@ -27,8 +27,25 @@ const GlobalWarnings: React.FC = () => {
   const previousPathnameRef = useRef<string | null>(null);
   const handleFocusRef = useRef<() => void>();
 
+  // Cache warnings data to avoid redundant API calls when switching tabs
+  // Key: `${user.user_id}-${isClinicAdmin}-${hasRole('practitioner')}`
+  const cachedWarningsRef = useRef<Map<string, { data: typeof warnings; timestamp: number }>>(new Map());
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
   const fetchWarnings = useCallback(async () => {
     if (!user?.user_id) return;
+
+    // Create cache key based on user context
+    const cacheKey = `${user.user_id}-${isClinicAdmin}-${hasRole && hasRole('practitioner')}`;
+
+    // Check cache first
+    const cached = cachedWarningsRef.current.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+      // Use cached data - no API call needed
+      setWarnings(cached.data);
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -56,15 +73,29 @@ const GlobalWarnings: React.FC = () => {
         };
       }
 
-      // Fetch admin warnings if user is admin
+      // Fetch admin warnings if user is admin - use batch endpoint
       let adminWarnings: Array<{ id: number; full_name: string; hasAppointmentTypes: boolean; hasAvailability: boolean }> = [];
       if (isClinicAdmin) {
         const members = await apiService.getMembers();
-        for (const member of members) {
-          if (member.roles.includes('practitioner') && member.is_active) {
-            try {
-              const status = await apiService.getPractitionerStatus(member.id);
-              if (!status.has_appointment_types || !status.has_availability) {
+        const practitionerMembers = members.filter(
+          member => member.roles.includes('practitioner') && member.is_active
+        );
+
+        if (practitionerMembers.length > 0) {
+          try {
+            // Use batch endpoint to fetch all practitioner statuses in one call
+            const practitionerIds = practitionerMembers.map(m => m.id);
+            const batchStatus = await apiService.getBatchPractitionerStatus(practitionerIds);
+
+            // Create a map for quick lookup
+            const statusMap = new Map(
+              batchStatus.results.map(result => [result.user_id, result])
+            );
+
+            // Build admin warnings from batch response
+            for (const member of practitionerMembers) {
+              const status = statusMap.get(member.id);
+              if (status && (!status.has_appointment_types || !status.has_availability)) {
                 adminWarnings.push({
                   id: member.id,
                   full_name: member.full_name,
@@ -72,18 +103,35 @@ const GlobalWarnings: React.FC = () => {
                   hasAvailability: status.has_availability
                 });
               }
-            } catch (err) {
-              // Continue with other practitioners
             }
+          } catch (err) {
+            logger.error('Error fetching batch practitioner status:', err);
+            // Fallback: continue without admin warnings rather than failing completely
           }
         }
       }
 
-      setWarnings({
+      const warningsData = {
         clinicWarnings,
         practitionerWarnings,
         adminWarnings
+      };
+
+      // Cache the data
+      cachedWarningsRef.current.set(cacheKey, {
+        data: warningsData,
+        timestamp: Date.now()
       });
+
+      // Clean up old cache entries (older than TTL)
+      const now = Date.now();
+      for (const [key, value] of cachedWarningsRef.current.entries()) {
+        if (now - value.timestamp >= CACHE_TTL) {
+          cachedWarningsRef.current.delete(key);
+        }
+      }
+
+      setWarnings(warningsData);
     } catch (err: any) {
       // Silently handle network/CORS errors during auth recovery
       // These are expected when returning to tab after being in background
@@ -119,12 +167,17 @@ const GlobalWarnings: React.FC = () => {
 
     // Only refresh if navigating away from settings pages
     if (previousPathname && settingsPages.includes(previousPathname) && !settingsPages.includes(currentPathname)) {
+      // Invalidate cache to ensure fresh data after settings changes
+      if (user?.user_id) {
+        const cacheKey = `${user.user_id}-${isClinicAdmin}-${hasRole && hasRole('practitioner')}`;
+        cachedWarningsRef.current.delete(cacheKey);
+      }
       fetchWarnings();
     }
 
     // Update previous pathname for next navigation
     previousPathnameRef.current = currentPathname;
-  }, [location.pathname, fetchWarnings]);
+  }, [location.pathname, fetchWarnings, user, isClinicAdmin, hasRole]);
 
   // Refresh warnings when window regains focus (e.g., user returns to tab after saving settings)
   // Update ref with latest fetchWarnings function whenever it changes

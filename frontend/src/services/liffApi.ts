@@ -214,6 +214,22 @@ class LiffApiService {
     return response.data;
   }
 
+  // Batch Availability
+  async getAvailabilityBatch(params: {
+    dates: string[];
+    appointment_type_id: number;
+    practitioner_id: number | undefined;
+  }): Promise<{
+    results: AvailabilityResponse[];
+  }> {
+    const response = await this.client.post('/liff/availability/batch', {
+      dates: params.dates,
+      appointment_type_id: params.appointment_type_id,
+      practitioner_id: params.practitioner_id ?? null,
+    });
+    return response.data;
+  }
+
   // Appointments
   async createAppointment(request: AppointmentCreateRequest): Promise<AppointmentResponse> {
     const response = await this.client.post('/liff/appointments', request);

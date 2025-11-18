@@ -1627,3 +1627,116 @@ class TestPractitionersList:
             # Clean up overrides
             client.app.dependency_overrides.pop(get_current_user, None)
             client.app.dependency_overrides.pop(get_db, None)
+
+    def test_batch_practitioner_status_endpoint(self, db_session, test_clinic_with_therapist):
+        """Test batch practitioner status endpoint for multiple practitioners."""
+        clinic, therapist1, appointment_types, therapist1_assoc = test_clinic_with_therapist
+        
+        # Create a second practitioner
+        therapist2, therapist2_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Dr. Test 2", "dr.test2@example.com", 
+            "therapist_sub_456", ["practitioner"], True
+        )
+        
+        # Create a third practitioner
+        therapist3, therapist3_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Dr. Test 3", "dr.test3@example.com", 
+            "therapist_sub_789", ["practitioner"], True
+        )
+        db_session.commit()
+        
+        # Set up: therapist1 has both appointment types and availability
+        # therapist2 has only appointment types (no availability)
+        # therapist3 has neither
+        
+        # therapist1: associate with appointment types (availability already exists from fixture)
+        pat1 = PractitionerAppointmentTypes(
+            user_id=therapist1.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appointment_types[0].id
+        )
+        db_session.add(pat1)
+        
+        # therapist2: add appointment types but no availability
+        pat2 = PractitionerAppointmentTypes(
+            user_id=therapist2.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appointment_types[0].id
+        )
+        db_session.add(pat2)
+        db_session.commit()
+        
+        # therapist3: no appointment types, no availability
+        
+        # Mock authentication for admin
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+        
+        admin, admin_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Admin", "admin@example.com",
+            "admin_sub", ["admin"], True
+        )
+        db_session.commit()
+        
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=admin.email,
+            roles=admin_assoc.roles,
+            active_clinic_id=admin_assoc.clinic_id,
+            google_subject_id=admin.google_subject_id,
+            name=admin_assoc.full_name,
+            user_id=admin.id
+        )
+        
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+        
+        try:
+            # Test batch endpoint with all three practitioners
+            response = client.post(
+                "/api/clinic/practitioners/status/batch",
+                json={
+                    "practitioner_ids": [therapist1.id, therapist2.id, therapist3.id]
+                }
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert "results" in data
+            assert len(data["results"]) == 3
+            
+            # Create a map for easy lookup
+            status_map = {r["user_id"]: r for r in data["results"]}
+            
+            # Verify therapist1 has both appointment types and availability
+            status1 = status_map[therapist1.id]
+            assert status1["has_appointment_types"] is True
+            assert status1["has_availability"] is True
+            assert status1["appointment_types_count"] > 0
+            
+            # Verify therapist2 has appointment types but no availability
+            status2 = status_map[therapist2.id]
+            assert status2["has_appointment_types"] is True
+            assert status2["has_availability"] is False
+            assert status2["appointment_types_count"] > 0
+            
+            # Verify therapist3 has neither
+            status3 = status_map[therapist3.id]
+            assert status3["has_appointment_types"] is False
+            assert status3["has_availability"] is False
+            assert status3["appointment_types_count"] == 0
+            
+            # Verify all results have required fields
+            for result in data["results"]:
+                assert "user_id" in result
+                assert "has_appointment_types" in result
+                assert "has_availability" in result
+                assert "appointment_types_count" in result
+                assert isinstance(result["has_appointment_types"], bool)
+                assert isinstance(result["has_availability"], bool)
+                assert isinstance(result["appointment_types_count"], int)
+                
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)

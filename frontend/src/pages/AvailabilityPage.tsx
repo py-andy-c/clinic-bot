@@ -1,21 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useApiData } from '../hooks/useApiData';
 import { LoadingSpinner } from '../components/shared';
 import { View } from 'react-big-calendar';
 import CalendarView from '../components/CalendarView';
 import PageHeader from '../components/PageHeader';
 import PractitionerSelector from '../components/PractitionerSelector';
 import { apiService } from '../services/api';
-import { logger } from '../utils/logger';
 
 const AvailabilityPage: React.FC = () => {
-  const { user, isPractitioner } = useAuth();
+  const { user, isPractitioner, isLoading: authLoading, isAuthenticated } = useAuth();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [practitionersLoading, setPractitionersLoading] = useState(true);
   const [addExceptionHandler, setAddExceptionHandler] = useState<(() => void) | null>(null);
-  const [practitioners, setPractitioners] = useState<{ id: number; full_name: string }[]>([]);
   const [additionalPractitionerIds, setAdditionalPractitionerIds] = useState<number[]>([]);
   const [defaultPractitionerId, setDefaultPractitionerId] = useState<number | null>(null);
   
@@ -23,6 +21,22 @@ const AvailabilityPage: React.FC = () => {
   const preSelectedPatientId = searchParams.get('createAppointment') 
     ? parseInt(searchParams.get('createAppointment') || '0', 10) 
     : undefined;
+
+  // Memoize fetch function to ensure stable cache key and enable request deduplication
+  // This will share the same cache as CalendarView
+  const fetchPractitionersFn = useCallback(() => apiService.getPractitioners(), []);
+
+  // Use useApiData for practitioners with caching and request deduplication
+  const { data: practitionersData, loading: practitionersLoading } = useApiData(
+    fetchPractitionersFn,
+    {
+      enabled: !authLoading && isAuthenticated,
+      dependencies: [authLoading, isAuthenticated],
+      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
+    }
+  );
+
+  const practitioners = practitionersData || [];
 
   // Determine which practitioner IDs to display
   const displayedPractitionerIds = React.useMemo(() => {
@@ -48,49 +62,34 @@ const AvailabilityPage: React.FC = () => {
     return ids;
   }, [isPractitioner, user?.user_id, defaultPractitionerId, additionalPractitionerIds]);
 
-  // Fetch practitioners list
+  // Handle default practitioner for non-practitioners when practitioners data loads
   useEffect(() => {
-    const fetchPractitioners = async () => {
-      try {
-        setPractitionersLoading(true);
-        const data = await apiService.getPractitioners();
-        setPractitioners(data);
-        
-        // Handle default practitioner for non-practitioners
-        if (!isPractitioner) {
-          if (data.length > 0) {
-            // Check if current default practitioner still exists
-            if (defaultPractitionerId && data.some(p => p.id === defaultPractitionerId)) {
-              // Keep current default if it still exists
-              // No change needed
-            } else {
-              // Default practitioner was removed or doesn't exist, set to first available
-              const firstPractitioner = data[0];
-              if (firstPractitioner) {
-                setDefaultPractitionerId(firstPractitioner.id);
-              }
-            }
-          } else {
-            // No practitioners available
-            setDefaultPractitionerId(null);
-          }
+    if (!isPractitioner && practitioners.length > 0) {
+      // Check if current default practitioner still exists
+      if (defaultPractitionerId && practitioners.some(p => p.id === defaultPractitionerId)) {
+        // Keep current default if it still exists
+        // No change needed
+      } else {
+        // Default practitioner was removed or doesn't exist, set to first available
+        const firstPractitioner = practitioners[0];
+        if (firstPractitioner) {
+          setDefaultPractitionerId(firstPractitioner.id);
         }
-        
-        // Clean up additional practitioners that no longer exist
-        setAdditionalPractitionerIds(prev => 
-          prev.filter(id => data.some(p => p.id === id))
-        );
-      } catch (err) {
-        logger.error('Failed to fetch practitioners:', err);
-      } finally {
-        setPractitionersLoading(false);
       }
-    };
-
-    if (user?.user_id) {
-      fetchPractitioners();
+    } else if (!isPractitioner && practitioners.length === 0) {
+      // No practitioners available
+      setDefaultPractitionerId(null);
     }
-  }, [user?.user_id, isPractitioner]); // Removed defaultPractitionerId to avoid unnecessary re-runs
+  }, [isPractitioner, practitioners, defaultPractitionerId]);
+
+  // Clean up additional practitioners that no longer exist
+  useEffect(() => {
+    if (practitioners.length > 0) {
+      setAdditionalPractitionerIds(prev => 
+        prev.filter(id => practitioners.some(p => p.id === id))
+      );
+    }
+  }, [practitioners]);
 
   useEffect(() => {
     if (user?.user_id) {

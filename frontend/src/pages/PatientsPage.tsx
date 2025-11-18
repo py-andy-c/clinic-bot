@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import moment from 'moment-timezone';
 import { apiService } from '../services/api';
@@ -7,15 +8,18 @@ import { useAuth } from '../hooks/useAuth';
 import { useApiData } from '../hooks/useApiData';
 import PageHeader from '../components/PageHeader';
 import { ClinicSettings } from '../schemas/api';
-import { logger } from '../utils/logger';
 
 const PatientsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { isLoading, isAuthenticated, user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
-  const [requireBirthday, setRequireBirthday] = useState(false);
+
+  // Memoize fetch functions to ensure stable cache keys
+  const fetchPatients = useCallback(() => apiService.getPatients(), []);
+  const fetchClinicSettings = useCallback(() => apiService.getClinicSettings(), []);
 
   const { data: patients, loading, error, refetch } = useApiData<Patient[]>(
-    () => apiService.getPatients(),
+    fetchPatients,
     {
       enabled: !isLoading && isAuthenticated,
       dependencies: [isLoading, isAuthenticated, activeClinicId],
@@ -25,20 +29,18 @@ const PatientsPage: React.FC = () => {
   );
 
   // Fetch clinic settings to check if birthday column should be shown
-  useEffect(() => {
-    const fetchClinicSettings = async () => {
-      if (!isLoading && isAuthenticated) {
-        try {
-          const settings: ClinicSettings = await apiService.getClinicSettings();
-          setRequireBirthday(settings.clinic_info_settings?.require_birthday || false);
-        } catch (err) {
-          // Don't block if we can't fetch settings, default to false
-          logger.error('Failed to fetch clinic settings:', err);
-        }
-      }
-    };
-    fetchClinicSettings();
-  }, [isLoading, isAuthenticated]);
+  // Use useApiData with caching to avoid redundant API calls
+  const { data: clinicSettings } = useApiData<ClinicSettings>(
+    fetchClinicSettings,
+    {
+      enabled: !isLoading && isAuthenticated,
+      dependencies: [isLoading, isAuthenticated, activeClinicId],
+      defaultErrorMessage: '無法載入診所設定',
+      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
+    }
+  );
+
+  const requireBirthday = clinicSettings?.clinic_info_settings?.require_birthday || false;
 
   if (loading) {
     return (
@@ -124,8 +126,8 @@ const PatientsPage: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <button
                           onClick={() => {
-                            // Navigate to calendar page with pre-selected patient
-                            window.location.href = `/admin/calendar?createAppointment=${patient.id}`;
+                            // Navigate to calendar page with pre-selected patient (client-side navigation)
+                            navigate(`/admin/calendar?createAppointment=${patient.id}`);
                           }}
                           className="text-blue-600 hover:text-blue-800 font-medium"
                         >

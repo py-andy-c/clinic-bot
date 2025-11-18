@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, model_validator
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from utils.datetime_utils import parse_datetime_string_to_taiwan
 
 logger = logging.getLogger(__name__)
@@ -2221,6 +2222,24 @@ async def update_practitioner_appointment_types(
         )
 
 
+class BatchPractitionerStatusRequest(BaseModel):
+    """Request model for batch practitioner status query."""
+    practitioner_ids: List[int]
+
+
+class BatchPractitionerStatusItemResponse(BaseModel):
+    """Response model for a single practitioner's status."""
+    user_id: int
+    has_appointment_types: bool
+    has_availability: bool
+    appointment_types_count: int
+
+
+class BatchPractitionerStatusResponse(BaseModel):
+    """Response model for batch practitioner status query."""
+    results: List[BatchPractitionerStatusItemResponse]
+
+
 @router.get("/practitioners/{user_id}/status", summary="Get practitioner's configuration status")
 async def get_practitioner_status(
     user_id: int,
@@ -2270,6 +2289,112 @@ async def get_practitioner_status(
         raise
     except Exception as e:
         logger.exception(f"Failed to get practitioner status for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="獲取治療師狀態失敗"
+        )
+
+
+@router.post("/practitioners/status/batch", summary="Get practitioner status for multiple practitioners")
+async def get_batch_practitioner_status(
+    request: BatchPractitionerStatusRequest,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> BatchPractitionerStatusResponse:
+    """
+    Get configuration status for multiple practitioners in a single request.
+
+    This endpoint efficiently fetches status for multiple practitioners,
+    reducing API calls from N to 1. Used for displaying warnings to admins.
+
+    Args:
+        request: Batch request with list of practitioner IDs
+
+    Returns:
+        BatchPractitionerStatusResponse with status for each practitioner
+
+    Raises:
+        HTTPException: If validation fails or practitioners don't exist
+    """
+    clinic_id = ensure_clinic_access(current_user)
+    
+    # Limit number of practitioners to prevent excessive queries
+    max_practitioners = 50
+    if len(request.practitioner_ids) > max_practitioners:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"一次最多只能查詢 {max_practitioners} 個治療師"
+        )
+    
+    # Verify all practitioners exist and belong to the clinic
+    practitioners = db.query(User).join(UserClinicAssociation).filter(
+        User.id.in_(request.practitioner_ids),
+        UserClinicAssociation.clinic_id == clinic_id,
+        UserClinicAssociation.is_active == True
+    ).all()
+    
+    if len(practitioners) != len(request.practitioner_ids):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="部分治療師不存在或不在您的診所"
+        )
+    
+    practitioner_ids = [p.id for p in practitioners]
+    
+    try:
+        from models import PractitionerAppointmentTypes
+        
+        # Batch query: Get appointment type counts for all practitioners at once
+        # Group by practitioner_id and count distinct appointment_type_id
+        appointment_type_counts = db.query(
+            PractitionerAppointmentTypes.user_id,
+            func.count(PractitionerAppointmentTypes.appointment_type_id).label('count')
+        ).join(
+            AppointmentType,
+            PractitionerAppointmentTypes.appointment_type_id == AppointmentType.id
+        ).filter(
+            PractitionerAppointmentTypes.user_id.in_(practitioner_ids),
+            PractitionerAppointmentTypes.clinic_id == clinic_id,
+            AppointmentType.is_deleted == False
+        ).group_by(PractitionerAppointmentTypes.user_id).all()
+        
+        # Convert to dict for easy lookup
+        appointment_type_count_map = {user_id: count for user_id, count in appointment_type_counts}
+        
+        # Batch query: Get availability counts for all practitioners at once
+        availability_counts = db.query(
+            PractitionerAvailability.user_id,
+            func.count(PractitionerAvailability.id).label('count')
+        ).filter(
+            PractitionerAvailability.user_id.in_(practitioner_ids),
+            PractitionerAvailability.clinic_id == clinic_id
+        ).group_by(PractitionerAvailability.user_id).all()
+        
+        # Convert to dict for easy lookup
+        availability_count_map = {user_id: count for user_id, count in availability_counts}
+        
+        # Build response for each practitioner
+        results: List[BatchPractitionerStatusItemResponse] = []
+        for practitioner_id in practitioner_ids:
+            appointment_types_count = appointment_type_count_map.get(practitioner_id, 0)
+            availability_count = availability_count_map.get(practitioner_id, 0)
+            
+            results.append(BatchPractitionerStatusItemResponse(
+                user_id=practitioner_id,
+                has_appointment_types=appointment_types_count > 0,
+                has_availability=availability_count > 0,
+                appointment_types_count=appointment_types_count
+            ))
+        
+        return BatchPractitionerStatusResponse(results=results)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            f"Failed to get batch practitioner status: "
+            f"practitioner_ids={request.practitioner_ids}, clinic_id={clinic_id}, error={e}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="獲取治療師狀態失敗"

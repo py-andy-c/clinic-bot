@@ -168,23 +168,8 @@ const ProfilePage: React.FC = () => {
   const { alert } = useModal();
 
 
-  // Fetch user profile separately (needed for display)
+  // Profile state for display (set from useSettingsPage fetchData)
   const [profile, setProfile] = React.useState<any>(null);
-
-  React.useEffect(() => {
-    // Wait for auth to complete before fetching profile
-    if (!isLoading) {
-      const fetchProfile = async () => {
-        try {
-          const profileData = await apiService.getProfile();
-          setProfile(profileData);
-        } catch (err) {
-          logger.error('Error fetching profile:', err);
-        }
-      };
-      fetchProfile();
-    }
-  }, [isLoading, activeClinicId]); // Refresh when clinic changes
 
   const {
     data: profileData,
@@ -204,15 +189,13 @@ const ProfilePage: React.FC = () => {
         },
       };
 
-      // Fetch profile if not already loaded
-      let profileToUse = profile;
-      if (!profileToUse) {
-        try {
-          profileToUse = await apiService.getProfile();
-          setProfile(profileToUse);
-        } catch (err) {
-          logger.error('Error fetching profile:', err);
-        }
+      // Fetch profile (useSettingsPage handles the fetching, eliminating duplicate calls)
+      let profileToUse: any = null;
+      try {
+        profileToUse = await apiService.getProfile();
+        setProfile(profileToUse); // Set profile state for display
+      } catch (err) {
+        logger.error('Error fetching profile:', err);
       }
 
       // Set the full name from the profile

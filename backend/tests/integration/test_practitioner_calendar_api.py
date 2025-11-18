@@ -1190,6 +1190,119 @@ class TestPractitionerCalendarAPI:
         db_session.refresh(appointment)
         assert appointment.calendar_event.start_time == time(11, 0)
 
+    def test_batch_calendar_endpoint(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test batch calendar endpoint for multiple practitioners and date range."""
+        clinic, practitioner1 = test_clinic_and_practitioner
+        
+        # Create a second practitioner
+        practitioner2, _ = create_user_with_clinic_association(
+            db_session=db_session,
+            clinic=clinic,
+            full_name="Dr. Test 2",
+            email="practitioner2@example.com",
+            google_subject_id="practitioner2_subject",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.flush()
+        
+        # Create appointments for both practitioners on different dates
+        target_date1 = date.today() + timedelta(days=1)
+        target_date2 = date.today() + timedelta(days=2)
+        
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=30
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+        
+        # Create patient
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.flush()
+        
+        # Create appointments
+        event1 = create_calendar_event_with_clinic(
+            db_session, practitioner1, clinic,
+            event_type='appointment',
+            event_date=target_date1,
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.flush()  # Flush to get event1.id
+        appointment1 = Appointment(
+            calendar_event_id=event1.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status='confirmed'
+        )
+        db_session.add(appointment1)
+        
+        event2 = create_calendar_event_with_clinic(
+            db_session, practitioner2, clinic,
+            event_type='appointment',
+            event_date=target_date2,
+            start_time=time(14, 0),
+            end_time=time(14, 30)
+        )
+        db_session.flush()  # Flush to get event2.id
+        appointment2 = Appointment(
+            calendar_event_id=event2.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status='confirmed'
+        )
+        db_session.add(appointment2)
+        db_session.commit()
+        
+        # Get authentication token
+        token = get_auth_token(client, practitioner1.email)
+        
+        # Test batch endpoint
+        response = client.post(
+            "/api/clinic/practitioners/calendar/batch",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "practitioner_ids": [practitioner1.id, practitioner2.id],
+                "start_date": target_date1.strftime('%Y-%m-%d'),
+                "end_date": target_date2.strftime('%Y-%m-%d')
+            }
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "results" in data
+        assert len(data["results"]) == 4  # 2 practitioners × 2 dates
+        
+        # Verify results contain data for both practitioners and dates
+        result_dict = {(r["user_id"], r["date"]): r for r in data["results"]}
+        
+        # Check practitioner1 on date1
+        assert (practitioner1.id, target_date1.strftime('%Y-%m-%d')) in result_dict
+        result1 = result_dict[(practitioner1.id, target_date1.strftime('%Y-%m-%d'))]
+        assert len(result1["events"]) == 1
+        assert result1["events"][0]["type"] == "appointment"
+        
+        # Check practitioner2 on date2
+        assert (practitioner2.id, target_date2.strftime('%Y-%m-%d')) in result_dict
+        result2 = result_dict[(practitioner2.id, target_date2.strftime('%Y-%m-%d'))]
+        assert len(result2["events"]) == 1
+        assert result2["events"][0]["type"] == "appointment"
+        
+        # Verify all results have default_schedule
+        for result in data["results"]:
+            assert "default_schedule" in result
+            assert "events" in result
+            assert "date" in result
+            assert "user_id" in result
+
     def test_practitioner_cannot_edit_other_practitioner_appointment_via_api(
         self, client: TestClient, db_session: Session, test_clinic_and_practitioner
     ):

@@ -672,6 +672,123 @@ async def get_availability(
         )
 
 
+# Batch availability request/response models
+class BatchAvailabilityRequest(BaseModel):
+    """Request model for batch availability query."""
+    dates: List[str]  # List of dates in YYYY-MM-DD format
+    appointment_type_id: int
+    practitioner_id: Optional[int] = None
+
+
+class BatchAvailabilityResponse(BaseModel):
+    """Response model for batch availability query."""
+    results: List[AvailabilityResponse]  # One response per date
+
+
+@router.post("/availability/batch", response_model=BatchAvailabilityResponse)
+async def get_availability_batch(
+    request: BatchAvailabilityRequest,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """
+    Get available time slots for multiple dates in a single request.
+
+    This endpoint efficiently fetches availability for multiple dates,
+    reducing API calls from N to 1.
+
+    Clinic isolation is enforced through LIFF token context.
+    
+    Args:
+        request: Batch availability request with dates, appointment_type_id, and optional practitioner_id
+        
+    Returns:
+        BatchAvailabilityResponse with one AvailabilityResponse per date
+        
+    Raises:
+        HTTPException: If validation fails or dates are invalid
+    """
+    _, clinic = line_user_clinic
+
+    try:
+        # Limit number of dates to prevent excessive queries
+        max_dates = 31
+        if len(request.dates) > max_dates:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"一次最多只能查詢 {max_dates} 個日期"
+            )
+
+        # Validate dates format
+        validated_dates: List[str] = []
+        for date_str in request.dates:
+            try:
+                # Validate date format
+                datetime.strptime(date_str, '%Y-%m-%d')
+                validated_dates.append(date_str)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"無效的日期格式: {date_str}，請使用 YYYY-MM-DD"
+                )
+
+        # Fetch availability for all dates
+        results: List[AvailabilityResponse] = []
+        
+        for date_str in validated_dates:
+            try:
+                if request.practitioner_id:
+                    # Specific practitioner requested
+                    slots_data = AvailabilityService.get_available_slots_for_practitioner(
+                        db=db,
+                        practitioner_id=request.practitioner_id,
+                        date=date_str,
+                        appointment_type_id=request.appointment_type_id,
+                        clinic_id=clinic.id
+                    )
+                else:
+                    # All practitioners in clinic
+                    slots_data = AvailabilityService.get_available_slots_for_clinic(
+                        db=db,
+                        clinic_id=clinic.id,
+                        date=date_str,
+                        appointment_type_id=request.appointment_type_id
+                    )
+
+                # Convert dicts to response objects
+                slots = [
+                    AvailabilitySlot(**slot)
+                    for slot in slots_data
+                ]
+
+                results.append(AvailabilityResponse(date=date_str, slots=slots))
+            except HTTPException:
+                # Re-raise HTTP exceptions (validation errors, etc.)
+                raise
+            except Exception as e:
+                # Log error but continue with other dates
+                logger.warning(
+                    f"Error fetching availability for date {date_str}: {e}"
+                )
+                # Return empty slots for this date
+                results.append(AvailabilityResponse(date=date_str, slots=[]))
+
+        return BatchAvailabilityResponse(results=results)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            f"Unexpected error in batch availability endpoint: "
+            f"dates={request.dates}, appointment_type_id={request.appointment_type_id}, "
+            f"practitioner_id={request.practitioner_id}, clinic_id={clinic.id}, error={e}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得可用時間"
+        )
+
+
 @router.post("/appointments", response_model=AppointmentResponse)
 async def create_appointment(
     request: AppointmentCreateRequest,
