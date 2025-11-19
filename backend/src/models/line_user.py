@@ -35,6 +35,18 @@ class LineUser(Base):
     display_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     """Display name from LINE profile (may be None if not provided)."""
 
+    preferred_language: Mapped[Optional[str]] = mapped_column(
+        String(10),
+        nullable=True,
+        server_default='zh-TW'  # Database-level default, matches migration
+    )
+    """
+    User's preferred language for UI and LINE messages.
+    
+    Values: 'zh-TW' (Traditional Chinese), 'en' (English), 'ja' (Japanese)
+    Default: 'zh-TW'
+    """
+
     # Relationships
     patients = relationship("Patient", back_populates="line_user")
     """Relationship to Patient entities associated with this LINE user."""

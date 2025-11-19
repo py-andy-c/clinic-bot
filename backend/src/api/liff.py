@@ -39,7 +39,7 @@ from api.responses import (
     AvailabilityResponse, AvailabilitySlot,
     AppointmentResponse, AppointmentListResponse, AppointmentListItem
 )
-from auth.dependencies import get_current_line_user_with_clinic
+from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -109,6 +109,24 @@ class LiffLoginResponse(BaseModel):
     is_first_time: bool
     display_name: str
     clinic_id: int
+    preferred_language: Optional[str] = 'zh-TW'  # User's preferred language, defaults to Traditional Chinese
+
+
+class LanguagePreferenceRequest(BaseModel):
+    """Request model for updating language preference."""
+    language: str
+    
+    @field_validator('language')
+    @classmethod
+    def validate_language(cls, v: str) -> str:
+        if v not in ['zh-TW', 'en', 'ja']:
+            raise ValueError("Invalid language code. Must be 'zh-TW', 'en', or 'ja'")
+        return v
+
+
+class LanguagePreferenceResponse(BaseModel):
+    """Response model for language preference update."""
+    preferred_language: str
 
 
 class PatientCreateRequest(BaseModel):
@@ -312,11 +330,15 @@ async def liff_login(
         }
         access_token = jwt.encode(token_payload, JWT_SECRET_KEY, algorithm="HS256")
 
+        # Get user's preferred language (default to 'zh-TW' if not set)
+        preferred_language = line_user.preferred_language or 'zh-TW'
+        
         return LiffLoginResponse(
             access_token=access_token,
             is_first_time=is_first_time,
             display_name=request.display_name,
-            clinic_id=clinic.id
+            clinic_id=clinic.id,
+            preferred_language=preferred_language
         )
 
     except HTTPException:
@@ -415,7 +437,7 @@ async def list_patients(
         # Note: This uses N+1 queries, but is acceptable since LIFF users typically have 1-5 patients.
         # If performance becomes an issue with many patients, consider optimizing with a bulk query.
         from utils.appointment_queries import count_future_appointments_for_patient
-        patient_responses = []
+        patient_responses: List[PatientResponse] = []
         for p in patients:
             future_count = count_future_appointments_for_patient(
                 db, p.id, status="confirmed"
@@ -1120,4 +1142,32 @@ async def delete_notification(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="刪除提醒失敗"
+        )
+
+
+@router.put("/language-preference", response_model=LanguagePreferenceResponse)
+async def update_language_preference(
+    request: LanguagePreferenceRequest,
+    line_user: LineUser = Depends(get_current_line_user),
+    db: Session = Depends(get_db)
+) -> LanguagePreferenceResponse:
+    """
+    Update LINE user's language preference.
+    
+    Note: get_current_line_user requires LineUser to exist (created during LIFF login).
+    This endpoint is only accessible after successful login, so LineUser will always exist.
+    """
+    try:
+        # Update LineUser record
+        # Language code is already validated by Pydantic model
+        line_user.preferred_language = request.language
+        db.commit()
+        # Note: No need to refresh - line_user is already attached to session
+        return LanguagePreferenceResponse(preferred_language=request.language)
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Failed to update language preference: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="更新語言偏好失敗"
         )

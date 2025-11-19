@@ -22,7 +22,7 @@ from models import (
 from models.user_clinic_association import PractitionerSettings
 from core.config import JWT_SECRET_KEY
 from core.database import get_db
-from auth.dependencies import get_current_line_user_with_clinic
+from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
 from utils.datetime_utils import taiwan_now
 from tests.conftest import (
     create_practitioner_availability_with_clinic,
@@ -756,7 +756,7 @@ class TestLiffDatabaseOperations:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -851,7 +851,7 @@ class TestLiffReturningUserFlow:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -905,7 +905,7 @@ class TestLiffReturningUserFlow:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -978,7 +978,7 @@ class TestLiffReturningUserFlow:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -1049,7 +1049,7 @@ class TestLiffReturningUserFlow:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -1116,7 +1116,7 @@ class TestLiffAvailabilityAndScheduling:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -1269,7 +1269,7 @@ class TestLiffAvailabilityAndScheduling:
         db_session.commit()
 
         # Mock authentication for clinic2 (not clinic1)
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic2)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -1330,7 +1330,7 @@ class TestLiffAvailabilityAndScheduling:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -1405,7 +1405,7 @@ class TestLiffAvailabilityAndScheduling:
         db_session.commit()
         
         # Mock authentication
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
         
@@ -1494,7 +1494,7 @@ class TestLiffAvailabilityAndScheduling:
         db_session.commit()
         
         # Mock authentication
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
         
@@ -1583,7 +1583,7 @@ class TestLiffAvailabilityAndScheduling:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -1646,7 +1646,7 @@ class TestLiffErrorHandling:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -1708,7 +1708,7 @@ class TestLiffErrorHandling:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -1763,7 +1763,7 @@ class TestLiffErrorHandling:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -1847,7 +1847,7 @@ class TestLiffErrorHandling:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -2023,7 +2023,7 @@ class TestLiffAvailabilityBookingRestrictions:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -2068,7 +2068,7 @@ class TestLiffAvailabilityBookingRestrictions:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -2120,7 +2120,7 @@ class TestLiffAvailabilityBookingRestrictions:
         db_session.commit()
 
         # Mock authentication and database
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
@@ -2884,4 +2884,181 @@ class TestCompactScheduleFeature:
         
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+
+class TestLanguagePreference:
+    """Test language preference functionality."""
+
+    def test_liff_login_returns_existing_preferred_language(self, db_session: Session, test_clinic_with_liff):
+        """Test that LIFF login returns existing preferred_language in response."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create LINE user with preferred_language
+        line_user = LineUser(
+            line_user_id="U_test_lang_login_existing",
+            display_name="Test User",
+            preferred_language="en"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Mock database dependency
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            response = client.post("/api/liff/auth/liff-login", json={
+                "line_user_id": "U_test_lang_login_existing",
+                "display_name": "Test User",
+                "liff_access_token": "test_token",
+                "clinic_id": clinic.id
+            })
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "preferred_language" in data
+            assert data["preferred_language"] == "en"
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_liff_login_returns_default_language_when_null(self, db_session: Session, test_clinic_with_liff):
+        """Test that LIFF login returns default language when preferred_language is null."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create LINE user without preferred_language (null)
+        line_user = LineUser(
+            line_user_id="U_test_lang_login_null",
+            display_name="Test User",
+            preferred_language=None
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Mock database dependency
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            response = client.post("/api/liff/auth/liff-login", json={
+                "line_user_id": "U_test_lang_login_null",
+                "display_name": "Test User",
+                "liff_access_token": "test_token",
+                "clinic_id": clinic.id
+            })
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "preferred_language" in data
+            assert data["preferred_language"] == "zh-TW"  # Default
+        finally:
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_update_language_preference_success(self, db_session: Session, test_clinic_with_liff):
+        """Test successfully updating language preference."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_lang_update",
+            display_name="Test User",
+            preferred_language="zh-TW"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Update to English
+            response = client.put("/api/liff/language-preference", json={
+                "language": "en"
+            })
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["preferred_language"] == "en"
+
+            # Verify database state (object is already updated in session)
+            assert line_user.preferred_language == "en"
+
+            # Update to Japanese
+            response = client.put("/api/liff/language-preference", json={
+                "language": "ja"
+            })
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["preferred_language"] == "ja"
+
+            # Verify database state (object is already updated in session)
+            assert line_user.preferred_language == "ja"
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_update_language_preference_invalid_code(self, db_session: Session, test_clinic_with_liff):
+        """Test updating language preference with invalid language code."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_lang_invalid",
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Try invalid language codes
+            invalid_codes = ["zh", "en-US", "invalid", "中文", ""]
+            for invalid_code in invalid_codes:
+                response = client.put("/api/liff/language-preference", json={
+                    "language": invalid_code
+                })
+
+                assert response.status_code == 422  # Validation error
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_update_language_preference_persists_in_database(self, db_session: Session, test_clinic_with_liff):
+        """Test that language preference persists in database."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_lang_persist",
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Mock authentication for update
+        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Update language preference
+            response = client.put("/api/liff/language-preference", json={
+                "language": "ja"
+            })
+            assert response.status_code == 200
+
+            # Verify in database (object is already updated in session)
+            assert line_user.preferred_language == "ja"
+
+            # Verify it persists by querying fresh from database
+            db_session.expire(line_user)
+            db_session.refresh(line_user)
+            assert line_user.preferred_language == "ja"
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user, None)
             client.app.dependency_overrides.pop(get_db, None)

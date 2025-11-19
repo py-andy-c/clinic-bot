@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from main import app
 from models import LineUser, Clinic
 from core.database import get_db
+from auth.dependencies import get_current_line_user
 
 
 client = TestClient(app)
@@ -105,3 +106,74 @@ class TestPractitioners:
         response = client.get("/api/liff/practitioners")
 
         assert response.status_code == 401
+
+
+class TestLanguagePreference:
+    """Test language preference endpoints."""
+
+    def test_update_language_preference_missing_auth(self, db_session):
+        """Test updating language preference without authentication."""
+        response = client.put("/api/liff/language-preference", json={
+            "language": "en"
+        })
+
+        assert response.status_code == 401
+
+    def test_update_language_preference_invalid_language(self, db_session):
+        """Test updating language preference with invalid language code."""
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_lang_invalid",
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            response = client.put("/api/liff/language-preference", json={
+                "language": "invalid"
+            })
+
+            assert response.status_code == 422  # Validation error
+            assert "Invalid language code" in str(response.json())
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_update_language_preference_valid_languages(self, db_session):
+        """Test updating language preference with valid language codes."""
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_lang_valid",
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Test each valid language
+            for lang in ['zh-TW', 'en', 'ja']:
+                response = client.put("/api/liff/language-preference", json={
+                    "language": lang
+                })
+
+                assert response.status_code == 200
+                data = response.json()
+                assert data["preferred_language"] == lang
+
+                # Verify database state
+                db_session.refresh(line_user)
+                assert line_user.preferred_language == lang
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
