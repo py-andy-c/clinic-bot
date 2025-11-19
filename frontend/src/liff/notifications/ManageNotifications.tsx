@@ -158,7 +158,6 @@ const ManageNotifications: React.FC = () => {
     <div className="px-4 py-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">空位提醒</h2>
           <p className="text-sm text-gray-500">您目前有 {notifications.length} 個提醒</p>
         </div>
         <button

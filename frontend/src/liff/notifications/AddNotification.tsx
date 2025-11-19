@@ -6,6 +6,7 @@ import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { AppointmentType, Practitioner } from '../../types';
 import { liffApiService } from '../../services/liffApi';
+import { preserveQueryParams } from '../../utils/urlUtils';
 import {
   generateCalendarDays,
   isToday,
@@ -213,9 +214,9 @@ const AddNotification: React.FC = () => {
         time_windows: timeWindows,
       });
 
-      // Navigate back to the notifications list
-      // This removes the add form from history, so back button works correctly
-      navigate(-1);
+      // Navigate to the notifications list (manage view)
+      const newUrl = preserveQueryParams('/liff', { mode: 'notifications' });
+      navigate(newUrl);
     } catch (err: any) {
       logger.error('Failed to create notification:', err);
       const errorMessage = err.response?.data?.detail || '建立提醒失敗，請稍後再試';
