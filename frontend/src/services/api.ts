@@ -26,6 +26,7 @@ import {
   MonthlyCalendarData,
   DailyCalendarData,
   AvailableSlotsResponse,
+  BatchAvailableSlotsResponse,
   AvailabilityExceptionRequest,
   AvailabilityExceptionResponse,
   PractitionerAvailability
@@ -349,6 +350,30 @@ export class ApiService {
       params.exclude_calendar_event_id = excludeCalendarEventId;
     }
     const response = await this.client.get(`/clinic/practitioners/${userId}/availability/slots`, { params });
+    return response.data;
+  }
+
+  async getBatchAvailableSlots(
+    userId: number,
+    dates: string[],
+    appointmentTypeId: number,
+    excludeCalendarEventId?: number
+  ): Promise<BatchAvailableSlotsResponse> {
+    const requestBody: {
+      dates: string[];
+      appointment_type_id: number;
+      exclude_calendar_event_id?: number;
+    } = {
+      dates,
+      appointment_type_id: appointmentTypeId,
+    };
+    if (excludeCalendarEventId !== undefined) {
+      requestBody.exclude_calendar_event_id = excludeCalendarEventId;
+    }
+    const response = await this.client.post(
+      `/clinic/practitioners/${userId}/availability/slots/batch`,
+      requestBody
+    );
     return response.data;
   }
 

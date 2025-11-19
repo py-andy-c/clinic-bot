@@ -206,3 +206,32 @@ export const getScrollToTime = (currentDate: Date): Date => {
   return scrollDate.toDate();
 };
 
+/**
+ * Build array of dates to check for availability in a given month.
+ * Only includes dates that are today or in the future (excludes past dates).
+ * 
+ * @param month - Date object representing the month to check
+ * @returns Array of date strings in YYYY-MM-DD format
+ */
+export const buildDatesToCheckForMonth = (month: Date): string[] => {
+  const year = month.getFullYear();
+  const monthIndex = month.getMonth();
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  
+  // Get today's date in Taiwan timezone to match backend validation
+  const todayTaiwan = moment.tz(TAIWAN_TIMEZONE).startOf('day');
+  const todayDateString = todayTaiwan.format('YYYY-MM-DD');
+  
+  const datesToCheck: string[] = [];
+  for (let day = 1; day <= lastDay; day++) {
+    const dateString = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    // Only check dates that are today or in the future (avoid 400 errors for past dates)
+    // Compare date strings to ensure we're using the same timezone as the backend
+    if (dateString >= todayDateString) {
+      datesToCheck.push(dateString);
+    }
+  }
+  
+  return datesToCheck;
+};
+

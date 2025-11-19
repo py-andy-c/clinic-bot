@@ -5,11 +5,11 @@
  * Features calendar view with month navigation and time slot selection.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import moment from 'moment-timezone';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { LoadingSpinner } from '../shared';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
+import { useDateSlotSelection } from '../../hooks/useDateSlotSelection';
 import {
   formatTo12Hour,
   groupTimeSlots,
@@ -17,9 +17,8 @@ import {
   isToday,
   formatMonthYear,
   formatDateString,
+  buildDatesToCheckForMonth,
 } from '../../utils/calendarUtils';
-
-const TAIWAN_TIMEZONE = 'Asia/Taipei';
 
 export interface DateTimePickerProps {
   selectedDate: string | null;
@@ -65,94 +64,133 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   });
   const [datesWithSlots, setDatesWithSlots] = useState<Set<string>>(new Set());
   const [loadingAvailability, setLoadingAvailability] = useState(false);
-  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
-  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  // Cache batch availability data to avoid redundant API calls when dates are selected
+  const [cachedAvailabilityData, setCachedAvailabilityData] = useState<Map<string, { slots: any[] }>>(new Map());
+  // Track if batch has been initiated to prevent race condition with date selection
+  const batchInitiatedRef = useRef(false);
 
-  // Update currentMonth when selectedDate changes
+  // Use custom hook for date/slot selection logic
+  const { availableSlots, isLoadingSlots } = useDateSlotSelection({
+    selectedDate,
+    appointmentTypeId,
+    selectedPractitionerId,
+    excludeCalendarEventId: excludeCalendarEventId ?? null,
+    currentMonth,
+    cachedAvailabilityData,
+    loadingAvailability,
+    batchInitiatedRef,
+  });
+
+  // Update currentMonth when selectedDate changes (but only if it's a different month)
+  // Don't reset if user manually navigated to a different month
   useEffect(() => {
     if (selectedDate) {
       const parts = selectedDate.split('-').map(Number);
       const year = parts[0] ?? new Date().getFullYear();
       const month = parts[1] ?? new Date().getMonth() + 1;
       const day = parts[2] ?? new Date().getDate();
-      const newMonth = new Date(year, month - 1, day);
-      if (newMonth.getMonth() !== currentMonth.getMonth() || newMonth.getFullYear() !== currentMonth.getFullYear()) {
-        setCurrentMonth(new Date(year, month - 1, 1));
-      }
+      const selectedDateMonth = new Date(year, month - 1, day);
+      const selectedMonth = new Date(year, month - 1, 1);
+      
+      // Use functional update to get current value and avoid stale closure
+      setCurrentMonth(prevMonth => {
+        // Only update if selectedDate is in a different month than current month
+        // This allows manual navigation to work without being reset
+        if (selectedDateMonth.getMonth() !== prevMonth.getMonth() || 
+            selectedDateMonth.getFullYear() !== prevMonth.getFullYear()) {
+          return selectedMonth;
+        }
+        return prevMonth; // Keep current month if same
+      });
     }
-  }, [selectedDate, currentMonth]);
+  }, [selectedDate]); // Only run when selectedDate changes, not when currentMonth changes
 
   // Load month availability for calendar
   useEffect(() => {
     if (!appointmentTypeId || !selectedPractitionerId) {
       setDatesWithSlots(new Set());
+      setCachedAvailabilityData(new Map()); // Clear cache when dependencies are missing
+      batchInitiatedRef.current = false; // Reset batch initiated flag
       return;
     }
 
     const loadMonthAvailability = async () => {
-      setLoadingAvailability(true);
+      setLoadingAvailability(true); // Set loading first to prevent race condition
+      batchInitiatedRef.current = true; // Mark batch as initiated
       try {
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth();
-        const lastDay = new Date(year, month + 1, 0).getDate();
-        // Get today's date in Taiwan timezone to match backend validation
-        const todayTaiwan = moment.tz(TAIWAN_TIMEZONE).startOf('day');
-        const todayDateString = todayTaiwan.format('YYYY-MM-DD');
+        // Use shared utility to build dates array
+        const datesToCheck = buildDatesToCheckForMonth(currentMonth);
 
-        const datesToCheck: string[] = [];
-        for (let day = 1; day <= lastDay; day++) {
-          const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          // Only check dates that are today or in the future (avoid 400 errors for past dates)
-          // Compare date strings to ensure we're using the same timezone as the backend
-          if (dateString >= todayDateString) {
-            datesToCheck.push(dateString);
-          }
+        // Use batch endpoint to fetch availability for all dates in one request
+        if (datesToCheck.length === 0) {
+          setDatesWithSlots(new Set());
+          setCachedAvailabilityData(new Map()); // Clear cache when no dates to check
+          setLoadingAvailability(false);
+          return;
         }
 
-        const availabilityPromises = datesToCheck.map(async (dateString) => {
-          try {
-            const response = await apiService.getAvailableSlots(selectedPractitionerId, dateString, appointmentTypeId, excludeCalendarEventId ?? undefined);
-            return response.available_slots && response.available_slots.length > 0 ? dateString : null;
-          } catch (err) {
-            // Log error but don't fail the entire month load
-            logger.warn(`Failed to load availability for ${dateString}:`, err);
-            return null;
-          }
-        });
+        // Validate we don't exceed the backend limit (31 dates)
+        if (datesToCheck.length > 31) {
+          logger.warn(`Too many dates to check (${datesToCheck.length}), limiting to 31`);
+          datesToCheck.splice(31);
+        }
 
-        const results = await Promise.all(availabilityPromises);
-        const datesWithAvailableSlots = new Set<string>(
-          results.filter((date): date is string => date !== null)
-        );
-        setDatesWithSlots(datesWithAvailableSlots);
+        try {
+          const batchResponse = await apiService.getBatchAvailableSlots(
+            selectedPractitionerId,
+            datesToCheck,
+            appointmentTypeId,
+            excludeCalendarEventId ?? undefined
+          );
+
+          // Cache batch results for reuse when dates are selected
+          const newCache = new Map<string, { slots: any[] }>();
+          const datesWithAvailableSlots = new Set<string>();
+          batchResponse.results.forEach((result) => {
+            // Date is now included in response (unified format with LIFF endpoint)
+            if (result.date) {
+              // Cache the slots data for this date
+              newCache.set(result.date, { slots: result.available_slots || [] });
+              
+              // Track dates with available slots
+              if (result.available_slots && result.available_slots.length > 0) {
+                datesWithAvailableSlots.add(result.date);
+              }
+            }
+          });
+
+          setCachedAvailabilityData(newCache);
+          setDatesWithSlots(datesWithAvailableSlots);
+        } catch (err: any) {
+          // Log error with details for debugging
+          const errorMessage = err?.response?.data?.detail || err?.message || 'Unknown error';
+          const statusCode = err?.response?.status;
+          
+          // Don't retry on 400 errors (validation errors) - these are expected for dates beyond booking window
+          if (statusCode === 400) {
+            logger.log(`Some dates in month ${currentMonth.getFullYear()}-${currentMonth.getMonth() + 1} are beyond booking window:`, errorMessage);
+            // Set empty results but don't treat as error - backend now filters invalid dates
+            setDatesWithSlots(new Set());
+            setCachedAvailabilityData(new Map());
+          } else {
+            logger.warn(`Failed to load batch availability for month ${currentMonth.getFullYear()}-${currentMonth.getMonth() + 1}:`, errorMessage, err);
+            setDatesWithSlots(new Set());
+            setCachedAvailabilityData(new Map()); // Clear cache on error
+          }
+          // Don't throw - allow user to continue using the calendar
+        }
       } catch (err) {
         logger.error('Failed to load month availability:', err);
+        setCachedAvailabilityData(new Map()); // Clear cache on error
       } finally {
         setLoadingAvailability(false);
       }
     };
 
     loadMonthAvailability();
-  }, [currentMonth, appointmentTypeId, selectedPractitionerId]);
+  }, [currentMonth, appointmentTypeId, selectedPractitionerId, excludeCalendarEventId]);
 
-  // Load available slots when date is selected
-  useEffect(() => {
-    if (selectedDate && appointmentTypeId && selectedPractitionerId) {
-      const loadAvailableSlots = async () => {
-        setIsLoadingSlots(true);
-        try {
-          const response = await apiService.getAvailableSlots(selectedPractitionerId, selectedDate, appointmentTypeId, excludeCalendarEventId ?? undefined);
-          setAvailableSlots(response.available_slots.map(slot => slot.start_time));
-        } catch (err) {
-          logger.error('Failed to load available slots:', err);
-          setAvailableSlots([]);
-        } finally {
-          setIsLoadingSlots(false);
-        }
-      };
-      loadAvailableSlots();
-    }
-  }, [selectedDate, appointmentTypeId, selectedPractitionerId, excludeCalendarEventId]);
+  // Date/slot selection logic is now handled by useDateSlotSelection hook
 
   // Calendar helpers
   const calendarDays = useMemo(() => generateCalendarDays(currentMonth), [currentMonth]);

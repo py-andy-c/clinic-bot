@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import moment from 'moment-timezone';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner } from '../../components/shared';
 import { useAppointmentStore } from '../../stores/appointmentStore';
@@ -12,6 +11,7 @@ import {
   isToday,
   formatMonthYear,
   formatDateString,
+  buildDatesToCheckForMonth,
 } from '../../utils/calendarUtils';
 
 const Step3SelectDateTime: React.FC = () => {
@@ -37,23 +37,8 @@ const Step3SelectDateTime: React.FC = () => {
     const loadMonthAvailability = async () => {
       setLoadingAvailability(true);
       try {
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth();
-        const lastDay = new Date(year, month + 1, 0).getDate();
-        // Get today's date in Taiwan timezone to match backend validation
-        const todayTaiwan = moment.tz('Asia/Taipei').startOf('day');
-        const todayDateString = todayTaiwan.format('YYYY-MM-DD');
-
-        // Build array of dates to check
-        const datesToCheck: string[] = [];
-        for (let day = 1; day <= lastDay; day++) {
-            const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          // Only check dates that are today or in the future (avoid 400 errors for past dates)
-          // Compare date strings to ensure we're using the same timezone as the backend
-          if (dateString >= todayDateString) {
-            datesToCheck.push(dateString);
-    }
-        }
+        // Use shared utility to build dates array
+        const datesToCheck = buildDatesToCheckForMonth(currentMonth);
 
         // Load availability for all dates using batch endpoint
         const batchResponse = await liffApiService.getAvailabilityBatch({

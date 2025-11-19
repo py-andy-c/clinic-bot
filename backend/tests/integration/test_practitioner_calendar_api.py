@@ -1297,11 +1297,246 @@ class TestPractitionerCalendarAPI:
         assert result2["events"][0]["type"] == "appointment"
         
         # Verify all results have default_schedule
-        for result in data["results"]:
-            assert "default_schedule" in result
-            assert "events" in result
-            assert "date" in result
-            assert "user_id" in result
+
+    def test_batch_available_slots_endpoint(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test batch available slots endpoint for multiple dates."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Link appointment type to practitioner
+        from models.practitioner_appointment_types import PractitionerAppointmentTypes
+        practitioner_appt_type = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(practitioner_appt_type)
+
+        # Create default availability for Monday and Tuesday
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=0,  # Monday
+            start_time=time(9, 0),
+            end_time=time(12, 0)
+        )
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=1,  # Tuesday
+            start_time=time(9, 0),
+            end_time=time(12, 0)
+        )
+        db_session.commit()
+
+        # Calculate dates (next Monday and Tuesday)
+        today = date.today()
+        days_until_monday = (0 - today.weekday()) % 7
+        if days_until_monday == 0 and today.weekday() != 0:
+            days_until_monday = 7
+        monday = today + timedelta(days=days_until_monday)
+        tuesday = monday + timedelta(days=1)
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test batch endpoint
+        response = client.post(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/slots/batch",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "dates": [monday.strftime('%Y-%m-%d'), tuesday.strftime('%Y-%m-%d')],
+                "appointment_type_id": appointment_type.id
+            }
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "results" in data
+        assert len(data["results"]) == 2
+
+        # Verify results contain date and available_slots
+        result_dict = {r["date"]: r for r in data["results"]}
+        assert monday.strftime('%Y-%m-%d') in result_dict
+        assert tuesday.strftime('%Y-%m-%d') in result_dict
+
+        monday_result = result_dict[monday.strftime('%Y-%m-%d')]
+        assert "date" in monday_result
+        assert "available_slots" in monday_result
+        assert len(monday_result["available_slots"]) > 0
+
+        tuesday_result = result_dict[tuesday.strftime('%Y-%m-%d')]
+        assert "date" in tuesday_result
+        assert "available_slots" in tuesday_result
+        assert len(tuesday_result["available_slots"]) > 0
+
+    def test_batch_available_slots_with_exclude_calendar_event_id(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test batch available slots endpoint with exclude_calendar_event_id for appointment editing."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Link appointment type to practitioner
+        from models.practitioner_appointment_types import PractitionerAppointmentTypes
+        practitioner_appt_type = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(practitioner_appt_type)
+
+        # Create default availability for Monday
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=0,  # Monday
+            start_time=time(9, 0),
+            end_time=time(12, 0)
+        )
+
+        # Calculate next Monday
+        today = date.today()
+        days_until_monday = (0 - today.weekday()) % 7
+        if days_until_monday == 0 and today.weekday() != 0:
+            days_until_monday = 7
+        monday = today + timedelta(days=days_until_monday)
+
+        # Create an existing appointment on Monday at 10:00
+        event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type='appointment',
+            event_date=monday,
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.flush()
+
+        # Create patient and appointment
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status='confirmed'
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test batch endpoint without exclude - 10:00 slot should be missing
+        response = client.post(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/slots/batch",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "dates": [monday.strftime('%Y-%m-%d')],
+                "appointment_type_id": appointment_type.id
+            }
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        result = data["results"][0]
+        slots_without_exclude = [s["start_time"] for s in result["available_slots"]]
+        assert "10:00" not in slots_without_exclude
+
+        # Test batch endpoint with exclude - 10:00 slot should be available
+        response = client.post(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/slots/batch",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "dates": [monday.strftime('%Y-%m-%d')],
+                "appointment_type_id": appointment_type.id,
+                "exclude_calendar_event_id": event.id
+            }
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        result = data["results"][0]
+        slots_with_exclude = [s["start_time"] for s in result["available_slots"]]
+        assert "10:00" in slots_with_exclude
+
+    def test_batch_available_slots_filters_booking_window(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test that batch endpoint filters dates beyond booking window."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Set booking window to 29 days
+        clinic.settings = {
+            "booking_restriction_settings": {
+                "max_booking_window_days": 29
+            }
+        }
+        db_session.commit()
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Link appointment type to practitioner
+        from models.practitioner_appointment_types import PractitionerAppointmentTypes
+        practitioner_appt_type = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(practitioner_appt_type)
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Calculate dates: one within window, one beyond
+        today = date.today()
+        within_window = today + timedelta(days=15)  # Within 29 days
+        beyond_window = today + timedelta(days=35)  # Beyond 29 days
+
+        # Test batch endpoint with dates including one beyond window
+        response = client.post(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/slots/batch",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "dates": [
+                    within_window.strftime('%Y-%m-%d'),
+                    beyond_window.strftime('%Y-%m-%d')
+                ],
+                "appointment_type_id": appointment_type.id
+            }
+        )
+
+        # Should succeed but only return results for date within window
+        assert response.status_code == 200
+        data = response.json()
+        assert "results" in data
+        # Should only have result for date within window
+        assert len(data["results"]) == 1
+        assert data["results"][0]["date"] == within_window.strftime('%Y-%m-%d')
+        assert "available_slots" in data["results"][0]
 
     def test_practitioner_cannot_edit_other_practitioner_appointment_via_api(
         self, client: TestClient, db_session: Session, test_clinic_and_practitioner

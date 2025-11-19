@@ -141,6 +141,7 @@ class PractitionerStatusResponse(BaseModel):
 
 class AvailableSlotsResponse(BaseModel):
     """Response model for available slots query."""
+    date: Optional[str] = None  # Date in YYYY-MM-DD format (included in batch responses)
     available_slots: List[AvailableSlotResponse]
 
 

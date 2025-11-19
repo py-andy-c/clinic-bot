@@ -143,6 +143,18 @@ class AvailabilityExceptionResponse(BaseModel):
     created_at: datetime
 
 
+class BatchAvailableSlotsRequest(BaseModel):
+    """Request model for batch available slots query."""
+    dates: List[str]  # List of dates in YYYY-MM-DD format
+    appointment_type_id: int
+    exclude_calendar_event_id: Optional[int] = None  # Calendar event ID to exclude from conflict checking (for appointment editing)
+
+
+class BatchAvailableSlotsResponse(BaseModel):
+    """Response model for batch available slots query."""
+    results: List[AvailableSlotsResponse]  # One response per date
+
+
 # Helper Functions
 
 def _parse_time(time_str: str) -> time:
@@ -904,6 +916,90 @@ async def get_available_slots(
         raise
     except Exception as e:
         logger.exception(f"Failed to fetch available slots for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得可用時段"
+        )
+
+
+@router.post("/practitioners/{user_id}/availability/slots/batch",
+           summary="Get available time slots for multiple dates")
+async def get_available_slots_batch(
+    user_id: int,
+    request: BatchAvailableSlotsRequest,
+    db: Session = Depends(get_db),
+    current_user: UserContext = Depends(require_authenticated)
+) -> BatchAvailableSlotsResponse:
+    """
+    Get available time slots for multiple dates in a single request.
+    
+    This endpoint efficiently fetches availability for multiple dates,
+    reducing API calls from N to 1.
+    
+    Returns available time slots for a specific practitioner on multiple dates
+    for a specific appointment type. Used by appointment creation/editing flows.
+    
+    Considers:
+    - Default weekly schedule
+    - Availability exceptions (takes precedence)
+    - Existing appointments
+    - Appointment type duration
+    
+    Args:
+        user_id: Practitioner user ID
+        request: Batch request with dates, appointment_type_id, and optional exclude_calendar_event_id
+        
+    Returns:
+        BatchAvailableSlotsResponse with one AvailableSlotsResponse per date
+        
+    Raises:
+        HTTPException: If validation fails or dates are invalid
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Verify user exists, is active, and is a practitioner in the same clinic
+        # All clinic users can view any practitioner's availability in their clinic
+        _verify_practitioner_in_clinic(db, user_id, clinic_id)
+        
+        # Use shared service method for batch availability fetching
+        batch_results = AvailabilityService.get_batch_available_slots_for_practitioner(
+            db=db,
+            practitioner_id=user_id,
+            dates=request.dates,
+            appointment_type_id=request.appointment_type_id,
+            clinic_id=clinic_id,
+            exclude_calendar_event_id=request.exclude_calendar_event_id
+        )
+        
+        # Convert to response format
+        results: List[AvailableSlotsResponse] = []
+        for result in batch_results:
+            # Strip practitioner info for response (not needed since it's always same practitioner)
+            available_slots = [
+                AvailableSlotResponse(
+                    start_time=slot['start_time'],
+                    end_time=slot['end_time']
+                )
+                for slot in result['slots']
+            ]
+            # Include date in response for consistency with LIFF endpoint
+            results.append(AvailableSlotsResponse(
+                date=result['date'],
+                available_slots=available_slots
+            ))
+        
+        return BatchAvailableSlotsResponse(results=results)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            f"Unexpected error in batch available slots endpoint: "
+            f"user_id={user_id}, dates={request.dates}, "
+            f"appointment_type_id={request.appointment_type_id}, "
+            f"exclude_calendar_event_id={request.exclude_calendar_event_id}, error={e}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得可用時段"

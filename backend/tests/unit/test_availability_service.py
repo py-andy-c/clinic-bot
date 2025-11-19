@@ -246,3 +246,143 @@ class TestBookingRestrictionFiltering:
 
         assert filtered == []
 
+
+class TestBatchDateValidation:
+    """Test batch date validation and filtering."""
+
+    def test_validate_batch_dates_valid(self):
+        """Test validating valid batch dates."""
+        dates = ["2025-01-15", "2025-01-16", "2025-01-17"]
+        result = AvailabilityService.validate_batch_dates(dates)
+        assert result == dates
+
+    def test_validate_batch_dates_invalid_format(self):
+        """Test that invalid date format raises error."""
+        dates = ["2025-01-15", "invalid-date", "2025-01-17"]
+        with pytest.raises(Exception):  # HTTPException
+            AvailabilityService.validate_batch_dates(dates)
+
+    def test_validate_batch_dates_too_many(self):
+        """Test that too many dates raises error."""
+        dates = [f"2025-01-{i:02d}" for i in range(1, 33)]  # 32 dates
+        with pytest.raises(Exception):  # HTTPException
+            AvailabilityService.validate_batch_dates(dates, max_dates=31)
+
+    def test_validate_batch_dates_max_limit(self):
+        """Test that exactly max dates is allowed."""
+        dates = [f"2025-01-{i:02d}" for i in range(1, 32)]  # 31 dates
+        result = AvailabilityService.validate_batch_dates(dates, max_dates=31)
+        assert len(result) == 31
+
+
+class TestBookingWindowFiltering:
+    """Test booking window filtering in batch methods."""
+
+    def test_filter_dates_by_booking_window_within_window(self, db_session):
+        """Test filtering dates within booking window."""
+        from models import Clinic
+        
+        # Create clinic with 29-day booking window
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            settings={
+                "booking_restriction_settings": {
+                    "max_booking_window_days": 29
+                }
+            }
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        today = taiwan_now().date()
+        within_window = today + timedelta(days=15)
+        beyond_window = today + timedelta(days=35)
+        
+        dates = [
+            within_window.strftime('%Y-%m-%d'),
+            beyond_window.strftime('%Y-%m-%d')
+        ]
+        
+        result = AvailabilityService._filter_dates_by_booking_window(
+            db_session, clinic.id, dates
+        )
+        
+        # Should only return date within window
+        assert len(result) == 1
+        assert result[0] == within_window.strftime('%Y-%m-%d')
+
+    def test_filter_dates_by_booking_window_all_within(self, db_session):
+        """Test filtering when all dates are within window."""
+        from models import Clinic
+        
+        # Create clinic with 29-day booking window
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            settings={
+                "booking_restriction_settings": {
+                    "max_booking_window_days": 29
+                }
+            }
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        today = taiwan_now().date()
+        date1 = today + timedelta(days=10)
+        date2 = today + timedelta(days=20)
+        
+        dates = [
+            date1.strftime('%Y-%m-%d'),
+            date2.strftime('%Y-%m-%d')
+        ]
+        
+        result = AvailabilityService._filter_dates_by_booking_window(
+            db_session, clinic.id, dates
+        )
+        
+        # Should return both dates
+        assert len(result) == 2
+        assert date1.strftime('%Y-%m-%d') in result
+        assert date2.strftime('%Y-%m-%d') in result
+
+    def test_filter_dates_by_booking_window_all_beyond(self, db_session):
+        """Test filtering when all dates are beyond window."""
+        from models import Clinic
+        
+        # Create clinic with 29-day booking window
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            settings={
+                "booking_restriction_settings": {
+                    "max_booking_window_days": 29
+                }
+            }
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        today = taiwan_now().date()
+        date1 = today + timedelta(days=35)
+        date2 = today + timedelta(days=40)
+        
+        dates = [
+            date1.strftime('%Y-%m-%d'),
+            date2.strftime('%Y-%m-%d')
+        ]
+        
+        result = AvailabilityService._filter_dates_by_booking_window(
+            db_session, clinic.id, dates
+        )
+        
+        # Should return empty list
+        assert len(result) == 0
+

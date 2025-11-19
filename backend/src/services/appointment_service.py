@@ -768,6 +768,25 @@ class AppointmentService:
                 calendar_event.date, calendar_event.start_time
             ).replace(tzinfo=TAIWAN_TZ)
             time_actually_changed = new_start_time != current_start_time
+            
+            # Validate booking window if time is being changed
+            clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+            if not clinic:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="診所不存在"
+                )
+            settings = clinic.get_validated_settings()
+            booking_settings = settings.booking_restriction_settings
+            max_booking_window_days = booking_settings.max_booking_window_days
+            now = taiwan_now()
+            max_booking_date = now + timedelta(days=max_booking_window_days)
+            
+            if new_start_time > max_booking_date:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"最多只能預約 {max_booking_window_days} 天內的時段"
+                )
 
         # Get appointment type for duration (needed for conflict check and/or time update)
         appointment_type = AppointmentTypeService.get_appointment_type_by_id(

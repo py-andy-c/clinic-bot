@@ -7,7 +7,7 @@ between different API endpoints (LIFF, clinic admin, practitioner calendar).
 
 import logging
 from datetime import datetime, date as date_type, time, timedelta
-from typing import List, Dict, Any, cast
+from typing import List, Dict, Any, cast, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy import or_, and_
@@ -964,3 +964,294 @@ class AvailabilityService:
     def _format_time(time_obj: time) -> str:
         """Format time object to HH:MM string."""
         return time_obj.strftime('%H:%M')
+
+    @staticmethod
+    def validate_batch_dates(dates: List[str], max_dates: int = 31) -> List[str]:
+        """
+        Validate and limit batch date requests.
+        
+        Shared utility for batch availability endpoints to validate date format
+        and enforce maximum date limit.
+        
+        Args:
+            dates: List of date strings in YYYY-MM-DD format
+            max_dates: Maximum number of dates allowed (default: 31)
+            
+        Returns:
+            List of validated date strings
+            
+        Raises:
+            HTTPException: If validation fails (too many dates or invalid format)
+        """
+        # Limit number of dates to prevent excessive queries
+        if len(dates) > max_dates:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"一次最多只能查詢 {max_dates} 個日期"
+            )
+        
+        # Validate dates format
+        validated_dates: List[str] = []
+        for date_str in dates:
+            try:
+                # Validate date format
+                datetime.strptime(date_str, '%Y-%m-%d')
+                validated_dates.append(date_str)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"無效的日期格式: {date_str}，請使用 YYYY-MM-DD"
+                )
+        
+        return validated_dates
+
+    @staticmethod
+    def _filter_dates_by_booking_window(
+        db: Session,
+        clinic_id: int,
+        dates: List[str]
+    ) -> List[str]:
+        """
+        Filter dates to only include those within the clinic's booking window.
+        
+        Shared helper method to filter dates before processing batch requests.
+        This prevents 400 errors when requesting dates beyond the booking window.
+        
+        Args:
+            db: Database session
+            clinic_id: Clinic ID
+            dates: List of validated date strings in YYYY-MM-DD format
+            
+        Returns:
+            List of date strings that are within the booking window
+            
+        Raises:
+            HTTPException: If clinic not found
+        """
+        today = taiwan_now().date()
+        clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="診所不存在"
+            )
+        settings = clinic.get_validated_settings()
+        max_booking_window_days = settings.booking_restriction_settings.max_booking_window_days
+        max_date = today + timedelta(days=max_booking_window_days)
+        
+        # Filter dates to only include valid ones (within booking window and not in past)
+        valid_dates: List[str] = []
+        for date_str in dates:
+            try:
+                requested_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                if today <= requested_date <= max_date:
+                    valid_dates.append(date_str)
+            except ValueError:
+                # Invalid date format - skip it (shouldn't happen after validate_batch_dates)
+                continue
+        
+        return valid_dates
+
+    @staticmethod
+    def get_batch_available_slots_for_practitioner(
+        db: Session,
+        practitioner_id: int,
+        dates: List[str],
+        appointment_type_id: int,
+        clinic_id: int,
+        exclude_calendar_event_id: int | None = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get available slots for a practitioner across multiple dates.
+        
+        Shared method for batch availability fetching. Validates dates and
+        fetches availability for all dates in a single operation.
+        
+        Args:
+            db: Database session
+            practitioner_id: Practitioner user ID
+            dates: List of date strings in YYYY-MM-DD format
+            appointment_type_id: Appointment type ID
+            clinic_id: Clinic ID
+            exclude_calendar_event_id: Optional calendar event ID to exclude from conflict checking
+            
+        Returns:
+            List of dictionaries, one per date, with:
+            - date: str (YYYY-MM-DD)
+            - slots: List[Dict] with start_time and end_time
+            
+        Raises:
+            HTTPException: If validation fails
+        """
+        # Validate dates
+        validated_dates = AvailabilityService.validate_batch_dates(dates)
+        
+        # Verify practitioner exists, is active, belongs to clinic, and offers appointment type
+        AvailabilityService.validate_practitioner_for_clinic(
+            db, practitioner_id, clinic_id
+        )
+        
+        if not AvailabilityService.validate_practitioner_offers_appointment_type(
+            db, practitioner_id, appointment_type_id, clinic_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到治療師"
+            )
+        
+        # Verify appointment type exists and belongs to clinic
+        appointment_type = AppointmentTypeService.get_appointment_type_by_id(db, appointment_type_id)
+        if appointment_type.clinic_id != clinic_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到預約類型"
+            )
+        
+        # Filter dates to only include those within booking window
+        valid_dates = AvailabilityService._filter_dates_by_booking_window(
+            db, clinic_id, validated_dates
+        )
+        
+        # Fetch availability for all valid dates
+        results: List[Dict[str, Any]] = []
+        
+        for date_str in valid_dates:
+            try:
+                slots_data = AvailabilityService.get_available_slots_for_practitioner(
+                    db=db,
+                    practitioner_id=practitioner_id,
+                    date=date_str,
+                    appointment_type_id=appointment_type_id,
+                    clinic_id=clinic_id,
+                    exclude_calendar_event_id=exclude_calendar_event_id
+                )
+                
+                results.append({
+                    'date': date_str,
+                    'slots': slots_data
+                })
+            except HTTPException as e:
+                # If it's a booking window validation error (400), skip this date
+                # This is a defensive check - dates should already be filtered, but handle gracefully
+                if e.status_code == status.HTTP_400_BAD_REQUEST:
+                    # Check if it's a date validation error (booking window or past date)
+                    # Status code 400 with date-related validation indicates booking window issue
+                    logger.debug(f"Skipping date {date_str} due to validation error: {e.detail}")
+                    results.append({
+                        'date': date_str,
+                        'slots': []
+                    })
+                else:
+                    # Re-raise other HTTP exceptions (404, 500, etc.)
+                    raise
+            except Exception as e:
+                # Log error but continue with other dates
+                logger.warning(
+                    f"Error fetching availability for date {date_str}: {e}"
+                )
+                # Return empty slots for this date
+                results.append({
+                    'date': date_str,
+                    'slots': []
+                })
+        
+        return results
+
+    @staticmethod
+    def get_batch_available_slots_for_clinic(
+        db: Session,
+        clinic_id: int,
+        dates: List[str],
+        appointment_type_id: int,
+        practitioner_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get available slots for a clinic across multiple dates.
+        
+        Shared method for batch availability fetching. Can fetch for all practitioners
+        or a specific practitioner in the clinic.
+        
+        Args:
+            db: Database session
+            clinic_id: Clinic ID
+            dates: List of date strings in YYYY-MM-DD format
+            appointment_type_id: Appointment type ID
+            practitioner_id: Optional specific practitioner ID, or None for all practitioners
+            
+        Returns:
+            List of dictionaries, one per date, with:
+            - date: str (YYYY-MM-DD)
+            - slots: List[Dict] with start_time, end_time, practitioner_id, practitioner_name
+            
+        Raises:
+            HTTPException: If validation fails
+        """
+        # Validate dates
+        validated_dates = AvailabilityService.validate_batch_dates(dates)
+        
+        # Verify appointment type exists and belongs to clinic
+        appointment_type = AppointmentTypeService.get_appointment_type_by_id(db, appointment_type_id)
+        if appointment_type.clinic_id != clinic_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到預約類型"
+            )
+        
+        # Filter dates to only include those within booking window
+        valid_dates = AvailabilityService._filter_dates_by_booking_window(
+            db, clinic_id, validated_dates
+        )
+        
+        # Fetch availability for all valid dates
+        results: List[Dict[str, Any]] = []
+        
+        for date_str in valid_dates:
+            try:
+                if practitioner_id:
+                    # Specific practitioner requested
+                    slots_data = AvailabilityService.get_available_slots_for_practitioner(
+                        db=db,
+                        practitioner_id=practitioner_id,
+                        date=date_str,
+                        appointment_type_id=appointment_type_id,
+                        clinic_id=clinic_id
+                    )
+                else:
+                    # All practitioners in clinic
+                    slots_data = AvailabilityService.get_available_slots_for_clinic(
+                        db=db,
+                        clinic_id=clinic_id,
+                        date=date_str,
+                        appointment_type_id=appointment_type_id
+                    )
+                
+                results.append({
+                    'date': date_str,
+                    'slots': slots_data
+                })
+            except HTTPException as e:
+                # If it's a booking window validation error (400), skip this date
+                # This is a defensive check - dates should already be filtered, but handle gracefully
+                if e.status_code == status.HTTP_400_BAD_REQUEST:
+                    # Check if it's a date validation error (booking window or past date)
+                    # Status code 400 with date-related validation indicates booking window issue
+                    logger.debug(f"Skipping date {date_str} due to validation error: {e.detail}")
+                    results.append({
+                        'date': date_str,
+                        'slots': []
+                    })
+                else:
+                    # Re-raise other HTTP exceptions (404, 500, etc.)
+                    raise
+            except Exception as e:
+                # Log error but continue with other dates
+                logger.warning(
+                    f"Error fetching availability for date {date_str}: {e}"
+                )
+                # Return empty slots for this date
+                results.append({
+                    'date': date_str,
+                    'slots': []
+                })
+        
+        return results

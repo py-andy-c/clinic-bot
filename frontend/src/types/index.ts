@@ -340,7 +340,12 @@ export interface DailyCalendarData {
 }
 
 export interface AvailableSlotsResponse {
+  date?: string; // Date in YYYY-MM-DD format (included in batch responses)
   available_slots: TimeInterval[];
+}
+
+export interface BatchAvailableSlotsResponse {
+  results: AvailableSlotsResponse[];
 }
 
 export interface AvailabilityExceptionRequest {

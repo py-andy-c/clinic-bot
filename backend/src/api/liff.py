@@ -711,67 +711,24 @@ async def get_availability_batch(
     _, clinic = line_user_clinic
 
     try:
-        # Limit number of dates to prevent excessive queries
-        max_dates = 31
-        if len(request.dates) > max_dates:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"一次最多只能查詢 {max_dates} 個日期"
-            )
-
-        # Validate dates format
-        validated_dates: List[str] = []
-        for date_str in request.dates:
-            try:
-                # Validate date format
-                datetime.strptime(date_str, '%Y-%m-%d')
-                validated_dates.append(date_str)
-            except ValueError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"無效的日期格式: {date_str}，請使用 YYYY-MM-DD"
-                )
-
-        # Fetch availability for all dates
-        results: List[AvailabilityResponse] = []
+        # Use shared service method for batch availability fetching
+        batch_results = AvailabilityService.get_batch_available_slots_for_clinic(
+            db=db,
+            clinic_id=clinic.id,
+            dates=request.dates,
+            appointment_type_id=request.appointment_type_id,
+            practitioner_id=request.practitioner_id
+        )
         
-        for date_str in validated_dates:
-            try:
-                if request.practitioner_id:
-                    # Specific practitioner requested
-                    slots_data = AvailabilityService.get_available_slots_for_practitioner(
-                        db=db,
-                        practitioner_id=request.practitioner_id,
-                        date=date_str,
-                        appointment_type_id=request.appointment_type_id,
-                        clinic_id=clinic.id
-                    )
-                else:
-                    # All practitioners in clinic
-                    slots_data = AvailabilityService.get_available_slots_for_clinic(
-                        db=db,
-                        clinic_id=clinic.id,
-                        date=date_str,
-                        appointment_type_id=request.appointment_type_id
-                    )
-
-                # Convert dicts to response objects
-                slots = [
-                    AvailabilitySlot(**slot)
-                    for slot in slots_data
-                ]
-
-                results.append(AvailabilityResponse(date=date_str, slots=slots))
-            except HTTPException:
-                # Re-raise HTTP exceptions (validation errors, etc.)
-                raise
-            except Exception as e:
-                # Log error but continue with other dates
-                logger.warning(
-                    f"Error fetching availability for date {date_str}: {e}"
-                )
-                # Return empty slots for this date
-                results.append(AvailabilityResponse(date=date_str, slots=[]))
+        # Convert to response format
+        results: List[AvailabilityResponse] = []
+        for result in batch_results:
+            # Convert dicts to response objects
+            slots = [
+                AvailabilitySlot(**slot)
+                for slot in result['slots']
+            ]
+            results.append(AvailabilityResponse(date=result['date'], slots=slots))
 
         return BatchAvailabilityResponse(results=results)
 
