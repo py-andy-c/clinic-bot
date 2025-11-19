@@ -348,8 +348,11 @@ class AvailabilityService:
         """
         Get available time slots for all practitioners in a clinic.
         
-        Returns slots from all active practitioners in the clinic who offer
-        the specified appointment type.
+        Returns unique time slots from all active practitioners in the clinic who offer
+        the specified appointment type. When multiple practitioners have the same time
+        slot available, returns only one slot per unique start_time. The actual practitioner
+        assignment with load balancing happens in AppointmentService._assign_practitioner
+        when the appointment is created.
         
         Args:
             db: Database session
@@ -358,10 +361,10 @@ class AvailabilityService:
             appointment_type_id: Appointment type ID
             
         Returns:
-            List of available slot dictionaries with:
+            List of available slot dictionaries (deduplicated by start_time) with:
             - start_time: str (HH:MM)
             - end_time: str (HH:MM)
-            - practitioner_id: int
+            - practitioner_id: int (arbitrary - frontend ignores this when practitioner_id is null)
             - practitioner_name: str
             
         Raises:
@@ -400,9 +403,18 @@ class AvailabilityService:
                 )
 
             # Calculate available slots for all practitioners
-            return AvailabilityService._calculate_available_slots(
+            all_slots = AvailabilityService._calculate_available_slots(
                 db, requested_date, practitioners, appointment_type.duration_minutes, clinic, clinic_id
             )
+            
+            # Deduplicate slots by start_time (practitioner assignment happens in _assign_practitioner)
+            deduplicated_slots = AvailabilityService._deduplicate_slots_by_time(all_slots)
+            
+            # Sort by start_time to ensure consistent chronological ordering
+            # (slots from multiple practitioners may not be in order)
+            deduplicated_slots.sort(key=lambda s: s['start_time'])
+            
+            return deduplicated_slots
 
         except HTTPException:
             raise
@@ -509,6 +521,39 @@ class AvailabilityService:
         )
 
         return filtered_slots
+
+    @staticmethod
+    def _deduplicate_slots_by_time(
+        slots: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Deduplicate slots by start_time.
+        
+        When multiple practitioners have the same time slot available, this method
+        returns only one slot per unique start_time. The practitioner_id in the returned
+        slot is arbitrary since the frontend ignores it when practitioner_id is null.
+        The actual practitioner assignment with load balancing happens in
+        AppointmentService._assign_practitioner when the appointment is created.
+        
+        Args:
+            slots: List of slot dictionaries with start_time, end_time, practitioner_id, practitioner_name
+            
+        Returns:
+            Deduplicated list of slots, one per unique start_time
+        """
+        if not slots:
+            return []
+        
+        seen_times: set[str] = set()
+        deduplicated_slots: List[Dict[str, Any]] = []
+        
+        for slot in slots:
+            start_time = slot['start_time']
+            if start_time not in seen_times:
+                seen_times.add(start_time)
+                deduplicated_slots.append(slot)
+        
+        return deduplicated_slots
 
     @staticmethod
     def _generate_candidate_slots(

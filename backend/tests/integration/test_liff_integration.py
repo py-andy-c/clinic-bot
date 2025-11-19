@@ -1462,6 +1462,114 @@ class TestLiffAvailabilityAndScheduling:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
+    def test_availability_deduplicates_slots_for_multiple_practitioners(self, db_session: Session, test_clinic_with_liff):
+        """Test that availability endpoint deduplicates time slots when multiple practitioners have the same times."""
+        clinic, practitioner1, appt_types, _ = test_clinic_with_liff
+        
+        # Create a second practitioner
+        practitioner2, practitioner2_assoc = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner2@liffclinic.com",
+            google_subject_id="google_123_practitioner2",
+            full_name="Dr. Second Practitioner",
+            roles=["practitioner"]
+        )
+        
+        # Associate second practitioner with appointment types
+        for appt_type in appt_types:
+            pat = PractitionerAppointmentTypes(
+                user_id=practitioner2.id,
+                clinic_id=clinic.id,
+                appointment_type_id=appt_type.id
+            )
+            db_session.add(pat)
+        
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_dedup_test_123",
+            display_name="Dedup Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
+        # Mock authentication
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+        
+        try:
+            # Create primary patient
+            primary_patient = Patient(
+                clinic_id=clinic.id,
+                full_name="Dedup Test User",
+                phone_number="0912345678",
+                line_user_id=line_user.id
+            )
+            db_session.add(primary_patient)
+            db_session.commit()
+            
+            # Use Taiwan timezone to calculate tomorrow
+            tomorrow = (taiwan_now() + timedelta(days=1)).date()
+            tomorrow_iso = tomorrow.isoformat()
+            day_of_week = tomorrow.weekday()
+            
+            # Create same availability for both practitioners (9:00-17:00)
+            # This will create overlapping time slots
+            create_practitioner_availability_with_clinic(
+                db_session, practitioner1, clinic,
+                day_of_week=day_of_week,
+                start_time=time(9, 0),
+                end_time=time(17, 0)
+            )
+            create_practitioner_availability_with_clinic(
+                db_session, practitioner2, clinic,
+                day_of_week=day_of_week,
+                start_time=time(9, 0),
+                end_time=time(17, 0)
+            )
+            db_session.commit()
+            
+            # Request availability without specifying practitioner (不指定治療師)
+            appt_type_id = appt_types[0].id  # 30-minute consultation
+            response = client.get(
+                f"/api/liff/availability?date={tomorrow_iso}&appointment_type_id={appt_type_id}"
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["date"] == tomorrow_iso
+            assert "slots" in data
+            
+            slots = data["slots"]
+            assert len(slots) > 0, "Should have available slots"
+            
+            # Verify no duplicate start_times
+            start_times = [slot["start_time"] for slot in slots]
+            unique_start_times = set(start_times)
+            assert len(start_times) == len(unique_start_times), \
+                f"Found duplicate start_times. Total: {len(start_times)}, Unique: {len(unique_start_times)}"
+            
+            # Verify slots are sorted chronologically
+            for i in range(len(slots) - 1):
+                current_time = slots[i]["start_time"]
+                next_time = slots[i + 1]["start_time"]
+                assert current_time <= next_time, \
+                    f"Slots not sorted: {current_time} should be <= {next_time}"
+            
+            # Verify slot structure
+            for slot in slots:
+                assert "start_time" in slot
+                assert "end_time" in slot
+                assert "practitioner_id" in slot
+                assert "practitioner_name" in slot
+                # Practitioner ID should be one of the two practitioners
+                assert slot["practitioner_id"] in [practitioner1.id, practitioner2.id]
+            
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
     def test_practitioner_assignment_without_specification(self, db_session: Session, test_clinic_with_liff):
         """Test intelligent practitioner assignment when user doesn't specify."""
         clinic, practitioner, appt_types, practitioner_assoc = test_clinic_with_liff
