@@ -214,9 +214,9 @@ const AddNotification: React.FC = () => {
         time_windows: timeWindows,
       });
 
-      // Navigate to manage page to show success
-      const newUrl = preserveQueryParams('/liff', { mode: 'notifications', sub_mode: 'manage' });
-      navigate(newUrl);
+      // Navigate back to the notifications list
+      // This removes the add form from history, so back button works correctly
+      navigate(-1);
     } catch (err: any) {
       logger.error('Failed to create notification:', err);
       const errorMessage = err.response?.data?.detail || '建立提醒失敗，請稍後再試';

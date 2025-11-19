@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { liffApiService } from '../../services/liffApi';
 import { useModal } from '../../contexts/ModalContext';
+import { preserveQueryParams } from '../../utils/urlUtils';
 import moment from 'moment-timezone';
 
 interface Notification {
@@ -24,11 +26,17 @@ const TIME_WINDOW_LABELS: Record<string, string> = {
 };
 
 const ManageNotifications: React.FC = () => {
+  const navigate = useNavigate();
   const { confirm: showConfirm, alert: showAlert } = useModal();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
+
+  const handleAddNew = () => {
+    const newUrl = preserveQueryParams('/liff', { mode: 'notifications', sub_mode: 'add' });
+    navigate(newUrl);
+  };
 
   useEffect(() => {
     loadNotifications();
@@ -114,35 +122,51 @@ const ManageNotifications: React.FC = () => {
 
   if (notifications.length === 0) {
     return (
-      <div className="px-4 py-12 text-center">
-        <div className="mb-4">
-          <svg
-            className="mx-auto h-12 w-12 text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-            />
-          </svg>
+      <div className="px-4 py-12">
+        <div className="text-center mb-6">
+          <div className="mb-4">
+            <svg
+              className="mx-auto h-12 w-12 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+              />
+            </svg>
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">尚無提醒</h3>
+          <p className="text-sm text-gray-500 mb-6">
+            您還沒有設定任何空位提醒
+          </p>
         </div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">尚無提醒</h3>
-        <p className="text-sm text-gray-500 mb-6">
-          您還沒有設定任何空位提醒
-        </p>
+        <button
+          onClick={handleAddNew}
+          className="w-full py-3 px-4 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors"
+        >
+          新增
+        </button>
       </div>
     );
   }
 
   return (
     <div className="px-4 py-6">
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">管理提醒</h2>
-        <p className="text-sm text-gray-500">您目前有 {notifications.length} 個提醒</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">空位提醒</h2>
+          <p className="text-sm text-gray-500">您目前有 {notifications.length} 個提醒</p>
+        </div>
+        <button
+          onClick={handleAddNew}
+          className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors whitespace-nowrap"
+        >
+          新增
+        </button>
       </div>
 
       <div className="space-y-4">
