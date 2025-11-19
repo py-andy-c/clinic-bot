@@ -28,8 +28,7 @@ import {
   AvailableSlotsResponse,
   BatchAvailableSlotsResponse,
   AvailabilityExceptionRequest,
-  AvailabilityExceptionResponse,
-  PractitionerAvailability
+  AvailabilityExceptionResponse
 } from '../types';
 
 /**
@@ -386,26 +385,6 @@ export class ApiService {
   async deleteAvailabilityException(userId: number, exceptionId: number): Promise<{ message: string }> {
     const response = await this.client.delete(`/clinic/practitioners/${userId}/availability/exceptions/${exceptionId}`);
     return response.data;
-  }
-
-  // Legacy availability APIs (deprecated, kept for backward compatibility)
-  async getPractitionerAvailability(userId: number): Promise<PractitionerAvailability[]> {
-    const response = await this.client.get(`/clinic/practitioners/${userId}/availability`);
-    return response.data.availability;
-  }
-
-  async createPractitionerAvailability(userId: number, availabilityData: { day_of_week: number; start_time: string; end_time: string }): Promise<PractitionerAvailability> {
-    const response = await this.client.post(`/clinic/practitioners/${userId}/availability`, availabilityData);
-    return response.data;
-  }
-
-  async updatePractitionerAvailability(userId: number, availabilityId: number, availabilityData: { day_of_week: number; start_time: string; end_time: string }): Promise<PractitionerAvailability> {
-    const response = await this.client.put(`/clinic/practitioners/${userId}/availability/${availabilityId}`, availabilityData);
-    return response.data;
-  }
-
-  async deletePractitionerAvailability(userId: number, availabilityId: number): Promise<void> {
-    await this.client.delete(`/clinic/practitioners/${userId}/availability/${availabilityId}`);
   }
 
   // Appointment Management APIs

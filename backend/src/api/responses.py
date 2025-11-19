@@ -6,7 +6,7 @@ multiple API endpoints to ensure consistency and reduce duplication.
 """
 
 from datetime import datetime, date
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -145,15 +145,50 @@ class AvailableSlotsResponse(BaseModel):
     available_slots: List[AvailableSlotResponse]
 
 
+class ConflictDetail(BaseModel):
+    """Detail model for appointment conflicts."""
+    calendar_event_id: int
+    start_time: str
+    end_time: str
+    patient: str
+    appointment_type: Optional[str]
+
+
 class ConflictWarningResponse(BaseModel):
     """Response model for conflict warning."""
     success: bool
     message: str
-    conflicts: List[Dict[str, Any]]
+    conflicts: List[ConflictDetail]
+
+
+class AppointmentTypeReference(BaseModel):
+    """Reference model for appointment type in deletion errors."""
+    id: int
+    name: str
+    practitioners: List[str]
+    is_blocked: Optional[bool] = None
+    has_warnings: Optional[bool] = None
+    future_appointment_count: Optional[int] = None
+    past_appointment_count: Optional[int] = None
 
 
 class AppointmentTypeDeletionErrorResponse(BaseModel):
     """Response model for appointment type deletion error."""
     error: str
     message: str
-    appointment_types: List[Dict[str, Any]]  # List of {id, name, practitioners: [str]}
+    appointment_types: List[AppointmentTypeReference]
+
+
+class MemberResponse(BaseModel):
+    """Response model for team member information."""
+    id: int
+    email: str
+    full_name: str
+    roles: List[str]
+    is_active: bool
+    created_at: datetime
+
+
+class MemberListResponse(BaseModel):
+    """Response model for listing clinic members."""
+    members: List[MemberResponse]

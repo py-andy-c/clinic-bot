@@ -1369,16 +1369,18 @@ class TestPractitionerCrossClinicIsolation:
             user_id=practitioner.id
         )
 
-        # Test 1: In clinic1, practitioner should see their availability
+        # Test 1: In clinic1, practitioner should see their availability (using new default schedule endpoint)
         client.app.dependency_overrides[get_current_user] = lambda: user_context_clinic1
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
-            response = client.get(f"/api/clinic/practitioners/{practitioner.id}/availability")
+            response = client.get(f"/api/clinic/practitioners/{practitioner.id}/availability/default")
             assert response.status_code == 200
             data = response.json()
-            assert len(data["availability"]) == 1
-            assert data["availability"][0]["day_of_week"] == 1
+            # Check that Tuesday (day_of_week=1) has availability
+            assert len(data["tuesday"]) == 1, "Should have availability for Tuesday in clinic1"
+            assert data["tuesday"][0]["start_time"] == "09:00"
+            assert data["tuesday"][0]["end_time"] == "17:00"
         finally:
             client.app.dependency_overrides.pop(get_current_user, None)
             client.app.dependency_overrides.pop(get_db, None)
@@ -1388,10 +1390,11 @@ class TestPractitionerCrossClinicIsolation:
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
-            response = client.get(f"/api/clinic/practitioners/{practitioner.id}/availability")
+            response = client.get(f"/api/clinic/practitioners/{practitioner.id}/availability/default")
             assert response.status_code == 200
             data = response.json()
-            assert len(data["availability"]) == 0, "Should not see availability from clinic1"
+            # Tuesday should be empty in clinic2
+            assert len(data["tuesday"]) == 0, "Should not see availability from clinic1"
         finally:
             client.app.dependency_overrides.pop(get_current_user, None)
             client.app.dependency_overrides.pop(get_db, None)
