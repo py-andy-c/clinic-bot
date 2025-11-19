@@ -219,8 +219,8 @@ class PractitionerService:
             return None
 
         try:
-            from datetime import datetime
-            target_date = datetime.strptime(date, '%Y-%m-%d').date()
+            from utils.datetime_utils import parse_date_string
+            target_date = parse_date_string(date)
         except ValueError:
             return None
 

@@ -18,8 +18,9 @@ from models import (
     PractitionerAppointmentTypes, Appointment, Clinic, UserClinicAssociation
 )
 from services.appointment_type_service import AppointmentTypeService
+from services.settings_service import SettingsService
 from utils.query_helpers import filter_by_role
-from utils.datetime_utils import taiwan_now
+from utils.datetime_utils import taiwan_now, parse_date_string
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ class AvailabilityService:
         """
         # Validate date format
         try:
-            requested_date = datetime.strptime(date, '%Y-%m-%d').date()
+            requested_date = parse_date_string(date)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -65,7 +66,7 @@ class AvailabilityService:
                 detail="診所不存在"
             )
         
-        settings = clinic.get_validated_settings()
+        settings = SettingsService.get_clinic_settings(db, clinic_id)
         max_booking_window_days = settings.booking_restriction_settings.max_booking_window_days
 
         # Validate date range (using Taiwan timezone)
@@ -134,6 +135,7 @@ class AvailabilityService:
         Validate that a practitioner exists, is active, and belongs to the clinic.
 
         Shared validation function used by both AppointmentService and AvailabilityService.
+        This now delegates to the centralized practitioner_helpers module.
 
         Args:
             db: Database session
@@ -146,22 +148,8 @@ class AvailabilityService:
         Raises:
             HTTPException: If practitioner not found, inactive, or doesn't belong to clinic
         """
-        # Single query to get practitioner with association and verify role
-        query = db.query(User).join(UserClinicAssociation).filter(
-            User.id == practitioner_id,
-            UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True
-        )
-        query = filter_by_role(query, 'practitioner')
-        practitioner = query.first()
-
-        if not practitioner:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="治療師不存在"
-            )
-
-        return practitioner
+        from utils.practitioner_helpers import validate_practitioner_for_clinic as validate_practitioner
+        return validate_practitioner(db, practitioner_id, clinic_id)
 
     @staticmethod
     def validate_practitioner_offers_appointment_type(
@@ -315,8 +303,9 @@ class AvailabilityService:
             
             if association:
                 try:
-                    settings = association.get_validated_settings()
-                    if settings.compact_schedule_enabled:
+                    # Get practitioner settings, fallback to clinic settings if not available
+                    practitioner_settings = SettingsService.get_practitioner_settings(db, practitioner_id, clinic_id)
+                    if practitioner_settings and practitioner_settings.compact_schedule_enabled:
                         # Extract confirmed appointments from already-fetched schedule data
                         # (reusing data fetched by _calculate_available_slots via fetch_practitioner_schedule_data)
                         practitioner_data = schedule_data.get(practitioner_id, {})
@@ -995,7 +984,7 @@ class AvailabilityService:
         for date_str in dates:
             try:
                 # Validate date format
-                datetime.strptime(date_str, '%Y-%m-%d')
+                parse_date_string(date_str)
                 validated_dates.append(date_str)
             except ValueError:
                 raise HTTPException(
@@ -1035,7 +1024,7 @@ class AvailabilityService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="診所不存在"
             )
-        settings = clinic.get_validated_settings()
+        settings = SettingsService.get_clinic_settings(db, clinic_id)
         max_booking_window_days = settings.booking_restriction_settings.max_booking_window_days
         max_date = today + timedelta(days=max_booking_window_days)
         
@@ -1043,7 +1032,7 @@ class AvailabilityService:
         valid_dates: List[str] = []
         for date_str in dates:
             try:
-                requested_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                requested_date = parse_date_string(date_str)
                 if today <= requested_date <= max_date:
                     valid_dates.append(date_str)
             except ValueError:

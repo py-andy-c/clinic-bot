@@ -12,7 +12,7 @@ All endpoints require JWT authentication from LIFF login flow.
 import logging
 import jwt
 from datetime import datetime, timedelta, timezone, date
-from typing import Optional, Dict, Any, List, Literal
+from typing import Optional, Dict, Any, List, Literal, Union
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, field_validator, model_validator
@@ -30,7 +30,8 @@ from models import (
 )
 from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
-from utils.datetime_utils import TAIWAN_TZ, taiwan_now
+from utils.datetime_utils import TAIWAN_TZ, taiwan_now, parse_datetime_to_taiwan, parse_date_string
+from utils.practitioner_helpers import get_practitioner_display_name
 from api.responses import (
     PatientResponse, PatientCreateResponse, PatientListResponse,
     AppointmentTypeResponse, AppointmentTypeListResponse,
@@ -48,26 +49,9 @@ router = APIRouter()
 
 # ===== Helper Functions =====
 
-def get_practitioner_name(db: Session, practitioner: Optional[User], clinic_id: int) -> Optional[str]:
-    """
-    Get practitioner display name from UserClinicAssociation.
+# get_practitioner_name removed - use get_practitioner_display_name from utils.practitioner_helpers instead
 
-    Returns full_name from association if available, otherwise falls back to email.
-    Returns None if practitioner is None.
-    """
-    if not practitioner:
-        return None
-
-    from models.user_clinic_association import UserClinicAssociation
-    association = db.query(UserClinicAssociation).filter(
-        UserClinicAssociation.user_id == practitioner.id,
-        UserClinicAssociation.clinic_id == clinic_id,
-        UserClinicAssociation.is_active == True
-    ).first()
-
-    return association.full_name if association else practitioner.email
-
-def validate_birthday_field(v: Any) -> Optional[date]:
+def validate_birthday_field(v: Union[str, date, None]) -> Optional[date]:
     """
     Validate birthday format (YYYY-MM-DD) and reasonable range.
 
@@ -90,22 +74,21 @@ def validate_birthday_field(v: Any) -> Optional[date]:
         if (today - v).days > 150 * 365:
             raise ValueError('生日日期不合理')
         return v
-    if isinstance(v, str):
-        try:
-            birthday_date = datetime.strptime(v, '%Y-%m-%d').date()
-            # Validate reasonable range: not in the future, not too old (e.g., > 150 years)
-            today = taiwan_now().date()
-            if birthday_date > today:
-                raise ValueError('生日不能是未來日期')
-            # Approximate 150 years check (doesn't account for leap years, but sufficient)
-            if (today - birthday_date).days > 150 * 365:
-                raise ValueError('生日日期不合理')
-            return birthday_date
-        except ValueError as e:
-            if '生日' in str(e) or '日期' in str(e):
-                raise
-            raise ValueError('生日格式錯誤，請使用 YYYY-MM-DD 格式')
-    raise ValueError('生日格式錯誤，請使用 YYYY-MM-DD 格式')
+    # v is str at this point (Union[str, date, None] with None and date already handled)
+    try:
+        birthday_date = parse_date_string(v)
+        # Validate reasonable range: not in the future, not too old (e.g., > 150 years)
+        today = taiwan_now().date()
+        if birthday_date > today:
+            raise ValueError('生日不能是未來日期')
+        # Approximate 150 years check (doesn't account for leap years, but sufficient)
+        if (today - birthday_date).days > 150 * 365:
+            raise ValueError('生日日期不合理')
+        return birthday_date
+    except ValueError as e:
+        if '生日' in str(e) or '日期' in str(e):
+            raise
+        raise ValueError('生日格式錯誤，請使用 YYYY-MM-DD 格式')
 
 
 # ===== Request/Response Models =====
@@ -154,7 +137,7 @@ class PatientCreateRequest(BaseModel):
 
     @field_validator('birthday', mode='before')
     @classmethod
-    def validate_birthday(cls, v: Any) -> Optional[date]:
+    def validate_birthday(cls, v: Union[str, date, None]) -> Optional[date]:
         """Validate birthday format (YYYY-MM-DD) and reasonable range."""
         return validate_birthday_field(v)
 
@@ -187,7 +170,7 @@ class PatientUpdateRequest(BaseModel):
 
     @field_validator('birthday', mode='before')
     @classmethod
-    def validate_birthday(cls, v: Any) -> Optional[date]:
+    def validate_birthday(cls, v: Union[str, date, None]) -> Optional[date]:
         """Validate birthday format (YYYY-MM-DD) and reasonable range."""
         return validate_birthday_field(v)
 
@@ -201,29 +184,7 @@ class PatientUpdateRequest(BaseModel):
 
 
 
-def parse_datetime(v: str | datetime) -> datetime:
-    """Parse datetime from string or return datetime object.
-
-    Expects Taiwan time (Asia/Taipei, UTC+8) with timezone indicator.
-    If no timezone provided, assumes Taiwan time.
-    """
-    if isinstance(v, str):
-        # Parse ISO format datetime string
-        try:
-            # Parse the datetime string
-            dt = datetime.fromisoformat(v.replace('Z', '+00:00'))
-
-            # If it has timezone info, convert to Taiwan time
-            if dt.tzinfo:
-                return dt.astimezone(TAIWAN_TZ)
-            else:
-                # No timezone, assume Taiwan time
-                return dt.replace(tzinfo=TAIWAN_TZ)
-        except ValueError:
-            # Fallback: parse and assume Taiwan time
-            dt = datetime.fromisoformat(v)
-            return dt.replace(tzinfo=TAIWAN_TZ)
-    return v
+# parse_datetime removed - use parse_datetime_to_taiwan from utils.datetime_utils instead
 
 
 class AppointmentCreateRequest(BaseModel):
@@ -256,7 +217,7 @@ class AppointmentCreateRequest(BaseModel):
         """Parse datetime strings before validation."""
         if 'start_time' in values:
             if isinstance(values['start_time'], str):
-                values['start_time'] = parse_datetime(values['start_time'])
+                values['start_time'] = parse_datetime_to_taiwan(values['start_time'])
         return values
 
     @field_validator('start_time')
@@ -885,7 +846,7 @@ class TimeWindowEntry(BaseModel):
     def validate_date_format(cls, v: str) -> str:
         """Validate date format."""
         try:
-            datetime.strptime(v, '%Y-%m-%d').date()
+            parse_date_string(v)
         except ValueError:
             raise ValueError('日期格式錯誤，請使用 YYYY-MM-DD 格式')
         return v
@@ -919,7 +880,7 @@ class AvailabilityNotificationCreateRequest(BaseModel):
         max_date = today + timedelta(days=NOTIFICATION_DATE_RANGE_DAYS)
         
         for tw in v:
-            tw_date = datetime.strptime(tw.date, '%Y-%m-%d').date()
+            tw_date = parse_date_string(tw.date)
             if tw_date < today:
                 raise ValueError(f'日期 {tw.date} 不能是過去日期')
             if tw_date > max_date:
@@ -1018,7 +979,7 @@ async def create_notification(
         dates = [tw["date"] for tw in notification.time_windows]
 
         # Get practitioner name safely
-        practitioner_name = get_practitioner_name(db, notification.practitioner, clinic.id)
+        practitioner_name = get_practitioner_display_name(db, notification.practitioner.id, clinic.id) if notification.practitioner else None
 
         return AvailabilityNotificationResponse(
             id=notification.id,
@@ -1075,7 +1036,7 @@ async def list_notifications(
                 appointment_type_name = notification.appointment_type.name
 
             # Get practitioner name safely
-            practitioner_name = get_practitioner_name(db, notification.practitioner, clinic.id)
+            practitioner_name = get_practitioner_display_name(db, notification.practitioner.id, clinic.id) if notification.practitioner else None
 
             notification_responses.append(
                 AvailabilityNotificationResponse(

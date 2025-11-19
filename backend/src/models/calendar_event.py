@@ -93,6 +93,10 @@ class CalendarEvent(Base):
         Index('idx_calendar_events_type', 'event_type'),
         Index('idx_calendar_events_user_date_type', 'user_id', 'date', 'event_type'),
         Index('idx_calendar_events_clinic', 'clinic_id'),
+        # Composite index for clinic calendar queries (used in batch calendar endpoints)
+        Index('idx_calendar_events_clinic_date_type', 'clinic_id', 'date', 'event_type'),
+        # Composite index for batch calendar queries by practitioner
+        Index('idx_calendar_events_clinic_user_date', 'clinic_id', 'user_id', 'date'),
     )
 
     @property

@@ -146,4 +146,6 @@ class Appointment(Base):
         # Index for querying auto-assigned appointments
         Index('idx_appointments_is_auto_assigned', 'is_auto_assigned'),
         Index('idx_appointments_originally_auto_assigned', 'originally_auto_assigned'),
+        # Index for reminder service queries (status + reminder_sent_at)
+        Index('idx_appointments_status_reminder', 'status', 'reminder_sent_at'),
     )
