@@ -199,12 +199,24 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
           setIsLoading(false);
         }
     } else {
-      // No existing auth and no LIFF profile - user needs to authenticate
+      // No existing auth and no LIFF profile yet - wait for LIFF to initialize
+      // Keep isLoading true until we have LIFF credentials to authenticate with
+      // This prevents showing InvalidAccess briefly before LIFF is ready
+      // clinicId is initialized from URL in a separate effect on mount
       if (checkCancelled?.()) return;
-      setIsFirstTime(true);
-      setIsLoading(false);
+      return;
       }
   }, [lineProfile, liffAccessToken]);
+
+  // Initialize clinicId from URL on mount to prevent showing InvalidAccess prematurely
+  // This runs once on mount to extract clinic_id from URL before authentication completes
+  useEffect(() => {
+    const urlClinicId = getClinicIdFromUrl();
+    if (urlClinicId && !clinicId) {
+      setClinicId(urlClinicId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Intentionally empty: only run once on mount, clinicId check prevents overwriting
 
   // Consolidated authentication effect - handles all auth logic in one place
   useEffect(() => {
