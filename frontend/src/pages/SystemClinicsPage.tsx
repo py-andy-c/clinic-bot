@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
+import { useModal } from '../contexts/ModalContext';
 import moment from 'moment-timezone';
 import { Link, useParams } from 'react-router-dom';
 import { apiService } from '../services/api';
@@ -15,6 +16,7 @@ interface ClinicDetailsData {
 
 const SystemClinicsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { alert } = useModal();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -77,7 +79,12 @@ const SystemClinicsPage: React.FC = () => {
       setShowCreateModal(false);
     } catch (err) {
       logger.error('Create clinic error:', err);
-      alert('建立診所失敗，請稍後再試。');
+      try {
+        await alert('建立診所失敗，請稍後再試。', '錯誤');
+      } catch (alertErr) {
+        // Fallback if alert fails (shouldn't happen, but defensive programming)
+        logger.error('Failed to show alert:', alertErr);
+      }
     } finally {
       setCreating(false);
     }
@@ -130,16 +137,24 @@ const SystemClinicsPage: React.FC = () => {
       await refetchDetails();
       setIsEditing(false);
       setEditingClinic({});
-      alert('診所資訊已更新！');
+      try {
+        await alert('診所資訊已更新！', '成功');
+      } catch (alertErr) {
+        logger.error('Failed to show alert:', alertErr);
+      }
     } catch (err) {
       logger.error('Update clinic error:', err);
-      alert('更新診所資訊失敗，請稍後再試。');
+      try {
+        await alert('更新診所資訊失敗，請稍後再試。', '錯誤');
+      } catch (alertErr) {
+        logger.error('Failed to show alert:', alertErr);
+      }
     } finally {
       setUpdating(false);
     }
   };
 
-  const handleGenerateSignupLink = async (clinicId: number) => {
+  const handleGenerateSignupLink = async (clinicId: number): Promise<void> => {
     try {
       const result = await apiService.generateClinicSignupLink(clinicId);
       // Copy to clipboard with fallback
@@ -149,7 +164,11 @@ const SystemClinicsPage: React.FC = () => {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         try {
           await navigator.clipboard.writeText(result.signup_url);
-          alert('註冊連結已複製到剪貼簿！');
+          try {
+            await alert('註冊連結已複製到剪貼簿！', '成功');
+          } catch (alertErr) {
+            logger.error('Failed to show alert:', alertErr);
+          }
           copied = true;
         } catch (clipboardErr) {
           // Clipboard API failed (permission denied, not secure context, etc.)
@@ -171,20 +190,32 @@ const SystemClinicsPage: React.FC = () => {
         try {
           const success = document.execCommand('copy');
           if (success) {
-            alert('註冊連結已複製到剪貼簿！');
+            try {
+              await alert('註冊連結已複製到剪貼簿！', '成功');
+            } catch (alertErr) {
+              logger.error('Failed to show alert:', alertErr);
+            }
           } else {
             throw new Error('execCommand copy failed');
           }
         } catch (fallbackErr) {
           // If fallback also fails, show the URL to user
-          alert(`註冊連結：\n${result.signup_url}`);
+          try {
+            await alert(`註冊連結：\n${result.signup_url}`, '註冊連結');
+          } catch (alertErr) {
+            logger.error('Failed to show alert:', alertErr);
+          }
         } finally {
           document.body.removeChild(textArea);
         }
       }
     } catch (err) {
       logger.error('Generate signup link error:', err);
-      alert('產生註冊連結失敗，請稍後再試。');
+      try {
+        await alert('產生註冊連結失敗，請稍後再試。', '錯誤');
+      } catch (alertErr) {
+        logger.error('Failed to show alert:', alertErr);
+      }
     }
   };
 

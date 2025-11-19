@@ -1,53 +1,9 @@
 /**
  * BaseModal Component
  * 
- * Base modal component providing shared structure for all calendar modals.
- * Handles portal rendering, overlay, and common styling.
+ * Re-exports the shared BaseModal for calendar modals.
+ * This maintains backward compatibility while using the unified modal system.
  */
 
-import React from 'react';
-import { createPortal } from 'react-dom';
-
-export interface BaseModalProps {
-  children: React.ReactNode;
-  onClose?: () => void;
-  className?: string;
-  'aria-label'?: string;
-  'aria-labelledby'?: string;
-}
-
-export const BaseModal: React.FC<BaseModalProps> = React.memo(({
-  children,
-  onClose,
-  className = '',
-  'aria-label': ariaLabel,
-  'aria-labelledby': ariaLabelledBy,
-}) => {
-  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Only close if clicking the overlay itself, not the modal content
-    if (e.target === e.currentTarget && onClose) {
-      onClose();
-    }
-  };
-
-  return createPortal(
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]"
-      style={{ width: '100vw', height: '100vh' }}
-      onClick={handleOverlayClick}
-      role="dialog"
-      aria-modal="true"
-      aria-label={ariaLabel}
-      aria-labelledby={ariaLabelledBy}
-    >
-      <div
-        className={`bg-white rounded-lg p-6 max-w-md w-full mx-4 mb-4 max-h-[90vh] overflow-y-auto ${className}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {children}
-      </div>
-    </div>,
-    document.body
-  );
-});
+export { BaseModal, type BaseModalProps } from '../shared/BaseModal';
 

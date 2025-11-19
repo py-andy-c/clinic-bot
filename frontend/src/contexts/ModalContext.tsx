@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { BaseModal } from '../components/shared/BaseModal';
+import { Z_INDEX } from '../constants/app';
 
 interface ModalState {
   isOpen: boolean;
@@ -92,53 +94,46 @@ interface ModalDialogProps {
 }
 
 const ModalDialog: React.FC<ModalDialogProps> = ({ modal, onClose }) => {
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      modal.onCancel ? modal.onCancel() : onClose();
+  const handleClose = () => {
+    if (modal.onCancel) {
+      modal.onCancel();
+    } else {
+      onClose();
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black bg-opacity-50"
-        onClick={modal.onCancel ? modal.onCancel : onClose}
-      />
+    <BaseModal
+      onClose={handleClose}
+      zIndex={Z_INDEX.DIALOG}
+      aria-label={modal.title || (modal.type === 'alert' ? '提示' : '確認')}
+    >
+      {modal.title && (
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          {modal.title}
+        </h3>
+      )}
 
-      {/* Modal */}
-      <div
-        className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6"
-        onKeyDown={handleKeyDown}
-        tabIndex={-1}
-      >
-        {modal.title && (
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            {modal.title}
-          </h3>
+      <p className="text-gray-700 mb-6 whitespace-pre-line">{modal.message}</p>
+
+      <div className="flex justify-end space-x-3">
+        {modal.type === 'confirm' && modal.onCancel && (
+          <button
+            onClick={modal.onCancel}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+          >
+            取消
+          </button>
         )}
 
-        <p className="text-gray-700 mb-6 whitespace-pre-line">{modal.message}</p>
-
-        <div className="flex justify-end space-x-3">
-          {modal.type === 'confirm' && modal.onCancel && (
-            <button
-              onClick={modal.onCancel}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-            >
-              取消
-            </button>
-          )}
-
-          <button
-            onClick={modal.onConfirm}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            autoFocus
-          >
-            {modal.type === 'alert' ? '確定' : '確認'}
-          </button>
-        </div>
+        <button
+          onClick={modal.onConfirm}
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          autoFocus
+        >
+          {modal.type === 'alert' ? '確定' : '確認'}
+        </button>
       </div>
-    </div>
+    </BaseModal>
   );
 };

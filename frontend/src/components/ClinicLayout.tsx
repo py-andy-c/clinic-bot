@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
+import { useModal } from '../contexts/ModalContext';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import ClinicSwitcher from './ClinicSwitcher';
@@ -281,6 +282,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { hasUnsavedChanges } = useUnsavedChanges();
+  const { confirm } = useModal();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -291,15 +293,15 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
     }
   };
 
-  const handleNavigation = useCallback((href: string) => {
+  const handleNavigation = useCallback(async (href: string) => {
     if (hasUnsavedChanges && (location.pathname === '/admin/profile' || location.pathname === '/admin/clinic/settings')) {
-      const confirmed = window.confirm('您有未儲存的變更，確定要離開嗎？');
+      const confirmed = await confirm('您有未儲存的變更，確定要離開嗎？', '確認離開');
       if (!confirmed) {
         return;
       }
     }
     navigate(href);
-  }, [hasUnsavedChanges, location.pathname, navigate]);
+  }, [hasUnsavedChanges, location.pathname, navigate, confirm]);
 
   const navigation = useMemo(() => [
     { name: '行事曆', href: '/admin/calendar', icon: '📅', show: true }, // All clinic users can view calendar

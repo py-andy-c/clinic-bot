@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { BaseModal } from './calendar/BaseModal';
+import { BaseModal } from './shared/BaseModal';
 import { ChatSettings as ChatSettingsType } from '../schemas/api';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
