@@ -6,7 +6,6 @@ import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { AppointmentType, Practitioner } from '../../types';
 import { liffApiService } from '../../services/liffApi';
-import { preserveQueryParams } from '../../utils/urlUtils';
 import {
   generateCalendarDays,
   isToday,
