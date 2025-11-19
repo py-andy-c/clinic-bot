@@ -394,6 +394,7 @@ async def list_patients(
 
     Returns patients sorted by creation time (oldest first).
     Clinic isolation is enforced through LIFF token context.
+    Includes future appointment count and limit information for appointment booking validation.
     """
     line_user, clinic = line_user_clinic
 
@@ -405,17 +406,33 @@ async def list_patients(
             clinic_id=clinic.id
         )
 
-        return PatientListResponse(
-            patients=[
+        # Get clinic settings for max_future_appointments
+        settings = clinic.get_validated_settings()
+        booking_settings = settings.booking_restriction_settings
+        max_future_appointments = booking_settings.max_future_appointments
+
+        # Count future appointments for each patient
+        # Note: This uses N+1 queries, but is acceptable since LIFF users typically have 1-5 patients.
+        # If performance becomes an issue with many patients, consider optimizing with a bulk query.
+        from utils.appointment_queries import count_future_appointments_for_patient
+        patient_responses = []
+        for p in patients:
+            future_count = count_future_appointments_for_patient(
+                db, p.id, status="confirmed"
+            )
+            patient_responses.append(
                 PatientResponse(
                     id=p.id,
                     full_name=p.full_name,
                     phone_number=p.phone_number,
                     birthday=p.birthday,
-                    created_at=p.created_at
-                ) for p in patients
-            ]
-        )
+                    created_at=p.created_at,
+                    future_appointments_count=future_count,
+                    max_future_appointments=max_future_appointments
+                )
+            )
+
+        return PatientListResponse(patients=patient_responses)
 
     except HTTPException:
         raise

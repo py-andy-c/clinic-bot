@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner } from '../../components/shared';
 import { ApiErrorType, getErrorMessage } from '../../types';
-import { useAppointmentStore, Patient } from '../../stores/appointmentStore';
+import { useAppointmentStore } from '../../stores/appointmentStore';
+import { PatientSummary } from '../../services/liffApi';
 import { liffApiService } from '../../services/liffApi';
 import { PatientForm, PatientFormData } from '../components/PatientForm';
 
 const Step4SelectPatient: React.FC = () => {
   const { setPatient, clinicId } = useAppointmentStore();
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,8 +54,25 @@ const Step4SelectPatient: React.FC = () => {
     }
   };
 
-  const handlePatientSelect = (patient: Patient) => {
-    setPatient(patient.id, patient);
+  const handlePatientSelect = (patient: PatientSummary) => {
+    // Clear any previous errors
+    setError(null);
+    
+    // Check if patient has reached the appointment limit
+    const futureCount = patient.future_appointments_count ?? 0;
+    const maxAllowed = patient.max_future_appointments ?? 0;
+    
+    if (maxAllowed > 0 && futureCount >= maxAllowed) {
+      // Don't allow selection - show error message
+      setError(`此就診人已有 ${futureCount} 個未來預約，最多只能有 ${maxAllowed} 個未來預約。請先取消部分預約後再試。`);
+      return;
+    }
+    
+    setPatient(patient.id, {
+      id: patient.id,
+      full_name: patient.full_name,
+      created_at: patient.created_at,
+    });
   };
 
 
@@ -64,15 +82,21 @@ const Step4SelectPatient: React.FC = () => {
       setError(null);
       const response = await liffApiService.createPatient(formData);
 
-      const newPatient: Patient = {
-        id: response.patient_id,
-        full_name: response.full_name,
-        created_at: new Date().toISOString(),
-      };
-
-      setPatients(prev => [...prev, newPatient]);
+      // Reload patients to get updated appointment counts and the new patient
+      const responseAfterReload = await liffApiService.getPatients();
+      setPatients(responseAfterReload.patients);
       setShowAddForm(false);
-      setPatient(newPatient.id, newPatient);
+      
+      // Find the newly created patient from the updated list
+      const createdPatient = responseAfterReload.patients.find(p => p.id === response.patient_id);
+      
+      if (createdPatient) {
+        setPatient(createdPatient.id, {
+          id: createdPatient.id,
+          full_name: createdPatient.full_name,
+          created_at: createdPatient.created_at,
+        });
+      }
     } catch (err: ApiErrorType) {
       logger.error('Failed to add patient:', err);
       setError(getErrorMessage(err));
@@ -98,16 +122,42 @@ const Step4SelectPatient: React.FC = () => {
         </h2>
       </div>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      )}
+
       <div className="space-y-3">
-        {patients.map((patient) => (
-          <button
-            key={patient.id}
-            onClick={() => handlePatientSelect(patient)}
-            className="w-full bg-white border border-gray-200 rounded-lg p-4 hover:border-primary-300 hover:shadow-md transition-all duration-200 text-left"
-          >
-            <h3 className="font-medium text-gray-900">{patient.full_name}</h3>
-          </button>
-        ))}
+        {patients.map((patient) => {
+          const futureCount = patient.future_appointments_count ?? 0;
+          const maxAllowed = patient.max_future_appointments ?? 0;
+          const isAtLimit = maxAllowed > 0 && futureCount >= maxAllowed;
+          
+          return (
+            <button
+              key={patient.id}
+              onClick={() => handlePatientSelect(patient)}
+              disabled={isAtLimit}
+              className={`w-full bg-white border rounded-lg p-4 text-left transition-all duration-200 ${
+                isAtLimit
+                  ? 'border-gray-300 opacity-60 cursor-not-allowed'
+                  : 'border-gray-200 hover:border-primary-300 hover:shadow-md'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className={`font-medium ${isAtLimit ? 'text-gray-500' : 'text-gray-900'}`}>
+                  {patient.full_name}
+                </h3>
+                {isAtLimit && (
+                  <span className="text-xs text-red-600">
+                    (已達預約上限: {futureCount}/{maxAllowed})
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
 
         {!showAddForm && (
           <button

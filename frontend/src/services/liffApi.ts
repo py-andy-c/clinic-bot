@@ -40,6 +40,8 @@ export interface PatientSummary {
   phone_number: string;
   birthday?: string; // YYYY-MM-DD format
   created_at: string;
+  future_appointments_count?: number;
+  max_future_appointments?: number;
 }
 
 export interface PatientsResponse {

@@ -18,6 +18,8 @@ class PatientResponse(BaseModel):
     phone_number: str
     birthday: Optional[date] = None  # Python date object (serialized to YYYY-MM-DD in JSON)
     created_at: datetime
+    future_appointments_count: Optional[int] = None  # Number of future appointments for this patient
+    max_future_appointments: Optional[int] = None  # Maximum allowed future appointments for this clinic
 
 
 class PatientCreateResponse(BaseModel):
