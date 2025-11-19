@@ -166,8 +166,8 @@ describe('preserveQueryParams', () => {
   });
 
   describe('real-world scenarios', () => {
-    it('should handle FirstTimeRegister use case', () => {
-      // Simulate the exact scenario from FirstTimeRegister.tsx
+    it('should preserve clinic_id when navigating to appointment booking', () => {
+      // Simulate navigating to appointment booking while preserving clinic_id
       window.location.search = '?clinic_id=123';
       
       const result = preserveQueryParams(window.location.pathname, { mode: 'book' });

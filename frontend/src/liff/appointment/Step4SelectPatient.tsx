@@ -19,6 +19,13 @@ const Step4SelectPatient: React.FC = () => {
     loadPatients();
   }, [clinicId]);
 
+  // Automatically show add form if no patients exist (for first-time users)
+  useEffect(() => {
+    if (!isLoading && patients.length === 0 && !showAddForm) {
+      setShowAddForm(true);
+    }
+  }, [isLoading, patients.length, showAddForm]);
+
   // Fetch clinic settings to check if birthday is required
   useEffect(() => {
     const fetchClinicSettings = async () => {

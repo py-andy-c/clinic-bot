@@ -159,12 +159,6 @@ class LiffApiService {
   }
 
   // Patient Management
-  async createPrimaryPatient(request: PatientCreateRequest): Promise<PatientResponse> {
-    // Primary patient uses the same endpoint as additional patients
-    const response = await this.client.post('/liff/patients', request);
-    return response.data;
-  }
-
   async getPatients(): Promise<PatientsResponse> {
     const response = await this.client.get('/liff/patients');
     return response.data;

@@ -6,7 +6,6 @@ import { useLineAuth } from '../hooks/useLineAuth';
 import { useAppointmentStore } from '../stores/appointmentStore';
 import { liffApiService } from '../services/liffApi';
 import { LoadingSpinner, ErrorMessage, InvalidAccess } from './components/StatusComponents';
-import FirstTimeRegister from './auth/FirstTimeRegister';
 import LiffHome from './home/LiffHome';
 import AppointmentFlow from './appointment/AppointmentFlow';
 import AppointmentList from './query/AppointmentList';
@@ -27,7 +26,7 @@ const MODE_COMPONENTS: Record<AppMode, FC> = {
 
 const LiffApp: FC = () => {
   const { isReady, profile, accessToken, error: liffError } = useLiff();
-  const { isFirstTime, isLoading: authLoading, clinicId, error: authError, refreshAuth } = useLineAuth(profile, accessToken);
+  const { isLoading: authLoading, clinicId, error: authError, refreshAuth } = useLineAuth(profile, accessToken);
   const [searchParams] = useSearchParams();
   const setClinicId = useAppointmentStore(state => state.setClinicId);
   const setClinicInfo = useAppointmentStore(state => state.setClinicInfo);
@@ -46,7 +45,7 @@ const LiffApp: FC = () => {
   // Fetch clinic information when clinicId is available
   useEffect(() => {
     const fetchClinicInfo = async () => {
-      if (clinicId && !isFirstTime) {
+      if (clinicId) {
         try {
           const clinicInfo = await liffApiService.getClinicInfo();
           setClinicInfo(
@@ -63,7 +62,7 @@ const LiffApp: FC = () => {
     };
 
     fetchClinicInfo();
-  }, [clinicId, isFirstTime, setClinicInfo]);
+  }, [clinicId, setClinicInfo]);
 
   if (!isReady || authLoading) return <LoadingSpinner />;
 
@@ -76,8 +75,6 @@ const LiffApp: FC = () => {
   }
 
   if (!clinicId) return <InvalidAccess />;
-
-  if (isFirstTime) return <FirstTimeRegister />;
 
   const ModeComponent = MODE_COMPONENTS[mode];
   return <ModeComponent />;
