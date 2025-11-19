@@ -5,6 +5,7 @@ import { useLiff } from '../hooks/useLiff';
 import { useLineAuth } from '../hooks/useLineAuth';
 import { useAppointmentStore } from '../stores/appointmentStore';
 import { liffApiService } from '../services/liffApi';
+import { LiffNavigationState } from '../types/liffNavigation';
 import { LoadingSpinner, ErrorMessage, InvalidAccess } from './components/StatusComponents';
 import LiffHome from './home/LiffHome';
 import AppointmentFlow from './appointment/AppointmentFlow';
@@ -63,6 +64,22 @@ const LiffApp: FC = () => {
 
     fetchClinicInfo();
   }, [clinicId, setClinicInfo]);
+
+  // Clear history when user exits LIFF app
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Clear history state when user exits/closes the app
+      const homeState: LiffNavigationState = { mode: 'home', liffNavigation: true };
+      window.history.replaceState(homeState, '', window.location.href);
+    };
+
+    // Handle browser close/refresh
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
 
   if (!isReady || authLoading) return <LoadingSpinner />;
 

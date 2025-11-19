@@ -8,6 +8,7 @@ import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 import { useModal } from '../../contexts/ModalContext';
 import { PatientForm, PatientFormData } from '../components/PatientForm';
+import { useLiffBackButton } from '../../hooks/useLiffBackButton';
 
 interface Patient {
   id: number;
@@ -31,6 +32,9 @@ const PatientManagement: React.FC = () => {
   const [editPatientBirthday, setEditPatientBirthday] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [requireBirthday, setRequireBirthday] = useState(false);
+
+  // Enable back button navigation - always goes back to home
+  useLiffBackButton('settings');
 
   useEffect(() => {
     loadPatients();

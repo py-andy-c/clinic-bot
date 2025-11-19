@@ -1,11 +1,21 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { preserveQueryParams } from '../../utils/urlUtils';
 import { useAppointmentStore } from '../../stores/appointmentStore';
+import { LiffNavigationState } from '../../types/liffNavigation';
 
 const LiffHome: React.FC = () => {
   const navigate = useNavigate();
   const reset = useAppointmentStore(state => state.reset);
+
+  // Clear history when home page loads
+  // This ensures back button doesn't appear and history is clean
+  useEffect(() => {
+    const homeState: LiffNavigationState = { mode: 'home', liffNavigation: true };
+    // Replace current history entry with home state
+    // This makes home the only entry, so back button won't be active
+    window.history.replaceState(homeState, '', window.location.href);
+  }, []);
 
   const handleNavigate = (mode: 'book' | 'query' | 'settings' | 'notifications') => {
     // Reset appointment store when starting a new appointment

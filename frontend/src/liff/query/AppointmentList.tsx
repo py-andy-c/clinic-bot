@@ -4,6 +4,7 @@ import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { liffApiService } from '../../services/liffApi';
 import AppointmentCard from './AppointmentCard';
 import { useModal } from '../../contexts/ModalContext';
+import { useLiffBackButton } from '../../hooks/useLiffBackButton';
 
 interface Appointment {
   id: number;
@@ -22,6 +23,9 @@ const AppointmentList: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Enable back button navigation - always goes back to home
+  useLiffBackButton('query');
 
   useEffect(() => {
     loadAppointments();

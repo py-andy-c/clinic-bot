@@ -1,6 +1,7 @@
 import React from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { preserveQueryParams } from '../../utils/urlUtils';
+import { useLiffBackButton } from '../../hooks/useLiffBackButton';
 import AddNotification from './AddNotification';
 import ManageNotifications from './ManageNotifications';
 
@@ -13,9 +14,12 @@ const NotificationsFlow: React.FC = () => {
 
   const subMode = (searchParams.get('sub_mode') as NotificationSubMode) || DEFAULT_SUB_MODE;
 
+  // Enable back button navigation - always goes back to home (regardless of source)
+  useLiffBackButton('notifications');
+
   const handleBack = () => {
     const newUrl = preserveQueryParams('/liff', { mode: 'home' });
-    navigate(newUrl);
+    navigate(newUrl, { replace: true });
   };
 
   return (

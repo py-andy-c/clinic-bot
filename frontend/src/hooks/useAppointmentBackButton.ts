@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppointmentStore } from '../stores/appointmentStore';
+import { preserveQueryParams } from '../utils/urlUtils';
+import { LiffNavigationState } from '../types/liffNavigation';
 import { logger } from '../utils/logger';
 
 /**
@@ -48,13 +50,17 @@ export const useAppointmentBackButton = (isInAppointmentFlow: boolean) => {
   /**
    * Navigate to home and reset appointment flow history state.
    * This is extracted to avoid duplication and ensure consistent behavior.
-   * Navigates back to remove appointment flow entries from history stack.
+   * Uses replace: true to clear history when navigating to home.
    */
   const navigateToHome = () => {
     historyInitializedRef.current = false;
-    // Navigate back to go to the page before the appointment flow
-    // This removes all appointment flow entries from history
-    navigate(-1);
+    // Navigate to home and clear history using replace
+    const newUrl = preserveQueryParams('/liff', { mode: 'home' });
+    // Use replace: true to replace current history entry in React Router
+    navigate(newUrl, { replace: true });
+    // Also replace browser history state to ensure consistency
+    const homeState: LiffNavigationState = { mode: 'home', liffNavigation: true };
+    window.history.replaceState(homeState, '', newUrl);
   };
 
   // Initialize history when entering appointment flow
