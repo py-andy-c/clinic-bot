@@ -343,7 +343,8 @@ class AvailabilityService:
         db: Session,
         clinic_id: int,
         date: str,
-        appointment_type_id: int
+        appointment_type_id: int,
+        exclude_calendar_event_id: int | None = None
     ) -> List[Dict[str, Any]]:
         """
         Get available time slots for all practitioners in a clinic.
@@ -359,6 +360,7 @@ class AvailabilityService:
             clinic_id: Clinic ID
             date: Date in YYYY-MM-DD format
             appointment_type_id: Appointment type ID
+            exclude_calendar_event_id: Optional calendar event ID to exclude from conflict checking (for appointment editing)
             
         Returns:
             List of available slot dictionaries (deduplicated by start_time) with:
@@ -404,7 +406,8 @@ class AvailabilityService:
 
             # Calculate available slots for all practitioners
             all_slots = AvailabilityService._calculate_available_slots(
-                db, requested_date, practitioners, appointment_type.duration_minutes, clinic, clinic_id
+                db, requested_date, practitioners, appointment_type.duration_minutes, clinic, clinic_id,
+                exclude_calendar_event_id=exclude_calendar_event_id
             )
             
             # Deduplicate slots by start_time (practitioner assignment happens in _assign_practitioner)
@@ -1197,7 +1200,8 @@ class AvailabilityService:
         clinic_id: int,
         dates: List[str],
         appointment_type_id: int,
-        practitioner_id: Optional[int] = None
+        practitioner_id: Optional[int] = None,
+        exclude_calendar_event_id: int | None = None
     ) -> List[Dict[str, Any]]:
         """
         Get available slots for a clinic across multiple dates.
@@ -1248,7 +1252,8 @@ class AvailabilityService:
                         practitioner_id=practitioner_id,
                         date=date_str,
                         appointment_type_id=appointment_type_id,
-                        clinic_id=clinic_id
+                        clinic_id=clinic_id,
+                        exclude_calendar_event_id=exclude_calendar_event_id
                     )
                 else:
                     # All practitioners in clinic
@@ -1256,7 +1261,8 @@ class AvailabilityService:
                         db=db,
                         clinic_id=clinic_id,
                         date=date_str,
-                        appointment_type_id=appointment_type_id
+                        appointment_type_id=appointment_type_id,
+                        exclude_calendar_event_id=exclude_calendar_event_id
                     )
                 
                 results.append({

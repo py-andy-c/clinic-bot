@@ -110,6 +110,7 @@ export interface ClinicInfoResponse {
   address: string | null;
   phone_number: string | null;
   require_birthday?: boolean;
+  minimum_cancellation_hours_before?: number;
 }
 
 class LiffApiService {
@@ -205,6 +206,7 @@ class LiffApiService {
     date: string;
     appointment_type_id: number;
     practitioner_id: number | undefined;
+    exclude_calendar_event_id?: number;
   }): Promise<AvailabilityResponse> {
     // Clinic ID is already in the JWT token, don't need it in params
     const response = await this.client.get('/liff/availability', { params });
@@ -216,6 +218,7 @@ class LiffApiService {
     dates: string[];
     appointment_type_id: number;
     practitioner_id: number | undefined;
+    exclude_calendar_event_id?: number;
   }): Promise<{
     results: AvailabilityResponse[];
   }> {
@@ -223,6 +226,7 @@ class LiffApiService {
       dates: params.dates,
       appointment_type_id: params.appointment_type_id,
       practitioner_id: params.practitioner_id ?? null,
+      exclude_calendar_event_id: params.exclude_calendar_event_id ?? null,
     });
     return response.data;
   }
@@ -241,6 +245,33 @@ class LiffApiService {
 
   async cancelAppointment(appointmentId: number): Promise<{ success: boolean; message: string }> {
     const response = await this.client.delete(`/liff/appointments/${appointmentId}`);
+    return response.data;
+  }
+
+  async getAppointmentDetails(appointmentId: number): Promise<{
+    id: number;
+    patient_id: number;
+    patient_name: string;
+    practitioner_id: number;
+    practitioner_name: string;
+    appointment_type_id: number;
+    appointment_type_name: string;
+    start_time: string;
+    end_time: string;
+    status: string;
+    notes?: string;
+    is_auto_assigned?: boolean;
+  }> {
+    const response = await this.client.get(`/liff/appointments/${appointmentId}/details`);
+    return response.data;
+  }
+
+  async rescheduleAppointment(appointmentId: number, request: {
+    new_practitioner_id?: number | null; // number = specific, -1 = auto-assign, null/undefined = keep current
+    new_start_time: string; // ISO datetime string
+    new_notes?: string | null;
+  }): Promise<{ success: boolean; appointment_id: number; message: string }> {
+    const response = await this.client.post(`/liff/appointments/${appointmentId}/reschedule`, request);
     return response.data;
   }
 

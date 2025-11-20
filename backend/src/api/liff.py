@@ -16,7 +16,7 @@ from typing import Optional, Dict, Any, List, Literal, Union
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, field_validator, model_validator
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from core.database import get_db
 from core.config import JWT_SECRET_KEY, JWT_ACCESS_TOKEN_EXPIRE_MINUTES
@@ -26,7 +26,7 @@ from core.constants import (
     NOTIFICATION_DATE_RANGE_DAYS,
 )
 from models import (
-    LineUser, Clinic, Patient, AvailabilityNotification, AppointmentType, User
+    LineUser, Clinic, Patient, AvailabilityNotification, AppointmentType, User, Appointment, CalendarEvent
 )
 from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
@@ -617,6 +617,7 @@ async def get_availability(
     date: str,
     appointment_type_id: int,
     practitioner_id: Optional[int] = Query(None),
+    exclude_calendar_event_id: Optional[int] = Query(None, description="Calendar event ID to exclude from conflict checking (for appointment editing)"),
     line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
 ):
@@ -639,7 +640,8 @@ async def get_availability(
                 practitioner_id=practitioner_id,
                 date=date,
                 appointment_type_id=appointment_type_id,
-                clinic_id=clinic.id
+                clinic_id=clinic.id,
+                exclude_calendar_event_id=exclude_calendar_event_id
             )
         else:
             # All practitioners in clinic
@@ -678,6 +680,7 @@ class BatchAvailabilityRequest(BaseModel):
     dates: List[str]  # List of dates in YYYY-MM-DD format
     appointment_type_id: int
     practitioner_id: Optional[int] = None
+    exclude_calendar_event_id: Optional[int] = None
 
 
 class BatchAvailabilityResponse(BaseModel):
@@ -717,7 +720,8 @@ async def get_availability_batch(
             clinic_id=clinic.id,
             dates=request.dates,
             appointment_type_id=request.appointment_type_id,
-            practitioner_id=request.practitioner_id
+            practitioner_id=request.practitioner_id,
+            exclude_calendar_event_id=request.exclude_calendar_event_id
         )
         
         # Convert to response format
@@ -813,6 +817,109 @@ async def list_appointments(
         raise
 
 
+@router.get("/appointments/{appointment_id}/details")
+async def get_appointment_details(
+    appointment_id: int,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """
+    Get appointment details for rescheduling.
+
+    Returns appointment information including practitioner_id and appointment_type_id
+    needed for the reschedule flow.
+    Clinic isolation is enforced through LIFF token context.
+    
+    Note: The `appointment_id` parameter is actually the calendar_event_id.
+    This is consistent with other endpoints that use calendar_event_id as the identifier.
+    """
+    line_user, clinic = line_user_clinic
+
+    try:
+        # Get appointment with relationships
+        # Note: appointment_id parameter is actually calendar_event_id (see docstring above)
+        appointment = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).options(
+            joinedload(Appointment.patient),
+            joinedload(Appointment.appointment_type),
+            joinedload(Appointment.calendar_event).joinedload(CalendarEvent.user)
+        ).filter(
+            Appointment.calendar_event_id == appointment_id
+        ).first()
+
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約不存在"
+            )
+
+        # Validate appointment belongs to patient (via line_user_id)
+        if appointment.patient.line_user_id != line_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您沒有權限查看此預約"
+            )
+
+        # Validate appointment belongs to clinic
+        if appointment.patient.clinic_id != clinic.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="此預約不屬於此診所"
+            )
+
+        calendar_event = appointment.calendar_event
+        if not calendar_event:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到預約事件"
+            )
+
+        # Format datetime
+        event_date = calendar_event.date
+        if calendar_event.start_time:
+            start_datetime = datetime.combine(event_date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+        else:
+            start_datetime = None
+        if calendar_event.end_time:
+            end_datetime = datetime.combine(event_date, calendar_event.end_time).replace(tzinfo=TAIWAN_TZ)
+        else:
+            end_datetime = None
+
+        # Get practitioner name from association
+        from utils.practitioner_helpers import get_practitioner_display_name
+        practitioner_name = None
+        if calendar_event.user_id:
+            practitioner_name = get_practitioner_display_name(
+                db, calendar_event.user_id, clinic.id
+            )
+
+        return {
+            "id": appointment.calendar_event_id,
+            "calendar_event_id": appointment.calendar_event_id,
+            "patient_id": appointment.patient_id,
+            "patient_name": appointment.patient.full_name,
+            "practitioner_id": calendar_event.user_id,
+            "practitioner_name": practitioner_name,
+            "appointment_type_id": appointment.appointment_type_id,
+            "appointment_type_name": appointment.appointment_type.name if appointment.appointment_type else "未知",
+            "start_time": start_datetime.isoformat() if start_datetime else "",
+            "end_time": end_datetime.isoformat() if end_datetime else "",
+            "status": appointment.status,
+            "notes": appointment.notes,
+            "is_auto_assigned": appointment.is_auto_assigned
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting appointment details: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得預約詳情"
+        )
+
+
 @router.delete("/appointments/{appointment_id}")
 async def cancel_appointment(
     appointment_id: int,
@@ -843,6 +950,68 @@ async def cancel_appointment(
         raise
 
 
+class RescheduleAppointmentRequest(BaseModel):
+    """Request model for rescheduling an appointment."""
+    new_practitioner_id: Optional[int] = None  # None = keep current, -1 = auto-assign (不指定)
+    new_start_time: str  # ISO datetime string
+    new_notes: Optional[str] = None  # None = keep current
+
+    @field_validator('new_start_time')
+    @classmethod
+    def validate_start_time(cls, v: str) -> str:
+        """Validate start time format."""
+        try:
+            parse_datetime_to_taiwan(v)
+        except ValueError:
+            raise ValueError('時間格式錯誤，請使用 ISO 格式')
+        return v
+
+
+@router.post("/appointments/{appointment_id}/reschedule")
+async def reschedule_appointment(
+    appointment_id: int,
+    request: RescheduleAppointmentRequest,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """
+    Reschedule an appointment.
+
+    Allows patients to change the time and/or practitioner of their appointment.
+    Verifies ownership and validates booking restrictions.
+    Clinic isolation is enforced through LIFF token context.
+    """
+    line_user, _clinic = line_user_clinic
+
+    try:
+        # Parse start time
+        new_start_time = parse_datetime_to_taiwan(request.new_start_time)
+
+        # Reschedule appointment using service
+        result = AppointmentService.reschedule_appointment(
+            db=db,
+            appointment_id=appointment_id,
+            line_user_id=line_user.id,
+            new_practitioner_id=request.new_practitioner_id,
+            new_start_time=new_start_time,
+            new_notes=request.new_notes
+        )
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Reschedule appointment error: {e}")
+        # Note: Service layer handles its own transaction management
+        # If the service already committed, rollback won't help
+        # If the service didn't commit, rollback is unnecessary
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="改期失敗"
+        )
+
+
 @router.get("/clinic-info", summary="Get clinic information for LIFF app")
 async def get_clinic_info(
     line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
@@ -863,6 +1032,7 @@ async def get_clinic_info(
             "address": clinic.address,
             "phone_number": clinic.phone_number,
             "require_birthday": clinic_settings.clinic_info_settings.require_birthday,
+            "minimum_cancellation_hours_before": clinic_settings.booking_restriction_settings.minimum_cancellation_hours_before,
         }
 
     except Exception as e:

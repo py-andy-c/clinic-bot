@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { checkCancellationConstraint } from '../../utils/appointmentConstraints';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { liffApiService } from '../../services/liffApi';
@@ -21,17 +23,31 @@ interface Appointment {
 
 const AppointmentList: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { alert: showAlert, confirm: showConfirm } = useModal();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [minimumCancellationHours, setMinimumCancellationHours] = useState<number | null>(null);
 
   // Enable back button navigation - always goes back to home
   useLiffBackButton('query');
 
   useEffect(() => {
     loadAppointments();
+    loadClinicInfo();
   }, []);
+
+  const loadClinicInfo = async () => {
+    try {
+      const clinicInfo = await liffApiService.getClinicInfo();
+      setMinimumCancellationHours(clinicInfo.minimum_cancellation_hours_before || 24);
+    } catch (err) {
+      logger.error('Failed to load clinic info:', err);
+      // Use default if failed to load
+      setMinimumCancellationHours(24);
+    }
+  };
 
   const loadAppointments = async () => {
     try {
@@ -47,7 +63,17 @@ const AppointmentList: React.FC = () => {
     }
   };
 
-  const handleCancelAppointment = async (appointmentId: number) => {
+
+  const handleCancelAppointment = async (appointmentId: number, appointmentStartTime: string) => {
+    // Check constraint immediately before showing confirmation
+    if (!checkCancellationConstraint(appointmentStartTime, minimumCancellationHours)) {
+      await showAlert(
+        t('appointment.errors.cancelTooSoon', { hours: minimumCancellationHours || 24 }),
+        t('appointment.cancelFailedTitle')
+      );
+      return;
+    }
+
     const confirmed = await showConfirm(t('appointment.cancelConfirm'), t('appointment.cancelConfirmTitle'));
 
     if (!confirmed) return;
@@ -59,7 +85,7 @@ const AppointmentList: React.FC = () => {
     } catch (err: unknown) {
       logger.error('Failed to cancel appointment:', err);
       
-      // Check for structured error response
+      // Check for structured error response (fallback in case constraint changed)
       const errorDetail = (err as any)?.response?.data?.detail;
       if (errorDetail && typeof errorDetail === 'object' && errorDetail.error === 'cancellation_too_soon') {
         // Use structured error response
@@ -82,6 +108,20 @@ const AppointmentList: React.FC = () => {
         }
       }
     }
+  };
+
+  const handleRescheduleAppointment = async (appointmentId: number, appointmentStartTime: string) => {
+    // Check constraint immediately before navigating to reschedule page
+    if (!checkCancellationConstraint(appointmentStartTime, minimumCancellationHours)) {
+      await showAlert(
+        t('appointment.errors.rescheduleTooSoon', { hours: minimumCancellationHours || 24 }),
+        t('appointment.rescheduleFailedTitle')
+      );
+      return;
+    }
+
+    // Navigate to reschedule page only if constraint passes
+    navigate(`/liff?mode=reschedule&appointmentId=${appointmentId}`);
   };
 
   if (isLoading) {
@@ -133,7 +173,8 @@ const AppointmentList: React.FC = () => {
               <AppointmentCard
                 key={appointment.id}
                 appointment={appointment}
-                onCancel={() => handleCancelAppointment(appointment.id)}
+                onCancel={() => handleCancelAppointment(appointment.id, appointment.start_time)}
+                onReschedule={() => handleRescheduleAppointment(appointment.id, appointment.start_time)}
               />
             ))}
           </div>

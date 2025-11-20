@@ -12,9 +12,10 @@ import AppointmentFlow from './appointment/AppointmentFlow';
 import AppointmentList from './query/AppointmentList';
 import PatientManagement from './settings/PatientManagement';
 import NotificationsFlow from './notifications/NotificationsFlow';
+import RescheduleFlow from './appointment/RescheduleFlow';
 
-type AppMode = 'home' | 'book' | 'query' | 'settings' | 'notifications';
-const VALID_MODES: AppMode[] = ['home', 'book', 'query', 'settings', 'notifications'];
+type AppMode = 'home' | 'book' | 'query' | 'settings' | 'notifications' | 'reschedule';
+const VALID_MODES: AppMode[] = ['home', 'book', 'query', 'settings', 'notifications', 'reschedule'];
 const DEFAULT_MODE: AppMode = 'home';
 
 const MODE_COMPONENTS: Record<AppMode, FC> = {
@@ -23,6 +24,7 @@ const MODE_COMPONENTS: Record<AppMode, FC> = {
   query: AppointmentList,
   settings: PatientManagement,
   notifications: NotificationsFlow,
+  reschedule: RescheduleFlow,
 };
 
 const LiffApp: FC = () => {
@@ -43,10 +45,11 @@ const LiffApp: FC = () => {
     }
   }, [clinicId, setClinicId]);
 
-  // Fetch clinic information when clinicId is available
+  // Fetch clinic information when clinicId is available and authentication is complete
   useEffect(() => {
     const fetchClinicInfo = async () => {
-      if (clinicId) {
+      // Only fetch if we have clinicId and authentication is complete
+      if (clinicId && isReady && !authLoading) {
         try {
           const clinicInfo = await liffApiService.getClinicInfo();
           setClinicInfo(
@@ -56,14 +59,15 @@ const LiffApp: FC = () => {
             clinicInfo.phone_number
           );
         } catch (error) {
-          logger.error('Failed to fetch clinic info:', error);
-          // Don't show error to user, just use defaults
+          // Silently fail - this is not critical for app functionality
+          // The error is logged but not shown to user to avoid noise
+          logger.log('Failed to fetch clinic info (non-critical):', error);
         }
       }
     };
 
     fetchClinicInfo();
-  }, [clinicId, setClinicInfo]);
+  }, [clinicId, isReady, authLoading, setClinicInfo]);
 
   // Clear history when user exits LIFF app
   useEffect(() => {

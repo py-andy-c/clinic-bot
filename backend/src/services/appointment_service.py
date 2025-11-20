@@ -741,6 +741,127 @@ class AppointmentService:
         return False
 
     @staticmethod
+    def _update_appointment_core(
+        db: Session,
+        appointment: Appointment,
+        calendar_event: CalendarEvent,
+        clinic: Clinic,
+        clinic_id: int,
+        practitioner_id_to_use: int,
+        new_start_time: Optional[datetime],
+        new_notes: Optional[str],
+        duration_minutes: int,
+        old_practitioner_id: Optional[int],
+        old_start_time: datetime,
+        old_is_auto_assigned: bool,
+        is_auto_assign: bool,
+        reassigned_by_user_id: Optional[int],
+        send_patient_notification: bool,
+        send_practitioner_notification: bool,
+        notification_note: Optional[str] = None
+    ) -> None:
+        """
+        Core shared logic for updating an appointment.
+
+        This method handles the common update operations shared between
+        edit_appointment and reschedule_appointment.
+
+        Args:
+            db: Database session
+            appointment: Appointment to update
+            calendar_event: Calendar event to update
+            clinic: Clinic object
+            clinic_id: Clinic ID
+            practitioner_id_to_use: Final practitioner ID to use (already resolved)
+            new_start_time: New start time (None = keep current)
+            new_notes: New notes (None = keep current)
+            duration_minutes: Appointment duration in minutes
+            old_practitioner_id: Original practitioner ID (for notifications)
+            old_start_time: Original start time (for notifications)
+            old_is_auto_assigned: Whether appointment was originally auto-assigned
+            is_auto_assign: Whether the new practitioner is auto-assigned
+            reassigned_by_user_id: User ID who made the reassignment (None for patient reschedule)
+            send_patient_notification: Whether to send patient edit notification
+            send_practitioner_notification: Whether to send practitioner reassignment notification
+            notification_note: Optional custom note for patient notification
+        """
+        # Calculate if practitioner or time actually changed
+        practitioner_actually_changed = (practitioner_id_to_use != old_practitioner_id)
+        time_actually_changed = False
+        if new_start_time is not None:
+            time_actually_changed = new_start_time != old_start_time
+
+        # Update notes if provided
+        if new_notes is not None:
+            appointment.notes = new_notes
+
+        # Update practitioner if changed
+        if practitioner_actually_changed:
+            calendar_event.user_id = practitioner_id_to_use
+
+            # Update auto-assignment tracking fields
+            if is_auto_assign:
+                # Changing to auto-assigned
+                appointment.is_auto_assigned = True
+                appointment.reassigned_by_user_id = None
+                appointment.reassigned_at = None
+            elif old_is_auto_assigned:
+                # Changing from auto-assigned to specific
+                appointment.is_auto_assigned = False
+                appointment.reassigned_by_user_id = reassigned_by_user_id
+                appointment.reassigned_at = taiwan_now()
+            else:
+                # Changing from specific to specific
+                appointment.is_auto_assigned = False
+                if reassigned_by_user_id is not None:
+                    appointment.reassigned_by_user_id = reassigned_by_user_id
+                    appointment.reassigned_at = taiwan_now()
+                # Otherwise keep existing reassigned_by_user_id and reassigned_at
+
+        # Update calendar event if time changed
+        if new_start_time is not None:
+            calendar_event.date = new_start_time.date()
+            calendar_event.start_time = new_start_time.time()
+            end_time = new_start_time + timedelta(minutes=duration_minutes)
+            calendar_event.end_time = end_time.time()
+
+        db.commit()
+        db.refresh(appointment)
+
+        # Send notifications
+        try:
+            # Get practitioners for notification
+            old_practitioner = db.query(User).filter(User.id == old_practitioner_id).first() if old_practitioner_id else None
+            new_practitioner = None
+            if practitioner_actually_changed:
+                new_practitioner = db.query(User).filter(User.id == practitioner_id_to_use).first()
+            else:
+                new_practitioner = old_practitioner
+
+            # Send patient edit notification if requested
+            if send_patient_notification and (time_actually_changed or practitioner_actually_changed):
+                from services.notification_service import NotificationService
+                NotificationService.send_appointment_edit_notification(
+                    db=db,
+                    appointment=appointment,
+                    old_practitioner=old_practitioner,
+                    new_practitioner=new_practitioner,
+                    old_start_time=old_start_time,
+                    new_start_time=new_start_time if new_start_time is not None else old_start_time,
+                    note=notification_note
+                )
+
+            # Send practitioner reassignment notification if requested
+            if send_practitioner_notification and practitioner_actually_changed and new_practitioner is not None:
+                from services.notification_service import NotificationService
+                NotificationService.send_practitioner_reassignment_notification(
+                    db, old_practitioner, new_practitioner, appointment, clinic
+                )
+        except Exception as e:
+            # Log but don't fail - notification failure shouldn't block update
+            logger.warning(f"Failed to send appointment update notification: {e}")
+
+    @staticmethod
     def edit_appointment(
         db: Session,
         appointment_id: int,
@@ -791,12 +912,30 @@ class AppointmentService:
             )
 
         calendar_event = appointment.calendar_event
+        if not calendar_event:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="預約時間資料不完整"
+            )
+
+        # Get clinic
+        clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="診所不存在"
+            )
 
         # Validate new practitioner exists and belongs to clinic if provided
         if new_practitioner_id is not None:
             AvailabilityService.validate_practitioner_for_clinic(
                 db, new_practitioner_id, clinic_id
             )
+
+        # Get current start time
+        current_start_time = datetime.combine(
+            calendar_event.date, calendar_event.start_time
+        ).replace(tzinfo=TAIWAN_TZ)
 
         # Check if practitioner or time actually changed (not just provided)
         # Skip conflict check if only notes are being changed
@@ -806,18 +945,9 @@ class AppointmentService:
         )
         time_actually_changed = False
         if new_start_time is not None:
-            current_start_time = datetime.combine(
-                calendar_event.date, calendar_event.start_time
-            ).replace(tzinfo=TAIWAN_TZ)
             time_actually_changed = new_start_time != current_start_time
             
             # Validate booking window if time is being changed
-            clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
-            if not clinic:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="診所不存在"
-                )
             settings = clinic.get_validated_settings()
             booking_settings = settings.booking_restriction_settings
             max_booking_window_days = booking_settings.max_booking_window_days
@@ -851,61 +981,44 @@ class AppointmentService:
 
         # Store old values for notification (before any updates)
         old_is_auto_assigned = appointment.is_auto_assigned
-        old_practitioner_id = calendar_event.user_id if calendar_event else None
+        old_practitioner_id = calendar_event.user_id
+        if old_practitioner_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="預約沒有指定醫師"
+            )
 
-        # practitioner_actually_changed and time_actually_changed were already calculated above for conflict check
+        # Determine practitioner ID to use (None = keep current)
+        practitioner_id_to_use = new_practitioner_id if new_practitioner_id is not None else old_practitioner_id
+        if practitioner_id_to_use is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="必須指定醫師"
+            )
 
-        # Update appointment
-        if new_notes is not None:
-            appointment.notes = new_notes
+        # Note: edit_appointment does not support auto-assignment
+        is_auto_assign = False
 
-        # Update tracking fields based on practitioner change
-        # Only update if practitioner actually changed
-        # Note: new_practitioner_id=None means "keep current" (per API contract), not "change to auto-assigned"
-        if practitioner_actually_changed and old_is_auto_assigned:
-            # Changing from auto-assigned to specific
-            appointment.is_auto_assigned = False
-            appointment.reassigned_by_user_id = current_user_id
-            appointment.reassigned_at = taiwan_now()
-            # Keep originally_auto_assigned=True (preserve historical fact)
-        elif practitioner_actually_changed and not old_is_auto_assigned:
-            # Changing from specific to specific - keep is_auto_assigned=False
-            pass
-        # Note: Changing from specific to auto-assigned is not supported via edit endpoint
-        # (would require explicit API design change or separate endpoint)
-
-        # Update calendar event if time or practitioner changed
-        if new_start_time is not None:
-            calendar_event.date = new_start_time.date()
-            calendar_event.start_time = new_start_time.time()
-            # Calculate end time (reuse duration_minutes from above)
-            end_time = new_start_time + timedelta(minutes=duration_minutes)
-            calendar_event.end_time = end_time.time()
-
-        if new_practitioner_id is not None:
-            calendar_event.user_id = new_practitioner_id
-
-        db.commit()
-        db.refresh(appointment)
-
-        # Send notification to practitioners if reassigned
-        if practitioner_actually_changed:
-            try:
-                # Get clinic
-                clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
-                if clinic:
-                    # Get old and new practitioners
-                    old_practitioner = db.query(User).filter(User.id == old_practitioner_id).first() if old_practitioner_id else None
-                    new_practitioner = db.query(User).filter(User.id == new_practitioner_id).first() if new_practitioner_id else None
-
-                    if new_practitioner:
-                        from services.notification_service import NotificationService
-                        NotificationService.send_practitioner_reassignment_notification(
-                            db, old_practitioner, new_practitioner, appointment, clinic
-                        )
-            except Exception as e:
-                # Log but don't fail - notification failure shouldn't block reassignment
-                logger.warning(f"Failed to send practitioner reassignment notification: {e}")
+        # Update appointment using shared core method
+        AppointmentService._update_appointment_core(
+            db=db,
+            appointment=appointment,
+            calendar_event=calendar_event,
+            clinic=clinic,
+            clinic_id=clinic_id,
+            practitioner_id_to_use=practitioner_id_to_use,
+            new_start_time=new_start_time,
+            new_notes=new_notes,
+            duration_minutes=duration_minutes,
+            old_practitioner_id=old_practitioner_id,
+            old_start_time=current_start_time,
+            old_is_auto_assigned=old_is_auto_assigned,
+            is_auto_assign=is_auto_assign,
+            reassigned_by_user_id=current_user_id if practitioner_actually_changed else None,
+            send_patient_notification=False,  # Clinic edit sends notification via API layer
+            send_practitioner_notification=True,
+            notification_note=None
+        )
 
         logger.info(f"Edited appointment {appointment_id} by user {current_user_id}")
 
@@ -913,4 +1026,222 @@ class AppointmentService:
             'success': True,
             'appointment_id': appointment_id,
             'message': '預約已更新'
+        }
+
+    @staticmethod
+    def reschedule_appointment(
+        db: Session,
+        appointment_id: int,
+        line_user_id: int,
+        new_practitioner_id: Optional[int] = None,
+        new_start_time: Optional[datetime] = None,
+        new_notes: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Reschedule an appointment by a patient (via LIFF).
+
+        This method validates that:
+        1. The appointment exists and belongs to the patient (via line_user_id)
+        2. The appointment can be rescheduled (not too close to start time)
+        3. The new time is within booking window
+        4. The new time/practitioner is available
+
+        Args:
+            db: Database session
+            appointment_id: Calendar event ID of the appointment
+            line_user_id: LINE user ID for validation
+            new_practitioner_id: New practitioner ID (None = keep current, -1 = auto-assign "不指定")
+            new_start_time: New start time (required)
+            new_notes: New notes (None = keep current)
+
+        Returns:
+            Dict with updated appointment details
+
+        Raises:
+            HTTPException: If reschedule fails or validation errors
+        """
+        # Get appointment with relationships
+        appointment = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).options(
+            joinedload(Appointment.patient),
+            joinedload(Appointment.appointment_type),
+            joinedload(Appointment.calendar_event).joinedload(CalendarEvent.user)
+        ).filter(
+            Appointment.calendar_event_id == appointment_id
+        ).first()
+
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約不存在"
+            )
+
+        # Validate appointment belongs to patient (via line_user_id)
+        if appointment.patient.line_user_id != line_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您沒有權限改期此預約"
+            )
+
+        # Check if appointment is cancelled
+        if appointment.status in ['canceled_by_patient', 'canceled_by_clinic']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="此預約已取消，無法改期"
+            )
+
+        # Get clinic for settings
+        clinic = db.query(Clinic).filter(Clinic.id == appointment.patient.clinic_id).first()
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="診所不存在"
+            )
+
+        settings = clinic.get_validated_settings()
+        booking_settings = settings.booking_restriction_settings
+
+        # Check minimum_cancellation_hours_before for CURRENT appointment time
+        calendar_event = appointment.calendar_event
+        if not calendar_event or not calendar_event.start_time or not calendar_event.date:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="預約時間資料不完整"
+            )
+
+        current_start_time = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+        minimum_cancellation_hours = booking_settings.minimum_cancellation_hours_before
+        now = taiwan_now()
+        time_until_appointment = current_start_time - now
+        hours_until_appointment = time_until_appointment.total_seconds() / 3600
+
+        if hours_until_appointment < minimum_cancellation_hours:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "reschedule_too_soon",
+                    "message": f"預約必須在至少 {minimum_cancellation_hours} 小時前改期",
+                    "minimum_hours": minimum_cancellation_hours
+                }
+            )
+
+        # Validate new_start_time is provided
+        if new_start_time is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="請選擇新的預約時間"
+            )
+
+        # Ensure new_start_time is timezone-aware
+        if new_start_time.tzinfo is None:
+            new_start_time = new_start_time.replace(tzinfo=TAIWAN_TZ)
+        else:
+            # Convert to Taiwan timezone if needed
+            new_start_time = new_start_time.astimezone(TAIWAN_TZ)
+
+        # Check max_booking_window_days for NEW appointment time
+        max_booking_window_days = booking_settings.max_booking_window_days
+        max_booking_date = now + timedelta(days=max_booking_window_days)
+
+        if new_start_time > max_booking_date:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"最多只能預約 {max_booking_window_days} 天內的時段"
+            )
+
+        # Check minimum_booking_hours_ahead for NEW appointment time
+        # This ensures patients cannot reschedule to a time that's too soon
+        minimum_booking_hours_ahead = booking_settings.minimum_booking_hours_ahead
+        if minimum_booking_hours_ahead and minimum_booking_hours_ahead > 0:
+            time_until_new_appointment = new_start_time - now
+            hours_until_new = time_until_new_appointment.total_seconds() / 3600
+
+            if hours_until_new < minimum_booking_hours_ahead:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"預約必須至少提前 {minimum_booking_hours_ahead} 小時預約"
+                )
+
+        # Get appointment type for duration
+        clinic_id = appointment.patient.clinic_id
+        appointment_type = AppointmentTypeService.get_appointment_type_by_id(
+            db, appointment.appointment_type_id, clinic_id=clinic_id
+        )
+        duration_minutes = appointment_type.duration_minutes
+        end_time = new_start_time + timedelta(minutes=duration_minutes)
+
+        # Determine actual practitioner ID to use
+        is_auto_assign_requested = (new_practitioner_id == -1)
+        
+        if is_auto_assign_requested:
+            # Auto-assign practitioner using the same logic as appointment creation
+            practitioner_id_to_use = AppointmentService._assign_practitioner(
+                db=db,
+                clinic_id=clinic_id,
+                appointment_type_id=appointment.appointment_type_id,
+                requested_practitioner_id=None,  # None triggers auto-assignment
+                start_time=new_start_time,
+                end_time=end_time
+            )
+        elif new_practitioner_id is not None:
+            # Specific practitioner requested - validate
+            AvailabilityService.validate_practitioner_for_clinic(
+                db, new_practitioner_id, clinic_id
+            )
+            practitioner_id_to_use = new_practitioner_id
+        else:
+            # None = keep current practitioner
+            practitioner_id_to_use = calendar_event.user_id
+
+        # Check for conflicts
+        is_valid, error_message, _ = AppointmentService.check_appointment_edit_conflicts(
+            db, appointment_id, practitioner_id_to_use, new_start_time,
+            appointment.appointment_type_id, clinic_id
+        )
+
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=error_message or "改期時發生衝突"
+            )
+
+        # Store old values for notification (before any updates)
+        old_practitioner_id = calendar_event.user_id
+        old_is_auto_assigned = appointment.is_auto_assigned
+        
+        # Ensure practitioner_id_to_use is set (should always be the case, but validate for type safety)
+        if practitioner_id_to_use is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無法確定醫師"
+            )
+
+        # Update appointment using shared core method
+        AppointmentService._update_appointment_core(
+            db=db,
+            appointment=appointment,
+            calendar_event=calendar_event,
+            clinic=clinic,
+            clinic_id=clinic_id,
+            practitioner_id_to_use=practitioner_id_to_use,
+            new_start_time=new_start_time,
+            new_notes=new_notes,
+            duration_minutes=duration_minutes,
+            old_practitioner_id=old_practitioner_id,
+            old_start_time=current_start_time,
+            old_is_auto_assigned=old_is_auto_assigned,
+            is_auto_assign=is_auto_assign_requested,
+            reassigned_by_user_id=None,  # Patient reschedule, not clinic user
+            send_patient_notification=True,
+            send_practitioner_notification=True,
+            notification_note=None  # No custom note for patient reschedule
+        )
+
+        logger.info(f"Rescheduled appointment {appointment_id} by LINE user {line_user_id}")
+
+        return {
+            'success': True,
+            'appointment_id': appointment_id,
+            'message': '預約已改期'
         }
