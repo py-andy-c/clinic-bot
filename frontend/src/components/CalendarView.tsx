@@ -77,21 +77,48 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Helper to invalidate cache for a specific date range
   const invalidateCacheForDateRange = useCallback((startDate: string, endDate: string) => {
-    const keysToDelete: string[] = [];
-    for (const key of cachedCalendarDataRef.current.keys()) {
-      // Extract date range from cache key (format: "practitionerIds-startDate-endDate")
-      // Note: practitioner IDs may contain multiple numbers, so we need to extract the last two parts as dates
-      const parts = key.split('-');
-      if (parts.length >= 3) {
-        const cacheStartDate = parts[parts.length - 2];
-        const cacheEndDate = parts[parts.length - 1];
-        // Invalidate if date ranges overlap
-        if (cacheStartDate && cacheEndDate && cacheStartDate <= endDate && cacheEndDate >= startDate) {
-          keysToDelete.push(key);
+    // Helper function to extract dates from cache key
+    // Cache key format: "practitionerIds-startDate-endDate"
+    // Example: "1,2-2024-01-15-2024-01-15"
+    const extractDates = (key: string): { startDate: string; endDate: string } | null => {
+      // Extract dates using regex to find YYYY-MM-DD patterns
+      const datePattern = /\d{4}-\d{2}-\d{2}/g;
+      const dates = key.match(datePattern);
+      
+      if (dates && dates.length >= 2) {
+        const cacheStartDate = dates[dates.length - 2];
+        const cacheEndDate = dates[dates.length - 1];
+        if (cacheStartDate && cacheEndDate) {
+          return {
+            startDate: cacheStartDate,
+            endDate: cacheEndDate
+          };
         }
+      }
+      return null;
+    };
+
+    const keysToDelete: string[] = [];
+    
+    // Invalidate cached data
+    for (const key of cachedCalendarDataRef.current.keys()) {
+      const dates = extractDates(key);
+      if (dates && dates.startDate <= endDate && dates.endDate >= startDate) {
+        keysToDelete.push(key);
       }
     }
     keysToDelete.forEach(key => cachedCalendarDataRef.current.delete(key));
+    
+    // CRITICAL: Also invalidate in-flight requests for the same date range
+    // This prevents stale in-flight requests from completing and updating the UI
+    const inFlightKeysToDelete: string[] = [];
+    for (const key of inFlightBatchRequestsRef.current.keys()) {
+      const dates = extractDates(key);
+      if (dates && dates.startDate <= endDate && dates.endDate >= startDate) {
+        inFlightKeysToDelete.push(key);
+      }
+    }
+    inFlightKeysToDelete.forEach(key => inFlightBatchRequestsRef.current.delete(key));
   }, []);
   const [modalState, setModalState] = useState<{
     type: 'event' | 'exception' | 'conflict' | 'delete_confirmation' | 'cancellation_note' | 'cancellation_preview' | 'edit_appointment' | 'create_appointment' | null;
@@ -209,7 +236,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Fetch all events for the visible date range using batch endpoint
   // Memoize fetchCalendarData to prevent unnecessary re-renders and enable proper dependency tracking
-  const fetchCalendarData = useCallback(async () => {
+  const fetchCalendarData = useCallback(async (forceRefresh: boolean = false) => {
     if (!userId) return;
 
     // Monthly view is just for navigation - don't fetch events
@@ -230,43 +257,51 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     // Create cache key
     const cacheKey = `${allPractitionerIds.join(',')}-${startDateStr}-${endDateStr}`;
     
-    // Check cache first
-    const cached = cachedCalendarDataRef.current.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-      // Use cached data - no API call needed
-      setAllEvents(cached.data);
-      setError(null);
-      return;
+    // If force refresh, clear both caches for this specific key
+    if (forceRefresh) {
+      cachedCalendarDataRef.current.delete(cacheKey);
+      inFlightBatchRequestsRef.current.delete(cacheKey);
     }
-
-    // Check if there's already an in-flight request for this cache key
-    // This prevents duplicate concurrent requests (e.g., from React StrictMode)
-    if (inFlightBatchRequestsRef.current.has(cacheKey)) {
-      try {
-        const batchData = await inFlightBatchRequestsRef.current.get(cacheKey)!;
-        // Process the result from the in-flight request
-        const events: ApiCalendarEvent[] = [];
-        for (const result of batchData.results) {
-          const practitionerId = result.user_id;
-          const dateStr = result.date;
-          // Use availablePractitioners from useApiData instead of prop
-          const practitioner = availablePractitioners.find(p => p.id === practitionerId);
-          const practitionerName = practitioner?.full_name || '';
-          const transformedEvents = result.events.map((event: any) => ({
-            ...event,
-            date: dateStr,
-            practitioner_id: practitionerId,
-            practitioner_name: practitionerName,
-            is_primary: practitionerId === userId
-          }));
-          events.push(...transformedEvents);
-        }
-        setAllEvents(events);
+    
+    // Check cache first (unless forced refresh)
+    if (!forceRefresh) {
+      const cached = cachedCalendarDataRef.current.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+        // Use cached data - no API call needed
+        setAllEvents(cached.data);
         setError(null);
         return;
-      } catch (err) {
-        // If the in-flight request failed, continue to make a new request
-        inFlightBatchRequestsRef.current.delete(cacheKey);
+      }
+
+      // Check if there's already an in-flight request for this cache key
+      // This prevents duplicate concurrent requests (e.g., from React StrictMode)
+      if (inFlightBatchRequestsRef.current.has(cacheKey)) {
+        try {
+          const batchData = await inFlightBatchRequestsRef.current.get(cacheKey)!;
+          // Process the result from the in-flight request
+          const events: ApiCalendarEvent[] = [];
+          for (const result of batchData.results) {
+            const practitionerId = result.user_id;
+            const dateStr = result.date;
+            // Use availablePractitioners from useApiData instead of prop
+            const practitioner = availablePractitioners.find(p => p.id === practitionerId);
+            const practitionerName = practitioner?.full_name || '';
+            const transformedEvents = result.events.map((event: any) => ({
+              ...event,
+              date: dateStr,
+              practitioner_id: practitionerId,
+              practitioner_name: practitionerName,
+              is_primary: practitionerId === userId
+            }));
+            events.push(...transformedEvents);
+          }
+          setAllEvents(events);
+          setError(null);
+          return;
+        } catch (err) {
+          // If the in-flight request failed, continue to make a new request
+          inFlightBatchRequestsRef.current.delete(cacheKey);
+        }
       }
     }
 
@@ -517,8 +552,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       // Invalidate cache for this date
       invalidateCacheForDateRange(dateStr, dateStr);
 
-      // Refresh data
-      await fetchCalendarData();
+      // Refresh data (force refresh to ensure fresh data after mutation)
+      await fetchCalendarData(true);
       setModalState({ type: null, data: null });
       setExceptionData({ date: '', startTime: '', endTime: '' });
       setIsFullDay(false);
@@ -585,8 +620,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       const appointmentDate = modalState.data.resource.date || getDateString(modalState.data.start);
       invalidateCacheForDateRange(appointmentDate, appointmentDate);
 
-      // Refresh data
-      await fetchCalendarData();
+      // Refresh data (force refresh to ensure fresh data after mutation)
+      await fetchCalendarData(true);
       setModalState({ type: null, data: null });
       setCancellationNote('');
       setCancellationPreviewMessage('');
@@ -625,8 +660,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       const exceptionDate = modalState.data.resource.date || getDateString(modalState.data.start);
       invalidateCacheForDateRange(exceptionDate, exceptionDate);
       
-      // Refresh data
-      await fetchCalendarData();
+      // Refresh data (force refresh to ensure fresh data after mutation)
+      await fetchCalendarData(true);
       setModalState({ type: null, data: null });
     } catch (error) {
       logger.error('Error deleting availability exception:', error);
@@ -685,8 +720,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         invalidateCacheForDateRange(newDate, newDate);
       }
 
-      // Refresh data
-      await fetchCalendarData();
+      // Refresh data (force refresh to ensure fresh data after mutation)
+      await fetchCalendarData(true);
       setModalState({ type: null, data: null });
       setEditErrorMessage(null);
       await alert('預約已更新');
@@ -741,8 +776,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD'); // Extract date from ISO datetime string
       invalidateCacheForDateRange(appointmentDate, appointmentDate);
 
-      // Refresh data
-      await fetchCalendarData();
+      // Refresh data (force refresh to ensure fresh data after mutation)
+      await fetchCalendarData(true);
       setModalState({ type: null, data: null });
       await alert('預約已建立');
       
