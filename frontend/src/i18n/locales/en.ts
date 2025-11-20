@@ -197,6 +197,8 @@ export default {
       clinic: 'Clinic',
       practitioner: 'Therapist: {{practitioner}}',
       appointmentType: 'Appointment Type: {{appointmentType}}',
+      address: 'Address: {{address}}',
+      phone: 'Phone: {{phone}}',
       notes: 'Notes:',
     },
   },

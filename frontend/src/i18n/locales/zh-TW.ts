@@ -197,6 +197,8 @@ export default {
       clinic: '診所',
       practitioner: '治療師：{{practitioner}}',
       appointmentType: '預約類型：{{appointmentType}}',
+      address: '地址：{{address}}',
+      phone: '電話：{{phone}}',
       notes: '備註：',
     },
   },

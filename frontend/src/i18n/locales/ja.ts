@@ -197,6 +197,8 @@ export default {
       clinic: 'クリニック',
       practitioner: '治療師：{{practitioner}}',
       appointmentType: '予約種類：{{appointmentType}}',
+      address: '住所：{{address}}',
+      phone: '電話：{{phone}}',
       notes: '備考：',
     },
   },

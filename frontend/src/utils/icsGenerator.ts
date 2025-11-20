@@ -10,8 +10,9 @@ export interface AppointmentData {
   start_time: string;
   end_time: string;
   notes: string | undefined;
-  clinic_name?: string;
-  clinic_address?: string;
+  clinic_name?: string | undefined;
+  clinic_address?: string | undefined;
+  clinic_phone_number?: string | undefined;
 }
 
 export const downloadAppointmentICS = (appointment: AppointmentData) => {
@@ -23,7 +24,8 @@ export const downloadAppointmentICS = (appointment: AppointmentData) => {
     end_time,
     notes,
     clinic_name,
-    clinic_address
+    clinic_address,
+    clinic_phone_number
   } = appointment;
 
   // Use translations for calendar event
@@ -34,31 +36,62 @@ export const downloadAppointmentICS = (appointment: AppointmentData) => {
   const notesLabel = i18n.t('calendar.eventDescription.notes');
 
   // Build description with appointment details
-  let description = `${clinicNameDisplay}\\n`;
-  description += `${practitionerLabel}\\n`;
+  // Use actual newlines for building the description string
+  let description = `${clinicNameDisplay}\n`;
+  description += `${practitionerLabel}\n`;
   description += `${appointmentTypeLabel}`;
 
+  // Add address to description if available
+  if (clinic_address) {
+    description += `\n\n${i18n.t('calendar.eventDescription.address', { address: clinic_address })}`;
+  }
+
+  // Add phone number to description if available
+  if (clinic_phone_number) {
+    description += `\n${i18n.t('calendar.eventDescription.phone', { phone: clinic_phone_number })}`;
+  }
+
   if (notes) {
-    description += `\\n\\n${notesLabel}\\n${notes}`;
+    description += `\n\n${notesLabel}\n${notes}`;
   }
 
   // Create event title
   const eventTitle = i18n.t('calendar.eventTitle', { appointmentType: appointment_type_name, practitioner: practitioner_name });
 
+  // Escape text fields for ICS format per RFC 5545
+  // ICS format requires special characters to be escaped: backslash, semicolon, comma, newline
+  const escapeICSValue = (value: string): string => {
+    return value
+      .replace(/\\/g, '\\\\')  // Escape backslashes first
+      .replace(/;/g, '\\;')    // Escape semicolons
+      .replace(/,/g, '\\,')    // Escape commas
+      .replace(/\n/g, '\\n');  // Escape newlines as literal \n
+  };
+
+  const escapedDescription = escapeICSValue(description);
+  const escapedSummary = escapeICSValue(eventTitle);
+  const escapedLocation = escapeICSValue(clinic_address || clinicNameDisplay);
+
+  // Sanitize clinic name for PRODID field
+  // PRODID format is -//vendor//product//language, so // has special meaning
+  // Replace // with - to prevent breaking the PRODID format
+  const sanitizedClinicName = clinicNameDisplay.replace(/\//g, '-');
+
   // Create ICS content
   // DTSTAMP should be current UTC time
   const nowUTC = moment().utc().format('YYYYMMDDTHHmmss') + 'Z';
+  // Use clinic display name in PRODID instead of hardcoded "診所"
   const icsContent = `BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//診所小幫手//Appointment//EN
+PRODID:-//${sanitizedClinicName}//Appointment//EN
 BEGIN:VEVENT
 UID:appointment-${id}@clinicbot.com
 DTSTAMP:${nowUTC}
 DTSTART:${formatICSDate(start_time)}
 DTEND:${formatICSDate(end_time)}
-SUMMARY:${eventTitle}
-DESCRIPTION:${description}
-LOCATION:${clinic_address || clinicNameDisplay}
+SUMMARY:${escapedSummary}
+DESCRIPTION:${escapedDescription}
+LOCATION:${escapedLocation}
 STATUS:CONFIRMED
 END:VEVENT
 END:VCALENDAR`;
@@ -103,7 +136,8 @@ export const generateGoogleCalendarURL = (appointment: AppointmentData): string 
     end_time,
     notes,
     clinic_name,
-    clinic_address
+    clinic_address,
+    clinic_phone_number
   } = appointment;
 
   // Format dates for Google Calendar (YYYYMMDDTHHMMSS)
@@ -130,11 +164,24 @@ export const generateGoogleCalendarURL = (appointment: AppointmentData): string 
   const notesLabel = i18n.t('calendar.eventDescription.notes');
 
   // Build description
-  let description = `${clinicNameDisplay}\\n`;
-  description += `${practitionerLabel}\\n`;
+  // Use \n (single backslash) to create actual newline characters
+  // These will be properly URL encoded for Google Calendar
+  let description = `${clinicNameDisplay}\n`;
+  description += `${practitionerLabel}\n`;
   description += `${appointmentTypeLabel}`;
+
+  // Add address to description if available
+  if (clinic_address) {
+    description += `\n\n${i18n.t('calendar.eventDescription.address', { address: clinic_address })}`;
+  }
+
+  // Add phone number to description if available
+  if (clinic_phone_number) {
+    description += `\n${i18n.t('calendar.eventDescription.phone', { phone: clinic_phone_number })}`;
+  }
+
   if (notes) {
-    description += `\\n\\n${notesLabel}\\n${notes}`;
+    description += `\n\n${notesLabel}\n${notes}`;
   }
 
   // Create event title

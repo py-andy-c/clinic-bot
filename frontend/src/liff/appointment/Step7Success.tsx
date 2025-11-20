@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import moment from 'moment-timezone';
 import { logger } from '../../utils/logger';
@@ -6,6 +6,7 @@ import { useAppointmentStore } from '../../stores/appointmentStore';
 import { downloadAppointmentICS, generateGoogleCalendarURL } from '../../utils/icsGenerator';
 import { useModal } from '../../contexts/ModalContext';
 import { formatDateTime as formatDateTimeUtil } from '../../utils/calendarUtils';
+import { liffApiService } from '../../services/liffApi';
 
 const Step7Success: React.FC = () => {
   const { t } = useTranslation();
@@ -17,10 +18,41 @@ const Step7Success: React.FC = () => {
     patient,
     notes,
     reset,
+    clinicId,
     clinicDisplayName,
-    clinicAddress
+    clinicAddress,
+    clinicPhoneNumber,
+    setClinicInfo
   } = useAppointmentStore();
   const { alert: showAlert } = useModal();
+
+  // Fetch clinic info if not already loaded (handles timing issue where Step7Success
+  // might render before LiffApp's useEffect completes)
+  // Note: setClinicInfo is stable (Zustand action), so we can omit it from deps
+  // Race condition note: If user clicks "Add to Calendar" before fetch completes,
+  // calendar event will use fallback values (clinic name from translation), which is acceptable
+  useEffect(() => {
+    const fetchClinicInfoIfNeeded = async () => {
+      if (clinicId && !clinicDisplayName) {
+        try {
+          const clinicInfo = await liffApiService.getClinicInfo();
+          setClinicInfo(
+            clinicInfo.clinic_name,
+            clinicInfo.display_name,
+            clinicInfo.address,
+            clinicInfo.phone_number
+          );
+        } catch (error) {
+          logger.error('Failed to fetch clinic info in Step7Success:', error);
+          // Clinic info is not critical for calendar events (we have fallbacks),
+          // so we only log the error rather than showing user-facing feedback
+        }
+      }
+    };
+
+    fetchClinicInfoIfNeeded();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clinicId, clinicDisplayName]);
 
   const handleAddToCalendar = () => {
     if (!appointmentType || !createdAppointment || !patient) {
@@ -54,7 +86,10 @@ const Step7Success: React.FC = () => {
         end_time: endDateTimeTaiwan.format(), // Taiwan time with +08:00
       notes: notes || undefined,
       clinic_name: clinicDisplayName || t('success.clinicName'),
-      ...(clinicAddress && { clinic_address: clinicAddress }),
+      // Use explicit undefined instead of conditional spread for clarity and type safety
+      // This ensures the property exists even when null, making the data structure predictable
+      clinic_address: clinicAddress || undefined,
+      clinic_phone_number: clinicPhoneNumber || undefined,
     };
 
       // Use Google Calendar URL (works on all platforms - iOS, Android, Desktop)
@@ -92,7 +127,9 @@ const Step7Success: React.FC = () => {
           end_time: createdAppointment.end_time,
           notes: notes || undefined,
           clinic_name: clinicDisplayName || t('success.clinicName'),
-          ...(clinicAddress && { clinic_address: clinicAddress }),
+          // Use explicit undefined instead of conditional spread for clarity and type safety
+          clinic_address: clinicAddress || undefined,
+          clinic_phone_number: clinicPhoneNumber || undefined,
         };
     downloadAppointmentICS(appointmentData);
       } catch (fallbackError) {
