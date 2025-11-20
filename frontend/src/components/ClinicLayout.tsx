@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
 import { useModal } from '../contexts/ModalContext';
@@ -164,7 +164,7 @@ const GlobalWarnings: React.FC = () => {
     const currentPathname = location.pathname;
 
     // Settings pages that might affect warnings
-    const settingsPages = ['/clinic/settings', '/profile'];
+    const settingsPages = ['/admin/clinic/settings', '/admin/profile'];
 
     // Only refresh if navigating away from settings pages
     if (previousPathname && settingsPages.includes(previousPathname) && !settingsPages.includes(currentPathname)) {
@@ -223,9 +223,9 @@ const GlobalWarnings: React.FC = () => {
                   {!warnings.clinicWarnings.hasAppointmentTypes && isClinicAdmin && (
                     <div className="text-sm text-amber-700">
                       <strong>診所的預約功能未啟用：</strong>請前往{' '}
-                      <a href="/clinic/settings" className="text-amber-800 underline hover:text-amber-900">
+                      <Link to="/admin/clinic/settings" className="text-amber-800 underline hover:text-amber-900">
                         診所設定頁面
-                      </a>
+                      </Link>
                       {' '}設定診所提供的服務項目
                     </div>
                   )}
@@ -238,9 +238,9 @@ const GlobalWarnings: React.FC = () => {
                       {!warnings.practitionerWarnings.hasAppointmentTypes && warnings.practitionerWarnings.hasAvailability && '未設定個人的預約類型'}
                       {warnings.practitionerWarnings.hasAppointmentTypes && !warnings.practitionerWarnings.hasAvailability && '未設定診療時段'}
                       ，請前往{' '}
-                      <a href="/profile" className="text-amber-800 underline hover:text-amber-900">
+                      <Link to="/admin/profile" className="text-amber-800 underline hover:text-amber-900">
                         個人設定頁面
-                      </a>
+                      </Link>
                       {' '}設定
                     </div>
                   )}

@@ -163,7 +163,7 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
 
         {currentAvailableTypes.length === 0 && (
           <div className="text-center py-8 text-gray-500">
-            診所尚未設定任何預約類型，請至<Link to="/clinic/settings" className="text-primary-600 hover:text-primary-700 underline">診所設定頁面</Link>設定。
+            診所尚未設定任何預約類型，請至<Link to="/admin/clinic/settings" className="text-primary-600 hover:text-primary-700 underline">診所設定頁面</Link>設定。
           </div>
         )}
       </div>
