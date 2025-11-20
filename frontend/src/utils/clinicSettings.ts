@@ -79,6 +79,7 @@ export const getClinicSectionChanges = (current: ClinicSettings, original: Clini
     (current.booking_restriction_settings.step_size_minutes ?? 30) !== (original.booking_restriction_settings.step_size_minutes ?? 30) ||
     (current.booking_restriction_settings.max_future_appointments ?? 3) !== (original.booking_restriction_settings.max_future_appointments ?? 3) ||
     (current.booking_restriction_settings.max_booking_window_days ?? 90) !== (original.booking_restriction_settings.max_booking_window_days ?? 90) ||
+    (current.booking_restriction_settings.minimum_cancellation_hours_before ?? 24) !== (original.booking_restriction_settings.minimum_cancellation_hours_before ?? 24) ||
     (current.clinic_info_settings.require_birthday || false) !== (original.clinic_info_settings.require_birthday || false);
 
   return {

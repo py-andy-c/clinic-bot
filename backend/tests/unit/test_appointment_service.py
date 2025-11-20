@@ -649,12 +649,12 @@ class TestAppointmentServiceTaiwanTimezone:
         db_session.add(patient)
         db_session.commit()
 
-        # Create appointment
-        tomorrow = (taiwan_now() + timedelta(days=1)).date()
+        # Create appointment (more than 24 hours in the future to allow cancellation)
+        future_date = (taiwan_now() + timedelta(days=2)).date()
         event = create_calendar_event_with_clinic(
             db_session, practitioner, clinic,
             event_type="appointment",
-            event_date=tomorrow,
+            event_date=future_date,
             start_time=time(10, 0),
             end_time=time(10, 30)
         )

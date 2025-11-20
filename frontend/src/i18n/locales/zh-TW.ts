@@ -110,6 +110,7 @@ export default {
       loadPractitioners: '無法載入治療師列表，請稍後再試',
       loadAppointments: '無法載入預約記錄',
       cancelFailed: '取消預約失敗，請稍後再試',
+      cancelTooSoon: '預約必須在至少 {{hours}} 小時前取消',
       createFailed: '建立預約失敗，請稍後再試',
     },
   },

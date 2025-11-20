@@ -76,6 +76,7 @@ class BookingRestrictionSettings(BaseModel):
     step_size_minutes: int = 30
     max_future_appointments: int = 3
     max_booking_window_days: int = 90
+    minimum_cancellation_hours_before: int = 24
 
 
 class ClinicInfoSettings(BaseModel):
@@ -594,32 +595,23 @@ async def get_settings(
             "sunday": {"start": "09:00", "end": "18:00", "enabled": False},
         }
 
-        # Get validated settings to access chat_settings
+        # Get validated settings - use directly to ensure all fields are included automatically
+        # This approach is maintainable: adding new fields to Pydantic models automatically
+        # includes them in the API response without manual updates
         validated_settings = clinic.get_validated_settings()
         
+        # Convert validated settings to API response models (they have the same structure)
+        # This ensures type compatibility while maintaining automatic field inclusion
         return SettingsResponse(
             clinic_id=clinic.id,
             clinic_name=clinic.name,
             business_hours=business_hours,
             appointment_types=appointment_type_list,
-           notification_settings=NotificationSettings(
-               reminder_hours_before=clinic.reminder_hours_before
-           ),
-           booking_restriction_settings=BookingRestrictionSettings(
-               booking_restriction_type=clinic.booking_restriction_type,
-               minimum_booking_hours_ahead=clinic.minimum_booking_hours_ahead,
-               step_size_minutes=validated_settings.booking_restriction_settings.step_size_minutes,
-               max_future_appointments=validated_settings.booking_restriction_settings.max_future_appointments,
-               max_booking_window_days=validated_settings.booking_restriction_settings.max_booking_window_days
-           ),
-           clinic_info_settings=ClinicInfoSettings(
-               display_name=clinic.display_name,
-               address=clinic.address,
-               phone_number=clinic.phone_number,
-               appointment_type_instructions=clinic.appointment_type_instructions,
-               require_birthday=validated_settings.clinic_info_settings.require_birthday
-           ),
-           chat_settings=ChatSettings.model_validate(validated_settings.chat_settings.model_dump())
+            # Convert from models to API response models - automatically includes all fields
+            notification_settings=NotificationSettings.model_validate(validated_settings.notification_settings.model_dump()),
+            booking_restriction_settings=BookingRestrictionSettings.model_validate(validated_settings.booking_restriction_settings.model_dump()),
+            clinic_info_settings=ClinicInfoSettings.model_validate(validated_settings.clinic_info_settings.model_dump()),
+            chat_settings=ChatSettings.model_validate(validated_settings.chat_settings.model_dump())
         )
 
     except Exception as e:

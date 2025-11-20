@@ -110,6 +110,7 @@ export default {
       loadPractitioners: '治療師リストの読み込みに失敗しました。しばらくしてからもう一度お試しください',
       loadAppointments: '予約記録の読み込みに失敗しました',
       cancelFailed: '予約のキャンセルに失敗しました。しばらくしてからもう一度お試しください',
+      cancelTooSoon: '予約は少なくとも {{hours}} 時間前にキャンセルする必要があります',
       createFailed: '予約の作成に失敗しました。しばらくしてからもう一度お試しください',
     },
   },

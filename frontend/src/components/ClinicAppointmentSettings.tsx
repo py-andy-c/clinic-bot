@@ -69,6 +69,13 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
     });
   };
 
+  const handleMinimumCancellationHoursChange = (value: string) => {
+    onBookingRestrictionSettingsChange({
+      ...bookingRestrictionSettings,
+      minimum_cancellation_hours_before: value,
+    });
+  };
+
   const [showStepSizePopup, setShowStepSizePopup] = useState(false);
   const stepSizeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -318,6 +325,29 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
                 max="60"
                 disabled={!isClinicAdmin}
               />
+            </div>
+          </div>
+        </div>
+
+        {/* 取消預約限制 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            取消預約限制
+          </label>
+          <div className="space-y-4 max-w-xs">
+            <div>
+              <input
+                type="number"
+                value={bookingRestrictionSettings.minimum_cancellation_hours_before ?? 24}
+                onChange={(e) => handleMinimumCancellationHoursChange(e.target.value)}
+                className="input"
+                min="1"
+                max="168"
+                disabled={!isClinicAdmin}
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                患者必須在預約前至少幾小時取消（診所取消不受此限制）
+              </p>
             </div>
           </div>
         </div>

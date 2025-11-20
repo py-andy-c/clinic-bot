@@ -110,6 +110,7 @@ export default {
       loadPractitioners: 'Failed to load therapist list. Please try again later',
       loadAppointments: 'Failed to load appointment records',
       cancelFailed: 'Failed to cancel appointment. Please try again later',
+      cancelTooSoon: 'Appointment must be cancelled at least {{hours}} hours in advance',
       createFailed: 'Failed to create appointment. Please try again later',
     },
   },

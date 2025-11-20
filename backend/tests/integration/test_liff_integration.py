@@ -1071,15 +1071,15 @@ class TestLiffReturningUserFlow:
             )
             patient = response.json()
 
-            # Book appointment
-            tomorrow = (datetime.now() + timedelta(days=1)).date().isoformat()
+            # Book appointment (more than 24 hours in the future to allow cancellation)
+            future_date = (datetime.now() + timedelta(days=2)).date().isoformat()
             response = client.post(
                 "/api/liff/appointments",
                 json={
                     "patient_id": patient["patient_id"],  # Use patient_id from creation response
                     "appointment_type_id": appt_types[0].id,
                     "practitioner_id": practitioner.id,
-                    "start_time": f"{tomorrow}T16:00:00+08:00",
+                    "start_time": f"{future_date}T16:00:00+08:00",
                     "notes": "需要取消的預約"
                 }
             )

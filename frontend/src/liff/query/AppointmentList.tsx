@@ -56,9 +56,31 @@ const AppointmentList: React.FC = () => {
       await liffApiService.cancelAppointment(appointmentId);
       // Refresh the list
       loadAppointments();
-    } catch (err) {
+    } catch (err: unknown) {
       logger.error('Failed to cancel appointment:', err);
-      await showAlert(t('appointment.errors.cancelFailed'), t('appointment.cancelFailedTitle'));
+      
+      // Check for structured error response
+      const errorDetail = (err as any)?.response?.data?.detail;
+      if (errorDetail && typeof errorDetail === 'object' && errorDetail.error === 'cancellation_too_soon') {
+        // Use structured error response
+        const hours = errorDetail.minimum_hours || 24;
+        await showAlert(t('appointment.errors.cancelTooSoon', { hours }), t('appointment.cancelFailedTitle'));
+      } else {
+        // Fallback: try to extract from error message (for backward compatibility)
+        const errorMessage = typeof errorDetail === 'string' ? errorDetail : (err as any)?.response?.data?.detail || (err as any)?.message || '';
+        // Check for numeric pattern that works across languages
+        const hoursMatch = errorMessage.match(/(\d+)/);
+        if (hoursMatch && (
+          errorMessage.includes('取消') || 
+          errorMessage.includes('cancel') || 
+          errorMessage.includes('キャンセル')
+        )) {
+          const hours = hoursMatch[1];
+          await showAlert(t('appointment.errors.cancelTooSoon', { hours }), t('appointment.cancelFailedTitle'));
+        } else {
+          await showAlert(t('appointment.errors.cancelFailed'), t('appointment.cancelFailedTitle'));
+        }
+      }
     }
   };
 

@@ -72,8 +72,8 @@ class TestMaxFutureAppointmentsLimit:
         )
         db_session.add(pat)
 
-        # Create availability for multiple days (tomorrow, day 2, day 3)
-        for day_offset in [1, 2, 3]:
+        # Create availability for multiple days (tomorrow, day 2, day 3, day 4)
+        for day_offset in [1, 2, 3, 4]:
             target_date = (taiwan_now() + timedelta(days=day_offset)).date()
             day_of_week = target_date.weekday()
             create_practitioner_availability_with_clinic(
@@ -99,8 +99,8 @@ class TestMaxFutureAppointmentsLimit:
         db_session.add(patient)
         db_session.commit()
 
-        # Create first appointment - should succeed
-        start_time1 = taiwan_now() + timedelta(days=1)
+        # Create first appointment - should succeed (more than 24 hours away to allow cancellation)
+        start_time1 = taiwan_now() + timedelta(days=2)
         start_time1 = start_time1.replace(hour=10, minute=0, second=0, microsecond=0)
 
         result1 = AppointmentService.create_appointment(
@@ -115,8 +115,8 @@ class TestMaxFutureAppointmentsLimit:
         )
         assert result1["status"] == "confirmed"
 
-        # Create second appointment - should succeed
-        start_time2 = taiwan_now() + timedelta(days=2)
+        # Create second appointment - should succeed (more than 24 hours away to allow cancellation)
+        start_time2 = taiwan_now() + timedelta(days=3)
         start_time2 = start_time2.replace(hour=11, minute=0, second=0, microsecond=0)
 
         result2 = AppointmentService.create_appointment(
@@ -132,7 +132,7 @@ class TestMaxFutureAppointmentsLimit:
         assert result2["status"] == "confirmed"
 
         # Try to create third appointment - should fail due to limit
-        start_time3 = taiwan_now() + timedelta(days=3)
+        start_time3 = taiwan_now() + timedelta(days=4)
         start_time3 = start_time3.replace(hour=12, minute=0, second=0, microsecond=0)
 
         with pytest.raises(HTTPException) as exc_info:
@@ -150,6 +150,7 @@ class TestMaxFutureAppointmentsLimit:
         assert "最多只能有 2 個未來預約" in exc_info.value.detail
 
         # Cancel one appointment and try again - should succeed
+        # Note: The appointment is 2 days away, which is more than 24 hours, so cancellation is allowed.
         AppointmentService.cancel_appointment(
             db_session,
             appointment_id=result1["appointment_id"],

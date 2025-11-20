@@ -33,6 +33,9 @@ export interface Clinic {
       booking_restriction_type?: string;
       minimum_booking_hours_ahead?: number;
       step_size_minutes?: number;
+      max_future_appointments?: number;
+      max_booking_window_days?: number;
+      minimum_cancellation_hours_before?: number;
     };
     clinic_info_settings?: {
       display_name?: string | null;

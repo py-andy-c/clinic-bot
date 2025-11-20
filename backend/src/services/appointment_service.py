@@ -520,6 +520,48 @@ class AppointmentService:
                 detail="預約不存在"
             )
 
+        # Validate cancellation restriction for patients only (clinic cancellations are not restricted)
+        # Check this BEFORE status check to fail fast with clear error message
+        if cancelled_by == 'patient':
+            # Use relationship if available, otherwise query
+            clinic = appointment.patient.clinic if hasattr(appointment.patient, 'clinic') and appointment.patient.clinic else None
+            if not clinic:
+                clinic = db.query(Clinic).filter(Clinic.id == appointment.patient.clinic_id).first()
+            
+            if clinic:
+                settings = clinic.get_validated_settings()
+                booking_settings = settings.booking_restriction_settings
+                minimum_cancellation_hours = booking_settings.minimum_cancellation_hours_before
+                
+                # Get appointment start time from calendar event
+                calendar_event = appointment.calendar_event
+                if not calendar_event or not calendar_event.start_time or not calendar_event.date:
+                    logger.warning(
+                        f"Appointment {appointment_id} missing calendar event data, "
+                        f"cannot validate cancellation restriction. Allowing cancellation."
+                    )
+                    # Allow cancellation but log the issue for investigation
+                else:
+                    # Combine date and time to create datetime
+                    appointment_start = datetime.combine(calendar_event.date, calendar_event.start_time)
+                    # Ensure timezone-aware in Taiwan timezone
+                    appointment_start = appointment_start.replace(tzinfo=TAIWAN_TZ)
+                    
+                    now = taiwan_now()
+                    time_until_appointment = appointment_start - now
+                    hours_until_appointment = time_until_appointment.total_seconds() / 3600
+                    
+                    if hours_until_appointment < minimum_cancellation_hours:
+                        # Return structured error response for better frontend handling
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail={
+                                "error": "cancellation_too_soon",
+                                "message": f"預約必須在至少 {minimum_cancellation_hours} 小時前取消",
+                                "minimum_hours": minimum_cancellation_hours
+                            }
+                        )
+
         # Check if appointment is already cancelled - if so, return success (idempotent)
         if appointment.status in ['canceled_by_patient', 'canceled_by_clinic']:
             logger.info(f"Appointment {appointment_id} already cancelled with status {appointment.status}, returning success")
