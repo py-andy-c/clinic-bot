@@ -5,6 +5,8 @@
  */
 
 import moment from 'moment-timezone';
+import i18n from '../i18n';
+import { logger } from './logger';
 
 const TAIWAN_TIMEZONE = 'Asia/Taipei';
 
@@ -28,8 +30,17 @@ export const getDateString = (date: Date): string => {
  */
 export const formatDateTime = (dateTime: Date | string): string => {
   const taiwanMoment = moment(dateTime).tz(TAIWAN_TIMEZONE);
-  const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
-  const weekday = weekdayNames[taiwanMoment.day()];
+  const weekdayAbbr = i18n.t('datetime.weekdayAbbr', { returnObjects: true }) as string[];
+  // Validate weekday abbreviations array
+  if (!Array.isArray(weekdayAbbr) || weekdayAbbr.length !== 7) {
+    logger.warn('Invalid weekday abbreviations, using fallback');
+    const fallback = ['日', '一', '二', '三', '四', '五', '六'];
+    const weekday = fallback[taiwanMoment.day()] || '';
+    const dateStr = taiwanMoment.format('MM/DD');
+    const timeStr = taiwanMoment.format('h:mm A');
+    return `${dateStr} (${weekday}) ${timeStr}`;
+  }
+  const weekday = weekdayAbbr[taiwanMoment.day()] || '';
   const dateStr = taiwanMoment.format('MM/DD');
   const timeStr = taiwanMoment.format('h:mm A');
   return `${dateStr} (${weekday}) ${timeStr}`;
@@ -42,8 +53,16 @@ export const formatDateTime = (dateTime: Date | string): string => {
 export const formatAppointmentTime = (start: Date, end: Date): string => {
   const startMoment = moment(start).tz(TAIWAN_TIMEZONE);
   const endMoment = moment(end).tz(TAIWAN_TIMEZONE);
-  const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
-  const weekday = weekdayNames[startMoment.day()];
+  const weekdayAbbr = i18n.t('datetime.weekdayAbbr', { returnObjects: true }) as string[];
+  // Validate weekday abbreviations array
+  if (!Array.isArray(weekdayAbbr) || weekdayAbbr.length !== 7) {
+    logger.warn('Invalid weekday abbreviations, using fallback');
+    const fallback = ['日', '一', '二', '三', '四', '五', '六'];
+    const weekday = fallback[startMoment.day()] || '';
+    const dateStr = `${startMoment.format('MM/DD')} (${weekday})`;
+    return `${dateStr} ${startMoment.format('h:mm A')} - ${endMoment.format('h:mm A')}`;
+  }
+  const weekday = weekdayAbbr[startMoment.day()] || '';
   const dateStr = `${startMoment.format('MM/DD')} (${weekday})`;
   return `${dateStr} ${startMoment.format('h:mm A')} - ${endMoment.format('h:mm A')}`;
 };
@@ -178,13 +197,29 @@ export const isToday = (date: Date): boolean => {
 };
 
 /**
- * Format month and year in Chinese locale
+ * Format month and year using i18n
  */
 export const formatMonthYear = (date: Date): string => {
-  return date.toLocaleDateString('zh-TW', {
-    year: 'numeric',
-    month: 'long'
-  });
+  const monthNames = i18n.t('datetime.monthNames', { returnObjects: true }) as string[];
+  // Validate month names array
+  if (!Array.isArray(monthNames) || monthNames.length !== 12) {
+    logger.warn('Invalid month names, using fallback');
+    const fallback = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+    const monthIndex = date.getMonth();
+    const year = date.getFullYear();
+    const monthName = fallback[monthIndex] || '';
+    return `${year}年${monthName}`;
+  }
+  const monthIndex = date.getMonth();
+  const year = date.getFullYear();
+  const monthName = monthNames[monthIndex] || '';
+  // For English, format as "January 2024", for Chinese/Japanese use "2024年一月"
+  const currentLang = i18n.language;
+  if (currentLang === 'en') {
+    return `${monthName} ${year}`;
+  } else {
+    return `${year}年${monthName}`;
+  }
 };
 
 /**

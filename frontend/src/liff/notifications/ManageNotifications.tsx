@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
@@ -19,15 +20,16 @@ interface Notification {
   max_date: string;
 }
 
-const TIME_WINDOW_LABELS: Record<string, string> = {
-  morning: '上午',
-  afternoon: '下午',
-  evening: '晚上',
-};
-
 const ManageNotifications: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { confirm: showConfirm, alert: showAlert } = useModal();
+
+  const TIME_WINDOW_LABELS: Record<string, string> = {
+    morning: t('notifications.manage.timeWindow.morning'),
+    afternoon: t('notifications.manage.timeWindow.afternoon'),
+    evening: t('notifications.manage.timeWindow.evening'),
+  };
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,16 +52,20 @@ const ManageNotifications: React.FC = () => {
       setNotifications(response.notifications);
     } catch (err) {
       logger.error('Failed to load notifications:', err);
-      setError('無法載入提醒列表，請稍後再試');
+      setError(t('notifications.manage.loadFailed'));
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleDelete = async (notification: Notification) => {
+    const confirmMessage = t('notifications.manage.deleteConfirm', {
+      appointmentType: notification.appointment_type_name,
+      practitioner: notification.practitioner_name || t('notifications.manage.notSpecified')
+    });
     const confirmed = await showConfirm(
-      '確認刪除',
-      `確定要刪除此提醒嗎？\n\n預約類型：${notification.appointment_type_name}\n治療師：${notification.practitioner_name || '不指定'}`
+      confirmMessage,
+      t('notifications.manage.deleteConfirmTitle')
     );
 
     if (!confirmed) return;
@@ -67,11 +73,11 @@ const ManageNotifications: React.FC = () => {
     try {
       setDeletingIds(prev => new Set(prev).add(notification.id));
       await liffApiService.deleteAvailabilityNotification(notification.id);
-      await showAlert('成功', '提醒已刪除');
+      await showAlert(t('notifications.manage.deleteSuccess'), t('notifications.manage.deleteSuccessTitle'));
       await loadNotifications();
     } catch (err) {
       logger.error('Failed to delete notification:', err);
-      await showAlert('錯誤', '刪除提醒失敗，請稍後再試');
+      await showAlert(t('notifications.manage.deleteFailed'), t('notifications.manage.deleteFailedTitle'));
     } finally {
       setDeletingIds(prev => {
         const next = new Set(prev);
@@ -83,7 +89,8 @@ const ManageNotifications: React.FC = () => {
 
   const formatDateDisplay = (dateStr: string): string => {
     const date = moment.tz(dateStr, 'Asia/Taipei');
-    return date.format('M月D日');
+    const format = t('datetime.monthDayFormat');
+    return date.format(format);
   };
 
   const formatTimeWindow = (timeWindow: string): string => {
@@ -139,16 +146,16 @@ const ManageNotifications: React.FC = () => {
               />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">尚無提醒</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">{t('notifications.manage.noNotifications')}</h3>
           <p className="text-sm text-gray-500 mb-6">
-            您還沒有設定任何空位提醒
+            {t('notifications.manage.noNotificationsDesc')}
           </p>
         </div>
         <button
           onClick={handleAddNew}
           className="w-full py-3 px-4 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors"
         >
-          新增
+          {t('notifications.manage.add')}
         </button>
       </div>
     );
@@ -158,13 +165,13 @@ const ManageNotifications: React.FC = () => {
     <div className="px-4 py-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <p className="text-sm text-gray-500">您目前有 {notifications.length} 個提醒</p>
+          <p className="text-sm text-gray-500">{t('notifications.manage.count', { count: notifications.length })}</p>
         </div>
         <button
           onClick={handleAddNew}
           className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors whitespace-nowrap"
         >
-          新增
+          {t('notifications.manage.add')}
         </button>
       </div>
 
@@ -184,7 +191,7 @@ const ManageNotifications: React.FC = () => {
                     {notification.appointment_type_name}
                   </h3>
                   <p className="text-sm text-gray-500">
-                    治療師：{notification.practitioner_name || '不指定'}
+                    {t('notifications.manage.practitioner')}{notification.practitioner_name || t('notifications.manage.notSpecified')}
                   </p>
                 </div>
                 <button
@@ -193,7 +200,7 @@ const ManageNotifications: React.FC = () => {
                   className={`ml-4 p-2 text-red-600 hover:bg-red-50 rounded transition-colors ${
                     isDeleting ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
-                  aria-label="刪除提醒"
+                  aria-label={t('notifications.manage.deleteLabel')}
                 >
                   {isDeleting ? (
                     <LoadingSpinner size="sm" />
@@ -217,19 +224,19 @@ const ManageNotifications: React.FC = () => {
 
               <div className="border-t border-gray-100 pt-3">
                 <div className="text-sm text-gray-600 mb-2">
-                  <span className="font-medium">提醒時段：</span>
+                  <span className="font-medium">{t('notifications.manage.timeWindows')}</span>
                 </div>
                 <div className="space-y-1">
                   {Object.entries(groupedWindows).map(([date, windows]) => (
                     <div key={date} className="text-sm text-gray-700">
-                      <span className="font-medium">{formatDateDisplay(date)}：</span>
-                      <span className="ml-2">{windows.join('、')}</span>
+                      <span className="font-medium">{formatDateDisplay(date)}{t('datetime.colon')}</span>
+                      <span className="ml-2">{windows.join(t('datetime.listSeparator'))}</span>
                     </div>
                   ))}
                 </div>
-                <div className="mt-2 text-xs text-gray-500">
-                  建立時間：{moment.tz(notification.created_at, 'Asia/Taipei').format('YYYY年M月D日')}
-                </div>
+                       <div className="mt-2 text-xs text-gray-500">
+                         {t('notifications.manage.createdAt')} {moment.tz(notification.created_at, 'Asia/Taipei').format(t('datetime.fullDateFormat'))}
+                       </div>
               </div>
             </div>
           );

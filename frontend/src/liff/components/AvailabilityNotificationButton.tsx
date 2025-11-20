@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { preserveQueryParams } from '../../utils/urlUtils';
 import { useAppointmentStore } from '../../stores/appointmentStore';
@@ -18,6 +19,7 @@ const AvailabilityNotificationButton: React.FC<AvailabilityNotificationButtonPro
   className = '',
   compact = false,
 }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { appointmentTypeId, practitionerId } = useAppointmentStore();
 
@@ -42,7 +44,7 @@ const AvailabilityNotificationButton: React.FC<AvailabilityNotificationButtonPro
         onClick={handleClick}
         className={`px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors ${className}`}
       >
-        設定空位提醒
+        {t('notifications.button.setup')}
       </button>
     );
   }
@@ -61,16 +63,16 @@ const AvailabilityNotificationButton: React.FC<AvailabilityNotificationButtonPro
         </div>
         <div className="ml-3 flex-1">
           <h4 className="text-sm font-medium text-blue-900 mb-1">
-            找不到合適時間？
+            {t('notifications.button.noSuitableTime')}
           </h4>
           <p className="text-sm text-blue-700 mb-3">
-            設定空位提醒，當有可用時段時我們會透過 LINE 通知您
+            {t('notifications.button.description')}
           </p>
           <button
             onClick={handleClick}
             className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
           >
-            設定空位提醒
+            {t('notifications.button.setup')}
           </button>
         </div>
       </div>

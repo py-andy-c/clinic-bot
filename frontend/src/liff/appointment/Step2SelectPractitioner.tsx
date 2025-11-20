@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { useAppointmentStore } from '../../stores/appointmentStore';
@@ -6,6 +7,7 @@ import { Practitioner } from '../../types';
 import { liffApiService } from '../../services/liffApi';
 
 const Step2SelectPractitioner: React.FC = () => {
+  const { t } = useTranslation();
   const { appointmentTypeId, setPractitioner, clinicId } = useAppointmentStore();
   const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,7 +24,7 @@ const Step2SelectPractitioner: React.FC = () => {
         setPractitioners(response.practitioners);
       } catch (err) {
         logger.error('Failed to load practitioners:', err);
-        setError('無法載入治療師列表，請稍後再試');
+        setError(t('practitioner.errors.loadFailed'));
       } finally {
         setIsLoading(false);
       }
@@ -55,7 +57,7 @@ const Step2SelectPractitioner: React.FC = () => {
     <div className="px-4 py-6">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          選擇治療師
+          {t('practitioner.selectTitle')}
         </h2>
       </div>
 
@@ -68,9 +70,9 @@ const Step2SelectPractitioner: React.FC = () => {
           >
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-medium text-gray-900">不指定治療師</h3>
+                <h3 className="font-medium text-gray-900">{t('practitioner.notSpecified')}</h3>
                 <p className="text-sm text-gray-500">
-                  系統將自動安排最適合的治療師
+                  {t('practitioner.notSpecifiedDesc')}
                 </p>
               </div>
               <div className="text-primary-600">
@@ -119,9 +121,9 @@ const Step2SelectPractitioner: React.FC = () => {
 
         {practitioners.length === 0 && (
           <div className="text-center py-8">
-            <p className="text-gray-500">目前沒有治療師提供此服務</p>
+            <p className="text-gray-500">{t('practitioner.noPractitioners')}</p>
             <p className="text-sm text-gray-400 mt-2">
-              請返回重新選擇預約類型
+              {t('practitioner.noPractitionersDesc')}
             </p>
           </div>
         )}

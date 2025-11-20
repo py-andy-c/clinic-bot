@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import moment from 'moment-timezone';
 import { logger } from '../../utils/logger';
@@ -24,21 +25,22 @@ interface DateTimeWindowEntry {
 const MAX_TIME_WINDOWS = 10;
 const MAX_DAYS_AHEAD = 30;
 
-const TIME_WINDOW_LABELS: Record<TimeWindow, string> = {
-  morning: '上午',
-  afternoon: '下午',
-  evening: '晚上',
-};
-
-const TIME_WINDOW_DESCRIPTIONS: Record<TimeWindow, string> = {
-  morning: '08:00-12:00',
-  afternoon: '12:00-18:00',
-  evening: '18:00-22:00',
-};
-
 const AddNotification: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  const TIME_WINDOW_LABELS: Record<TimeWindow, string> = {
+    morning: t('notifications.add.timeWindow.morning'),
+    afternoon: t('notifications.add.timeWindow.afternoon'),
+    evening: t('notifications.add.timeWindow.evening'),
+  };
+
+  const TIME_WINDOW_DESCRIPTIONS: Record<TimeWindow, string> = {
+    morning: t('notifications.add.timeWindow.morningDesc'),
+    afternoon: t('notifications.add.timeWindow.afternoonDesc'),
+    evening: t('notifications.add.timeWindow.eveningDesc'),
+  };
   const { clinicId, appointmentTypeId, practitionerId } = useAppointmentStore();
   
   // Pre-fill from URL params (when redirected from appointment flow)
@@ -78,7 +80,7 @@ const AddNotification: React.FC = () => {
         setAppointmentTypes(types);
       } catch (err) {
         logger.error('Failed to load appointment types:', err);
-        setError('無法載入預約類型，請稍後再試');
+        setError(t('appointment.errors.loadTypes'));
       } finally {
         setIsLoading(false);
       }
@@ -129,7 +131,7 @@ const AddNotification: React.FC = () => {
       // Check total time windows limit
       const totalWindows = selectedDates.reduce((sum, d) => sum + d.timeWindows.length, 0);
       if (totalWindows >= MAX_TIME_WINDOWS) {
-        setError(`最多只能選擇 ${MAX_TIME_WINDOWS} 個時段`);
+        setError(t('notifications.add.maxTimeWindows', { max: MAX_TIME_WINDOWS }));
         return;
       }
       // Add new date entry
@@ -148,7 +150,7 @@ const AddNotification: React.FC = () => {
       const isSelected = entry.timeWindows.includes(timeWindow);
       
       if (!isSelected && totalWindows >= MAX_TIME_WINDOWS) {
-        setError(`最多只能選擇 ${MAX_TIME_WINDOWS} 個時段`);
+        setError(t('notifications.add.maxTimeWindows', { max: MAX_TIME_WINDOWS }));
         return prev;
       }
       
@@ -187,7 +189,7 @@ const AddNotification: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!selectedAppointmentTypeId) {
-      setError('請選擇預約類型');
+      setError(t('notifications.add.selectAppointmentType'));
       return;
     }
 
@@ -200,7 +202,7 @@ const AddNotification: React.FC = () => {
     }
 
     if (timeWindows.length === 0) {
-      setError('請至少選擇一個時段');
+      setError(t('notifications.add.selectAtLeastOne'));
       return;
     }
 
@@ -219,7 +221,7 @@ const AddNotification: React.FC = () => {
       navigate(newUrl);
     } catch (err: any) {
       logger.error('Failed to create notification:', err);
-      const errorMessage = err.response?.data?.detail || '建立提醒失敗，請稍後再試';
+      const errorMessage = err.response?.data?.detail || t('notifications.add.createFailed');
       setError(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -228,9 +230,10 @@ const AddNotification: React.FC = () => {
 
   const formatDateDisplay = (dateStr: string): string => {
     const date = moment.tz(dateStr, 'Asia/Taipei');
-    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
-    const weekday = weekdays[date.day()];
-    return `${date.format('M月D日')}(${weekday})`;
+    const dayNames = t('datetime.dayNames', { returnObjects: true }) as string[];
+    const weekday = dayNames[date.day()];
+    const monthDayFormat = t('datetime.monthDayFormat');
+    return `${date.format(monthDayFormat)}(${weekday})`;
   };
 
   const isDateSelected = (date: Date): boolean => {
@@ -255,7 +258,7 @@ const AddNotification: React.FC = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
-  const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+  const dayNames = t('datetime.dayNames', { returnObjects: true }) as string[];
   const totalTimeWindows = selectedDates.reduce((sum, d) => sum + d.timeWindows.length, 0);
 
   if (isLoading) {
@@ -277,14 +280,14 @@ const AddNotification: React.FC = () => {
   return (
     <div className="px-4 py-6">
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">新增提醒</h2>
-        <p className="text-sm text-gray-500">當有可用時段時，我們會透過 LINE 通知您</p>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">{t('notifications.add.title')}</h2>
+        <p className="text-sm text-gray-500">{t('notifications.add.description')}</p>
       </div>
 
       {/* Appointment Type Selection */}
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          預約類型 <span className="text-red-500">*</span>
+          {t('notifications.add.appointmentType')} <span className="text-red-500">{t('notifications.add.required')}</span>
         </label>
         <div className="space-y-2">
           {appointmentTypes.map(type => (
@@ -302,7 +305,7 @@ const AddNotification: React.FC = () => {
               }`}
             >
               <div className="font-medium text-gray-900">{type.name}</div>
-              <div className="text-sm text-gray-500">{type.duration_minutes} 分鐘</div>
+              <div className="text-sm text-gray-500">{t('notifications.add.minutes', { minutes: type.duration_minutes })}</div>
             </button>
           ))}
         </div>
@@ -312,7 +315,7 @@ const AddNotification: React.FC = () => {
       {selectedAppointmentTypeId && (
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            治療師
+            {t('notifications.add.practitioner')}
           </label>
           <div className="space-y-2">
             {practitioners.length > 1 && (
@@ -324,8 +327,8 @@ const AddNotification: React.FC = () => {
                     : 'border-gray-200 bg-white hover:border-gray-300'
                 }`}
               >
-                <div className="font-medium text-gray-900">不指定</div>
-                <div className="text-sm text-gray-500">系統將自動安排最適合的治療師</div>
+                <div className="font-medium text-gray-900">{t('practitioner.notSpecified')}</div>
+                <div className="text-sm text-gray-500">{t('practitioner.notSpecifiedDesc')}</div>
               </button>
             )}
             {practitioners.map(practitioner => (
@@ -349,13 +352,13 @@ const AddNotification: React.FC = () => {
       {selectedAppointmentTypeId && (
         <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            選擇日期與時段 <span className="text-red-500">*</span>
+            {t('notifications.add.selectDateTime')} <span className="text-red-500">{t('notifications.add.required')}</span>
             <span className="text-sm font-normal text-gray-500 ml-2">
               ({totalTimeWindows}/{MAX_TIME_WINDOWS})
             </span>
           </label>
           <p className="text-sm text-gray-500 mb-4">
-            點選日期後選擇時段，最多可選擇 {MAX_TIME_WINDOWS} 個時段
+            {t('notifications.add.selectDateTimeDesc', { max: MAX_TIME_WINDOWS })}
           </p>
 
           {/* Date Picker Calendar */}
@@ -365,7 +368,7 @@ const AddNotification: React.FC = () => {
               <button
                 onClick={handlePrevMonth}
                 className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                aria-label="上個月"
+                aria-label={t('notifications.add.prevMonth')}
               >
                 <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -377,7 +380,7 @@ const AddNotification: React.FC = () => {
               <button
                 onClick={handleNextMonth}
                 className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                aria-label="下個月"
+                aria-label={t('notifications.add.nextMonth')}
               >
                 <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -445,7 +448,7 @@ const AddNotification: React.FC = () => {
                     <button
                       onClick={() => removeDateEntry(index)}
                       className="text-red-600 hover:text-red-700 p-1"
-                      aria-label="移除日期"
+                      aria-label={t('notifications.add.removeDate')}
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -503,7 +506,7 @@ const AddNotification: React.FC = () => {
               : 'bg-primary-600 text-white hover:bg-primary-700'
           }`}
         >
-          {isSubmitting ? '建立中...' : '建立提醒'}
+          {isSubmitting ? t('notifications.add.creating') : t('notifications.add.createButton')}
         </button>
       </div>
     </div>

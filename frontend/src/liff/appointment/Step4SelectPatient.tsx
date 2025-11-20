@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner } from '../../components/shared';
 import { ApiErrorType, getErrorMessage } from '../../types';
@@ -8,6 +9,7 @@ import { liffApiService } from '../../services/liffApi';
 import { PatientForm, PatientFormData } from '../components/PatientForm';
 
 const Step4SelectPatient: React.FC = () => {
+  const { t } = useTranslation();
   const { setPatient, clinicId } = useAppointmentStore();
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -64,7 +66,7 @@ const Step4SelectPatient: React.FC = () => {
     
     if (maxAllowed > 0 && futureCount >= maxAllowed) {
       // Don't allow selection - show error message
-      setError(`此就診人已有 ${futureCount} 個未來預約，最多只能有 ${maxAllowed} 個未來預約。請先取消部分預約後再試。`);
+      setError(t('patient.errors.maxAppointmentsReached', { count: futureCount, max: maxAllowed }));
       return;
     }
     
@@ -118,7 +120,7 @@ const Step4SelectPatient: React.FC = () => {
     <div className="px-4 py-6">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          選擇就診人
+          {t('appointment.steps.selectPatient')}
         </h2>
       </div>
 
@@ -151,7 +153,7 @@ const Step4SelectPatient: React.FC = () => {
                 </h3>
                 {isAtLimit && (
                   <span className="text-xs text-red-600">
-                    (已達預約上限: {futureCount}/{maxAllowed})
+                    {t('patient.errors.appointmentLimit', { current: futureCount, max: maxAllowed })}
                   </span>
                 )}
               </div>
@@ -168,14 +170,14 @@ const Step4SelectPatient: React.FC = () => {
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              新增就診人
+              {t('patient.management.addPatient')}
             </div>
           </button>
         )}
 
         {showAddForm && (
           <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <h3 className="font-medium text-gray-900 mb-3">新增就診人</h3>
+            <h3 className="font-medium text-gray-900 mb-3">{t('patient.management.addPatient')}</h3>
             <PatientForm
               clinicId={clinicId}
               requireBirthday={requireBirthday}

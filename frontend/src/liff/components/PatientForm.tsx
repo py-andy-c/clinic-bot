@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
 import { NameWarning, DateInput } from '../../components/shared';
 import { validatePhoneNumber } from '../../utils/phoneValidation';
@@ -30,18 +31,22 @@ export const PatientForm: React.FC<PatientFormProps> = ({
   onSubmit,
   onCancel,
   initialData,
-  submitButtonText = '確認',
-  cancelButtonText = '取消',
+  submitButtonText,
+  cancelButtonText,
   showCancelButton = true,
   error: externalError,
   isLoading = false,
 }) => {
+  const { t } = useTranslation();
   const [fullName, setFullName] = useState(initialData?.full_name || '');
   const [phoneNumber, setPhoneNumber] = useState(initialData?.phone_number || '');
   const [birthday, setBirthday] = useState(initialData?.birthday || '');
   const [requireBirthday, setRequireBirthday] = useState(requireBirthdayProp || false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const defaultSubmitText = submitButtonText || t('common.confirm');
+  const defaultCancelText = cancelButtonText || t('common.cancel');
 
   // Fetch clinic settings if requireBirthday is not provided
   useEffect(() => {
@@ -72,7 +77,7 @@ export const PatientForm: React.FC<PatientFormProps> = ({
 
     // Validate phone number
     if (!phoneNumber.trim()) {
-      setError('請輸入手機號碼');
+      setError(t('patient.form.phone.error.required'));
       return;
     }
 
@@ -84,7 +89,7 @@ export const PatientForm: React.FC<PatientFormProps> = ({
 
     // Validate required birthday
     if (requireBirthday && !birthday.trim()) {
-      setError('請輸入生日');
+      setError(t('patient.form.birthday.error.required'));
       return;
     }
 
@@ -124,7 +129,7 @@ export const PatientForm: React.FC<PatientFormProps> = ({
         type="text"
         value={fullName}
         onChange={(e) => setFullName(e.target.value)}
-        placeholder="請輸入姓名"
+        placeholder={t('patient.form.name.placeholder')}
         className="w-full px-3 py-2 border border-gray-300 rounded-md mb-2"
       />
       <div className="mb-3">
@@ -134,13 +139,13 @@ export const PatientForm: React.FC<PatientFormProps> = ({
         type="tel"
         value={phoneNumber}
         onChange={(e) => setPhoneNumber(e.target.value)}
-        placeholder="請輸入手機號碼 (0912345678)"
+        placeholder={t('patient.form.phone.placeholder')}
         className="w-full px-3 py-2 border border-gray-300 rounded-md mb-3"
       />
       {requireBirthday && (
         <div className="mb-3">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            生日
+            {t('patient.form.birthday.label')}
           </label>
           <DateInput
             value={birthday}
@@ -160,14 +165,14 @@ export const PatientForm: React.FC<PatientFormProps> = ({
           disabled={isDisabled}
           className="flex-1 bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 disabled:opacity-50"
         >
-          {isSubmitting ? '處理中...' : submitButtonText}
+          {isSubmitting ? t('common.processing') : defaultSubmitText}
         </button>
         {showCancelButton && (
           <button
             onClick={handleCancel}
             className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200"
           >
-            {cancelButtonText}
+            {defaultCancelText}
           </button>
         )}
       </div>

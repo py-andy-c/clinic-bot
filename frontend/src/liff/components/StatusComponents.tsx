@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 export const LoadingSpinner: React.FC = () => (
   <div
@@ -11,7 +12,9 @@ export const LoadingSpinner: React.FC = () => (
   </div>
 );
 
-export const ErrorMessage: React.FC<{ message: string; onRetry?: () => void }> = ({ message, onRetry }) => (
+export const ErrorMessage: React.FC<{ message: string; onRetry?: () => void }> = ({ message, onRetry }) => {
+  const { t } = useTranslation();
+  return (
   <div
     className="min-h-screen flex items-center justify-center p-4"
     role="alert"
@@ -19,21 +22,24 @@ export const ErrorMessage: React.FC<{ message: string; onRetry?: () => void }> =
   >
     <div className="text-center">
       <div className="text-red-500 text-6xl mb-4" aria-hidden="true">⚠️</div>
-      <h1 className="text-xl font-bold text-gray-900 mb-4">發生錯誤</h1>
+        <h1 className="text-xl font-bold text-gray-900 mb-4">{t('status.error')}</h1>
       <p className="text-gray-600 mb-6">{message}</p>
       {onRetry && (
         <button
           onClick={onRetry}
           className="bg-primary-600 text-white px-6 py-2 rounded-md hover:bg-primary-700"
         >
-          重試
+            {t('common.retry')}
         </button>
       )}
     </div>
   </div>
 );
+};
 
-export const InvalidAccess: React.FC = () => (
+export const InvalidAccess: React.FC = () => {
+  const { t } = useTranslation();
+  return (
   <div
     className="min-h-screen flex items-center justify-center p-4"
     role="alert"
@@ -41,10 +47,11 @@ export const InvalidAccess: React.FC = () => (
   >
     <div className="text-center">
       <div className="text-red-500 text-6xl mb-4" aria-hidden="true">🚫</div>
-      <h1 className="text-xl font-bold text-gray-900 mb-4">存取無效</h1>
+        <h1 className="text-xl font-bold text-gray-900 mb-4">{t('status.invalidAccess')}</h1>
       <p className="text-gray-600 mb-6">
-        請從診所的LINE官方帳號進入此應用程式
+          {t('status.invalidAccessMessage')}
       </p>
     </div>
   </div>
 );
+};

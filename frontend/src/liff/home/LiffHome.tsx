@@ -1,12 +1,15 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { preserveQueryParams } from '../../utils/urlUtils';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { LiffNavigationState } from '../../types/liffNavigation';
+import { LanguageSelector } from '../components/LanguageSelector';
 
 const LiffHome: React.FC = () => {
   const navigate = useNavigate();
   const reset = useAppointmentStore(state => state.reset);
+  const { t } = useTranslation();
 
   // Clear history when home page loads
   // This ensures back button doesn't appear and history is clean
@@ -29,8 +32,8 @@ const LiffHome: React.FC = () => {
   const menuItems = [
     {
       id: 'book',
-      title: '新增預約',
-      description: '預約新的就診時間',
+      title: t('home.newAppointment'),
+      description: t('home.newAppointmentDesc'),
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -40,8 +43,8 @@ const LiffHome: React.FC = () => {
     },
     {
       id: 'query',
-      title: '預約管理',
-      description: '查詢、取消您的預約',
+      title: t('home.manageAppointments'),
+      description: t('home.manageAppointmentsDesc'),
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -51,8 +54,8 @@ const LiffHome: React.FC = () => {
     },
     {
       id: 'settings',
-      title: '就診人管理',
-      description: '新增、刪除、修改就診人資訊',
+      title: t('home.managePatients'),
+      description: t('home.managePatientsDesc'),
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -62,8 +65,8 @@ const LiffHome: React.FC = () => {
     },
     {
       id: 'notifications',
-      title: '空位提醒',
-      description: '設定提醒，當有符合條件的空位時會通知您',
+      title: t('home.notifications'),
+      description: t('home.notificationsDesc'),
       icon: (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -76,6 +79,11 @@ const LiffHome: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-md mx-auto">
+        {/* Language Selector - Top Right */}
+        <div className="flex justify-end mb-4">
+          <LanguageSelector />
+        </div>
+
         <div className="space-y-3">
           {menuItems.map((item) => (
             <button

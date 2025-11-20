@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { formatDateTime } from '../../utils/calendarUtils';
 
 interface Appointment {
@@ -19,6 +20,7 @@ interface AppointmentCardProps {
 }
 
 const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel }) => {
+  const { t } = useTranslation();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -35,11 +37,11 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
   const getStatusText = (status: string) => {
     switch (status) {
       case 'confirmed':
-        return '已確認';
+        return t('appointmentCard.status.confirmed');
       case 'canceled_by_patient':
-        return '已取消';
+        return t('appointmentCard.status.canceledByPatient');
       case 'canceled_by_clinic':
-        return '診所取消';
+        return t('appointmentCard.status.canceledByClinic');
       default:
         return status;
     }
@@ -79,7 +81,7 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
 
         {appointment.notes && (
           <div className="text-sm text-gray-600">
-            <span className="font-medium">備註：</span>
+            <span className="font-medium">{t('appointmentCard.notes')}</span>
             {appointment.notes}
           </div>
         )}
@@ -90,7 +92,7 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
           onClick={onCancel}
           className="w-full bg-red-50 text-red-600 border border-red-200 rounded-md py-2 px-4 hover:bg-red-100 transition-colors text-sm font-medium"
         >
-          取消預約
+          {t('appointmentCard.cancelButton')}
         </button>
       )}
     </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { useAppointmentStore } from '../../stores/appointmentStore';
@@ -7,6 +8,7 @@ import { liffApiService } from '../../services/liffApi';
 
 const Step1SelectType: React.FC = () => {
   const { setAppointmentType, setAppointmentTypeInstructions, appointmentTypeInstructions, clinicId } = useAppointmentStore();
+  const { t } = useTranslation();
   const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +31,7 @@ const Step1SelectType: React.FC = () => {
         setAppointmentTypeInstructions(response.appointment_type_instructions || null);
       } catch (err) {
         logger.error('Failed to load appointment types:', err);
-        setError('無法載入預約類型，請稍後再試');
+        setError(t('appointment.errors.loadTypes'));
       } finally {
         setIsLoading(false);
       }
@@ -61,7 +63,7 @@ const Step1SelectType: React.FC = () => {
     <div className="px-4 py-6">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          選擇預約類型
+          {t('appointment.selectType.title')}
         </h2>
         {appointmentTypeInstructions && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
@@ -92,7 +94,7 @@ const Step1SelectType: React.FC = () => {
               <div>
                 <h3 className="font-medium text-gray-900">{type.name}</h3>
                 <p className="text-sm text-gray-500">
-                  約 {type.duration_minutes} 分鐘
+                  {t('appointment.selectType.duration', { minutes: type.duration_minutes })}
                 </p>
               </div>
               <div className="text-primary-600">
@@ -106,7 +108,7 @@ const Step1SelectType: React.FC = () => {
 
         {appointmentTypes.length === 0 && (
           <div className="text-center py-8">
-            <p className="text-gray-500">目前沒有可用的預約類型</p>
+            <p className="text-gray-500">{t('appointment.selectType.noTypesAvailable')}</p>
           </div>
         )}
       </div>

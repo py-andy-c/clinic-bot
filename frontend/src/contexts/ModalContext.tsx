@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BaseModal } from '../components/shared/BaseModal';
 import { Z_INDEX } from '../constants/app';
 
@@ -94,6 +95,7 @@ interface ModalDialogProps {
 }
 
 const ModalDialog: React.FC<ModalDialogProps> = ({ modal, onClose }) => {
+  const { t } = useTranslation();
   const handleClose = () => {
     if (modal.onCancel) {
       modal.onCancel();
@@ -106,7 +108,7 @@ const ModalDialog: React.FC<ModalDialogProps> = ({ modal, onClose }) => {
     <BaseModal
       onClose={handleClose}
       zIndex={Z_INDEX.DIALOG}
-      aria-label={modal.title || (modal.type === 'alert' ? '提示' : '確認')}
+      aria-label={modal.title || (modal.type === 'alert' ? t('modal.alert') : t('modal.confirm'))}
     >
       {modal.title && (
         <h3 className="text-lg font-semibold text-gray-900 mb-2">
@@ -122,7 +124,7 @@ const ModalDialog: React.FC<ModalDialogProps> = ({ modal, onClose }) => {
             onClick={modal.onCancel}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
           >
-            取消
+            {t('common.cancel')}
           </button>
         )}
 
@@ -131,7 +133,7 @@ const ModalDialog: React.FC<ModalDialogProps> = ({ modal, onClose }) => {
           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           autoFocus
         >
-          {modal.type === 'alert' ? '確定' : '確認'}
+          {modal.type === 'alert' ? t('common.ok') : t('common.confirm')}
         </button>
       </div>
     </BaseModal>

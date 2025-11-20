@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
 import './index.css'
 import { errorTracking } from './utils/errorTracking'
+import './i18n' // Initialize i18n
 
 // Initialize error tracking
 errorTracking.init()

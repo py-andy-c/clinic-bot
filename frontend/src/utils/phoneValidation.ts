@@ -2,6 +2,8 @@
  * Phone number validation utilities for Taiwanese phone numbers
  */
 
+import i18n from '../i18n';
+
 /**
  * Validates a Taiwanese phone number
  * Format: 09xxxxxxxx (10 digits starting with 09)
@@ -26,7 +28,7 @@ export const formatPhoneNumber = (phone: string): string => {
  * Gets the validation error message for phone numbers
  */
 export const getPhoneValidationErrorMessage = (): string => {
-  return '手機號碼格式不正確，請輸入09開頭的10位數字';
+  return i18n.t('patient.form.phone.error.invalid');
 };
 
 /**
@@ -37,7 +39,7 @@ export const validatePhoneNumber = (phone: string): {
   error?: string;
 } => {
   if (!phone || phone.trim() === '') {
-    return { isValid: false, error: '請輸入手機號碼' };
+    return { isValid: false, error: i18n.t('patient.form.phone.error.required') };
   }
 
   if (!validateTaiwanPhoneNumber(phone)) {

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
 import moment from 'moment-timezone';
 import { useAppointmentStore } from '../../stores/appointmentStore';
@@ -7,6 +8,7 @@ import { formatDateTime as formatDateTimeUtil } from '../../utils/calendarUtils'
 import { getErrorMessage } from '../../types/api';
 
 const Step6Confirmation: React.FC = () => {
+  const { t } = useTranslation();
   const { appointmentType, practitioner, practitionerId, isAutoAssigned, date, startTime, patient, notes, clinicId, updateAssignedPractitioner, setCreatedAppointment } = useAppointmentStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +31,7 @@ const Step6Confirmation: React.FC = () => {
       const startDateTimeTaiwan = moment.tz(`${date}T${timeWithSeconds}`, taiwanTimezone);
       
       if (!startDateTimeTaiwan.isValid()) {
-        setError('日期時間格式錯誤');
+        setError(t('confirmation.dateTimeError'));
         return;
       }
 
@@ -94,34 +96,34 @@ const Step6Confirmation: React.FC = () => {
     <div className="px-4 py-6">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          確認預約
+          {t('confirmation.title')}
         </h2>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
         <div className="space-y-3">
           <div className="flex justify-between">
-            <span className="text-gray-600">預約類型：</span>
+            <span className="text-gray-600">{t('confirmation.appointmentType')}</span>
             <span className="font-medium">{appointmentType?.name}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">治療師：</span>
+            <span className="text-gray-600">{t('confirmation.practitioner')}</span>
             <span className="font-medium">
-              {practitioner?.full_name || '不指定'}
-              {isAutoAssigned && <span className="text-sm text-blue-600 ml-2">(系統安排)</span>}
+              {practitioner?.full_name || t('confirmation.notSpecified')}
+              {isAutoAssigned && <span className="text-sm text-blue-600 ml-2">{t('confirmation.systemAssigned')}</span>}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">日期時間：</span>
+            <span className="text-gray-600">{t('confirmation.dateTime')}</span>
             <span className="font-medium">{formatDateTime()}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">就診人：</span>
+            <span className="text-gray-600">{t('confirmation.patient')}</span>
             <span className="font-medium">{patient?.full_name}</span>
           </div>
           {notes && (
             <div>
-              <span className="text-gray-600">備註：</span>
+              <span className="text-gray-600">{t('confirmation.notes')}</span>
               <p className="mt-1 text-sm bg-gray-50 p-2 rounded">{notes}</p>
             </div>
           )}
@@ -140,7 +142,7 @@ const Step6Confirmation: React.FC = () => {
           disabled={isSubmitting}
           className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700 disabled:opacity-50"
         >
-          {isSubmitting ? '預約中...' : '確認預約'}
+          {isSubmitting ? t('confirmation.submitting') : t('confirmation.confirmButton')}
         </button>
       </div>
     </div>

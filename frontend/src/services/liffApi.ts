@@ -18,6 +18,7 @@ export interface LiffLoginResponse {
   is_first_time: boolean;
   display_name: string;
   clinic_id: number;
+  preferred_language?: string; // Optional for backward compatibility
 }
 
 export interface PatientCreateRequest {
@@ -294,6 +295,12 @@ class LiffApiService {
 
   async deleteAvailabilityNotification(notificationId: number): Promise<{ success: boolean }> {
     const response = await this.client.delete(`/liff/availability-notifications/${notificationId}`);
+    return response.data;
+  }
+
+  // Language Preference
+  async updateLanguagePreference(language: string): Promise<{ preferred_language: string }> {
+    const response = await this.client.put('/liff/language-preference', { language });
     return response.data;
   }
 }

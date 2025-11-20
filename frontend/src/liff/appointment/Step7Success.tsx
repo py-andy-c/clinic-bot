@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import moment from 'moment-timezone';
 import { logger } from '../../utils/logger';
 import { useAppointmentStore } from '../../stores/appointmentStore';
@@ -7,6 +8,7 @@ import { useModal } from '../../contexts/ModalContext';
 import { formatDateTime as formatDateTimeUtil } from '../../utils/calendarUtils';
 
 const Step7Success: React.FC = () => {
+  const { t } = useTranslation();
   const {
     appointmentType,
     practitioner,
@@ -38,7 +40,7 @@ const Step7Success: React.FC = () => {
 
       if (!startDateTimeTaiwan.isValid() || !endDateTimeTaiwan.isValid()) {
         logger.error('Invalid date/time from created appointment:', createdAppointment);
-        showAlert('無法建立行事曆事件：日期時間格式錯誤', '日期時間錯誤');
+        showAlert(t('success.calendarError'), t('success.calendarErrorTitle'));
         return;
       }
 
@@ -46,12 +48,12 @@ const Step7Success: React.FC = () => {
     const appointmentData = {
       id: Date.now(), // Temporary ID for ICS generation
       appointment_type_name: appointmentType.name,
-      practitioner_name: practitioner?.full_name || '待安排',
+      practitioner_name: practitioner?.full_name || t('success.practitionerPending'),
       patient_name: patient.full_name,
         start_time: startDateTimeTaiwan.format(), // Taiwan time with +08:00
         end_time: endDateTimeTaiwan.format(), // Taiwan time with +08:00
       notes: notes || undefined,
-      clinic_name: clinicDisplayName || '診所',
+      clinic_name: clinicDisplayName || t('success.clinicName'),
       ...(clinicAddress && { clinic_address: clinicAddress }),
     };
 
@@ -84,18 +86,18 @@ const Step7Success: React.FC = () => {
         const appointmentData = {
           id: createdAppointment.appointment_id,
           appointment_type_name: appointmentType.name,
-          practitioner_name: practitioner?.full_name || '待安排',
+          practitioner_name: practitioner?.full_name || t('success.practitionerPending'),
           patient_name: patient.full_name,
           start_time: createdAppointment.start_time,
           end_time: createdAppointment.end_time,
           notes: notes || undefined,
-          clinic_name: clinicDisplayName || '診所',
+          clinic_name: clinicDisplayName || t('success.clinicName'),
           ...(clinicAddress && { clinic_address: clinicAddress }),
         };
     downloadAppointmentICS(appointmentData);
       } catch (fallbackError) {
         logger.error('Failed to download ICS as fallback:', fallbackError);
-        showAlert('無法加入行事曆，請稍後再試', '行事曆錯誤');
+        showAlert(t('success.calendarErrorGeneric'), t('success.calendarErrorGenericTitle'));
       }
     }
   };
@@ -134,34 +136,34 @@ const Step7Success: React.FC = () => {
           </svg>
         </div>
         <h2 className="text-2xl font-semibold text-gray-900 mb-2">
-          預約成功
+          {t('success.title')}
         </h2>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
         <div className="space-y-3">
           <div className="flex justify-between">
-            <span className="text-gray-600">預約類型：</span>
+            <span className="text-gray-600">{t('success.appointmentType')}</span>
             <span className="font-medium">{appointmentType?.name}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">治療師：</span>
+            <span className="text-gray-600">{t('success.practitioner')}</span>
             <span className="font-medium">
-              {practitioner?.full_name || '不指定'}
-              {isAutoAssigned && <span className="text-sm text-blue-600 ml-2">(系統安排)</span>}
+              {practitioner?.full_name || t('success.notSpecified')}
+              {isAutoAssigned && <span className="text-sm text-blue-600 ml-2">{t('success.systemAssigned')}</span>}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">日期時間：</span>
+            <span className="text-gray-600">{t('success.dateTime')}</span>
             <span className="font-medium">{formatDateTime()}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">就診人：</span>
+            <span className="text-gray-600">{t('success.patient')}</span>
             <span className="font-medium">{patient?.full_name}</span>
           </div>
           {notes && (
             <div>
-              <span className="text-gray-600">備註：</span>
+              <span className="text-gray-600">{t('success.notes')}</span>
               <p className="mt-1 text-sm bg-gray-50 p-2 rounded">{notes}</p>
             </div>
           )}
@@ -176,14 +178,14 @@ const Step7Success: React.FC = () => {
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          加入行事曆
+          {t('success.addToCalendar')}
         </button>
 
         <button
           onClick={handleClose}
           className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-md hover:bg-gray-200"
         >
-          完成
+          {t('success.done')}
         </button>
       </div>
     </div>

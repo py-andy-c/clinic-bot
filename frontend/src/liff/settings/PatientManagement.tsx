@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner, ErrorMessage, DateInput } from '../../components/shared';
 import { formatDateForApi, formatDateForDisplay } from '../../utils/dateFormat';
@@ -19,6 +20,7 @@ interface Patient {
 }
 
 const PatientManagement: React.FC = () => {
+  const { t } = useTranslation();
   const { clinicId } = useAppointmentStore();
   const { alert: showAlert, confirm: showConfirm } = useModal();
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -63,7 +65,7 @@ const PatientManagement: React.FC = () => {
       setPatients(response.patients);
     } catch (err) {
       logger.error('Failed to load patients:', err);
-      setError('無法載入就診人列表');
+      setError(t('patient.errors.loadFailed'));
     } finally {
       setIsLoading(false);
     }
@@ -106,12 +108,12 @@ const PatientManagement: React.FC = () => {
 
   const handleUpdatePatient = async (patientId: number) => {
     if (!editPatientName.trim()) {
-      setError('請輸入姓名');
+      setError(t('patient.form.name.error.required'));
       return;
     }
 
     if (!editPatientPhone.trim()) {
-      setError('請輸入手機號碼');
+      setError(t('patient.form.phone.error.required'));
       return;
     }
 
@@ -148,13 +150,13 @@ const PatientManagement: React.FC = () => {
   const handleDeletePatient = async (patientId: number, patientName: string) => {
     // Check if this is the last patient
     if (patients.length <= 1) {
-      await showAlert('至少需保留一位就診人', '無法刪除');
+      await showAlert(t('patient.errors.cannotDeleteLast'), t('status.error'));
       return;
     }
 
     const confirmed = await showConfirm(
-      `確定要刪除就診人「${patientName}」？\n\n刪除後該就診人的所有預約記錄將無法查詢。`,
-      '確認刪除'
+      t('patient.management.confirmDelete', { name: patientName }),
+      t('patient.management.confirmDeleteTitle')
     );
 
     if (!confirmed) return;
@@ -169,18 +171,23 @@ const PatientManagement: React.FC = () => {
       if (typeof err === 'object' && err && 'response' in err) {
         const axiosError = err as AxiosErrorResponse;
         if (axiosError.response?.status === 409) {
-          if (axiosError.response.data?.detail === "Cannot delete patient with future appointments") {
-          await showAlert('無法刪除此就診人，因為該就診人尚有未來的預約記錄。\n\n請先刪除或取消相關預約後再試。', '無法刪除');
-          } else if (axiosError.response.data?.detail === "至少需保留一位就診人") {
-          await showAlert('至少需保留一位就診人', '無法刪除');
+          const errorDetail = axiosError.response.data?.detail;
+          // Check for known error messages (both English and Chinese versions from backend)
+          // TODO: Consider using error codes instead of string matching for better maintainability
+          if (errorDetail === "Cannot delete patient with future appointments" ||
+              errorDetail === "無法刪除此就診人，因為該就診人尚有未來的預約記錄。\n\n請先刪除或取消相關預約後再試。") {
+            await showAlert(t('patient.errors.cannotDeleteWithAppointments'), t('status.error'));
+          } else if (errorDetail === "至少需保留一位就診人" ||
+                     errorDetail === "Cannot delete the last patient") {
+            await showAlert(t('patient.errors.cannotDeleteLast'), t('status.error'));
           } else {
-            await showAlert('刪除就診人失敗，請稍後再試', '刪除失敗');
+            await showAlert(t('patient.errors.deleteFailed'), t('status.error'));
           }
         } else {
-          await showAlert('刪除就診人失敗，請稍後再試', '刪除失敗');
+          await showAlert(t('patient.errors.deleteFailed'), t('status.error'));
         }
       } else {
-        await showAlert('刪除就診人失敗，請稍後再試', '刪除失敗');
+        await showAlert(t('patient.errors.deleteFailed'), t('status.error'));
       }
     }
   };
@@ -214,7 +221,7 @@ const PatientManagement: React.FC = () => {
       <div className="max-w-md mx-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            就診人管理
+            {t('patient.management.title')}
           </h1>
         </div>
 
@@ -225,35 +232,35 @@ const PatientManagement: React.FC = () => {
               <div key={patient.id}>
                 {editingPatientId === patient.id ? (
                   <div className="border border-gray-200 rounded-md p-4 bg-white">
-                    <h3 className="font-medium text-gray-900 mb-3">編輯就診人</h3>
+                    <h3 className="font-medium text-gray-900 mb-3">{t('patient.management.editPatient')}</h3>
                     <div className="mb-3">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        姓名
+                        {t('patient.form.name.label')}
                       </label>
                       <input
                         type="text"
                         value={editPatientName}
                         onChange={(e) => setEditPatientName(e.target.value)}
-                        placeholder="請輸入姓名"
+                        placeholder={t('patient.form.name.placeholder')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md"
                       />
                     </div>
                     <div className="mb-3">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        手機號碼
+                        {t('patient.form.phone.label')}
                       </label>
                       <input
                         type="tel"
                         value={editPatientPhone}
                         onChange={(e) => setEditPatientPhone(e.target.value)}
-                        placeholder="請輸入手機號碼 (0912345678)"
+                        placeholder={t('patient.form.phone.placeholder')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md"
                       />
                     </div>
                     {requireBirthday && (
                       <div className="mb-3">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          生日
+                          {t('patient.form.birthday.label')}
                         </label>
                         <DateInput
                           value={editPatientBirthday}
@@ -273,13 +280,13 @@ const PatientManagement: React.FC = () => {
                         disabled={isUpdating || !editPatientName.trim() || !editPatientPhone.trim()}
                         className="flex-1 bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 disabled:opacity-50"
                       >
-                        {isUpdating ? '更新中...' : '確認'}
+                        {isUpdating ? t('common.updating') : t('common.confirm')}
                       </button>
                       <button
                         onClick={handleCancelEdit}
                         className="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200"
                       >
-                        取消
+                        {t('common.cancel')}
                       </button>
                     </div>
                   </div>
@@ -289,7 +296,7 @@ const PatientManagement: React.FC = () => {
                       <div className="font-medium text-gray-900">{patient.full_name}</div>
                       <div className="text-sm text-gray-600 mt-1">{patient.phone_number}</div>
                       {patient.birthday && (
-                        <div className="text-sm text-gray-500 mt-1">生日: {formatDateForDisplay(patient.birthday)}</div>
+                        <div className="text-sm text-gray-500 mt-1">{t('patient.management.birthday', { date: formatDateForDisplay(patient.birthday) })}</div>
                       )}
                     </div>
                     <div className="flex space-x-2">
@@ -297,14 +304,14 @@ const PatientManagement: React.FC = () => {
                         onClick={() => handleStartEdit(patient)}
                         className="text-primary-600 hover:text-primary-800 text-sm font-medium"
                       >
-                        編輯
+                        {t('patient.management.edit')}
                       </button>
                       {patients.length > 1 && (
                         <button
                           onClick={() => handleDeletePatient(patient.id, patient.full_name)}
                           className="text-red-600 hover:text-red-800 text-sm font-medium"
                         >
-                          刪除
+                          {t('patient.management.deletePatient')}
                         </button>
                       )}
                     </div>
@@ -322,13 +329,13 @@ const PatientManagement: React.FC = () => {
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              新增就診人
+              {t('patient.management.addPatient')}
             </button>
           )}
 
           {showAddForm && (
             <div className="border border-gray-200 rounded-md p-4">
-              <h3 className="font-medium text-gray-900 mb-3">新增就診人</h3>
+              <h3 className="font-medium text-gray-900 mb-3">{t('patient.management.addPatient')}</h3>
               <PatientForm
                 clinicId={clinicId}
                 requireBirthday={requireBirthday}

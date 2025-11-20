@@ -1,5 +1,6 @@
 import moment from 'moment-timezone';
 import { logger } from './logger';
+import i18n from '../i18n';
 
 export interface AppointmentData {
   id: number;
@@ -21,18 +22,28 @@ export const downloadAppointmentICS = (appointment: AppointmentData) => {
     start_time,
     end_time,
     notes,
-    clinic_name = '診所',
+    clinic_name,
     clinic_address
   } = appointment;
 
+  // Use translations for calendar event
+  const defaultClinicName = i18n.t('success.clinicName');
+  const clinicNameDisplay = clinic_name || defaultClinicName;
+  const practitionerLabel = i18n.t('calendar.eventDescription.practitioner', { practitioner: practitioner_name });
+  const appointmentTypeLabel = i18n.t('calendar.eventDescription.appointmentType', { appointmentType: appointment_type_name });
+  const notesLabel = i18n.t('calendar.eventDescription.notes');
+
   // Build description with appointment details
-  let description = `${clinic_name}\\n`;
-  description += `治療師：${practitioner_name}\\n`;
-  description += `預約類型：${appointment_type_name}`;
+  let description = `${clinicNameDisplay}\\n`;
+  description += `${practitionerLabel}\\n`;
+  description += `${appointmentTypeLabel}`;
 
   if (notes) {
-    description += `\\n\\n備註：\\n${notes}`;
+    description += `\\n\\n${notesLabel}\\n${notes}`;
   }
+
+  // Create event title
+  const eventTitle = i18n.t('calendar.eventTitle', { appointmentType: appointment_type_name, practitioner: practitioner_name });
 
   // Create ICS content
   // DTSTAMP should be current UTC time
@@ -45,9 +56,9 @@ UID:appointment-${id}@clinicbot.com
 DTSTAMP:${nowUTC}
 DTSTART:${formatICSDate(start_time)}
 DTEND:${formatICSDate(end_time)}
-SUMMARY:${appointment_type_name} - ${practitioner_name}
+SUMMARY:${eventTitle}
 DESCRIPTION:${description}
-LOCATION:${clinic_address || clinic_name}
+LOCATION:${clinic_address || clinicNameDisplay}
 STATUS:CONFIRMED
 END:VEVENT
 END:VCALENDAR`;
@@ -91,7 +102,7 @@ export const generateGoogleCalendarURL = (appointment: AppointmentData): string 
     start_time,
     end_time,
     notes,
-    clinic_name = '診所',
+    clinic_name,
     clinic_address
   } = appointment;
 
@@ -111,17 +122,27 @@ export const generateGoogleCalendarURL = (appointment: AppointmentData): string 
   const start = formatGoogleCalendarDate(start_time);
   const end = formatGoogleCalendarDate(end_time);
 
+  // Use translations for calendar event
+  const defaultClinicName = i18n.t('success.clinicName');
+  const clinicNameDisplay = clinic_name || defaultClinicName;
+  const practitionerLabel = i18n.t('calendar.eventDescription.practitioner', { practitioner: practitioner_name });
+  const appointmentTypeLabel = i18n.t('calendar.eventDescription.appointmentType', { appointmentType: appointment_type_name });
+  const notesLabel = i18n.t('calendar.eventDescription.notes');
+
   // Build description
-  let description = `${clinic_name}\\n`;
-  description += `治療師：${practitioner_name}\\n`;
-  description += `預約類型：${appointment_type_name}`;
+  let description = `${clinicNameDisplay}\\n`;
+  description += `${practitionerLabel}\\n`;
+  description += `${appointmentTypeLabel}`;
   if (notes) {
-    description += `\\n\\n備註：\\n${notes}`;
+    description += `\\n\\n${notesLabel}\\n${notes}`;
   }
 
+  // Create event title
+  const eventTitle = i18n.t('calendar.eventTitle', { appointmentType: appointment_type_name, practitioner: practitioner_name });
+
   // Encode parameters
-  const title = encodeURIComponent(`${appointment_type_name} - ${practitioner_name}`);
-  const location = encodeURIComponent(clinic_address || clinic_name);
+  const title = encodeURIComponent(eventTitle);
+  const location = encodeURIComponent(clinic_address || clinicNameDisplay);
   const details = encodeURIComponent(description);
 
   // Google Calendar URL format with timezone parameter

@@ -2,6 +2,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { liffApiService, LiffLoginResponse } from '../services/liffApi';
 import { logger } from '../utils/logger';
 import { config } from '../config/env';
+import i18n from '../i18n';
+import { isValidLanguage } from '../utils/languageUtils';
+import { useTranslation } from 'react-i18next';
 
 // Get API base URL from environment variable
 const API_BASE_URL = config.apiBaseUrl;
@@ -19,6 +22,7 @@ interface UseLineAuthReturn {
 }
 
 export const useLineAuth = (lineProfile: { userId: string; displayName: string } | null, liffAccessToken: string | null): UseLineAuthReturn => {
+  const { t } = useTranslation();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isFirstTime, setIsFirstTime] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -124,7 +128,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
     const storedToken = localStorage.getItem('liff_jwt_token');
     const clinicId = getClinicId(storedToken);
         if (!clinicId) {
-          throw new Error('診所ID無效，請從診所的LINE官方帳號進入');
+          throw new Error(t('status.invalidClinicId'));
         }
 
         const request = {
@@ -142,6 +146,15 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
           setIsFirstTime(response.is_first_time);
           setClinicId(response.clinic_id);
           setDisplayName(response.display_name);
+
+          // Initialize language preference from login response
+          if (response.preferred_language && isValidLanguage(response.preferred_language)) {
+            i18n.changeLanguage(response.preferred_language);
+          } else {
+            // Default to Traditional Chinese if no preference or invalid
+            i18n.changeLanguage('zh-TW');
+          }
+
     setIsLoading(false);
   };
 
@@ -176,7 +189,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
           logger.log('Clinic isolation validation failed - clearing token and re-authenticating');
           localStorage.removeItem('liff_jwt_token');
           setClinicId(null);
-          setError('診所驗證失敗，請重新登入');
+          setError(t('status.clinicValidationFailed'));
           setIsAuthenticated(false);
           setIsLoading(false);
           return;
@@ -194,7 +207,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
       } catch (err) {
         if (checkCancelled?.()) return;
           logger.error('LINE authentication failed:', err);
-          setError(err instanceof Error ? err.message : '認證失敗');
+          setError(err instanceof Error ? err.message : t('status.authFailed'));
           setIsAuthenticated(false);
           setIsLoading(false);
         }
@@ -245,7 +258,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
       await performAuthentication(lineUserId, displayName, accessToken);
       } catch (err) {
         logger.error('LINE authentication failed:', err);
-        setError(err instanceof Error ? err.message : '認證失敗');
+        setError(err instanceof Error ? err.message : t('status.authFailed'));
         setIsAuthenticated(false);
         setIsLoading(false);
       }
@@ -272,7 +285,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
       await handleAuth();
     } catch (err) {
       logger.error('Auth refresh failed:', err);
-      setError(err instanceof Error ? err.message : '認證失敗');
+      setError(err instanceof Error ? err.message : t('status.authFailed'));
           setIsAuthenticated(false);
     setIsLoading(false);
     }

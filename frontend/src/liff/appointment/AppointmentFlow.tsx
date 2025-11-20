@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { useAppointmentBackButton } from '../../hooks/useAppointmentBackButton';
 
@@ -13,6 +14,7 @@ import Step7Success from './Step7Success';
 
 const AppointmentFlow: React.FC = () => {
   const { step } = useAppointmentStore();
+  const { t } = useTranslation();
 
   // Enable back button navigation during appointment flow
   // The back button will navigate to previous steps or home as appropriate
@@ -20,12 +22,12 @@ const AppointmentFlow: React.FC = () => {
 
   // Progress indicator
   const steps = [
-    { id: 1, name: '選擇類型' },
-    { id: 2, name: '選擇治療師' },
-    { id: 3, name: '選擇時間' },
-    { id: 4, name: '選擇就診人' },
-    { id: 5, name: '備註' },
-    { id: 6, name: '確認預約' },
+    { id: 1, name: t('appointment.steps.selectType') },
+    { id: 2, name: t('appointment.steps.selectPractitioner') },
+    { id: 3, name: t('appointment.steps.selectDateTime') },
+    { id: 4, name: t('appointment.steps.selectPatient') },
+    { id: 5, name: t('appointment.steps.addNotes') },
+    { id: 6, name: t('appointment.steps.confirmation') },
   ];
 
   const currentStepIndex = steps.findIndex(s => s.id === step);
@@ -57,7 +59,7 @@ const AppointmentFlow: React.FC = () => {
       <div className="bg-white shadow-sm">
         <div className="max-w-md mx-auto px-4 py-4">
           <div className="mb-2">
-            <h1 className="text-lg font-semibold text-gray-900">新增預約</h1>
+            <h1 className="text-lg font-semibold text-gray-900">{t('appointment.title')}</h1>
           </div>
 
           {/* Progress bar */}

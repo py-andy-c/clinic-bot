@@ -1,10 +1,12 @@
 import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { I18nextProvider } from 'react-i18next';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
 import { ModalProvider } from './contexts/ModalContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LoadingSpinner } from './components/shared';
+import i18n from './i18n';
 // Lazy load page components for code splitting
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const FreeTrialPage = lazy(() => import('./pages/FreeTrialPage'));
@@ -122,13 +124,15 @@ const AdminRoutes: React.FC = () => {
 const App: React.FC = () => {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <ModalProvider>
-          <UnsavedChangesProvider>
-            <AppRoutes />
-          </UnsavedChangesProvider>
-        </ModalProvider>
-      </AuthProvider>
+      <I18nextProvider i18n={i18n}>
+        <AuthProvider>
+          <ModalProvider>
+            <UnsavedChangesProvider>
+              <AppRoutes />
+            </UnsavedChangesProvider>
+          </ModalProvider>
+        </AuthProvider>
+      </I18nextProvider>
     </ErrorBoundary>
   );
 };

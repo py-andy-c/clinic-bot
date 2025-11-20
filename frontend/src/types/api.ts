@@ -2,6 +2,8 @@
  * API-related types and error handling
  */
 
+import i18n from '../i18n';
+
 /**
  * Standard API error response structure
  */
@@ -87,6 +89,6 @@ export const getErrorMessage = (error: ApiErrorType): string => {
     return (error as ApiError).message;
   }
 
-  // Fallback
-  return '發生未知錯誤，請稍後再試';
+  // Fallback - use i18n for translation
+  return i18n.t('common.unknownError');
 };

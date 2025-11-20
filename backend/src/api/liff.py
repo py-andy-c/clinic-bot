@@ -332,7 +332,7 @@ async def liff_login(
 
         # Get user's preferred language (default to 'zh-TW' if not set)
         preferred_language = line_user.preferred_language or 'zh-TW'
-        
+
         return LiffLoginResponse(
             access_token=access_token,
             is_first_time=is_first_time,

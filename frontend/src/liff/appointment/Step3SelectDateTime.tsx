@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner } from '../../components/shared';
 import { useAppointmentStore } from '../../stores/appointmentStore';
@@ -15,6 +16,7 @@ import {
 } from '../../utils/calendarUtils';
 
 const Step3SelectDateTime: React.FC = () => {
+  const { t } = useTranslation();
   const { appointmentTypeId, practitionerId, setDateTime, clinicId } = useAppointmentStore();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
@@ -122,7 +124,7 @@ const Step3SelectDateTime: React.FC = () => {
       setSlotDetails(detailsMap);
     } catch (err) {
       logger.error('Failed to load available slots:', err);
-      setError('無法載入可用時段');
+      setError(t('datetime.loadFailed'));
       setSlotDetails(new Map()); // Clear on error
     } finally {
       setIsLoading(false);
@@ -164,14 +166,14 @@ const Step3SelectDateTime: React.FC = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
-  // Day names in Chinese (starting with Sunday)
-  const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+  // Day names - use translation
+  const dayNames = t('datetime.dayNames', { returnObjects: true }) as string[];
 
   return (
     <div className="px-4 py-6">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          選擇日期與時間
+          {t('datetime.selectTitle')}
         </h2>
       </div>
 
@@ -182,7 +184,7 @@ const Step3SelectDateTime: React.FC = () => {
           <button
             onClick={handlePrevMonth}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            aria-label="上個月"
+            aria-label={t('datetime.prevMonth')}
           >
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -194,7 +196,7 @@ const Step3SelectDateTime: React.FC = () => {
             <button
             onClick={handleNextMonth}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            aria-label="下個月"
+            aria-label={t('datetime.nextMonth')}
           >
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -260,7 +262,7 @@ const Step3SelectDateTime: React.FC = () => {
       {/* Time Selection */}
       {selectedDate ? (
         <div className="mb-6">
-          <h3 className="font-medium text-gray-900 mb-2">可預約時段</h3>
+          <h3 className="font-medium text-gray-900 mb-2">{t('datetime.availableSlots')}</h3>
 
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
@@ -277,7 +279,7 @@ const Step3SelectDateTime: React.FC = () => {
                 <div className="space-y-4">
                   {amSlots.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">上午</h4>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">{t('datetime.morning')}</h4>
                       <div className="grid grid-cols-3 gap-2">
                         {amSlots.map((time) => {
                           const formatted = formatTo12Hour(time);
@@ -293,7 +295,7 @@ const Step3SelectDateTime: React.FC = () => {
                               {formatted.time12}
                               {isRecommended && (
                                 <span className="absolute -top-2 -right-2 bg-teal-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
-                                  建議
+                                  {t('datetime.recommended')}
                                 </span>
                               )}
                             </button>
@@ -304,7 +306,7 @@ const Step3SelectDateTime: React.FC = () => {
                   )}
                   {pmSlots.length > 0 && (
                     <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">下午</h4>
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">{t('datetime.afternoon')}</h4>
                       <div className="grid grid-cols-3 gap-2">
                         {pmSlots.map((time) => {
                           const formatted = formatTo12Hour(time);
@@ -320,7 +322,7 @@ const Step3SelectDateTime: React.FC = () => {
                               {formatted.time12}
                               {isRecommended && (
                                 <span className="absolute -top-2 -right-2 bg-teal-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
-                                  建議
+                                  {t('datetime.recommended')}
                                 </span>
                               )}
                             </button>
@@ -334,8 +336,8 @@ const Step3SelectDateTime: React.FC = () => {
             })()
           ) : (
             <div className="text-center py-8">
-              <p className="text-gray-500">此日期沒有可用時段</p>
-              <p className="text-sm text-gray-400 mt-2">請選擇其他日期</p>
+              <p className="text-gray-500">{t('datetime.noSlots')}</p>
+              <p className="text-sm text-gray-400 mt-2">{t('datetime.noSlotsDesc')}</p>
             </div>
           )}
           
@@ -346,7 +348,7 @@ const Step3SelectDateTime: React.FC = () => {
         </div>
       ) : (
         <div className="mb-6">
-          <h3 className="font-medium text-gray-900 mb-2">可預約時段</h3>
+          <h3 className="font-medium text-gray-900 mb-2">{t('datetime.availableSlots')}</h3>
         </div>
       )}
 
