@@ -328,7 +328,9 @@ class TestAppointmentServiceLoadBalancing:
 
         # Should be assigned to practitioner2 (has 0 vs 2 appointments)
         assert result["practitioner_id"] == practitioner2.id
-        assert result["practitioner_name"] == "Dr. Two"
+        # For auto-assigned appointments, practitioner_name should be "不指定"
+        assert result["practitioner_name"] == "不指定"
+        assert result["is_auto_assigned"] == True
 
 
 class TestAppointmentServiceEdgeCases:

@@ -15,7 +15,8 @@ from typing import Dict, List, Optional, Any, Union
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, model_validator
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from sqlalchemy import func, cast, String
+from sqlalchemy.sql import sqltypes
 from utils.datetime_utils import datetime_validator, parse_date_string
 from utils.practitioner_helpers import verify_practitioner_in_clinic
 
@@ -36,7 +37,7 @@ from services.line_user_ai_disabled_service import (
     get_line_users_for_clinic
 )
 from utils.appointment_type_queries import count_active_appointment_types_for_practitioner
-from utils.datetime_utils import taiwan_now
+from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 from api.responses import (
     ClinicPatientResponse, ClinicPatientListResponse,
     AppointmentTypeResponse, PractitionerAppointmentTypesResponse, PractitionerStatusResponse,
@@ -78,7 +79,7 @@ class NotificationSettings(BaseModel):
 
 class BookingRestrictionSettings(BaseModel):
     """Booking restriction settings for clinic."""
-    booking_restriction_type: str = "same_day_disallowed"
+    booking_restriction_type: str = "minimum_hours_required"
     minimum_booking_hours_ahead: int = 24
     step_size_minutes: int = 30
     max_future_appointments: int = 3
@@ -2544,7 +2545,8 @@ async def get_calendar_data(
                     appointment = event.appointment
                     
                     # Only show confirmed appointments (filter out cancelled ones)
-                    if appointment and appointment.status == 'confirmed':
+                    # CRITICAL: Filter out auto-assigned appointments (practitioners shouldn't see them)
+                    if appointment and appointment.status == 'confirmed' and not appointment.is_auto_assigned:
                         # Get LINE display name if patient has LINE user (already loaded)
                         line_display_name = None
                         if appointment.patient and appointment.patient.line_user:
@@ -2779,7 +2781,8 @@ async def get_batch_calendar(
                 for event in day_events:
                     if event.event_type == 'appointment':
                         appointment = event.appointment
-                        if appointment and appointment.status == 'confirmed':
+                        # CRITICAL: Filter out auto-assigned appointments (practitioners shouldn't see them)
+                        if appointment and appointment.status == 'confirmed' and not appointment.is_auto_assigned:
                             line_display_name = None
                             if appointment.patient and appointment.patient.line_user:
                                 line_display_name = appointment.patient.line_user.display_name
@@ -3445,4 +3448,145 @@ async def enable_ai_for_line_user_endpoint(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法啟用AI"
+        )
+
+
+class AutoAssignedAppointmentItem(BaseModel):
+    """Response model for auto-assigned appointment item."""
+    appointment_id: int
+    calendar_event_id: int
+    patient_name: str
+    patient_id: int
+    practitioner_id: int
+    practitioner_name: str
+    appointment_type_id: int
+    appointment_type_name: str
+    start_time: str
+    end_time: str
+    notes: Optional[str] = None
+    originally_auto_assigned: bool
+
+
+class AutoAssignedAppointmentsResponse(BaseModel):
+    """Response model for listing auto-assigned appointments."""
+    appointments: List[AutoAssignedAppointmentItem]
+
+
+@router.get("/auto-assigned-appointments", summary="List auto-assigned appointments (admin only)")
+async def list_auto_assigned_appointments(
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+) -> AutoAssignedAppointmentsResponse:
+    """
+    List all upcoming auto-assigned appointments that are still hidden from practitioners.
+    
+    Only clinic admins can view this list. Appointments are sorted by date.
+    After admin reassigns an appointment, it will no longer appear in this list.
+    
+    Note: Only future appointments are returned. In theory, there shouldn't be any past
+    auto-assigned appointments since the system automatically assigns them when the
+    recency limit (minimum_booking_hours_ahead) is reached. However, we filter them out
+    as defensive programming in case of edge cases (e.g., cron job failures, timezone issues).
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Get current Taiwan time for filtering future appointments
+        # All datetime operations use Taiwan timezone
+        now = taiwan_now()
+        
+        # Convert to timezone-naive for PostgreSQL comparison
+        # CalendarEvent stores date and time as separate fields (timezone-naive)
+        # We need to compare timezone-naive timestamps
+        now_naive = now.replace(tzinfo=None)
+        
+        # Query auto-assigned appointments for this clinic
+        # Only show appointments that are:
+        # 1. Still auto-assigned (is_auto_assigned = True)
+        # 2. Confirmed status
+        # 3. In the future (defensive programming - should not exist but filter just in case)
+        # 4. Have a start_time (defensive check - confirmed appointments should always have start_time)
+        # Note: CalendarEvent.date and start_time are stored as timezone-naive
+        # (they represent Taiwan local time without timezone info)
+        appointments = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).filter(
+            Appointment.is_auto_assigned == True,
+            Appointment.status == 'confirmed',
+            CalendarEvent.clinic_id == clinic_id,
+            CalendarEvent.start_time.isnot(None),  # Defensive: ensure start_time exists
+            # Defensive programming: Filter out past appointments
+            # Combine date and start_time for proper datetime comparison
+            # PostgreSQL: cast concatenated date+time string to timestamp (timezone-naive)
+            # Compare with timezone-naive now_naive
+            cast(
+                func.concat(
+                    cast(CalendarEvent.date, String),
+                    ' ',
+                    cast(CalendarEvent.start_time, String)
+                ),
+                sqltypes.TIMESTAMP
+            ) > now_naive
+        ).options(
+            joinedload(Appointment.patient),
+            joinedload(Appointment.appointment_type),
+            joinedload(Appointment.calendar_event).joinedload(CalendarEvent.user)
+        ).order_by(CalendarEvent.date, CalendarEvent.start_time).all()
+        
+        # Get practitioner associations for names
+        practitioner_ids = [appt.calendar_event.user_id for appt in appointments if appt.calendar_event and appt.calendar_event.user_id]
+        association_lookup = AvailabilityService.get_practitioner_associations_batch(
+            db, practitioner_ids, clinic_id
+        )
+        
+        # Format response
+        result: List[AutoAssignedAppointmentItem] = []
+        
+        for appointment in appointments:
+            practitioner = appointment.calendar_event.user
+            appointment_type = appointment.appointment_type
+            patient = appointment.patient
+            
+            if not all([practitioner, appointment_type, patient]):
+                continue
+            
+            # Get practitioner name from association
+            association = association_lookup.get(practitioner.id)
+            practitioner_name = association.full_name if association else practitioner.email
+            
+            # Format datetime
+            event_date = appointment.calendar_event.date
+            if appointment.calendar_event.start_time:
+                start_datetime = datetime.combine(event_date, appointment.calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+            else:
+                start_datetime = None
+            if appointment.calendar_event.end_time:
+                end_datetime = datetime.combine(event_date, appointment.calendar_event.end_time).replace(tzinfo=TAIWAN_TZ)
+            else:
+                end_datetime = None
+            
+            result.append(AutoAssignedAppointmentItem(
+                appointment_id=appointment.calendar_event_id,
+                calendar_event_id=appointment.calendar_event_id,
+                patient_name=patient.full_name,
+                patient_id=patient.id,
+                practitioner_id=practitioner.id,
+                practitioner_name=practitioner_name,
+                appointment_type_id=appointment.appointment_type_id,
+                appointment_type_name=appointment_type.name if appointment_type else "未設定",
+                start_time=start_datetime.isoformat() if start_datetime else "",
+                end_time=end_datetime.isoformat() if end_datetime else "",
+                notes=appointment.notes,
+                originally_auto_assigned=appointment.originally_auto_assigned
+            ))
+        
+        return AutoAssignedAppointmentsResponse(appointments=result)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error listing auto-assigned appointments: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得自動指派預約列表"
         )

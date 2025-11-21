@@ -29,6 +29,10 @@ from services.availability_notification_service import (
     start_availability_notification_scheduler,
     stop_availability_notification_scheduler
 )
+from services.auto_assignment_service import (
+    start_auto_assignment_scheduler,
+    stop_auto_assignment_scheduler
+)
 
 # Configure logging
 logging.basicConfig(
@@ -75,6 +79,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.exception(f"❌ Failed to start availability notification scheduler: {e}")
 
+    # Start auto-assignment scheduler
+    try:
+        await start_auto_assignment_scheduler()
+        logger.info("✅ Auto-assignment scheduler started")
+    except Exception as e:
+        logger.exception(f"❌ Failed to start auto-assignment scheduler: {e}")
+
     yield
 
     # Stop reminder scheduler
@@ -104,6 +115,13 @@ async def lifespan(app: FastAPI):
         logger.info("🛑 Availability notification scheduler stopped")
     except Exception as e:
         logger.exception(f"❌ Error stopping availability notification scheduler: {e}")
+
+    # Stop auto-assignment scheduler
+    try:
+        await stop_auto_assignment_scheduler()
+        logger.info("🛑 Auto-assignment scheduler stopped")
+    except Exception as e:
+        logger.exception(f"❌ Error stopping auto-assignment scheduler: {e}")
 
     logger.info("🛑 Shutting down Clinic Bot Backend API")
 

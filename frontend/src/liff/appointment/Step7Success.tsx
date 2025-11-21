@@ -77,10 +77,11 @@ const Step7Success: React.FC = () => {
       }
 
       // Pass Taiwan time directly (ISO format with timezone indicator)
+      // For auto-assigned appointments, use "不指定" instead of practitioner name
     const appointmentData = {
       id: Date.now(), // Temporary ID for ICS generation
       appointment_type_name: appointmentType.name,
-      practitioner_name: practitioner?.full_name || t('success.practitionerPending'),
+      practitioner_name: isAutoAssigned ? t('practitioner.notSpecified') : (practitioner?.full_name || t('success.practitionerPending')),
       patient_name: patient.full_name,
         start_time: startDateTimeTaiwan.format(), // Taiwan time with +08:00
         end_time: endDateTimeTaiwan.format(), // Taiwan time with +08:00
@@ -90,6 +91,7 @@ const Step7Success: React.FC = () => {
       // This ensures the property exists even when null, making the data structure predictable
       clinic_address: clinicAddress || undefined,
       clinic_phone_number: clinicPhoneNumber || undefined,
+      is_auto_assigned: isAutoAssigned, // Pass flag for defensive check in ICS generator
     };
 
       // Use Google Calendar URL (works on all platforms - iOS, Android, Desktop)
@@ -121,7 +123,8 @@ const Step7Success: React.FC = () => {
         const appointmentData = {
           id: createdAppointment.appointment_id,
           appointment_type_name: appointmentType.name,
-          practitioner_name: practitioner?.full_name || t('success.practitionerPending'),
+          // For auto-assigned appointments, use "不指定" instead of practitioner name
+          practitioner_name: isAutoAssigned ? t('practitioner.notSpecified') : (practitioner?.full_name || t('success.practitionerPending')),
           patient_name: patient.full_name,
           start_time: createdAppointment.start_time,
           end_time: createdAppointment.end_time,
@@ -186,8 +189,8 @@ const Step7Success: React.FC = () => {
           <div className="flex justify-between">
             <span className="text-gray-600">{t('success.practitioner')}</span>
             <span className="font-medium">
-              {practitioner?.full_name || t('success.notSpecified')}
-              {isAutoAssigned && <span className="text-sm text-blue-600 ml-2">{t('success.systemAssigned')}</span>}
+              {/* For auto-assigned appointments, always show "不指定" (patient doesn't see practitioner name) */}
+              {isAutoAssigned ? t('success.notSpecified') : (practitioner?.full_name || t('success.notSpecified'))}
             </span>
           </div>
           <div className="flex justify-between">

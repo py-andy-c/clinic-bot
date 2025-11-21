@@ -1626,9 +1626,12 @@ class TestLiffAvailabilityAndScheduling:
             )
             assert response.status_code == 200
 
-            # Verify appointment was assigned to the practitioner
+            # Verify appointment was auto-assigned (practitioner_name should be "不指定" for auto-assigned)
             appointment_result = response.json()
-            assert appointment_result["practitioner_name"] == practitioner_assoc.full_name
+            assert appointment_result["practitioner_name"] == "不指定"
+            assert appointment_result["is_auto_assigned"] == True
+            # Verify it was still assigned to a practitioner (for blocking availability)
+            assert appointment_result["practitioner_id"] is not None
 
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)

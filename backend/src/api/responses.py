@@ -88,6 +88,8 @@ class AppointmentResponse(BaseModel):
     end_time: datetime
     status: str
     notes: Optional[str]
+    practitioner_id: int
+    is_auto_assigned: Optional[bool] = False
 
 
 class AppointmentListItem(BaseModel):

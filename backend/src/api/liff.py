@@ -940,12 +940,11 @@ async def get_appointment_details(
             end_datetime = None
 
         # Get practitioner name from association
-        from utils.practitioner_helpers import get_practitioner_display_name
-        practitioner_name = None
-        if calendar_event.user_id:
-            practitioner_name = get_practitioner_display_name(
-                db, calendar_event.user_id, clinic.id
-            )
+        # For auto-assigned appointments, return "不指定" instead of actual practitioner name
+        from utils.practitioner_helpers import get_practitioner_display_name_for_appointment
+        practitioner_name = get_practitioner_display_name_for_appointment(
+            db, appointment, clinic.id
+        )
 
         return {
             "id": appointment.calendar_event_id,

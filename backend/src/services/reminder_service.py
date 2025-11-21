@@ -204,8 +204,10 @@ class ReminderService:
         # Filter by date range first, then by time for boundary dates
         # Optimized: Use CalendarEvent.clinic_id directly instead of joining Patient
         # This avoids an unnecessary join since CalendarEvent already has clinic_id
+        # CRITICAL: Filter out auto-assigned appointments (practitioners shouldn't receive reminders for hidden appointments)
         query = db.query(Appointment).join(CalendarEvent).filter(
             Appointment.status == "confirmed",
+            Appointment.is_auto_assigned == False,  # Only send reminders for visible appointments
             CalendarEvent.clinic_id == clinic_id,
             Appointment.reminder_sent_at.is_(None),  # Only get appointments that haven't received reminders
             # Appointment date is after window start date, or on window start date with time after/equal to window start time

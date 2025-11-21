@@ -277,7 +277,8 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
     logout, 
     switchClinic, 
     availableClinics, 
-    isSwitchingClinic 
+    isSwitchingClinic,
+    isClinicAdmin
   } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -308,9 +309,10 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
     { name: '團隊成員', href: '/admin/clinic/members', icon: '👥', show: true }, // All clinic members can view
     { name: '病患管理', href: '/admin/clinic/patients', icon: '👥', show: true },
     { name: 'LINE 使用者', href: '/admin/clinic/line-users', icon: '🤖', show: true }, // Admin-only, but show for all (access control in page)
+    { name: '自動指派預約', href: '/admin/clinic/auto-assigned-appointments', icon: '📋', show: isClinicAdmin }, // Admin-only
     { name: '診所設定', href: '/admin/clinic/settings', icon: '⚙️', show: true }, // All clinic members can view settings
     { name: '個人設定', href: '/admin/profile', icon: '👤', show: true }, // All users can access profile
-  ].filter(item => item.show), []);
+  ].filter(item => item.show), [isClinicAdmin]);
 
   const isActive = (href: string) => {
     return location.pathname === href;

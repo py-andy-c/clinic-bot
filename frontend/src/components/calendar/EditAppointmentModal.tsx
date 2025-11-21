@@ -24,6 +24,9 @@ export interface EditAppointmentModalProps {
   onConfirm: (formData: { practitioner_id: number | null; start_time: string; notes?: string; notification_note?: string }) => Promise<void>;
   formatAppointmentTime: (start: Date, end: Date) => string;
   errorMessage?: string | null; // Error message to display (e.g., from failed save)
+  showReadOnlyFields?: boolean; // If false, skip patient name, appointment type, and notes fields (default: true)
+  formSubmitButtonText?: string; // Custom text for the form submit button (default: "下一步")
+  allowConfirmWithoutChanges?: boolean; // If true, allow confirmation even when nothing changed (default: false)
 }
 
 export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.memo(({
@@ -33,6 +36,9 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   onClose,
   onConfirm,
   errorMessage: externalErrorMessage,
+  showReadOnlyFields = true,
+  formSubmitButtonText = '下一步',
+  allowConfirmWithoutChanges = false,
 }) => {
   // Step state: 'form' | 'note' | 'preview'
   const [step, setStep] = useState<EditStep>('form');
@@ -54,6 +60,9 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const originalNotes = event.resource.notes || '';
   const [customNote, setCustomNote] = useState<string>(''); // Custom note for notification
   
+  // Check if appointment was originally auto-assigned
+  const originallyAutoAssigned = event.resource.originally_auto_assigned ?? false;
+  
   // UI state
   const [error, setError] = useState<string | null>(null);
   const [previewMessage, setPreviewMessage] = useState<string | null>(null);
@@ -63,6 +72,9 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const appointmentType = appointmentTypes.find(
     at => at.id === event.resource.appointment_type_id
   );
+  
+  // Use appointment_type_id directly from event if available, even if appointmentType not found yet
+  const appointmentTypeId = event.resource.appointment_type_id || appointmentType?.id || null;
 
   // Get original appointment details for DateTimePicker
         const originalTime = moment(event.start).tz('Asia/Taipei').format('HH:mm');
@@ -110,13 +122,29 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     const timeChanged = !newStartTime.isSame(originalStartTime, 'minute');
     const practitionerChanged = selectedPractitionerId !== (event.resource.practitioner_id || null);
 
-    if (!timeChanged && !practitionerChanged) {
-      // No changes - just close
+    if (!timeChanged && !practitionerChanged && !allowConfirmWithoutChanges) {
+      // No changes - just close (unless allowConfirmWithoutChanges is true)
       onClose();
       return;
     }
 
-    // Time or practitioner changed - proceed to note step
+    // For originally auto-assigned appointments: only show note step if time changed
+    // (patients don't need to know about practitioner reassignment, only time changes)
+    if (originallyAutoAssigned && !timeChanged) {
+      // Time didn't change - skip note step and go directly to save
+      setError(null);
+      const newStartTimeISO = newStartTime.toISOString();
+      // Don't send notes or notification_note to preserve original patient notes
+      // and avoid notifying the patient (omit properties instead of setting to undefined)
+      const formData: { practitioner_id: number | null; start_time: string; notes?: string; notification_note?: string } = {
+        practitioner_id: selectedPractitionerId,
+        start_time: newStartTimeISO,
+      };
+      await onConfirm(formData);
+      return;
+    }
+
+    // Time changed (or not originally auto-assigned) - proceed to note step
     setError(null);
     setStep('note');
   };
@@ -182,42 +210,47 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const renderFormStep = () => (
     <>
       <div className="space-y-4 mb-6">
-        {/* Patient name (read-only) */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            病患姓名
-          </label>
-          <input
-            type="text"
-            value={event.resource.patient_name || event.title}
-            disabled
-            className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-600"
-          />
-        </div>
-
-        {/* Appointment type (read-only) */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            預約類型
-          </label>
-          <input
-            type="text"
-            value={appointmentType?.name || event.resource.appointment_type_name || '未知'}
-            disabled
-            className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-600"
-          />
-        </div>
-
-        {/* Patient Notes - Read-only, only show if patient provided notes */}
-        {originalNotes && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              病患備註
-            </label>
-            <div className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-700 whitespace-pre-wrap">
-              {originalNotes}
+        {/* Read-only fields - only show if showReadOnlyFields is true */}
+        {showReadOnlyFields && (
+          <>
+            {/* Patient name (read-only) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                病患姓名
+              </label>
+              <input
+                type="text"
+                value={event.resource.patient_name || event.title}
+                disabled
+                className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-600"
+              />
             </div>
-          </div>
+
+            {/* Appointment type (read-only) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                預約類型
+              </label>
+              <input
+                type="text"
+                value={appointmentType?.name || event.resource.appointment_type_name || '未知'}
+                disabled
+                className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-600"
+              />
+            </div>
+
+            {/* Patient Notes - Read-only, only show if patient provided notes */}
+            {originalNotes && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  病患備註
+                </label>
+                <div className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-700 whitespace-pre-wrap">
+                  {originalNotes}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Practitioner selection */}
@@ -237,7 +270,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             <option value="">請選擇治療師</option>
             {availablePractitioners.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.full_name}
+                {p.full_name}{p.id === originalPractitionerId ? ' (原本)' : ''}
               </option>
             ))}
           </select>
@@ -247,12 +280,12 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         </div>
 
         {/* Date/Time Picker */}
-        {appointmentType && (
+        {appointmentTypeId && (
           <DateTimePicker
             selectedDate={selectedDate}
             selectedTime={selectedTime}
             selectedPractitionerId={selectedPractitionerId}
-            appointmentTypeId={appointmentType.id}
+            appointmentTypeId={appointmentTypeId}
             onDateSelect={setSelectedDate}
             onTimeSelect={setSelectedTime}
             originalTime={originalTime}
@@ -267,10 +300,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       <div className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200 flex-shrink-0">
         <button
           onClick={handleFormSubmit}
-          disabled={!selectedPractitionerId || !selectedTime || !hasChanges}
-          className={`btn-primary ${(!selectedPractitionerId || !selectedTime || !hasChanges) ? 'opacity-50 cursor-not-allowed' : ''}`}
+          disabled={!selectedPractitionerId || !selectedTime || (!hasChanges && !allowConfirmWithoutChanges)}
+          className={`btn-primary ${(!selectedPractitionerId || !selectedTime || (!hasChanges && !allowConfirmWithoutChanges)) ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          下一步
+          {formSubmitButtonText}
         </button>
       </div>
     </>

@@ -12,6 +12,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from models import User, UserClinicAssociation
+from models.appointment import Appointment
 from utils.query_helpers import filter_by_role
 
 logger = logging.getLogger(__name__)
@@ -186,4 +187,45 @@ def get_practitioner_display_names_batch(
             result[association.user_id] = display_name
     
     return result
+
+
+# Constant for auto-assigned practitioner display name
+AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME = '不指定'
+
+
+def get_practitioner_display_name_for_appointment(
+    db: Session,
+    appointment: Appointment,
+    clinic_id: int
+) -> str:
+    """
+    Get practitioner display name for patient-facing appointment display.
+    
+    Returns "不指定" for auto-assigned appointments, otherwise returns the actual
+    practitioner display name (full_name or email).
+    
+    This function consolidates the logic for returning practitioner names in
+    appointment responses, ensuring consistency across all endpoints.
+    
+    Args:
+        db: Database session
+        appointment: Appointment object with is_auto_assigned attribute
+        clinic_id: Clinic ID for association lookup
+        
+    Returns:
+        Practitioner display name ("不指定" for auto-assigned, or actual name)
+    """
+    if appointment.is_auto_assigned:
+        return AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
+    
+    # Get actual practitioner name
+    if appointment.calendar_event and appointment.calendar_event.user_id:
+        name = get_practitioner_display_name(
+            db, appointment.calendar_event.user_id, clinic_id
+        )
+        if name:
+            return name
+    
+    # Fallback (shouldn't happen for valid appointments)
+    return AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
 

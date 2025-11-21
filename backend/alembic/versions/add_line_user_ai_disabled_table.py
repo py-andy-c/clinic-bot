@@ -1,6 +1,6 @@
 """add_line_user_ai_disabled_table
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 4d8177af9cf1
 Revises: f7bd9e88de5a
 Create Date: 2025-11-20 22:00:00.000000
 

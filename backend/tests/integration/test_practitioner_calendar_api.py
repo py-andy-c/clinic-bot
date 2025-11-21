@@ -1031,9 +1031,8 @@ class TestPractitionerCalendarAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["date"] == "2025-01-15"
-        assert len(data["events"]) == 1
-        assert data["events"][0]["type"] == "appointment"
-        assert data["events"][0]["is_auto_assigned"] is True
+        # Auto-assigned appointments should NOT appear in practitioner calendar (they're hidden)
+        assert len(data["events"]) == 0
 
     def test_calendar_api_includes_is_auto_assigned_false_for_manually_assigned_appointment(
         self, client: TestClient, db_session: Session, test_clinic_and_practitioner

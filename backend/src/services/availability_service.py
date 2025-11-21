@@ -854,7 +854,6 @@ class AvailabilityService:
 
         # Get current Taiwan time for comparison
         now: datetime = taiwan_now()
-        today = now.date()
 
         filtered_slots: List[Dict[str, Any]] = []
 
@@ -874,11 +873,8 @@ class AvailabilityService:
             slot_datetime: datetime = slot_datetime_tz
 
             # Apply booking restrictions
-            if clinic.booking_restriction_type == 'same_day_disallowed':
-                # Disallow same-day booking, allow next day and later
-                if requested_date <= today:
-                    continue  # Skip this slot
-            elif clinic.booking_restriction_type == 'minimum_hours_required':
+            # Note: same_day_disallowed is deprecated, all clinics now use minimum_hours_required
+            if clinic.booking_restriction_type == 'minimum_hours_required':
                 # Must be at least X hours from now
                 time_diff: timedelta = slot_datetime - now
                 if time_diff.total_seconds() < (clinic.minimum_booking_hours_ahead * 3600):

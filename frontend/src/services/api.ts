@@ -256,6 +256,26 @@ export class ApiService {
     return response.data;
   }
 
+  async getAutoAssignedAppointments(): Promise<{
+    appointments: Array<{
+      appointment_id: number;
+      calendar_event_id: number;
+      patient_name: string;
+      patient_id: number;
+      practitioner_id: number;
+      practitioner_name: string;
+      appointment_type_id: number;
+      appointment_type_name: string;
+      start_time: string;
+      end_time: string;
+      notes?: string | null;
+      originally_auto_assigned: boolean;
+    }>;
+  }> {
+    const response = await this.client.get('/clinic/auto-assigned-appointments');
+    return response.data;
+  }
+
   async getLineUsers(
     page?: number,
     pageSize?: number,

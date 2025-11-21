@@ -1,6 +1,6 @@
 """optimize_indexes_remove_redundant_add_query_specific
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 1b2375d21e4f
 Revises: d26badef0731
 Create Date: 2025-01-27 12:00:00.000000
 

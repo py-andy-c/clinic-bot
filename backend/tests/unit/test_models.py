@@ -74,7 +74,7 @@ class TestClinicModel:
 
         # Test default values
         assert clinic.reminder_hours_before == 24
-        assert clinic.booking_restriction_type == "same_day_disallowed"
+        assert clinic.booking_restriction_type == "minimum_hours_required"
         assert clinic.minimum_booking_hours_ahead == 24
         assert clinic.display_name is None
         assert clinic.address is None

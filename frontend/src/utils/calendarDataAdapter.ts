@@ -25,6 +25,7 @@ export interface CalendarEvent {
     is_primary?: boolean; // Whether this is the primary practitioner's event
     event_practitioner_name?: string; // Name of practitioner who owns this event (for multi-practitioner view)
     is_auto_assigned?: boolean; // Whether appointment is auto-assigned (shows "不指定" to patient)
+    originally_auto_assigned?: boolean; // Whether appointment was originally auto-assigned (for tracking)
   };
 }
 

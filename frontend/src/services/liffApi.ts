@@ -86,6 +86,7 @@ export interface AppointmentResponse {
   end_time: string;
   status: string;
   notes?: string;
+  is_auto_assigned?: boolean;
 }
 
 export interface AppointmentSummary {

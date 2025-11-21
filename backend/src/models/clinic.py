@@ -26,7 +26,7 @@ class NotificationSettings(BaseModel):
 
 class BookingRestrictionSettings(BaseModel):
     """Schema for booking restriction settings."""
-    booking_restriction_type: str = Field(default="same_day_disallowed")
+    booking_restriction_type: str = Field(default="minimum_hours_required")
     minimum_booking_hours_ahead: int = Field(default=24, ge=1, le=168)
     step_size_minutes: int = Field(default=30, ge=5, le=60, description="Time interval in minutes for appointment slot granularity. Patients can only book appointments at these intervals. For example, 30 means patients can select 09:00, 09:30, 10:00, etc. A smaller value provides more time options (e.g., 15 minutes = 09:00, 09:15, 09:30, 09:45), while a larger value provides fewer options.")
     max_future_appointments: int = Field(default=3, ge=1, le=100, description="Maximum number of active future appointments a patient can have")
@@ -188,7 +188,7 @@ class Clinic(Base):
             "reminder_hours_before": 24
         },
         "booking_restriction_settings": {
-            "booking_restriction_type": "same_day_disallowed",
+            "booking_restriction_type": "minimum_hours_required",
             "minimum_booking_hours_ahead": 24
         },
         "clinic_info_settings": {
@@ -276,7 +276,7 @@ class Clinic(Base):
     @property
     def booking_restriction_type(self) -> str:
         """Get booking restriction type with default."""
-        return self.settings.get("booking_restriction_settings", {}).get("booking_restriction_type", "same_day_disallowed")
+        return self.settings.get("booking_restriction_settings", {}).get("booking_restriction_type", "minimum_hours_required")
 
     @booking_restriction_type.setter
     def booking_restriction_type(self, value: str):

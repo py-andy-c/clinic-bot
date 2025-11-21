@@ -9,7 +9,7 @@ import { getErrorMessage } from '../../types/api';
 
 const Step6Confirmation: React.FC = () => {
   const { t } = useTranslation();
-  const { appointmentType, practitioner, practitionerId, isAutoAssigned, date, startTime, patient, notes, clinicId, updateAssignedPractitioner, setCreatedAppointment } = useAppointmentStore();
+  const { appointmentType, practitioner, practitionerId, isAutoAssigned, date, startTime, patient, notes, clinicId, setCreatedAppointment } = useAppointmentStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,16 +45,10 @@ const Step6Confirmation: React.FC = () => {
         notes: notes || undefined,
       });
 
-      // Update UI with assigned practitioner info if auto-assigned
-      const wasAutoAssigned = practitionerId === null;
-      if (wasAutoAssigned && response.practitioner_name) {
-        // Update store with assigned practitioner and mark as auto-assigned
-        updateAssignedPractitioner(response.practitioner_id, {
-          id: response.practitioner_id,
-          full_name: response.practitioner_name,
-          offered_types: [] // We don't have this info, but it's not critical for display
-        }, true);
-      }
+      // For auto-assigned appointments, don't update practitioner in store
+      // Patient should continue to see "不指定" even after appointment is created
+      // Response will have practitioner_name as "不指定" from backend for auto-assigned appointments
+      // We don't need to update the store since patient shouldn't see the practitioner
 
       // Store created appointment data for Step 7
       setCreatedAppointment({
@@ -109,8 +103,8 @@ const Step6Confirmation: React.FC = () => {
           <div className="flex justify-between">
             <span className="text-gray-600">{t('confirmation.practitioner')}</span>
             <span className="font-medium">
-              {practitioner?.full_name || t('confirmation.notSpecified')}
-              {isAutoAssigned && <span className="text-sm text-blue-600 ml-2">{t('confirmation.systemAssigned')}</span>}
+              {/* For auto-assigned appointments, always show "不指定" (patient doesn't see practitioner name) */}
+              {practitionerId === null || isAutoAssigned ? t('confirmation.notSpecified') : (practitioner?.full_name || t('confirmation.notSpecified'))}
             </span>
           </div>
           <div className="flex justify-between">
