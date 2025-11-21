@@ -167,6 +167,16 @@ class Clinic(Base):
     health_check_errors: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     """JSON string containing recent health check errors."""
 
+    liff_access_token: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True, index=True)
+    """
+    Secure token for clinic identification in LIFF URLs.
+
+    This cryptographically secure token replaces the insecure clinic_id parameter
+    in LIFF URLs. Each clinic has a unique token that cannot be easily guessed or
+    enumerated, providing better security for clinic isolation.
+
+    Generated using secrets.token_urlsafe(32), producing ~43 characters URL-safe.
+    """
     # Clinic Settings (JSONB column for all configurable settings)
     settings: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     """

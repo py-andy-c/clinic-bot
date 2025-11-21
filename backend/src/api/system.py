@@ -52,6 +52,7 @@ class ClinicResponse(BaseModel):
     subscription_status: str
     trial_ends_at: Optional[datetime]
     created_at: datetime
+    liff_url: Optional[str] = None  # LIFF URL for the clinic
 
 
 class SignupLinkResponse(BaseModel):
@@ -101,6 +102,8 @@ async def create_clinic(
 
         # Create clinic
         # Use ClinicSettings with all defaults - display_name will be None, and effective_display_name will fallback to clinic.name on read
+        from utils.liff_token import generate_liff_access_token
+        
         clinic = Clinic(
             name=clinic_data.name,
             line_channel_id=clinic_data.line_channel_id,
@@ -115,6 +118,12 @@ async def create_clinic(
         db.add(clinic)
         db.commit()
         db.refresh(clinic)
+        
+        # Generate LIFF access token immediately upon clinic creation
+        # Note: generate_liff_access_token() commits internally, so no need to commit again
+        clinic.liff_access_token = generate_liff_access_token(db, clinic.id)
+        db.refresh(clinic)  # Refresh to get the updated token
+        logger.info(f"Generated LIFF access token for newly created clinic {clinic.id}")
 
         return ClinicResponse(
             id=clinic.id,
@@ -145,8 +154,12 @@ async def list_clinics(
     Get all clinics in the system with basic information.
     """
     try:
-        clinics = db.query(Clinic).all()
+        from utils.liff_token import generate_liff_url
 
+        clinics = db.query(Clinic).all()
+        
+        # Generate LIFF URLs without auto-generating tokens (read-only operation)
+        # Tokens should be generated via explicit endpoints or during clinic creation
         return [
             ClinicResponse(
                 id=clinic.id,
@@ -154,7 +167,8 @@ async def list_clinics(
                 line_channel_id=clinic.line_channel_id,
                 subscription_status=clinic.subscription_status,
                 trial_ends_at=clinic.trial_ends_at,
-                created_at=clinic.created_at
+                created_at=clinic.created_at,
+                liff_url=generate_liff_url(clinic)  # Will use clinic_id if token missing (backward compat)
             )
             for clinic in clinics
         ]
@@ -197,6 +211,11 @@ async def get_clinic(
         # Get validated settings
         validated_settings = clinic.get_validated_settings()
 
+        # Generate LIFF URL (read-only operation - no auto-generation)
+        # Tokens should be generated via explicit endpoints or during clinic creation
+        from utils.liff_token import generate_liff_url
+        liff_url = generate_liff_url(clinic)  # Will use clinic_id if token missing (backward compat)
+
         return {
             "id": clinic.id,
             "name": clinic.name,
@@ -212,7 +231,8 @@ async def get_clinic(
                 "users": user_count,
                 "patients": patient_count,
                 "appointments": appointment_count
-            }
+            },
+            "liff_url": liff_url
         }
 
     except HTTPException:

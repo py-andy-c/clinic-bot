@@ -7,6 +7,7 @@ including member management, settings, patients, and appointments.
 """
 
 import logging
+import secrets
 from datetime import datetime, timedelta, date as date_type, time
 from typing import Dict, List, Optional, Any, Union
 
@@ -954,6 +955,87 @@ async def update_settings(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法更新設定"
+        )
+
+
+@router.post("/regenerate-liff-token", summary="Regenerate LIFF access token")
+async def regenerate_liff_token(
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Regenerate LIFF access token for current clinic.
+
+    Only clinic admins can regenerate tokens. The old token is immediately
+    invalidated and a new secure token is generated. This is useful if a token
+    is compromised or needs to be rotated for security purposes.
+
+    Returns:
+        Dict with success status, message, and new token
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Use with_for_update to lock the row and prevent race conditions
+        clinic = db.query(Clinic).filter_by(id=clinic_id).with_for_update().first()
+
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="診所不存在"
+            )
+
+        # Force regeneration by clearing old token first, then generating new one
+        old_token = clinic.liff_access_token
+        clinic.liff_access_token = None
+        db.flush()  # Ensure the change is visible
+        
+        # Generate new token (will create a new one since we cleared it)
+        # We need to manually generate since generate_liff_access_token checks for existing token
+        max_attempts = 10
+        new_token = None
+        for attempt in range(max_attempts):
+            token = secrets.token_urlsafe(32)  # ~43 characters URL-safe
+            
+            # Check for collision across all clinics
+            existing = db.query(Clinic).filter_by(liff_access_token=token).first()
+            if not existing:
+                new_token = token
+                break
+            logger.warning(f"Token collision detected on attempt {attempt + 1} for clinic {clinic_id}, retrying...")
+        
+        if not new_token:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="無法產生新的 token，請稍後再試"
+            )
+        
+        clinic.liff_access_token = new_token
+        db.commit()
+
+        # Log regeneration event
+        logger.info(
+            f"LIFF token regenerated for clinic {clinic_id} by user {current_user.user_id}. "
+            f"Old token: {old_token[:8] if old_token else 'None'}... (truncated)"
+        )
+
+        # Security: Do not return the token in the API response to prevent exposure
+        # in network logs, server logs, or client-side JavaScript.
+        # The token can be retrieved via the clinic details endpoint if needed.
+        return {
+            "success": True,
+            "message": "Token regenerated successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Failed to regenerate LIFF token for clinic: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法重新產生 token"
         )
 
 

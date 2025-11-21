@@ -18,7 +18,7 @@ from core.constants import (
     NOTIFICATION_CHECK_HOURS,
     NOTIFICATION_CLEANUP_HOUR,
 )
-from core.config import LIFF_ID
+from utils.liff_token import generate_liff_url
 from core.database import get_db_context
 from models.availability_notification import AvailabilityNotification
 from models.clinic import Clinic
@@ -671,26 +671,14 @@ class AvailabilityNotificationService:
     ) -> str:
         """
         Generate LIFF URL for booking page.
-        
-        Example: https://liff.line.me/{liff_id}?mode=book&clinic_id=1
+
+        Uses secure clinic_token instead of clinic_id for better security.
+        Falls back to clinic_id for backward compatibility if token not available.
+
+        Example: https://liff.line.me/{liff_id}?mode=book&clinic_token=...
         """
-        # LIFF ID comes from environment variable (LIFF_ID) in production and backend/.env for local development
-        if LIFF_ID:
-            base_url = f"https://liff.line.me/{LIFF_ID}"
-        else:
-            # Fallback: construct placeholder URL if LIFF_ID not configured
-            logger.warning(f"Clinic {clinic.id}: LIFF_ID not configured, using placeholder")
-            base_url = f"https://liff.line.me/clinic_{clinic.id}"
-        
-        params = {
-            "mode": "book",
-            "clinic_id": notification.clinic_id,
-        }
-        
-        query_string = "&".join([f"{k}={v}" for k, v in params.items()])
-        
-        # Construct URL with query parameters
-        return f"{base_url}?{query_string}"
+        # Use the shared utility function for consistency
+        return generate_liff_url(clinic, mode="book")
     
     async def _cleanup_expired_notifications(self) -> None:
         """Set is_active=False for notifications where all dates are in the past."""

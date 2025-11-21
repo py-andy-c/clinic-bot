@@ -24,6 +24,7 @@ from core.config import JWT_SECRET_KEY
 from core.database import get_db
 from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
 from utils.datetime_utils import taiwan_now
+from utils.liff_token import generate_liff_access_token
 from tests.conftest import (
     create_practitioner_availability_with_clinic,
     create_calendar_event_with_clinic,
@@ -60,6 +61,10 @@ def test_clinic_with_liff(db_session: Session):
         }
     )
     db_session.add(clinic)
+    db_session.commit()
+
+    # Generate LIFF access token for the clinic
+    clinic.liff_access_token = generate_liff_access_token(db_session, clinic.id)
     db_session.commit()
 
     # Create practitioner with clinic association
@@ -2911,7 +2916,7 @@ class TestLanguagePreference:
                 "line_user_id": "U_test_lang_login_existing",
                 "display_name": "Test User",
                 "liff_access_token": "test_token",
-                "clinic_id": clinic.id
+                "clinic_token": clinic.liff_access_token
             })
 
             assert response.status_code == 200
@@ -2942,7 +2947,7 @@ class TestLanguagePreference:
                 "line_user_id": "U_test_lang_login_null",
                 "display_name": "Test User",
                 "liff_access_token": "test_token",
-                "clinic_id": clinic.id
+                "clinic_token": clinic.liff_access_token
             })
 
             assert response.status_code == 200

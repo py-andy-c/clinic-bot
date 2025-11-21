@@ -8,7 +8,8 @@ export interface LiffLoginRequest {
   line_user_id: string;
   display_name: string;
   liff_access_token: string;
-  clinic_id: number;
+  clinic_token?: string;  // New preferred method (secure token)
+  clinic_id?: number;     // Deprecated, for backward compatibility
 }
 
 export interface LiffLoginResponse {

@@ -25,6 +25,7 @@ export interface Clinic {
   webhook_count_24h: number;
   last_health_check_at?: string;
   health_check_errors?: string;
+  liff_url?: string;  // LIFF URL for the clinic
   settings?: {
     notification_settings?: {
       reminder_hours_before?: number;

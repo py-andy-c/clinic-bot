@@ -32,6 +32,7 @@ from services import PatientService, AppointmentService, AvailabilityService, Pr
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
 from utils.datetime_utils import TAIWAN_TZ, taiwan_now, parse_datetime_to_taiwan, parse_date_string
 from utils.practitioner_helpers import get_practitioner_display_name
+from utils.liff_token import generate_liff_access_token, validate_token_format
 from api.responses import (
     PatientResponse, PatientCreateResponse, PatientListResponse,
     AppointmentTypeResponse, AppointmentTypeListResponse,
@@ -98,7 +99,17 @@ class LiffLoginRequest(BaseModel):
     line_user_id: str
     display_name: str
     liff_access_token: str
-    clinic_id: int  # From URL parameter (?clinic_id=123)
+    clinic_token: Optional[str] = None  # New preferred method (secure token)
+    clinic_id: Optional[int] = None     # Deprecated, for backward compatibility
+
+    @model_validator(mode='after')
+    def validate_clinic_identifier(self):
+        """Ensure either clinic_token or clinic_id is provided, but not both."""
+        if not self.clinic_token and not self.clinic_id:
+            raise ValueError("Either clinic_token or clinic_id required")
+        if self.clinic_token and self.clinic_id:
+            raise ValueError("Provide either clinic_token or clinic_id, not both")
+        return self
 
 
 class LiffLoginResponse(BaseModel):
@@ -277,9 +288,11 @@ async def liff_login(
     Authenticate LIFF user and create/update LINE user record.
 
     This endpoint is called after LIFF authentication succeeds.
-    Clinic context comes from URL parameter (?clinic_id=123).
+    Clinic context comes from URL parameter (?clinic_token=... or ?clinic_id=123).
     It creates/updates the LINE user record and determines if this
     is a first-time user for the clinic.
+
+    Supports both clinic_token (preferred, secure) and clinic_id (deprecated, backward compatibility).
     """
     try:
         # Get or create LINE user
@@ -301,15 +314,55 @@ async def liff_login(
                 line_user.display_name = request.display_name
                 db.commit()
 
-        # Validate clinic exists and is active
-        clinic = db.query(Clinic).filter(
-            Clinic.id == request.clinic_id,
-            Clinic.is_active == True
-        ).first()
-        if not clinic:
+        # Look up clinic by token or ID (with backward compatibility)
+        clinic = None
+
+        if request.clinic_token:
+            # Validate token format first
+            if not validate_token_format(request.clinic_token):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid token format"
+                )
+
+            clinic = db.query(Clinic).filter(
+                Clinic.liff_access_token == request.clinic_token,
+                Clinic.is_active == True
+            ).first()
+
+            if not clinic:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="診所不存在或已停用"
+                )
+
+        elif request.clinic_id:  # Backward compatibility
+            logger.warning(f"Deprecated clinic_id parameter used: {request.clinic_id}")
+            clinic = db.query(Clinic).filter(
+                Clinic.id == request.clinic_id,
+                Clinic.is_active == True
+            ).first()
+
+            if not clinic:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="診所不存在或已停用"
+                )
+
+            # Auto-generate token if missing (with race condition protection)
+            # This is acceptable here because it's part of the authentication flow,
+            # not a read-only endpoint. The generate_liff_access_token function
+            # uses database locking to prevent race conditions.
+            if clinic and not clinic.liff_access_token:
+                clinic.liff_access_token = generate_liff_access_token(db, clinic.id)
+                # Note: generate_liff_access_token already commits, but we refresh to ensure consistency
+                db.refresh(clinic)
+                logger.info(f"Auto-generated token for clinic {clinic.id} during LIFF login")
+        else:
+            # This should not happen due to model validation, but defensive check
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="診所不存在或已停用"
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either clinic_token or clinic_id required"
             )
 
         # Check if patient exists for this clinic

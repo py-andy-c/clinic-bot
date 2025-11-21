@@ -197,17 +197,18 @@ class TestURLGeneration:
         
         clinic = Mock(spec=Clinic)
         clinic.id = 1
+        clinic.liff_access_token = "test_token_12345"  # Mock token
         
-        # Mock LIFF_ID
+        # Mock LIFF_ID in both modules
         monkeypatch.setattr("core.config.LIFF_ID", "1234567890")
-        import services.availability_notification_service
-        services.availability_notification_service.LIFF_ID = "1234567890"
+        monkeypatch.setattr("utils.liff_token.LIFF_ID", "1234567890")
         
         url = service._generate_liff_url(notification, clinic)
         
         assert "https://liff.line.me/1234567890" in url
         assert "mode=book" in url
-        assert "clinic_id=2" in url
+        assert "clinic_token=test_token_12345" in url
+        assert "clinic_id" not in url  # Should use token, not id
         assert "appointment_type_id" not in url
         assert "practitioner_id" not in url
     
@@ -222,17 +223,18 @@ class TestURLGeneration:
         
         clinic = Mock(spec=Clinic)
         clinic.id = 1
+        clinic.liff_access_token = "test_token_67890"  # Mock token
         
-        # Mock LIFF_ID
+        # Mock LIFF_ID in both modules
         monkeypatch.setattr("core.config.LIFF_ID", "1234567890")
-        import services.availability_notification_service
-        services.availability_notification_service.LIFF_ID = "1234567890"
+        monkeypatch.setattr("utils.liff_token.LIFF_ID", "1234567890")
         
         url = service._generate_liff_url(notification, clinic)
         
         assert "https://liff.line.me/1234567890" in url
         assert "mode=book" in url
-        assert "clinic_id=3" in url
+        assert "clinic_token=test_token_67890" in url
+        assert "clinic_id" not in url  # Should use token, not id
         assert "appointment_type_id" not in url
         assert "practitioner_id" not in url
     
@@ -246,18 +248,19 @@ class TestURLGeneration:
         
         clinic = Mock(spec=Clinic)
         clinic.id = 1
+        clinic.liff_access_token = None  # No token - should fall back to clinic_id
         
-        # Mock LIFF_ID as empty string
+        # Mock LIFF_ID as empty string in both modules
         monkeypatch.setattr("core.config.LIFF_ID", "")
-        import services.availability_notification_service
-        services.availability_notification_service.LIFF_ID = ""
+        monkeypatch.setattr("utils.liff_token.LIFF_ID", "")
         
         url = service._generate_liff_url(notification, clinic)
         
         # Should use placeholder URL
         assert "clinic_1" in url
         assert "mode=book" in url
-        assert "clinic_id=2" in url
+        # When token is missing, falls back to clinic_id for backward compatibility
+        assert "clinic_id=1" in url  # Uses clinic.id, not notification.clinic_id
         assert "appointment_type_id" not in url
         assert "practitioner_id" not in url
 
