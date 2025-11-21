@@ -1,15 +1,18 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../contexts/ModalContext';
 import { apiService } from '../services/api';
 import { LineUserWithStatus } from '../types';
 import { logger } from '../utils/logger';
-import { LoadingSpinner, ErrorMessage } from '../components/shared';
+import { LoadingSpinner, ErrorMessage, SearchInput } from '../components/shared';
 import { InfoModal } from '../components/shared/InfoModal';
 import { useApiData } from '../hooks/useApiData';
+import { useHighlightRow } from '../hooks/useHighlightRow';
 import PageHeader from '../components/PageHeader';
 
 const LineUsersPage: React.FC = () => {
+  const navigate = useNavigate();
   const { isClinicAdmin, user: currentUser, isAuthenticated, isLoading } = useAuth();
   const activeClinicId = currentUser?.active_clinic_id;
   const { alert, confirm } = useModal();
@@ -63,10 +66,61 @@ const LineUsersPage: React.FC = () => {
     }
   );
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   const [showAiStatusInfo, setShowAiStatusInfo] = useState(false);
   const aiStatusInfoButtonRef = useRef<HTMLButtonElement>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const targetLineUserIdRef = useRef<string | null>(null);
+
+  // Get lineUserId from query parameter
+  const lineUserIdFromQuery = searchParams.get('lineUserId');
+
+  // Use highlight hook for navigation from patient list
+  const highlightedLineUserId = useHighlightRow(
+    lineUserIdFromQuery && lineUsers && lineUsers.length > 0 ? lineUserIdFromQuery : null,
+    'data-line-user-id'
+  );
+
+  // Auto-expand and search when navigating from patient list
+  useEffect(() => {
+    if (lineUserIdFromQuery && lineUsers && lineUsers.length > 0 && !targetLineUserIdRef.current) {
+      const targetUser = lineUsers.find(lu => lu.line_user_id === lineUserIdFromQuery);
+      if (targetUser) {
+        // Mark as handled to prevent re-running
+        targetLineUserIdRef.current = lineUserIdFromQuery;
+        
+        // Auto-expand the target user
+        setExpandedUsers(prev => new Set(prev).add(lineUserIdFromQuery));
+        
+        // Auto-fill search with display name if available and search is empty
+        if (targetUser.display_name) {
+          setSearchQuery(targetUser.display_name);
+        }
+        
+        // Remove query parameter after handling
+        const newSearchParams = new URLSearchParams(searchParams);
+        newSearchParams.delete('lineUserId');
+        setSearchParams(newSearchParams, { replace: true });
+      }
+    }
+    
+    // Reset ref when lineUserIdFromQuery changes (new navigation)
+    if (!lineUserIdFromQuery) {
+      targetLineUserIdRef.current = null;
+    }
+  }, [lineUserIdFromQuery, lineUsers, searchParams, setSearchParams, setExpandedUsers]);
+
+  // Filter line users based on search query
+  const filteredLineUsers = useMemo(() => {
+    if (!searchQuery.trim()) return lineUsers || [];
+    const normalizedQuery = searchQuery.toLowerCase().trim();
+    return (lineUsers || []).filter(lu =>
+      lu.display_name?.toLowerCase().includes(normalizedQuery) ||
+      lu.patient_names.some(name => name.toLowerCase().includes(normalizedQuery))
+    );
+  }, [lineUsers, searchQuery]);
 
   const handleToggleAi = async (lineUser: LineUserWithStatus, e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation(); // Prevent row click when toggling
@@ -134,6 +188,11 @@ const LineUsersPage: React.FC = () => {
     });
   };
 
+  const handlePatientNameClick = (patientName: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent row expansion when clicking patient name
+    navigate(`/admin/clinic/patients?patientName=${encodeURIComponent(patientName)}`);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -159,6 +218,15 @@ const LineUsersPage: React.FC = () => {
       <div className="space-y-8">
         {/* Line Users List */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          {/* Search Bar */}
+          <div className="p-4 border-b border-gray-200">
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="搜尋LINE使用者名稱或病患姓名..."
+            />
+          </div>
+          
           {!lineUsers || lineUsers.length === 0 ? (
             <div className="text-center py-12">
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -169,18 +237,22 @@ const LineUsersPage: React.FC = () => {
                 目前沒有LINE使用者連結到此診所的病患
               </p>
             </div>
+          ) : filteredLineUsers.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500">找不到符合搜尋條件的LINE使用者</p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50">
                       LINE 使用者
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       病患
                     </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                       <div className="flex items-center justify-center gap-2">
                         <span>AI 狀態</span>
                         <button
@@ -224,17 +296,20 @@ const LineUsersPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {lineUsers.map((lineUser) => {
+                  {filteredLineUsers.map((lineUser) => {
                     const isToggling = toggling.has(lineUser.line_user_id);
                     const isExpanded = expandedUsers.has(lineUser.line_user_id);
                     return (
                       <React.Fragment key={lineUser.line_user_id}>
                         <tr 
-                          className="hover:bg-gray-50 cursor-pointer"
+                          data-line-user-id={lineUser.line_user_id}
+                          className={`group hover:bg-gray-50 cursor-pointer transition-colors ${
+                            highlightedLineUserId === lineUser.line_user_id ? 'bg-blue-50' : ''
+                          }`}
                           onClick={() => toggleExpand(lineUser.line_user_id)}
                         >
-                          <td className="px-6 py-4">
-                            <div className="text-sm font-medium text-gray-900">
+                          <td className="px-6 py-4 sticky left-0 z-10 bg-white group-hover:bg-gray-50">
+                            <div className="text-sm font-medium text-gray-900 whitespace-nowrap max-w-xs truncate" title={lineUser.display_name || '未設定名稱'}>
                               {lineUser.display_name || '未設定名稱'}
                             </div>
                           </td>
@@ -246,7 +321,17 @@ const LineUsersPage: React.FC = () => {
                                 </div>
                                 {!isExpanded && lineUser.patient_names.length > 0 && (
                                   <div className="text-sm text-gray-500 mt-1">
-                                    {lineUser.patient_names.slice(0, 3).join(', ')}
+                                    {lineUser.patient_names.slice(0, 3).map((name, index, array) => (
+                                      <React.Fragment key={`${lineUser.line_user_id}-${name}-${index}`}>
+                                        <button
+                                          onClick={(e) => handlePatientNameClick(name, e)}
+                                          className="text-blue-600 hover:text-blue-800 hover:underline"
+                                        >
+                                          {name}
+                                        </button>
+                                        {index < array.length - 1 && ', '}
+                                      </React.Fragment>
+                                    ))}
                                     {lineUser.patient_names.length > 3 && ` 等${lineUser.patient_names.length}位`}
                                   </div>
                                 )}
@@ -255,7 +340,13 @@ const LineUsersPage: React.FC = () => {
                                     <div className="text-sm text-gray-700 font-medium mb-1">所有病患：</div>
                                     <div className="text-sm text-gray-600 space-y-1">
                                       {lineUser.patient_names.map((name, index) => (
-                                        <div key={index}>{name}</div>
+                                        <button
+                                          key={`${lineUser.line_user_id}-${name}-${index}`}
+                                          onClick={(e) => handlePatientNameClick(name, e)}
+                                          className="text-blue-600 hover:text-blue-800 hover:underline block text-left"
+                                        >
+                                          {name}
+                                        </button>
                                       ))}
                                     </div>
                                   </div>

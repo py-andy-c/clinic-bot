@@ -7,3 +7,4 @@ export type { BaseModalProps } from './BaseModal';
 export { InfoModal } from './InfoModal';
 export { Button } from './Button';
 export type { ButtonProps } from './Button';
+export { SearchInput } from './SearchInput';

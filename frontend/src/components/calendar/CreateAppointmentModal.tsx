@@ -12,7 +12,7 @@ import { DateTimePicker } from './DateTimePicker';
 import { apiService } from '../../services/api';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
-import { LoadingSpinner } from '../shared';
+import { LoadingSpinner, SearchInput } from '../shared';
 import { Patient } from '../../types';
 import moment from 'moment-timezone';
 import { formatTo12Hour } from '../../utils/calendarUtils';
@@ -285,12 +285,10 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       case 'patient':
         return (
           <div className="space-y-4">
-            <input
-              type="text"
-              placeholder="搜尋病患姓名、電話或LINE..."
+            <SearchInput
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+              onChange={setSearchQuery}
+              placeholder="搜尋病患姓名、電話或LINE..."
             />
             {isLoadingPatients ? (
               <div className="flex items-center justify-center py-8">
