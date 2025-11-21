@@ -5,7 +5,7 @@ import { useModal } from '../contexts/ModalContext';
 import { apiService } from '../services/api';
 import { LineUserWithStatus } from '../types';
 import { logger } from '../utils/logger';
-import { LoadingSpinner, ErrorMessage, SearchInput } from '../components/shared';
+import { LoadingSpinner, ErrorMessage, SearchInput, PaginationControls } from '../components/shared';
 import { InfoModal } from '../components/shared/InfoModal';
 import { useApiData } from '../hooks/useApiData';
 import { useHighlightRow } from '../hooks/useHighlightRow';
@@ -53,20 +53,50 @@ const LineUsersPage: React.FC = () => {
     );
   }
 
-  // Stable fetch function using useCallback
-  const fetchLineUsers = useCallback(() => apiService.getLineUsers(), []);
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const { data: lineUsers, loading, error, refetch } = useApiData<LineUserWithStatus[]>(
+  // Get pagination state from URL with validation
+  const currentPage = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+  const pageSize = Math.max(1, Math.min(100, parseInt(searchParams.get('pageSize') || '10', 10) || 10));
+
+  // Stable fetch function using useCallback
+  const fetchLineUsers = useCallback(
+    () => apiService.getLineUsers(currentPage, pageSize),
+    [currentPage, pageSize]
+  );
+
+  const { data: lineUsersData, loading, error, refetch } = useApiData<{
+    line_users: LineUserWithStatus[];
+    total: number;
+    page: number;
+    page_size: number;
+  }>(
     fetchLineUsers,
     {
       enabled: !isLoading && isAuthenticated && isClinicAdmin,
-      dependencies: [isLoading, isAuthenticated, activeClinicId],
+      dependencies: [isLoading, isAuthenticated, activeClinicId, currentPage, pageSize],
       defaultErrorMessage: '無法載入LINE使用者列表',
-      initialData: [],
+      initialData: { line_users: [], total: 0, page: 1, page_size: 10 },
     }
   );
 
-  const [searchParams, setSearchParams] = useSearchParams();
+  const lineUsers = lineUsersData?.line_users || [];
+  const totalLineUsers = lineUsersData?.total || 0;
+  const totalPages = Math.ceil(totalLineUsers / pageSize);
+  
+  // Validate currentPage doesn't exceed totalPages and reset if needed
+  // This runs after we have totalPages from the API response
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      // Page exceeds total, reset to page 1
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.set('page', '1');
+      setSearchParams(newSearchParams, { replace: true });
+    }
+  }, [currentPage, totalPages, searchParams, setSearchParams]);
+  
+  // Use validated page for display (clamp to valid range)
+  const validatedPage = Math.max(1, Math.min(currentPage, totalPages || 1));
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   const [showAiStatusInfo, setShowAiStatusInfo] = useState(false);
@@ -78,14 +108,17 @@ const LineUsersPage: React.FC = () => {
   const lineUserIdFromQuery = searchParams.get('lineUserId');
 
   // Use highlight hook for navigation from patient list
+  // NOTE: This only searches within the current page's results.
+  // If the line user is on a different page, it won't be found.
+  // Server-side search (Phase 3) would allow finding and navigating to the correct page.
   const highlightedLineUserId = useHighlightRow(
-    lineUserIdFromQuery && lineUsers && lineUsers.length > 0 ? lineUserIdFromQuery : null,
+    lineUserIdFromQuery && lineUsers.length > 0 ? lineUserIdFromQuery : null,
     'data-line-user-id'
   );
 
   // Auto-expand and search when navigating from patient list
   useEffect(() => {
-    if (lineUserIdFromQuery && lineUsers && lineUsers.length > 0 && !targetLineUserIdRef.current) {
+    if (lineUserIdFromQuery && lineUsers.length > 0 && !targetLineUserIdRef.current) {
       const targetUser = lineUsers.find(lu => lu.line_user_id === lineUserIdFromQuery);
       if (targetUser) {
         // Mark as handled to prevent re-running
@@ -112,15 +145,38 @@ const LineUsersPage: React.FC = () => {
     }
   }, [lineUserIdFromQuery, lineUsers, searchParams, setSearchParams, setExpandedUsers]);
 
-  // Filter line users based on search query
+  // Filter line users based on search query (client-side for now)
+  // NOTE: Client-side search only filters the current page's results.
+  // For full search across all line users, server-side search is needed (Phase 3).
   const filteredLineUsers = useMemo(() => {
-    if (!searchQuery.trim()) return lineUsers || [];
+    if (!searchQuery.trim()) return lineUsers;
     const normalizedQuery = searchQuery.toLowerCase().trim();
-    return (lineUsers || []).filter(lu =>
+    return lineUsers.filter(lu =>
       lu.display_name?.toLowerCase().includes(normalizedQuery) ||
       lu.patient_names.some(name => name.toLowerCase().includes(normalizedQuery))
     );
   }, [lineUsers, searchQuery]);
+
+  // Reset to page 1 when search query changes
+  useEffect(() => {
+    if (searchQuery.trim() && currentPage !== 1) {
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.set('page', '1');
+      setSearchParams(newSearchParams, { replace: true });
+    }
+  }, [searchQuery, currentPage, searchParams, setSearchParams]);
+
+  // Handle page change
+  const handlePageChange = useCallback((page: number) => {
+    // Validate page is within bounds
+    const validPage = Math.max(1, Math.min(page, totalPages));
+    const newSearchParams = new URLSearchParams(searchParams);
+    newSearchParams.set('page', validPage.toString());
+    setSearchParams(newSearchParams, { replace: true });
+    // Scroll to top when page changes
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [searchParams, setSearchParams, totalPages]);
+
 
   const handleToggleAi = async (lineUser: LineUserWithStatus, e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation(); // Prevent row click when toggling
@@ -193,7 +249,8 @@ const LineUsersPage: React.FC = () => {
     navigate(`/admin/clinic/patients?patientName=${encodeURIComponent(patientName)}`);
   };
 
-  if (loading) {
+  // Show loading spinner during initial load or page changes
+  if (loading && lineUsers.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner />
@@ -227,7 +284,7 @@ const LineUsersPage: React.FC = () => {
             />
           </div>
           
-          {!lineUsers || lineUsers.length === 0 ? (
+          {totalLineUsers === 0 ? (
             <div className="text-center py-12">
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -239,165 +296,187 @@ const LineUsersPage: React.FC = () => {
             </div>
           ) : filteredLineUsers.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500">找不到符合搜尋條件的LINE使用者</p>
+              <p className="text-gray-500">
+                {searchQuery.trim()
+                  ? '找不到符合搜尋條件的LINE使用者（搜尋僅限於當前頁面）'
+                  : '目前頁面沒有LINE使用者'}
+              </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50">
-                      LINE 使用者
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      病患
-                    </th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                      <div className="flex items-center justify-center gap-2">
-                        <span>AI 狀態</span>
-                        <button
-                          ref={aiStatusInfoButtonRef}
-                          type="button"
-                          onClick={() => setShowAiStatusInfo(!showAiStatusInfo)}
-                          className="text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded-full p-1"
-                          title="AI自動回覆控制說明"
-                          aria-label="顯示AI自動回覆控制說明"
-                        >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                            xmlns="http://www.w3.org/2000/svg"
+            <>
+              <div className="overflow-x-auto relative">
+                {loading && (
+                  <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-20 rounded-lg">
+                    <LoadingSpinner />
+                  </div>
+                )}
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50">
+                        LINE 使用者
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        病患
+                      </th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                        <div className="flex items-center justify-center gap-2">
+                          <span>AI 狀態</span>
+                          <button
+                            ref={aiStatusInfoButtonRef}
+                            type="button"
+                            onClick={() => setShowAiStatusInfo(!showAiStatusInfo)}
+                            className="text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded-full p-1"
+                            title="AI自動回覆控制說明"
+                            aria-label="顯示AI自動回覆控制說明"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                          </svg>
-                        </button>
-                        <InfoModal
-                          isOpen={showAiStatusInfo}
-                          onClose={() => setShowAiStatusInfo(false)}
-                          buttonRef={aiStatusInfoButtonRef}
-                          title="AI自動回覆控制"
-                        >
-                          <p className="mb-3">
-                            您可以在此管理每個LINE使用者的AI自動回覆功能。停用後，該使用者的訊息將不會由AI處理，直到您重新啟用。
-                          </p>
-                          <p>
-                            此設定與使用者自行選擇的「人工回覆」不同，此設定由管理員控制且永久有效。
-                          </p>
-                        </InfoModal>
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredLineUsers.map((lineUser) => {
-                    const isToggling = toggling.has(lineUser.line_user_id);
-                    const isExpanded = expandedUsers.has(lineUser.line_user_id);
-                    return (
-                      <React.Fragment key={lineUser.line_user_id}>
-                        <tr 
-                          data-line-user-id={lineUser.line_user_id}
-                          className={`group hover:bg-gray-50 cursor-pointer transition-colors ${
-                            highlightedLineUserId === lineUser.line_user_id ? 'bg-blue-50' : ''
-                          }`}
-                          onClick={() => toggleExpand(lineUser.line_user_id)}
-                        >
-                          <td className="px-6 py-4 sticky left-0 z-10 bg-white group-hover:bg-gray-50">
-                            <div className="text-sm font-medium text-gray-900 whitespace-nowrap max-w-xs truncate" title={lineUser.display_name || '未設定名稱'}>
-                              {lineUser.display_name || '未設定名稱'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center">
-                              <div className="flex-1">
-                                <div className="text-sm text-gray-900">
-                                  {lineUser.patient_count} 位病患
-                                </div>
-                                {!isExpanded && lineUser.patient_names.length > 0 && (
-                                  <div className="text-sm text-gray-500 mt-1">
-                                    {lineUser.patient_names.slice(0, 3).map((name, index, array) => (
-                                      <React.Fragment key={`${lineUser.line_user_id}-${name}-${index}`}>
-                                        <button
-                                          onClick={(e) => handlePatientNameClick(name, e)}
-                                          className="text-blue-600 hover:text-blue-800 hover:underline"
-                                        >
-                                          {name}
-                                        </button>
-                                        {index < array.length - 1 && ', '}
-                                      </React.Fragment>
-                                    ))}
-                                    {lineUser.patient_names.length > 3 && ` 等${lineUser.patient_names.length}位`}
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                          </button>
+                          <InfoModal
+                            isOpen={showAiStatusInfo}
+                            onClose={() => setShowAiStatusInfo(false)}
+                            buttonRef={aiStatusInfoButtonRef}
+                            title="AI自動回覆控制"
+                          >
+                            <p className="mb-3">
+                              您可以在此管理每個LINE使用者的AI自動回覆功能。停用後，該使用者的訊息將不會由AI處理，直到您重新啟用。
+                            </p>
+                            <p>
+                              此設定與使用者自行選擇的「人工回覆」不同，此設定由管理員控制且永久有效。
+                            </p>
+                          </InfoModal>
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredLineUsers.map((lineUser) => {
+                      const isToggling = toggling.has(lineUser.line_user_id);
+                      const isExpanded = expandedUsers.has(lineUser.line_user_id);
+                      return (
+                        <React.Fragment key={lineUser.line_user_id}>
+                          <tr 
+                            data-line-user-id={lineUser.line_user_id}
+                            className={`group hover:bg-gray-50 cursor-pointer transition-colors ${
+                              highlightedLineUserId === lineUser.line_user_id ? 'bg-blue-50' : ''
+                            }`}
+                            onClick={() => toggleExpand(lineUser.line_user_id)}
+                          >
+                            <td className="px-6 py-4 sticky left-0 z-10 bg-white group-hover:bg-gray-50">
+                              <div className="text-sm font-medium text-gray-900 whitespace-nowrap max-w-xs truncate" title={lineUser.display_name || '未設定名稱'}>
+                                {lineUser.display_name || '未設定名稱'}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center">
+                                <div className="flex-1">
+                                  <div className="text-sm text-gray-900">
+                                    {lineUser.patient_count} 位病患
                                   </div>
-                                )}
-                                {isExpanded && (
-                                  <div className="mt-2">
-                                    <div className="text-sm text-gray-700 font-medium mb-1">所有病患：</div>
-                                    <div className="text-sm text-gray-600 space-y-1">
-                                      {lineUser.patient_names.map((name, index) => (
-                                        <button
-                                          key={`${lineUser.line_user_id}-${name}-${index}`}
-                                          onClick={(e) => handlePatientNameClick(name, e)}
-                                          className="text-blue-600 hover:text-blue-800 hover:underline block text-left"
-                                        >
-                                          {name}
-                                        </button>
+                                  {!isExpanded && lineUser.patient_names.length > 0 && (
+                                    <div className="text-sm text-gray-500 mt-1">
+                                      {lineUser.patient_names.slice(0, 3).map((name, index, array) => (
+                                        <React.Fragment key={`${lineUser.line_user_id}-${name}-${index}`}>
+                                          <button
+                                            onClick={(e) => handlePatientNameClick(name, e)}
+                                            className="text-blue-600 hover:text-blue-800 hover:underline"
+                                          >
+                                            {name}
+                                          </button>
+                                          {index < array.length - 1 && ', '}
+                                        </React.Fragment>
                                       ))}
+                                      {lineUser.patient_names.length > 3 && ` 等${lineUser.patient_names.length}位`}
                                     </div>
+                                  )}
+                                  {isExpanded && (
+                                    <div className="mt-2">
+                                      <div className="text-sm text-gray-700 font-medium mb-1">所有病患：</div>
+                                      <div className="text-sm text-gray-600 space-y-1">
+                                        {lineUser.patient_names.map((name, index) => (
+                                          <button
+                                            key={`${lineUser.line_user_id}-${name}-${index}`}
+                                            onClick={(e) => handlePatientNameClick(name, e)}
+                                            className="text-blue-600 hover:text-blue-800 hover:underline block text-left"
+                                          >
+                                            {name}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                {lineUser.patient_names.length > 0 && (
+                                  <div className="ml-2 flex-shrink-0">
+                                    <svg
+                                      className={`h-5 w-5 text-gray-400 transition-transform ${isExpanded ? 'transform rotate-180' : ''}`}
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
                                   </div>
                                 )}
                               </div>
-                              {lineUser.patient_names.length > 0 && (
-                                <div className="ml-2 flex-shrink-0">
-                                  <svg
-                                    className={`h-5 w-5 text-gray-400 transition-transform ${isExpanded ? 'transform rotate-180' : ''}`}
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                  >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                              <label className="relative inline-flex items-center cursor-pointer">
+                                <span className="sr-only">
+                                  {lineUser.ai_disabled ? '啟用' : '停用'} {lineUser.display_name || '此使用者'} 的AI自動回覆
+                                </span>
+                                <input
+                                  type="checkbox"
+                                  checked={!lineUser.ai_disabled}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleAi(lineUser, e);
+                                  }}
+                                  disabled={isToggling}
+                                  className="sr-only peer"
+                                  aria-label={`${lineUser.ai_disabled ? '啟用' : '停用'} ${lineUser.display_name || '此使用者'} 的AI自動回覆`}
+                                />
+                                <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600 ${isToggling ? 'opacity-50 cursor-not-allowed' : ''}`}></div>
+                                {isToggling && (
+                                  <svg className="animate-spin ml-2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                   </svg>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <span className="sr-only">
-                                {lineUser.ai_disabled ? '啟用' : '停用'} {lineUser.display_name || '此使用者'} 的AI自動回覆
-                              </span>
-                              <input
-                                type="checkbox"
-                                checked={!lineUser.ai_disabled}
-                                onChange={(e) => {
-                                  e.stopPropagation();
-                                  handleToggleAi(lineUser, e);
-                                }}
-                                disabled={isToggling}
-                                className="sr-only peer"
-                                aria-label={`${lineUser.ai_disabled ? '啟用' : '停用'} ${lineUser.display_name || '此使用者'} 的AI自動回覆`}
-                              />
-                              <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600 ${isToggling ? 'opacity-50 cursor-not-allowed' : ''}`}></div>
-                              {isToggling && (
-                                <svg className="animate-spin ml-2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                              )}
-                            </label>
-                          </td>
-                        </tr>
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                                )}
+                              </label>
+                            </td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {totalPages > 1 && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <PaginationControls
+                    currentPage={validatedPage}
+                    totalPages={totalPages}
+                    totalItems={totalLineUsers}
+                    pageSize={pageSize}
+                    onPageChange={handlePageChange}
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

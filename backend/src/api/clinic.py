@@ -7,6 +7,7 @@ including member management, settings, patients, and appointments.
 """
 
 import logging
+import math
 import secrets
 from datetime import datetime, timedelta, date as date_type, time
 from typing import Dict, List, Optional, Any, Union
@@ -1247,20 +1248,43 @@ async def test_chatbot(
 @router.get("/patients", summary="List all patients", response_model=ClinicPatientListResponse)
 async def get_patients(
     current_user: UserContext = Depends(require_authenticated),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    page: Optional[int] = Query(None, ge=1, description="Page number (1-indexed). Must be provided with page_size."),
+    page_size: Optional[int] = Query(None, ge=1, le=100, description="Items per page. Must be provided with page.")
 ) -> ClinicPatientListResponse:
     """
     Get all patients for the current user's clinic.
 
     Available to all clinic members (including read-only users).
+    Supports pagination via page and page_size parameters.
+    If pagination parameters are not provided, returns all patients (backward compatible).
+    Note: page and page_size must both be provided together or both omitted.
     """
     try:
+        # Validate pagination parameters: both or neither
+        if (page is not None) != (page_size is not None):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="page and page_size must be provided together or both omitted"
+            )
+        
         # Get patients using service
         clinic_id = ensure_clinic_access(current_user)
-        patients = PatientService.list_patients_for_clinic(
+        patients, total = PatientService.list_patients_for_clinic(
             db=db,
-            clinic_id=clinic_id
+            clinic_id=clinic_id,
+            page=page,
+            page_size=page_size
         )
+
+        # Validate page number doesn't exceed total pages
+        if page is not None and page_size is not None and total > 0:
+            max_page = math.ceil(total / page_size)
+            if page > max_page:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Page {page} exceeds maximum page {max_page}"
+                )
 
         # Format for clinic response (includes line_user_id and display_name)
         patient_list = [
@@ -1276,7 +1300,23 @@ async def get_patients(
             for patient in patients
         ]
 
-        return ClinicPatientListResponse(patients=patient_list)
+        # If pagination is used, return pagination info; otherwise use defaults
+        if page is not None and page_size is not None:
+            return ClinicPatientListResponse(
+                patients=patient_list,
+                total=total,
+                page=page,
+                page_size=page_size
+            )
+        else:
+            # Backward compatibility: return all results with total count
+            # Use total as page_size when total > 0, otherwise use a default
+            return ClinicPatientListResponse(
+                patients=patient_list,
+                total=total,
+                page=1,
+                page_size=total if total > 0 else 50
+            )
 
     except Exception as e:
         logger.exception(f"Error getting patients list: {e}")
@@ -3172,6 +3212,9 @@ class LineUserWithStatusResponse(BaseModel):
 class LineUserListResponse(BaseModel):
     """Response model for list of LineUsers with AI status."""
     line_users: List[LineUserWithStatusResponse]
+    total: int
+    page: int
+    page_size: int
 
 
 class DisableAiRequest(BaseModel):
@@ -3183,25 +3226,71 @@ class DisableAiRequest(BaseModel):
 async def get_line_users(
     current_user: UserContext = Depends(require_admin_role),
     db: Session = Depends(get_db),
-    offset: Optional[int] = Query(None, ge=0, description="Offset for pagination"),
-    limit: Optional[int] = Query(None, ge=1, le=100, description="Limit for pagination")
+    page: Optional[int] = Query(None, ge=1, description="Page number (1-indexed). Must be provided with page_size. Takes precedence over offset/limit."),
+    page_size: Optional[int] = Query(None, ge=1, le=100, description="Items per page. Must be provided with page. Takes precedence over offset/limit."),
+    offset: Optional[int] = Query(None, ge=0, description="Offset for pagination (deprecated, use page/page_size instead). Must be provided with limit."),
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Limit for pagination (deprecated, use page/page_size instead). Must be provided with offset.")
 ) -> LineUserListResponse:
     """
     Get all LINE users who have patients in this clinic, with AI status.
     
     Only clinic admins can access this endpoint.
     Returns LINE users with their patient count, patient names, and AI disable status.
+    Supports pagination via page and page_size parameters (preferred) or offset/limit (deprecated).
+    If pagination parameters are not provided, returns all line users (backward compatible).
+    Note: page and page_size must both be provided together, or offset and limit together, or all omitted.
     """
     try:
+        # Validate pagination parameters
+        has_page_params = (page is not None) or (page_size is not None)
+        has_offset_params = (offset is not None) or (limit is not None)
+        
+        if has_page_params and has_offset_params:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot use both page/page_size and offset/limit. Use page/page_size (preferred) or offset/limit (deprecated)."
+            )
+        
+        if has_page_params and ((page is None) != (page_size is None)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="page and page_size must be provided together"
+            )
+        
+        if has_offset_params and ((offset is None) != (limit is None)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="offset and limit must be provided together"
+            )
+        
         clinic_id = ensure_clinic_access(current_user)
         
         # Get line users with status
-        line_users = get_line_users_for_clinic(
+        line_users, total = get_line_users_for_clinic(
             db=db,
             clinic_id=clinic_id,
+            page=page,
+            page_size=page_size,
             offset=offset,
             limit=limit
         )
+        
+        # Validate page number doesn't exceed total pages
+        if page is not None and page_size is not None and total > 0:
+            max_page = math.ceil(total / page_size)
+            if page > max_page:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Page {page} exceeds maximum page {max_page}"
+                )
+        elif offset is not None and limit is not None and total > 0:
+            max_page = math.ceil(total / limit)
+            calculated_page = (offset // limit) + 1 if limit > 0 else 1
+            if calculated_page > max_page:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Offset {offset} with limit {limit} results in page {calculated_page} which exceeds maximum page {max_page}"
+                )
         
         # Format response
         line_user_responses = [
@@ -3216,7 +3305,33 @@ async def get_line_users(
             for lu in line_users
         ]
         
-        return LineUserListResponse(line_users=line_user_responses)
+        # If pagination is used, return pagination info; otherwise use defaults
+        if page is not None and page_size is not None:
+            return LineUserListResponse(
+                line_users=line_user_responses,
+                total=total,
+                page=page,
+                page_size=page_size
+            )
+        elif offset is not None and limit is not None:
+            # Backward compatibility for offset/limit
+            # Calculate page number: page = (offset / limit) + 1, rounded up
+            calculated_page = (offset // limit) + 1 if limit > 0 else 1
+            return LineUserListResponse(
+                line_users=line_user_responses,
+                total=total,
+                page=calculated_page,
+                page_size=limit
+            )
+        else:
+            # Backward compatibility: return all results with total count
+            # Use total as page_size when total > 0, otherwise use a default
+            return LineUserListResponse(
+                line_users=line_user_responses,
+                total=total,
+                page=1,
+                page_size=total if total > 0 else 50
+            )
         
     except Exception as e:
         logger.exception(f"Error getting LINE users list: {e}")

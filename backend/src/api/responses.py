@@ -120,6 +120,9 @@ class ClinicPatientResponse(PatientResponse):
 class ClinicPatientListResponse(BaseModel):
     """Response model for listing patients in clinic context."""
     patients: List[ClinicPatientResponse]
+    total: int
+    page: int
+    page_size: int
 
 
 class AvailableSlotResponse(BaseModel):

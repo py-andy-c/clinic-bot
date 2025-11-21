@@ -67,6 +67,8 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   // Use useApiData for patients with caching and request deduplication
   // This shares cache with PatientsPage, reducing redundant API calls
   const { isLoading: authLoading, isAuthenticated } = useAuth();
+  // Fetch all patients without pagination for dropdown selection
+  // Backend returns all patients with page=1, page_size=total when no pagination params provided
   const fetchPatientsFn = useCallback(() => apiService.getPatients(), []);
   const shouldFetchPatients = step === 'patient' || !!preSelectedPatientId;
   
@@ -74,19 +76,24 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     data: patientsData, 
     loading: isLoadingPatients,
     error: patientsError 
-  } = useApiData<Patient[]>(
+  } = useApiData<{
+    patients: Patient[];
+    total: number;
+    page: number;
+    page_size: number;
+  }>(
     fetchPatientsFn,
     {
       enabled: !authLoading && isAuthenticated && shouldFetchPatients,
       dependencies: [authLoading, isAuthenticated, step, preSelectedPatientId],
       cacheTTL: 5 * 60 * 1000, // 5 minutes cache - shares with PatientsPage
       defaultErrorMessage: '無法載入病患列表',
-      initialData: [],
+      initialData: { patients: [], total: 0, page: 1, page_size: 1 },
     }
   );
   
   // Ensure patients is always an array (never null)
-  const patients = patientsData || [];
+  const patients = patientsData?.patients || [];
   
   // Update error state when patients fetch fails
   useEffect(() => {

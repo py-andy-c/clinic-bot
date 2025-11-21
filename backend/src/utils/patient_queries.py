@@ -49,8 +49,10 @@ def get_active_patients_for_line_user(
 
 def get_active_patients_for_clinic(
     db: Session,
-    clinic_id: int
-) -> List[Patient]:
+    clinic_id: int,
+    page: Optional[int] = None,
+    page_size: Optional[int] = None
+) -> tuple[List[Patient], int]:
     """
     Get all active (non-deleted) patients for a clinic.
 
@@ -60,21 +62,34 @@ def get_active_patients_for_clinic(
     Args:
         db: Database session
         clinic_id: Clinic ID
+        page: Optional page number (1-indexed). If None, returns all patients.
+        page_size: Optional items per page. If None, returns all patients.
 
     Returns:
-        List of active Patient objects with line_user relationship eagerly loaded
+        Tuple of (List of active Patient objects with line_user relationship eagerly loaded, total count)
     """
     from sqlalchemy.orm import joinedload
 
     # Eagerly load line_user relationship to avoid N+1 queries
     # This is critical for the clinic patients endpoint which accesses
     # patient.line_user.line_user_id and patient.line_user.display_name
-    query = db.query(Patient).options(
+    base_query = db.query(Patient).options(
         joinedload(Patient.line_user)
     ).filter(
         Patient.clinic_id == clinic_id
     )
-    return filter_active_patients(query).all()
+    query = filter_active_patients(base_query)
+    
+    # Get total count before pagination
+    total = query.count()
+    
+    # Apply pagination if provided
+    if page is not None and page_size is not None:
+        offset = (page - 1) * page_size
+        query = query.offset(offset).limit(page_size)
+    
+    patients = query.all()
+    return patients, total
 
 
 def get_patient_by_id_with_soft_delete_check(

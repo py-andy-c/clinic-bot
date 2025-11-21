@@ -168,9 +168,11 @@ class LineUserWithStatus:
 def get_line_users_for_clinic(
     db: Session,
     clinic_id: int,
+    page: Optional[int] = None,
+    page_size: Optional[int] = None,
     offset: Optional[int] = None,
     limit: Optional[int] = None
-) -> List[LineUserWithStatus]:
+) -> tuple[List[LineUserWithStatus], int]:
     """
     Get all LineUsers who have patients in this clinic, with AI status.
     
@@ -180,21 +182,23 @@ def get_line_users_for_clinic(
     3. Left joins with LineUserAiDisabled to check AI status
     4. Filters out LineUsers with only soft-deleted patients
     5. Aggregates patient names
-    6. Supports pagination (offset/limit)
+    6. Supports pagination (page/page_size or offset/limit)
     
     Args:
         db: Database session
         clinic_id: Clinic ID
-        offset: Optional offset for pagination
-        limit: Optional limit for pagination
+        page: Optional page number (1-indexed). Takes precedence over offset if both provided.
+        page_size: Optional items per page. Takes precedence over limit if both provided.
+        offset: Optional offset for pagination (deprecated, use page/page_size instead).
+        limit: Optional limit for pagination (deprecated, use page/page_size instead).
         
     Returns:
-        List[LineUserWithStatus]: List of LineUsers with AI status and patient information
+        Tuple of (List[LineUserWithStatus], total_count): List of LineUsers with AI status and patient information, and total count
     """
     # Main query: Get LineUsers with their patient information
     # Direct join with Patient table filters for active patients in this clinic
     # This is more efficient than using a subquery with IN
-    query = db.query(
+    base_query = db.query(
         LineUser.line_user_id,
         LineUser.display_name,
         func.count(Patient.id).label('patient_count'),
@@ -223,7 +227,29 @@ def get_line_users_for_clinic(
         LineUser.line_user_id
     )
     
+    # Get total count before pagination
+    # Count should match the main query's filtering logic:
+    # - LineUsers with at least one active patient in this clinic
+    # - Grouped by LineUser.id (same as main query)
+    # We use a subquery that matches the main query's join and filter conditions
+    count_subquery = db.query(LineUser.id).join(
+        Patient,
+        and_(
+            LineUser.id == Patient.line_user_id,
+            Patient.clinic_id == clinic_id,
+            Patient.is_deleted == False
+        )
+    ).group_by(LineUser.id).subquery()
+    
+    total = db.query(func.count()).select_from(count_subquery).scalar() or 0
+    
+    # Convert page/page_size to offset/limit if provided
+    if page is not None and page_size is not None:
+        offset = (page - 1) * page_size
+        limit = page_size
+    
     # Apply pagination if provided
+    query = base_query
     if offset is not None:
         query = query.offset(offset)
     if limit is not None:
@@ -259,5 +285,5 @@ def get_line_users_for_clinic(
             )
         )
     
-    return line_users_with_status
+    return line_users_with_status, total
 

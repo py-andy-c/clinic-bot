@@ -131,6 +131,16 @@ export interface LineUserWithStatus {
   disabled_at?: string;
 }
 
+// Note: PaginatedResponse type is not currently used as responses use field-specific names
+// (e.g., patients, line_users) rather than a generic "items" field.
+// Keeping this type for potential future use or refactoring.
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 // Appointment types
 export interface AppointmentType {
   id: number;

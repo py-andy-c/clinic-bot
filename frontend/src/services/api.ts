@@ -243,18 +243,30 @@ export class ApiService {
   }
 
 
-  async getPatients(signal?: AbortSignal): Promise<Patient[]> {
+  async getPatients(
+    page?: number,
+    pageSize?: number,
+    signal?: AbortSignal
+  ): Promise<{ patients: Patient[]; total: number; page: number; page_size: number }> {
     const config = signal ? { signal } : {};
-    const response = await this.client.get('/clinic/patients', config);
-    return response.data.patients;
+    const params: Record<string, string> = {};
+    if (page !== undefined) params.page = page.toString();
+    if (pageSize !== undefined) params.page_size = pageSize.toString();
+    const response = await this.client.get('/clinic/patients', { ...config, params });
+    return response.data;
   }
 
-  async getLineUsers(offset?: number, limit?: number): Promise<LineUserWithStatus[]> {
+  async getLineUsers(
+    page?: number,
+    pageSize?: number,
+    signal?: AbortSignal
+  ): Promise<{ line_users: LineUserWithStatus[]; total: number; page: number; page_size: number }> {
+    const config = signal ? { signal } : {};
     const params: Record<string, string> = {};
-    if (offset !== undefined) params.offset = offset.toString();
-    if (limit !== undefined) params.limit = limit.toString();
-    const response = await this.client.get('/clinic/line-users', { params });
-    return response.data.line_users;
+    if (page !== undefined) params.page = page.toString();
+    if (pageSize !== undefined) params.page_size = pageSize.toString();
+    const response = await this.client.get('/clinic/line-users', { ...config, params });
+    return response.data;
   }
 
   async disableAiForLineUser(lineUserId: string, reason?: string): Promise<void> {

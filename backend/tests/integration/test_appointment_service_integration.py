@@ -704,8 +704,9 @@ class TestAppointmentServiceIntegration:
         assert patient2 in active_patients_line
         assert patient4 in active_patients_line
 
-        active_patients_clinic = get_active_patients_for_clinic(db_session, clinic.id)
+        active_patients_clinic, total = get_active_patients_for_clinic(db_session, clinic.id)
         assert len(active_patients_clinic) == 4  # All patients are active (patient1, patient2, patient3, patient4)
+        assert total == 4
 
         # Test: Soft delete patient1 using the service method
         PatientService.delete_patient_for_line_user(
@@ -727,8 +728,9 @@ class TestAppointmentServiceIntegration:
         assert patient4 in active_patients_line_after
         assert patient1 not in active_patients_line_after
 
-        active_patients_clinic_after = get_active_patients_for_clinic(db_session, clinic.id)
+        active_patients_clinic_after, total_after = get_active_patients_for_clinic(db_session, clinic.id)
         assert len(active_patients_clinic_after) == 3  # patient1 removed, patient2, patient3, patient4 remain
+        assert total_after == 3
         assert patient1 not in active_patients_clinic_after
 
         # Test: Can still retrieve deleted patient with include_deleted=True
@@ -999,8 +1001,9 @@ class TestAppointmentServiceIntegration:
         assert patient2 in active_patients_line
         assert patient4 in active_patients_line
 
-        active_patients_clinic = get_active_patients_for_clinic(db_session, clinic.id)
+        active_patients_clinic, total = get_active_patients_for_clinic(db_session, clinic.id)
         assert len(active_patients_clinic) == 4  # All patients are active (patient1, patient2, patient3, patient4)
+        assert total == 4
 
         # Test: Soft delete patient1 using the service method
         PatientService.delete_patient_for_line_user(
@@ -1022,8 +1025,9 @@ class TestAppointmentServiceIntegration:
         assert patient4 in active_patients_line_after
         assert patient1 not in active_patients_line_after
 
-        active_patients_clinic_after = get_active_patients_for_clinic(db_session, clinic.id)
+        active_patients_clinic_after, total_after = get_active_patients_for_clinic(db_session, clinic.id)
         assert len(active_patients_clinic_after) == 3  # patient1 removed, patient2, patient3, patient4 remain
+        assert total_after == 3
         assert patient1 not in active_patients_clinic_after
 
         # Test: Can still retrieve deleted patient with include_deleted=True
@@ -1300,8 +1304,9 @@ class TestAppointmentServiceIntegration:
         assert patient2 in active_patients_line
         assert patient4 in active_patients_line
 
-        active_patients_clinic = get_active_patients_for_clinic(db_session, clinic.id)
+        active_patients_clinic, total = get_active_patients_for_clinic(db_session, clinic.id)
         assert len(active_patients_clinic) == 4  # All patients are active (patient1, patient2, patient3, patient4)
+        assert total == 4
 
         # Test: Soft delete patient1 using the service method
         PatientService.delete_patient_for_line_user(
@@ -1323,8 +1328,9 @@ class TestAppointmentServiceIntegration:
         assert patient4 in active_patients_line_after
         assert patient1 not in active_patients_line_after
 
-        active_patients_clinic_after = get_active_patients_for_clinic(db_session, clinic.id)
+        active_patients_clinic_after, total_after = get_active_patients_for_clinic(db_session, clinic.id)
         assert len(active_patients_clinic_after) == 3  # patient1 removed, patient2, patient3, patient4 remain
+        assert total_after == 3
         assert patient1 not in active_patients_clinic_after
 
         # Test: Can still retrieve deleted patient with include_deleted=True

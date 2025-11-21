@@ -216,9 +216,10 @@ class TestGetLineUsersForClinic:
         db_session.add(clinic)
         db_session.commit()
         
-        result = get_line_users_for_clinic(db_session, clinic.id)
+        result, total = get_line_users_for_clinic(db_session, clinic.id)
         
         assert result == []
+        assert total == 0
     
     def test_get_line_users_includes_users_with_patients(self, db_session: Session, sample_clinic_data):
         """Test that get_line_users includes LINE users who have patients."""
@@ -246,9 +247,10 @@ class TestGetLineUsersForClinic:
         db_session.commit()
         
         # Get line users
-        result = get_line_users_for_clinic(db_session, clinic.id)
+        result, total = get_line_users_for_clinic(db_session, clinic.id)
         
         assert len(result) == 1
+        assert total == 1
         assert result[0].line_user_id == "U_test_user_123"
         assert result[0].display_name == "Test User"
         assert result[0].patient_count == 1
@@ -281,9 +283,10 @@ class TestGetLineUsersForClinic:
         db_session.commit()
         
         # Get line users (should be empty)
-        result = get_line_users_for_clinic(db_session, clinic.id)
+        result, total = get_line_users_for_clinic(db_session, clinic.id)
         
         assert result == []
+        assert total == 0
     
     def test_get_line_users_shows_ai_status(self, db_session: Session, sample_clinic_data):
         """Test that get_line_users includes AI disabled status."""
@@ -314,9 +317,10 @@ class TestGetLineUsersForClinic:
         disable_ai_for_line_user(db_session, "U_test_user_123", clinic.id)
         
         # Get line users
-        result = get_line_users_for_clinic(db_session, clinic.id)
+        result, total = get_line_users_for_clinic(db_session, clinic.id)
         
         assert len(result) == 1
+        assert total == 1
         assert result[0].ai_disabled is True
         assert result[0].disabled_at is not None
     
@@ -347,14 +351,17 @@ class TestGetLineUsersForClinic:
         db_session.commit()
         
         # Get first 2
-        result = get_line_users_for_clinic(db_session, clinic.id, offset=0, limit=2)
+        result, total = get_line_users_for_clinic(db_session, clinic.id, offset=0, limit=2)
         assert len(result) == 2
+        assert total == 5
         
         # Get next 2
-        result = get_line_users_for_clinic(db_session, clinic.id, offset=2, limit=2)
+        result, total = get_line_users_for_clinic(db_session, clinic.id, offset=2, limit=2)
         assert len(result) == 2
+        assert total == 5
         
         # Get remaining
-        result = get_line_users_for_clinic(db_session, clinic.id, offset=4, limit=2)
+        result, total = get_line_users_for_clinic(db_session, clinic.id, offset=4, limit=2)
         assert len(result) == 1
+        assert total == 5
 
