@@ -15,7 +15,8 @@ import {
   UserRole,
   ClinicsListResponse,
   SwitchClinicResponse,
-  PractitionerWithDetails
+  PractitionerWithDetails,
+  LineUserWithStatus
 } from '../types';
 import {
   validateClinicSettings,
@@ -246,6 +247,22 @@ export class ApiService {
     const config = signal ? { signal } : {};
     const response = await this.client.get('/clinic/patients', config);
     return response.data.patients;
+  }
+
+  async getLineUsers(offset?: number, limit?: number): Promise<LineUserWithStatus[]> {
+    const params: Record<string, string> = {};
+    if (offset !== undefined) params.offset = offset.toString();
+    if (limit !== undefined) params.limit = limit.toString();
+    const response = await this.client.get('/clinic/line-users', { params });
+    return response.data.line_users;
+  }
+
+  async disableAiForLineUser(lineUserId: string, reason?: string): Promise<void> {
+    await this.client.post(`/clinic/line-users/${lineUserId}/disable-ai`, { reason });
+  }
+
+  async enableAiForLineUser(lineUserId: string): Promise<void> {
+    await this.client.post(`/clinic/line-users/${lineUserId}/enable-ai`);
   }
 
   async getClinicSettings(): Promise<ClinicSettings> {

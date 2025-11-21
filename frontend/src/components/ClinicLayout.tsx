@@ -307,6 +307,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
     { name: '行事曆', href: '/admin/calendar', icon: '📅', show: true }, // All clinic users can view calendar
     { name: '團隊成員', href: '/admin/clinic/members', icon: '👥', show: true }, // All clinic members can view
     { name: '病患管理', href: '/admin/clinic/patients', icon: '👥', show: true },
+    { name: 'LINE 使用者', href: '/admin/clinic/line-users', icon: '🤖', show: true }, // Admin-only, but show for all (access control in page)
     { name: '診所設定', href: '/admin/clinic/settings', icon: '⚙️', show: true }, // All clinic members can view settings
     { name: '個人設定', href: '/admin/profile', icon: '👤', show: true }, // All users can access profile
   ].filter(item => item.show), []);

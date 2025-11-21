@@ -28,6 +28,7 @@ from services.line_opt_out_service import (
     clear_ai_opt_out,
     is_ai_opted_out
 )
+from services.line_user_ai_disabled_service import is_ai_disabled
 from core.constants import (
     OPT_OUT_COMMAND,
     RE_ENABLE_COMMAND,
@@ -521,6 +522,16 @@ async def line_webhook(
             # Return OK to LINE but don't process the message
             # Messages during opt-out period are not stored in conversation history
             return {"status": "ok", "message": "User opted out, message ignored"}
+
+        # Check if AI is permanently disabled for this user
+        # This is admin-controlled and persists until manually changed
+        if is_ai_disabled(db, line_user_id, clinic.id):
+            logger.info(
+                f"Message from permanently disabled user ignored: clinic_id={clinic.id}, "
+                f"line_user_id={line_user_id}, message={message_text[:30]}..."
+            )
+            # Return OK to LINE but don't process the message
+            return {"status": "ok", "message": "AI disabled for this user"}
 
         # Check if chat feature is enabled for this clinic
         validated_settings = clinic.get_validated_settings()

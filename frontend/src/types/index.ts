@@ -121,6 +121,16 @@ export interface Patient {
   line_user_display_name?: string;
 }
 
+// LINE User types
+export interface LineUserWithStatus {
+  line_user_id: string;
+  display_name: string | null;
+  patient_count: number;
+  patient_names: string[];
+  ai_disabled: boolean;
+  disabled_at?: string;
+}
+
 // Appointment types
 export interface AppointmentType {
   id: number;

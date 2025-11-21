@@ -23,12 +23,17 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
-from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation, Appointment, AvailabilityException, Patient
+from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation, Appointment, AvailabilityException, Patient, LineUser
 from models.clinic import ClinicSettings, ChatSettings as ChatSettingsModel
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
 from services.availability_service import AvailabilityService
 from services.notification_service import NotificationService, CancellationSource
 from services.clinic_agent import ClinicAgentService
+from services.line_user_ai_disabled_service import (
+    disable_ai_for_line_user,
+    enable_ai_for_line_user,
+    get_line_users_for_clinic
+)
 from utils.appointment_type_queries import count_active_appointment_types_for_practitioner
 from utils.datetime_utils import taiwan_now
 from api.responses import (
@@ -3116,4 +3121,213 @@ async def delete_availability_exception(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法刪除可用時間例外"
+        )
+
+
+# ===== LINE User AI Control =====
+
+def _verify_line_user_has_patients(
+    db: Session,
+    line_user_id: str,
+    clinic_id: int
+) -> None:
+    """
+    Verify that LINE user has active patients in clinic.
+    
+    Raises HTTPException if the user has no active patients in this clinic.
+    
+    Args:
+        db: Database session
+        line_user_id: LINE user ID string
+        clinic_id: Clinic ID
+        
+    Raises:
+        HTTPException: 404 if user has no active patients
+    """
+    has_patients = db.query(Patient).join(
+        LineUser, LineUser.id == Patient.line_user_id
+    ).filter(
+        LineUser.line_user_id == line_user_id,
+        Patient.clinic_id == clinic_id,
+        Patient.is_deleted == False
+    ).first() is not None
+    
+    if not has_patients:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="找不到此LINE使用者或該使用者在此診所沒有病患記錄"
+        )
+
+
+class LineUserWithStatusResponse(BaseModel):
+    """Response model for LineUser with AI status."""
+    line_user_id: str
+    display_name: Optional[str]
+    patient_count: int
+    patient_names: List[str]
+    ai_disabled: bool
+    disabled_at: Optional[datetime]
+
+
+class LineUserListResponse(BaseModel):
+    """Response model for list of LineUsers with AI status."""
+    line_users: List[LineUserWithStatusResponse]
+
+
+class DisableAiRequest(BaseModel):
+    """Request model for disabling AI."""
+    reason: Optional[str] = None
+
+
+@router.get("/line-users", summary="List all LINE users for clinic with AI status", response_model=LineUserListResponse)
+async def get_line_users(
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db),
+    offset: Optional[int] = Query(None, ge=0, description="Offset for pagination"),
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Limit for pagination")
+) -> LineUserListResponse:
+    """
+    Get all LINE users who have patients in this clinic, with AI status.
+    
+    Only clinic admins can access this endpoint.
+    Returns LINE users with their patient count, patient names, and AI disable status.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Get line users with status
+        line_users = get_line_users_for_clinic(
+            db=db,
+            clinic_id=clinic_id,
+            offset=offset,
+            limit=limit
+        )
+        
+        # Format response
+        line_user_responses = [
+            LineUserWithStatusResponse(
+                line_user_id=lu.line_user_id,
+                display_name=lu.display_name,
+                patient_count=lu.patient_count,
+                patient_names=lu.patient_names,
+                ai_disabled=lu.ai_disabled,
+                disabled_at=lu.disabled_at
+            )
+            for lu in line_users
+        ]
+        
+        return LineUserListResponse(line_users=line_user_responses)
+        
+    except Exception as e:
+        logger.exception(f"Error getting LINE users list: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得LINE使用者列表"
+        )
+
+
+@router.post("/line-users/{line_user_id}/disable-ai", summary="Disable AI for a LINE user")
+async def disable_ai_for_line_user_endpoint(
+    line_user_id: str,
+    request: DisableAiRequest = DisableAiRequest(),
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+) -> Dict[str, str]:
+    """
+    Permanently disable AI auto response for a LINE user.
+    
+    Only clinic admins can disable AI. The setting persists until manually changed.
+    This is different from the temporary opt-out system which expires after 24 hours.
+    
+    Args:
+        line_user_id: LINE user ID string (from LINE platform)
+        request: Optional reason for audit trail
+    """
+    try:
+        # Validate line_user_id format (basic check - should be non-empty string)
+        if not line_user_id or not line_user_id.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無效的LINE使用者ID"
+            )
+        
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Verify LINE user has active patients in this clinic
+        _verify_line_user_has_patients(db, line_user_id, clinic_id)
+        
+        # Disable AI
+        disable_ai_for_line_user(
+            db=db,
+            line_user_id=line_user_id,
+            clinic_id=clinic_id,
+            disabled_by_user_id=current_user.user_id,
+            reason=request.reason
+        )
+        
+        logger.info(
+            f"AI disabled for line_user_id={line_user_id}, "
+            f"clinic_id={clinic_id}, disabled_by_user_id={current_user.user_id}"
+        )
+        
+        return {"status": "ok", "message": "AI已停用"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error disabling AI for line_user_id={line_user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法停用AI"
+        )
+
+
+@router.post("/line-users/{line_user_id}/enable-ai", summary="Enable AI for a LINE user")
+async def enable_ai_for_line_user_endpoint(
+    line_user_id: str,
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+) -> Dict[str, str]:
+    """
+    Re-enable AI auto response for a LINE user.
+    
+    Only clinic admins can enable AI. This removes the permanent disable setting.
+    
+    Args:
+        line_user_id: LINE user ID string (from LINE platform)
+    """
+    try:
+        # Validate line_user_id format (basic check - should be non-empty string)
+        if not line_user_id or not line_user_id.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無效的LINE使用者ID"
+            )
+        
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Verify LINE user has active patients in this clinic
+        _verify_line_user_has_patients(db, line_user_id, clinic_id)
+        
+        # Enable AI (removes disable record if it exists)
+        enable_ai_for_line_user(
+            db=db,
+            line_user_id=line_user_id,
+            clinic_id=clinic_id
+        )
+        
+        logger.info(
+            f"AI enabled for line_user_id={line_user_id}, "
+            f"clinic_id={clinic_id}, enabled_by_user_id={current_user.user_id}"
+        )
+        
+        return {"status": "ok", "message": "AI已啟用"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error enabling AI for line_user_id={line_user_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法啟用AI"
         )
