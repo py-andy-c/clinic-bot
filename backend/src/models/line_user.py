@@ -43,7 +43,7 @@ class LineUser(Base):
     """
     User's preferred language for UI and LINE messages.
     
-    Values: 'zh-TW' (Traditional Chinese), 'en' (English), 'ja' (Japanese)
+    Values: 'zh-TW' (Traditional Chinese), 'en' (English)
     Default: 'zh-TW'
     """
 

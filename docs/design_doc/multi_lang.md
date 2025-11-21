@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the design for adding multi-language support to the LIFF (LINE Front-end Framework) application. The app will support three languages: Traditional Chinese (繁體中文), English, and Japanese, with Traditional Chinese as the default language.
+This document outlines the design for adding multi-language support to the LIFF (LINE Front-end Framework) application. The app will support two languages: Traditional Chinese (繁體中文) and English, with Traditional Chinese as the default language.
 
 ## Objectives
 
@@ -20,7 +20,6 @@ This document outlines the design for adding multi-language support to the LIFF 
 
 1. **繁體中文 (Traditional Chinese)** - Default language
 2. **English** - Secondary language
-3. **日本語 (Japanese)** - Tertiary language
 
 ### Language Detection Priority
 
@@ -39,8 +38,7 @@ frontend/src/
 │   ├── index.ts              # i18n configuration and initialization
 │   ├── locales/
 │   │   ├── zh-TW.ts          # Traditional Chinese translations
-│   │   ├── en.ts             # English translations
-│   │   └── ja.ts             # Japanese translations
+│   │   └── en.ts             # English translations
 │   └── hooks/
 │       └── useTranslation.ts # React hook for translations
 ├── liff/
@@ -228,7 +226,6 @@ export function translateBackendError(
   - Dropdown menu with options:
     - 🇹🇼 繁體中文
     - 🇬🇧 English
-    - 🇯🇵 日本語
 - **No modal**: Users are not prompted to select language on first visit
 - **Immediate save**: When user selects a different language, save to database immediately
 
@@ -289,7 +286,7 @@ export const LanguageSelector: FC = () => {
 
 **Key Features**:
 - Display current language flag/icon on home page (top-right)
-- Dropdown menu with: 🇹🇼 繁體中文, 🇬🇧 English, 🇯🇵 日本語
+- Dropdown menu with: 🇹🇼 繁體中文, 🇬🇧 English
 - Optimistic UI update for instant feedback
 - Loading state during API call
 - Error handling with user-friendly messages
@@ -308,7 +305,6 @@ export const LanguageSelector: FC = () => {
 2. **Create Translation Files**
    - Create `frontend/src/i18n/locales/zh-TW.ts`
    - Create `frontend/src/i18n/locales/en.ts`
-   - Create `frontend/src/i18n/locales/ja.ts`
    - Structure translations by feature/component
 
 3. **Configure i18n**
@@ -348,7 +344,6 @@ export const LanguageSelector: FC = () => {
      import { initReactI18next } from 'react-i18next';
      import zhTW from './locales/zh-TW';
      import en from './locales/en';
-     import ja from './locales/ja';
 
      i18n
        .use(initReactI18next)
@@ -356,7 +351,6 @@ export const LanguageSelector: FC = () => {
          resources: {
            'zh-TW': { translation: zhTW },
            'en': { translation: en },
-           'ja': { translation: ja },
          },
          lng: 'zh-TW', // Default language
          fallbackLng: 'zh-TW',
@@ -410,7 +404,7 @@ export const LanguageSelector: FC = () => {
    - **Frontend validation**: Validate language code before API call
      ```typescript
      // frontend/src/utils/languageUtils.ts
-     export const VALID_LANGUAGES = ['zh-TW', 'en', 'ja'] as const;
+     export const VALID_LANGUAGES = ['zh-TW', 'en'] as const;
      export type LanguageCode = typeof VALID_LANGUAGES[number];
      
      export function isValidLanguage(code: string): code is LanguageCode {
@@ -464,7 +458,7 @@ class LineUser(Base):
     """
     User's preferred language for UI and LINE messages.
     
-    Values: 'zh-TW' (Traditional Chinese), 'en' (English), 'ja' (Japanese)
+    Values: 'zh-TW' (Traditional Chinese), 'en' (English)
     Default: 'zh-TW'
     """
 ```
@@ -551,8 +545,8 @@ class LanguagePreferenceRequest(BaseModel):
     @field_validator('language')
     @classmethod
     def validate_language(cls, v: str) -> str:
-        if v not in ['zh-TW', 'en', 'ja']:
-            raise ValueError("Invalid language code. Must be 'zh-TW', 'en', or 'ja'")
+        if v not in ['zh-TW', 'en']:
+            raise ValueError("Invalid language code. Must be 'zh-TW' or 'en'")
         return v
 
 @router.put("/language-preference")
@@ -732,7 +726,7 @@ async def update_language_preference(
 - **Decision**: Keep date/time format similar across all languages for consistency
 - Use `moment.js` with locale support (already in dependencies)
 - Use a consistent format: **"YYYY-MM-DD HH:mm"** (e.g., "2024-01-15 14:30") across all languages
-- This format is universal, easy to parse, and works well for all three languages
+- This format is universal, easy to parse, and works well for both languages
 - Avoid locale-specific date formats to maintain consistency and easier parsing
 - Only translate date/time labels (e.g., "Date", "Time") but keep the format similar
 
@@ -796,7 +790,7 @@ async def update_language_preference(
 
 ### Manual Testing Checklist
 
-- [ ] All UI text is translated in all three languages
+- [ ] All UI text is translated in both languages
 - [ ] Language selector works correctly (dropdown on home page only)
 - [ ] Preference loads from database on app initialization
 - [ ] Preference saves to database immediately when user changes language

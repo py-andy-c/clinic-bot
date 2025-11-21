@@ -213,7 +213,7 @@ export const formatMonthYear = (date: Date): string => {
   const monthIndex = date.getMonth();
   const year = date.getFullYear();
   const monthName = monthNames[monthIndex] || '';
-  // For English, format as "January 2024", for Chinese/Japanese use "2024年一月"
+  // For English, format as "January 2024", for Chinese use "2024年一月"
   const currentLang = i18n.language;
   if (currentLang === 'en') {
     return `${monthName} ${year}`;

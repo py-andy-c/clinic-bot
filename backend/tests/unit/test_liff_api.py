@@ -161,7 +161,7 @@ class TestLanguagePreference:
 
         try:
             # Test each valid language
-            for lang in ['zh-TW', 'en', 'ja']:
+            for lang in ['zh-TW', 'en']:
                 response = client.put("/api/liff/language-preference", json={
                     "language": lang
                 })

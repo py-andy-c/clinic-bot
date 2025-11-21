@@ -2,7 +2,6 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import zhTW from './locales/zh-TW';
 import en from './locales/en';
-import ja from './locales/ja';
 import { logger } from '../utils/logger';
 
 i18n
@@ -11,7 +10,6 @@ i18n
     resources: {
       'zh-TW': { translation: zhTW },
       'en': { translation: en },
-      'ja': { translation: ja },
     },
     lng: 'zh-TW', // Default language
     fallbackLng: 'zh-TW',

@@ -5,7 +5,7 @@ import { isValidLanguage, getLanguageDisplayName, type LanguageCode } from '../.
 import { logger } from '../../utils/logger';
 import { useModal } from '../../contexts/ModalContext';
 
-const LANGUAGE_OPTIONS: LanguageCode[] = ['zh-TW', 'en', 'ja'];
+const LANGUAGE_OPTIONS: LanguageCode[] = ['zh-TW', 'en'];
 
 export const LanguageSelector: React.FC = () => {
   const { i18n, t } = useTranslation();

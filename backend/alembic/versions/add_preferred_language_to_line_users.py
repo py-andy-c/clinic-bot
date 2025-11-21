@@ -25,7 +25,7 @@ def upgrade() -> None:
     Add preferred_language column to line_users table.
     
     This column stores the user's preferred language for UI and LINE messages.
-    Values: 'zh-TW' (Traditional Chinese), 'en' (English), 'ja' (Japanese)
+    Values: 'zh-TW' (Traditional Chinese), 'en' (English)
     Default: 'zh-TW' for existing rows
     """
     # Check if column already exists (for idempotency)

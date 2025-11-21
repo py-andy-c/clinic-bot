@@ -138,7 +138,6 @@ export default {
   language: {
     zhTW: '繁體中文',
     en: 'English',
-    ja: '日本語',
     selectLanguage: '選擇語言',
     updateFailed: '更新語言偏好失敗',
   },

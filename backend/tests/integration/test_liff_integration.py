@@ -2982,18 +2982,6 @@ class TestLanguagePreference:
             # Verify database state (object is already updated in session)
             assert line_user.preferred_language == "en"
 
-            # Update to Japanese
-            response = client.put("/api/liff/language-preference", json={
-                "language": "ja"
-            })
-
-            assert response.status_code == 200
-            data = response.json()
-            assert data["preferred_language"] == "ja"
-
-            # Verify database state (object is already updated in session)
-            assert line_user.preferred_language == "ja"
-
         finally:
             client.app.dependency_overrides.pop(get_current_line_user, None)
             client.app.dependency_overrides.pop(get_db, None)
@@ -3047,17 +3035,17 @@ class TestLanguagePreference:
         try:
             # Update language preference
             response = client.put("/api/liff/language-preference", json={
-                "language": "ja"
+                "language": "en"
             })
             assert response.status_code == 200
 
             # Verify in database (object is already updated in session)
-            assert line_user.preferred_language == "ja"
+            assert line_user.preferred_language == "en"
 
             # Verify it persists by querying fresh from database
             db_session.expire(line_user)
             db_session.refresh(line_user)
-            assert line_user.preferred_language == "ja"
+            assert line_user.preferred_language == "en"
 
         finally:
             client.app.dependency_overrides.pop(get_current_line_user, None)

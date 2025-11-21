@@ -119,8 +119,8 @@ class LanguagePreferenceRequest(BaseModel):
     @field_validator('language')
     @classmethod
     def validate_language(cls, v: str) -> str:
-        if v not in ['zh-TW', 'en', 'ja']:
-            raise ValueError("Invalid language code. Must be 'zh-TW', 'en', or 'ja'")
+        if v not in ['zh-TW', 'en']:
+            raise ValueError("Invalid language code. Must be 'zh-TW' or 'en'")
         return v
 
 
