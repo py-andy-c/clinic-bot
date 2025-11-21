@@ -1602,67 +1602,21 @@ async def edit_clinic_appointment(
                 detail="未授權"
             )
         
-        # Store old values for notification (before edit)
-        from utils.datetime_utils import TAIWAN_TZ
-        old_start_time = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
-        old_practitioner_id = calendar_event.user_id
-        old_is_auto_assigned = appointment.is_auto_assigned
-        
-        # Determine if notification should be sent BEFORE updating appointment
-        # Calculate actual values (use current if None provided)
-        new_practitioner_id = request.practitioner_id if request.practitioner_id is not None else old_practitioner_id
-        new_start_time = request.start_time if request.start_time is not None else old_start_time
-        
-        should_send = AppointmentService.should_send_edit_notification(
-            old_appointment=appointment,
-            new_practitioner_id=new_practitioner_id,
-            new_start_time=new_start_time
-        )
-        
-        # Edit appointment (service handles business logic, not permissions)
-        result = AppointmentService.edit_appointment(
+        # Edit appointment (service handles business logic, notifications, and permissions)
+        # Pass pre-fetched appointment to avoid duplicate query (already fetched for authorization check)
+        result = AppointmentService.update_appointment(
             db=db,
             appointment_id=appointment_id,
-            clinic_id=clinic_id,
-            current_user_id=current_user.user_id,
             new_practitioner_id=request.practitioner_id,
             new_start_time=request.start_time,
-            new_notes=request.notes
+            new_notes=request.notes,
+            apply_booking_constraints=False,  # Clinic edits bypass constraints
+            allow_auto_assignment=False,  # Clinic edits don't support auto-assignment
+            reassigned_by_user_id=current_user.user_id,
+            notification_note=request.notification_note,
+            success_message='預約已更新',
+            appointment=appointment  # Pass pre-fetched appointment to avoid duplicate query
         )
-        
-        # Refresh appointment to get updated values for notification
-        db.refresh(appointment)
-
-        # Send notification if needed
-        # Note: Notification failures are caught and logged but don't fail the request.
-        # This ensures appointment edits succeed even if LINE service is temporarily unavailable.
-        if should_send:
-            try:
-                # Get practitioners for notification
-                old_practitioner = None
-                if not old_is_auto_assigned:
-                    old_practitioner = db.query(User).get(old_practitioner_id)
-                
-                new_practitioner = None
-                if request.practitioner_id:
-                    new_practitioner = db.query(User).get(request.practitioner_id)
-                elif not appointment.is_auto_assigned:
-                    new_practitioner = db.query(User).get(appointment.calendar_event.user_id)
-                
-                notification_sent = NotificationService.send_appointment_edit_notification(
-                    db=db,
-                    appointment=appointment,
-                    old_practitioner=old_practitioner,
-                    new_practitioner=new_practitioner,
-                    old_start_time=old_start_time,
-                    new_start_time=new_start_time,
-                    note=request.notification_note  # Use separate notification note, not appointment notes
-                )
-                if not notification_sent:
-                    logger.warning(f"Failed to send edit notification for appointment {appointment_id} (check logs above)")
-            except Exception as e:
-                logger.exception(f"Failed to send LINE notification for appointment edit: {e}")
-                # Don't fail the request if notification fails
         
         return result
         

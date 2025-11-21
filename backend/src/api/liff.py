@@ -987,14 +987,44 @@ async def reschedule_appointment(
         # Parse start time
         new_start_time = parse_datetime_to_taiwan(request.new_start_time)
 
+        # Validate appointment belongs to patient (authorization check)
+        # Query with eager loading to avoid duplicate query in service
+        appointment = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).options(
+            joinedload(Appointment.patient),
+            joinedload(Appointment.appointment_type),
+            joinedload(Appointment.calendar_event).joinedload(CalendarEvent.user)
+        ).filter(
+            Appointment.calendar_event_id == appointment_id
+        ).first()
+
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約不存在"
+            )
+
+        if appointment.patient.line_user_id != line_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您沒有權限改期此預約"
+            )
+
         # Reschedule appointment using service
-        result = AppointmentService.reschedule_appointment(
+        # Pass pre-fetched appointment to avoid duplicate query (already fetched for authorization check)
+        result = AppointmentService.update_appointment(
             db=db,
             appointment_id=appointment_id,
-            line_user_id=line_user.id,
             new_practitioner_id=request.new_practitioner_id,
             new_start_time=new_start_time,
-            new_notes=request.new_notes
+            new_notes=request.new_notes,
+            apply_booking_constraints=True,  # Patients must adhere to booking constraints
+            allow_auto_assignment=True,  # Patients can request auto-assignment
+            reassigned_by_user_id=None,  # Patient reschedule, not clinic user
+            notification_note=None,  # No custom note for patient reschedule
+            success_message='預約已改期',
+            appointment=appointment  # Pass pre-fetched appointment to avoid duplicate query
         )
 
         return result

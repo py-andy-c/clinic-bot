@@ -279,12 +279,14 @@ class TestAppointmentManagement:
         )
         assert should_send is True, "Should send notification when time changes"
         
-        edit_result = AppointmentService.edit_appointment(
+        edit_result = AppointmentService.update_appointment(
             db=db_session,
             appointment_id=appointment_id,
-            clinic_id=clinic.id,
-            current_user_id=practitioner.id,
-            new_start_time=new_start_time
+            new_start_time=new_start_time,
+            new_practitioner_id=None,
+            apply_booking_constraints=False,
+            allow_auto_assignment=False,
+            reassigned_by_user_id=practitioner.id
         )
 
         assert edit_result['success'] is True
@@ -382,12 +384,14 @@ class TestAppointmentManagement:
         assert appointment.originally_auto_assigned is True
 
         # Edit to assign specific practitioner
-        edit_result = AppointmentService.edit_appointment(
+        edit_result = AppointmentService.update_appointment(
             db=db_session,
             appointment_id=appointment_id,
-            clinic_id=clinic.id,
-            current_user_id=practitioner1.id,
-            new_practitioner_id=practitioner2.id
+            new_practitioner_id=practitioner2.id,
+            new_start_time=None,
+            apply_booking_constraints=False,
+            allow_auto_assignment=False,
+            reassigned_by_user_id=practitioner1.id
         )
 
         assert edit_result['success'] is True
@@ -785,12 +789,14 @@ class TestAppointmentManagement:
         appointment_id = result['appointment_id']
 
         # Reassign to practitioner2 (using edit_appointment directly)
-        reassign_result = AppointmentService.edit_appointment(
+        reassign_result = AppointmentService.update_appointment(
             db=db_session,
             appointment_id=appointment_id,
-            clinic_id=clinic.id,
-            current_user_id=practitioner1.id,
-            new_practitioner_id=practitioner2.id
+            new_practitioner_id=practitioner2.id,
+            new_start_time=None,
+            apply_booking_constraints=False,
+            allow_auto_assignment=False,
+            reassigned_by_user_id=practitioner1.id
         )
 
         assert reassign_result['success'] is True
@@ -884,14 +890,15 @@ class TestAppointmentManagement:
         edit_time_utc = edit_time_taiwan.astimezone(tz.utc)
         
         # Edit appointment - the service should handle timezone conversion
-        edit_result = AppointmentService.edit_appointment(
+        edit_result = AppointmentService.update_appointment(
             db=db_session,
             appointment_id=appointment_id,
-            clinic_id=clinic.id,
-            current_user_id=practitioner.id,
             new_practitioner_id=None,  # Keep same practitioner
             new_start_time=edit_time_utc.astimezone(TAIWAN_TZ),  # Service expects Taiwan time
-            new_notes=None
+            new_notes=None,
+            apply_booking_constraints=False,
+            allow_auto_assignment=False,
+            reassigned_by_user_id=practitioner.id
         )
 
         assert edit_result['success'] is True
@@ -982,14 +989,15 @@ class TestAppointmentManagement:
 
         # Admin edits the appointment (changes time)
         new_start_time = start_time.replace(hour=11, minute=0)
-        edit_result = AppointmentService.edit_appointment(
+        edit_result = AppointmentService.update_appointment(
             db=db_session,
             appointment_id=appointment_id,
-            clinic_id=clinic.id,
-            current_user_id=admin.id,  # Admin editing
             new_practitioner_id=None,  # Keep same practitioner
             new_start_time=new_start_time,
-            new_notes=None
+            new_notes=None,
+            apply_booking_constraints=False,
+            allow_auto_assignment=False,
+            reassigned_by_user_id=admin.id  # Admin editing
         )
 
         assert edit_result['success'] is True
