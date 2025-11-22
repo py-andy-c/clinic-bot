@@ -74,6 +74,7 @@ export const getClinicSectionChanges = (current: ClinicSettings, original: Clini
   const appointmentSettingsChanged =
     JSON.stringify(current.appointment_types) !== JSON.stringify(original.appointment_types) ||
     current.clinic_info_settings.appointment_type_instructions !== original.clinic_info_settings.appointment_type_instructions ||
+    current.clinic_info_settings.appointment_notes_instructions !== original.clinic_info_settings.appointment_notes_instructions ||
     current.booking_restriction_settings.booking_restriction_type !== original.booking_restriction_settings.booking_restriction_type ||
     current.booking_restriction_settings.minimum_booking_hours_ahead !== original.booking_restriction_settings.minimum_booking_hours_ahead ||
     (current.booking_restriction_settings.step_size_minutes ?? 30) !== (original.booking_restriction_settings.step_size_minutes ?? 30) ||

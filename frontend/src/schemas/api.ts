@@ -26,6 +26,7 @@ export const ClinicInfoSettingsSchema = z.object({
   address: z.string().nullable().optional(),
   phone_number: z.string().nullable().optional(),
   appointment_type_instructions: z.string().nullable().optional(),
+  appointment_notes_instructions: z.string().nullable().optional(),
   require_birthday: z.boolean().optional(),
 });
 

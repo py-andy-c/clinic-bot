@@ -113,6 +113,7 @@ export interface ClinicInfoResponse {
   phone_number: string | null;
   require_birthday?: boolean;
   minimum_cancellation_hours_before?: number;
+  appointment_notes_instructions?: string | null;
 }
 
 class LiffApiService {

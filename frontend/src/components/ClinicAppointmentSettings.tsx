@@ -6,9 +6,11 @@ import { InfoModal } from './shared/InfoModal';
 interface ClinicAppointmentSettingsProps {
   appointmentTypes: AppointmentType[];
   appointmentTypeInstructions: string | null;
+  appointmentNotesInstructions: string | null;
   bookingRestrictionSettings: BookingRestrictionSettings;
   requireBirthday: boolean;
   onAppointmentTypeInstructionsChange: (instructions: string | null) => void;
+  onAppointmentNotesInstructionsChange: (instructions: string | null) => void;
   onBookingRestrictionSettingsChange: (settings: BookingRestrictionSettings) => void;
   onRequireBirthdayChange: (value: boolean) => void;
   onAddType: () => void;
@@ -20,9 +22,11 @@ interface ClinicAppointmentSettingsProps {
 const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
   appointmentTypes,
   appointmentTypeInstructions,
+  appointmentNotesInstructions,
   bookingRestrictionSettings,
   requireBirthday,
   onAppointmentTypeInstructionsChange,
+  onAppointmentNotesInstructionsChange,
   onBookingRestrictionSettingsChange,
   onRequireBirthdayChange,
   onAddType,
@@ -32,6 +36,10 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
 }) => {
   const handleInstructionsChange = (value: string) => {
     onAppointmentTypeInstructionsChange(value || null);
+  };
+
+  const handleNotesInstructionsChange = (value: string) => {
+    onAppointmentNotesInstructionsChange(value || null);
   };
 
   const handleMinimumHoursChange = (hours: string) => {
@@ -159,6 +167,31 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
               />
               <p className="text-sm text-gray-500 mt-1">
                 病患在透過Line預約，選擇預約類別時，將會看到此指引
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 備註填寫指引 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            備註填寫指引
+          </label>
+          <div className="space-y-4 max-w-2xl">
+            <div>
+              <textarea
+                value={appointmentNotesInstructions || ''}
+                onChange={(e) => handleNotesInstructionsChange(e.target.value)}
+                className="input min-h-[120px] resize-vertical"
+                placeholder={`例如：若您是第一次來診所，請在備註中回答以下問題：
+1. 主要症狀或問題
+2. 症狀持續時間
+3. 是否有相關病史`}
+                disabled={!isClinicAdmin}
+                rows={4}
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                病患在透過Line預約，填寫備註時，將會看到此指引
               </p>
             </div>
           </div>

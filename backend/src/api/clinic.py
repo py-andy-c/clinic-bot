@@ -117,6 +117,7 @@ class ClinicInfoSettings(BaseModel):
     address: Optional[str] = None
     phone_number: Optional[str] = None
     appointment_type_instructions: Optional[str] = None
+    appointment_notes_instructions: Optional[str] = None
     require_birthday: bool = False
 
 

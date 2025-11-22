@@ -1121,6 +1121,7 @@ async def get_clinic_info(
             "phone_number": clinic.phone_number,
             "require_birthday": clinic_settings.clinic_info_settings.require_birthday,
             "minimum_cancellation_hours_before": clinic_settings.booking_restriction_settings.minimum_cancellation_hours_before,
+            "appointment_notes_instructions": clinic_settings.clinic_info_settings.appointment_notes_instructions,
         }
 
     except Exception as e:

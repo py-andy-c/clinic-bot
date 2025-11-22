@@ -43,6 +43,7 @@ export interface Clinic {
       address?: string | null;
       phone_number?: string | null;
       appointment_type_instructions?: string | null;
+      appointment_notes_instructions?: string | null;
       require_birthday?: boolean;
     };
     chat_settings?: {

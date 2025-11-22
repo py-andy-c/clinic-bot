@@ -62,6 +62,7 @@ class ClinicInfoSettings(BaseModel):
     address: Optional[str] = Field(default=None)
     phone_number: Optional[str] = Field(default=None)
     appointment_type_instructions: Optional[str] = Field(default=None, description="Instructions to guide patients when selecting appointment types")
+    appointment_notes_instructions: Optional[str] = Field(default=None, description="Instructions to guide patients when adding notes to appointments")
     require_birthday: bool = Field(default=False, description="Whether to require birthday during patient registration")
 
 
@@ -365,6 +366,18 @@ class Clinic(Base):
         """Set appointment type instructions setting."""
         clinic_info = self.settings.get("clinic_info_settings", {})
         clinic_info["appointment_type_instructions"] = value
+        self.settings["clinic_info_settings"] = clinic_info
+
+    @property
+    def appointment_notes_instructions(self) -> Optional[str]:
+        """Get appointment notes instructions setting."""
+        return self.settings.get("clinic_info_settings", {}).get("appointment_notes_instructions")
+
+    @appointment_notes_instructions.setter
+    def appointment_notes_instructions(self, value: Optional[str]):
+        """Set appointment notes instructions setting."""
+        clinic_info = self.settings.get("clinic_info_settings", {})
+        clinic_info["appointment_notes_instructions"] = value
         self.settings["clinic_info_settings"] = clinic_info
 
     @property

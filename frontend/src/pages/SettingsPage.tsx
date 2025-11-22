@@ -216,6 +216,7 @@ const SettingsPage: React.FC = () => {
             <ClinicAppointmentSettings
               appointmentTypes={settings.appointment_types}
               appointmentTypeInstructions={settings.clinic_info_settings.appointment_type_instructions ?? null}
+              appointmentNotesInstructions={settings.clinic_info_settings.appointment_notes_instructions ?? null}
               bookingRestrictionSettings={settings.booking_restriction_settings}
               requireBirthday={settings.clinic_info_settings.require_birthday || false}
               onAppointmentTypeInstructionsChange={(instructions) => {
@@ -223,6 +224,14 @@ const SettingsPage: React.FC = () => {
                   clinic_info_settings: {
                     ...prev.clinic_info_settings,
                     appointment_type_instructions: instructions
+                  }
+                }));
+              }}
+              onAppointmentNotesInstructionsChange={(instructions) => {
+                updateData((prev) => ({
+                  clinic_info_settings: {
+                    ...prev.clinic_info_settings,
+                    appointment_notes_instructions: instructions
                   }
                 }));
               }}

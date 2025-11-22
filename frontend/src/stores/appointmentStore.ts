@@ -15,6 +15,7 @@ interface AppointmentState {
   appointmentTypeId: number | null;
   appointmentType: AppointmentType | null;
   appointmentTypeInstructions: string | null;
+  appointmentNotesInstructions: string | null;
 
   // Step 2: Practitioner
   practitionerId: number | null; // null means "不指定治療師"
@@ -51,6 +52,7 @@ interface AppointmentState {
   setStep: (step: number) => void;
   setAppointmentType: (id: number, type: AppointmentType) => void;
   setAppointmentTypeInstructions: (instructions: string | null) => void;
+  setAppointmentNotesInstructions: (instructions: string | null) => void;
   setPractitioner: (id: number | null, practitioner?: Practitioner, isAutoAssigned?: boolean) => void;
   updateAssignedPractitioner: (id: number, practitioner: Practitioner, isAutoAssigned?: boolean) => void; // Updates assigned practitioner without resetting date/time
   setDateTime: (date: string, time: string) => void;
@@ -71,6 +73,7 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
   appointmentTypeId: null,
   appointmentType: null,
   appointmentTypeInstructions: null,
+  appointmentNotesInstructions: null,
   practitionerId: null,
   practitioner: null,
   isAutoAssigned: false,
@@ -101,6 +104,10 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
 
   setAppointmentTypeInstructions: (instructions) => set({
     appointmentTypeInstructions: instructions,
+  }),
+
+  setAppointmentNotesInstructions: (instructions) => set({
+    appointmentNotesInstructions: instructions,
   }),
 
   setPractitioner: (id, practitioner, isAutoAssigned = false) => set({
@@ -167,7 +174,7 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     patient: null,
     notes: '',
     createdAppointment: null,
-    // Keep clinicId and clinic info as they don't change during the flow
+    // Keep clinicId, clinic info, and instructions as they don't change during the flow
   }),
 
   canProceedToStep: (targetStep) => {
