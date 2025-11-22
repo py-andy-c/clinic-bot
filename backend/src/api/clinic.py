@@ -99,16 +99,16 @@ class BookingRestrictionSettings(BaseModel):
         are also migrated if constructed directly.
         """
         if isinstance(data, dict):
-            booking_type = data.get('booking_restriction_type')
+            booking_type: Any = data.get('booking_restriction_type')  # type: ignore[reportUnknownVariableType]
             if booking_type == 'same_day_disallowed':
                 # Migrate to minimum_hours_required
                 # If minimum_booking_hours_ahead is not set or is 0, default to 24 hours
-                min_hours = data.get('minimum_booking_hours_ahead')
+                min_hours: Any = data.get('minimum_booking_hours_ahead')  # type: ignore[reportUnknownVariableType]
                 if min_hours is None or min_hours == 0:
                     data['minimum_booking_hours_ahead'] = 24
                 # Update booking_restriction_type
                 data['booking_restriction_type'] = 'minimum_hours_required'
-        return data
+        return data  # type: ignore[reportUnknownVariableType]
 
 
 class ClinicInfoSettings(BaseModel):
