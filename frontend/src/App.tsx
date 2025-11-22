@@ -98,7 +98,7 @@ const AdminRoutes: React.FC = () => {
           <Route path="clinic/members" element={<MembersPage />} />
           <Route path="clinic/patients" element={<PatientsPage />} />
           <Route path="clinic/line-users" element={<LineUsersPage />} />
-          <Route path="clinic/auto-assigned-appointments" element={<AutoAssignedAppointmentsPage />} />
+          <Route path="clinic/pending-review-appointments" element={<AutoAssignedAppointmentsPage />} />
           <Route path="clinic/settings" element={<SettingsPage />} />
           <Route path="calendar" element={<AvailabilityPage />} />
           <Route path="profile" element={<ProfilePage />} />

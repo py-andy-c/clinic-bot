@@ -272,7 +272,7 @@ export class ApiService {
       originally_auto_assigned: boolean;
     }>;
   }> {
-    const response = await this.client.get('/clinic/auto-assigned-appointments');
+    const response = await this.client.get('/clinic/pending-review-appointments');
     return response.data;
   }
 

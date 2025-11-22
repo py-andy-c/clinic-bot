@@ -3488,7 +3488,7 @@ class AutoAssignedAppointmentsResponse(BaseModel):
     appointments: List[AutoAssignedAppointmentItem]
 
 
-@router.get("/auto-assigned-appointments", summary="List auto-assigned appointments (admin only)")
+@router.get("/pending-review-appointments", summary="List auto-assigned appointments (admin only)")
 async def list_auto_assigned_appointments(
     current_user: UserContext = Depends(require_admin_role),
     db: Session = Depends(get_db)
@@ -3604,5 +3604,5 @@ async def list_auto_assigned_appointments(
         logger.exception(f"Error listing auto-assigned appointments: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="無法取得自動指派預約列表"
+            detail="無法取得待審核預約列表"
         )

@@ -217,7 +217,7 @@ If practitioner is specified:
 
 ### By Clinic
 
-When a clinic admin edits an appointment (from calendar page or auto-assigned-appointments page):
+When a clinic admin edits an appointment (from calendar page or pending-review-appointments page):
 
 #### Booking Constraints
 - **Does NOT enforce** booking restrictions:

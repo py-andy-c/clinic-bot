@@ -313,7 +313,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
       icon: '📅',
       items: [
         { name: '行事曆', href: '/admin/calendar', icon: '📅', show: true },
-        { name: '自動指派預約', href: '/admin/clinic/auto-assigned-appointments', icon: '📋', show: isClinicAdmin },
+        { name: '待審核預約', href: '/admin/clinic/pending-review-appointments', icon: '📋', show: isClinicAdmin },
       ]
     },
     {

@@ -6,7 +6,7 @@ import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { EditAppointmentModal } from '../components/calendar/EditAppointmentModal';
 import { useApiData } from '../hooks/useApiData';
-import PageHeader from '../components/PageHeader';
+import { BaseModal } from '../components/shared/BaseModal';
 import moment from 'moment-timezone';
 import { CalendarEvent } from '../utils/calendarDataAdapter';
 
@@ -33,6 +33,9 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
   const [appointmentTypes, setAppointmentTypes] = useState<{ id: number; name: string; duration_minutes: number }[]>([]);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [calendarEvent, setCalendarEvent] = useState<CalendarEvent | null>(null);
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const [minimumBookingHoursAhead, setMinimumBookingHoursAhead] = useState<number | null>(null);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(false);
 
   // If not authenticated, show a message
   if (!isAuthenticated) {
@@ -40,7 +43,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">需要登入</h1>
-          <p className="text-gray-600">請先登入以查看自動指派預約頁面</p>
+          <p className="text-gray-600">請先登入以查看待審核預約頁面</p>
         </div>
       </div>
     );
@@ -50,7 +53,20 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
   if (!isClinicAdmin) {
     return (
       <div className="max-w-4xl mx-auto">
-        <PageHeader title="自動指派預約" />
+        <div className="mb-2 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 inline-flex items-center gap-2">
+            待審核預約
+            <button
+              onClick={() => setIsInfoModalOpen(true)}
+              className="inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+              aria-label="查看說明"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </h1>
+        </div>
         <div className="bg-red-50 border border-red-200 rounded-md p-4 mt-4">
           <div className="flex">
             <div className="flex-shrink-0">
@@ -61,7 +77,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
             <div className="ml-3">
               <h3 className="text-sm font-medium text-red-800">無權限</h3>
               <div className="mt-2 text-sm text-red-700">
-                <p>只有診所管理員可以查看和管理自動指派預約。</p>
+                <p>只有診所管理員可以查看和管理待審核預約。</p>
               </div>
             </div>
           </div>
@@ -83,7 +99,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
     {
       enabled: !isLoading && isAuthenticated && isClinicAdmin,
       dependencies: [isLoading, isAuthenticated, currentUser?.active_clinic_id],
-      defaultErrorMessage: '無法載入自動指派預約列表',
+      defaultErrorMessage: '無法載入待審核預約列表',
       initialData: { appointments: [] },
     }
   );
@@ -107,6 +123,47 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
       fetchData();
     }
   }, [isEditModalOpen, alert]);
+
+  // Fetch clinic settings helper function
+  const fetchClinicSettings = React.useCallback(async () => {
+    if (isLoadingSettings || minimumBookingHoursAhead !== null) {
+      return;
+    }
+    
+    setIsLoadingSettings(true);
+    try {
+      const settings = await apiService.getClinicSettings();
+      const hoursValue = settings.booking_restriction_settings.minimum_booking_hours_ahead;
+      // Convert to number if it's a string, or use default
+      const hours = typeof hoursValue === 'string' 
+        ? parseInt(hoursValue, 10) 
+        : (typeof hoursValue === 'number' ? hoursValue : 24);
+      
+      // Ensure we have a valid number
+      const finalHours = (!isNaN(hours) && hours > 0) ? hours : 24;
+      setMinimumBookingHoursAhead(finalHours);
+    } catch (err) {
+      logger.error('Failed to fetch clinic settings:', err);
+      // Set default on error
+      setMinimumBookingHoursAhead(24);
+    } finally {
+      setIsLoadingSettings(false);
+    }
+  }, [minimumBookingHoursAhead, isLoadingSettings]);
+
+  // Fetch clinic settings when appointments data is loaded
+  React.useEffect(() => {
+    if (appointmentsData && appointmentsData.appointments.length > 0) {
+      fetchClinicSettings();
+    }
+  }, [appointmentsData, fetchClinicSettings]);
+
+  // Also fetch when info modal opens if not already loaded
+  React.useEffect(() => {
+    if (isInfoModalOpen) {
+      fetchClinicSettings();
+    }
+  }, [isInfoModalOpen, fetchClinicSettings]);
 
   const appointments = appointmentsData?.appointments || [];
 
@@ -212,10 +269,50 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
     return momentObj.format('YYYY-MM-DD HH:mm');
   };
 
+  const formatAutoAssignmentTime = (startTimeStr: string) => {
+    if (minimumBookingHoursAhead === null || minimumBookingHoursAhead <= 0) {
+      return null;
+    }
+    
+    const appointmentTime = moment.tz(startTimeStr, 'Asia/Taipei');
+    const autoAssignmentTime = appointmentTime.clone().subtract(minimumBookingHoursAhead, 'hours');
+    const now = moment.tz('Asia/Taipei');
+    
+    if (autoAssignmentTime.isBefore(now) || autoAssignmentTime.isSame(now)) {
+      return '即將自動指派';
+    }
+    
+    const duration = moment.duration(autoAssignmentTime.diff(now));
+    const days = Math.floor(duration.asDays());
+    const hours = duration.hours();
+    const minutes = duration.minutes();
+    
+    if (days > 0) {
+      return `將在 ${days} 天 ${hours} 小時後自動指派`;
+    } else if (hours > 0) {
+      return `將在 ${hours} 小時 ${minutes} 分鐘後自動指派`;
+    } else {
+      return `將在 ${minutes} 分鐘後自動指派`;
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto">
-        <PageHeader title="自動指派預約" />
+        <div className="mb-2 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 inline-flex items-center gap-2">
+            待審核預約
+            <button
+              onClick={() => setIsInfoModalOpen(true)}
+              className="inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+              aria-label="查看說明"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </h1>
+        </div>
         <div className="flex justify-center items-center py-12">
           <LoadingSpinner size="lg" />
         </div>
@@ -226,7 +323,20 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
   if (error) {
     return (
       <div className="max-w-4xl mx-auto">
-        <PageHeader title="自動指派預約" />
+        <div className="mb-2 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 inline-flex items-center gap-2">
+            待審核預約
+            <button
+              onClick={() => setIsInfoModalOpen(true)}
+              className="inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+              aria-label="查看說明"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </h1>
+        </div>
         <ErrorMessage message={error} />
       </div>
     );
@@ -234,22 +344,19 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <PageHeader title="自動指派預約" />
-      
-      <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mt-4 mb-6">
-        <div className="flex">
-          <div className="flex-shrink-0">
-            <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+      <div className="mb-2 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 inline-flex items-center gap-2">
+          待審核預約
+          <button
+            onClick={() => setIsInfoModalOpen(true)}
+            className="inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+            aria-label="查看說明"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
             </svg>
-          </div>
-          <div className="ml-3">
-            <h3 className="text-sm font-medium text-blue-800">說明</h3>
-            <div className="mt-2 text-sm text-blue-700">
-              <p>此列表顯示所有尚未指派給特定治療師的預約。點擊預約以重新指派給治療師。預約將在達到預約時間限制時自動指派給原自動指派的治療師。</p>
-            </div>
-          </div>
-        </div>
+          </button>
+        </h1>
       </div>
 
       {appointments.length === 0 ? (
@@ -287,6 +394,14 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
                       </svg>
                       目前指派給: {appointment.practitioner_name}
                     </div>
+                    {formatAutoAssignmentTime(appointment.start_time) && (
+                      <div className="mt-1 flex items-center text-sm text-amber-600">
+                        <svg className="flex-shrink-0 mr-1.5 h-4 w-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {formatAutoAssignmentTime(appointment.start_time)}
+                      </div>
+                    )}
                     {appointment.notes && (
                       <div className="mt-1 text-sm text-gray-500">
                         備註: {appointment.notes}
@@ -324,6 +439,45 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
           formSubmitButtonText="確認指派"
           allowConfirmWithoutChanges={true}
         />
+      )}
+
+      {isInfoModalOpen && (
+        <BaseModal
+          onClose={() => setIsInfoModalOpen(false)}
+          aria-label="說明"
+        >
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3 flex-1">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">說明</h3>
+              <div className="text-sm text-gray-700 space-y-2">
+                <p>如果病患在預約時沒有指定治療師，系統會根據病患的時間選擇，暫時指派一名治療師以保留時段。</p>
+                <p>暫時指派的預約不會出現在治療師的行事曆或通知中，但仍會佔用該時段，無法接受其他預約。</p>
+                <p>診所管理員可以確認或更改治療師的選擇。若在預約時間前
+                  {isLoadingSettings ? (
+                    <span className="inline-block w-8 h-4 bg-gray-200 animate-pulse rounded mx-1"></span>
+                  ) : minimumBookingHoursAhead !== null && minimumBookingHoursAhead > 0 ? (
+                    <span className="font-medium mx-1">{minimumBookingHoursAhead} 小時</span>
+                  ) : (
+                    <span className="text-gray-500 mx-1">載入中...</span>
+                  )}
+                  還未人為指派，系統會自動指派給目前暫時指派的治療師。被確認指派的治療師則會收到通知。</p>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => setIsInfoModalOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  確定
+                </button>
+              </div>
+            </div>
+          </div>
+        </BaseModal>
       )}
     </div>
   );
