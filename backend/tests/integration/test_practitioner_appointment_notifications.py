@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from main import app
 from models import User, Clinic, Patient, Appointment, CalendarEvent, AppointmentType, UserClinicAssociation, LineUser, PractitionerAppointmentTypes, PractitionerAvailability
 from services.appointment_service import AppointmentService
+from utils.datetime_utils import taiwan_now
 from tests.conftest import db_session
 
 
@@ -86,7 +87,8 @@ def clinic_with_practitioner(db_session):
     db_session.add(practitioner_appointment_type)
     
     # Set up basic availability for practitioner (9 AM - 5 PM, Monday to Friday)
-    for day_of_week in range(1, 6):  # Monday (1) to Friday (5)
+    # Python's weekday() returns 0-6 where Monday=0, Sunday=6
+    for day_of_week in range(7):  # All days (0=Monday to 6=Sunday) to ensure availability
         availability = PractitionerAvailability(
             user_id=practitioner.id,
             clinic_id=clinic.id,
@@ -144,7 +146,8 @@ class TestPractitionerAppointmentNotifications:
         mock_line_service_class.return_value = mock_line_service
         
         # Create appointment (pass practitioner_id to bypass availability checks)
-        start_time = datetime.now(timezone.utc) + timedelta(days=1)
+        # Use Taiwan timezone as expected by create_appointment
+        start_time = taiwan_now() + timedelta(days=1)
         start_time = start_time.replace(hour=14, minute=30, second=0, microsecond=0)
         
         result = AppointmentService.create_appointment(
@@ -190,7 +193,8 @@ class TestPractitionerAppointmentNotifications:
         mock_line_service_class.return_value = mock_line_service
         
         # Create appointment
-        start_time = datetime.now(timezone.utc) + timedelta(days=1)
+        # Use Taiwan timezone as expected by create_appointment
+        start_time = taiwan_now() + timedelta(days=1)
         start_time = start_time.replace(hour=14, minute=30, second=0, microsecond=0)
         
         result = AppointmentService.create_appointment(
@@ -225,7 +229,8 @@ class TestPractitionerAppointmentNotifications:
         mock_line_service_class.return_value = mock_line_service
         
         # Create appointment
-        start_time = datetime.now(timezone.utc) + timedelta(days=1)
+        # Use Taiwan timezone as expected by create_appointment
+        start_time = taiwan_now() + timedelta(days=1)
         start_time = start_time.replace(hour=14, minute=30, second=0, microsecond=0)
         
         result = AppointmentService.create_appointment(
