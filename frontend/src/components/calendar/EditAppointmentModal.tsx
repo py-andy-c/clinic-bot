@@ -270,7 +270,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             <option value="">請選擇治療師</option>
             {availablePractitioners.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.full_name}{p.id === originalPractitionerId ? ' (原本)' : ''}
+                {p.full_name}{p.id === originalPractitionerId ? ' (原)' : ''}
               </option>
             ))}
           </select>

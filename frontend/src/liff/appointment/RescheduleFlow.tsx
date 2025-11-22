@@ -20,6 +20,17 @@ import {
 import moment from 'moment-timezone';
 import { checkCancellationConstraint } from '../../utils/appointmentConstraints';
 
+// Type definitions for slot details
+interface SlotDetail {
+  is_recommended?: boolean;
+}
+
+interface AvailabilitySlot {
+  start_time: string;
+  end_time: string;
+  is_recommended?: boolean;
+}
+
 const RescheduleFlow: React.FC = () => {
   const { t } = useTranslation();
   const { alert: showAlert } = useModal();
@@ -61,10 +72,12 @@ const RescheduleFlow: React.FC = () => {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [notes, setNotes] = useState<string>('');
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  // Track slot details (e.g., recommended status) for badge display
+  const [slotDetails, setSlotDetails] = useState<Map<string, SlotDetail>>(new Map());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [datesWithSlots, setDatesWithSlots] = useState<Set<string>>(new Set());
   const [loadingAvailability, setLoadingAvailability] = useState(false);
-  const [cachedAvailabilityData, setCachedAvailabilityData] = useState<Map<string, { slots: any[] }>>(new Map());
+  const [cachedAvailabilityData, setCachedAvailabilityData] = useState<Map<string, { slots: AvailabilitySlot[] }>>(new Map());
 
   // Load clinic info for minimum cancellation hours
   useEffect(() => {
@@ -148,11 +161,21 @@ const RescheduleFlow: React.FC = () => {
           exclude_calendar_event_id: appointmentDetails.calendar_event_id || appointmentDetails.id,
         });
 
-        const newCache = new Map<string, { slots: any[] }>();
+        const newCache = new Map<string, { slots: AvailabilitySlot[] }>();
+        const newSlotDetails = new Map<string, SlotDetail>();
         batchResponse.results.forEach(result => {
           newCache.set(result.date, { slots: result.slots });
+          // Store slot details for recommended badge display
+          if (result.slots) {
+            result.slots.forEach((slot: AvailabilitySlot) => {
+              if (slot.is_recommended !== undefined) {
+                newSlotDetails.set(slot.start_time, { is_recommended: slot.is_recommended });
+              }
+            });
+          }
         });
         setCachedAvailabilityData(newCache);
+        setSlotDetails(newSlotDetails);
 
         const datesWithAvailableSlots = new Set<string>(
           batchResponse.results
@@ -175,6 +198,7 @@ const RescheduleFlow: React.FC = () => {
   useEffect(() => {
     if (!selectedDate || !clinicId || !appointmentDetails?.appointment_type_id) {
       setAvailableSlots([]);
+      setSlotDetails(new Map());
       return;
     }
 
@@ -182,8 +206,17 @@ const RescheduleFlow: React.FC = () => {
       try {
         const cachedData = cachedAvailabilityData.get(selectedDate);
         if (cachedData && cachedData.slots && cachedData.slots.length > 0) {
-          const slots = cachedData.slots.map((slot: any) => slot.start_time);
+          const slots = cachedData.slots.map((slot: AvailabilitySlot) => slot.start_time);
           setAvailableSlots(slots);
+          
+          // Store slot details for recommended badge display
+          const detailsMap = new Map<string, SlotDetail>();
+          cachedData.slots.forEach((slot: AvailabilitySlot) => {
+            if (slot.is_recommended !== undefined) {
+              detailsMap.set(slot.start_time, { is_recommended: slot.is_recommended });
+            }
+          });
+          setSlotDetails(detailsMap);
           return;
         }
 
@@ -196,9 +229,19 @@ const RescheduleFlow: React.FC = () => {
         });
         const slots = response.slots.map(slot => slot.start_time);
         setAvailableSlots(slots);
+        
+        // Store slot details for recommended badge display
+        const detailsMap = new Map<string, SlotDetail>();
+        response.slots.forEach((slot: AvailabilitySlot) => {
+          if (slot.is_recommended !== undefined) {
+            detailsMap.set(slot.start_time, { is_recommended: slot.is_recommended });
+          }
+        });
+        setSlotDetails(detailsMap);
       } catch (err) {
         logger.error('Failed to load available slots:', err);
         setAvailableSlots([]);
+        setSlotDetails(new Map());
       }
     };
 
@@ -294,6 +337,39 @@ const RescheduleFlow: React.FC = () => {
   // Calculate original time and date (must be before early returns for hooks)
   const originalTime = appointmentDetails ? moment(appointmentDetails.start_time).tz('Asia/Taipei').format('HH:mm') : null;
   const originalDate = appointmentDetails ? moment(appointmentDetails.start_time).tz('Asia/Taipei').format('YYYY-MM-DD') : null;
+
+  // Helper component to render time slot badges (original and/or recommended)
+  const renderTimeSlotBadges = (isOriginalButNotSelected: boolean, isRecommended: boolean) => {
+    const showBoth = isOriginalButNotSelected && isRecommended;
+    
+    if (showBoth) {
+      return (
+        <div className="absolute -top-2 -right-2 flex flex-col gap-0.5">
+          <span className="bg-blue-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">
+            {t('appointment.reschedule.original')}
+          </span>
+          <span className="bg-teal-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">
+            {t('datetime.recommended')}
+          </span>
+        </div>
+      );
+    }
+    
+    return (
+      <>
+        {isOriginalButNotSelected && (
+          <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
+            {t('appointment.reschedule.original')}
+          </span>
+        )}
+        {isRecommended && (
+          <span className="absolute -top-2 -right-2 bg-teal-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
+            {t('datetime.recommended')}
+          </span>
+        )}
+      </>
+    );
+  };
   
   // Build time slots list - include original time if editing and date/practitioner match
   // Must be before early returns to maintain hook order
@@ -430,11 +506,14 @@ const RescheduleFlow: React.FC = () => {
               }}
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {practitioners.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name}
-                </option>
-              ))}
+              {practitioners.map((p) => {
+                const isOriginalPractitioner = !appointmentDetails?.is_auto_assigned && p.id === appointmentDetails?.practitioner_id;
+                return (
+                  <option key={p.id} value={p.id}>
+                    {p.full_name}{isOriginalPractitioner ? ` (${t('appointment.reschedule.original')})` : ''}
+                  </option>
+                );
+              })}
               <option value="">{t('practitioner.notSpecified')}</option>
             </select>
           </div>
@@ -501,6 +580,8 @@ const RescheduleFlow: React.FC = () => {
                     const available = isDateAvailable(day);
                     const isSelected = selectedDate === dateStr;
                     const isOriginalDate = dateStr === originalDate;
+                    // Show original indicator when original date is not selected and a different date has been selected
+                    const isOriginalButNotSelected = isOriginalDate && !isSelected && selectedDate !== null;
                     const todayDate = isToday(day);
 
                     return (
@@ -521,6 +602,13 @@ const RescheduleFlow: React.FC = () => {
                             : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-100'
                         } ${isOriginalDate ? 'ring-2 ring-blue-300' : ''}`}
                       >
+                        {isOriginalButNotSelected && (
+                          <span className={`absolute -top-1.5 -right-1.5 text-[10px] font-medium px-1 py-0.5 rounded ${
+                            available ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
+                          }`}>
+                            {t('appointment.reschedule.original')}
+                          </span>
+                        )}
                         <div className="flex flex-col items-center justify-center h-full">
                           <span className={isSelected ? 'text-white' : available ? 'text-gray-900' : 'text-gray-400'}>
                             {day.getDate()}
@@ -551,17 +639,22 @@ const RescheduleFlow: React.FC = () => {
                           {amSlots.map((slot) => {
                             const isSelected = selectedTime === slot;
                             const isOriginalTime = slot === originalTime && selectedDate === originalDate;
+                            // Show original indicator when original time is not selected and a different time has been selected
+                            const isOriginalButNotSelected = isOriginalTime && !isSelected && selectedTime !== null;
+                            const isRecommended = slotDetails.get(slot)?.is_recommended === true;
 
                             return (
                               <button
                                 key={slot}
                                 onClick={() => setSelectedTime(slot)}
                                 className={`
-                                  py-2 px-3 rounded-md text-sm font-medium
+                                  py-2 px-3 rounded-md text-sm font-medium relative
                                   ${isSelected ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:border-blue-500'}
                                   ${isOriginalTime ? 'ring-2 ring-blue-300' : ''}
+                                  ${isRecommended ? 'border-teal-400 border-2' : ''}
                                 `}
                               >
+                                {renderTimeSlotBadges(isOriginalButNotSelected, isRecommended)}
                                 {(() => {
                                   const formatted = formatTo12Hour(slot);
                                   // Remove leading zero from hour for display (e.g., "09:00" -> "9:00")
@@ -583,17 +676,22 @@ const RescheduleFlow: React.FC = () => {
                           {pmSlots.map((slot) => {
                             const isSelected = selectedTime === slot;
                             const isOriginalTime = slot === originalTime && selectedDate === originalDate;
+                            // Show original indicator when original time is not selected and a different time has been selected
+                            const isOriginalButNotSelected = isOriginalTime && !isSelected && selectedTime !== null;
+                            const isRecommended = slotDetails.get(slot)?.is_recommended === true;
 
                             return (
                               <button
                                 key={slot}
                                 onClick={() => setSelectedTime(slot)}
                                 className={`
-                                  py-2 px-3 rounded-md text-sm font-medium
+                                  py-2 px-3 rounded-md text-sm font-medium relative
                                   ${isSelected ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:border-blue-500'}
                                   ${isOriginalTime ? 'ring-2 ring-blue-300' : ''}
+                                  ${isRecommended ? 'border-teal-400 border-2' : ''}
                                 `}
                               >
+                                {renderTimeSlotBadges(isOriginalButNotSelected, isRecommended)}
                                 {(() => {
                                   const formatted = formatTo12Hour(slot);
                                   // Remove leading zero from hour for display (e.g., "09:00" -> "9:00")

@@ -133,6 +133,7 @@ export default {
       success: '預約已成功改期！',
       successTitle: '改期成功',
       noSlotsAvailable: '此日期無可用時段',
+      original: '原',
     },
   },
   language: {

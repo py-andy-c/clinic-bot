@@ -133,6 +133,7 @@ export default {
       success: 'Appointment rescheduled successfully!',
       successTitle: 'Reschedule Successful',
       noSlotsAvailable: 'No available time slots for this date',
+      original: 'original',
     },
   },
   language: {

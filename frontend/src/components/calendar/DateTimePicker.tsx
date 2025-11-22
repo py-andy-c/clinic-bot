@@ -291,6 +291,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               const dateString = formatDateString(date);
               const available = isDateAvailable(date);
               const selected = selectedDate === dateString;
+              const isOriginalDate = originalDate ? dateString === originalDate : false;
+              // Show original indicator when original date is not selected and a different date has been selected
+              const isOriginalButNotSelected = isOriginalDate && !selected && selectedDate !== null;
               const todayDate = isToday(date);
 
               return (
@@ -304,8 +307,15 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                       : available
                       ? 'bg-white text-gray-900 font-semibold hover:bg-gray-50 border border-gray-200'
                       : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-100'
-                  }`}
+                  } ${isOriginalDate ? 'ring-2 ring-blue-300' : ''}`}
                 >
+                  {isOriginalButNotSelected && (
+                    <span className={`absolute -top-1.5 -right-1.5 text-[10px] font-medium px-1 py-0.5 rounded ${
+                      available ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
+                    }`}>
+                      原
+                    </span>
+                  )}
                   <div className="flex flex-col items-center justify-center h-full">
                     <span className={selected ? 'text-white' : available ? 'text-gray-900' : 'text-gray-400'}>
                       {date.getDate()}
@@ -342,16 +352,28 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                   <div className="grid grid-cols-3 gap-2">
                     {amSlots.map((time) => {
                       const formatted = formatTo12Hour(time);
+                      const isSelected = selectedTime === time;
+                      const isOriginalTime = originalTime && originalDate && originalPractitionerId
+                        ? time === originalTime && selectedDate === originalDate && selectedPractitionerId === originalPractitionerId
+                        : false;
+                      // Show original indicator when original time is not selected and a different time has been selected
+                      const isOriginalButNotSelected = isOriginalTime && !isSelected && selectedTime !== null;
+
                       return (
                         <button
                           key={time}
                           onClick={() => onTimeSelect(time)}
-                          className={`bg-white border rounded-md py-2 px-2 transition-colors text-sm font-medium ${
-                            selectedTime === time
+                          className={`bg-white border rounded-md py-2 px-2 transition-colors text-sm font-medium relative ${
+                            isSelected
                               ? 'border-primary-500 bg-primary-50 text-primary-700'
                               : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
-                          }`}
+                          } ${isOriginalTime ? 'ring-2 ring-blue-300' : ''}`}
                         >
+                          {isOriginalButNotSelected && (
+                            <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
+                              原
+                            </span>
+                          )}
                           {formatted.time12}
                         </button>
                       );
@@ -365,16 +387,28 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                   <div className="grid grid-cols-3 gap-2">
                     {pmSlots.map((time) => {
                       const formatted = formatTo12Hour(time);
+                      const isSelected = selectedTime === time;
+                      const isOriginalTime = originalTime && originalDate && originalPractitionerId
+                        ? time === originalTime && selectedDate === originalDate && selectedPractitionerId === originalPractitionerId
+                        : false;
+                      // Show original indicator when original time is not selected and a different time has been selected
+                      const isOriginalButNotSelected = isOriginalTime && !isSelected && selectedTime !== null;
+
                       return (
                         <button
                           key={time}
                           onClick={() => onTimeSelect(time)}
-                          className={`bg-white border rounded-md py-2 px-2 transition-colors text-sm font-medium ${
-                            selectedTime === time
+                          className={`bg-white border rounded-md py-2 px-2 transition-colors text-sm font-medium relative ${
+                            isSelected
                               ? 'border-primary-500 bg-primary-50 text-primary-700'
                               : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
-                          }`}
+                          } ${isOriginalTime ? 'ring-2 ring-blue-300' : ''}`}
                         >
+                          {isOriginalButNotSelected && (
+                            <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
+                              原
+                            </span>
+                          )}
                           {formatted.time12}
                         </button>
                       );
