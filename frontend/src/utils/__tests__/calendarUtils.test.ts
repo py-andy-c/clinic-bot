@@ -10,6 +10,7 @@ import {
   getDateRange,
   formatTimeString,
   getScrollToTime,
+  isToday,
 } from '../calendarUtils';
 
 describe('calendarUtils', () => {
@@ -155,6 +156,35 @@ describe('calendarUtils', () => {
       const resultMoment = moment(result).tz('Asia/Taipei');
       expect(resultMoment.format('YYYY-MM-DD')).toBe('2024-12-31');
       expect(resultMoment.hour()).toBe(9);
+    });
+  });
+
+  describe('isToday', () => {
+    it('should return true for today in Taiwan timezone', () => {
+      const todayTaiwan = moment.tz('Asia/Taipei');
+      const todayDate = new Date(todayTaiwan.year(), todayTaiwan.month(), todayTaiwan.date());
+      expect(isToday(todayDate)).toBe(true);
+    });
+
+    it('should return false for yesterday in Taiwan timezone', () => {
+      const yesterdayTaiwan = moment.tz('Asia/Taipei').subtract(1, 'day');
+      const yesterdayDate = new Date(yesterdayTaiwan.year(), yesterdayTaiwan.month(), yesterdayTaiwan.date());
+      expect(isToday(yesterdayDate)).toBe(false);
+    });
+
+    it('should return false for tomorrow in Taiwan timezone', () => {
+      const tomorrowTaiwan = moment.tz('Asia/Taipei').add(1, 'day');
+      const tomorrowDate = new Date(tomorrowTaiwan.year(), tomorrowTaiwan.month(), tomorrowTaiwan.date());
+      expect(isToday(tomorrowDate)).toBe(false);
+    });
+
+    it('should correctly identify today even when browser timezone differs', () => {
+      // Create a date that represents today in Taiwan timezone
+      const todayTaiwan = moment.tz('Asia/Taipei').startOf('day');
+      const todayDate = todayTaiwan.toDate();
+      
+      // The function should use Taiwan timezone, not browser timezone
+      expect(isToday(todayDate)).toBe(true);
     });
   });
 });

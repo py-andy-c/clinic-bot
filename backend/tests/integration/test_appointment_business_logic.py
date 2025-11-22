@@ -953,7 +953,7 @@ class TestAdditionalScenarios:
         # Patient changes time but keeps same practitioner
         new_start_time = start_time + timedelta(hours=2)
         with patch.object(NotificationService, 'send_appointment_edit_notification') as mock_patient_notify, \
-             patch.object(NotificationService, 'send_practitioner_reassignment_notification') as mock_practitioner_notify:
+             patch.object(NotificationService, 'send_practitioner_edit_notification') as mock_practitioner_notify:
             AppointmentService.update_appointment(
                 db=db_session,
                 appointment_id=appointment_id,
@@ -1274,7 +1274,7 @@ class TestAdminEditingManuallyAssignedAppointments:
         appointment_id = result['appointment_id']
 
         # Admin changes practitioner
-        with patch.object(NotificationService, 'send_practitioner_reassignment_notification') as mock_practitioner_notify, \
+        with patch.object(NotificationService, 'send_practitioner_edit_notification') as mock_practitioner_notify, \
              patch.object(NotificationService, 'send_appointment_edit_notification') as mock_patient_notify:
             AppointmentService.update_appointment(
                 db=db_session,
@@ -1324,7 +1324,7 @@ class TestAdminEditingManuallyAssignedAppointments:
 
         # Admin changes time only
         new_start_time = start_time + timedelta(hours=2)
-        with patch.object(NotificationService, 'send_practitioner_reassignment_notification') as mock_practitioner_notify, \
+        with patch.object(NotificationService, 'send_practitioner_edit_notification') as mock_practitioner_notify, \
              patch.object(NotificationService, 'send_appointment_edit_notification') as mock_patient_notify:
             AppointmentService.update_appointment(
                 db=db_session,
@@ -1374,7 +1374,7 @@ class TestAdminEditingManuallyAssignedAppointments:
 
         # Admin changes both practitioner and time
         new_start_time = start_time + timedelta(hours=2)
-        with patch.object(NotificationService, 'send_practitioner_reassignment_notification') as mock_practitioner_notify, \
+        with patch.object(NotificationService, 'send_practitioner_edit_notification') as mock_practitioner_notify, \
              patch.object(NotificationService, 'send_appointment_edit_notification') as mock_patient_notify:
             AppointmentService.update_appointment(
                 db=db_session,
@@ -1571,6 +1571,74 @@ class TestAdminEditingAutoAssignedBothChanges:
 class TestPatientChangingFromVisibleToAutoAssigned:
     """Test patient changing from visible (made by cron) to auto-assigned."""
 
+    def _setup_clinic_with_practitioners(self, db_session):
+        """Helper to set up clinic with practitioners and patient."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.flush()
+
+        practitioner1, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner1@test.com",
+            google_subject_id="practitioner1_123",
+            full_name="Dr. Practitioner 1",
+            roles=["practitioner"]
+        )
+
+        practitioner2, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner2@test.com",
+            google_subject_id="practitioner2_123",
+            full_name="Dr. Practitioner 2",
+            roles=["practitioner"]
+        )
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Consultation",
+            duration_minutes=30
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Associate practitioners with appointment type
+        for practitioner in [practitioner1, practitioner2]:
+            pat = PractitionerAppointmentTypes(
+                user_id=practitioner.id,
+                clinic_id=clinic.id,
+                appointment_type_id=appointment_type.id
+            )
+            db_session.add(pat)
+
+        # Create availability for multiple days
+        for day_offset in [1, 2, 3, 4, 5, 6, 7, 10]:
+            target_date = (taiwan_now() + timedelta(days=day_offset)).date()
+            day_of_week = target_date.weekday()
+            for practitioner in [practitioner1, practitioner2]:
+                create_practitioner_availability_with_clinic(
+                    db_session, practitioner, clinic,
+                    day_of_week=day_of_week,
+                    start_time=time(9, 0),
+                    end_time=time(17, 0)
+                )
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        return clinic, practitioner1, practitioner2, appointment_type, patient
+
     def test_patient_changes_to_auto_assigned_old_practitioner_available(
         self, db_session: Session
     ):
@@ -1730,12 +1798,190 @@ class TestPatientChangingFromVisibleToAutoAssigned:
             mock_patient_notify.assert_not_called()
 
         # Verify appointment becomes hidden again (is_auto_assigned=True) since old practitioner unavailable
+
+
+class TestPatientCancellationNotifications:
+    """Test patient notifications on appointment cancellation."""
+
+    def _setup_clinic_with_practitioners(self, db_session):
+        """Helper to set up clinic with practitioners and patient."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.flush()
+
+        practitioner1, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner1@test.com",
+            google_subject_id="practitioner1_123",
+            full_name="Dr. Practitioner 1",
+            roles=["practitioner"]
+        )
+
+        # Create a second practitioner for consistency with other test classes
+        practitioner2, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner2@test.com",
+            google_subject_id="practitioner2_123",
+            full_name="Dr. Practitioner 2",
+            roles=["practitioner"]
+        )
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Consultation",
+            duration_minutes=30
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        line_user = LineUser(
+            line_user_id="U_patient_test",
+            display_name="Test Patient"
+        )
+        db_session.add(line_user)
+        db_session.flush()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        db_session.add(patient)
+        db_session.commit()
+        db_session.refresh(patient)
+
+        return clinic, practitioner1, practitioner2, appointment_type, patient
+
+    def test_patient_receives_notification_on_cancellation(
+        self, db_session: Session
+    ):
+        """Test that patient receives notification when they cancel their appointment."""
+        from services.notification_service import CancellationSource
+        
+        clinic, practitioner, practitioner2, appointment_type, patient = self._setup_clinic_with_practitioners(
+            db_session
+        )
+
+        # Create availability for day 2
+        target_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = target_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+
+        # Create appointment (more than 24 hours ahead to allow cancellation)
+        start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=2)
+        result = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            start_time=start_time,
+            practitioner_id=practitioner.id,
+            line_user_id=patient.line_user_id
+        )
+        appointment_id = result['appointment_id']
+
+        # Cancel appointment with mocked notifications
+        with patch.object(NotificationService, 'send_practitioner_cancellation_notification') as mock_practitioner_notify, \
+             patch.object(NotificationService, 'send_appointment_cancellation') as mock_patient_notify:
+            
+            AppointmentService.cancel_appointment(
+                db=db_session,
+                appointment_id=appointment_id,
+                cancelled_by='patient'
+            )
+
+            # Verify practitioner notification was sent
+            mock_practitioner_notify.assert_called_once()
+            call_args = mock_practitioner_notify.call_args
+            assert call_args[0][1] == practitioner  # Second arg is practitioner
+            assert call_args[0][3] == clinic  # Fourth arg is clinic
+            assert call_args[0][4] == 'patient'  # Fifth arg is cancelled_by
+
+            # Verify patient notification was sent with correct source
+            mock_patient_notify.assert_called_once()
+            call_args = mock_patient_notify.call_args
+            appointment = db_session.query(Appointment).filter(
+                Appointment.calendar_event_id == appointment_id
+            ).first()
+            assert call_args[0][1] == appointment  # Second arg is appointment
+            assert call_args[0][2] == practitioner  # Third arg is practitioner
+            assert call_args[0][3] == CancellationSource.PATIENT  # Fourth arg is CancellationSource
+
+    def test_patient_receives_notification_on_clinic_cancellation(
+        self, db_session: Session
+    ):
+        """Test that patient receives notification when clinic cancels their appointment."""
+        from services.notification_service import CancellationSource
+        
+        clinic, practitioner, practitioner2, appointment_type, patient = self._setup_clinic_with_practitioners(
+            db_session
+        )
+
+        # Create availability for day 2
+        target_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = target_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+
+        # Create appointment
+        start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=2)
+        result = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            start_time=start_time,
+            practitioner_id=practitioner.id,
+            line_user_id=patient.line_user_id  # Use line_user_id directly
+        )
+        appointment_id = result['appointment_id']
+
+        # Cancel appointment by clinic with mocked notifications
+        with patch.object(NotificationService, 'send_practitioner_cancellation_notification') as mock_practitioner_notify, \
+             patch.object(NotificationService, 'send_appointment_cancellation') as mock_patient_notify:
+            
+            AppointmentService.cancel_appointment(
+                db=db_session,
+                appointment_id=appointment_id,
+                cancelled_by='clinic'
+            )
+
+            # Verify practitioner notification was sent
+            mock_practitioner_notify.assert_called_once()
+            call_args = mock_practitioner_notify.call_args
+            assert call_args[0][4] == 'clinic'  # Fifth arg is cancelled_by
+
+            # Verify patient notification was sent with correct source
+            mock_patient_notify.assert_called_once()
+            call_args = mock_patient_notify.call_args
+            appointment = db_session.query(Appointment).filter(
+                Appointment.calendar_event_id == appointment_id
+            ).first()
+            assert call_args[0][3] == CancellationSource.CLINIC  # Fourth arg is CancellationSource
+
+        # Verify appointment status is canceled
         appointment = db_session.query(Appointment).filter(
             Appointment.calendar_event_id == appointment_id
         ).first()
-        assert appointment.is_auto_assigned is True
-        # New practitioner should be different (auto-assigned based on load balancing)
-        assert appointment.calendar_event.user_id != old_practitioner_id
+        assert appointment.status == 'canceled_by_clinic'
+        assert appointment.canceled_at is not None
 
     def _setup_clinic_with_practitioners(self, db_session):
         """Helper to setup clinic with two practitioners."""

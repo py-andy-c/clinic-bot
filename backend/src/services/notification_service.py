@@ -537,7 +537,7 @@ class NotificationService:
             return False
 
     @staticmethod
-    def send_practitioner_reassignment_notification(
+    def send_practitioner_edit_notification(
         db: Session,
         old_practitioner: User | None,
         new_practitioner: User,
@@ -545,15 +545,15 @@ class NotificationService:
         clinic: Clinic
     ) -> bool:
         """
-        Send appointment reassignment notification to practitioners via LINE.
+        Send appointment edit notification to practitioners via LINE.
 
-        Notifies both the old practitioner (if exists) and the new practitioner.
+        Notifies both the old practitioner (if exists and different from new) and the new practitioner.
 
         Args:
             db: Database session
             old_practitioner: Previous practitioner (None if was auto-assigned)
             new_practitioner: New practitioner
-            appointment: Reassigned appointment
+            appointment: Edited appointment
             clinic: Clinic object
 
         Returns:
@@ -591,7 +591,7 @@ class NotificationService:
                         new_practitioner_name = new_practitioner_assoc.full_name if new_practitioner_assoc else "治療師"
 
                         # Build message
-                        message = f"🔄 預約轉移通知\n\n"
+                        message = f"🔄 預約調整通知\n\n"
                         message += f"病患：{patient_name}\n"
                         message += f"時間：{formatted_datetime}\n"
                         message += f"類型：{appointment_type_name}\n"
@@ -640,12 +640,13 @@ class NotificationService:
                         old_practitioner_name = old_practitioner_assoc.full_name if old_practitioner_assoc else "治療師"
 
                     # Build message
-                    message = f"📅 預約轉移通知\n\n"
+                    message = f"📅 預約調整通知\n\n"
                     message += f"病患：{patient_name}\n"
                     message += f"時間：{formatted_datetime}\n"
                     message += f"類型：{appointment_type_name}"
 
-                    if old_practitioner_name:
+                    # Only include "從：{old_practitioner_name}" if old and new practitioner are different
+                    if old_practitioner_name and old_practitioner and old_practitioner.id != new_practitioner.id:
                         message += f"\n從：{old_practitioner_name}"
 
                     if appointment.notes:

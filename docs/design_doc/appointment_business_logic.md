@@ -86,7 +86,7 @@ This document defines the expected business logic for appointment creation and e
   - Receives reassignment notification if practitioner changes
 
 #### Patient Notifications
-- **Always notified** about their own appointment changes
+- **Always notified** about their own appointment changes (create, edit, cancel)
 - **Exception**: If originally auto-assigned and only practitioner changes (no time change), patient is NOT notified (still sees "不指定")
 
 #### Admin Reassignment Notifications
@@ -539,3 +539,5 @@ If appointment was originally auto-assigned but cron job already made it visible
 | **Edit by Patient (specified→same, time change)** | ✅ | ✅ | Both notified about time change |
 | **Edit by Patient (visible→不指定, old available)** | ✅ | ❌ | Assign to old practitioner, stays visible (is_auto_assigned=False) |
 | **Edit by Patient (visible→不指定, old unavailable)** | ✅ | ⚠️ Cancel old | Auto-assign new, old sees cancellation, new hidden |
+| **Cancel by Patient** | ✅ | ✅ | Patient receives cancellation confirmation notification |
+| **Cancel by Clinic** | ✅ | ✅ | Patient receives cancellation notification |

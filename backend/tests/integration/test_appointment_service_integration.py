@@ -344,6 +344,9 @@ class TestAppointmentServiceIntegration:
         self, db_session: Session
     ):
         """Test appointment cancellation by patient."""
+        from unittest.mock import patch
+        from services.notification_service import NotificationService, CancellationSource
+        
         clinic = Clinic(
             name="Test Clinic",
             line_channel_id="test_channel",
@@ -404,18 +407,35 @@ class TestAppointmentServiceIntegration:
         db_session.commit()
         db_session.refresh(appointment)  # Refresh to ensure appointment.patient_id is set
 
-        # Cancel appointment
-        result = AppointmentService.cancel_appointment(
-            db_session, event.id, cancelled_by='patient'
-        )
+        # Cancel appointment with mocked notifications
+        with patch.object(NotificationService, 'send_practitioner_cancellation_notification') as mock_practitioner_notify, \
+             patch.object(NotificationService, 'send_appointment_cancellation') as mock_patient_notify:
+            
+            result = AppointmentService.cancel_appointment(
+                db_session, event.id, cancelled_by='patient'
+            )
 
-        assert result["success"] is True
-        assert "預約已取消" in result["message"]
+            assert result["success"] is True
+            assert "預約已取消" in result["message"]
 
-        # Verify status updated
-        db_session.refresh(appointment)
-        assert appointment.status == "canceled_by_patient"
-        assert appointment.canceled_at is not None
+            # Verify status updated
+            db_session.refresh(appointment)
+            assert appointment.status == "canceled_by_patient"
+            assert appointment.canceled_at is not None
+
+            # Verify practitioner notification was sent
+            mock_practitioner_notify.assert_called_once()
+            call_args = mock_practitioner_notify.call_args
+            assert call_args[0][1] == practitioner  # Second arg is practitioner
+            assert call_args[0][3] == clinic  # Fourth arg is clinic
+            assert call_args[0][4] == 'patient'  # Fifth arg is cancelled_by
+
+            # Verify patient notification was sent
+            mock_patient_notify.assert_called_once()
+            call_args = mock_patient_notify.call_args
+            assert call_args[0][1] == appointment  # Second arg is appointment
+            assert call_args[0][2] == practitioner  # Third arg is practitioner
+            assert call_args[0][3] == CancellationSource.PATIENT  # Fourth arg is CancellationSource
 
     def test_appointment_booking_constraint_prevents_double_booking(
         self, db_session: Session

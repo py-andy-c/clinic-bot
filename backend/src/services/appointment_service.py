@@ -622,23 +622,32 @@ class AppointmentService:
         appointment.canceled_at = taiwan_now()
         db.commit()
 
-        # Send notification to practitioner if they have LINE account linked
-        # Only send if appointment was not already cancelled (idempotent check)
-        try:
-            calendar_event = appointment.calendar_event
-            practitioner = calendar_event.user if calendar_event else None
-            if practitioner:
-                # Get clinic from appointment
-                clinic = db.query(Clinic).filter(Clinic.id == appointment.patient.clinic_id).first()
-                if clinic:
-                    from services.notification_service import NotificationService
-                    NotificationService.send_practitioner_cancellation_notification(
-                        db, practitioner, appointment, clinic, cancelled_by
-                    )
-        except Exception as e:
-            # Log but don't fail - notification failure shouldn't block cancellation
-            logger.warning(f"Failed to send practitioner cancellation notification: {e}")
+        # Get clinic and practitioner for notifications
+        calendar_event = appointment.calendar_event
+        practitioner = calendar_event.user if calendar_event else None
+        clinic = appointment.patient.clinic
+        if not clinic:
+            clinic = db.query(Clinic).filter(Clinic.id == appointment.patient.clinic_id).first()
 
+        # Send notifications to both practitioner and patient if they have LINE accounts linked
+        # Only send if appointment was not already cancelled (idempotent check)
+        if practitioner and clinic:
+            try:
+                from services.notification_service import NotificationService, CancellationSource
+                
+                # Send practitioner cancellation notification
+                NotificationService.send_practitioner_cancellation_notification(
+                    db, practitioner, appointment, clinic, cancelled_by
+                )
+                
+                # Send patient cancellation notification
+                cancellation_source = CancellationSource.PATIENT if cancelled_by == 'patient' else CancellationSource.CLINIC
+                NotificationService.send_appointment_cancellation(
+                    db, appointment, practitioner, cancellation_source, note=None
+                )
+            except Exception as e:
+                # Log but don't fail - notification failure shouldn't block cancellation
+                logger.warning(f"Failed to send cancellation notifications: {e}")
         # Return response
         if return_details:
             calendar_event = appointment.calendar_event
@@ -985,7 +994,7 @@ class AppointmentService:
                     # Admin edit: use reassignment notification (notifies both old and new)
                     # new_practitioner must not be None for reassignment notification
                     if new_practitioner is not None:
-                        NotificationService.send_practitioner_reassignment_notification(
+                        NotificationService.send_practitioner_edit_notification(
                             db, old_practitioner, new_practitioner, appointment, clinic
                         )
                 else:
@@ -1013,7 +1022,7 @@ class AppointmentService:
                 # Time changed but same practitioner (was manually assigned)
                 # Send reassignment notification to notify about time change
                 from services.notification_service import NotificationService
-                NotificationService.send_practitioner_reassignment_notification(
+                NotificationService.send_practitioner_edit_notification(
                     db, old_practitioner, old_practitioner, appointment, clinic
                 )
         except Exception as e:

@@ -189,11 +189,12 @@ export const generateCalendarDays = (month: Date): (Date | null)[] => {
 };
 
 /**
- * Check if a date is today
+ * Check if a date is today (Taiwan timezone)
  */
 export const isToday = (date: Date): boolean => {
-  const today = new Date();
-  return date.toDateString() === today.toDateString();
+  const todayTaiwan = moment.tz(TAIWAN_TIMEZONE).startOf('day');
+  const dateTaiwan = moment(date).tz(TAIWAN_TIMEZONE).startOf('day');
+  return dateTaiwan.isSame(todayTaiwan, 'day');
 };
 
 /**
