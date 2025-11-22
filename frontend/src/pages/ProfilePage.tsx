@@ -103,7 +103,7 @@ const LineLinkingSection: React.FC<LineLinkingSectionProps> = ({ lineLinked, onR
         {linkCode && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm font-medium text-blue-900 mb-2">
-              請在 LINE 中傳送以下訊息給{clinicName ? `「${clinicName}」` : '診所'}官方帳號：
+              請使用您的「個人 LINE 帳號」，傳送以下訊息給{clinicName ? `「${clinicName}」` : '「診所」'}官方帳號：
             </p>
             <div className="flex items-center space-x-2 mb-2">
               <code className="flex-1 bg-white border border-blue-300 rounded px-3 py-2 text-lg font-mono text-blue-900">
