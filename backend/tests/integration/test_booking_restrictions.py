@@ -299,7 +299,14 @@ class TestMinimumBookingHoursAhead:
             new_start_time = new_start_time + timedelta(days=1)
         # Ensure it's less than 48 hours ahead
         if (new_start_time - taiwan_now()).total_seconds() / 3600 >= 48:
-            new_start_time = taiwan_now() + timedelta(hours=1)
+            # Use a time within availability window (9:00-17:00) and within 48 hours
+            fallback_time = taiwan_now() + timedelta(hours=1)
+            if fallback_time.hour < 9:
+                new_start_time = fallback_time.replace(hour=10, minute=0, second=0, microsecond=0)
+            elif fallback_time.hour >= 17:
+                new_start_time = (fallback_time + timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
+            else:
+                new_start_time = fallback_time.replace(minute=0, second=0, microsecond=0)
         
         with pytest.raises(HTTPException) as exc_info:
             AppointmentService.update_appointment(
@@ -858,7 +865,14 @@ class TestClinicAdminBypassBehavior:
             start_time = start_time + timedelta(days=1)
         # Ensure it's less than 48 hours ahead
         if (start_time - taiwan_now()).total_seconds() / 3600 >= 48:
-            start_time = taiwan_now() + timedelta(hours=1)
+            # Use a time within availability window (9:00-17:00) and within 48 hours
+            fallback_time = taiwan_now() + timedelta(hours=1)
+            if fallback_time.hour < 9:
+                start_time = fallback_time.replace(hour=10, minute=0, second=0, microsecond=0)
+            elif fallback_time.hour >= 17:
+                start_time = (fallback_time + timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
+            else:
+                start_time = fallback_time.replace(minute=0, second=0, microsecond=0)
         
         with pytest.raises(HTTPException) as exc_info:
             AppointmentService.create_appointment(
@@ -916,8 +930,19 @@ class TestClinicAdminBypassBehavior:
 
         # Clinic admin can create appointment within minimum_booking_hours_ahead window
         # (no line_user_id = admin booking, restrictions bypassed)
-        start_time = taiwan_now() + timedelta(hours=12)  # 12 hours ahead (less than 24)
-        start_time = start_time.replace(minute=0, second=0, microsecond=0)
+        # Use a time that's within practitioner availability (9:00-17:00)
+        # Calculate 12 hours ahead, but ensure it's within availability window
+        target_time = taiwan_now() + timedelta(hours=12)
+        # If the calculated time is outside availability (9:00-17:00), adjust to next available slot
+        if target_time.hour < 9:
+            # Too early, use 10:00 same day
+            start_time = target_time.replace(hour=10, minute=0, second=0, microsecond=0)
+        elif target_time.hour >= 17:
+            # Too late, use 10:00 next day
+            start_time = (target_time + timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
+        else:
+            # Within availability window, just round to nearest hour
+            start_time = target_time.replace(minute=0, second=0, microsecond=0)
 
         # Should succeed (admin bypasses restrictions)
         result = AppointmentService.create_appointment(
