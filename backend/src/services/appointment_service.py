@@ -518,7 +518,8 @@ class AppointmentService:
         db: Session,
         appointment_id: int,
         cancelled_by: str,
-        return_details: bool = False
+        return_details: bool = False,
+        note: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Cancel an appointment by patient or clinic admin.
@@ -531,6 +532,7 @@ class AppointmentService:
             appointment_id: Calendar event ID of the appointment
             cancelled_by: Who is cancelling - 'patient' or 'clinic'
             return_details: If True, return appointment and practitioner objects (for clinic notifications)
+            note: Optional note to include in the cancellation notification
 
         Returns:
             Dict with success message. If return_details=True, also includes 'appointment' and 'practitioner'.
@@ -541,6 +543,7 @@ class AppointmentService:
         Note:
             This method is idempotent - if the appointment is already cancelled,
             it returns success without making changes.
+            This method sends notifications to both practitioner and patient.
         """
         # Find appointment
         appointment = db.query(Appointment).filter(
@@ -643,7 +646,7 @@ class AppointmentService:
                 # Send patient cancellation notification
                 cancellation_source = CancellationSource.PATIENT if cancelled_by == 'patient' else CancellationSource.CLINIC
                 NotificationService.send_appointment_cancellation(
-                    db, appointment, practitioner, cancellation_source, note=None
+                    db, appointment, practitioner, cancellation_source, note=note
                 )
             except Exception as e:
                 # Log but don't fail - notification failure shouldn't block cancellation

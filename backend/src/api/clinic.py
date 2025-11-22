@@ -29,7 +29,7 @@ from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvail
 from models.clinic import ClinicSettings, ChatSettings as ChatSettingsModel
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
 from services.availability_service import AvailabilityService
-from services.notification_service import NotificationService, CancellationSource
+from services.notification_service import NotificationService
 from services.clinic_agent import ClinicAgentService
 from services.line_user_ai_disabled_service import (
     disable_ai_for_line_user,
@@ -1368,29 +1368,16 @@ async def cancel_clinic_appointment(
         
         # Cancel appointment using service
         # Note: Permission validation is already done above (practitioners can only cancel their own, admins can cancel any)
+        # The service method handles sending notifications to both practitioner and patient
         result = AppointmentService.cancel_appointment(
             db=db,
             appointment_id=appointment_id,
             cancelled_by='clinic',
-            return_details=True
+            return_details=True,
+            note=note
         )
 
-        appointment = result['appointment']
-        practitioner = result['practitioner']
         already_cancelled = result.get('already_cancelled', False)
-
-
-        # Send LINE notification to patient (skip if already cancelled to avoid duplicate notifications)
-        if not already_cancelled:
-            try:
-                NotificationService.send_appointment_cancellation(
-                    db, appointment, practitioner, CancellationSource.CLINIC, note
-                )
-            except Exception as e:
-                logger.exception(f"Failed to send LINE notification for clinic cancellation of appointment {appointment_id}: {e}")
-                # Continue with cancellation even if LINE notification fails
-        else:
-            logger.info(f"Skipping LINE notification for already-cancelled appointment {appointment_id}")
 
         db.commit()
 
