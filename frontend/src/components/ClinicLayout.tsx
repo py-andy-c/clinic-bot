@@ -136,11 +136,11 @@ const GlobalWarnings: React.FC = () => {
     } catch (err: any) {
       // Silently handle network/CORS errors during auth recovery
       // These are expected when returning to tab after being in background
-      const isNetworkError = err?.code === 'ERR_NETWORK' || 
-                            err?.message?.includes('Network Error') ||
-                            err?.message?.includes('Load failed') ||
-                            err?.message?.includes('CORS');
-      
+      const isNetworkError = err?.code === 'ERR_NETWORK' ||
+        err?.message?.includes('Network Error') ||
+        err?.message?.includes('Load failed') ||
+        err?.message?.includes('CORS');
+
       if (!isNetworkError) {
         // Only log non-network errors (actual API failures)
         logger.error('Error fetching warnings:', err);
@@ -199,9 +199,9 @@ const GlobalWarnings: React.FC = () => {
   }, []); // Empty deps - stable handler that reads from ref
 
   const hasAnyWarnings = !warnings.clinicWarnings.hasAppointmentTypes ||
-                         !warnings.practitionerWarnings.hasAppointmentTypes ||
-                         !warnings.practitionerWarnings.hasAvailability ||
-                         warnings.adminWarnings.length > 0;
+    !warnings.practitionerWarnings.hasAppointmentTypes ||
+    !warnings.practitionerWarnings.hasAvailability ||
+    warnings.adminWarnings.length > 0;
 
   if (loading || !hasAnyWarnings) {
     return null;
@@ -272,11 +272,11 @@ const GlobalWarnings: React.FC = () => {
 };
 
 const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
-  const { 
-    user, 
-    logout, 
-    switchClinic, 
-    availableClinics, 
+  const {
+    user,
+    logout,
+    switchClinic,
+    availableClinics,
     isSwitchingClinic,
     isClinicAdmin
   } = useAuth();
@@ -285,8 +285,9 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   const { hasUnsavedChanges } = useUnsavedChanges();
   const { confirm } = useModal();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [openDropdowns, setOpenDropdowns] = useState<string[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   const handleLogout = async () => {
     try {
@@ -356,19 +357,24 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(null);
+      const target = event.target as Node;
+      const isOutsideDropdown = dropdownRef.current && !dropdownRef.current.contains(target);
+      const isOutsideMobileMenu = mobileMenuRef.current && !mobileMenuRef.current.contains(target);
+
+      // Only close if clicking outside both desktop dropdowns and mobile menu
+      if (isOutsideDropdown && (!isMobileMenuOpen || isOutsideMobileMenu)) {
+        setOpenDropdowns([]);
       }
     };
 
-    if (openDropdown) {
+    if (openDropdowns.length > 0) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
     return undefined;
-  }, [openDropdown]);
+  }, [openDropdowns]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -394,11 +400,10 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
                       <button
                         key={group.name}
                         onClick={() => handleNavigation(group.href!)}
-                        className={`${
-                          isActive(group.href)
-                            ? 'border-primary-500 text-gray-900'
-                            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                        } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium whitespace-nowrap`}
+                        className={`${isActive(group.href)
+                          ? 'border-primary-500 text-gray-900'
+                          : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                          } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium whitespace-nowrap`}
                       >
                         <span className="mr-2">{group.icon}</span>
                         {group.name}
@@ -406,21 +411,24 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
                     );
                   } else if ('items' in group) {
                     // Group with dropdown
-                    const isOpen = openDropdown === group.name;
+                    const isOpen = openDropdowns.includes(group.name);
                     const groupIsActive = isGroupActive(group);
                     const visibleItems = group.items.filter(item => item.show);
-                    
+
                     if (visibleItems.length === 0) return null;
 
                     return (
                       <div key={group.name} className="relative">
                         <button
-                          onClick={() => setOpenDropdown(isOpen ? null : group.name)}
-                          className={`${
-                            groupIsActive
-                              ? 'border-primary-500 text-gray-900'
-                              : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                          } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium whitespace-nowrap`}
+                          onClick={() => setOpenDropdowns(prev =>
+                            prev.includes(group.name)
+                              ? prev.filter(n => n !== group.name)
+                              : [...prev, group.name]
+                          )}
+                          className={`${groupIsActive
+                            ? 'border-primary-500 text-gray-900'
+                            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                            } inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium whitespace-nowrap`}
                         >
                           <span className="mr-2">{group.icon}</span>
                           {group.name}
@@ -441,13 +449,12 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
                                   key={item.name}
                                   onClick={() => {
                                     handleNavigation(item.href);
-                                    setOpenDropdown(null);
+                                    setOpenDropdowns([]);
                                   }}
-                                  className={`${
-                                    isActive(item.href)
-                                      ? 'bg-primary-50 text-primary-700'
-                                      : 'text-gray-700 hover:bg-gray-50'
-                                  } block w-full text-left px-4 py-2 text-sm whitespace-nowrap`}
+                                  className={`${isActive(item.href)
+                                    ? 'bg-primary-50 text-primary-700'
+                                    : 'text-gray-700 hover:bg-gray-50'
+                                    } block w-full text-left px-4 py-2 text-sm whitespace-nowrap`}
                                 >
                                   <span className="mr-2">{item.icon}</span>
                                   {item.name}
@@ -477,7 +484,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
                       isSwitching={isSwitchingClinic}
                     />
                   )}
-                  
+
                   <div className="text-sm text-gray-700">
                     <div className="font-medium">{user?.full_name}</div>
                     <div className="text-xs text-gray-500">{user?.email}</div>
@@ -519,7 +526,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
 
         {/* Mobile menu */}
         {isMobileMenuOpen && (
-          <div className="md:hidden">
+          <div className="md:hidden" ref={mobileMenuRef}>
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-t border-gray-200">
               {navigationGroups.map((group) => {
                 if (group.href) {
@@ -531,11 +538,10 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
                         handleNavigation(group.href!);
                         setIsMobileMenuOpen(false);
                       }}
-                      className={`${
-                        isActive(group.href)
-                          ? 'bg-primary-50 border-primary-500 text-primary-700'
-                          : 'border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700'
-                      } block pl-3 pr-4 py-2 border-l-4 text-base font-medium w-full text-left`}
+                      className={`${isActive(group.href)
+                        ? 'bg-primary-50 border-primary-500 text-primary-700'
+                        : 'border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700'
+                        } block pl-3 pr-4 py-2 border-l-4 text-base font-medium w-full text-left`}
                     >
                       <span className="mr-2">{group.icon}</span>
                       {group.name}
@@ -545,18 +551,21 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
                   // Group with items
                   const visibleItems = group.items.filter(item => item.show);
                   if (visibleItems.length === 0) return null;
-                  
-                  const groupIsOpen = openDropdown === group.name;
-                  
+
+                  const groupIsOpen = openDropdowns.includes(group.name);
+
                   return (
                     <div key={group.name}>
                       <button
-                        onClick={() => setOpenDropdown(groupIsOpen ? null : group.name)}
-                        className={`${
-                          isGroupActive(group)
-                            ? 'bg-primary-50 border-primary-500 text-primary-700'
-                            : 'border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700'
-                        } flex items-center justify-between pl-3 pr-4 py-2 border-l-4 text-base font-medium w-full text-left`}
+                        onClick={() => setOpenDropdowns(prev =>
+                          prev.includes(group.name)
+                            ? prev.filter(n => n !== group.name)
+                            : [...prev, group.name]
+                        )}
+                        className={`${isGroupActive(group)
+                          ? 'bg-primary-50 border-primary-500 text-primary-700'
+                          : 'border-transparent text-gray-500 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-700'
+                          } flex items-center justify-between pl-3 pr-4 py-2 border-l-4 text-base font-medium w-full text-left`}
                       >
                         <span>
                           <span className="mr-2">{group.icon}</span>
@@ -579,13 +588,12 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
                               onClick={() => {
                                 handleNavigation(item.href);
                                 setIsMobileMenuOpen(false);
-                                setOpenDropdown(null);
+                                // Keep dropdowns open for better UX when returning
                               }}
-                              className={`${
-                                isActive(item.href)
-                                  ? 'text-primary-700 font-medium'
-                                  : 'text-gray-600'
-                              } block w-full text-left px-4 py-2 text-sm hover:bg-gray-50`}
+                              className={`${isActive(item.href)
+                                ? 'text-primary-700 font-medium'
+                                : 'text-gray-600'
+                                } block w-full text-left px-4 py-2 text-sm hover:bg-gray-50`}
                             >
                               <span className="mr-2">{item.icon}</span>
                               {item.name}
