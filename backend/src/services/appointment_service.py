@@ -130,6 +130,20 @@ class AppointmentService:
                     detail=f"您已有 {current_future_count} 個未來的預約，最多只能有 {max_future_appointments} 個未來預約"
                 )
 
+            # Check minimum_booking_hours_ahead for patient bookings (when line_user_id is provided)
+            # Clinic admins (line_user_id=None) bypass this restriction
+            if line_user_id is not None:
+                minimum_booking_hours_ahead = booking_settings.minimum_booking_hours_ahead
+                if minimum_booking_hours_ahead and minimum_booking_hours_ahead > 0:
+                    time_until_appointment = start_time - now
+                    hours_until = time_until_appointment.total_seconds() / 3600
+                    
+                    if hours_until < minimum_booking_hours_ahead:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"預約必須至少提前 {minimum_booking_hours_ahead} 小時預約"
+                        )
+
             # Get appointment type and validate it belongs to clinic
             appointment_type = AppointmentTypeService.get_appointment_type_by_id(
                 db, appointment_type_id, clinic_id=clinic_id
@@ -181,12 +195,30 @@ class AppointmentService:
             practitioner = db.query(User).get(assigned_practitioner_id)
             patient = db.query(Patient).get(patient_id)
 
-            # Send LINE notification to practitioner if they have LINE account linked
-            # CRITICAL: Only notify if NOT auto-assigned (practitioners shouldn't see auto-assigned appointments)
+            # Send LINE notifications
+            from services.notification_service import NotificationService
+            from utils.practitioner_helpers import get_practitioner_name_for_notification
+            
+            # Send practitioner notification if NOT auto-assigned (practitioners shouldn't see auto-assigned appointments)
             if practitioner and not was_auto_assigned:
-                from services.notification_service import NotificationService
                 NotificationService.send_practitioner_appointment_notification(
                     db, practitioner, appointment, clinic
+                )
+
+            # Send patient confirmation notification (always, regardless of auto-assignment)
+            if patient and patient.line_user:
+                # Get practitioner name for notification with fallback logic
+                practitioner_name_for_notification = get_practitioner_name_for_notification(
+                    db=db,
+                    practitioner_id=assigned_practitioner_id,
+                    clinic_id=clinic_id,
+                    was_auto_assigned=was_auto_assigned,
+                    practitioner=practitioner
+                )
+                
+                # Send notification (practitioner_name_for_notification is guaranteed to be str at this point)
+                NotificationService.send_appointment_confirmation(
+                    db, appointment, practitioner_name_for_notification, clinic
                 )
 
             logger.info(f"Created appointment {appointment.calendar_event_id} for patient {patient_id}")
@@ -779,7 +811,8 @@ class AppointmentService:
         reassigned_by_user_id: Optional[int],
         send_patient_notification: bool,
         notification_note: Optional[str] = None,
-        time_actually_changed: Optional[bool] = None
+        time_actually_changed: Optional[bool] = None,
+        originally_auto_assigned: Optional[bool] = None
     ) -> None:
         """
         Core shared logic for updating an appointment.
@@ -804,6 +837,7 @@ class AppointmentService:
             send_patient_notification: Whether to send patient edit notification
             notification_note: Optional custom note for patient notification
             time_actually_changed: Whether time actually changed (if None, will be calculated)
+            originally_auto_assigned: Whether appointment was originally created as auto-assigned (for special handling)
         """
         # Calculate if practitioner actually changed
         practitioner_actually_changed = (practitioner_id_to_use != old_practitioner_id)
@@ -827,24 +861,38 @@ class AppointmentService:
         if practitioner_actually_changed:
             calendar_event.user_id = practitioner_id_to_use
 
-            # Update auto-assignment tracking fields
-            if is_auto_assign:
-                # Changing to auto-assigned
+        # Update auto-assignment tracking fields
+        # This needs to happen even if practitioner didn't change (e.g., patient requests auto-assignment but old practitioner kept)
+        if is_auto_assign:
+            # Special case: If we kept the old practitioner (they were still available),
+            # keep is_auto_assigned=False (appointment stays visible)
+            # This happens when: originally_auto_assigned=True, old_is_auto_assigned=False,
+            # patient requested auto-assignment, but old practitioner was kept
+            # If originally_auto_assigned is None, get it from appointment object
+            if originally_auto_assigned is None:
+                originally_auto_assigned = appointment.originally_auto_assigned
+            if (originally_auto_assigned and not old_is_auto_assigned and 
+                not practitioner_actually_changed):
+                # Keep old practitioner - appointment stays visible
+                appointment.is_auto_assigned = False
+                # Keep existing reassigned_by_user_id and reassigned_at (from admin assignment)
+            else:
+                # Changing to auto-assigned (new practitioner assigned or was already auto-assigned)
                 appointment.is_auto_assigned = True
                 appointment.reassigned_by_user_id = None
                 appointment.reassigned_at = None
-            elif old_is_auto_assigned:
-                # Changing from auto-assigned to specific
-                appointment.is_auto_assigned = False
+        elif old_is_auto_assigned:
+            # Changing from auto-assigned to specific
+            appointment.is_auto_assigned = False
+            appointment.reassigned_by_user_id = reassigned_by_user_id
+            appointment.reassigned_at = taiwan_now()
+        elif practitioner_actually_changed:
+            # Changing from specific to specific
+            appointment.is_auto_assigned = False
+            if reassigned_by_user_id is not None:
                 appointment.reassigned_by_user_id = reassigned_by_user_id
                 appointment.reassigned_at = taiwan_now()
-            else:
-                # Changing from specific to specific
-                appointment.is_auto_assigned = False
-                if reassigned_by_user_id is not None:
-                    appointment.reassigned_by_user_id = reassigned_by_user_id
-                    appointment.reassigned_at = taiwan_now()
-                # Otherwise keep existing reassigned_by_user_id and reassigned_at
+            # Otherwise keep existing reassigned_by_user_id and reassigned_at
         
         # CRITICAL: If appointment was auto-assigned and admin confirms (even without changes),
         # make it visible by setting is_auto_assigned = False
@@ -863,8 +911,9 @@ class AppointmentService:
             calendar_event.end_time = end_time.time()
 
         # CRITICAL: Check if auto-assigned appointment is now within recency limit
-        # If patient reschedules auto-assigned appointment to time within recency limit,
-        # make it visible immediately and notify practitioner
+        # Note: Patient reschedules to within recency limit are blocked by _validate_booking_constraints
+        # This check applies to admin reschedules or other scenarios where booking constraints are bypassed
+        # If appointment becomes within recency limit, make it visible immediately and notify practitioner
         if appointment.is_auto_assigned and new_start_time is not None:
             # Get clinic settings for recency limit
             settings = clinic.get_validated_settings()
@@ -883,7 +932,7 @@ class AppointmentService:
         # Send notifications
         try:
             # Get practitioners for notification
-            # For old_practitioner: only include if appointment was not auto-assigned
+            # For old_practitioner: include if appointment was manually assigned (was visible to practitioner)
             old_practitioner = None
             if old_practitioner_id and not old_is_auto_assigned:
                 old_practitioner = db.query(User).filter(User.id == old_practitioner_id).first()
@@ -900,6 +949,20 @@ class AppointmentService:
                 else:
                     new_practitioner = old_practitioner
 
+            # CRITICAL: If patient changed from specific practitioner to "不指定" (auto-assigned),
+            # send cancellation notification to old practitioner
+            # This happens when: was manually assigned (old_is_auto_assigned=False) and now auto-assigned (is_auto_assign=True)
+            # EXCEPTION: If we kept the old practitioner (they were still available), don't send cancellation
+            # This happens when: originally_auto_assigned=True, old_is_auto_assigned=False, 
+            # patient requested auto-assignment, but old practitioner was kept
+            if (old_practitioner and not old_is_auto_assigned and is_auto_assign and 
+                practitioner_actually_changed):
+                # Only send cancellation if practitioner actually changed
+                from services.notification_service import NotificationService
+                NotificationService.send_practitioner_cancellation_notification(
+                    db, old_practitioner, appointment, clinic, cancelled_by='patient'
+                )
+
             # Send patient edit notification if requested
             if should_send_notification:
                 from services.notification_service import NotificationService
@@ -913,28 +976,46 @@ class AppointmentService:
                     note=notification_note
                 )
 
-            # Send practitioner notification when practitioner changes OR when auto-assigned becomes visible
-            # (due to recency limit being reached during reschedule)
-            should_notify_practitioner = (
-                practitioner_actually_changed or 
-                (old_is_auto_assigned and not appointment.is_auto_assigned and new_practitioner is not None)
-            )
-            
-            if should_notify_practitioner and new_practitioner is not None:
+            # Send practitioner notifications
+            # Case 1: Practitioner changed (from specific to specific)
+            if practitioner_actually_changed and not old_is_auto_assigned and not is_auto_assign:
+                # Changing from specific practitioner to specific practitioner
                 from services.notification_service import NotificationService
-                # CRITICAL: If appointment was auto-assigned, use standard appointment notification
-                # (same format as patient booking) instead of reassignment notification
-                # This ensures practitioners can't distinguish between booking, reassignment, and cron job assignment
-                if old_is_auto_assigned:
-                    # Was auto-assigned: use standard appointment notification (as if patient booked directly)
-                    NotificationService.send_practitioner_appointment_notification(
-                        db, new_practitioner, appointment, clinic
-                    )
+                if reassigned_by_user_id is not None:
+                    # Admin edit: use reassignment notification (notifies both old and new)
+                    # new_practitioner must not be None for reassignment notification
+                    if new_practitioner is not None:
+                        NotificationService.send_practitioner_reassignment_notification(
+                            db, old_practitioner, new_practitioner, appointment, clinic
+                        )
                 else:
-                    # Was manually assigned: use reassignment notification (notifies both old and new)
-                    NotificationService.send_practitioner_reassignment_notification(
-                        db, old_practitioner, new_practitioner, appointment, clinic
-                    )
+                    # Patient edit: old receives cancellation, new receives appointment
+                    if old_practitioner:
+                        # Old practitioner receives cancellation notification (as if patient cancelled)
+                        NotificationService.send_practitioner_cancellation_notification(
+                            db, old_practitioner, appointment, clinic, cancelled_by='patient'
+                        )
+                    if new_practitioner:
+                        # New practitioner receives appointment notification (as if patient just made appointment)
+                        NotificationService.send_practitioner_appointment_notification(
+                            db, new_practitioner, appointment, clinic
+                        )
+            # Case 2: Auto-assigned becomes visible (due to recency limit being reached during reschedule)
+            elif old_is_auto_assigned and not appointment.is_auto_assigned and new_practitioner is not None:
+                # Was auto-assigned: use standard appointment notification (as if patient booked directly)
+                from services.notification_service import NotificationService
+                NotificationService.send_practitioner_appointment_notification(
+                    db, new_practitioner, appointment, clinic
+                )
+            # Case 3: Time changed but practitioner didn't change (and was manually assigned)
+            # - Practitioner should receive notification about time change
+            elif time_actually_changed and not practitioner_actually_changed and not old_is_auto_assigned and old_practitioner:
+                # Time changed but same practitioner (was manually assigned)
+                # Send reassignment notification to notify about time change
+                from services.notification_service import NotificationService
+                NotificationService.send_practitioner_reassignment_notification(
+                    db, old_practitioner, old_practitioner, appointment, clinic
+                )
         except Exception as e:
             # Log but don't fail - notification failure shouldn't block update
             logger.warning(f"Failed to send appointment update notification: {e}")
@@ -1118,7 +1199,34 @@ class AppointmentService:
         is_auto_assign_requested = (allow_auto_assignment and new_practitioner_id == -1)
         
         if is_auto_assign_requested:
-            # Auto-assign practitioner
+            # Special case: If appointment was originally auto-assigned but made visible (by admin or cron),
+            # check if old practitioner is still available before auto-assigning
+            old_practitioner_id = calendar_event.user_id
+            originally_auto_assigned = appointment.originally_auto_assigned
+            old_is_auto_assigned = appointment.is_auto_assigned
+            
+            if originally_auto_assigned and not old_is_auto_assigned:
+                # Appointment was originally auto-assigned but is now visible
+                # Check if old practitioner is still available at new time
+                end_time = new_start_time + timedelta(minutes=duration_minutes)
+                
+                # Get schedule data for old practitioner, excluding current appointment
+                schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
+                    db, [old_practitioner_id], new_start_time.date(), clinic_id,
+                    exclude_calendar_event_id=calendar_event.id
+                )
+                
+                slot_start_time = new_start_time.time()
+                slot_end_time = end_time.time()
+                
+                # Check if old practitioner is available
+                if AppointmentService._is_practitioner_available_at_slot(
+                    schedule_data, old_practitioner_id, slot_start_time, slot_end_time
+                ):
+                    # Old practitioner is available - keep them (don't auto-assign)
+                    return old_practitioner_id
+            
+            # Auto-assign practitioner (either old not available, or not originally auto-assigned)
             end_time = new_start_time + timedelta(minutes=duration_minutes)
             return AppointmentService._assign_practitioner(
                 db=db,
@@ -1214,6 +1322,11 @@ class AppointmentService:
         )
         duration_minutes = appointment_type.duration_minutes
 
+        # Store old values for notification (before any updates)
+        old_is_auto_assigned = appointment.is_auto_assigned
+        originally_auto_assigned = appointment.originally_auto_assigned
+        old_practitioner_id = calendar_event.user_id
+
         # Resolve practitioner ID to use
         practitioner_id_to_use = AppointmentService._resolve_practitioner_id(
             db=db,
@@ -1242,12 +1355,6 @@ class AppointmentService:
                     status_code=status.HTTP_409_CONFLICT,
                     detail=error_message or "編輯預約時發生衝突"
                 )
-
-        # Store old values for notification (before any updates)
-        old_is_auto_assigned = appointment.is_auto_assigned
-        originally_auto_assigned = appointment.originally_auto_assigned
-        # calendar_event.user_id is guaranteed to be int (non-nullable in model)
-        old_practitioner_id = calendar_event.user_id
 
         # practitioner_id_to_use is guaranteed to be int from _resolve_practitioner_id
         
@@ -1281,7 +1388,8 @@ class AppointmentService:
             reassigned_by_user_id=reassigned_by_user_id if (practitioner_actually_changed or old_is_auto_assigned) else None,
             send_patient_notification=should_send_patient_notification,
             notification_note=notification_note if should_send_patient_notification else None,
-            time_actually_changed=time_actually_changed  # Pass pre-calculated value to avoid recalculation
+            time_actually_changed=time_actually_changed,  # Pass pre-calculated value to avoid recalculation
+            originally_auto_assigned=originally_auto_assigned  # Pass for special handling
         )
 
         logger.info(f"Updated appointment {appointment_id}")

@@ -9,6 +9,9 @@ This script:
 4. Removes the deprecated same_day_disallowed setting
 
 Run this script after deploying the code changes that deprecate same_day_disallowed.
+
+NOTE: This is a one-time migration script. After running, it can be archived.
+If all clinics have been migrated, this script is no longer needed.
 """
 
 import sys

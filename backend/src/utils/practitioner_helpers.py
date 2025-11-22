@@ -191,6 +191,52 @@ def get_practitioner_display_names_batch(
 
 # Constant for auto-assigned practitioner display name
 AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME = '不指定'
+DEFAULT_PRACTITIONER_DISPLAY_NAME = '治療師'  # Default fallback when practitioner name cannot be determined
+
+
+def get_practitioner_name_for_notification(
+    db: Session,
+    practitioner_id: Optional[int],
+    clinic_id: int,
+    was_auto_assigned: bool,
+    practitioner: Optional[User] = None
+) -> str:
+    """
+    Get practitioner name for notification with comprehensive fallback logic.
+    
+    This function handles all fallback scenarios for practitioner names in notifications:
+    1. If auto-assigned, returns AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
+    2. Tries to get display name from UserClinicAssociation
+    3. Falls back to practitioner email if available
+    4. Falls back to DEFAULT_PRACTITIONER_DISPLAY_NAME as last resort
+    
+    Args:
+        db: Database session
+        practitioner_id: Practitioner user ID (None if auto-assigned)
+        clinic_id: Clinic ID
+        was_auto_assigned: Whether appointment was auto-assigned
+        practitioner: Optional User object (to avoid extra query for email fallback)
+        
+    Returns:
+        Practitioner name string (guaranteed to be non-empty)
+    """
+    if was_auto_assigned:
+        return AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
+    
+    if practitioner_id is None:
+        return DEFAULT_PRACTITIONER_DISPLAY_NAME
+    
+    # Try to get display name from association
+    name = get_practitioner_display_name(db, practitioner_id, clinic_id)
+    if name:
+        return name
+    
+    # Fall back to email if practitioner object is provided
+    if practitioner:
+        return practitioner.email
+    
+    # Final fallback - should never happen, but ensure we have a name
+    return DEFAULT_PRACTITIONER_DISPLAY_NAME
 
 
 def get_practitioner_display_name_for_appointment(

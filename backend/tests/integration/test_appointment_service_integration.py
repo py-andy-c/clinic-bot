@@ -72,9 +72,9 @@ class TestAppointmentServiceIntegration:
         )
         db_session.add(pat)
 
-        # Create availability
-        tomorrow = (taiwan_now() + timedelta(days=1)).date()
-        day_of_week = tomorrow.weekday()
+        # Create availability for the appointment day (days=2)
+        appointment_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = appointment_date.weekday()
         availability = create_practitioner_availability_with_clinic(
             db_session, practitioner, clinic,
             day_of_week=day_of_week,
@@ -99,7 +99,8 @@ class TestAppointmentServiceIntegration:
         db_session.commit()
 
         # Create appointment
-        start_time = taiwan_now() + timedelta(days=1)
+        # Use time far enough in the future to satisfy minimum_booking_hours_ahead (24 hours by default)
+        start_time = taiwan_now() + timedelta(days=2)
         start_time = start_time.replace(hour=10, minute=0, second=0, microsecond=0)
 
         result = AppointmentService.create_appointment(

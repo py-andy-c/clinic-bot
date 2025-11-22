@@ -160,15 +160,24 @@ class TestPractitionerAppointmentNotifications:
             notes="請準備X光片"
         )
         
-        # Verify notification was sent
-        mock_line_service.send_text_message.assert_called_once()
-        call_args = mock_line_service.send_text_message.call_args
-        assert call_args[0][0] == "U1234567890"  # Practitioner's LINE user ID
-        message = call_args[0][1]
-        assert "新預約通知" in message
-        assert "王小明" in message
-        assert "物理治療" in message
-        assert "請準備X光片" in message
+        # Verify notifications were sent (both practitioner and patient)
+        # Should be called twice: once for practitioner, once for patient
+        assert mock_line_service.send_text_message.call_count == 2
+        
+        # Check practitioner notification (first call)
+        practitioner_call = mock_line_service.send_text_message.call_args_list[0]
+        assert practitioner_call[0][0] == "U1234567890"  # Practitioner's LINE user ID
+        practitioner_message = practitioner_call[0][1]
+        assert "新預約通知" in practitioner_message
+        assert "王小明" in practitioner_message
+        
+        # Check patient notification (second call)
+        patient_call = mock_line_service.send_text_message.call_args_list[1]
+        assert patient_call[0][0] == "U_patient_123"  # Patient's LINE user ID
+        patient_message = patient_call[0][1]
+        assert "預約已建立" in patient_message or "預約確認" in patient_message
+        assert "物理治療" in patient_message
+        assert "請準備X光片" in patient_message
     
     @patch('services.line_service.LINEService')
     @patch('services.notification_service.format_datetime')
@@ -180,7 +189,7 @@ class TestPractitionerAppointmentNotifications:
         clinic_with_practitioner,
         db_session
     ):
-        """Test that no notification is sent if practitioner has no LINE account."""
+        """Test that practitioner notification is not sent if practitioner has no LINE account, but patient notification is still sent."""
         clinic, practitioner, appointment_type, patient = clinic_with_practitioner
         
         # Remove LINE account
@@ -206,8 +215,14 @@ class TestPractitionerAppointmentNotifications:
             practitioner_id=practitioner.id
         )
         
-        # Verify notification was NOT sent
-        mock_line_service.send_text_message.assert_not_called()
+        # Verify patient notification was sent (patient has LINE account)
+        # But practitioner notification was NOT sent (practitioner has no LINE account)
+        assert mock_line_service.send_text_message.call_count == 1
+        call_args = mock_line_service.send_text_message.call_args
+        # Should be patient notification, not practitioner notification
+        assert call_args[0][0] == "U_patient_123"  # Patient's LINE user ID
+        message = call_args[0][1]
+        assert "預約已建立" in message or "預約確認" in message
     
     @patch('services.line_service.LINEService')
     @patch('services.notification_service.format_datetime')

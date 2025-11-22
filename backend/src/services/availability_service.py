@@ -58,30 +58,23 @@ class AvailabilityService:
                 detail="無效的日期格式（請使用 YYYY-MM-DD）"
             )
 
-        # Get clinic settings for booking window
+        # Get clinic to verify it exists
         clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
         if not clinic:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="診所不存在"
             )
-        
-        settings = SettingsService.get_clinic_settings(db, clinic_id)
-        max_booking_window_days = settings.booking_restriction_settings.max_booking_window_days
 
-        # Validate date range (using Taiwan timezone)
+        # Only validate that date is not in the past
+        # NOTE: max_booking_window_days is enforced in _filter_slots_by_booking_restrictions
+        # when apply_booking_restrictions=True (for patient-facing endpoints)
         today = taiwan_now().date()
-        max_date = today + timedelta(days=max_booking_window_days)
 
         if requested_date < today:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="無法預約過去的時間"
-            )
-        if requested_date > max_date:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"最多只能預約 {max_booking_window_days} 天內的時段"
             )
 
         return requested_date
@@ -218,7 +211,8 @@ class AvailabilityService:
         date: str,
         appointment_type_id: int,
         clinic_id: int,
-        exclude_calendar_event_id: int | None = None
+        exclude_calendar_event_id: int | None = None,
+        apply_booking_restrictions: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Get available time slots for a specific practitioner.
@@ -234,6 +228,9 @@ class AvailabilityService:
             date: Date in YYYY-MM-DD format
             appointment_type_id: Appointment type ID
             clinic_id: Clinic ID (for booking restriction validation)
+            exclude_calendar_event_id: Optional calendar event ID to exclude from conflict checking
+            apply_booking_restrictions: Whether to filter slots by booking restrictions (default: True)
+                                      Set to False for clinic admin endpoints (admins bypass restrictions)
 
         Returns:
             List of available slot dictionaries with:
@@ -290,7 +287,8 @@ class AvailabilityService:
             # Calculate available slots for this practitioner (reusing schedule_data)
             slots = AvailabilityService._calculate_available_slots(
                 db, requested_date, [practitioner], appointment_type.duration_minutes, 
-                clinic, clinic_id, exclude_calendar_event_id, schedule_data=schedule_data
+                clinic, clinic_id, exclude_calendar_event_id, schedule_data=schedule_data,
+                apply_booking_restrictions=apply_booking_restrictions
             )
             
             # Apply compact schedule recommendations if enabled
@@ -344,7 +342,8 @@ class AvailabilityService:
         clinic_id: int,
         date: str,
         appointment_type_id: int,
-        exclude_calendar_event_id: int | None = None
+        exclude_calendar_event_id: int | None = None,
+        apply_booking_restrictions: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Get available time slots for all practitioners in a clinic.
@@ -407,7 +406,8 @@ class AvailabilityService:
             # Calculate available slots for all practitioners
             all_slots = AvailabilityService._calculate_available_slots(
                 db, requested_date, practitioners, appointment_type.duration_minutes, clinic, clinic_id,
-                exclude_calendar_event_id=exclude_calendar_event_id
+                exclude_calendar_event_id=exclude_calendar_event_id,
+                apply_booking_restrictions=apply_booking_restrictions
             )
             
             # Deduplicate slots by start_time (practitioner assignment happens in _assign_practitioner)
@@ -437,7 +437,8 @@ class AvailabilityService:
         clinic: Clinic,
         clinic_id: int,
         exclude_calendar_event_id: int | None = None,
-        schedule_data: Dict[int, Dict[str, Any]] | None = None
+        schedule_data: Dict[int, Dict[str, Any]] | None = None,
+        apply_booking_restrictions: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Calculate available time slots for the given date and practitioners.
@@ -446,7 +447,7 @@ class AvailabilityService:
         - Default availability schedule (PractitionerAvailability)
         - Availability exceptions (CalendarEvent with event_type='availability_exception')
         - Existing appointments (CalendarEvent with event_type='appointment')
-        - Clinic booking restrictions (same day disallowed or minimum hours ahead)
+        - Clinic booking restrictions (if apply_booking_restrictions=True)
 
         Args:
             db: Database session
@@ -454,6 +455,10 @@ class AvailabilityService:
             practitioners: List of practitioners to check
             duration_minutes: Duration of appointment type
             clinic: Clinic object with booking restriction settings
+            exclude_calendar_event_id: Optional calendar event ID to exclude from conflict checking
+            schedule_data: Pre-fetched schedule data (optional, for performance)
+            apply_booking_restrictions: Whether to filter slots by booking restrictions (default: True)
+                                      Set to False for clinic admin endpoints (admins bypass restrictions)
 
         Returns:
             List of available slot dictionaries with practitioner_id and practitioner_name
@@ -518,12 +523,15 @@ class AvailabilityService:
                         'practitioner_name': practitioner_name
                     })
 
-        # Apply clinic booking restrictions
-        filtered_slots = AvailabilityService._filter_slots_by_booking_restrictions(
-            available_slots, requested_date, clinic
-        )
+        # Apply booking restrictions if requested (for patient-facing endpoints)
+        # Clinic admin endpoints should pass apply_booking_restrictions=False to bypass restrictions
+        if apply_booking_restrictions:
+            filtered_slots = AvailabilityService._filter_slots_by_booking_restrictions(
+                available_slots, requested_date, clinic
+            )
+            return filtered_slots
 
-        return filtered_slots
+        return available_slots
 
     @staticmethod
     def _deduplicate_slots_by_time(
@@ -841,6 +849,10 @@ class AvailabilityService:
         """
         Filter available slots based on clinic booking restrictions.
 
+        This method filters slots based on:
+        - minimum_booking_hours_ahead: Slots must be at least X hours from now
+        - max_booking_window_days: Slots must be within X days from now
+
         Args:
             slots: List of available slot dictionaries
             requested_date: Date for which slots are requested
@@ -854,6 +866,17 @@ class AvailabilityService:
 
         # Get current Taiwan time for comparison
         now: datetime = taiwan_now()
+        today = now.date()
+
+        # Get clinic settings
+        settings = clinic.get_validated_settings()
+        booking_settings = settings.booking_restriction_settings
+        max_booking_window_days = booking_settings.max_booking_window_days
+        max_booking_date = today + timedelta(days=max_booking_window_days)
+
+        # Filter by max_booking_window_days first (date-level check)
+        if requested_date > max_booking_date:
+            return []  # Date is beyond max booking window
 
         filtered_slots: List[Dict[str, Any]] = []
 
@@ -868,16 +891,18 @@ class AvailabilityService:
             # Ensure it's in Taiwan timezone
             from utils.datetime_utils import ensure_taiwan
             slot_datetime_tz = ensure_taiwan(slot_datetime)
-            # Since we know slot_datetime is not None, this should be safe
-            assert slot_datetime_tz is not None
+            # Explicit type checking instead of assert (asserts can be disabled)
+            if slot_datetime_tz is None:
+                continue  # Skip invalid slot
             slot_datetime: datetime = slot_datetime_tz
 
             # Apply booking restrictions
             # Note: same_day_disallowed is deprecated, all clinics now use minimum_hours_required
-            if clinic.booking_restriction_type == 'minimum_hours_required':
+            # Use booking_settings for consistency (already extracted above)
+            if booking_settings.booking_restriction_type == 'minimum_hours_required':
                 # Must be at least X hours from now
                 time_diff: timedelta = slot_datetime - now
-                if time_diff.total_seconds() < (clinic.minimum_booking_hours_ahead * 3600):
+                if time_diff.total_seconds() < (booking_settings.minimum_booking_hours_ahead * 3600):
                     continue  # Skip this slot
             # If restriction type is unknown, allow the slot (backward compatibility)
 
@@ -1092,7 +1117,8 @@ class AvailabilityService:
         dates: List[str],
         appointment_type_id: int,
         clinic_id: int,
-        exclude_calendar_event_id: int | None = None
+        exclude_calendar_event_id: int | None = None,
+        apply_booking_restrictions: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Get available slots for a practitioner across multiple dates.
@@ -1140,10 +1166,14 @@ class AvailabilityService:
                 detail="找不到預約類型"
             )
         
-        # Filter dates to only include those within booking window
-        valid_dates = AvailabilityService._filter_dates_by_booking_window(
-            db, clinic_id, validated_dates
-        )
+        # Filter dates by booking window only if restrictions are applied
+        if apply_booking_restrictions:
+            valid_dates = AvailabilityService._filter_dates_by_booking_window(
+                db, clinic_id, validated_dates
+            )
+        else:
+            # For clinic admin endpoints, don't filter dates by booking window
+            valid_dates = validated_dates
         
         # Fetch availability for all valid dates
         results: List[Dict[str, Any]] = []
@@ -1156,7 +1186,8 @@ class AvailabilityService:
                     date=date_str,
                     appointment_type_id=appointment_type_id,
                     clinic_id=clinic_id,
-                    exclude_calendar_event_id=exclude_calendar_event_id
+                    exclude_calendar_event_id=exclude_calendar_event_id,
+                    apply_booking_restrictions=apply_booking_restrictions
                 )
                 
                 results.append({
@@ -1197,7 +1228,8 @@ class AvailabilityService:
         dates: List[str],
         appointment_type_id: int,
         practitioner_id: Optional[int] = None,
-        exclude_calendar_event_id: int | None = None
+        exclude_calendar_event_id: int | None = None,
+        apply_booking_restrictions: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Get available slots for a clinic across multiple dates.
@@ -1231,10 +1263,14 @@ class AvailabilityService:
                 detail="找不到預約類型"
             )
         
-        # Filter dates to only include those within booking window
-        valid_dates = AvailabilityService._filter_dates_by_booking_window(
-            db, clinic_id, validated_dates
-        )
+        # Filter dates by booking window only if restrictions are applied
+        if apply_booking_restrictions:
+            valid_dates = AvailabilityService._filter_dates_by_booking_window(
+                db, clinic_id, validated_dates
+            )
+        else:
+            # For clinic admin endpoints, don't filter dates by booking window
+            valid_dates = validated_dates
         
         # Fetch availability for all valid dates
         results: List[Dict[str, Any]] = []
@@ -1249,7 +1285,8 @@ class AvailabilityService:
                         date=date_str,
                         appointment_type_id=appointment_type_id,
                         clinic_id=clinic_id,
-                        exclude_calendar_event_id=exclude_calendar_event_id
+                        exclude_calendar_event_id=exclude_calendar_event_id,
+                        apply_booking_restrictions=apply_booking_restrictions
                     )
                 else:
                     # All practitioners in clinic
@@ -1258,7 +1295,8 @@ class AvailabilityService:
                         clinic_id=clinic_id,
                         date=date_str,
                         appointment_type_id=appointment_type_id,
-                        exclude_calendar_event_id=exclude_calendar_event_id
+                        exclude_calendar_event_id=exclude_calendar_event_id,
+                        apply_booking_restrictions=apply_booking_restrictions
                     )
                 
                 results.append({

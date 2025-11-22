@@ -2878,13 +2878,15 @@ async def get_available_slots(
         AppointmentTypeService.get_appointment_type_by_id(db, appointment_type_id)
         
         # Get available slots using service
+        # Do NOT apply booking restrictions for clinic admin endpoint (admins bypass restrictions)
         slots_data = AvailabilityService.get_available_slots_for_practitioner(
             db=db,
             practitioner_id=user_id,
             date=date,
             appointment_type_id=appointment_type_id,
             clinic_id=clinic_id,
-            exclude_calendar_event_id=exclude_calendar_event_id
+            exclude_calendar_event_id=exclude_calendar_event_id,
+            apply_booking_restrictions=False  # Clinic admins bypass booking restrictions
         )
 
         # Strip practitioner info for response (not needed since it's always same practitioner)
@@ -2949,13 +2951,15 @@ async def get_available_slots_batch(
         verify_practitioner_in_clinic(db, user_id, clinic_id)
         
         # Use shared service method for batch availability fetching
+        # Do NOT apply booking restrictions for clinic admin endpoint (admins bypass restrictions)
         batch_results = AvailabilityService.get_batch_available_slots_for_practitioner(
             db=db,
             practitioner_id=user_id,
             dates=request.dates,
             appointment_type_id=request.appointment_type_id,
             clinic_id=clinic_id,
-            exclude_calendar_event_id=request.exclude_calendar_event_id
+            exclude_calendar_event_id=request.exclude_calendar_event_id,
+            apply_booking_restrictions=False  # Clinic admins bypass booking restrictions
         )
         
         # Convert to response format

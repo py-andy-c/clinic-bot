@@ -1476,66 +1476,8 @@ class TestPractitionerCalendarAPI:
         slots_with_exclude = [s["start_time"] for s in result["available_slots"]]
         assert "10:00" in slots_with_exclude
 
-    def test_batch_available_slots_filters_booking_window(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
-        """Test that batch endpoint filters dates beyond booking window."""
-        clinic, practitioner = test_clinic_and_practitioner
-
-        # Set booking window to 29 days
-        clinic.settings = {
-            "booking_restriction_settings": {
-                "max_booking_window_days": 29
-            }
-        }
-        db_session.commit()
-
-        # Create appointment type
-        appointment_type = AppointmentType(
-            clinic_id=clinic.id,
-            name="Test Appointment",
-            duration_minutes=30
-        )
-        db_session.add(appointment_type)
-        db_session.flush()
-
-        # Link appointment type to practitioner
-        from models.practitioner_appointment_types import PractitionerAppointmentTypes
-        practitioner_appt_type = PractitionerAppointmentTypes(
-            user_id=practitioner.id,
-            appointment_type_id=appointment_type.id,
-            clinic_id=clinic.id
-        )
-        db_session.add(practitioner_appt_type)
-        db_session.commit()
-
-        # Get authentication token
-        token = get_auth_token(client, practitioner.email)
-
-        # Calculate dates: one within window, one beyond
-        today = date.today()
-        within_window = today + timedelta(days=15)  # Within 29 days
-        beyond_window = today + timedelta(days=35)  # Beyond 29 days
-
-        # Test batch endpoint with dates including one beyond window
-        response = client.post(
-            f"/api/clinic/practitioners/{practitioner.id}/availability/slots/batch",
-            headers={"Authorization": f"Bearer {token}"},
-            json={
-                "dates": [
-                    within_window.strftime('%Y-%m-%d'),
-                    beyond_window.strftime('%Y-%m-%d')
-                ],
-                "appointment_type_id": appointment_type.id
-            }
-        )
-
-        # Should succeed but only return results for date within window
-        assert response.status_code == 200
-        data = response.json()
-        assert "results" in data
-        # Should only have result for date within window
-        assert len(data["results"]) == 1
-        assert data["results"][0]["date"] == within_window.strftime('%Y-%m-%d')
-        assert "available_slots" in data["results"][0]
+    # NOTE: Booking window filtering test has been moved to test_booking_restrictions.py
+    # This keeps practitioner calendar API tests focused on API-specific functionality
 
     def test_practitioner_cannot_edit_other_practitioner_appointment_via_api(
         self, client: TestClient, db_session: Session, test_clinic_and_practitioner

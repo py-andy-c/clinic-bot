@@ -344,6 +344,64 @@ class NotificationService:
         )
 
     @staticmethod
+    def send_appointment_confirmation(
+        db: Session,
+        appointment: Appointment,
+        practitioner_name: str,
+        clinic: Clinic
+    ) -> bool:
+        """
+        Send appointment confirmation notification to patient.
+
+        Args:
+            db: Database session
+            appointment: New appointment
+            practitioner_name: Practitioner name to display (can be "不指定" for auto-assigned)
+            clinic: Clinic object
+
+        Returns:
+            True if notification sent successfully, False otherwise
+        """
+        try:
+            patient = appointment.patient
+            if not patient.line_user:
+                logger.info(f"Patient {patient.id} has no LINE user, skipping notification")
+                return False
+
+            # Format appointment time
+            start_datetime = datetime.combine(
+                appointment.calendar_event.date,
+                appointment.calendar_event.start_time
+            )
+            formatted_datetime = format_datetime(start_datetime)
+
+            # Get appointment type name
+            appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
+
+            # Build message
+            message = f"{patient.full_name}，您的預約已建立：\n\n"
+            message += f"{formatted_datetime} - 【{appointment_type_name}】{practitioner_name}治療師"
+            
+            if appointment.notes:
+                message += f"\n\n備註：{appointment.notes}"
+            
+            message += "\n\n期待為您服務！"
+
+            # Send notification
+            line_service = NotificationService._get_line_service(clinic)
+            line_service.send_text_message(patient.line_user.line_user_id, message)
+
+            logger.info(
+                f"Sent appointment confirmation to patient {patient.id} ({patient.full_name}) "
+                f"for appointment {appointment.calendar_event_id}"
+            )
+            return True
+
+        except Exception as e:
+            logger.exception(f"Failed to send appointment confirmation: {e}")
+            return False
+
+    @staticmethod
     def send_practitioner_appointment_notification(
         db: Session,
         practitioner: User,

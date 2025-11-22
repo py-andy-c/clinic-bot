@@ -4,7 +4,7 @@ Unit tests for availability service algorithms.
 Tests for the availability calculation utility functions, including:
 - Quarter-hour rounding utility
 - Time overlap detection
-- Booking restriction filtering
+- Booking restriction filtering (NOTE: This method is deprecated - restrictions are no longer applied in availability checks, only during booking)
 """
 
 import pytest
@@ -115,10 +115,23 @@ class TestBookingRestrictionFiltering:
         ]
 
     def test_same_day_disallowed_deprecated_uses_minimum_hours(self, mock_slots_today):
-        """Test that same_day_disallowed is treated as minimum_hours_required (deprecated but backward compatible)."""
+        """Test that same_day_disallowed is treated as minimum_hours_required (deprecated but backward compatible).
+        
+        NOTE: This method (_filter_slots_by_booking_restrictions) is no longer used in availability checks.
+        Booking restrictions are now enforced only during appointment creation/editing, not in availability display.
+        This test is kept for backward compatibility verification of the method itself.
+        """
+        from models.clinic import BookingRestrictionSettings
         clinic = Mock(spec=Clinic)
         clinic.booking_restriction_type = 'same_day_disallowed'
         clinic.minimum_booking_hours_ahead = 24
+        # Mock get_validated_settings to return proper settings
+        booking_settings = BookingRestrictionSettings(
+            booking_restriction_type='same_day_disallowed',
+            minimum_booking_hours_ahead=24,
+            max_booking_window_days=90
+        )
+        clinic.get_validated_settings.return_value.booking_restriction_settings = booking_settings
 
         today = taiwan_now().date()
 
@@ -132,10 +145,23 @@ class TestBookingRestrictionFiltering:
         assert len(filtered) >= 0  # May be filtered by minimum_hours if slots are too soon
 
     def test_same_day_disallowed_allows_tomorrow_slots(self, mock_slots_tomorrow):
-        """Test that same_day_disallowed restriction allows tomorrow's slots."""
+        """Test that same_day_disallowed restriction allows tomorrow's slots.
+        
+        NOTE: This method (_filter_slots_by_booking_restrictions) is no longer used in availability checks.
+        Booking restrictions are now enforced only during appointment creation/editing, not in availability display.
+        This test is kept for backward compatibility verification of the method itself.
+        """
+        from models.clinic import BookingRestrictionSettings
         clinic = Mock(spec=Clinic)
         clinic.booking_restriction_type = 'same_day_disallowed'
         clinic.minimum_booking_hours_ahead = 24
+        # Mock get_validated_settings to return proper settings
+        booking_settings = BookingRestrictionSettings(
+            booking_restriction_type='same_day_disallowed',
+            minimum_booking_hours_ahead=24,
+            max_booking_window_days=90
+        )
+        clinic.get_validated_settings.return_value.booking_restriction_settings = booking_settings
 
         tomorrow = taiwan_now().date() + timedelta(days=1)
 
@@ -148,9 +174,17 @@ class TestBookingRestrictionFiltering:
 
     def test_minimum_hours_required_filters_recent_slots(self, mock_slots_today):
         """Test that minimum_hours_required filters out slots that are too soon."""
+        from models.clinic import BookingRestrictionSettings
         clinic = Mock(spec=Clinic)
         clinic.booking_restriction_type = 'minimum_hours_required'
         clinic.minimum_booking_hours_ahead = 2  # 2 hours ahead required
+        # Mock get_validated_settings to return proper settings
+        booking_settings = BookingRestrictionSettings(
+            booking_restriction_type='minimum_hours_required',
+            minimum_booking_hours_ahead=2,
+            max_booking_window_days=90
+        )
+        clinic.get_validated_settings.return_value.booking_restriction_settings = booking_settings
 
         today = taiwan_now().date()
 
@@ -172,9 +206,17 @@ class TestBookingRestrictionFiltering:
 
     def test_minimum_hours_required_filters_too_soon_slots(self, mock_slots_today):
         """Test that minimum_hours_required filters out slots that are within the minimum hours."""
+        from models.clinic import BookingRestrictionSettings
         clinic = Mock(spec=Clinic)
         clinic.booking_restriction_type = 'minimum_hours_required'
         clinic.minimum_booking_hours_ahead = 2  # 2 hours ahead required
+        # Mock get_validated_settings to return proper settings
+        booking_settings = BookingRestrictionSettings(
+            booking_restriction_type='minimum_hours_required',
+            minimum_booking_hours_ahead=2,
+            max_booking_window_days=90
+        )
+        clinic.get_validated_settings.return_value.booking_restriction_settings = booking_settings
 
         today = taiwan_now().date()
 
@@ -196,9 +238,17 @@ class TestBookingRestrictionFiltering:
 
     def test_minimum_hours_required_allows_future_slots(self):
         """Test that minimum_hours_required allows slots that are far enough in the future."""
+        from models.clinic import BookingRestrictionSettings
         clinic = Mock(spec=Clinic)
         clinic.booking_restriction_type = 'minimum_hours_required'
         clinic.minimum_booking_hours_ahead = 2  # 2 hours ahead required
+        # Mock get_validated_settings to return proper settings
+        booking_settings = BookingRestrictionSettings(
+            booking_restriction_type='minimum_hours_required',
+            minimum_booking_hours_ahead=2,
+            max_booking_window_days=90
+        )
+        clinic.get_validated_settings.return_value.booking_restriction_settings = booking_settings
 
         today = taiwan_now().date()
         slots = [
@@ -221,9 +271,17 @@ class TestBookingRestrictionFiltering:
 
     def test_unknown_restriction_type_allows_all_slots(self, mock_slots_today):
         """Test that unknown restriction types allow all slots (backward compatibility)."""
+        from models.clinic import BookingRestrictionSettings
         clinic = Mock(spec=Clinic)
         clinic.booking_restriction_type = 'unknown_type'
         clinic.minimum_booking_hours_ahead = 24
+        # Mock get_validated_settings to return proper settings
+        booking_settings = BookingRestrictionSettings(
+            booking_restriction_type='unknown_type',
+            minimum_booking_hours_ahead=24,
+            max_booking_window_days=90
+        )
+        clinic.get_validated_settings.return_value.booking_restriction_settings = booking_settings
 
         today = taiwan_now().date()
 

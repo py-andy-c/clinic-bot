@@ -688,21 +688,25 @@ async def get_availability(
     try:
         if practitioner_id:
             # Specific practitioner requested
+            # Apply booking restrictions for patient-facing LIFF endpoint
             slots_data = AvailabilityService.get_available_slots_for_practitioner(
                 db=db,
                 practitioner_id=practitioner_id,
                 date=date,
                 appointment_type_id=appointment_type_id,
                 clinic_id=clinic.id,
-                exclude_calendar_event_id=exclude_calendar_event_id
+                exclude_calendar_event_id=exclude_calendar_event_id,
+                apply_booking_restrictions=True  # Patients must follow booking restrictions
             )
         else:
             # All practitioners in clinic
+            # Apply booking restrictions for patient-facing LIFF endpoint
             slots_data = AvailabilityService.get_available_slots_for_clinic(
                 db=db,
                 clinic_id=clinic.id,
                 date=date,
-                appointment_type_id=appointment_type_id
+                appointment_type_id=appointment_type_id,
+                apply_booking_restrictions=True  # Patients must follow booking restrictions
             )
 
         # Convert dicts to response objects
@@ -768,13 +772,15 @@ async def get_availability_batch(
 
     try:
         # Use shared service method for batch availability fetching
+        # Apply booking restrictions for patient-facing LIFF endpoint
         batch_results = AvailabilityService.get_batch_available_slots_for_clinic(
             db=db,
             clinic_id=clinic.id,
             dates=request.dates,
             appointment_type_id=request.appointment_type_id,
             practitioner_id=request.practitioner_id,
-            exclude_calendar_event_id=request.exclude_calendar_event_id
+            exclude_calendar_event_id=request.exclude_calendar_event_id,
+            apply_booking_restrictions=True  # Patients must follow booking restrictions
         )
         
         # Convert to response format
