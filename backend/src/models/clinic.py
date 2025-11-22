@@ -9,7 +9,7 @@ with its own LINE Official Account.
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import String, TIMESTAMP, Integer, Text, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -32,6 +32,28 @@ class BookingRestrictionSettings(BaseModel):
     max_future_appointments: int = Field(default=3, ge=1, le=100, description="Maximum number of active future appointments a patient can have")
     max_booking_window_days: int = Field(default=90, ge=1, le=365, description="Maximum number of days in advance that patients can book appointments")
     minimum_cancellation_hours_before: int = Field(default=24, ge=1, le=168, description="Minimum number of hours before appointment that patients can cancel. Cancellations from clinic are not subject to this restriction.")
+
+    @model_validator(mode='before')
+    @classmethod
+    def migrate_same_day_disallowed(cls, data: Any) -> Any:
+        """
+        Auto-migrate deprecated same_day_disallowed to minimum_hours_required.
+        
+        This ensures backward compatibility while deprecating the old setting.
+        If same_day_disallowed is provided, it is automatically converted to
+        minimum_hours_required with a default of 24 hours if not specified.
+        """
+        if isinstance(data, dict):
+            booking_type = data.get('booking_restriction_type')
+            if booking_type == 'same_day_disallowed':
+                # Migrate to minimum_hours_required
+                # If minimum_booking_hours_ahead is not set or is 0, default to 24 hours
+                min_hours = data.get('minimum_booking_hours_ahead')
+                if min_hours is None or min_hours == 0:
+                    data['minimum_booking_hours_ahead'] = 24
+                # Update booking_restriction_type
+                data['booking_restriction_type'] = 'minimum_hours_required'
+        return data
 
 
 class ClinicInfoSettings(BaseModel):

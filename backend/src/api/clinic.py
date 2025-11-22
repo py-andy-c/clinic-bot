@@ -86,6 +86,30 @@ class BookingRestrictionSettings(BaseModel):
     max_booking_window_days: int = 90
     minimum_cancellation_hours_before: int = 24
 
+    @model_validator(mode='before')
+    @classmethod
+    def migrate_same_day_disallowed(cls, data: Any) -> Any:
+        """
+        Auto-migrate deprecated same_day_disallowed to minimum_hours_required.
+        
+        This ensures backward compatibility while deprecating the old setting.
+        
+        Note: This validator is defensive. Incoming requests are validated by
+        models.clinic.BookingRestrictionSettings, but this ensures API responses
+        are also migrated if constructed directly.
+        """
+        if isinstance(data, dict):
+            booking_type = data.get('booking_restriction_type')
+            if booking_type == 'same_day_disallowed':
+                # Migrate to minimum_hours_required
+                # If minimum_booking_hours_ahead is not set or is 0, default to 24 hours
+                min_hours = data.get('minimum_booking_hours_ahead')
+                if min_hours is None or min_hours == 0:
+                    data['minimum_booking_hours_ahead'] = 24
+                # Update booking_restriction_type
+                data['booking_restriction_type'] = 'minimum_hours_required'
+        return data
+
 
 class ClinicInfoSettings(BaseModel):
     """Clinic information settings for display in calendar events and LINE reminders."""

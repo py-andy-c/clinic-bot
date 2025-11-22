@@ -34,13 +34,6 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
     onAppointmentTypeInstructionsChange(value || null);
   };
 
-  const handleRestrictionTypeChange = (restrictionType: string) => {
-    onBookingRestrictionSettingsChange({
-      ...bookingRestrictionSettings,
-      booking_restriction_type: restrictionType,
-    });
-  };
-
   const handleMinimumHoursChange = (hours: string) => {
     onBookingRestrictionSettingsChange({
       ...bookingRestrictionSettings,
@@ -173,58 +166,24 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
 
         {/* 預約限制 */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            預約限制
-          </label>
           <div className="space-y-6">
             <div>
-              <div className="space-y-3">
-                <div className="flex items-center">
-                  <input
-                    id="same_day_disallowed"
-                    name="restriction_type"
-                    type="radio"
-                    checked={bookingRestrictionSettings.booking_restriction_type === 'same_day_disallowed'}
-                    onChange={() => handleRestrictionTypeChange('same_day_disallowed')}
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300"
-                    disabled={!isClinicAdmin}
-                  />
-                  <label htmlFor="same_day_disallowed" className="ml-3 block text-sm font-medium text-gray-700">
-                    患者能預約明天及之後的時段
-                  </label>
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    id="minimum_hours_required"
-                    name="restriction_type"
-                    type="radio"
-                    checked={bookingRestrictionSettings.booking_restriction_type === 'minimum_hours_required'}
-                    onChange={() => handleRestrictionTypeChange('minimum_hours_required')}
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300"
-                    disabled={!isClinicAdmin}
-                  />
-                  <label htmlFor="minimum_hours_required" className="ml-3 block text-sm font-medium text-gray-700">
-                    預約前至少需幾小時
-                  </label>
-                </div>
-
-                {bookingRestrictionSettings.booking_restriction_type === 'minimum_hours_required' && (
-                  <div className="ml-7 max-w-xs">
-                    <input
-                      type="number"
-                      value={bookingRestrictionSettings.minimum_booking_hours_ahead}
-                      onChange={(e) => handleMinimumHoursChange(e.target.value)}
-                      className="input"
-                      min="1"
-                      max="168"
-                      disabled={!isClinicAdmin}
-                    />
-                    <p className="text-sm text-gray-500 mt-1">
-                      小時數（例如：4 表示至少提前 4 小時）
-                    </p>
-                  </div>
-                )}
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                預約前至少需幾小時
+              </label>
+              <div className="max-w-xs">
+                <input
+                  type="number"
+                  value={bookingRestrictionSettings.minimum_booking_hours_ahead}
+                  onChange={(e) => handleMinimumHoursChange(e.target.value)}
+                  className="input"
+                  min="1"
+                  max="168"
+                  disabled={!isClinicAdmin}
+                />
+                <p className="text-sm text-gray-500 mt-1">
+                  小時數（例如：4 表示至少提前 4 小時）
+                </p>
               </div>
             </div>
           </div>

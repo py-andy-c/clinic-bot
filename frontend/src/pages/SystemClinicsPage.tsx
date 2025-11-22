@@ -633,7 +633,7 @@ const SystemClinicsPage: React.FC = () => {
                         <div>
                           限制類型: {
                             selectedClinic.settings.booking_restriction_settings.booking_restriction_type === 'same_day_disallowed' 
-                              ? '患者能預約明天及之後的時段'
+                              ? '預約前至少需幾小時 (已從舊設定遷移)'
                               : selectedClinic.settings.booking_restriction_settings.booking_restriction_type === 'minimum_hours_required'
                               ? '預約前至少需幾小時'
                               : selectedClinic.settings.booking_restriction_settings.booking_restriction_type || 'N/A'
