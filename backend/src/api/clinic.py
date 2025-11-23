@@ -3243,7 +3243,7 @@ class DisableAiRequest(BaseModel):
 
 @router.get("/line-users", summary="List all LINE users for clinic with AI status", response_model=LineUserListResponse)
 async def get_line_users(
-    current_user: UserContext = Depends(require_admin_role),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db),
     page: Optional[int] = Query(None, ge=1, description="Page number (1-indexed). Must be provided with page_size. Takes precedence over offset/limit."),
     page_size: Optional[int] = Query(None, ge=1, le=100, description="Items per page. Must be provided with page. Takes precedence over offset/limit."),
@@ -3253,7 +3253,7 @@ async def get_line_users(
     """
     Get all LINE users who have patients in this clinic, with AI status.
     
-    Only clinic admins can access this endpoint.
+    Any authenticated clinic user can access this endpoint.
     Returns LINE users with their patient count, patient names, and AI disable status.
     Supports pagination via page and page_size parameters (preferred) or offset/limit (deprecated).
     If pagination parameters are not provided, returns all line users (backward compatible).
@@ -3364,13 +3364,13 @@ async def get_line_users(
 async def disable_ai_for_line_user_endpoint(
     line_user_id: str,
     request: DisableAiRequest = DisableAiRequest(),
-    current_user: UserContext = Depends(require_admin_role),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> Dict[str, str]:
     """
     Permanently disable AI auto response for a LINE user.
     
-    Only clinic admins can disable AI. The setting persists until manually changed.
+    Any authenticated clinic user can disable AI. The setting persists until manually changed.
     This is different from the temporary opt-out system which expires after 24 hours.
     
     Args:
@@ -3419,13 +3419,13 @@ async def disable_ai_for_line_user_endpoint(
 @router.post("/line-users/{line_user_id}/enable-ai", summary="Enable AI for a LINE user")
 async def enable_ai_for_line_user_endpoint(
     line_user_id: str,
-    current_user: UserContext = Depends(require_admin_role),
+    current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> Dict[str, str]:
     """
     Re-enable AI auto response for a LINE user.
     
-    Only clinic admins can enable AI. This removes the permanent disable setting.
+    Any authenticated clinic user can enable AI. This removes the permanent disable setting.
     
     Args:
         line_user_id: LINE user ID string (from LINE platform)

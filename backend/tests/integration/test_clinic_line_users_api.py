@@ -125,13 +125,16 @@ def get_auth_headers(user: User, clinic_id: int):
 class TestGetLineUsers:
     """Test GET /clinic/line-users endpoint."""
     
-    def test_get_line_users_requires_admin(self, client, test_clinic, practitioner_user, line_user_with_patient):
-        """Test that only admins can access the endpoint."""
+    def test_get_line_users_allows_practitioners(self, client, test_clinic, practitioner_user, line_user_with_patient):
+        """Test that practitioners can access the endpoint."""
         headers = get_auth_headers(practitioner_user, test_clinic.id)
         
         response = client.get("/api/clinic/line-users", headers=headers)
         
-        assert response.status_code == 403
+        assert response.status_code == 200
+        data = response.json()
+        assert "line_users" in data
+        assert len(data["line_users"]) == 1
     
     def test_get_line_users_returns_line_users(self, client, test_clinic, admin_user, line_user_with_patient):
         """Test that endpoint returns LINE users with AI status."""
@@ -214,8 +217,8 @@ class TestGetLineUsers:
 class TestDisableAiForLineUser:
     """Test POST /clinic/line-users/{line_user_id}/disable-ai endpoint."""
     
-    def test_disable_ai_requires_admin(self, client, test_clinic, practitioner_user, line_user_with_patient):
-        """Test that only admins can disable AI."""
+    def test_disable_ai_allows_practitioners(self, client, db_session, test_clinic, practitioner_user, line_user_with_patient):
+        """Test that practitioners can disable AI."""
         headers = get_auth_headers(practitioner_user, test_clinic.id)
         
         response = client.post(
@@ -224,7 +227,16 @@ class TestDisableAiForLineUser:
             json={"reason": "Test reason"}
         )
         
-        assert response.status_code == 403
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
+        
+        # Verify record was created
+        disabled = db_session.query(LineUserAiDisabled).filter(
+            LineUserAiDisabled.line_user_id == line_user_with_patient.line_user_id,
+            LineUserAiDisabled.clinic_id == test_clinic.id
+        ).first()
+        assert disabled is not None
+        assert disabled.disabled_by_user_id == practitioner_user.id
     
     def test_disable_ai_creates_record(self, client, db_session, test_clinic, admin_user, line_user_with_patient):
         """Test that disabling AI creates a disable record."""
@@ -274,8 +286,11 @@ class TestDisableAiForLineUser:
 class TestEnableAiForLineUser:
     """Test POST /clinic/line-users/{line_user_id}/enable-ai endpoint."""
     
-    def test_enable_ai_requires_admin(self, client, test_clinic, practitioner_user, line_user_with_patient):
-        """Test that only admins can enable AI."""
+    def test_enable_ai_allows_practitioners(self, client, db_session, test_clinic, practitioner_user, line_user_with_patient):
+        """Test that practitioners can enable AI."""
+        # Disable first
+        disable_ai_for_line_user(db_session, line_user_with_patient.line_user_id, test_clinic.id)
+        
         headers = get_auth_headers(practitioner_user, test_clinic.id)
         
         response = client.post(
@@ -283,7 +298,15 @@ class TestEnableAiForLineUser:
             headers=headers
         )
         
-        assert response.status_code == 403
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
+        
+        # Verify record was removed
+        disabled = db_session.query(LineUserAiDisabled).filter(
+            LineUserAiDisabled.line_user_id == line_user_with_patient.line_user_id,
+            LineUserAiDisabled.clinic_id == test_clinic.id
+        ).first()
+        assert disabled is None
     
     def test_enable_ai_removes_record(self, client, db_session, test_clinic, admin_user, line_user_with_patient):
         """Test that enabling AI removes the disable record."""
