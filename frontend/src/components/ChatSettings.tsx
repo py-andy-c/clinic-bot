@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChatSettings as ChatSettingsType } from '../schemas/api';
 import { ChatTestModal } from './ChatTestModal';
 import { hasChatSettingsChanged } from '../utils/chatSettingsComparison';
-import { InfoModal } from './shared/InfoModal';
+import { BaseModal } from './shared/BaseModal';
 
 interface ChatSettingsProps {
   chatSettings: ChatSettingsType;
@@ -197,7 +197,6 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
 }) => {
   const [showAiGuidancePopup, setShowAiGuidancePopup] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
-  const aiGuidanceButtonRef = useRef<HTMLButtonElement>(null);
   const previousChatSettingsRef = useRef<ChatSettingsType | null>(null);
   const isInitialMountRef = useRef(true);
 
@@ -430,69 +429,77 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
                     AI指引
                   </label>
                   <button
-                    ref={aiGuidanceButtonRef}
                     type="button"
-                    onClick={() => setShowAiGuidancePopup(!showAiGuidancePopup)}
-                    className="text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded-full p-1"
-                    title="如何設定AI指引"
-                    aria-label="顯示AI指引說明"
+                    onClick={() => setShowAiGuidancePopup(true)}
+                    className="inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+                    aria-label="查看說明"
                   >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                     </svg>
                   </button>
-                  <InfoModal
-                    isOpen={showAiGuidancePopup}
-                    onClose={() => setShowAiGuidancePopup(false)}
-                    buttonRef={aiGuidanceButtonRef}
-                    title="如何設定AI指引"
-                  >
-                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-3">
-                      <p className="font-medium text-yellow-800 mb-1">⚠️ 重要提醒</p>
-                      <p className="text-yellow-700 text-xs">
-                        AI指引是進階功能，用於自訂AI的行為模式。除非您有明確的需求（例如：改變問候語風格、調整服務推廣時機），否則建議保持空白，使用系統預設值即可。
-                      </p>
-                    </div>
-                    
-                    <p>
-                      AI指引可以自訂AI聊天機器人的<strong>語氣風格</strong>、<strong>問候語</strong>、<strong>服務推廣時機</strong>等行為，但<strong>無法</strong>改變安全規則（例如：禁止診斷、禁止開立處方等）。
-                    </p>
-                    
-                    <p className="font-medium mt-3">適用情境：</p>
-                    <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
-                      <li>需要更正式或更親切的溝通風格</li>
-                      <li>特定服務需要在特定時機主動提及</li>
-                      <li>需要調整問候語或回應格式</li>
-                      <li>針對特定關鍵字需要特殊處理流程</li>
-                      <li>診所有獨特的治療理念，需要優先於一般醫學知識</li>
-                    </ul>
-                    
-                    <p className="font-medium mt-3">範例 1：改變語氣風格</p>
-                    <div className="bg-gray-50 p-2 rounded text-xs font-mono mb-2">
-                      「請保持極度專業的醫療風格，用詞精準，避免使用表情符號。開頭問候語請使用：『您好，這裡是XX診所AI醫療助理，請問有什麼能為您服務的？』」
-                    </div>
-                    
-                    <p className="font-medium mt-3">範例 2：調整推廣時機</p>
-                    <div className="bg-gray-50 p-2 rounded text-xs font-mono mb-2">
-                      「當使用者提到『失眠』或『焦慮』時，請在第一或第二回合回應中主動提及我們的『神經整合物理治療』服務。」
-                    </div>
-                    
-                    <p className="font-medium mt-3">範例 3：優先採用診所理念（取代一般醫學知識）</p>
-                    <div className="bg-gray-50 p-2 rounded text-xs font-mono">
-                      「針對非撕裂性的肌肉拉傷，不同於傳統的長時間冰敷，我們的理念是在急性期後段（約24小時後）適度使用熱敷，能有效促進血液循環，加速組織修復。請優先採用此理念回答相關問題。」
-                    </div>
-                  </InfoModal>
+                  {showAiGuidancePopup && (
+                    <BaseModal
+                      onClose={() => setShowAiGuidancePopup(false)}
+                      aria-label="如何設定AI指引"
+                    >
+                      <div className="flex items-start">
+                        <div className="flex-shrink-0">
+                          <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div className="ml-3 flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-3">如何設定AI指引</h3>
+                          <div className="text-sm text-gray-700 space-y-2">
+                            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-3">
+                              <p className="font-medium text-yellow-800 mb-1">⚠️ 重要提醒</p>
+                              <p className="text-yellow-700 text-xs">
+                                AI指引是進階功能，用於自訂AI的行為模式。除非您有明確的需求（例如：改變問候語風格、調整服務推廣時機），否則建議保持空白，使用系統預設值即可。
+                              </p>
+                            </div>
+                            
+                            <p>
+                              AI指引可以自訂AI聊天機器人的<strong>語氣風格</strong>、<strong>問候語</strong>、<strong>服務推廣時機</strong>等行為，但<strong>無法</strong>改變安全規則（例如：禁止診斷、禁止開立處方等）。
+                            </p>
+                            
+                            <p className="font-medium mt-3">適用情境：</p>
+                            <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
+                              <li>需要更正式或更親切的溝通風格</li>
+                              <li>特定服務需要在特定時機主動提及</li>
+                              <li>需要調整問候語或回應格式</li>
+                              <li>針對特定關鍵字需要特殊處理流程</li>
+                              <li>診所有獨特的治療理念，需要優先於一般醫學知識</li>
+                            </ul>
+                            
+                            <p className="font-medium mt-3">範例 1：改變語氣風格</p>
+                            <div className="bg-gray-50 p-2 rounded text-xs font-mono mb-2">
+                              「請保持極度專業的醫療風格，用詞精準，避免使用表情符號。開頭問候語請使用：『您好，這裡是XX診所AI醫療助理，請問有什麼能為您服務的？』」
+                            </div>
+                            
+                            <p className="font-medium mt-3">範例 2：調整推廣時機</p>
+                            <div className="bg-gray-50 p-2 rounded text-xs font-mono mb-2">
+                              「當使用者提到『失眠』或『焦慮』時，請在第一或第二回合回應中主動提及我們的『神經整合物理治療』服務。」
+                            </div>
+                            
+                            <p className="font-medium mt-3">範例 3：優先採用診所理念（取代一般醫學知識）</p>
+                            <div className="bg-gray-50 p-2 rounded text-xs font-mono">
+                              「針對非撕裂性的肌肉拉傷，不同於傳統的長時間冰敷，我們的理念是在急性期後段（約24小時後）適度使用熱敷，能有效促進血液循環，加速組織修復。請優先採用此理念回答相關問題。」
+                            </div>
+                          </div>
+                          <div className="mt-4 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setShowAiGuidancePopup(false)}
+                              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                            >
+                              關閉
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </BaseModal>
+                  )}
                 </div>
               </div>
               <textarea

@@ -2,6 +2,8 @@ import { DefaultScheduleResponse } from '../types';
 
 interface PractitionerSettings {
   compact_schedule_enabled: boolean;
+  next_day_notification_time?: string;
+  auto_assigned_notification_time?: string;
 }
 
 interface ProfileSettingsData {
@@ -60,14 +62,19 @@ const validateIntervals = (intervals: TimeInterval[]): string | null => {
 
 // Get section-specific changes for profile settings
 export const getProfileSectionChanges = (current: ProfileSettingsData, original: ProfileSettingsData): Record<string, boolean> => {
-  const currentSettings = current.settings || { compact_schedule_enabled: false };
-  const originalSettings = original.settings || { compact_schedule_enabled: false };
-  
+  const currentSettings = current.settings || { compact_schedule_enabled: false, next_day_notification_time: '21:00', auto_assigned_notification_time: '21:00' };
+  const originalSettings = original.settings || { compact_schedule_enabled: false, next_day_notification_time: '21:00', auto_assigned_notification_time: '21:00' };
+
+  const settingsChanged =
+    currentSettings.compact_schedule_enabled !== originalSettings.compact_schedule_enabled ||
+    (currentSettings.next_day_notification_time || '21:00') !== (originalSettings.next_day_notification_time || '21:00') ||
+    (currentSettings.auto_assigned_notification_time || '21:00') !== (originalSettings.auto_assigned_notification_time || '21:00');
+
   return {
     profile: current.fullName !== original.fullName,
     schedule: original.schedule ?
       JSON.stringify(current.schedule) !== JSON.stringify(original.schedule) : false,
     appointmentTypes: JSON.stringify(current.selectedAppointmentTypeIds) !== JSON.stringify(original.selectedAppointmentTypeIds),
-    settings: currentSettings.compact_schedule_enabled !== originalSettings.compact_schedule_enabled,
+    settings: settingsChanged,
   };
 };

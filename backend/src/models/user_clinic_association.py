@@ -21,6 +21,14 @@ class PractitionerSettings(BaseModel):
         default=False,
         description="Whether to recommend compact schedule slots that don't extend total time"
     )
+    next_day_notification_time: str = Field(
+        default="21:00",
+        description="Time to send next-day appointment notifications (HH:MM format, 24-hour)"
+    )
+    auto_assigned_notification_time: str = Field(
+        default="21:00",
+        description="Time to send auto-assigned appointment notifications to admins (HH:MM format, 24-hour)"
+    )
 
 
 class UserClinicAssociation(Base):

@@ -13,6 +13,8 @@ import ProfileForm from '../components/ProfileForm';
 import AvailabilitySettings from '../components/AvailabilitySettings';
 import PractitionerAppointmentTypes from '../components/PractitionerAppointmentTypes';
 import CompactScheduleSettings from '../components/CompactScheduleSettings';
+import PractitionerNotificationTimeSettings from '../components/PractitionerNotificationTimeSettings';
+import AdminAutoAssignedNotificationTimeSettings from '../components/AdminAutoAssignedNotificationTimeSettings';
 import PageHeader from '../components/PageHeader';
 
 interface LineLinkingSectionProps {
@@ -71,10 +73,7 @@ const LineLinkingSection: React.FC<LineLinkingSectionProps> = ({ lineLinked, onR
   };
 
   return (
-    <div className="pt-6 border-t border-gray-200">
-      <h3 className="text-lg font-medium text-gray-900 mb-4">LINE 通知設定</h3>
-
-      <div className="space-y-4">
+    <div className="space-y-4">
         {/* Status */}
         <div className="flex items-center justify-between">
           <div>
@@ -149,12 +148,13 @@ const LineLinkingSection: React.FC<LineLinkingSectionProps> = ({ lineLinked, onR
           )}
         </div>
       </div>
-    </div>
   );
 };
 
 interface PractitionerSettings {
   compact_schedule_enabled: boolean;
+  next_day_notification_time?: string;
+  auto_assigned_notification_time?: string;
 }
 
 interface ProfileData {
@@ -215,11 +215,20 @@ const ProfilePage: React.FC = () => {
       // Set the full name from the profile
       if (profileToUse) {
         result.fullName = profileToUse.full_name || '';
-        // Set settings from profile (only for practitioners)
-        if (profileToUse.settings && user?.roles?.includes('practitioner')) {
+        // Set settings from profile
+        if (profileToUse.settings) {
           const settings = profileToUse.settings as PractitionerSettings;
           result.settings = {
             compact_schedule_enabled: Boolean(settings?.compact_schedule_enabled),
+            next_day_notification_time: settings?.next_day_notification_time || '21:00',
+            auto_assigned_notification_time: settings?.auto_assigned_notification_time || '21:00',
+          };
+        } else {
+          // Initialize with defaults if no settings exist
+          result.settings = {
+            compact_schedule_enabled: false,
+            next_day_notification_time: '21:00',
+            auto_assigned_notification_time: '21:00',
           };
         }
       }
@@ -253,13 +262,22 @@ const ProfilePage: React.FC = () => {
         profileUpdate.full_name = data.fullName;
       }
 
-      // Check if settings changed (only for practitioners)
-      if (user?.roles?.includes('practitioner') && data.settings) {
-        const currentSettings = (profile?.settings as PractitionerSettings | undefined) || { compact_schedule_enabled: false };
+      // Check if settings changed (for practitioners and admins)
+      if ((user?.roles?.includes('practitioner') || user?.roles?.includes('admin')) && data.settings) {
+        const currentSettings = (profile?.settings as PractitionerSettings | undefined) || {
+          compact_schedule_enabled: false,
+          next_day_notification_time: '21:00',
+          auto_assigned_notification_time: '21:00'
+        };
         const newSettings = data.settings;
 
-        // Only update if compact_schedule_enabled actually changed
-        if (currentSettings.compact_schedule_enabled !== newSettings.compact_schedule_enabled) {
+        // Check if any setting changed
+        const settingsChanged =
+          currentSettings.compact_schedule_enabled !== newSettings.compact_schedule_enabled ||
+          (currentSettings.next_day_notification_time || '21:00') !== (newSettings.next_day_notification_time || '21:00') ||
+          (currentSettings.auto_assigned_notification_time || '21:00') !== (newSettings.auto_assigned_notification_time || '21:00');
+
+        if (settingsChanged) {
           profileUpdate.settings = newSettings;
         }
       }
@@ -441,8 +459,22 @@ const ProfilePage: React.FC = () => {
                 />
               )}
 
-              {/* LINE Notification Settings (Only for practitioners) */}
-              {profile?.roles?.includes('practitioner') && (
+              {/* LINE Notification Settings */}
+              <div className="pt-6">
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">LINE 通知設定</h3>
+                  {sectionChanges.settings && (
+                    <button
+                      type="button"
+                      onClick={saveData}
+                      disabled={uiState.saving}
+                      className="btn-primary"
+                    >
+                      {uiState.saving ? '儲存中...' : '儲存更變'}
+                    </button>
+                  )}
+                </div>
+
                 <LineLinkingSection
                   lineLinked={profile?.line_linked || false}
                   onRefresh={() => {
@@ -457,7 +489,35 @@ const ProfilePage: React.FC = () => {
                     return undefined;
                   })()}
                 />
-              )}
+
+                {/* Practitioner Next Day Notification Time (Only for practitioners) */}
+                {profile?.roles?.includes('practitioner') && (
+                  <PractitionerNotificationTimeSettings
+                    notificationTime={profileData?.settings?.next_day_notification_time || '21:00'}
+                    onNotificationTimeChange={(time) => updateData({
+                      settings: {
+                        compact_schedule_enabled: profileData?.settings?.compact_schedule_enabled || false,
+                        next_day_notification_time: time,
+                        auto_assigned_notification_time: profileData?.settings?.auto_assigned_notification_time || '21:00'
+                      }
+                    })}
+                  />
+                )}
+
+                {/* Admin Auto-Assigned Notification Time (Only for admins) */}
+                {profile?.roles?.includes('admin') && (
+                  <AdminAutoAssignedNotificationTimeSettings
+                    notificationTime={profileData?.settings?.auto_assigned_notification_time || '21:00'}
+                    onNotificationTimeChange={(time) => updateData({
+                      settings: {
+                        compact_schedule_enabled: profileData?.settings?.compact_schedule_enabled || false,
+                        next_day_notification_time: profileData?.settings?.next_day_notification_time || '21:00',
+                        auto_assigned_notification_time: time
+                      }
+                    })}
+                  />
+                )}
+              </div>
           </form>
         </div>
 

@@ -167,12 +167,15 @@ async def update_profile(
                 association.full_name = profile_data.full_name
                 association.updated_at = taiwan_now()
 
-            # Update settings if provided (only for practitioners)
+            # Update settings if provided (for practitioners and admins)
             if profile_data.settings is not None:
-                if 'practitioner' not in (association.roles or []):
+                # Allow both practitioners and admins to update settings
+                # Practitioners can update compact_schedule_enabled and next_day_notification_time
+                # Admins can update auto_assigned_notification_time
+                if not (association.roles or []):
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="只有治療師可以更新設定"
+                        detail="使用者必須有角色才能更新設定"
                     )
                 try:
                     # Validate settings schema

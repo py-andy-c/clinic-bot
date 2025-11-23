@@ -6,7 +6,7 @@ import { apiService } from '../services/api';
 import { LineUserWithStatus } from '../types';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage, SearchInput, PaginationControls } from '../components/shared';
-import { InfoModal } from '../components/shared/InfoModal';
+import { BaseModal } from '../components/shared/BaseModal';
 import { useApiData } from '../hooks/useApiData';
 import { useHighlightRow } from '../hooks/useHighlightRow';
 import PageHeader from '../components/PageHeader';
@@ -100,7 +100,6 @@ const LineUsersPage: React.FC = () => {
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   const [showAiStatusInfo, setShowAiStatusInfo] = useState(false);
-  const aiStatusInfoButtonRef = useRef<HTMLButtonElement>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const targetLineUserIdRef = useRef<string | null>(null);
 
@@ -323,41 +322,49 @@ const LineUsersPage: React.FC = () => {
                         <div className="flex items-center justify-center gap-2">
                           <span>AI 狀態</span>
                           <button
-                            ref={aiStatusInfoButtonRef}
                             type="button"
-                            onClick={() => setShowAiStatusInfo(!showAiStatusInfo)}
-                            className="text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded-full p-1"
-                            title="AI自動回覆控制說明"
-                            aria-label="顯示AI自動回覆控制說明"
+                            onClick={() => setShowAiStatusInfo(true)}
+                            className="inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+                            aria-label="查看說明"
                           >
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
+                            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                             </svg>
                           </button>
-                          <InfoModal
-                            isOpen={showAiStatusInfo}
-                            onClose={() => setShowAiStatusInfo(false)}
-                            buttonRef={aiStatusInfoButtonRef}
-                            title="AI自動回覆控制"
-                          >
-                            <p className="mb-3">
-                              您可以在此管理每個LINE使用者的AI自動回覆功能。停用後，該使用者的訊息將不會由AI處理，直到您重新啟用。
-                            </p>
-                            <p>
-                              此設定與使用者自行選擇的「人工回覆」不同，此設定由管理員控制且永久有效。
-                            </p>
-                          </InfoModal>
+                          {showAiStatusInfo && (
+                            <BaseModal
+                              onClose={() => setShowAiStatusInfo(false)}
+                              aria-label="AI自動回覆控制說明"
+                            >
+                              <div className="flex items-start">
+                                <div className="flex-shrink-0">
+                                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                  </svg>
+                                </div>
+                                <div className="ml-3 flex-1">
+                                  <h3 className="text-lg font-semibold text-gray-900 mb-3">AI自動回覆控制</h3>
+                                  <div className="text-sm text-gray-700 space-y-2">
+                                    <p>
+                                      您可以在此管理每個LINE使用者的AI自動回覆功能。停用後，該使用者的訊息將不會由AI處理，直到您重新啟用。
+                                    </p>
+                                    <p>
+                                      此設定與使用者自行選擇的「人工回覆」不同，此設定由管理員控制且永久有效。
+                                    </p>
+                                  </div>
+                                  <div className="mt-4 flex justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowAiStatusInfo(false)}
+                                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                                    >
+                                      關閉
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </BaseModal>
+                          )}
                         </div>
                       </th>
                     </tr>

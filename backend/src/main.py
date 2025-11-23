@@ -33,6 +33,14 @@ from services.auto_assignment_service import (
     start_auto_assignment_scheduler,
     stop_auto_assignment_scheduler
 )
+from services.practitioner_daily_notification_service import (
+    start_practitioner_daily_notification_scheduler,
+    stop_practitioner_daily_notification_scheduler
+)
+from services.admin_auto_assigned_notification_service import (
+    start_admin_auto_assigned_notification_scheduler,
+    stop_admin_auto_assigned_notification_scheduler
+)
 
 # Configure logging
 logging.basicConfig(
@@ -86,6 +94,20 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.exception(f"❌ Failed to start auto-assignment scheduler: {e}")
 
+    # Start practitioner daily notification scheduler
+    try:
+        await start_practitioner_daily_notification_scheduler()
+        logger.info("✅ Practitioner daily notification scheduler started")
+    except Exception as e:
+        logger.exception(f"❌ Failed to start practitioner daily notification scheduler: {e}")
+
+    # Start admin auto-assigned notification scheduler
+    try:
+        await start_admin_auto_assigned_notification_scheduler()
+        logger.info("✅ Admin auto-assigned notification scheduler started")
+    except Exception as e:
+        logger.exception(f"❌ Failed to start admin auto-assigned notification scheduler: {e}")
+
     yield
 
     # Stop reminder scheduler
@@ -122,6 +144,20 @@ async def lifespan(app: FastAPI):
         logger.info("🛑 Auto-assignment scheduler stopped")
     except Exception as e:
         logger.exception(f"❌ Error stopping auto-assignment scheduler: {e}")
+
+    # Stop practitioner daily notification scheduler
+    try:
+        await stop_practitioner_daily_notification_scheduler()
+        logger.info("🛑 Practitioner daily notification scheduler stopped")
+    except Exception as e:
+        logger.exception(f"❌ Error stopping practitioner daily notification scheduler: {e}")
+
+    # Stop admin auto-assigned notification scheduler
+    try:
+        await stop_admin_auto_assigned_notification_scheduler()
+        logger.info("🛑 Admin auto-assigned notification scheduler stopped")
+    except Exception as e:
+        logger.exception(f"❌ Error stopping admin auto-assigned notification scheduler: {e}")
 
     logger.info("🛑 Shutting down Clinic Bot Backend API")
 
