@@ -273,11 +273,14 @@ class Clinic(Base):
     signup_tokens = relationship("SignupToken", back_populates="clinic")
     """Active signup tokens for inviting new users"""
 
+    line_users = relationship("LineUser", back_populates="clinic", cascade="all, delete-orphan")
+    """LINE users associated with this clinic (one entry per LINE user)."""
+
     line_user_ai_opt_outs = relationship("LineUserAiOptOut", back_populates="clinic", cascade="all, delete-orphan")
-    """LINE user AI opt-out records for this clinic."""
+    """LINE user AI opt-out records for this clinic (deprecated - use LineUser.ai_opt_out_until)."""
 
     line_user_ai_disabled = relationship("LineUserAiDisabled", back_populates="clinic", cascade="all, delete-orphan")
-    """LINE user AI disabled records for this clinic."""
+    """LINE user AI disabled records for this clinic (deprecated - use LineUser.ai_disabled)."""
 
     line_messages = relationship("LineMessage", back_populates="clinic", cascade="all, delete-orphan")
     """LINE messages associated with this clinic."""

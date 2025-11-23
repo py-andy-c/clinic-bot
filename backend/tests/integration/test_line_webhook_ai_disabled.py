@@ -110,6 +110,16 @@ class TestLineWebhookAiDisabled:
         clinic = test_clinic_with_chat_enabled
         line_user_id = "U_test_user_123"
         
+        # Create LineUser first (required for per-clinic isolation)
+        from models import LineUser
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
         # Disable AI permanently
         disable_ai_for_line_user(db_session, line_user_id, clinic.id)
         
@@ -185,6 +195,16 @@ class TestLineWebhookAiDisabled:
         clinic = test_clinic_with_chat_enabled
         line_user_id = "U_test_user_123"
         
+        # Create LineUser first
+        from models import LineUser
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
         # Disable AI permanently
         disable_ai_for_line_user(db_session, line_user_id, clinic.id)
         
@@ -221,6 +241,16 @@ class TestLineWebhookAiDisabled:
         """Test that temporary opt-out takes precedence over permanent disable."""
         clinic = test_clinic_with_chat_enabled
         line_user_id = "U_test_user_123"
+        
+        # Create LineUser first
+        from models import LineUser
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
         
         # Disable AI permanently
         disable_ai_for_line_user(db_session, line_user_id, clinic.id)
@@ -264,16 +294,22 @@ class TestLineWebhookAiDisabled:
         clinic = test_clinic_with_chat_enabled
         line_user_id = "U_test_user_123"
         
+        # Create LineUser first
+        from models import LineUser
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
         # Disable AI permanently
         disable_ai_for_line_user(db_session, line_user_id, clinic.id)
         
-        # Set temporary opt-out that's already expired
-        opt_out = LineUserAiOptOut(
-            line_user_id=line_user_id,
-            clinic_id=clinic.id,
-            opted_out_until=taiwan_now() - timedelta(hours=1)  # Expired
-        )
-        db_session.add(opt_out)
+        # Set temporary opt-out that's already expired (directly set ai_opt_out_until to past time)
+        from utils.datetime_utils import taiwan_now
+        line_user.ai_opt_out_until = taiwan_now() - timedelta(hours=1)  # Already expired
         db_session.commit()
         
         # Create webhook payload

@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from main import app
 from core.database import get_db
-from models import Clinic, LineUserAiOptOut
+from models import Clinic, LineUser
 from models.clinic import ChatSettings
 from services.clinic_agent import ClinicAgentService
 from utils.datetime_utils import taiwan_now
@@ -35,19 +35,22 @@ def client(db_session):
 @pytest.fixture
 def test_clinic_with_chat_enabled(db_session):
     """Create a test clinic with chat enabled."""
+    from models.clinic import ClinicSettings, ChatSettings
     clinic = Clinic(
         name="Test Clinic",
         line_channel_id="test_channel",
         line_channel_secret="test_secret",
         line_channel_access_token="test_token",
-        line_official_account_user_id="U_official_account_123",
-        settings={
-            "chat_settings": {
-                "chat_enabled": True,
-                "clinic_description": "Test clinic description"
-            }
-        }
+        line_official_account_user_id="U_official_account_123"
     )
+    # Set validated settings to ensure proper structure
+    settings = ClinicSettings(
+        chat_settings=ChatSettings(
+            chat_enabled=True,
+            clinic_description="Test clinic description"
+        )
+    )
+    clinic.set_validated_settings(settings)
     db_session.add(clinic)
     db_session.commit()
     db_session.refresh(clinic)
@@ -111,9 +114,12 @@ class TestLineWebhookOptOutCommands:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
+            mock_service.extract_event_data.return_value = ('message', line_user_id, 'test_reply_token')
             mock_service.extract_message_data.return_value = (line_user_id, OPT_OUT_COMMAND, "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
+            # Mock get_user_profile for LineUser creation
+            mock_service.get_user_profile = MagicMock(return_value=None)
             mock_line_service_class.return_value = mock_service
             
             response = client.post(
@@ -124,13 +130,18 @@ class TestLineWebhookOptOutCommands:
             
             assert response.status_code == 200
             
-            # Verify opt-out was set
-            opt_out = db_session.query(LineUserAiOptOut).filter(
-                LineUserAiOptOut.line_user_id == line_user_id,
-                LineUserAiOptOut.clinic_id == clinic.id
+            # Verify opt-out was set (check LineUser.ai_opt_out_until)
+            # The webhook should have created the LineUser when processing the opt-out command
+            from models import LineUser
+            # Refresh session to see changes made by webhook
+            db_session.expire_all()
+            line_user = db_session.query(LineUser).filter(
+                LineUser.line_user_id == line_user_id,
+                LineUser.clinic_id == clinic.id
             ).first()
-            assert opt_out is not None
-            assert opt_out.opted_out_until > taiwan_now()
+            assert line_user is not None, f"LineUser should be created by webhook for line_user_id={line_user_id}, clinic_id={clinic.id}"
+            assert line_user.ai_opt_out_until is not None
+            assert line_user.ai_opt_out_until > taiwan_now()
             
             # Verify confirmation message was sent
             mock_service.send_text_message.assert_called_once()
@@ -158,9 +169,12 @@ class TestLineWebhookOptOutCommands:
             with patch('api.line_webhook.LINEService') as mock_line_service_class:
                 mock_service = MagicMock()
                 mock_service.verify_signature.return_value = True
+                mock_service.extract_event_data.return_value = ('message', line_user_id, 'test_reply_token')
                 mock_service.extract_message_data.return_value = (line_user_id, message, "test_reply_token", "msg_123", None)
                 mock_service.send_text_message = MagicMock()
                 mock_service.start_loading_animation = MagicMock()
+                # Mock get_user_profile for LineUser creation
+                mock_service.get_user_profile = MagicMock(return_value=None)
                 mock_line_service_class.return_value = mock_service
                 
                 response = client.post(
@@ -171,27 +185,42 @@ class TestLineWebhookOptOutCommands:
                 
                 assert response.status_code == 200
                 
-                # Verify opt-out was set
-                opt_out = db_session.query(LineUserAiOptOut).filter(
-                    LineUserAiOptOut.line_user_id == line_user_id,
-                    LineUserAiOptOut.clinic_id == clinic.id
+                # Verify opt-out was set (check LineUser.ai_opt_out_until)
+                from models import LineUser
+                line_user = db_session.query(LineUser).filter(
+                    LineUser.line_user_id == line_user_id,
+                    LineUser.clinic_id == clinic.id
                 ).first()
-                assert opt_out is not None
+                assert line_user is not None
+                assert line_user.ai_opt_out_until is not None
+                assert line_user.ai_opt_out_until > taiwan_now()
     
     def test_re_enable_command_clears_opt_out(self, client, db_session, test_clinic_with_chat_enabled):
         """Test that sending '重啟AI' command (case-insensitive) clears opt-out and sends confirmation."""
         clinic = test_clinic_with_chat_enabled
         line_user_id = "U_test_user_123"
         
+        # Create LineUser first
+        from models import LineUser
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
         # Set opt-out first
         from services.line_opt_out_service import set_ai_opt_out
         set_ai_opt_out(db_session, line_user_id, clinic.id)
         
-        # Verify opt-out exists
-        opt_out = db_session.query(LineUserAiOptOut).filter(
-            LineUserAiOptOut.line_user_id == line_user_id,
-            LineUserAiOptOut.clinic_id == clinic.id
+        # Verify opt-out exists (check LineUser.ai_opt_out_until)
+        from models import LineUser
+        line_user = db_session.query(LineUser).filter(
+            LineUser.line_user_id == line_user_id,
+            LineUser.clinic_id == clinic.id
         ).first()
+        opt_out = line_user.ai_opt_out_until if line_user else None
         assert opt_out is not None
         
         # Send re-enable command
@@ -206,6 +235,7 @@ class TestLineWebhookOptOutCommands:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
+            mock_service.extract_event_data.return_value = ('message', line_user_id, 'test_reply_token')
             mock_service.extract_message_data.return_value = (line_user_id, RE_ENABLE_COMMAND, "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
@@ -219,12 +249,9 @@ class TestLineWebhookOptOutCommands:
             
             assert response.status_code == 200
             
-            # Verify opt-out was cleared
-            opt_out = db_session.query(LineUserAiOptOut).filter(
-                LineUserAiOptOut.line_user_id == line_user_id,
-                LineUserAiOptOut.clinic_id == clinic.id
-            ).first()
-            assert opt_out is None
+            # Verify opt-out was cleared (ai_opt_out_until should be None)
+            db_session.refresh(line_user)
+            assert line_user.ai_opt_out_until is None
             
             # Verify confirmation message was sent
             mock_service.send_text_message.assert_called_once()
@@ -236,6 +263,16 @@ class TestLineWebhookOptOutCommands:
         """Test that re-enable command works with different cases (重啟ai, 重啟AI, etc.)."""
         clinic = test_clinic_with_chat_enabled
         line_user_id = "U_test_user_123"
+        
+        # Create LineUser first
+        from models import LineUser
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
         
         # Set opt-out first
         from services.line_opt_out_service import set_ai_opt_out
@@ -253,6 +290,7 @@ class TestLineWebhookOptOutCommands:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
+            mock_service.extract_event_data.return_value = ('message', line_user_id, 'test_reply_token')
             mock_service.extract_message_data.return_value = (line_user_id, "重啟ai", "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
@@ -266,12 +304,9 @@ class TestLineWebhookOptOutCommands:
             
             assert response.status_code == 200
             
-            # Verify opt-out was cleared
-            opt_out = db_session.query(LineUserAiOptOut).filter(
-                LineUserAiOptOut.line_user_id == line_user_id,
-                LineUserAiOptOut.clinic_id == clinic.id
-            ).first()
-            assert opt_out is None
+            # Verify opt-out was cleared (ai_opt_out_until should be None)
+            db_session.refresh(line_user)
+            assert line_user.ai_opt_out_until is None
 
 
 class TestLineWebhookOptOutMessageHandling:
@@ -281,6 +316,16 @@ class TestLineWebhookOptOutMessageHandling:
         """Test that messages from opted-out users are ignored."""
         clinic = test_clinic_with_chat_enabled
         line_user_id = "U_test_user_123"
+        
+        # Create LineUser first
+        from models import LineUser
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
         
         # Set opt-out
         from services.line_opt_out_service import set_ai_opt_out
@@ -298,6 +343,7 @@ class TestLineWebhookOptOutMessageHandling:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
+            mock_service.extract_event_data.return_value = ('message', line_user_id, 'test_reply_token')
             mock_service.extract_message_data.return_value = (line_user_id, "這是一個測試訊息", "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
@@ -327,6 +373,24 @@ class TestLineWebhookOptOutMessageHandling:
         clinic = test_clinic_with_chat_enabled
         line_user_id = "U_test_user_123"
         
+        # Create LineUser first (required for per-clinic isolation)
+        from models import LineUser
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        db_session.refresh(line_user)
+        
+        # Verify LineUser was created correctly
+        found_user = db_session.query(LineUser).filter_by(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id
+        ).first()
+        assert found_user is not None, "LineUser should exist before webhook call"
+        
         # Send regular message (user is NOT opted out)
         payload = create_line_webhook_payload(
             line_user_id=line_user_id,
@@ -339,9 +403,15 @@ class TestLineWebhookOptOutMessageHandling:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
+            # Mock extract_event_data to return (event_type, line_user_id, reply_token)
+            mock_service.extract_event_data.return_value = ('message', line_user_id, 'test_reply_token')
+            # Mock extract_message_data to return (line_user_id, message_text, reply_token, message_id, quoted_message_id)
             mock_service.extract_message_data.return_value = (line_user_id, "這是一個測試訊息", "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
+            # Mock get_user_profile to return None (not needed since LineUser already exists)
+            # This is called by get_or_create_line_user if display_name is not provided
+            mock_service.get_user_profile = MagicMock(return_value=None)
             mock_line_service_class.return_value = mock_service
             
             # Mock agent service to return a response
@@ -372,13 +442,19 @@ class TestLineWebhookOptOutMessageHandling:
         clinic = test_clinic_with_chat_enabled
         line_user_id = "U_test_user_123"
         
-        # Set opt-out with expired timestamp
-        opt_out = LineUserAiOptOut(
+        # Create LineUser first
+        from models import LineUser
+        line_user = LineUser(
             line_user_id=line_user_id,
             clinic_id=clinic.id,
-            opted_out_until=taiwan_now() - timedelta(hours=1)  # Already expired
+            display_name="Test User"
         )
-        db_session.add(opt_out)
+        db_session.add(line_user)
+        db_session.commit()
+        
+        # Set opt-out with expired timestamp (directly set ai_opt_out_until to past time)
+        from utils.datetime_utils import taiwan_now
+        line_user.ai_opt_out_until = taiwan_now() - timedelta(hours=1)  # Already expired
         db_session.commit()
         
         # Send regular message (opt-out should be auto-expired)
@@ -393,9 +469,12 @@ class TestLineWebhookOptOutMessageHandling:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
+            mock_service.extract_event_data.return_value = ('message', line_user_id, 'test_reply_token')
             mock_service.extract_message_data.return_value = (line_user_id, "這是一個測試訊息", "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
+            # Mock get_user_profile for LineUser creation
+            mock_service.get_user_profile = MagicMock(return_value=None)
             mock_line_service_class.return_value = mock_service
             
             # Mock agent service
@@ -413,12 +492,9 @@ class TestLineWebhookOptOutMessageHandling:
                 # Verify agent WAS called (opt-out expired)
                 mock_agent.assert_called_once()
                 
-                # Verify expired opt-out record was deleted
-                opt_out = db_session.query(LineUserAiOptOut).filter(
-                    LineUserAiOptOut.line_user_id == line_user_id,
-                    LineUserAiOptOut.clinic_id == clinic.id
-                ).first()
-                assert opt_out is None
+                # Verify expired opt-out was cleared (ai_opt_out_until should be None)
+                db_session.refresh(line_user)
+                assert line_user.ai_opt_out_until is None
     
     def test_opt_out_per_clinic_isolation(self, client, db_session, test_clinic_with_chat_enabled):
         """Test that opt-out status is isolated per clinic."""
@@ -440,6 +516,24 @@ class TestLineWebhookOptOutMessageHandling:
         
         line_user_id = "U_test_user_123"
         
+        # Create LineUser for clinic1
+        from models import LineUser
+        line_user1 = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic1.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user1)
+        
+        # Create LineUser for clinic2
+        line_user2 = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic2.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user2)
+        db_session.commit()
+        
         # Opt out from clinic1 only
         from services.line_opt_out_service import set_ai_opt_out
         set_ai_opt_out(db_session, line_user_id, clinic1.id)
@@ -456,6 +550,7 @@ class TestLineWebhookOptOutMessageHandling:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
+            mock_service.extract_event_data.return_value = ('message', line_user_id, 'test_reply_token')
             mock_service.extract_message_data.return_value = (line_user_id, "測試訊息", "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()
@@ -483,6 +578,7 @@ class TestLineWebhookOptOutMessageHandling:
         with patch('api.line_webhook.LINEService') as mock_line_service_class:
             mock_service = MagicMock()
             mock_service.verify_signature.return_value = True
+            mock_service.extract_event_data.return_value = ('message', line_user_id, 'test_reply_token')
             mock_service.extract_message_data.return_value = (line_user_id, "測試訊息", "test_reply_token", "msg_123", None)
             mock_service.send_text_message = MagicMock()
             mock_service.start_loading_animation = MagicMock()

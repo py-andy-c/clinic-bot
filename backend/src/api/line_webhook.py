@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from models import Clinic, PractitionerLinkCode, User, LineUser
+from models import Clinic, PractitionerLinkCode, User
 from services.line_service import LINEService
 from services.line_user_service import LineUserService
 from services.clinic_agent import ClinicAgentService
@@ -188,6 +188,7 @@ def _handle_follow_event(
         LineUserService.get_or_create_line_user(
             db=db,
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             line_service=line_service,
             display_name=None  # Will be fetched from LINE API
         )
@@ -589,6 +590,7 @@ async def line_webhook(
             line_user = LineUserService.get_or_create_line_user(
                 db=db,
                 line_user_id=line_user_id,
+                clinic_id=clinic.id,
                 line_service=line_service,
                 display_name=None  # Will be fetched from LINE API if needed
             )
@@ -623,6 +625,8 @@ async def line_webhook(
             if not reply_token:
                 logger.warning("Opt-out command received but no reply_token available")
                 return {"status": "ok", "message": "Command received but cannot reply"}
+            # LineUser should already exist from the call at line 590
+            # If it doesn't exist, _handle_opt_out_command will handle the error gracefully
             return _handle_opt_out_command(
                 db, line_service, line_user_id, reply_token, clinic
             )
@@ -632,6 +636,8 @@ async def line_webhook(
             if not reply_token:
                 logger.warning("Re-enable command received but no reply_token available")
                 return {"status": "ok", "message": "Command received but cannot reply"}
+            # LineUser should already exist from the call at line 590
+            # If it doesn't exist, _handle_re_enable_command will handle the error gracefully
             return _handle_re_enable_command(
                 db, line_service, line_user_id, reply_token, clinic
             )

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from main import app
 from core.database import get_db
-from models import Clinic, User, UserClinicAssociation, LineUser, Patient, LineUserAiDisabled
+from models import Clinic, User, UserClinicAssociation, LineUser, Patient
 from services.line_user_ai_disabled_service import disable_ai_for_line_user
 from services.jwt_service import jwt_service, TokenPayload
 
@@ -81,6 +81,7 @@ def line_user_with_patient(db_session, test_clinic):
     """Create a LINE user with a patient."""
     line_user = LineUser(
         line_user_id="U_test_user_123",
+        clinic_id=test_clinic.id,
         display_name="Test LINE User"
     )
     db_session.add(line_user)
@@ -151,11 +152,17 @@ class TestGetLineUsers:
         assert data["line_users"][0]["patient_count"] == 1
         assert data["line_users"][0]["ai_disabled"] is False
     
-    def test_get_line_users_excludes_soft_deleted_patients(self, client, db_session, test_clinic, admin_user):
-        """Test that endpoint excludes LINE users with only soft-deleted patients."""
+    def test_get_line_users_includes_users_with_only_soft_deleted_patients(self, client, db_session, test_clinic, admin_user):
+        """Test that endpoint includes LINE users even if they only have soft-deleted patients.
+        
+        Since LineUsers are only created when users interact with the clinic, we should
+        include all LineUsers regardless of patient status. This allows admins to manage
+        AI settings for all users who have interacted with the clinic.
+        """
         # Create LINE user with only soft-deleted patient
         line_user = LineUser(
             line_user_id="U_deleted_patient_user",
+            clinic_id=test_clinic.id,
             display_name="Deleted Patient User"
         )
         db_session.add(line_user)
@@ -177,7 +184,10 @@ class TestGetLineUsers:
         
         assert response.status_code == 200
         data = response.json()
-        assert len(data["line_users"]) == 0
+        assert len(data["line_users"]) == 1
+        assert data["line_users"][0]["line_user_id"] == "U_deleted_patient_user"
+        assert data["line_users"][0]["patient_count"] == 0  # No active patients
+        assert data["line_users"][0]["patient_names"] == []  # No active patient names
     
     def test_get_line_users_pagination(self, client, db_session, test_clinic, admin_user):
         """Test that endpoint supports pagination."""
@@ -185,6 +195,7 @@ class TestGetLineUsers:
         for i in range(5):
             line_user = LineUser(
                 line_user_id=f"U_user_{i}",
+                clinic_id=test_clinic.id,
                 display_name=f"User {i}"
             )
             db_session.add(line_user)
@@ -230,13 +241,10 @@ class TestDisableAiForLineUser:
         assert response.status_code == 200
         assert response.json()["status"] == "ok"
         
-        # Verify record was created
-        disabled = db_session.query(LineUserAiDisabled).filter(
-            LineUserAiDisabled.line_user_id == line_user_with_patient.line_user_id,
-            LineUserAiDisabled.clinic_id == test_clinic.id
-        ).first()
-        assert disabled is not None
-        assert disabled.disabled_by_user_id == practitioner_user.id
+        # Verify record was created (check LineUser.ai_disabled)
+        db_session.refresh(line_user_with_patient)
+        assert line_user_with_patient.ai_disabled is True
+        assert line_user_with_patient.ai_disabled_by_user_id == practitioner_user.id
     
     def test_disable_ai_creates_record(self, client, db_session, test_clinic, admin_user, line_user_with_patient):
         """Test that disabling AI creates a disable record."""
@@ -251,14 +259,11 @@ class TestDisableAiForLineUser:
         assert response.status_code == 200
         assert response.json()["status"] == "ok"
         
-        # Verify record was created
-        disabled = db_session.query(LineUserAiDisabled).filter(
-            LineUserAiDisabled.line_user_id == line_user_with_patient.line_user_id,
-            LineUserAiDisabled.clinic_id == test_clinic.id
-        ).first()
-        assert disabled is not None
-        assert disabled.reason == "Test reason"
-        assert disabled.disabled_by_user_id == admin_user.id
+        # Verify record was created (check LineUser.ai_disabled)
+        db_session.refresh(line_user_with_patient)
+        assert line_user_with_patient.ai_disabled is True
+        assert line_user_with_patient.ai_disabled_reason == "Test reason"
+        assert line_user_with_patient.ai_disabled_by_user_id == admin_user.id
     
     def test_disable_ai_returns_404_for_nonexistent_user(self, client, test_clinic, admin_user):
         """Test that disabling AI for non-existent user returns 404."""
@@ -302,11 +307,9 @@ class TestEnableAiForLineUser:
         assert response.json()["status"] == "ok"
         
         # Verify record was removed
-        disabled = db_session.query(LineUserAiDisabled).filter(
-            LineUserAiDisabled.line_user_id == line_user_with_patient.line_user_id,
-            LineUserAiDisabled.clinic_id == test_clinic.id
-        ).first()
-        assert disabled is None
+        # Verify AI is not disabled (check LineUser.ai_disabled)
+        db_session.refresh(line_user_with_patient)
+        assert line_user_with_patient.ai_disabled is False
     
     def test_enable_ai_removes_record(self, client, db_session, test_clinic, admin_user, line_user_with_patient):
         """Test that enabling AI removes the disable record."""
@@ -324,11 +327,9 @@ class TestEnableAiForLineUser:
         assert response.json()["status"] == "ok"
         
         # Verify record was removed
-        disabled = db_session.query(LineUserAiDisabled).filter(
-            LineUserAiDisabled.line_user_id == line_user_with_patient.line_user_id,
-            LineUserAiDisabled.clinic_id == test_clinic.id
-        ).first()
-        assert disabled is None
+        # Verify AI is not disabled (check LineUser.ai_disabled)
+        db_session.refresh(line_user_with_patient)
+        assert line_user_with_patient.ai_disabled is False
     
     def test_enable_ai_returns_404_for_nonexistent_user(self, client, test_clinic, admin_user):
         """Test that enabling AI for non-existent user returns 404."""

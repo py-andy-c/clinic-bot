@@ -163,6 +163,7 @@ class TestReminderServiceDuplicatePrevention:
         from models.line_user import LineUser
         line_user = LineUser(
             line_user_id="test_line_user_id",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -259,6 +260,7 @@ class TestReminderServiceDuplicatePrevention:
         from models.line_user import LineUser
         line_user = LineUser(
             line_user_id="test_line_user_id",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -355,6 +357,7 @@ class TestReminderServiceDuplicatePrevention:
         from models.line_user import LineUser
         line_user = LineUser(
             line_user_id="test_line_user_id",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -634,6 +637,7 @@ class TestReminderServiceWindowBoundaries:
         from models.line_user import LineUser
         line_user = LineUser(
             line_user_id="test_line_user_id",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -792,6 +796,7 @@ class TestReminderServiceCatchUp:
         from models.line_user import LineUser
         line_user = LineUser(
             line_user_id="test_line_user_id",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -992,6 +997,7 @@ class TestReminderServiceCatchUp:
         from models.line_user import LineUser
         line_user = LineUser(
             line_user_id="test_line_user_id",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)

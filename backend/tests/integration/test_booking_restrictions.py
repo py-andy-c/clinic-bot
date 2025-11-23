@@ -216,6 +216,7 @@ class TestMinimumBookingHoursAhead:
         # Create patient with LINE user
         line_user = LineUser(
             line_user_id="U_test_restricted",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -370,6 +371,7 @@ class TestMaxBookingWindowDays:
         # Create patient with LINE user
         line_user = LineUser(
             line_user_id="U_test_window",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -475,6 +477,7 @@ class TestMaxFutureAppointments:
         # Create LINE user and patient
         line_user = LineUser(
             line_user_id="U_test_user",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -596,6 +599,7 @@ class TestMinimumCancellationHoursBefore:
         # Create LINE user for patient
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -658,6 +662,7 @@ class TestMinimumCancellationHoursBefore:
         # Create LINE user for patient
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -837,6 +842,7 @@ class TestClinicAdminBypassBehavior:
         # Create LINE user and link to patient to simulate patient booking
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)

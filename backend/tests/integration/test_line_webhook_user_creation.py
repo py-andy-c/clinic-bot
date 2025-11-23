@@ -182,6 +182,7 @@ class TestUnfollowEvent:
         # Create existing user
         existing_user = LineUser(
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             display_name="Existing User"
         )
         db_session.add(existing_user)
@@ -331,6 +332,7 @@ class TestMessageEventUserCreation:
         # Create existing user with old name
         existing_user = LineUser(
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             display_name="Old Name"
         )
         db_session.add(existing_user)

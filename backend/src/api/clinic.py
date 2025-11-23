@@ -3259,10 +3259,11 @@ async def get_line_users(
     limit: Optional[int] = Query(None, ge=1, le=100, description="Limit for pagination (deprecated, use page/page_size instead). Must be provided with offset.")
 ) -> LineUserListResponse:
     """
-    Get all LINE users who have patients in this clinic, with AI status.
+    Get all LINE users who have patients or messages in this clinic, with AI status.
     
     Any authenticated clinic user can access this endpoint.
     Returns LINE users with their patient count, patient names, and AI disable status.
+    Includes users who have sent messages but haven't created patients yet.
     Supports pagination via page and page_size parameters (preferred) or offset/limit (deprecated).
     If pagination parameters are not provided, returns all line users (backward compatible).
     Note: page and page_size must both be provided together, or offset and limit together, or all omitted.
@@ -3451,12 +3452,20 @@ async def enable_ai_for_line_user_endpoint(
         # Verify LINE user has interacted with this clinic (patients or messages)
         _verify_line_user_has_interaction(db, line_user_id, clinic_id)
         
-        # Enable AI (removes disable record if it exists)
-        enable_ai_for_line_user(
+        # Enable AI (clears disable fields on LineUser)
+        # Note: enable_ai_for_line_user returns Optional[LineUser] - None if LineUser doesn't exist.
+        # However, _verify_line_user_has_interaction ensures LineUser exists, so this should not be None.
+        result = enable_ai_for_line_user(
             db=db,
             line_user_id=line_user_id,
             clinic_id=clinic_id
         )
+        # Log if LineUser wasn't found (shouldn't happen after verification, but defensive check)
+        if result is None:
+            logger.warning(
+                f"enable_ai_for_line_user returned None for line_user_id={line_user_id}, "
+                f"clinic_id={clinic_id} (LineUser should exist after verification)"
+            )
         
         logger.info(
             f"AI enabled for line_user_id={line_user_id}, "

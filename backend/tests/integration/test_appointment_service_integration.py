@@ -85,6 +85,7 @@ class TestAppointmentServiceIntegration:
         # Create LINE user and patient
         line_user = LineUser(
             line_user_id="U_test_user",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -276,6 +277,7 @@ class TestAppointmentServiceIntegration:
         db_session.flush()  # Ensure appt_type.id is available
         line_user = LineUser(
             line_user_id="U_test",
+            clinic_id=clinic.id,
             display_name="Test"
         )
         db_session.add(line_user)
@@ -373,6 +375,7 @@ class TestAppointmentServiceIntegration:
         db_session.flush()  # Ensure appt_type.id is available
         line_user = LineUser(
             line_user_id="U_test",
+            clinic_id=clinic.id,
             display_name="Test"
         )
         db_session.add(line_user)
@@ -683,6 +686,7 @@ class TestAppointmentServiceIntegration:
         # Create LINE user
         line_user = LineUser(
             line_user_id="test_line_user_123",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -980,6 +984,7 @@ class TestAppointmentServiceIntegration:
         # Create LINE user
         line_user = LineUser(
             line_user_id="test_line_user_123",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -1283,6 +1288,7 @@ class TestAppointmentServiceIntegration:
         # Create LINE user
         line_user = LineUser(
             line_user_id="test_line_user_123",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)

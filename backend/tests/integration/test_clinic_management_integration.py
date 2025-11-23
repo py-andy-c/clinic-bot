@@ -112,6 +112,7 @@ def linked_patient(db_session, test_clinic_with_therapist):
     # Create LINE user and link to patient
     line_user = LineUser(
         line_user_id="U_test_patient_123",
+        clinic_id=clinic.id,
         display_name="Test Patient"
     )
     db_session.add(line_user)

@@ -9,7 +9,7 @@ import pytest
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from models import Clinic, LineUserAiDisabled, LineUser, Patient
+from models import Clinic, LineUser, Patient
 from services.line_user_ai_disabled_service import (
     is_ai_disabled,
     disable_ai_for_line_user,
@@ -43,6 +43,15 @@ class TestIsAiDisabled:
         
         line_user_id = "U_test_user_123"
         
+        # Create LineUser first (required for per-clinic isolation)
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
         # Disable AI
         disable_ai_for_line_user(db_session, line_user_id, clinic.id)
         
@@ -66,6 +75,23 @@ class TestIsAiDisabled:
         db_session.commit()
         
         line_user_id = "U_test_user_123"
+        
+        # Create LineUser for clinic1
+        line_user1 = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic1.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user1)
+        
+        # Create LineUser for clinic2
+        line_user2 = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic2.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user2)
+        db_session.commit()
         
         # Disable for clinic1 only
         disable_ai_for_line_user(db_session, line_user_id, clinic1.id)
@@ -97,6 +123,15 @@ class TestDisableAiForLineUser:
         disabled_by_user_id = admin_user.id
         reason = "Test reason"
         
+        # Create LineUser first
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
         disabled = disable_ai_for_line_user(
             db_session, line_user_id, clinic.id,
             disabled_by_user_id=disabled_by_user_id,
@@ -106,9 +141,9 @@ class TestDisableAiForLineUser:
         assert disabled is not None
         assert disabled.line_user_id == line_user_id
         assert disabled.clinic_id == clinic.id
-        assert disabled.disabled_by_user_id == disabled_by_user_id
-        assert disabled.reason == reason
-        assert disabled.disabled_at is not None
+        assert disabled.ai_disabled_by_user_id == disabled_by_user_id
+        assert disabled.ai_disabled_reason == reason
+        assert disabled.ai_disabled_at is not None
     
     def test_disable_updates_existing_record(self, db_session: Session, sample_clinic_data):
         """Test that disabling when already disabled updates the record."""
@@ -132,13 +167,22 @@ class TestDisableAiForLineUser:
         
         line_user_id = "U_test_user_123"
         
+        # Create LineUser first
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
         # Disable first time
         disabled1 = disable_ai_for_line_user(
             db_session, line_user_id, clinic.id,
             disabled_by_user_id=admin_user1.id,
             reason="First reason"
         )
-        first_disabled_at = disabled1.disabled_at
+        first_disabled_at = disabled1.ai_disabled_at
         
         # Wait a moment (simulate time passing)
         import time
@@ -155,9 +199,9 @@ class TestDisableAiForLineUser:
         assert disabled1.id == disabled2.id
         
         # Timestamp should be updated
-        assert disabled2.disabled_at > first_disabled_at
-        assert disabled2.disabled_by_user_id == admin_user2.id
-        assert disabled2.reason == "Second reason"
+        assert disabled2.ai_disabled_at > first_disabled_at
+        assert disabled2.ai_disabled_by_user_id == admin_user2.id
+        assert disabled2.ai_disabled_reason == "Second reason"
 
 
 class TestEnableAiForLineUser:
@@ -171,40 +215,57 @@ class TestEnableAiForLineUser:
         
         line_user_id = "U_test_user_123"
         
+        # Create LineUser first
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
         # Disable first
         disable_ai_for_line_user(db_session, line_user_id, clinic.id)
         
-        # Verify it exists
-        disabled = db_session.query(LineUserAiDisabled).filter(
-            LineUserAiDisabled.line_user_id == line_user_id,
-            LineUserAiDisabled.clinic_id == clinic.id
-        ).first()
-        assert disabled is not None
+        # Verify it exists (check LineUser.ai_disabled)
+        db_session.refresh(line_user)
+        assert line_user.ai_disabled is True
         
         # Enable AI
         result = enable_ai_for_line_user(db_session, line_user_id, clinic.id)
         
         assert result is not None
         
-        # Verify it's gone
-        disabled = db_session.query(LineUserAiDisabled).filter(
-            LineUserAiDisabled.line_user_id == line_user_id,
-            LineUserAiDisabled.clinic_id == clinic.id
-        ).first()
-        assert disabled is None
+        # Verify it's gone (ai_disabled should be False)
+        db_session.refresh(line_user)
+        assert line_user.ai_disabled is False
+        assert line_user.ai_disabled_at is None
     
     def test_enable_when_not_disabled(self, db_session: Session, sample_clinic_data):
-        """Test that enabling when not disabled returns None."""
+        """Test that enabling when not disabled still returns LineUser (idempotent operation)."""
         clinic = Clinic(**sample_clinic_data)
         db_session.add(clinic)
         db_session.commit()
         
         line_user_id = "U_test_user_123"
         
+        # Create LineUser first (but don't disable)
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
         # Try to enable when not disabled
+        # The service returns LineUser if it exists (idempotent - safe to call even if not disabled)
         result = enable_ai_for_line_user(db_session, line_user_id, clinic.id)
         
-        assert result is None
+        # Service returns LineUser (idempotent operation)
+        assert result is not None
+        assert result.line_user_id == line_user_id
+        assert result.ai_disabled is False
 
 
 class TestGetLineUsersForClinic:
@@ -230,6 +291,7 @@ class TestGetLineUsersForClinic:
         # Create LineUser
         line_user = LineUser(
             line_user_id="U_test_user_123",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -257,8 +319,13 @@ class TestGetLineUsersForClinic:
         assert result[0].patient_names == ["Test Patient"]
         assert result[0].ai_disabled is False
     
-    def test_get_line_users_excludes_soft_deleted_patients(self, db_session: Session, sample_clinic_data):
-        """Test that get_line_users excludes LINE users with only soft-deleted patients."""
+    def test_get_line_users_includes_users_with_only_soft_deleted_patients(self, db_session: Session, sample_clinic_data):
+        """Test that get_line_users includes LINE users even if they only have soft-deleted patients.
+        
+        Since LineUsers are only created when users interact with the clinic, we should
+        include all LineUsers regardless of patient status. This allows admins to manage
+        AI settings for all users who have interacted with the clinic.
+        """
         clinic = Clinic(**sample_clinic_data)
         db_session.add(clinic)
         db_session.commit()
@@ -266,6 +333,7 @@ class TestGetLineUsersForClinic:
         # Create LineUser
         line_user = LineUser(
             line_user_id="U_test_user_123",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -282,11 +350,14 @@ class TestGetLineUsersForClinic:
         db_session.add(patient)
         db_session.commit()
         
-        # Get line users (should be empty)
+        # Get line users (should include the user, but with 0 active patients)
         result, total = get_line_users_for_clinic(db_session, clinic.id)
         
-        assert result == []
-        assert total == 0
+        assert len(result) == 1
+        assert total == 1
+        assert result[0].line_user_id == "U_test_user_123"
+        assert result[0].patient_count == 0  # No active patients
+        assert result[0].patient_names == []  # No active patient names
     
     def test_get_line_users_shows_ai_status(self, db_session: Session, sample_clinic_data):
         """Test that get_line_users includes AI disabled status."""
@@ -297,6 +368,7 @@ class TestGetLineUsersForClinic:
         # Create LineUser
         line_user = LineUser(
             line_user_id="U_test_user_123",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -322,7 +394,7 @@ class TestGetLineUsersForClinic:
         assert len(result) == 1
         assert total == 1
         assert result[0].ai_disabled is True
-        assert result[0].disabled_at is not None
+        assert result[0].disabled_at is not None  # Verify disabled_at timestamp is set
     
     def test_get_line_users_pagination(self, db_session: Session, sample_clinic_data):
         """Test that get_line_users supports pagination."""
@@ -334,6 +406,7 @@ class TestGetLineUsersForClinic:
         for i in range(5):
             line_user = LineUser(
                 line_user_id=f"U_test_user_{i}",
+                clinic_id=clinic.id,
                 display_name=f"Test User {i}"
             )
             db_session.add(line_user)

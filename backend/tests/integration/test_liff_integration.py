@@ -121,6 +121,7 @@ def authenticated_line_user(db_session: Session, test_clinic_with_liff):
     # Create LINE user
     line_user = LineUser(
         line_user_id="U_test_line_user_123",
+        clinic_id=clinic.id,
         display_name="Test LINE User"
     )
     db_session.add(line_user)
@@ -142,6 +143,7 @@ class TestLiffDatabaseOperations:
         # Create LINE user directly (simulating LIFF login)
         line_user = LineUser(
             line_user_id="U_test_patient_creation",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -205,6 +207,7 @@ class TestLiffDatabaseOperations:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_test_patient_update",
+            clinic_id=clinic.id,
             display_name="Test Update User"
         )
         db_session.add(line_user)
@@ -299,6 +302,7 @@ class TestLiffDatabaseOperations:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_test_birthday",
+            clinic_id=clinic.id,
             display_name="Birthday Test User"
         )
         db_session.add(line_user)
@@ -358,6 +362,7 @@ class TestLiffDatabaseOperations:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_test_require_birthday",
+            clinic_id=clinic.id,
             display_name="Require Birthday Test User"
         )
         db_session.add(line_user)
@@ -406,6 +411,7 @@ class TestLiffDatabaseOperations:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_test_update_birthday",
+            clinic_id=clinic.id,
             display_name="Update Birthday Test User"
         )
         db_session.add(line_user)
@@ -465,6 +471,7 @@ class TestLiffDatabaseOperations:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_test_list_birthday",
+            clinic_id=clinic.id,
             display_name="List Birthday Test User"
         )
         db_session.add(line_user)
@@ -518,6 +525,7 @@ class TestLiffDatabaseOperations:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_test_update_validation",
+            clinic_id=clinic.id,
             display_name="Validation Test User"
         )
         db_session.add(line_user)
@@ -576,7 +584,8 @@ class TestLiffDatabaseOperations:
             # Test updating with invalid patient ID (not owned by user)
             other_line_user = LineUser(
                 line_user_id="U_other_user",
-                display_name="Other User"
+                clinic_id=clinic.id,
+            display_name="Other User"
             )
             db_session.add(other_line_user)
             db_session.commit()
@@ -609,6 +618,7 @@ class TestLiffDatabaseOperations:
         # Create LINE user and patient
         line_user = LineUser(
             line_user_id="U_test_appointment",
+            clinic_id=clinic.id,
             display_name="Appointment User"
         )
         db_session.add(line_user)
@@ -678,6 +688,7 @@ class TestLiffDatabaseOperations:
         # Create LINE user and multiple patients with appointments
         line_user = LineUser(
             line_user_id="U_test_listing",
+            clinic_id=clinic.id,
             display_name="Listing User"
         )
         db_session.add(line_user)
@@ -755,6 +766,7 @@ class TestLiffDatabaseOperations:
         # Create LINE user directly (simulating LIFF login)
         line_user = LineUser(
             line_user_id="U_complete_flow_123",
+            clinic_id=clinic.id,
             display_name="李小華"
         )
         db_session.add(line_user)
@@ -850,6 +862,7 @@ class TestLiffReturningUserFlow:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_list_patients_123",
+            clinic_id=clinic.id,
             display_name="王先生"
         )
         db_session.add(line_user)
@@ -904,6 +917,7 @@ class TestLiffReturningUserFlow:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_books_different_123",
+            clinic_id=clinic.id,
             display_name="陳先生"
         )
         db_session.add(line_user)
@@ -977,6 +991,7 @@ class TestLiffReturningUserFlow:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_appointment_history_123",
+            clinic_id=clinic.id,
             display_name="陳大華"
         )
         db_session.add(line_user)
@@ -1048,6 +1063,7 @@ class TestLiffReturningUserFlow:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_cancel_appointment_123",
+            clinic_id=clinic.id,
             display_name="林小薇"
         )
         db_session.add(line_user)
@@ -1115,6 +1131,7 @@ class TestLiffAvailabilityAndScheduling:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_availability_test_123",
+            clinic_id=clinic.id,
             display_name="Availability User"
         )
         db_session.add(line_user)
@@ -1268,6 +1285,7 @@ class TestLiffAvailabilityAndScheduling:
         # Create LINE user for clinic2
         line_user = LineUser(
             line_user_id="U_multiclinic_test_123",
+            clinic_id=clinic2.id,
             display_name="Multi-Clinic Test User"
         )
         db_session.add(line_user)
@@ -1329,6 +1347,7 @@ class TestLiffAvailabilityAndScheduling:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_booking_records_123",
+            clinic_id=clinic.id,
             display_name="趙小龍"
         )
         db_session.add(line_user)
@@ -1404,6 +1423,7 @@ class TestLiffAvailabilityAndScheduling:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_batch_test_123",
+            clinic_id=clinic.id,
             display_name="Batch Test User"
         )
         db_session.add(line_user)
@@ -1493,6 +1513,7 @@ class TestLiffAvailabilityAndScheduling:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_dedup_test_123",
+            clinic_id=clinic.id,
             display_name="Dedup Test User"
         )
         db_session.add(line_user)
@@ -1582,6 +1603,7 @@ class TestLiffAvailabilityAndScheduling:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_practitioner_assignment_123",
+            clinic_id=clinic.id,
             display_name="孫小美"
         )
         db_session.add(line_user)
@@ -1648,6 +1670,7 @@ class TestLiffErrorHandling:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_error_test_123",
+            clinic_id=clinic.id,
             display_name="Error Test User"
         )
         db_session.add(line_user)
@@ -1710,6 +1733,7 @@ class TestLiffErrorHandling:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_past_appointment_test_123",
+            clinic_id=clinic.id,
             display_name="郭小華"
         )
         db_session.add(line_user)
@@ -1765,6 +1789,7 @@ class TestLiffErrorHandling:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_double_booking_test_123",
+            clinic_id=clinic.id,
             display_name="錢小明"
         )
         db_session.add(line_user)
@@ -1849,6 +1874,7 @@ class TestLiffErrorHandling:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_far_future_test_123",
+            clinic_id=clinic.id,
             display_name="周小美"
         )
         db_session.add(line_user)
@@ -1997,12 +2023,14 @@ class TestClinicIsolationSecurity:
         # Create LINE users for each clinic
         line_user1 = LineUser(
             line_user_id="U_clinic1_patient",
+            clinic_id=clinic1.id,
             display_name="Clinic1 Patient"
         )
         db_session.add(line_user1)
 
         line_user2 = LineUser(
             line_user_id="U_clinic2_patient",
+            clinic_id=clinic2.id,
             display_name="Clinic2 Patient"
         )
         db_session.add(line_user2)
@@ -2086,6 +2114,7 @@ class TestClinicIsolationSecurity:
         # Create a LINE user
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -2293,6 +2322,7 @@ class TestCompactScheduleFeature:
         """Helper to create LINE user and patient for tests."""
         line_user = LineUser(
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             display_name=f"Compact Schedule User {line_user_id[-3:]}"
         )
         db_session.add(line_user)
@@ -2575,6 +2605,7 @@ class TestCompactScheduleFeature:
         # Create LINE user (no patient needed for this test)
         line_user = LineUser(
             line_user_id="U_compact_schedule_test_000",
+            clinic_id=clinic.id,
             display_name="Compact Schedule User 4"
         )
         db_session.add(line_user)
@@ -2622,6 +2653,7 @@ class TestLanguagePreference:
         # Create LINE user with preferred_language
         line_user = LineUser(
             line_user_id="U_test_lang_login_existing",
+            clinic_id=clinic.id,
             display_name="Test User",
             preferred_language="en"
         )
@@ -2653,6 +2685,7 @@ class TestLanguagePreference:
         # Create LINE user without preferred_language (null)
         line_user = LineUser(
             line_user_id="U_test_lang_login_null",
+            clinic_id=clinic.id,
             display_name="Test User",
             preferred_language=None
         )
@@ -2684,14 +2717,15 @@ class TestLanguagePreference:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_test_lang_update",
+            clinic_id=clinic.id,
             display_name="Test User",
             preferred_language="zh-TW"
         )
         db_session.add(line_user)
         db_session.commit()
 
-        # Mock authentication
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        # Mock authentication - use get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -2708,7 +2742,7 @@ class TestLanguagePreference:
             assert line_user.preferred_language == "en"
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
     def test_update_language_preference_invalid_code(self, db_session: Session, test_clinic_with_liff):
@@ -2718,13 +2752,14 @@ class TestLanguagePreference:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_test_lang_invalid",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
         db_session.commit()
 
-        # Mock authentication
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        # Mock authentication - use get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -2738,7 +2773,7 @@ class TestLanguagePreference:
                 assert response.status_code == 422  # Validation error
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
     def test_update_language_preference_persists_in_database(self, db_session: Session, test_clinic_with_liff):
@@ -2748,13 +2783,14 @@ class TestLanguagePreference:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_test_lang_persist",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
         db_session.commit()
 
-        # Mock authentication for update
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        # Mock authentication for update - use get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -2773,5 +2809,5 @@ class TestLanguagePreference:
             assert line_user.preferred_language == "en"
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)

@@ -40,7 +40,7 @@ from api.responses import (
     AvailabilityResponse, AvailabilitySlot,
     AppointmentResponse, AppointmentListResponse, AppointmentListItem
 )
-from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
+from auth.dependencies import get_current_line_user_with_clinic
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -295,26 +295,8 @@ async def liff_login(
     Supports both clinic_token (preferred, secure) and clinic_id (deprecated, backward compatibility).
     """
     try:
-        # Get or create LINE user
-        line_user = db.query(LineUser).filter_by(
-            line_user_id=request.line_user_id
-        ).first()
-
-        if not line_user:
-            line_user = LineUser(
-                line_user_id=request.line_user_id,
-                display_name=request.display_name
-            )
-            db.add(line_user)
-            db.commit()
-            db.refresh(line_user)
-        else:
-            # Update display name if changed
-            if line_user.display_name != request.display_name:
-                line_user.display_name = request.display_name
-                db.commit()
-
         # Look up clinic by token or ID (with backward compatibility)
+        # We need clinic_id before creating LineUser
         clinic = None
 
         if request.clinic_token:
@@ -364,6 +346,78 @@ async def liff_login(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Either clinic_token or clinic_id required"
             )
+
+        # Now get or create LINE user for this clinic using service method for race condition handling
+        from services.line_user_service import LineUserService
+        from services.line_service import LINEService
+        from sqlalchemy.exc import IntegrityError
+        
+        # Create LINEService from clinic credentials (if available) for profile fetching
+        # If credentials are missing, service will use provided display_name
+        line_service = None
+        if clinic.line_channel_secret and clinic.line_channel_access_token:
+            try:
+                line_service = LINEService(
+                    channel_secret=clinic.line_channel_secret,
+                    channel_access_token=clinic.line_channel_access_token
+                )
+            except ValueError:
+                # Invalid credentials - will use provided display_name instead
+                logger.warning(f"Invalid LINE credentials for clinic {clinic.id}, using provided display_name")
+                line_service = None
+        
+        # Use service method for proper race condition handling
+        try:
+            if line_service:
+                line_user = LineUserService.get_or_create_line_user(
+                    db=db,
+                    line_user_id=request.line_user_id,
+                    clinic_id=clinic.id,
+                    line_service=line_service,
+                    display_name=request.display_name
+                )
+            else:
+                # Fallback: create directly if LINEService unavailable (shouldn't happen in normal flow)
+                # Still handle race condition with IntegrityError
+                line_user = db.query(LineUser).filter_by(
+                    line_user_id=request.line_user_id,
+                    clinic_id=clinic.id
+                ).first()
+                
+                if not line_user:
+                    line_user = LineUser(
+                        line_user_id=request.line_user_id,
+                        clinic_id=clinic.id,
+                        display_name=request.display_name
+                    )
+                    db.add(line_user)
+                    try:
+                        db.commit()
+                        db.refresh(line_user)
+                    except IntegrityError:
+                        # Race condition: another request created it
+                        db.rollback()
+                        line_user = db.query(LineUser).filter_by(
+                            line_user_id=request.line_user_id,
+                            clinic_id=clinic.id
+                        ).first()
+                        if not line_user:
+                            raise HTTPException(
+                                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail="Failed to create LINE user"
+                            )
+        except IntegrityError:
+            # Race condition: another request created it
+            db.rollback()
+            line_user = db.query(LineUser).filter_by(
+                line_user_id=request.line_user_id,
+                clinic_id=clinic.id
+            ).first()
+            if not line_user:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to create LINE user"
+                )
 
         # Check if patient exists for this clinic
         patient = db.query(Patient).filter_by(
@@ -1407,16 +1461,19 @@ async def delete_notification(
 @router.put("/language-preference", response_model=LanguagePreferenceResponse)
 async def update_language_preference(
     request: LanguagePreferenceRequest,
-    line_user: LineUser = Depends(get_current_line_user),
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
 ) -> LanguagePreferenceResponse:
     """
-    Update LINE user's language preference.
+    Update LINE user's language preference for the current clinic.
     
-    Note: get_current_line_user requires LineUser to exist (created during LIFF login).
-    This endpoint is only accessible after successful login, so LineUser will always exist.
+    Language preference is clinic-specific - each clinic can have different
+    language settings for the same LINE user.
+    
+    Note: LineUser is created during LIFF login, so it will always exist here.
     """
     try:
+        line_user, _ = line_user_clinic
         # Update LineUser record
         # Language code is already validated by Pydantic model
         line_user.preferred_language = request.language

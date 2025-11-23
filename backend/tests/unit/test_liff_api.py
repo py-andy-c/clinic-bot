@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from main import app
 from models import LineUser, Clinic
 from core.database import get_db
-from auth.dependencies import get_current_line_user
+# Note: get_current_line_user is no longer used - language preference now uses get_current_line_user_with_clinic
 
 
 client = TestClient(app)
@@ -119,18 +119,25 @@ class TestLanguagePreference:
 
         assert response.status_code == 401
 
-    def test_update_language_preference_invalid_language(self, db_session):
+    def test_update_language_preference_invalid_language(self, db_session, sample_clinic_data):
         """Test updating language preference with invalid language code."""
+        # Create clinic
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_test_lang_invalid",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
         db_session.commit()
 
-        # Mock authentication
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        # Mock authentication - use get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -142,21 +149,28 @@ class TestLanguagePreference:
             assert "Invalid language code" in str(response.json())
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
-    def test_update_language_preference_valid_languages(self, db_session):
+    def test_update_language_preference_valid_languages(self, db_session, sample_clinic_data):
         """Test updating language preference with valid language codes."""
+        # Create clinic
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_test_lang_valid",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
         db_session.commit()
 
-        # Mock authentication
-        client.app.dependency_overrides[get_current_line_user] = lambda: line_user
+        # Mock authentication - use get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
@@ -175,5 +189,5 @@ class TestLanguagePreference:
                 assert line_user.preferred_language == lang
 
         finally:
-            client.app.dependency_overrides.pop(get_current_line_user, None)
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)

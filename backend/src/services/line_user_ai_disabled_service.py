@@ -11,9 +11,9 @@ from typing import Optional, List, cast
 from datetime import datetime
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, distinct, or_, select
+from sqlalchemy import func, and_
 
-from models import LineUserAiDisabled, LineUser, Patient, LineMessage
+from models import LineUser, Patient
 from utils.datetime_utils import taiwan_now
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ def is_ai_disabled(
     """
     Check if AI is permanently disabled for a LINE user.
     
-    Returns False by default (if no record exists), meaning AI is enabled.
+    Returns False by default (if LineUser doesn't exist), meaning AI is enabled.
     
     Args:
         db: Database session
@@ -37,12 +37,15 @@ def is_ai_disabled(
     Returns:
         bool: True if AI is permanently disabled, False otherwise
     """
-    disabled = db.query(LineUserAiDisabled).filter(
-        LineUserAiDisabled.line_user_id == line_user_id,
-        LineUserAiDisabled.clinic_id == clinic_id
+    line_user = db.query(LineUser).filter(
+        LineUser.line_user_id == line_user_id,
+        LineUser.clinic_id == clinic_id
     ).first()
     
-    return disabled is not None
+    if not line_user:
+        return False
+    
+    return line_user.ai_disabled
 
 
 def disable_ai_for_line_user(
@@ -51,11 +54,9 @@ def disable_ai_for_line_user(
     clinic_id: int,
     disabled_by_user_id: Optional[int] = None,
     reason: Optional[str] = None
-) -> LineUserAiDisabled:
+) -> LineUser:
     """
-    Disable AI for a LINE user (create or update disable record).
-    
-    If a disable record already exists, updates it with new timestamp and reason.
+    Disable AI for a LINE user (update LineUser record).
     
     Args:
         db: Database session
@@ -65,57 +66,53 @@ def disable_ai_for_line_user(
         reason: Optional reason/notes for audit trail
         
     Returns:
-        LineUserAiDisabled: The created or updated disable record
+        LineUser: The updated LineUser record
+        
+    Raises:
+        ValueError: If LineUser doesn't exist for this clinic
     """
     # Use Taiwan timezone for consistency with other timestamps in the system
     now = taiwan_now()
     
-    # Check if disable record already exists
-    disabled = db.query(LineUserAiDisabled).filter(
-        LineUserAiDisabled.line_user_id == line_user_id,
-        LineUserAiDisabled.clinic_id == clinic_id
+    # Get or create LineUser for this clinic
+    line_user = db.query(LineUser).filter(
+        LineUser.line_user_id == line_user_id,
+        LineUser.clinic_id == clinic_id
     ).first()
     
-    if disabled:
-        # Update existing record
-        disabled.disabled_at = now
-        disabled.disabled_by_user_id = disabled_by_user_id
-        disabled.reason = reason
-        disabled.updated_at = now
-        logger.info(
-            f"Updated AI disable for line_user_id={line_user_id}, "
-            f"clinic_id={clinic_id}, disabled_by_user_id={disabled_by_user_id}"
+    if not line_user:
+        raise ValueError(
+            f"LineUser not found for line_user_id={line_user_id}, clinic_id={clinic_id}. "
+            "LineUser must be created before disabling AI."
         )
-    else:
-        # Create new record
-        disabled = LineUserAiDisabled(
-            line_user_id=line_user_id,
-            clinic_id=clinic_id,
-            disabled_at=now,
-            disabled_by_user_id=disabled_by_user_id,
-            reason=reason,
-            created_at=now,
-            updated_at=now
-        )
-        db.add(disabled)
-        logger.info(
-            f"Disabled AI for line_user_id={line_user_id}, "
-            f"clinic_id={clinic_id}, disabled_by_user_id={disabled_by_user_id}"
-        )
+    
+    # Update LineUser fields
+    line_user.ai_disabled = True
+    line_user.ai_disabled_at = now
+    line_user.ai_disabled_by_user_id = disabled_by_user_id
+    line_user.ai_disabled_reason = reason
+    
+    logger.info(
+        f"Disabled AI for line_user_id={line_user_id}, "
+        f"clinic_id={clinic_id}, disabled_by_user_id={disabled_by_user_id}"
+    )
     
     db.commit()
-    db.refresh(disabled)
+    db.refresh(line_user)
     
-    return disabled
+    return line_user
 
 
 def enable_ai_for_line_user(
     db: Session,
     line_user_id: str,
     clinic_id: int
-) -> Optional[LineUserAiDisabled]:
+) -> Optional[LineUser]:
     """
-    Enable AI for a LINE user (delete disable record if it exists).
+    Enable AI for a LINE user (clear disable fields on LineUser).
+    
+    This is an idempotent operation - if AI is already enabled or LineUser doesn't exist,
+    the function returns None or the LineUser respectively without error.
     
     Args:
         db: Database session
@@ -123,24 +120,33 @@ def enable_ai_for_line_user(
         clinic_id: Clinic ID
         
     Returns:
-        Optional[LineUserAiDisabled]: The deleted record if it existed, None otherwise
+        Optional[LineUser]: The updated LineUser if it existed, None if LineUser doesn't exist.
+        Note: This is a behavior change from the old implementation which returned None
+        when AI was not disabled. The new implementation returns LineUser even if AI
+        was already enabled (idempotent behavior).
     """
-    disabled = db.query(LineUserAiDisabled).filter(
-        LineUserAiDisabled.line_user_id == line_user_id,
-        LineUserAiDisabled.clinic_id == clinic_id
+    line_user = db.query(LineUser).filter(
+        LineUser.line_user_id == line_user_id,
+        LineUser.clinic_id == clinic_id
     ).first()
     
-    if disabled:
-        db.delete(disabled)
+    if line_user:
+        # Clear disable fields
+        line_user.ai_disabled = False
+        line_user.ai_disabled_at = None
+        line_user.ai_disabled_by_user_id = None
+        line_user.ai_disabled_reason = None
+        
         db.commit()
+        db.refresh(line_user)
         logger.info(
             f"Enabled AI for line_user_id={line_user_id}, "
             f"clinic_id={clinic_id}"
         )
-        return disabled
+        return line_user
     else:
         logger.debug(
-            f"No disable record found to enable for line_user_id={line_user_id}, "
+            f"No LineUser found to enable AI for line_user_id={line_user_id}, "
             f"clinic_id={clinic_id}"
         )
         return None
@@ -174,19 +180,18 @@ def get_line_users_for_clinic(
     limit: Optional[int] = None
 ) -> tuple[List[LineUserWithStatus], int]:
     """
-    Get all LineUsers who have interacted with this clinic (patients or messages), with AI status.
+    Get all LineUsers for a clinic with AI status and patient information.
     
     This function:
-    1. Gets distinct LineUsers who have either:
-       - At least one active (non-deleted) patient in this clinic, OR
-       - At least one message sent to this clinic
-    2. Joins with Patient records to get patient count and names (if they have patients)
-    3. Left joins with LineUserAiDisabled to check AI status
-    4. Aggregates patient names (empty list if no patients)
+    1. Gets all LineUsers for this clinic (filtered by clinic_id)
+    2. Left joins with Patient records to get patient count and names
+    3. AI status is already a field on LineUser (no join needed)
+    4. Aggregates patient names
     5. Supports pagination (page/page_size or offset/limit)
     
-    This ensures that LINE users who have sent messages but haven't created patients yet
-    are still visible in the admin UI, allowing clinics to manage AI settings for all users.
+    Note: LineUsers are only created when users interact with the clinic (via webhook
+    messages, follow events, or LIFF login), so all LineUsers in the database have
+    already interacted with the clinic. We simply query all LineUsers for the clinic.
     
     Args:
         db: Database session
@@ -199,79 +204,39 @@ def get_line_users_for_clinic(
     Returns:
         Tuple of (List[LineUserWithStatus], total_count): List of LineUsers with AI status and patient information, and total count
     """
-    # Get distinct line_user_ids from both Patient and LineMessage tables
-    # This ensures we include users who have interacted even without patients
-    
-    # Get all line_user_ids who have patients in this clinic
-    patients_line_user_ids_subq = db.query(
-        LineUser.line_user_id.label('line_user_id')
-    ).join(
-        Patient,
-        and_(
-            LineUser.id == Patient.line_user_id,
-            Patient.clinic_id == clinic_id,
-            Patient.is_deleted == False
-        )
-    ).distinct().subquery()
-    
-    # Get all line_user_ids who have sent messages to this clinic
-    messages_line_user_ids_subq = db.query(
-        LineMessage.line_user_id.label('line_user_id')
-    ).filter(
-        LineMessage.clinic_id == clinic_id
-    ).distinct().subquery()
-    
-    # Combine both sources - users who have patients OR messages
-    # Use a filter with OR condition to get LineUsers who match either condition
+    # Query: Get all LineUsers for this clinic with patient information
+    # Use LEFT JOIN so users without patients still appear (with 0 patient_count)
     base_query = db.query(
         LineUser.line_user_id,
         LineUser.display_name,
-        func.coalesce(func.count(Patient.id), 0).label('patient_count'),
+        func.coalesce(func.count(func.distinct(Patient.id)), 0).label('patient_count'),
         func.array_agg(Patient.full_name).label('patient_names'),
-        func.bool_or(LineUserAiDisabled.id.isnot(None)).label('ai_disabled'),
-        func.max(LineUserAiDisabled.disabled_at).label('disabled_at')
+        LineUser.ai_disabled.label('ai_disabled'),
+        LineUser.ai_disabled_at.label('disabled_at')
     ).filter(
-        or_(
-            LineUser.line_user_id.in_(
-                select(patients_line_user_ids_subq.c.line_user_id)
-            ),
-            LineUser.line_user_id.in_(
-                select(messages_line_user_ids_subq.c.line_user_id)
-            )
-        )
+        LineUser.clinic_id == clinic_id
     ).outerjoin(
         Patient,
         and_(
             LineUser.id == Patient.line_user_id,
             Patient.clinic_id == clinic_id,
             Patient.is_deleted == False
-        )
-    ).outerjoin(
-        LineUserAiDisabled,
-        and_(
-            LineUserAiDisabled.line_user_id == LineUser.line_user_id,
-            LineUserAiDisabled.clinic_id == clinic_id
         )
     ).group_by(
         LineUser.id,
         LineUser.line_user_id,
-        LineUser.display_name
+        LineUser.display_name,
+        LineUser.ai_disabled,
+        LineUser.ai_disabled_at
     ).order_by(
         LineUser.display_name.nulls_last(),
         LineUser.line_user_id
     )
     
     # Get total count before pagination
-    # Count distinct LineUsers who have interacted (patients or messages)
-    total = db.query(func.count(distinct(LineUser.id))).filter(
-        or_(
-            LineUser.line_user_id.in_(
-                select(patients_line_user_ids_subq.c.line_user_id)
-            ),
-            LineUser.line_user_id.in_(
-                select(messages_line_user_ids_subq.c.line_user_id)
-            )
-        )
+    # Simply count all LineUsers for this clinic
+    total = db.query(func.count(LineUser.id)).filter(
+        LineUser.clinic_id == clinic_id
     ).scalar() or 0
     
     # Convert page/page_size to offset/limit if provided
@@ -294,6 +259,7 @@ def get_line_users_for_clinic(
         # Convert array_agg result (which may be None or a list) to a list
         # array_agg may return None if no patients, or a list that may contain None
         # values if some patients have NULL full_name
+        # Note: Users with messages but no patients will have patient_count=0 and patient_names=None
         patient_names_raw = row.patient_names
         if patient_names_raw is None:
             patient_names: List[str] = []
@@ -311,7 +277,7 @@ def get_line_users_for_clinic(
                 display_name=row.display_name,
                 patient_count=row.patient_count,
                 patient_names=patient_names,
-                ai_disabled=bool(row.ai_disabled),
+                ai_disabled=bool(row.ai_disabled) if row.ai_disabled is not None else False,
                 disabled_at=row.disabled_at
             )
         )

@@ -75,9 +75,10 @@ def test_line_user(db_session: Session, test_clinic: Clinic):
     if existing:
         return existing
     
-    # LineUser doesn't have clinic_id - clinic association is via Patient
+    # LineUser now requires clinic_id for per-clinic isolation
     line_user = LineUser(
-        line_user_id="test_line_user_123"
+        line_user_id="test_line_user_123",
+        clinic_id=test_clinic.id
     )
     db_session.add(line_user)
     db_session.commit()
@@ -456,7 +457,8 @@ class TestDeleteNotification:
             line_user2 = existing2
         else:
             line_user2 = LineUser(
-                line_user_id="test_line_user_456"
+                line_user_id="test_line_user_456",
+                clinic_id=test_clinic.id
             )
             db_session.add(line_user2)
             db_session.flush()

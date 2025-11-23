@@ -101,6 +101,7 @@ def clinic_with_practitioner(db_session):
     # Create patient
     line_user = LineUser(
         line_user_id="U_patient_123",
+        clinic_id=clinic.id,
         display_name="病患"
     )
     db_session.add(line_user)

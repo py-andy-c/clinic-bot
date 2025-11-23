@@ -62,6 +62,7 @@ class TestAppointmentServiceListAppointments:
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_test_user",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -149,6 +150,7 @@ class TestAppointmentServiceListAppointments:
         db_session.flush()  # Ensure appt_type.id is available
         line_user = LineUser(
             line_user_id="U_test",
+            clinic_id=clinic.id,
             display_name="Test"
         )
         db_session.add(line_user)
@@ -460,8 +462,10 @@ class TestAppointmentServiceEdgeCases:
             line_channel_access_token="test_token"
         )
         db_session.add(clinic)
+        db_session.flush()
         line_user = LineUser(
             line_user_id="U_test",
+            clinic_id=clinic.id,
             display_name="Test"
         )
         db_session.add(line_user)
@@ -510,6 +514,7 @@ class TestAppointmentServiceTaiwanTimezone:
 
         line_user = LineUser(
             line_user_id="U_test",
+            clinic_id=clinic.id,
             display_name="Test"
         )
         db_session.add(line_user)
@@ -637,6 +642,7 @@ class TestAppointmentServiceTaiwanTimezone:
 
         line_user = LineUser(
             line_user_id="U_test",
+            clinic_id=clinic.id,
             display_name="Test"
         )
         db_session.add(line_user)

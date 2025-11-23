@@ -37,6 +37,7 @@ class TestLiffLoginWithToken:
         # Create LINE user
         line_user = LineUser(
             line_user_id="test_line_user",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)
@@ -82,6 +83,7 @@ class TestLiffLoginWithToken:
         # Create LINE user
         line_user = LineUser(
             line_user_id="test_line_user",
+            clinic_id=clinic.id,
             display_name="Test User"
         )
         db_session.add(line_user)

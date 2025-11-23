@@ -2,14 +2,14 @@
 LINE user model representing LINE messaging platform users.
 
 LINE users represent individuals who interact with clinics through the LINE messaging
-platform. Each LINE user can have multiple patient records across different clinics,
-enabling one LINE account to manage appointments for multiple family members or
-across different clinics.
+platform. Each LINE user has a separate entry per clinic, enabling strict clinic isolation
+and per-clinic customization of settings.
 """
 
 from typing import Optional
+from datetime import datetime
 
-from sqlalchemy import String
+from sqlalchemy import String, ForeignKey, Boolean, TIMESTAMP, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -19,9 +19,13 @@ class LineUser(Base):
     """
     LINE user entity representing an individual who interacts via LINE messaging.
 
-    Represents LINE platform users who can manage appointments across multiple clinics
-    and for multiple patients (e.g., family members). Each LINE user can have multiple
-    patient records across different clinics for proper data isolation.
+    Each LINE user has a separate entry per clinic, enabling:
+    - Strict clinic isolation (database-level via FK constraints)
+    - Per-clinic customization (display_name, preferred_language, AI settings)
+    - Simpler queries (direct clinic_id filtering)
+    
+    Note: During migration, clinic_id may be NULL for existing records.
+    After migration completes, clinic_id will be NOT NULL with unique constraint on (line_user_id, clinic_id).
     """
 
     __tablename__ = "line_users"
@@ -29,11 +33,31 @@ class LineUser(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     """Unique identifier for the LINE user record."""
 
-    line_user_id: Mapped[str] = mapped_column(String(255), unique=True)
-    """Unique identifier for the user provided by LINE messaging platform."""
+    line_user_id: Mapped[str] = mapped_column(String(255))
+    """
+    Unique identifier for the user provided by LINE messaging platform.
+    
+    Note: After migration, uniqueness is enforced via (line_user_id, clinic_id) composite constraint.
+    """
+
+    clinic_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("clinics.id", ondelete="CASCADE"),
+        nullable=True,  # Nullable during migration, will be NOT NULL after Phase 2
+        index=True
+    )
+    """
+    Reference to the clinic this LineUser entry belongs to.
+    
+    During migration (Phase 1), this is nullable to allow zero-downtime migration.
+    After data migration (Phase 2), this will be NOT NULL with unique constraint on (line_user_id, clinic_id).
+    """
 
     display_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    """Display name from LINE profile (may be None if not provided)."""
+    """
+    Display name from LINE profile (may be None if not provided).
+    
+    This is clinic-specific - each clinic can customize the display name for the same LINE user.
+    """
 
     preferred_language: Mapped[Optional[str]] = mapped_column(
         String(10),
@@ -41,12 +65,55 @@ class LineUser(Base):
         server_default='zh-TW'  # Database-level default, matches migration
     )
     """
-    User's preferred language for UI and LINE messages.
+    User's preferred language for UI and LINE messages (clinic-specific).
     
     Values: 'zh-TW' (Traditional Chinese), 'en' (English)
     Default: 'zh-TW'
     """
 
+    # AI settings (clinic-specific)
+    ai_disabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    """
+    Whether AI replies are permanently disabled for this user at this clinic.
+    
+    This is an admin-controlled setting that persists until manually changed.
+    Different from ai_opt_out_until which is user-initiated and temporary.
+    """
+
+    ai_disabled_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    """Timestamp when AI was disabled for this user at this clinic."""
+
+    ai_disabled_by_user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    """ID of the admin user who disabled AI (for audit trail)."""
+
+    ai_disabled_reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    """Optional reason/notes for why AI was disabled."""
+
+    ai_opt_out_until: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    """
+    Timestamp when the user's temporary AI opt-out expires.
+    
+    When a user sends "人工回覆", they are opted out for 24 hours. After this timestamp,
+    the user is automatically opted back in. NULL means not opted out.
+    """
+
     # Relationships
+    clinic = relationship("Clinic", back_populates="line_users")
+    """Relationship to the Clinic entity."""
+
     patients = relationship("Patient", back_populates="line_user")
-    """Relationship to Patient entities associated with this LINE user."""
+    """Relationship to Patient entities associated with this LINE user at this clinic."""
+
+    disabled_by_user = relationship("User", foreign_keys=[ai_disabled_by_user_id])
+    """Relationship to the User who disabled AI for this LINE user."""
+
+    __table_args__ = (
+        # TODO: Add composite unique constraint in Phase 3 migration (make_line_users_clinic_id_not_null_phase3.py)
+        # This ensures (line_user_id, clinic_id) uniqueness after data migration completes
+        # UniqueConstraint('line_user_id', 'clinic_id', name='uq_line_users_line_user_clinic'),
+        # Index for efficient queries (clinic_id first for better selectivity)
+        Index('idx_line_users_clinic_line_user', 'clinic_id', 'line_user_id'),
+    )

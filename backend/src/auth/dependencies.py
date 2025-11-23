@@ -440,6 +440,20 @@ def get_current_line_user(
                 detail="Invalid LINE user token"
             )
 
+        # DEPRECATED: This function doesn't filter by clinic_id and may return wrong LineUser
+        # in multi-clinic scenarios. Use get_current_line_user_with_clinic instead.
+        # 
+        # Note: This function is currently unused. It's kept for backward compatibility
+        # but should not be used for new code. All clinic-specific operations should use
+        # get_current_line_user_with_clinic which properly filters by clinic_id.
+        import warnings
+        warnings.warn(
+            "get_current_line_user is deprecated and may return wrong clinic's LineUser. "
+            "Use get_current_line_user_with_clinic instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        
         line_user = db.query(LineUser).filter(LineUser.line_user_id == line_user_id).first()
         if not line_user:
             raise HTTPException(
@@ -524,17 +538,51 @@ def get_current_line_user_with_clinic(
                 detail="Invalid LINE user token"
             )
 
-        line_user = db.query(LineUser).filter(LineUser.line_user_id == line_user_id).first()
+        line_user = db.query(LineUser).filter(
+            LineUser.line_user_id == line_user_id,
+            LineUser.clinic_id == clinic_id
+        ).first()
         if not line_user:
             # This shouldn't happen in normal flow, but handle gracefully
+            # Create LineUser for this clinic using service method for race condition handling
+            from services.line_user_service import LineUserService
+            from services.line_service import LINEService
+            from sqlalchemy.exc import IntegrityError
+            
             display_name = payload.get('display_name')
-            line_user = LineUser(
-                line_user_id=line_user_id,
-                display_name=display_name
+            
+            # Create LINEService from clinic credentials for profile fetching if needed
+            line_service = LINEService(
+                channel_secret=clinic.line_channel_secret or "",
+                channel_access_token=clinic.line_channel_access_token or ""
             )
-            db.add(line_user)
-            db.commit()
-            db.refresh(line_user)
+            
+            try:
+                line_user = LineUserService.get_or_create_line_user(
+                    db=db,
+                    line_user_id=line_user_id,
+                    clinic_id=clinic_id,
+                    line_service=line_service,
+                    display_name=display_name
+                )
+            except IntegrityError:
+                # Race condition: another request created the LineUser
+                # Retry query to get the existing one
+                db.rollback()
+                line_user = db.query(LineUser).filter(
+                    LineUser.line_user_id == line_user_id,
+                    LineUser.clinic_id == clinic_id
+                ).first()
+                if not line_user:
+                    # Still not found after retry - unexpected error
+                    logger.error(
+                        f"Failed to create or retrieve LineUser after race condition: "
+                        f"line_user_id={line_user_id}, clinic_id={clinic_id}"
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to create LINE user"
+                    )
 
         return line_user, clinic
 

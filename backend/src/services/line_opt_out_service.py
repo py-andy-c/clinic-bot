@@ -11,7 +11,7 @@ from datetime import timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from models import LineUserAiOptOut
+from models import LineUser
 from utils.datetime_utils import taiwan_now
 from core.constants import AI_OPT_OUT_DURATION_HOURS
 
@@ -65,7 +65,7 @@ def set_ai_opt_out(
     line_user_id: str,
     clinic_id: int,
     hours: int = AI_OPT_OUT_DURATION_HOURS
-) -> LineUserAiOptOut:
+) -> LineUser:
     """
     Set AI opt-out for a LINE user for the specified number of hours.
     
@@ -78,42 +78,37 @@ def set_ai_opt_out(
         hours: Number of hours to opt out (default: 24)
         
     Returns:
-        LineUserAiOptOut: The opt-out record (created or updated)
+        LineUser: The updated LineUser record
+        
+    Raises:
+        ValueError: If LineUser doesn't exist for this clinic
     """
     now = taiwan_now()
     opted_out_until = now + timedelta(hours=hours)
     
-    # Check if opt-out already exists
-    opt_out = db.query(LineUserAiOptOut).filter(
-        LineUserAiOptOut.line_user_id == line_user_id,
-        LineUserAiOptOut.clinic_id == clinic_id
+    # Get or create LineUser for this clinic
+    line_user = db.query(LineUser).filter(
+        LineUser.line_user_id == line_user_id,
+        LineUser.clinic_id == clinic_id
     ).first()
     
-    if opt_out:
-        # Update existing opt-out (extend from now)
-        opt_out.opted_out_until = opted_out_until
-        opt_out.updated_at = now
-        logger.info(
-            f"Extended AI opt-out for line_user_id={line_user_id}, "
-            f"clinic_id={clinic_id} until {opted_out_until}"
+    if not line_user:
+        raise ValueError(
+            f"LineUser not found for line_user_id={line_user_id}, clinic_id={clinic_id}. "
+            "LineUser must be created before setting opt-out."
         )
-    else:
-        # Create new opt-out
-        opt_out = LineUserAiOptOut(
-            line_user_id=line_user_id,
-            clinic_id=clinic_id,
-            opted_out_until=opted_out_until
-        )
-        db.add(opt_out)
-        logger.info(
-            f"Set AI opt-out for line_user_id={line_user_id}, "
-            f"clinic_id={clinic_id} until {opted_out_until}"
-        )
+    
+    # Update opt-out timestamp
+    line_user.ai_opt_out_until = opted_out_until
+    logger.info(
+        f"Set AI opt-out for line_user_id={line_user_id}, "
+        f"clinic_id={clinic_id} until {opted_out_until}"
+    )
     
     db.commit()
-    db.refresh(opt_out)
+    db.refresh(line_user)
     
-    return opt_out
+    return line_user
 
 
 def clear_ai_opt_out(
@@ -130,15 +125,22 @@ def clear_ai_opt_out(
         clinic_id: Clinic ID
         
     Returns:
-        bool: True if opt-out was cleared, False if no opt-out existed
+        bool: True if opt-out was cleared, False if no opt-out existed or LineUser doesn't exist
     """
-    opt_out = db.query(LineUserAiOptOut).filter(
-        LineUserAiOptOut.line_user_id == line_user_id,
-        LineUserAiOptOut.clinic_id == clinic_id
+    line_user = db.query(LineUser).filter(
+        LineUser.line_user_id == line_user_id,
+        LineUser.clinic_id == clinic_id
     ).first()
     
-    if opt_out:
-        db.delete(opt_out)
+    if not line_user:
+        logger.debug(
+            f"No LineUser found to clear opt-out for line_user_id={line_user_id}, "
+            f"clinic_id={clinic_id}"
+        )
+        return False
+    
+    if line_user.ai_opt_out_until is not None:
+        line_user.ai_opt_out_until = None
         db.commit()
         logger.info(
             f"Cleared AI opt-out for line_user_id={line_user_id}, "
@@ -171,32 +173,32 @@ def is_ai_opted_out(
     Returns:
         bool: True if user is opted out and opt-out hasn't expired, False otherwise
     """
-    opt_out = db.query(LineUserAiOptOut).filter(
-        LineUserAiOptOut.line_user_id == line_user_id,
-        LineUserAiOptOut.clinic_id == clinic_id
+    line_user = db.query(LineUser).filter(
+        LineUser.line_user_id == line_user_id,
+        LineUser.clinic_id == clinic_id
     ).first()
     
-    if not opt_out:
+    if not line_user or line_user.ai_opt_out_until is None:
         return False
     
     # Check if opt-out has expired
     now = taiwan_now()
-    if opt_out.opted_out_until < now:
-        # Opt-out expired - clean it up
-        # Handle race condition: if another request already deleted it, catch any SQLAlchemy error
+    if line_user.ai_opt_out_until < now:
+        # Opt-out expired - clear it
+        # Handle race condition: if another request already cleared it, catch any SQLAlchemy error
         try:
-            db.delete(opt_out)
+            line_user.ai_opt_out_until = None
             db.commit()
             logger.debug(
                 f"Expired opt-out cleaned up for line_user_id={line_user_id}, "
                 f"clinic_id={clinic_id}"
             )
         except SQLAlchemyError:
-            # Another request may have already deleted this record, or other DB error occurred
-            # This is fine - the record is gone either way
+            # Another request may have already cleared this, or other DB error occurred
+            # This is fine - the record is cleared either way
             db.rollback()
             logger.debug(
-                f"Expired opt-out cleanup handled (may have been deleted by another request): "
+                f"Expired opt-out cleanup handled (may have been cleared by another request): "
                 f"line_user_id={line_user_id}, clinic_id={clinic_id}"
             )
         return False

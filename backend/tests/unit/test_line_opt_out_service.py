@@ -9,7 +9,7 @@ import pytest
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
-from models import Clinic, LineUserAiOptOut
+from models import Clinic, LineUser
 from services.line_opt_out_service import (
     normalize_message_text,
     set_ai_opt_out,
@@ -85,13 +85,22 @@ class TestSetAiOptOut:
         
         line_user_id = "U_test_user_123"
         
+        # Create LineUser first (required for per-clinic isolation)
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
         opt_out = set_ai_opt_out(db_session, line_user_id, clinic.id)
         
         assert opt_out is not None
         assert opt_out.line_user_id == line_user_id
         assert opt_out.clinic_id == clinic.id
-        assert opt_out.opted_out_until > taiwan_now()
-        assert opt_out.opted_out_until <= taiwan_now() + timedelta(hours=AI_OPT_OUT_DURATION_HOURS + 1)
+        assert opt_out.ai_opt_out_until > taiwan_now()
+        assert opt_out.ai_opt_out_until <= taiwan_now() + timedelta(hours=AI_OPT_OUT_DURATION_HOURS + 1)
     
     def test_set_opt_out_extends_existing(self, db_session: Session, sample_clinic_data):
         """Test that setting opt-out when already opted out extends the period."""
@@ -101,9 +110,18 @@ class TestSetAiOptOut:
         
         line_user_id = "U_test_user_123"
         
+        # Create LineUser first
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
         # Set initial opt-out
         opt_out1 = set_ai_opt_out(db_session, line_user_id, clinic.id, hours=12)
-        first_expiry = opt_out1.opted_out_until
+        first_expiry = opt_out1.ai_opt_out_until
         
         # Wait a moment (simulate time passing)
         import time
@@ -116,10 +134,10 @@ class TestSetAiOptOut:
         assert opt_out1.id == opt_out2.id
         
         # Expiry should be extended (new expiry should be later than old expiry)
-        assert opt_out2.opted_out_until > first_expiry
+        assert opt_out2.ai_opt_out_until > first_expiry
         
         # New expiry should be approximately 24 hours from now
-        assert opt_out2.opted_out_until <= taiwan_now() + timedelta(hours=24 + 1)
+        assert opt_out2.ai_opt_out_until <= taiwan_now() + timedelta(hours=24 + 1)
     
     def test_set_opt_out_custom_hours(self, db_session: Session, sample_clinic_data):
         """Test that custom opt-out duration works."""
@@ -130,12 +148,21 @@ class TestSetAiOptOut:
         line_user_id = "U_test_user_123"
         custom_hours = 48
         
+        # Create LineUser first
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
         opt_out = set_ai_opt_out(db_session, line_user_id, clinic.id, hours=custom_hours)
         
         # Expiry should be approximately custom_hours from now
         expected_expiry = taiwan_now() + timedelta(hours=custom_hours)
-        assert opt_out.opted_out_until <= expected_expiry + timedelta(minutes=1)
-        assert opt_out.opted_out_until >= expected_expiry - timedelta(minutes=1)
+        assert opt_out.ai_opt_out_until <= expected_expiry + timedelta(minutes=1)
+        assert opt_out.ai_opt_out_until >= expected_expiry - timedelta(minutes=1)
 
 
 class TestClearAiOptOut:
@@ -149,27 +176,30 @@ class TestClearAiOptOut:
         
         line_user_id = "U_test_user_123"
         
+        # Create LineUser first
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
         # Set opt-out first
         set_ai_opt_out(db_session, line_user_id, clinic.id)
         
-        # Verify it exists
-        opt_out = db_session.query(LineUserAiOptOut).filter(
-            LineUserAiOptOut.line_user_id == line_user_id,
-            LineUserAiOptOut.clinic_id == clinic.id
-        ).first()
-        assert opt_out is not None
+        # Verify it exists (check LineUser.ai_opt_out_until)
+        db_session.refresh(line_user)
+        assert line_user.ai_opt_out_until is not None
         
         # Clear opt-out
         cleared = clear_ai_opt_out(db_session, line_user_id, clinic.id)
         
         assert cleared is True
         
-        # Verify it's gone
-        opt_out = db_session.query(LineUserAiOptOut).filter(
-            LineUserAiOptOut.line_user_id == line_user_id,
-            LineUserAiOptOut.clinic_id == clinic.id
-        ).first()
-        assert opt_out is None
+        # Verify it's gone (ai_opt_out_until should be None)
+        db_session.refresh(line_user)
+        assert line_user.ai_opt_out_until is None
     
     def test_clear_opt_out_when_not_opted_out(self, db_session: Session, sample_clinic_data):
         """Test that clearing opt-out when not opted out returns False."""
@@ -178,6 +208,15 @@ class TestClearAiOptOut:
         db_session.commit()
         
         line_user_id = "U_test_user_123"
+        
+        # Create LineUser first (but don't set opt-out)
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
         
         # Try to clear when not opted out
         cleared = clear_ai_opt_out(db_session, line_user_id, clinic.id)
@@ -196,6 +235,15 @@ class TestIsAiOptedOut:
         
         line_user_id = "U_test_user_123"
         
+        # Create LineUser first (but don't set opt-out)
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        
         result = is_ai_opted_out(db_session, line_user_id, clinic.id)
         
         assert result is False
@@ -207,6 +255,15 @@ class TestIsAiOptedOut:
         db_session.commit()
         
         line_user_id = "U_test_user_123"
+        
+        # Create LineUser first
+        line_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
         
         # Set opt-out
         set_ai_opt_out(db_session, line_user_id, clinic.id)
@@ -224,13 +281,14 @@ class TestIsAiOptedOut:
         
         line_user_id = "U_test_user_123"
         
-        # Set opt-out with very short duration (1 second)
-        opt_out = LineUserAiOptOut(
+        # Create LineUser with expired opt-out
+        line_user = LineUser(
             line_user_id=line_user_id,
             clinic_id=clinic.id,
-            opted_out_until=taiwan_now() - timedelta(seconds=1)  # Already expired
+            display_name="Test User",
+            ai_opt_out_until=taiwan_now() - timedelta(seconds=1)  # Already expired
         )
-        db_session.add(opt_out)
+        db_session.add(line_user)
         db_session.commit()
         
         # Check status (should auto-cleanup expired opt-out)
@@ -238,12 +296,9 @@ class TestIsAiOptedOut:
         
         assert result is False
         
-        # Verify record was deleted
-        opt_out = db_session.query(LineUserAiOptOut).filter(
-            LineUserAiOptOut.line_user_id == line_user_id,
-            LineUserAiOptOut.clinic_id == clinic.id
-        ).first()
-        assert opt_out is None
+        # Verify opt-out was cleared (ai_opt_out_until should be None)
+        db_session.refresh(line_user)
+        assert line_user.ai_opt_out_until is None
     
     def test_is_opted_out_per_clinic_isolation(self, db_session: Session, sample_clinic_data):
         """Test that opt-out status is isolated per clinic."""
@@ -260,6 +315,23 @@ class TestIsAiOptedOut:
         db_session.commit()
         
         line_user_id = "U_test_user_123"
+        
+        # Create LineUser for clinic1
+        line_user1 = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic1.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user1)
+        
+        # Create LineUser for clinic2
+        line_user2 = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic2.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user2)
+        db_session.commit()
         
         # Opt out from clinic1 only
         set_ai_opt_out(db_session, line_user_id, clinic1.id)

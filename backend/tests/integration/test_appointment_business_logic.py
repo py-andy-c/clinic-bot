@@ -43,6 +43,7 @@ class TestAutoAssignmentVisibilityPrinciple:
         # Create LINE user for patient
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -219,6 +220,7 @@ class TestPatientNotificationsOnCreation:
         # Create LINE user for patient
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -256,6 +258,7 @@ class TestPatientNotificationsOnCreation:
         # Create LINE user for patient
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -294,6 +297,7 @@ class TestPatientNotificationsOnCreation:
         # Create LINE user for patient
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -1028,6 +1032,7 @@ class TestAdditionalScenarios:
         # Create LINE user for patient
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -1080,6 +1085,7 @@ class TestAdditionalScenarios:
         # Create LINE user for patient
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -1253,6 +1259,7 @@ class TestAdminEditingManuallyAssignedAppointments:
         # Create LINE user for patient
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -1302,6 +1309,7 @@ class TestAdminEditingManuallyAssignedAppointments:
         # Create LINE user for patient
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -1352,6 +1360,7 @@ class TestAdminEditingManuallyAssignedAppointments:
         # Create LINE user for patient
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -1461,6 +1470,7 @@ class TestAdminEditingAutoAssignedBothChanges:
         # Create LINE user for patient
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -1650,6 +1660,7 @@ class TestPatientChangingFromVisibleToAutoAssigned:
         # Create LINE user for patient
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -1715,6 +1726,7 @@ class TestPatientChangingFromVisibleToAutoAssigned:
         # Create LINE user for patient
         line_user = LineUser(
             line_user_id="U_test_patient",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)
@@ -1843,6 +1855,7 @@ class TestPatientCancellationNotifications:
 
         line_user = LineUser(
             line_user_id="U_patient_test",
+            clinic_id=clinic.id,
             display_name="Test Patient"
         )
         db_session.add(line_user)

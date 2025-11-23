@@ -34,16 +34,21 @@ class TestGetOrCreateLineUser:
         line_user = LineUserService.get_or_create_line_user(
             db=db_session,
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             line_service=mock_line_service,
             display_name=display_name
         )
         
         assert line_user is not None
         assert line_user.line_user_id == line_user_id
+        assert line_user.clinic_id == clinic.id
         assert line_user.display_name == display_name
         
         # Verify it's in database
-        db_user = db_session.query(LineUser).filter_by(line_user_id=line_user_id).first()
+        db_user = db_session.query(LineUser).filter_by(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id
+        ).first()
         assert db_user is not None
         assert db_user.id == line_user.id
     
@@ -59,6 +64,7 @@ class TestGetOrCreateLineUser:
         # Create existing user
         existing_user = LineUser(
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             display_name=display_name
         )
         db_session.add(existing_user)
@@ -71,6 +77,7 @@ class TestGetOrCreateLineUser:
         line_user = LineUserService.get_or_create_line_user(
             db=db_session,
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             line_service=mock_line_service,
             display_name=display_name
         )
@@ -92,6 +99,7 @@ class TestGetOrCreateLineUser:
         # Create existing user with old name
         existing_user = LineUser(
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             display_name=old_display_name
         )
         db_session.add(existing_user)
@@ -104,6 +112,7 @@ class TestGetOrCreateLineUser:
         line_user = LineUserService.get_or_create_line_user(
             db=db_session,
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             line_service=mock_line_service,
             display_name=new_display_name
         )
@@ -136,6 +145,7 @@ class TestGetOrCreateLineUser:
         line_user = LineUserService.get_or_create_line_user(
             db=db_session,
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             line_service=mock_line_service,
             display_name=None
         )
@@ -159,6 +169,7 @@ class TestGetOrCreateLineUser:
         line_user = LineUserService.get_or_create_line_user(
             db=db_session,
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             line_service=mock_line_service,
             display_name=None
         )
@@ -178,6 +189,7 @@ class TestGetOrCreateLineUser:
         # Create existing user (simulating another request creating it)
         existing_user = LineUser(
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             display_name=display_name
         )
         db_session.add(existing_user)
@@ -193,6 +205,7 @@ class TestGetOrCreateLineUser:
                 line_user = LineUserService.get_or_create_line_user(
                     db=db_session,
                     line_user_id=line_user_id,
+                    clinic_id=clinic.id,
                     line_service=mock_line_service,
                     display_name=display_name
                 )
@@ -216,6 +229,7 @@ class TestGetOrCreateLineUser:
         line_user = LineUserService.get_or_create_line_user(
             db=db_session,
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             line_service=mock_line_service,
             display_name=None
         )
@@ -235,6 +249,7 @@ class TestGetOrCreateLineUser:
         # Create existing user
         existing_user = LineUser(
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             display_name=display_name
         )
         db_session.add(existing_user)
@@ -248,10 +263,12 @@ class TestGetOrCreateLineUser:
         line_user = LineUserService.get_or_create_line_user(
             db=db_session,
             line_user_id=line_user_id,
+            clinic_id=clinic.id,
             line_service=mock_line_service,
             display_name=display_name
         )
         
         assert line_user.id == existing_user.id
         assert line_user.display_name == display_name
+
 
