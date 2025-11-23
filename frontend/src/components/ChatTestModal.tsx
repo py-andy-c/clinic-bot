@@ -122,14 +122,17 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
       const response = await apiService.testChatbot({
         message: userMessage.text,
         session_id: sessionId, // Frontend always provides UUID
-        chat_settings: chatSettings,
+        chat_settings: {
+          ...chatSettings,
+          chat_enabled: true, // Always enable chat for testing purposes
+        },
       });
-      
+
       // Keep using the same UUID for subsequent messages
       // Backend handles the full session_id format internally
 
       clearTimeout(timeoutId);
-      
+
       // Don't process response if timeout already fired
       if (timeoutFired) {
         return;
@@ -145,7 +148,7 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
       setMessages((prev) => [...prev, aiMessage]);
     } catch (err: any) {
       clearTimeout(timeoutId);
-      
+
       // Log error for debugging
       if (err?.response) {
         // Axios error with response
@@ -154,10 +157,10 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
         // Other error
         logger.error('Chat test error:', err);
       }
-      
+
       // Use the same error message as the actual LINE endpoint
       const errorMessage = "抱歉，我暫時無法處理您的訊息。請稍後再試，或直接聯繫診所。";
-      
+
       const errorMsg: Message = {
         id: `error-${Date.now()}`,
         text: errorMessage,
@@ -229,11 +232,10 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
                 className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[75%] rounded-2xl px-4 py-2 ${
-                    message.isUser
+                  className={`max-w-[75%] rounded-2xl px-4 py-2 ${message.isUser
                       ? 'bg-[#06C755] text-white'
                       : 'bg-white text-gray-900 border border-gray-200'
-                  }`}
+                    }`}
                 >
                   <p className="text-sm whitespace-pre-wrap break-words">
                     {message.text}

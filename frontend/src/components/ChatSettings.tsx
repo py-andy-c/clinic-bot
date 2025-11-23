@@ -203,15 +203,13 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
   // Listen for custom event to open test modal from header button
   useEffect(() => {
     const handleOpenTest = () => {
-      if (chatSettings.chat_enabled) {
-        setShowTestModal(true);
-      }
+      setShowTestModal(true);
     };
     window.addEventListener('open-chat-test', handleOpenTest);
     return () => {
       window.removeEventListener('open-chat-test', handleOpenTest);
     };
-  }, [chatSettings.chat_enabled]);
+  }, []);
 
   // Auto-close test modal when chat settings change
   useEffect(() => {
@@ -234,7 +232,7 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
       // Close modal when settings change to force fresh session
       setShowTestModal(false);
     }
-    
+
     // Update ref for next comparison
     previousChatSettingsRef.current = { ...chatSettings };
   }, [chatSettings, showTestModal]);
@@ -341,187 +339,185 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
           </div>
         </div>
 
-        {/* Expanded form - only show when toggle is ON */}
-        {chatSettings.chat_enabled && (
-          <div className="space-y-6 pt-4 border-t border-gray-200">
-            {renderField(
-              '診所介紹',
-              'clinic_description',
-              '簡短描述診所的特色、理念或服務重點...',
-              true
-            )}
+        {/* Expanded form - always show */}
+        <div className="space-y-6 pt-4 border-t border-gray-200">
+          {renderField(
+            '診所介紹',
+            'clinic_description',
+            '簡短描述診所的特色、理念或服務重點...',
+            true
+          )}
 
-            {renderField(
-              '治療師介紹',
-              'therapist_info',
-              '介紹診所的治療師，包括專長和經驗...',
-              true
-            )}
+          {renderField(
+            '治療師介紹',
+            'therapist_info',
+            '介紹診所的治療師，包括專長和經驗...',
+            true
+          )}
 
-            {renderField(
-              '治療項目詳情',
-              'treatment_details',
-              '詳細說明各項治療服務，包括價格、時長、內容...',
-              true
-            )}
+          {renderField(
+            '治療項目詳情',
+            'treatment_details',
+            '詳細說明各項治療服務，包括價格、時長、內容...',
+            true
+          )}
 
-            {renderField(
-              '服務項目選擇指南',
-              'service_item_selection_guide',
-              '提供病患選擇服務項目的指引和建議...',
-              true
-            )}
+          {renderField(
+            '服務項目選擇指南',
+            'service_item_selection_guide',
+            '提供病患選擇服務項目的指引和建議...',
+            true
+          )}
 
-            {renderField(
-              '營業時間',
-              'operating_hours',
-              '例如：週一至週五：09:00-18:00，週六：09:00-12:00...',
-              false
-            )}
+          {renderField(
+            '營業時間',
+            'operating_hours',
+            '例如：週一至週五：09:00-18:00，週六：09:00-12:00...',
+            false
+          )}
 
-            {renderField(
-              '交通資訊',
-              'location_details',
-              '例如：診所位於捷運站出口步行5分鐘，附近有停車場...',
-              false
-            )}
+          {renderField(
+            '交通資訊',
+            'location_details',
+            '例如：診所位於捷運站出口步行5分鐘，附近有停車場...',
+            false
+          )}
 
-            {renderField(
-              '預約與取消政策',
-              'booking_policy',
-              '說明預約和取消的相關規定...',
-              true
-            )}
+          {renderField(
+            '預約與取消政策',
+            'booking_policy',
+            '說明預約和取消的相關規定...',
+            true
+          )}
 
-            {renderField(
-              '付款方式',
-              'payment_methods',
-              '例如：接受健保、自費，可刷卡、現金、轉帳...',
-              false
-            )}
+          {renderField(
+            '付款方式',
+            'payment_methods',
+            '例如：接受健保、自費，可刷卡、現金、轉帳...',
+            false
+          )}
 
-            {renderField(
-              '設備與設施',
-              'equipment_facilities',
-              '介紹診所的設備和設施...',
-              true
-            )}
+          {renderField(
+            '設備與設施',
+            'equipment_facilities',
+            '介紹診所的設備和設施...',
+            true
+          )}
 
-            {renderField(
-              '常見問題',
-              'common_questions',
-              '列出病患常問的問題和答案...',
-              true
-            )}
+          {renderField(
+            '常見問題',
+            'common_questions',
+            '列出病患常問的問題和答案...',
+            true
+          )}
 
-            {renderField(
-              '其他',
-              'other_info',
-              '其他診所相關資訊...',
-              false
-            )}
+          {renderField(
+            '其他',
+            'other_info',
+            '其他診所相關資訊...',
+            false
+          )}
 
-            {/* AI指引 field with info icon */}
-            <div className="relative">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 relative">
-                  <label className="block text-sm font-medium text-gray-900">
-                    AI指引
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowAiGuidancePopup(true)}
-                    className="inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
-                    aria-label="查看說明"
+          {/* AI指引 field with info icon */}
+          <div className="relative">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 relative">
+                <label className="block text-sm font-medium text-gray-900">
+                  AI指引
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowAiGuidancePopup(true)}
+                  className="inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+                  aria-label="查看說明"
+                >
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                {showAiGuidancePopup && (
+                  <BaseModal
+                    onClose={() => setShowAiGuidancePopup(false)}
+                    aria-label="如何設定AI指引"
                   >
-                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                  {showAiGuidancePopup && (
-                    <BaseModal
-                      onClose={() => setShowAiGuidancePopup(false)}
-                      aria-label="如何設定AI指引"
-                    >
-                      <div className="flex items-start">
-                        <div className="flex-shrink-0">
-                          <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <div className="ml-3 flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-3">如何設定AI指引</h3>
-                          <div className="text-sm text-gray-700 space-y-2">
-                            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-3">
-                              <p className="font-medium text-yellow-800 mb-1">⚠️ 重要提醒</p>
-                              <p className="text-yellow-700 text-xs">
-                                AI指引是進階功能，用於自訂AI的行為模式。除非您有明確的需求（例如：改變問候語風格、調整服務推廣時機），否則建議保持空白，使用系統預設值即可。
-                              </p>
-                            </div>
-                            
-                            <p>
-                              AI指引可以自訂AI聊天機器人的<strong>語氣風格</strong>、<strong>問候語</strong>、<strong>服務推廣時機</strong>等行為，但<strong>無法</strong>改變安全規則（例如：禁止診斷、禁止開立處方等）。
+                    <div className="flex items-start">
+                      <div className="flex-shrink-0">
+                        <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="ml-3 flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-3">如何設定AI指引</h3>
+                        <div className="text-sm text-gray-700 space-y-2">
+                          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-3">
+                            <p className="font-medium text-yellow-800 mb-1">⚠️ 重要提醒</p>
+                            <p className="text-yellow-700 text-xs">
+                              AI指引是進階功能，用於自訂AI的行為模式。除非您有明確的需求（例如：改變問候語風格、調整服務推廣時機），否則建議保持空白，使用系統預設值即可。
                             </p>
-                            
-                            <p className="font-medium mt-3">適用情境：</p>
-                            <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
-                              <li>需要更正式或更親切的溝通風格</li>
-                              <li>特定服務需要在特定時機主動提及</li>
-                              <li>需要調整問候語或回應格式</li>
-                              <li>針對特定關鍵字需要特殊處理流程</li>
-                              <li>診所有獨特的治療理念，需要優先於一般醫學知識</li>
-                            </ul>
-                            
-                            <p className="font-medium mt-3">範例 1：改變語氣風格</p>
-                            <div className="bg-gray-50 p-2 rounded text-xs font-mono mb-2">
-                              「請保持極度專業的醫療風格，用詞精準，避免使用表情符號。開頭問候語請使用：『您好，這裡是XX診所AI醫療助理，請問有什麼能為您服務的？』」
-                            </div>
-                            
-                            <p className="font-medium mt-3">範例 2：調整推廣時機</p>
-                            <div className="bg-gray-50 p-2 rounded text-xs font-mono mb-2">
-                              「當使用者提到『失眠』或『焦慮』時，請在第一或第二回合回應中主動提及我們的『神經整合物理治療』服務。」
-                            </div>
-                            
-                            <p className="font-medium mt-3">範例 3：優先採用診所理念（取代一般醫學知識）</p>
-                            <div className="bg-gray-50 p-2 rounded text-xs font-mono">
-                              「針對非撕裂性的肌肉拉傷，不同於傳統的長時間冰敷，我們的理念是在急性期後段（約24小時後）適度使用熱敷，能有效促進血液循環，加速組織修復。請優先採用此理念回答相關問題。」
-                            </div>
                           </div>
-                          <div className="mt-4 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => setShowAiGuidancePopup(false)}
-                              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                            >
-                              關閉
-                            </button>
+
+                          <p>
+                            AI指引可以自訂AI聊天機器人的<strong>語氣風格</strong>、<strong>問候語</strong>、<strong>服務推廣時機</strong>等行為，但<strong>無法</strong>改變安全規則（例如：禁止診斷、禁止開立處方等）。
+                          </p>
+
+                          <p className="font-medium mt-3">適用情境：</p>
+                          <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
+                            <li>需要更正式或更親切的溝通風格</li>
+                            <li>特定服務需要在特定時機主動提及</li>
+                            <li>需要調整問候語或回應格式</li>
+                            <li>針對特定關鍵字需要特殊處理流程</li>
+                            <li>診所有獨特的治療理念，需要優先於一般醫學知識</li>
+                          </ul>
+
+                          <p className="font-medium mt-3">範例 1：改變語氣風格</p>
+                          <div className="bg-gray-50 p-2 rounded text-xs font-mono mb-2">
+                            「請保持極度專業的醫療風格，用詞精準，避免使用表情符號。開頭問候語請使用：『您好，這裡是XX診所AI醫療助理，請問有什麼能為您服務的？』」
                           </div>
+
+                          <p className="font-medium mt-3">範例 2：調整推廣時機</p>
+                          <div className="bg-gray-50 p-2 rounded text-xs font-mono mb-2">
+                            「當使用者提到『失眠』或『焦慮』時，請在第一或第二回合回應中主動提及我們的『神經整合物理治療』服務。」
+                          </div>
+
+                          <p className="font-medium mt-3">範例 3：優先採用診所理念（取代一般醫學知識）</p>
+                          <div className="bg-gray-50 p-2 rounded text-xs font-mono">
+                            「針對非撕裂性的肌肉拉傷，不同於傳統的長時間冰敷，我們的理念是在急性期後段（約24小時後）適度使用熱敷，能有效促進血液循環，加速組織修復。請優先採用此理念回答相關問題。」
+                          </div>
+                        </div>
+                        <div className="mt-4 flex-end flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setShowAiGuidancePopup(false)}
+                            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                          >
+                            關閉
+                          </button>
                         </div>
                       </div>
-                    </BaseModal>
-                  )}
-                </div>
-              </div>
-              <textarea
-                value={chatSettings.ai_guidance ?? ''}
-                onChange={(e) => handleFieldChange('ai_guidance', e.target.value)}
-                placeholder="AI聊天機器人的指引和說明..."
-                disabled={!isClinicAdmin}
-                maxLength={10000}
-                rows={6}
-                className="input w-full resize-y"
-              />
-              <div className="flex justify-between mt-1">
-                <p className="text-xs text-gray-500">
-                  最多 10,000 字元
-                </p>
-                <p className={`text-xs ${getCharacterCount(chatSettings.ai_guidance) > 9000 ? 'text-orange-600' : 'text-gray-500'}`}>
-                  {getCharacterCount(chatSettings.ai_guidance).toLocaleString()} / 10,000
-                </p>
+                    </div>
+                  </BaseModal>
+                )}
               </div>
             </div>
+            <textarea
+              value={chatSettings.ai_guidance ?? ''}
+              onChange={(e) => handleFieldChange('ai_guidance', e.target.value)}
+              placeholder="AI聊天機器人的指引和說明..."
+              disabled={!isClinicAdmin}
+              maxLength={10000}
+              rows={6}
+              className="input w-full resize-y"
+            />
+            <div className="flex justify-between mt-1">
+              <p className="text-xs text-gray-500">
+                最多 10,000 字元
+              </p>
+              <p className={`text-xs ${getCharacterCount(chatSettings.ai_guidance) > 9000 ? 'text-orange-600' : 'text-gray-500'}`}>
+                {getCharacterCount(chatSettings.ai_guidance).toLocaleString()} / 10,000
+              </p>
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Chat Test Modal */}
