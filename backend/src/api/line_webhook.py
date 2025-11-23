@@ -11,15 +11,16 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Request, HTTPException, status, Header, Depends
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from models import Clinic, PractitionerLinkCode, User
+from models import Clinic, PractitionerLinkCode, User, LineUser
 from services.line_service import LINEService
+from services.line_user_service import LineUserService
 from services.clinic_agent import ClinicAgentService
 from services.line_message_service import LineMessageService, QUOTE_ATTEMPTED_BUT_NOT_AVAILABLE
 from services.line_opt_out_service import (
@@ -168,6 +169,89 @@ def _handle_re_enable_command(
             f"line_user_id={line_user_id}: {e}"
         )
         return {"status": "ok", "message": "Re-enable processed (message may have failed)"}
+
+
+def _handle_follow_event(
+    db: Session,
+    line_service: LINEService,
+    line_user_id: str,
+    reply_token: Optional[str],
+    clinic: Clinic
+) -> Dict[str, str]:
+    """
+    Handle 'follow' event - user added the official account as a friend.
+    
+    Creates LineUser entry proactively so clinic can manage AI settings.
+    """
+    try:
+        # Create or get LINE user (will fetch profile if needed)
+        LineUserService.get_or_create_line_user(
+            db=db,
+            line_user_id=line_user_id,
+            line_service=line_service,
+            display_name=None  # Will be fetched from LINE API
+        )
+        
+        logger.info(
+            f"User followed official account: clinic_id={clinic.id}, "
+            f"line_user_id={line_user_id[:10]}..."
+        )
+        
+        # Optionally send welcome message (if reply_token available)
+        # Note: LINE doesn't always provide reply_token for follow events
+        if reply_token:
+            try:
+                welcome_message = "歡迎加入！如有任何問題，歡迎隨時詢問。"
+                line_service.send_text_message(
+                    line_user_id=line_user_id,
+                    text=welcome_message,
+                    reply_token=reply_token
+                )
+            except Exception as e:
+                # Don't fail if welcome message can't be sent
+                logger.debug(f"Could not send welcome message: {e}")
+        
+        return {"status": "ok", "message": "Follow event processed"}
+    except Exception as e:
+        logger.exception(
+            f"Error handling follow event: clinic_id={clinic.id}, "
+            f"line_user_id={line_user_id[:10]}...: {e}"
+        )
+        # Return OK to LINE even on errors
+        return {"status": "ok", "message": "Follow event processed (with errors)"}
+
+
+def _handle_unfollow_event(
+    db: Session,
+    line_user_id: str,
+    clinic: Clinic
+) -> Dict[str, str]:
+    """
+    Handle 'unfollow' event - user blocked or removed the official account.
+    
+    Currently just logs the event. Could mark user as inactive in the future.
+    """
+    try:
+        logger.info(
+            f"User unfollowed official account: clinic_id={clinic.id}, "
+            f"line_user_id={line_user_id[:10]}..."
+        )
+        
+        # Note: We don't delete the LineUser entry because:
+        # 1. User might follow again
+        # 2. Historical data (patients, appointments) should be preserved
+        # 3. Clinic might want to see who unfollowed
+        
+        # Future enhancement: Could add is_active flag to LineUser model
+        # and set it to False here
+        
+        return {"status": "ok", "message": "Unfollow event processed"}
+    except Exception as e:
+        logger.exception(
+            f"Error handling unfollow event: clinic_id={clinic.id}, "
+            f"line_user_id={line_user_id[:10]}...: {e}"
+        )
+        return {"status": "ok", "message": "Unfollow event processed (with errors)"}
 
 
 def _handle_link_code_command(
@@ -458,15 +542,67 @@ async def line_webhook(
         )
         clinic_id = clinic.id
 
-        # Extract message data
+        # Extract event data to determine event type
+        event_data = line_service.extract_event_data(payload)
+        
+        if not event_data:
+            # Invalid payload - return OK to LINE
+            logger.debug("Event data extraction returned None - invalid payload structure")
+            return {"status": "ok", "message": "Event ignored (invalid structure)"}
+        
+        event_type, line_user_id, reply_token = event_data
+        logger.debug(
+            f"Extracted event data: event_type={event_type}, "
+            f"line_user_id={line_user_id[:10] if line_user_id else 'None'}..., "
+            f"reply_token={'present' if reply_token else 'missing'}"
+        )
+        
+        # Handle follow/unfollow events first (before message processing)
+        if event_type == 'follow':
+            return _handle_follow_event(
+                db, line_service, line_user_id, reply_token, clinic
+            )
+        
+        if event_type == 'unfollow':
+            return _handle_unfollow_event(
+                db, line_user_id, clinic
+            )
+        
+        # For message events, extract message data
+        if event_type != 'message':
+            # Not a message or follow/unfollow event - return OK to LINE
+            logger.debug(f"Webhook event type '{event_type}' not handled, ignoring")
+            return {"status": "ok", "message": f"Event ignored (type: {event_type})"}
+        
         message_data = line_service.extract_message_data(payload)
-
+        
         if not message_data:
-            # Not a text message or invalid payload - return OK to LINE
+            # Not a text message - return OK to LINE
             logger.debug("Webhook event is not a text message, ignoring")
             return {"status": "ok", "message": "Event ignored (not a text message)"}
 
         line_user_id, message_text, reply_token, message_id, quoted_message_id = message_data
+
+        # IMPORTANT: Create LineUser proactively before processing message
+        # This ensures clinic can manage AI settings even if chat is disabled
+        try:
+            line_user = LineUserService.get_or_create_line_user(
+                db=db,
+                line_user_id=line_user_id,
+                line_service=line_service,
+                display_name=None  # Will be fetched from LINE API if needed
+            )
+            logger.debug(
+                f"LineUser ready: id={line_user.id}, "
+                f"line_user_id={line_user.line_user_id[:10]}..., "
+                f"display_name={line_user.display_name}"
+            )
+        except Exception as e:
+            # Log but don't fail - we can still process the message
+            logger.warning(
+                f"Failed to create/update LineUser for {line_user_id[:10]}...: {e}. "
+                "Continuing with message processing."
+            )
 
         logger.info(
             f"Processing message from clinic_id={clinic.id}, "

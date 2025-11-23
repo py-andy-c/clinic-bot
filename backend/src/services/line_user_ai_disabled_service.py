@@ -11,9 +11,9 @@ from typing import Optional, List, cast
 from datetime import datetime
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, distinct, or_, select
 
-from models import LineUserAiDisabled, LineUser, Patient
+from models import LineUserAiDisabled, LineUser, Patient, LineMessage
 from utils.datetime_utils import taiwan_now
 
 logger = logging.getLogger(__name__)
@@ -174,15 +174,19 @@ def get_line_users_for_clinic(
     limit: Optional[int] = None
 ) -> tuple[List[LineUserWithStatus], int]:
     """
-    Get all LineUsers who have patients in this clinic, with AI status.
+    Get all LineUsers who have interacted with this clinic (patients or messages), with AI status.
     
     This function:
-    1. Gets distinct LineUsers who have at least one active (non-deleted) patient in this clinic
-    2. Joins with Patient records to get patient count and names
+    1. Gets distinct LineUsers who have either:
+       - At least one active (non-deleted) patient in this clinic, OR
+       - At least one message sent to this clinic
+    2. Joins with Patient records to get patient count and names (if they have patients)
     3. Left joins with LineUserAiDisabled to check AI status
-    4. Filters out LineUsers with only soft-deleted patients
-    5. Aggregates patient names
-    6. Supports pagination (page/page_size or offset/limit)
+    4. Aggregates patient names (empty list if no patients)
+    5. Supports pagination (page/page_size or offset/limit)
+    
+    This ensures that LINE users who have sent messages but haven't created patients yet
+    are still visible in the admin UI, allowing clinics to manage AI settings for all users.
     
     Args:
         db: Database session
@@ -195,17 +199,47 @@ def get_line_users_for_clinic(
     Returns:
         Tuple of (List[LineUserWithStatus], total_count): List of LineUsers with AI status and patient information, and total count
     """
-    # Main query: Get LineUsers with their patient information
-    # Direct join with Patient table filters for active patients in this clinic
-    # This is more efficient than using a subquery with IN
+    # Get distinct line_user_ids from both Patient and LineMessage tables
+    # This ensures we include users who have interacted even without patients
+    
+    # Get all line_user_ids who have patients in this clinic
+    patients_line_user_ids_subq = db.query(
+        LineUser.line_user_id.label('line_user_id')
+    ).join(
+        Patient,
+        and_(
+            LineUser.id == Patient.line_user_id,
+            Patient.clinic_id == clinic_id,
+            Patient.is_deleted == False
+        )
+    ).distinct().subquery()
+    
+    # Get all line_user_ids who have sent messages to this clinic
+    messages_line_user_ids_subq = db.query(
+        LineMessage.line_user_id.label('line_user_id')
+    ).filter(
+        LineMessage.clinic_id == clinic_id
+    ).distinct().subquery()
+    
+    # Combine both sources - users who have patients OR messages
+    # Use a filter with OR condition to get LineUsers who match either condition
     base_query = db.query(
         LineUser.line_user_id,
         LineUser.display_name,
-        func.count(Patient.id).label('patient_count'),
+        func.coalesce(func.count(Patient.id), 0).label('patient_count'),
         func.array_agg(Patient.full_name).label('patient_names'),
         func.bool_or(LineUserAiDisabled.id.isnot(None)).label('ai_disabled'),
         func.max(LineUserAiDisabled.disabled_at).label('disabled_at')
-    ).join(
+    ).filter(
+        or_(
+            LineUser.line_user_id.in_(
+                select(patients_line_user_ids_subq.c.line_user_id)
+            ),
+            LineUser.line_user_id.in_(
+                select(messages_line_user_ids_subq.c.line_user_id)
+            )
+        )
+    ).outerjoin(
         Patient,
         and_(
             LineUser.id == Patient.line_user_id,
@@ -228,20 +262,17 @@ def get_line_users_for_clinic(
     )
     
     # Get total count before pagination
-    # Count should match the main query's filtering logic:
-    # - LineUsers with at least one active patient in this clinic
-    # - Grouped by LineUser.id (same as main query)
-    # We use a subquery that matches the main query's join and filter conditions
-    count_subquery = db.query(LineUser.id).join(
-        Patient,
-        and_(
-            LineUser.id == Patient.line_user_id,
-            Patient.clinic_id == clinic_id,
-            Patient.is_deleted == False
+    # Count distinct LineUsers who have interacted (patients or messages)
+    total = db.query(func.count(distinct(LineUser.id))).filter(
+        or_(
+            LineUser.line_user_id.in_(
+                select(patients_line_user_ids_subq.c.line_user_id)
+            ),
+            LineUser.line_user_id.in_(
+                select(messages_line_user_ids_subq.c.line_user_id)
+            )
         )
-    ).group_by(LineUser.id).subquery()
-    
-    total = db.query(func.count()).select_from(count_subquery).scalar() or 0
+    ).scalar() or 0
     
     # Convert page/page_size to offset/limit if provided
     if page is not None and page_size is not None:

@@ -101,6 +101,46 @@ class LINEService:
             logger.exception(f"Signature verification error: {e}")
             return False
 
+    def extract_event_data(self, payload: dict[str, Any]) -> Optional[Tuple[str, str, Optional[str]]]:
+        """
+        Extract event type, LINE user ID, and reply token from webhook payload.
+
+        Parses the LINE webhook payload to extract event information for any event type
+        (follow, unfollow, message, postback, etc.).
+
+        Args:
+            payload: Parsed JSON payload from LINE webhook
+
+        Returns:
+            Tuple of (event_type, line_user_id, reply_token) if valid event,
+            None for invalid payloads.
+            reply_token may be None if not available in the event.
+        """
+        try:
+            # Check for events array
+            if 'events' not in payload or not payload['events']:
+                return None
+
+            event = payload['events'][0]
+            event_type = event.get('type')
+            
+            # Extract user ID from source
+            source = event.get('source', {})
+            line_user_id = source.get('userId')
+            
+            if not event_type or not line_user_id:
+                return None
+            
+            # Extract reply_token if available (may not be present in all events)
+            reply_token = event.get('replyToken')
+            
+            return (event_type, line_user_id, reply_token)
+
+        except (KeyError, IndexError, TypeError) as e:
+            # Invalid payload structure - could be external input issue or internal parsing bug
+            logger.exception(f"Invalid LINE payload structure: {e}")
+            return None
+
     def extract_message_data(self, payload: dict[str, Any]) -> Optional[Tuple[str, str, Optional[str], Optional[str], Optional[str]]]:
         """
         Extract LINE user ID, message text, reply token, message ID, and quoted message ID from webhook payload.
@@ -147,6 +187,41 @@ class LINEService:
         except (KeyError, IndexError, TypeError) as e:
             # Invalid payload structure - could be external input issue or internal parsing bug
             logger.exception(f"Invalid LINE payload structure: {e}")
+            return None
+
+    def get_user_profile(self, line_user_id: str) -> Optional[dict[str, Any]]:
+        """
+        Get user profile information from LINE API.
+
+        Retrieves the user's display name and profile picture URL.
+        Can only be called for users who have added the official account as a friend.
+
+        Args:
+            line_user_id: LINE user ID to get profile for
+
+        Returns:
+            Dict with user profile information (displayName, userId, pictureUrl, statusMessage),
+            None if API call fails or user not found.
+        """
+        try:
+            response = httpx.get(
+                f"https://api.line.me/v2/bot/profile/{line_user_id}",
+                headers={"Authorization": f"Bearer {self.channel_access_token}"},
+                timeout=10.0
+            )
+            response.raise_for_status()
+            profile = response.json()
+            logger.debug(f"Successfully retrieved profile for user {line_user_id[:10]}...")
+            return profile
+        except httpx.HTTPStatusError as e:
+            # Don't log as error - user might not have added account or profile might be private
+            logger.debug(
+                f"Could not get profile for {line_user_id[:10]}...: "
+                f"{e.response.status_code} - {e.response.text}"
+            )
+            return None
+        except Exception as e:
+            logger.warning(f"Failed to get user profile for {line_user_id[:10]}...: {e}")
             return None
 
     def send_text_message(self, line_user_id: str, text: str, reply_token: Optional[str] = None) -> Optional[str]:
