@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from main import app
 from core.database import get_db
-from models import Clinic, LineUserAiOptOut, LineUserAiDisabled
+from models import Clinic
 from models.clinic import ChatSettings
 from services.clinic_agent import ClinicAgentService
 from services.line_opt_out_service import set_ai_opt_out
