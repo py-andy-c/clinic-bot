@@ -19,7 +19,7 @@ import PageHeader from '../components/PageHeader';
 const SettingsPage: React.FC = () => {
   const { isClinicAdmin, isClinicUser, isLoading, user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
-  const { alert } = useModal();
+  const { alert, confirm } = useModal();
   const [clinicInfoRefreshTrigger, setClinicInfoRefreshTrigger] = React.useState(0);
 
   // Only clinic users can access clinic settings
@@ -104,7 +104,7 @@ const SettingsPage: React.FC = () => {
     onSuccess: () => {
       // Invalidate cache after successful save so other components see fresh data
       invalidateCacheForFunction(sharedFetchFunctions.getClinicSettings);
-      
+
       // Check if clinic info was changed and saved by comparing with the data before save
       if (settings && originalData) {
         const changes = getClinicSectionChanges(settings, originalData);
@@ -114,7 +114,7 @@ const SettingsPage: React.FC = () => {
         }
       }
     },
-  }, { 
+  }, {
     isLoading: isLoading || settingsLoading,
     ...(cachedSettings ? { initialData: cachedSettings } : {}),
     skipFetch: !!cachedSettings // Only skip fetch if we have cached data
@@ -185,7 +185,7 @@ const SettingsPage: React.FC = () => {
     // Validate deletion before removing from UI
     try {
       const validation = await apiService.validateAppointmentTypeDeletion([appointmentType.id]);
-      
+
       if (!validation.can_delete && validation.error) {
         // Show error immediately
         const errorDetail = validation.error;
@@ -194,7 +194,7 @@ const SettingsPage: React.FC = () => {
         const blockedType = errorDetail.appointment_types[0];
         const practitionerNames = blockedType.practitioners.join('、');
         const errorMessage = `「${blockedType.name}」正在被以下治療師使用：${practitionerNames}\n\n請先移除治療師的此服務設定後再刪除。`;
-        
+
         // Show error in popup modal
         await alert(errorMessage, '無法刪除預約類型');
         return; // Don't remove from UI
@@ -210,6 +210,41 @@ const SettingsPage: React.FC = () => {
       const errorMessage = error.response?.data?.detail || error.message || '驗證刪除失敗，請稍後再試';
       await alert(errorMessage, '驗證失敗');
     }
+  };
+
+  const handleChatSettingsSave = async () => {
+    if (!settings || !originalData) return;
+
+    const wasEnabled = originalData.chat_settings.chat_enabled;
+    const isEnabled = settings.chat_settings.chat_enabled;
+
+    // Case 1: Off -> On
+    if (!wasEnabled && isEnabled) {
+      const confirmed = await confirm(
+        '您即將開啟 AI 聊天功能，病患將開始收到 AI 的自動回覆。確定要開啟嗎？',
+        '開啟 AI 聊天功能'
+      );
+      if (!confirmed) return;
+    }
+    // Case 2: On -> Off
+    else if (wasEnabled && !isEnabled) {
+      const confirmed = await confirm(
+        '您即將關閉 AI 聊天功能，病患將不再收到 AI 的自動回覆。確定要關閉嗎？',
+        '關閉 AI 聊天功能'
+      );
+      if (!confirmed) return;
+    }
+    // Case 3: Off -> Off (but changes made)
+    else if (!wasEnabled && !isEnabled) {
+      const confirmed = await confirm(
+        '您的變更將被儲存，但 AI 聊天功能目前仍處於關閉狀態，病患不會收到 AI 回覆。',
+        '儲存設定'
+      );
+      if (!confirmed) return;
+    }
+
+    // Proceed to save
+    saveData();
   };
 
   if (uiState.loading) {
@@ -234,165 +269,163 @@ const SettingsPage: React.FC = () => {
       <PageHeader title="診所設定" />
 
       <form onSubmit={(e) => { e.preventDefault(); saveData(); }} className="space-y-4">
-          {/* Appointment Settings - Combined section at the top */}
-          <SettingsSection
-            title="預約設定"
-            showSaveButton={sectionChanges.appointmentSettings || false}
-            onSave={saveData}
-            saving={uiState.saving}
-          >
-            <ClinicAppointmentSettings
-              appointmentTypes={settings.appointment_types}
-              appointmentTypeInstructions={settings.clinic_info_settings.appointment_type_instructions ?? null}
-              appointmentNotesInstructions={settings.clinic_info_settings.appointment_notes_instructions ?? null}
-              bookingRestrictionSettings={settings.booking_restriction_settings}
-              requireBirthday={settings.clinic_info_settings.require_birthday || false}
-              onAppointmentTypeInstructionsChange={(instructions) => {
-                updateData((prev) => ({
-                  clinic_info_settings: {
-                    ...prev.clinic_info_settings,
-                    appointment_type_instructions: instructions
-                  }
-                }));
-              }}
-              onAppointmentNotesInstructionsChange={(instructions) => {
-                updateData((prev) => ({
-                  clinic_info_settings: {
-                    ...prev.clinic_info_settings,
-                    appointment_notes_instructions: instructions
-                  }
-                }));
-              }}
-              onBookingRestrictionSettingsChange={(bookingSettings) => {
-                updateData({
-                  booking_restriction_settings: bookingSettings
-                });
-              }}
-              onRequireBirthdayChange={(value) => {
-                updateData((prev) => ({
-                  clinic_info_settings: {
-                    ...prev.clinic_info_settings,
-                    require_birthday: value
-                  }
-                }));
-              }}
-              onAddType={addAppointmentType}
-              onUpdateType={updateAppointmentType}
-              onRemoveType={removeAppointmentType}
-              isClinicAdmin={isClinicAdmin}
-            />
-          </SettingsSection>
+        {/* Appointment Settings - Combined section at the top */}
+        <SettingsSection
+          title="預約設定"
+          showSaveButton={sectionChanges.appointmentSettings || false}
+          onSave={saveData}
+          saving={uiState.saving}
+        >
+          <ClinicAppointmentSettings
+            appointmentTypes={settings.appointment_types}
+            appointmentTypeInstructions={settings.clinic_info_settings.appointment_type_instructions ?? null}
+            appointmentNotesInstructions={settings.clinic_info_settings.appointment_notes_instructions ?? null}
+            bookingRestrictionSettings={settings.booking_restriction_settings}
+            requireBirthday={settings.clinic_info_settings.require_birthday || false}
+            onAppointmentTypeInstructionsChange={(instructions) => {
+              updateData((prev) => ({
+                clinic_info_settings: {
+                  ...prev.clinic_info_settings,
+                  appointment_type_instructions: instructions
+                }
+              }));
+            }}
+            onAppointmentNotesInstructionsChange={(instructions) => {
+              updateData((prev) => ({
+                clinic_info_settings: {
+                  ...prev.clinic_info_settings,
+                  appointment_notes_instructions: instructions
+                }
+              }));
+            }}
+            onBookingRestrictionSettingsChange={(bookingSettings) => {
+              updateData({
+                booking_restriction_settings: bookingSettings
+              });
+            }}
+            onRequireBirthdayChange={(value) => {
+              updateData((prev) => ({
+                clinic_info_settings: {
+                  ...prev.clinic_info_settings,
+                  require_birthday: value
+                }
+              }));
+            }}
+            onAddType={addAppointmentType}
+            onUpdateType={updateAppointmentType}
+            onRemoveType={removeAppointmentType}
+            isClinicAdmin={isClinicAdmin}
+          />
+        </SettingsSection>
 
-          {/* Clinic Info Settings */}
-          <SettingsSection
-            title="診所資訊"
-            showSaveButton={sectionChanges.clinicInfoSettings || false}
-            onSave={saveData}
-            saving={uiState.saving}
-          >
-            <ClinicInfoSettings
-              clinicInfoSettings={settings.clinic_info_settings}
-              clinicName={settings.clinic_name}
-              onClinicInfoSettingsChange={(clinicInfoSettings) => {
-                updateData((prev) => ({
-                  clinic_info_settings: {
-                    ...prev.clinic_info_settings,
-                    ...clinicInfoSettings
-                  }
-                }));
-              }}
-              isClinicAdmin={isClinicAdmin}
-            />
-          </SettingsSection>
+        {/* Clinic Info Settings */}
+        <SettingsSection
+          title="診所資訊"
+          showSaveButton={sectionChanges.clinicInfoSettings || false}
+          onSave={saveData}
+          saving={uiState.saving}
+        >
+          <ClinicInfoSettings
+            clinicInfoSettings={settings.clinic_info_settings}
+            clinicName={settings.clinic_name}
+            onClinicInfoSettingsChange={(clinicInfoSettings) => {
+              updateData((prev) => ({
+                clinic_info_settings: {
+                  ...prev.clinic_info_settings,
+                  ...clinicInfoSettings
+                }
+              }));
+            }}
+            isClinicAdmin={isClinicAdmin}
+          />
+        </SettingsSection>
 
-          {/* Reminder Settings */}
-          <SettingsSection
-            title="LINE提醒設定"
-            showSaveButton={sectionChanges.reminderSettings || false}
-            onSave={saveData}
-            saving={uiState.saving}
-          >
-            <ClinicReminderSettings
-              reminderHoursBefore={settings.notification_settings.reminder_hours_before}
-              onReminderHoursChange={(value) => {
-                updateData({
-                  notification_settings: {
-                    ...settings.notification_settings,
-                    reminder_hours_before: value
-                  }
-                });
-              }}
-              isClinicAdmin={isClinicAdmin}
-              refreshTrigger={clinicInfoRefreshTrigger}
-            />
-          </SettingsSection>
+        {/* Reminder Settings */}
+        <SettingsSection
+          title="LINE提醒設定"
+          showSaveButton={sectionChanges.reminderSettings || false}
+          onSave={saveData}
+          saving={uiState.saving}
+        >
+          <ClinicReminderSettings
+            reminderHoursBefore={settings.notification_settings.reminder_hours_before}
+            onReminderHoursChange={(value) => {
+              updateData({
+                notification_settings: {
+                  ...settings.notification_settings,
+                  reminder_hours_before: value
+                }
+              });
+            }}
+            isClinicAdmin={isClinicAdmin}
+            refreshTrigger={clinicInfoRefreshTrigger}
+          />
+        </SettingsSection>
 
-          {/* Chat Settings */}
-          <SettingsSection
-            title="AI 聊天功能"
-            showSaveButton={sectionChanges.chatSettings || false}
-            onSave={saveData}
-            saving={uiState.saving}
-            headerActions={
-              settings.chat_settings.chat_enabled && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    // This will be handled by ChatSettings component
-                    const event = new CustomEvent('open-chat-test');
-                    window.dispatchEvent(event);
-                  }}
-                  className="px-4 py-2 bg-[#EFF6FF] text-[#1E40AF] rounded-lg font-medium text-sm hover:bg-[#DBEAFE] transition-colors flex items-center gap-2"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-                    />
+        {/* Chat Settings */}
+        <SettingsSection
+          title="AI 聊天功能"
+          showSaveButton={sectionChanges.chatSettings || false}
+          onSave={handleChatSettingsSave}
+          saving={uiState.saving}
+          headerActions={
+            <button
+              type="button"
+              onClick={() => {
+                // This will be handled by ChatSettings component
+                const event = new CustomEvent('open-chat-test');
+                window.dispatchEvent(event);
+              }}
+              className="px-4 py-2 bg-[#EFF6FF] text-[#1E40AF] rounded-lg font-medium text-sm hover:bg-[#DBEAFE] transition-colors flex items-center gap-2"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                />
+              </svg>
+              測試聊天機器人
+            </button>
+          }
+        >
+          <ChatSettings
+            chatSettings={settings.chat_settings}
+            onChatSettingsChange={(chatSettings) => {
+              updateData({
+                chat_settings: chatSettings
+              });
+            }}
+            isClinicAdmin={isClinicAdmin}
+          />
+        </SettingsSection>
+
+        {/* Error Display */}
+        {uiState.error && (
+          <div className="bg-white rounded-lg border border-red-200 shadow-sm p-6">
+            <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
-                  測試聊天機器人
-                </button>
-              )
-            }
-          >
-            <ChatSettings
-              chatSettings={settings.chat_settings}
-              onChatSettingsChange={(chatSettings) => {
-                updateData({
-                  chat_settings: chatSettings
-                });
-              }}
-              isClinicAdmin={isClinicAdmin}
-            />
-          </SettingsSection>
-
-          {/* Error Display */}
-          {uiState.error && (
-            <div className="bg-white rounded-lg border border-red-200 shadow-sm p-6">
-              <div className="p-4 bg-red-50 border border-red-200 rounded-md">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">錯誤</h3>
-                    <div className="mt-2 text-sm text-red-700 whitespace-pre-line">
-                      {uiState.error}
-                    </div>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">錯誤</h3>
+                  <div className="mt-2 text-sm text-red-700 whitespace-pre-line">
+                    {uiState.error}
                   </div>
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        )}
       </form>
     </div>
   );
