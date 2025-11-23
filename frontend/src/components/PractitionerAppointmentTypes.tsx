@@ -81,11 +81,8 @@ const PractitionerAppointmentTypes: React.FC<PractitionerAppointmentTypesProps> 
         setSelectedTypeIds(validSelectedIds);
       }
 
-      // Get practitioner's status (includes availability check) - only if we're fetching data
-      // This is still needed for the component to work properly
-      if (externalAvailableTypes === undefined || externalSelectedTypeIds === undefined) {
-        await apiService.getPractitionerStatus(user.user_id);
-      }
+      // Note: Practitioner status is no longer needed here - it's fetched by GlobalWarnings
+      // and cached appropriately. This component only needs appointment types.
 
     } catch (err) {
       logger.error('Error fetching practitioner appointment types:', err);

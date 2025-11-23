@@ -148,7 +148,7 @@ describe('useApiData', () => {
       .mockResolvedValueOnce(mockData1)
       .mockResolvedValueOnce(mockData2);
 
-    const { result } = renderHook(() => useApiData(fetchFn));
+    const { result } = renderHook(() => useApiData(fetchFn, { cacheTTL: 0 })); // Disable cache for this test
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -209,7 +209,7 @@ describe('useApiData', () => {
 
     const { result, rerender } = renderHook(
       ({ userId }: { userId: number }) =>
-        useApiData(fetchFn, { dependencies: [userId] }),
+        useApiData(fetchFn, { dependencies: [userId], cacheTTL: 0 }), // Disable cache for this test
       {
         initialProps: { userId: 1 },
       }

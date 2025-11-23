@@ -7,7 +7,7 @@ import { View } from 'react-big-calendar';
 import CalendarView from '../components/CalendarView';
 import PageHeader from '../components/PageHeader';
 import PractitionerSelector from '../components/PractitionerSelector';
-import { apiService } from '../services/api';
+import { sharedFetchFunctions } from '../services/api';
 
 const AvailabilityPage: React.FC = () => {
   const { user, isPractitioner, isLoading: authLoading, isAuthenticated } = useAuth();
@@ -22,9 +22,8 @@ const AvailabilityPage: React.FC = () => {
     ? parseInt(searchParams.get('createAppointment') || '0', 10) 
     : undefined;
 
-  // Memoize fetch function to ensure stable cache key and enable request deduplication
-  // This will share the same cache as CalendarView
-  const fetchPractitionersFn = useCallback(() => apiService.getPractitioners(), []);
+  // Use shared fetch function for cache key consistency
+  const fetchPractitionersFn = sharedFetchFunctions.getPractitioners;
 
   // Use useApiData for practitioners with caching and request deduplication
   const { data: practitionersData, loading: practitionersLoading } = useApiData(

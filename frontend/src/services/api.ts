@@ -580,3 +580,11 @@ export class ApiService {
 }
 
 export const apiService = new ApiService();
+
+// Shared fetch functions for useApiData to ensure cache key consistency
+// These are stable function references that multiple components can share
+export const sharedFetchFunctions = {
+  getPractitioners: () => apiService.getPractitioners(),
+  getClinicSettings: () => apiService.getClinicSettings(),
+  getMembers: () => apiService.getMembers(),
+};

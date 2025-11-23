@@ -3,7 +3,8 @@ import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useUnsavedChanges } from '../contexts/UnsavedChangesContext';
 import { useModal } from '../contexts/ModalContext';
-import { apiService } from '../services/api';
+import { useApiData, invalidateCacheForFunction, invalidateCacheByPattern } from '../hooks/useApiData';
+import { apiService, sharedFetchFunctions } from '../services/api';
 import { logger } from '../utils/logger';
 import ClinicSwitcher from './ClinicSwitcher';
 
@@ -26,113 +27,140 @@ const GlobalWarnings: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const previousPathnameRef = useRef<string | null>(null);
-  const handleFocusRef = useRef<() => void>();
 
-  // Cache warnings data to avoid redundant API calls when switching tabs
-  // Key: `${user.user_id}-${isClinicAdmin}-${hasRole('practitioner')}`
-  const cachedWarningsRef = useRef<Map<string, { data: typeof warnings; timestamp: number }>>(new Map());
-  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  // Use shared fetch functions for cache key consistency
+  const fetchClinicSettingsFn = sharedFetchFunctions.getClinicSettings;
+  const { data: clinicSettingsData, error: clinicSettingsError } = useApiData(
+    fetchClinicSettingsFn,
+    {
+      enabled: !isLoading && isClinicAdmin,
+      dependencies: [isLoading, isClinicAdmin],
+      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
+    }
+  );
 
-  const fetchWarnings = useCallback(async () => {
-    if (!user?.user_id) return;
+  const fetchMembersFn = sharedFetchFunctions.getMembers;
+  const { data: membersData, error: membersError } = useApiData(
+    fetchMembersFn,
+    {
+      enabled: !isLoading && isClinicAdmin,
+      dependencies: [isLoading, isClinicAdmin],
+      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
+    }
+  );
 
-    // Create cache key based on user context
-    const cacheKey = `${user.user_id}-${isClinicAdmin}-${hasRole && hasRole('practitioner')}`;
+  // Use useApiData for practitioner status to enable caching and request deduplication
+  const fetchPractitionerStatusFn = useCallback(
+    () => user?.user_id ? apiService.getPractitionerStatus(user.user_id) : Promise.reject(new Error('No user ID')),
+    [user?.user_id]
+  );
+  const { data: practitionerStatusData, error: practitionerStatusError } = useApiData(
+    fetchPractitionerStatusFn,
+    {
+      enabled: !isLoading && user?.user_id !== undefined && hasRole && hasRole('practitioner'),
+      dependencies: [isLoading, user?.user_id, hasRole],
+      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
+    }
+  );
 
-    // Check cache first
-    const cached = cachedWarningsRef.current.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-      // Use cached data - no API call needed
-      setWarnings(cached.data);
-      setLoading(false);
+  // Compute practitioner IDs from members data
+  const practitionerIds = useMemo(() => {
+    if (!isClinicAdmin || !membersData) return [];
+    const practitionerMembers = membersData.filter(
+      member => member.roles.includes('practitioner') && member.is_active
+    );
+    return practitionerMembers.map(m => m.id).sort((a, b) => a - b); // Sort for stable cache key
+  }, [isClinicAdmin, membersData]);
+
+  // Use useApiData for batch practitioner status to enable caching and request deduplication
+  const fetchBatchPractitionerStatusFn = useCallback(
+    () => practitionerIds.length > 0 
+      ? apiService.getBatchPractitionerStatus(practitionerIds)
+      : Promise.resolve({ results: [] }),
+    [practitionerIds]
+  );
+  const { data: batchPractitionerStatusData, error: batchPractitionerStatusError } = useApiData(
+    fetchBatchPractitionerStatusFn,
+    {
+      enabled: !isLoading && isClinicAdmin && practitionerIds.length > 0,
+      dependencies: [isLoading, isClinicAdmin, practitionerIds],
+      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
+    }
+  );
+
+  // Compute warnings from fetched data
+  useEffect(() => {
+    if (isLoading || !user?.user_id) {
+      setLoading(true);
       return;
     }
 
-    try {
-      setLoading(true);
+    // Check for errors - if critical data failed to load, show defaults
+    const hasErrors = (isClinicAdmin && (clinicSettingsError || membersError)) ||
+      (hasRole && hasRole('practitioner') && practitionerStatusError) ||
+      (isClinicAdmin && batchPractitionerStatusError);
+    
+    if (hasErrors) {
+      // Log errors but continue with defaults to avoid breaking the UI
+      logger.warn('Some warning data failed to load, using defaults', {
+        clinicSettingsError,
+        membersError,
+        practitionerStatusError,
+        batchPractitionerStatusError
+      });
+    }
 
+    try {
       // Fetch clinic warnings if user is admin
       let clinicWarnings = { hasAppointmentTypes: true };
-      if (isClinicAdmin) {
-        try {
-          const clinicSettings = await apiService.getClinicSettings();
-          clinicWarnings = {
-            hasAppointmentTypes: clinicSettings.appointment_types.length > 0
-          };
-        } catch (err) {
-          logger.error('Error fetching clinic settings:', err);
-        }
+      if (isClinicAdmin && clinicSettingsData) {
+        clinicWarnings = {
+          hasAppointmentTypes: clinicSettingsData.appointment_types.length > 0
+        };
       }
 
       // Fetch practitioner's own warnings if they are a practitioner
       let practitionerWarnings = { hasAppointmentTypes: true, hasAvailability: true };
-      if (hasRole && hasRole('practitioner')) {
-        const status = await apiService.getPractitionerStatus(user.user_id);
+      if (hasRole && hasRole('practitioner') && practitionerStatusData) {
         practitionerWarnings = {
-          hasAppointmentTypes: status.has_appointment_types,
-          hasAvailability: status.has_availability
+          hasAppointmentTypes: practitionerStatusData.has_appointment_types,
+          hasAvailability: practitionerStatusData.has_availability
         };
       }
 
       // Fetch admin warnings if user is admin - use batch endpoint
       let adminWarnings: Array<{ id: number; full_name: string; hasAppointmentTypes: boolean; hasAvailability: boolean }> = [];
-      if (isClinicAdmin) {
-        const members = await apiService.getMembers();
-        const practitionerMembers = members.filter(
+      if (isClinicAdmin && membersData && batchPractitionerStatusData) {
+        const practitionerMembers = membersData.filter(
           member => member.roles.includes('practitioner') && member.is_active
         );
 
-        if (practitionerMembers.length > 0) {
-          try {
-            // Use batch endpoint to fetch all practitioner statuses in one call
-            const practitionerIds = practitionerMembers.map(m => m.id);
-            const batchStatus = await apiService.getBatchPractitionerStatus(practitionerIds);
+        if (practitionerMembers.length > 0 && batchPractitionerStatusData.results.length > 0) {
+          // Create a map for quick lookup
+          const statusMap = new Map(
+            batchPractitionerStatusData.results.map(result => [result.user_id, result])
+          );
 
-            // Create a map for quick lookup
-            const statusMap = new Map(
-              batchStatus.results.map(result => [result.user_id, result])
-            );
-
-            // Build admin warnings from batch response
-            for (const member of practitionerMembers) {
-              const status = statusMap.get(member.id);
-              if (status && (!status.has_appointment_types || !status.has_availability)) {
-                adminWarnings.push({
-                  id: member.id,
-                  full_name: member.full_name,
-                  hasAppointmentTypes: status.has_appointment_types,
-                  hasAvailability: status.has_availability
-                });
-              }
+          // Build admin warnings from batch response
+          for (const member of practitionerMembers) {
+            const status = statusMap.get(member.id);
+            if (status && (!status.has_appointment_types || !status.has_availability)) {
+              adminWarnings.push({
+                id: member.id,
+                full_name: member.full_name,
+                hasAppointmentTypes: status.has_appointment_types,
+                hasAvailability: status.has_availability
+              });
             }
-          } catch (err) {
-            logger.error('Error fetching batch practitioner status:', err);
-            // Fallback: continue without admin warnings rather than failing completely
           }
         }
       }
 
-      const warningsData = {
+      setWarnings({
         clinicWarnings,
         practitionerWarnings,
         adminWarnings
-      };
-
-      // Cache the data
-      cachedWarningsRef.current.set(cacheKey, {
-        data: warningsData,
-        timestamp: Date.now()
       });
-
-      // Clean up old cache entries (older than TTL)
-      const now = Date.now();
-      for (const [key, value] of cachedWarningsRef.current.entries()) {
-        if (now - value.timestamp >= CACHE_TTL) {
-          cachedWarningsRef.current.delete(key);
-        }
-      }
-
-      setWarnings(warningsData);
     } catch (err: any) {
       // Silently handle network/CORS errors during auth recovery
       // These are expected when returning to tab after being in background
@@ -143,22 +171,15 @@ const GlobalWarnings: React.FC = () => {
 
       if (!isNetworkError) {
         // Only log non-network errors (actual API failures)
-        logger.error('Error fetching warnings:', err);
+        logger.error('Error computing warnings:', err);
       }
     } finally {
       setLoading(false);
     }
-  }, [user, isClinicAdmin, hasRole]);
-
-  // Initial fetch on mount - wait for auth to complete before fetching
-  useEffect(() => {
-    // Wait for auth to complete before fetching data
-    if (!isLoading && user) {
-      fetchWarnings();
-    }
-  }, [isLoading, user, fetchWarnings]);
+  }, [isLoading, user, isClinicAdmin, hasRole, clinicSettingsData, membersData, practitionerStatusData, batchPractitionerStatusData]);
 
   // Refresh warnings when navigating away from settings/profile pages
+  // We'll invalidate the useApiData cache instead of using our own cache
   useEffect(() => {
     const previousPathname = previousPathnameRef.current;
     const currentPathname = location.pathname;
@@ -169,34 +190,18 @@ const GlobalWarnings: React.FC = () => {
     // Only refresh if navigating away from settings pages
     if (previousPathname && settingsPages.includes(previousPathname) && !settingsPages.includes(currentPathname)) {
       // Invalidate cache to ensure fresh data after settings changes
-      if (user?.user_id) {
-        const cacheKey = `${user.user_id}-${isClinicAdmin}-${hasRole && hasRole('practitioner')}`;
-        cachedWarningsRef.current.delete(cacheKey);
-      }
-      fetchWarnings();
+      invalidateCacheForFunction(sharedFetchFunctions.getClinicSettings);
+      invalidateCacheForFunction(sharedFetchFunctions.getMembers);
+      
+      // Also invalidate practitioner status caches (parameterized functions)
+      // These use patterns like "api_getPractitionerStatus_*" and "api_getBatchPractitionerStatus_*"
+      invalidateCacheByPattern('api_getPractitionerStatus_');
+      invalidateCacheByPattern('api_getBatchPractitionerStatus_');
     }
 
     // Update previous pathname for next navigation
     previousPathnameRef.current = currentPathname;
-  }, [location.pathname, fetchWarnings, user, isClinicAdmin, hasRole]);
-
-  // Refresh warnings when window regains focus (e.g., user returns to tab after saving settings)
-  // Update ref with latest fetchWarnings function whenever it changes
-  useEffect(() => {
-    handleFocusRef.current = fetchWarnings;
-  }, [fetchWarnings]);
-
-  // Set up stable event listener that always calls the latest fetchWarnings via ref
-  useEffect(() => {
-    const handleFocus = () => {
-      handleFocusRef.current?.();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, []); // Empty deps - stable handler that reads from ref
+  }, [location.pathname, user, isClinicAdmin, hasRole]);
 
   const hasAnyWarnings = !warnings.clinicWarnings.hasAppointmentTypes ||
     !warnings.practitionerWarnings.hasAppointmentTypes ||

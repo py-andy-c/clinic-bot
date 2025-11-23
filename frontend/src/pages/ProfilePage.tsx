@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { TimeInterval } from '../types';
 import { logger } from '../utils/logger';
 import { LoadingSpinner } from '../components/shared';
@@ -6,8 +6,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useSettingsPage } from '../hooks/useSettingsPage';
 import { useModal } from '../contexts/ModalContext';
 import { validateProfileSettings, getProfileSectionChanges } from '../utils/profileSettings';
-import { apiService } from '../services/api';
-import { useApiData } from '../hooks/useApiData';
+import { apiService, sharedFetchFunctions } from '../services/api';
+import { useApiData, invalidateCacheByPattern } from '../hooks/useApiData';
 import { ClinicSettings } from '../schemas/api';
 import ProfileForm from '../components/ProfileForm';
 import AvailabilitySettings from '../components/AvailabilitySettings';
@@ -173,11 +173,9 @@ const ProfilePage: React.FC = () => {
   // Profile state for display (set from useSettingsPage fetchData)
   const [profile, setProfile] = React.useState<any>(null);
 
-  // Fetch clinic settings with caching to pass to PractitionerAppointmentTypes
-  // This eliminates duplicate API calls
-  const fetchClinicSettingsFn = useCallback(() => apiService.getClinicSettings(), []);
+  // Fetch clinic settings with caching (shares cache with GlobalWarnings)
   const { data: clinicSettings } = useApiData<ClinicSettings>(
-    fetchClinicSettingsFn,
+    sharedFetchFunctions.getClinicSettings,
     {
       enabled: !isLoading && !!user,
       dependencies: [isLoading, user, activeClinicId],
@@ -203,11 +201,11 @@ const ProfilePage: React.FC = () => {
         },
       };
 
-      // Fetch profile (useSettingsPage handles the fetching, eliminating duplicate calls)
+      // Fetch profile
       let profileToUse: any = null;
       try {
         profileToUse = await apiService.getProfile();
-        setProfile(profileToUse); // Set profile state for display
+        setProfile(profileToUse);
       } catch (err) {
         logger.error('Error fetching profile:', err);
       }
@@ -320,15 +318,23 @@ const ProfilePage: React.FC = () => {
     onSaveError: async (error: string) => {
       await alert(error, '儲存失敗');
     },
+    onSuccess: () => {
+      // Invalidate practitioner status cache so warnings update after profile changes
+      invalidateCacheByPattern('api_getPractitionerStatus_');
+      invalidateCacheByPattern('api_getBatchPractitionerStatus_');
+    },
   }, { isLoading });
 
-  // Refresh profile data when clinic changes
+  // Refresh profile data when clinic changes (skip initial mount to avoid duplicate fetch)
+  const previousClinicIdRef = React.useRef<number | null | undefined>(activeClinicId);
   React.useEffect(() => {
-    if (!isLoading && activeClinicId && fetchData) {
+    // Only fetch if clinic actually changed (not on initial mount)
+    if (!isLoading && activeClinicId !== undefined && fetchData && previousClinicIdRef.current !== activeClinicId) {
       fetchData();
     }
+    previousClinicIdRef.current = activeClinicId ?? null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeClinicId]);
+  }, [activeClinicId, isLoading]);
 
   const handleAddInterval = (dayKey: string) => {
     if (!profileData) return;

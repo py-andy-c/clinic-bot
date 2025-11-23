@@ -55,17 +55,141 @@ const DEFAULT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Track in-flight requests to deduplicate concurrent requests for the same data
 const inFlightRequests = new Map<string, Promise<any>>();
+// Map to track locks for promise registration (prevents race conditions)
+const registrationLocks = new Map<string, boolean>();
+
+// Map to store cache keys for function string representations
+// This ensures functions with identical code share the same cache key
+const functionStringToKeyMap = new Map<string, string>();
+let cacheKeyCounter = 0;
+
+/**
+ * Extract parameters from a function string
+ * Handles patterns like: apiService.getPractitionerStatus(user.user_id)
+ * Returns a normalized string representation of parameters
+ */
+function extractParameters(functionString: string): string | null {
+  // Match the content inside parentheses after the method name
+  // Pattern: .methodName(...params...)
+  // Handles optional chaining: user?.user_id, user?.id, etc.
+  const paramMatch = functionString.match(/\.\w+\s*\(([^)]*)\)/);
+  if (!paramMatch || !paramMatch[1]) return null;
+  
+  const params = paramMatch[1].trim();
+  if (!params) return null; // No parameters
+  
+  // Normalize the parameter string
+  // Remove whitespace, normalize optional chaining (user?.user_id -> user.user_id for cache key)
+  // Note: We normalize optional chaining to regular property access for cache key consistency
+  let normalized = params.replace(/\s+/g, '').replace(/\?\./g, '.'); // user?.id -> user.id
+  
+  // Try to detect array literals like [1, 2, 3] or [user.id, other.id]
+  // Handle nested arrays by recursively processing
+  const processArray = (str: string): string => {
+    const arrayMatch = str.match(/\[([^\]]+)\]/);
+    if (arrayMatch && arrayMatch[1]) {
+      // For arrays, sort and normalize the elements
+      const elements = arrayMatch[1].split(',').map(e => {
+        const trimmed = e.trim();
+        // Recursively process nested arrays
+        return trimmed.includes('[') ? processArray(trimmed) : trimmed;
+      }).sort().join(',');
+      return `[${elements}]`;
+    }
+    return str;
+  };
+  
+  normalized = processArray(normalized);
+  
+  return normalized;
+}
+
+/**
+ * Create a stable hash from a string (simple implementation)
+ */
+function simpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(36);
+}
 
 function getCacheKey(fetchFn: () => Promise<any>): string {
-  // Use function string representation as cache key
-  // In production, you might want a more sophisticated key generation
-  return fetchFn.toString();
+  // Normalize function string to extract method name
+  // This handles minification differences (e.g., xe.getClinicSettings() vs j.getClinicSettings())
+  const functionString = fetchFn.toString();
+  
+  // Match common HTTP method patterns: get, post, put, patch, delete, update, create
+  // Also handle batch methods like getBatchPractitionerStatus
+  const methodMatch = functionString.match(/\.(get\w+|post\w+|put\w+|patch\w+|update\w+|create\w+|delete\w+)\s*\(/);
+  
+  if (methodMatch && methodMatch[1]) {
+    const methodName = methodMatch[1];
+    
+    // Extract parameters to include in cache key
+    const params = extractParameters(functionString);
+    
+    if (params) {
+      // Parameterized function - include parameters in cache key
+      // Use hash for long parameter strings to keep keys manageable
+      const paramHash = params.length > 50 ? simpleHash(params) : params;
+      const normalizedKey = `api_${methodName}_${paramHash}`;
+      
+      if (functionStringToKeyMap.has(normalizedKey)) {
+        return functionStringToKeyMap.get(normalizedKey)!;
+      }
+      
+      functionStringToKeyMap.set(normalizedKey, normalizedKey);
+      return normalizedKey;
+    } else {
+      // Non-parameterized function - use method name only
+      const normalizedKey = `api_${methodName}`;
+      
+      if (functionStringToKeyMap.has(normalizedKey)) {
+        return functionStringToKeyMap.get(normalizedKey)!;
+      }
+      
+      functionStringToKeyMap.set(normalizedKey, normalizedKey);
+      return normalizedKey;
+    }
+  }
+  
+  // Fallback for non-standard functions - use full function string for uniqueness
+  if (functionStringToKeyMap.has(functionString)) {
+    return functionStringToKeyMap.get(functionString)!;
+  }
+  
+  const key = `fn_${cacheKeyCounter++}_${functionString.slice(0, 50)}`;
+  functionStringToKeyMap.set(functionString, key);
+  return key;
 }
 
 // Export function to clear cache (useful for tests)
 export function clearApiDataCache(): void {
   cache.clear();
   inFlightRequests.clear();
+  registrationLocks.clear();
+}
+
+// Export function to invalidate cache for a specific fetch function
+export function invalidateCacheForFunction(fetchFn: () => Promise<any>): void {
+  const cacheKey = getCacheKey(fetchFn);
+  cache.delete(cacheKey);
+  // Note: We don't clear in-flight requests as they may be needed by other components
+}
+
+// Export function to invalidate cache by pattern (useful for parameterized functions)
+export function invalidateCacheByPattern(pattern: string): void {
+  const keysToDelete: string[] = [];
+  for (const key of cache.keys()) {
+    if (key.startsWith(pattern)) {
+      keysToDelete.push(key);
+    }
+  }
+  keysToDelete.forEach(key => cache.delete(key));
 }
 
 function getCached<T>(key: string, ttl: number): T | null {
@@ -201,50 +325,32 @@ export function useApiData<T>(
 
   // Track if component is mounted to avoid state updates after unmount
   const isMountedRef = useRef(true);
-  // Generate cache key synchronously to avoid race conditions
-  const cacheKeyRef = useRef<string | null>(getCacheKey(fetchFn));
+  // Track active lock for cleanup on unmount
+  const activeLockRef = useRef<string | null>(null);
 
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      // Clean up any active locks on unmount
+      if (activeLockRef.current) {
+        registrationLocks.delete(activeLockRef.current);
+        activeLockRef.current = null;
+      }
     };
   }, []);
-
-  // Update cache key when fetchFn changes
-  useEffect(() => {
-    cacheKeyRef.current = getCacheKey(fetchFn);
-  }, [fetchFn]);
 
   const performFetch = useCallback(async () => {
     if (!enabled) {
       return;
     }
 
-    // Check cache first if caching is enabled and no initial data is set
-    // (initial data takes precedence over cache)
-    let hasCachedData = false;
-    if (cacheTTL > 0 && cacheKeyRef.current && initialData === undefined) {
-      const cached = getCached<T>(cacheKeyRef.current, cacheTTL);
-      if (cached !== null) {
-        hasCachedData = true;
-        // Use cached data immediately
-        if (isMountedRef.current) {
-          setData(cached);
-          setLoading(false);
-          onSuccess?.(cached);
-        }
-        // Still fetch in background to refresh cache (stale-while-revalidate pattern)
-        // But don't show loading state if we have cached data
-      }
-    }
-
-    // Check if there's already an in-flight request for this cache key
-    // This prevents duplicate concurrent requests (e.g., from React StrictMode)
-    if (cacheKeyRef.current && inFlightRequests.has(cacheKeyRef.current)) {
+    // Check in-flight requests first to prevent race conditions
+    // Compute cache key synchronously to ensure we use the latest key
+    const cacheKey = getCacheKey(fetchFn);
+    if (cacheKey && inFlightRequests.has(cacheKey)) {
       try {
-        const result = await inFlightRequests.get(cacheKeyRef.current)!;
-        // Reuse the result from the in-flight request
+        const result = await inFlightRequests.get(cacheKey)!;
         if (isMountedRef.current) {
           setData(result);
           setLoading(false);
@@ -252,8 +358,61 @@ export function useApiData<T>(
         }
         return;
       } catch (err) {
-        // If the in-flight request failed, continue to make a new request
-        inFlightRequests.delete(cacheKeyRef.current!);
+        // If the in-flight request failed, delete it and continue with a new fetch
+        inFlightRequests.delete(cacheKey);
+        // Re-throw the error so the component can handle it
+        if (isMountedRef.current) {
+          const errorMessage = err instanceof Error ? err.message : defaultErrorMessage || '載入資料時發生錯誤';
+          setError(errorMessage);
+          setLoading(false);
+          onError?.(err);
+          if (logErrors) {
+            logger.error('In-flight request failed:', err);
+          }
+        }
+        return; // Don't continue with a new fetch if the in-flight one failed
+      }
+    }
+
+    // Check cache if caching is enabled
+    // Use computed cache key consistently (not cacheKeyRef.current which may be stale)
+    let hasCachedData = false;
+    let cacheAge = 0;
+    if (cacheTTL > 0 && cacheKey && initialData === undefined) {
+      const cached = getCached<T>(cacheKey, cacheTTL);
+      if (cached !== null) {
+        hasCachedData = true;
+        const cacheEntry = cache.get(cacheKey);
+        if (cacheEntry) {
+          cacheAge = Date.now() - cacheEntry.timestamp;
+        }
+        if (isMountedRef.current) {
+          setData(cached);
+          setLoading(false);
+          onSuccess?.(cached);
+        }
+        // Check in-flight requests even for fresh cache to get latest data
+        // Use the same cacheKey computed at the start
+        if (cacheKey && inFlightRequests.has(cacheKey)) {
+          try {
+            const result = await inFlightRequests.get(cacheKey)!;
+            if (isMountedRef.current) {
+              setData(result);
+              setLoading(false);
+              onSuccess?.(result);
+            }
+            return;
+          } catch (err) {
+            // If in-flight request failed, continue with background fetch
+            inFlightRequests.delete(cacheKey);
+          }
+        }
+        
+        // Skip background fetch if cache is very fresh (< 1 minute)
+        const FRESH_CACHE_THRESHOLD = 60 * 1000;
+        if (cacheAge < FRESH_CACHE_THRESHOLD) {
+          return;
+        }
       }
     }
 
@@ -264,40 +423,138 @@ export function useApiData<T>(
       }
       setError(null);
 
-      // Create the fetch promise and store it for deduplication
-      const fetchPromise = fetchFn();
-      if (cacheKeyRef.current) {
-        inFlightRequests.set(cacheKeyRef.current, fetchPromise);
+      // Atomic check-and-set: Use a lock to prevent race conditions
+      // This ensures only one component can register a promise for a given cache key
+      // Use the cacheKey computed at the start of the function
+      
+      // Check if there's already an in-flight request
+      if (cacheKey && inFlightRequests.has(cacheKey)) {
+        try {
+          const result = await inFlightRequests.get(cacheKey)!;
+          if (isMountedRef.current) {
+            setData(result);
+            setLoading(false);
+            onSuccess?.(result);
+          }
+          return;
+        } catch (err) {
+          // If the existing request failed, remove it and continue
+          inFlightRequests.delete(cacheKey);
+          registrationLocks.delete(cacheKey);
+        }
       }
-
-      const result = await fetchPromise;
-
-      // Cache the result if caching is enabled
-      if (cacheTTL > 0 && cacheKeyRef.current) {
-        setCached(cacheKeyRef.current, result);
+      
+      // Check if another component is currently registering a promise
+      // Use polling with retry limit to wait for registration
+      if (cacheKey && registrationLocks.has(cacheKey)) {
+        let attempts = 0;
+        const maxAttempts = 50; // 500ms max wait (50 * 10ms)
+        while (registrationLocks.has(cacheKey) && attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+          if (cacheKey && inFlightRequests.has(cacheKey)) {
+            // Promise was registered, use it
+            try {
+              const result = await inFlightRequests.get(cacheKey)!;
+              if (isMountedRef.current) {
+                setData(result);
+                setLoading(false);
+                onSuccess?.(result);
+              }
+              return;
+            } catch (err) {
+              inFlightRequests.delete(cacheKey);
+              registrationLocks.delete(cacheKey);
+              break; // Exit loop and continue with new fetch
+            }
+          }
+          attempts++;
+        }
+        // If we exit the loop without finding a promise, clear stale lock and continue
+        if (cacheKey && registrationLocks.has(cacheKey) && !inFlightRequests.has(cacheKey)) {
+          registrationLocks.delete(cacheKey);
+        }
       }
-
-      // Remove from in-flight requests
-      if (cacheKeyRef.current) {
-        inFlightRequests.delete(cacheKeyRef.current);
+      
+      // Acquire lock and create promise
+      if (!cacheKey) {
+        // No cache key, fetch without caching
+        const result = await fetchFn();
+        if (isMountedRef.current) {
+          setData(result);
+          setLoading(false);
+          onSuccess?.(result);
+        }
+        return;
       }
-
-      // Only update state if component is still mounted
-      if (isMountedRef.current) {
-        setData(result);
-        setLoading(false);
-        onSuccess?.(result);
+      
+      registrationLocks.set(cacheKey, true);
+      activeLockRef.current = cacheKey; // Track for cleanup
+      try {
+        // Double-check after acquiring lock
+        if (inFlightRequests.has(cacheKey)) {
+          const result = await inFlightRequests.get(cacheKey)!;
+          if (isMountedRef.current) {
+            setData(result);
+            setLoading(false);
+            onSuccess?.(result);
+          }
+          registrationLocks.delete(cacheKey);
+          return;
+        }
+        
+        // Create and register promise atomically
+        const fetchPromise = fetchFn();
+        inFlightRequests.set(cacheKey, fetchPromise);
+        
+        const result = await fetchPromise;
+        
+        // Cache the result if caching is enabled
+        if (cacheTTL > 0 && cacheKey) {
+          setCached(cacheKey, result);
+        }
+        
+        // Clean up
+        inFlightRequests.delete(cacheKey);
+        registrationLocks.delete(cacheKey);
+        activeLockRef.current = null;
+        
+        if (isMountedRef.current) {
+          setData(result);
+          setLoading(false);
+          onSuccess?.(result);
+        }
+        return;
+      } catch (err: ApiErrorType) {
+        // Clean up on error
+        if (cacheKey) {
+          inFlightRequests.delete(cacheKey);
+          registrationLocks.delete(cacheKey);
+          activeLockRef.current = null;
+        }
+        
+        if (isMountedRef.current) {
+          const errorMessage = defaultErrorMessage || getErrorMessage(err) || '載入資料時發生錯誤';
+          setError(errorMessage);
+          setLoading(false);
+          onError?.(err);
+          if (logErrors) {
+            logger.error('Fetch error:', err);
+          }
+        }
+        return;
       }
     } catch (err: ApiErrorType) {
       // Remove from in-flight requests on error
-      if (cacheKeyRef.current) {
-        inFlightRequests.delete(cacheKeyRef.current);
+      // Use the cacheKey computed at the start
+      if (cacheKey) {
+        inFlightRequests.delete(cacheKey);
+        registrationLocks.delete(cacheKey);
       }
-      const errorMessage = defaultErrorMessage || getErrorMessage(err);
+      const errorMessage = defaultErrorMessage || getErrorMessage(err) || '載入資料時發生錯誤';
 
       // Clear cache on error to prevent stale data
-      if (cacheTTL > 0 && cacheKeyRef.current) {
-        cache.delete(cacheKeyRef.current);
+      if (cacheTTL > 0 && cacheKey) {
+        cache.delete(cacheKey);
       }
 
       // Only update state if component is still mounted

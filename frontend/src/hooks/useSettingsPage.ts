@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUnsavedChangesDetection } from './useUnsavedChangesDetection';
 import { logger } from '../utils/logger';
 
@@ -18,31 +18,60 @@ interface SettingsPageConfig<T> {
   onSuccess?: (data: T) => void;
 }
 
-interface UseSettingsPageOptions {
+interface UseSettingsPageOptions<T> {
   isLoading?: boolean;
+  initialData?: T | null; // Allow passing initial/cached data to skip fetch
+  skipFetch?: boolean; // If true, never fetch - only use initialData (for use with external data sources like useApiData)
 }
 
 export const useSettingsPage = <T extends Record<string, any>>(
   config: SettingsPageConfig<T>,
-  options?: UseSettingsPageOptions
+  options?: UseSettingsPageOptions<T>
 ) => {
-  const { isLoading: authLoading = false } = options || {};
-  const [data, setData] = useState<T | null>(null);
-  const [originalData, setOriginalData] = useState<T | null>(null);
+  const { isLoading: authLoading = false, initialData, skipFetch = false } = options || {};
+  const [data, setData] = useState<T | null>(initialData ?? null);
+  const [originalData, setOriginalData] = useState<T | null>(
+    initialData ? JSON.parse(JSON.stringify(initialData)) : null
+  );
   const [uiState, setUiState] = useState<UIState>({
-    loading: true,
+    loading: initialData ? false : (skipFetch ? false : true), // If we have initial data or skipFetch, don't show loading
     saving: false,
     error: null,
   });
+  const fetchInProgressRef = useRef(false); // Track if fetch is already in progress
 
-  // Fetch data on mount - wait for auth to complete before fetching
+  // Update data when initialData becomes available
+  // Only update if there are no unsaved changes to avoid overwriting user edits
+  const prevInitialDataRef = useRef(initialData);
   useEffect(() => {
-    // Wait for auth to complete before fetching data
-    if (!authLoading) {
+    // Only process if initialData actually changed
+    if (initialData && initialData !== prevInitialDataRef.current) {
+      prevInitialDataRef.current = initialData;
+      // Check if there are unsaved changes by comparing current data with original
+      const hasUnsavedChanges = data && originalData && JSON.stringify(data) !== JSON.stringify(originalData);
+      
+      // Only update from initialData if there are no unsaved changes
+      if (!hasUnsavedChanges) {
+        setData(initialData);
+        setOriginalData(JSON.parse(JSON.stringify(initialData)));
+        setUiState(prev => ({ ...prev, loading: false }));
+      }
+    } else if (skipFetch && !initialData) {
+      setUiState(prev => ({ ...prev, loading: true }));
+    }
+  }, [initialData, skipFetch]); // Removed data and originalData from deps to prevent loops
+
+  // Fetch data on mount (skip if using external data source)
+  useEffect(() => {
+    if (skipFetch) {
+      return;
+    }
+    if (!authLoading && !initialData && !data && !fetchInProgressRef.current) {
+      fetchInProgressRef.current = true;
       fetchData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading]);
+  }, [authLoading, skipFetch]);
 
   const fetchData = async () => {
     try {
@@ -50,9 +79,11 @@ export const useSettingsPage = <T extends Record<string, any>>(
       const result = await config.fetchData();
       setData(result);
       setOriginalData(JSON.parse(JSON.stringify(result))); // Deep clone for comparison
+      fetchInProgressRef.current = false; // Reset flag after successful fetch
     } catch (err) {
       setUiState(prev => ({ ...prev, error: '無法載入設定' }));
       logger.error('Fetch settings error:', err);
+      fetchInProgressRef.current = false; // Reset flag after error
     } finally {
       setUiState(prev => ({ ...prev, loading: false }));
     }

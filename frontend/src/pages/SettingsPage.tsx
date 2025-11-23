@@ -1,5 +1,5 @@
 import React from 'react';
-import { apiService } from '../services/api';
+import { apiService, sharedFetchFunctions } from '../services/api';
 import { logger } from '../utils/logger';
 import { LoadingSpinner } from '../components/shared';
 import { ClinicSettings } from '../schemas/api';
@@ -7,6 +7,7 @@ import { AppointmentType } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { useSettingsPage } from '../hooks/useSettingsPage';
 import { useModal } from '../contexts/ModalContext';
+import { useApiData, invalidateCacheForFunction, invalidateCacheByPattern } from '../hooks/useApiData';
 import { validateClinicSettings, getClinicSectionChanges } from '../utils/clinicSettings';
 import ClinicAppointmentSettings from '../components/ClinicAppointmentSettings';
 import ClinicReminderSettings from '../components/ClinicReminderSettings';
@@ -40,7 +41,17 @@ const SettingsPage: React.FC = () => {
     );
   }
 
-  // Use generic settings page hook
+  // Fetch clinic settings with caching (shares cache with GlobalWarnings)
+  const { data: cachedSettings, loading: settingsLoading } = useApiData(
+    sharedFetchFunctions.getClinicSettings,
+    {
+      enabled: !isLoading,
+      dependencies: [isLoading],
+      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
+    }
+  );
+
+  // Use settings page hook with cached data to avoid duplicate fetch
   const {
     data: settings,
     originalData,
@@ -51,8 +62,7 @@ const SettingsPage: React.FC = () => {
     fetchData,
   } = useSettingsPage({
     fetchData: async () => {
-      const data = await apiService.getClinicSettings();
-      return data;
+      return await sharedFetchFunctions.getClinicSettings();
     },
     saveData: async (data: ClinicSettings) => {
       // Convert reminder hours and booking restriction hours to numbers for backend
@@ -92,8 +102,10 @@ const SettingsPage: React.FC = () => {
       await alert(error, '錯誤');
     },
     onSuccess: () => {
+      // Invalidate cache after successful save so other components see fresh data
+      invalidateCacheForFunction(sharedFetchFunctions.getClinicSettings);
+      
       // Check if clinic info was changed and saved by comparing with the data before save
-      // We need to check if clinic info settings changed from before the save
       if (settings && originalData) {
         const changes = getClinicSectionChanges(settings, originalData);
         if (changes.clinicInfoSettings) {
@@ -102,15 +114,31 @@ const SettingsPage: React.FC = () => {
         }
       }
     },
-  }, { isLoading });
+  }, { 
+    isLoading: isLoading || settingsLoading,
+    ...(cachedSettings ? { initialData: cachedSettings } : {}),
+    skipFetch: !!cachedSettings // Only skip fetch if we have cached data
+  });
 
   // Refresh settings when clinic changes
+  // Invalidate cache to ensure fresh data for the new clinic
+  const previousClinicIdRef = React.useRef<number | null | undefined>(activeClinicId ?? null);
   React.useEffect(() => {
-    if (!isLoading && activeClinicId && fetchData) {
-      fetchData();
+    const currentClinicId = activeClinicId;
+    if (!isLoading && currentClinicId && previousClinicIdRef.current !== currentClinicId && previousClinicIdRef.current !== null && previousClinicIdRef.current !== undefined) {
+      // Invalidate cache when clinic changes
+      invalidateCacheForFunction(sharedFetchFunctions.getClinicSettings);
+      invalidateCacheByPattern('api_getPractitionerStatus_');
+      invalidateCacheByPattern('api_getBatchPractitionerStatus_');
+      // Force refetch by calling fetchData (skipFetch will be false after invalidation)
+      if (fetchData) {
+        fetchData();
+      }
     }
+    // Update ref value
+    previousClinicIdRef.current = currentClinicId ?? null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeClinicId]);
+  }, [activeClinicId, isLoading]);
 
   const addAppointmentType = () => {
     if (!settings) return;

@@ -7,7 +7,7 @@ import { useApiData } from '../hooks/useApiData';
 import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment-timezone';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
-import { apiService } from '../services/api';
+import { apiService, sharedFetchFunctions } from '../services/api';
 import { ApiCalendarEvent } from '../types';
 import { getErrorMessage } from '../types/api';
 import { 
@@ -141,20 +141,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const isAdmin = user?.roles?.includes('admin') ?? false;
 
-  // Memoize fetch functions to ensure stable cache keys and enable request deduplication
-  const fetchPractitionersFn = useCallback(() => apiService.getPractitioners(), []);
-  const fetchClinicSettingsFn = useCallback(() => apiService.getClinicSettings(), []);
+  const fetchClinicSettingsFn = sharedFetchFunctions.getClinicSettings;
 
-  // Use useApiData for practitioners with caching and request deduplication
-  // This is needed for initial render to show practitioner names on events
-  const { data: practitionersData } = useApiData(
-    fetchPractitionersFn,
-    {
-      enabled: !authLoading && isAuthenticated,
-      dependencies: [authLoading, isAuthenticated],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
+  // Use practitioners from props (passed from AvailabilityPage) to avoid duplicate API calls
+  // Fallback to empty array if prop is not provided (for other use cases)
+  const availablePractitioners = practitioners || [];
 
   // Lazy-load clinic settings - only fetch when modals are opened
   // This reduces initial page load since settings are only needed for create/edit modals
@@ -168,8 +159,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
   );
 
-  // Update state from useApiData results
-  const availablePractitioners = practitionersData || [];
   const appointmentTypes = clinicSettingsData?.appointment_types || [];
 
   // Trigger settings fetch when modals that need it are opened
@@ -283,7 +272,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           for (const result of batchData.results) {
             const practitionerId = result.user_id;
             const dateStr = result.date;
-            // Use availablePractitioners from useApiData instead of prop
+            // Use availablePractitioners (from prop or fetched data)
             const practitioner = availablePractitioners.find(p => p.id === practitionerId);
             const practitionerName = practitioner?.full_name || '';
             const transformedEvents = result.events.map((event: any) => ({
@@ -327,7 +316,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         const practitionerId = result.user_id;
         const dateStr = result.date;
         
-        // Find practitioner name - use availablePractitioners from useApiData instead of prop
+        // Find practitioner name - use availablePractitioners (from prop or fetched data)
         const practitioner = availablePractitioners.find(p => p.id === practitionerId);
         const practitionerName = practitioner?.full_name || '';
         
@@ -969,7 +958,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       {modalState.type === 'edit_appointment' && modalState.data && (
         <EditAppointmentModal
           event={modalState.data}
-          practitioners={availablePractitioners.length > 0 ? availablePractitioners : practitioners}
+          practitioners={availablePractitioners}
           appointmentTypes={appointmentTypes}
           onClose={() => {
             setEditErrorMessage(null); // Clear error when closing
@@ -992,7 +981,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               : modalState.data.patientId ?? preSelectedPatientId
           }
           initialDate={modalState.data.initialDate || null}
-          practitioners={availablePractitioners.length > 0 ? availablePractitioners : practitioners}
+          practitioners={availablePractitioners}
           appointmentTypes={appointmentTypes}
           onClose={() => {
             setModalState({ type: null, data: null });
