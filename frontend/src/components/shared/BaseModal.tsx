@@ -17,6 +17,7 @@ export interface BaseModalProps {
   'aria-label'?: string;
   'aria-labelledby'?: string;
   zIndex?: number;
+  fullScreen?: boolean;
 }
 
 export const BaseModal: React.FC<BaseModalProps> = React.memo(({
@@ -26,6 +27,7 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
   'aria-label': ariaLabel,
   'aria-labelledby': ariaLabelledBy,
   zIndex = Z_INDEX.MODAL,
+  fullScreen = false,
 }) => {
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     // Only close if clicking the overlay itself, not the modal content
@@ -33,6 +35,33 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
       onClose();
     }
   };
+
+  // Prevent body scroll when modal is open (especially important for fullScreen)
+  // For iOS Safari, we need to use position: fixed instead of overflow: hidden
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    const originalTop = document.body.style.top;
+    const originalWidth = document.body.style.width;
+    const scrollY = window.scrollY;
+
+    // Fix body position to prevent scrolling (iOS Safari solution)
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      // Restore original styles
+      document.body.style.position = originalPosition;
+      document.body.style.top = originalTop;
+      document.body.style.width = originalWidth;
+      document.body.style.overflow = originalOverflow;
+
+      // Restore scroll position
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
 
   // Handle Escape key at document level (overlay div is not focusable)
   useEffect(() => {
@@ -52,11 +81,16 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
-      style={{ 
-        width: '100vw', 
+      className={fullScreen
+        ? "fixed inset-0 bg-white"
+        : "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+      }
+      style={{
+        width: '100vw',
         height: '100vh',
+        minHeight: '100vh',
         zIndex: zIndex,
+        overflow: 'hidden',
       }}
       onClick={handleOverlayClick}
       role="dialog"
@@ -65,7 +99,10 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
       aria-labelledby={ariaLabelledBy}
     >
       <div
-        className={`bg-white rounded-lg p-6 max-w-md w-full mx-4 mb-4 max-h-[90vh] overflow-y-auto ${className}`}
+        className={fullScreen
+          ? `w-screen h-[100dvh] min-h-[100dvh] overflow-hidden ${className}`
+          : `bg-white rounded-lg p-6 max-w-md w-full mx-4 mb-4 max-h-[90vh] overflow-y-auto ${className}`
+        }
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
       >
