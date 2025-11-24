@@ -246,12 +246,14 @@ export class ApiService {
   async getPatients(
     page?: number,
     pageSize?: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    search?: string
   ): Promise<{ patients: Patient[]; total: number; page: number; page_size: number }> {
     const config = signal ? { signal } : {};
     const params: Record<string, string> = {};
     if (page !== undefined) params.page = page.toString();
     if (pageSize !== undefined) params.page_size = pageSize.toString();
+    if (search !== undefined && search.trim()) params.search = search.trim();
     const response = await this.client.get('/clinic/patients', { ...config, params });
     return response.data;
   }
@@ -279,12 +281,14 @@ export class ApiService {
   async getLineUsers(
     page?: number,
     pageSize?: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    search?: string
   ): Promise<{ line_users: LineUserWithStatus[]; total: number; page: number; page_size: number }> {
     const config = signal ? { signal } : {};
     const params: Record<string, string> = {};
     if (page !== undefined) params.page = page.toString();
     if (pageSize !== undefined) params.page_size = pageSize.toString();
+    if (search !== undefined && search.trim()) params.search = search.trim();
     const response = await this.client.get('/clinic/line-users', { ...config, params });
     return response.data;
   }

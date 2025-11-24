@@ -9,6 +9,7 @@ import { useApiData } from '../hooks/useApiData';
 import { useHighlightRow } from '../hooks/useHighlightRow';
 import PageHeader from '../components/PageHeader';
 import { ClinicSettings } from '../schemas/api';
+import { useDebouncedSearch } from '../utils/searchUtils';
 
 const PatientsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -18,12 +19,24 @@ const PatientsPage: React.FC = () => {
 
   // Get pagination state from URL with validation
   const currentPage = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
-  const pageSize = Math.max(1, Math.min(100, parseInt(searchParams.get('pageSize') || '10', 10) || 10));
+  // Default page size increased from 10 to 25 for better UX (fewer pagination clicks)
+  const pageSize = Math.max(1, Math.min(100, parseInt(searchParams.get('pageSize') || '25', 10) || 25));
+
+  // Server-side search functionality (declare before useCallback)
+  const [searchInput, setSearchInput] = useState<string>('');
+  const [isComposing, setIsComposing] = useState(false);
+  const debouncedSearchQuery = useDebouncedSearch(searchInput, 400, isComposing);
 
   // Memoize fetch functions to ensure stable cache keys
+  // Only search if debouncedSearchQuery has a value (empty string means no search)
   const fetchPatients = useCallback(
-    () => apiService.getPatients(currentPage, pageSize),
-    [currentPage, pageSize]
+    () => apiService.getPatients(
+      currentPage,
+      pageSize,
+      undefined, // no signal
+      debouncedSearchQuery || undefined // search parameter (empty string becomes undefined)
+    ),
+    [currentPage, pageSize, debouncedSearchQuery]
   );
   const fetchClinicSettings = useCallback(() => apiService.getClinicSettings(), []);
 
@@ -36,14 +49,31 @@ const PatientsPage: React.FC = () => {
     fetchPatients,
     {
       enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated, activeClinicId, currentPage, pageSize],
+      dependencies: [isLoading, isAuthenticated, activeClinicId, currentPage, pageSize, debouncedSearchQuery],
       defaultErrorMessage: '無法載入病患列表',
-      initialData: { patients: [], total: 0, page: 1, page_size: 10 },
+      initialData: { patients: [], total: 0, page: 1, page_size: 25 },
     }
   );
 
-  const patients = patientsData?.patients || [];
-  const totalPatients = patientsData?.total || 0;
+  // Keep previous data visible during loading to prevent flicker
+  const [previousPatientsData, setPreviousPatientsData] = useState<{
+    patients: Patient[];
+    total: number;
+    page: number;
+    page_size: number;
+  } | null>(null);
+
+  // Update previous data when new data arrives (not during loading)
+  useEffect(() => {
+    if (!loading && patientsData) {
+      setPreviousPatientsData(patientsData);
+    }
+  }, [loading, patientsData]);
+
+  // Use previous data if currently loading, otherwise use current data
+  const displayData = loading && previousPatientsData ? previousPatientsData : patientsData;
+  const patients = displayData?.patients || [];
+  const totalPatients = displayData?.total || 0;
   const totalPages = Math.ceil(totalPatients / pageSize);
   
   // Validate currentPage doesn't exceed totalPages and reset if needed
@@ -74,29 +104,26 @@ const PatientsPage: React.FC = () => {
 
   const requireBirthday = clinicSettings?.clinic_info_settings?.require_birthday || false;
   const hasHandledQueryRef = useRef(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Search functionality (client-side for now, can be moved to server-side later)
-  // NOTE: Client-side search only filters the current page's results.
-  // For full search across all patients, server-side search is needed (Phase 3).
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const filteredPatients = useMemo(() => {
-    if (!searchQuery.trim()) return patients;
-    const normalizedQuery = searchQuery.toLowerCase().trim();
-    return patients.filter(p =>
-      p.full_name.toLowerCase().includes(normalizedQuery) ||
-      p.phone_number?.toLowerCase().includes(normalizedQuery) ||
-      p.line_user_display_name?.toLowerCase().includes(normalizedQuery)
-    );
-  }, [patients, searchQuery]);
+  // Memoize PageHeader to prevent re-renders when only data changes
+  // Must be called before any conditional returns to follow Rules of Hooks
+  const pageHeader = useMemo(() => <PageHeader title="病患管理" />, []);
 
-  // Reset to page 1 when search query changes
+  // Focus preservation is now handled inside SearchInput component
+  // No need for additional focus logic here
+
+  // Reset to page 1 when search query changes (including when cleared)
+  const prevSearchQueryRef = useRef<string>('');
   useEffect(() => {
-    if (searchQuery.trim() && currentPage !== 1) {
+    // Only reset if search query actually changed and we're not on page 1
+    if (prevSearchQueryRef.current !== debouncedSearchQuery && currentPage !== 1) {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('page', '1');
       setSearchParams(newSearchParams, { replace: true });
     }
-  }, [searchQuery, currentPage, searchParams, setSearchParams]);
+    prevSearchQueryRef.current = debouncedSearchQuery;
+  }, [debouncedSearchQuery, currentPage, searchParams, setSearchParams]);
 
   // Handle page change
   const handlePageChange = useCallback((page: number) => {
@@ -134,7 +161,7 @@ const PatientsPage: React.FC = () => {
       hasHandledQueryRef.current = true;
       
       // Auto-fill search with patient name
-      setSearchQuery(patientNameFromQuery);
+      setSearchInput(patientNameFromQuery);
       
       // Remove query parameter after handling
       const newSearchParams = new URLSearchParams(searchParams);
@@ -148,7 +175,9 @@ const PatientsPage: React.FC = () => {
     }
   }, [patientNameFromQuery, patients, searchParams, setSearchParams]);
 
-  if (loading) {
+  // Only show full-page loading on initial load (when we have no previous data)
+  // During search/deletion, keep previous data visible
+  if (loading && !previousPatientsData) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner />
@@ -159,7 +188,7 @@ const PatientsPage: React.FC = () => {
   if (error) {
     return (
       <div className="max-w-4xl mx-auto">
-        <PageHeader title="病患管理" />
+        {pageHeader}
         <ErrorMessage message={error} onRetry={refetch} />
       </div>
     );
@@ -168,7 +197,7 @@ const PatientsPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
-      <PageHeader title="病患管理" />
+      {pageHeader}
 
       <div className="space-y-8">
         {/* Patients List */}
@@ -176,31 +205,29 @@ const PatientsPage: React.FC = () => {
         <div className="space-y-4">
           {/* Search Bar */}
           <SearchInput
-            value={searchQuery}
-            onChange={setSearchQuery}
+            ref={searchInputRef}
+            value={searchInput}
+            onChange={setSearchInput}
+            onCompositionStart={() => { setIsComposing(true); }}
+            onCompositionEnd={() => { setIsComposing(false); }}
             placeholder="搜尋病患姓名、電話或LINE使用者名稱..."
           />
           
-          {totalPatients === 0 ? (
+          {!loading && totalPatients === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-500">尚未有病患註冊</p>
             </div>
-          ) : filteredPatients.length === 0 ? (
+          ) : !loading && patients.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-500">
-                {searchQuery.trim() 
-                  ? '找不到符合搜尋條件的病患（搜尋僅限於當前頁面）'
+                {searchInput.trim() 
+                  ? '找不到符合搜尋條件的病患'
                   : '目前頁面沒有病患'}
               </p>
             </div>
           ) : (
             <>
               <div className="overflow-x-auto relative">
-                {loading && (
-                  <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-20 rounded-lg">
-                    <LoadingSpinner />
-                  </div>
-                )}
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
@@ -227,7 +254,7 @@ const PatientsPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredPatients.map((patient) => (
+                    {patients.map((patient) => (
                       <tr 
                         key={patient.id} 
                         data-patient-id={patient.id}

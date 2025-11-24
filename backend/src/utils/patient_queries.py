@@ -5,10 +5,12 @@ This module contains reusable query functions that ensure soft delete filtering
 is applied consistently across all services and APIs.
 """
 
+import re
 from typing import List, Optional
 from sqlalchemy.orm import Session, Query
+from sqlalchemy import func
 
-from models import Patient
+from models import Patient, LineUser
 
 
 def filter_active_patients(query: Query[Patient]) -> Query[Patient]:
@@ -51,7 +53,8 @@ def get_active_patients_for_clinic(
     db: Session,
     clinic_id: int,
     page: Optional[int] = None,
-    page_size: Optional[int] = None
+    page_size: Optional[int] = None,
+    search: Optional[str] = None
 ) -> tuple[List[Patient], int]:
     """
     Get all active (non-deleted) patients for a clinic.
@@ -64,11 +67,13 @@ def get_active_patients_for_clinic(
         clinic_id: Clinic ID
         page: Optional page number (1-indexed). If None, returns all patients.
         page_size: Optional items per page. If None, returns all patients.
+        search: Optional search query to filter patients by name, phone, or LINE user display name.
 
     Returns:
         Tuple of (List of active Patient objects with line_user relationship eagerly loaded, total count)
     """
     from sqlalchemy.orm import joinedload
+    from sqlalchemy import or_
 
     # Eagerly load line_user relationship to avoid N+1 queries
     # This is critical for the clinic patients endpoint which accesses
@@ -79,6 +84,38 @@ def get_active_patients_for_clinic(
         Patient.clinic_id == clinic_id
     )
     query = filter_active_patients(base_query)
+    
+    # Apply search filter if provided
+    if search and search.strip():
+        search_pattern = f"%{search.strip()}%"
+        
+        # Normalize phone number search: strip non-digits from search query
+        # This allows searching for "0912-345-678" to match "0912345678" in database
+        # Use regexp_replace to normalize database phone numbers for comparison
+        normalized_search = re.sub(r'\D', '', search.strip())
+        phone_search_pattern = f"%{normalized_search}%" if normalized_search else None
+        
+        # Build search conditions
+        search_conditions = [
+            Patient.full_name.ilike(search_pattern),
+            LineUser.display_name.ilike(search_pattern)
+        ]
+        
+        # Add phone number search with normalization
+        # Use PostgreSQL's regexp_replace to strip non-digits from phone_number for comparison
+        if phone_search_pattern:
+            # Normalize database phone_number by removing non-digits, then search
+            normalized_phone = func.regexp_replace(Patient.phone_number, r'[^\d]', '', 'g')
+            search_conditions.append(normalized_phone.ilike(phone_search_pattern))
+        else:
+            # If search doesn't contain digits, still search raw phone_number (might match formatting)
+            search_conditions.append(Patient.phone_number.ilike(search_pattern))
+        
+        # Search in patient name, phone number, or LINE user display name
+        # Use outerjoin to include LINE user in search
+        query = query.outerjoin(LineUser, Patient.line_user_id == LineUser.id).filter(
+            or_(*search_conditions)
+        ).distinct()
     
     # Get total count before pagination
     total = query.count()

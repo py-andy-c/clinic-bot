@@ -177,7 +177,8 @@ def get_line_users_for_clinic(
     page: Optional[int] = None,
     page_size: Optional[int] = None,
     offset: Optional[int] = None,
-    limit: Optional[int] = None
+    limit: Optional[int] = None,
+    search: Optional[str] = None
 ) -> tuple[List[LineUserWithStatus], int]:
     """
     Get all LineUsers for a clinic with AI status and patient information.
@@ -188,6 +189,7 @@ def get_line_users_for_clinic(
     3. AI status is already a field on LineUser (no join needed)
     4. Aggregates patient names
     5. Supports pagination (page/page_size or offset/limit)
+    6. Supports search by display_name or patient names
     
     Note: LineUsers are only created when users interact with the clinic (via webhook
     messages, follow events, or LIFF login), so all LineUsers in the database have
@@ -200,10 +202,13 @@ def get_line_users_for_clinic(
         page_size: Optional items per page. Takes precedence over limit if both provided.
         offset: Optional offset for pagination (deprecated, use page/page_size instead).
         limit: Optional limit for pagination (deprecated, use page/page_size instead).
+        search: Optional search query to filter by LINE user display_name or patient names.
         
     Returns:
         Tuple of (List[LineUserWithStatus], total_count): List of LineUsers with AI status and patient information, and total count
     """
+    from sqlalchemy import or_
+    
     # Query: Get all LineUsers for this clinic with patient information
     # Use LEFT JOIN so users without patients still appear (with 0 patient_count)
     base_query = db.query(
@@ -222,7 +227,22 @@ def get_line_users_for_clinic(
             Patient.clinic_id == clinic_id,
             Patient.is_deleted == False
         )
-    ).group_by(
+    )
+    
+    # Apply search filter if provided
+    # Extract search pattern once to avoid duplication
+    search_pattern = None
+    if search and search.strip():
+        search_pattern = f"%{search.strip()}%"
+        # Search in LINE user display_name or patient names
+        base_query = base_query.filter(
+            or_(
+                LineUser.display_name.ilike(search_pattern),
+                Patient.full_name.ilike(search_pattern)
+            )
+        )
+    
+    base_query = base_query.group_by(
         LineUser.id,
         LineUser.line_user_id,
         LineUser.display_name,
@@ -234,10 +254,30 @@ def get_line_users_for_clinic(
     )
     
     # Get total count before pagination
-    # Simply count all LineUsers for this clinic
-    total = db.query(func.count(LineUser.id)).filter(
-        LineUser.clinic_id == clinic_id
-    ).scalar() or 0
+    # Need to account for search filter if provided
+    if search_pattern:
+        # Count distinct LineUsers that match search criteria
+        total_query = db.query(func.count(func.distinct(LineUser.id))).filter(
+            LineUser.clinic_id == clinic_id
+        ).outerjoin(
+            Patient,
+            and_(
+                LineUser.id == Patient.line_user_id,
+                Patient.clinic_id == clinic_id,
+                Patient.is_deleted == False
+            )
+        ).filter(
+            or_(
+                LineUser.display_name.ilike(search_pattern),
+                Patient.full_name.ilike(search_pattern)
+            )
+        )
+        total = total_query.scalar() or 0
+    else:
+        # Simply count all LineUsers for this clinic
+        total = db.query(func.count(LineUser.id)).filter(
+            LineUser.clinic_id == clinic_id
+        ).scalar() or 0
     
     # Convert page/page_size to offset/limit if provided
     if page is not None and page_size is not None:

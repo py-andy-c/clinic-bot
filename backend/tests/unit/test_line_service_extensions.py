@@ -251,4 +251,3 @@ class TestGetUserProfile:
         call_args = mock_get.call_args
         assert call_args[0][0] == f"https://api.line.me/v2/bot/profile/{line_user_id}"
 
-

@@ -1276,13 +1276,15 @@ async def get_patients(
     current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db),
     page: Optional[int] = Query(None, ge=1, description="Page number (1-indexed). Must be provided with page_size."),
-    page_size: Optional[int] = Query(None, ge=1, le=100, description="Items per page. Must be provided with page.")
+    page_size: Optional[int] = Query(None, ge=1, le=100, description="Items per page. Must be provided with page."),
+    search: Optional[str] = Query(None, max_length=200, description="Search query to filter patients by name, phone, or LINE user display name. Maximum length: 200 characters.")
 ) -> ClinicPatientListResponse:
     """
     Get all patients for the current user's clinic.
 
     Available to all clinic members (including read-only users).
     Supports pagination via page and page_size parameters.
+    Supports search via search parameter to filter by patient name, phone number, or LINE user display name.
     If pagination parameters are not provided, returns all patients (backward compatible).
     Note: page and page_size must both be provided together or both omitted.
     """
@@ -1300,7 +1302,8 @@ async def get_patients(
             db=db,
             clinic_id=clinic_id,
             page=page,
-            page_size=page_size
+            page_size=page_size,
+            search=search
         )
 
         # Validate page number doesn't exceed total pages
@@ -3256,7 +3259,8 @@ async def get_line_users(
     page: Optional[int] = Query(None, ge=1, description="Page number (1-indexed). Must be provided with page_size. Takes precedence over offset/limit."),
     page_size: Optional[int] = Query(None, ge=1, le=100, description="Items per page. Must be provided with page. Takes precedence over offset/limit."),
     offset: Optional[int] = Query(None, ge=0, description="Offset for pagination (deprecated, use page/page_size instead). Must be provided with limit."),
-    limit: Optional[int] = Query(None, ge=1, le=100, description="Limit for pagination (deprecated, use page/page_size instead). Must be provided with offset.")
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Limit for pagination (deprecated, use page/page_size instead). Must be provided with offset."),
+    search: Optional[str] = Query(None, max_length=200, description="Search query to filter LINE users by display_name or patient names. Maximum length: 200 characters.")
 ) -> LineUserListResponse:
     """
     Get all LINE users who have patients or messages in this clinic, with AI status.
@@ -3265,6 +3269,7 @@ async def get_line_users(
     Returns LINE users with their patient count, patient names, and AI disable status.
     Includes users who have sent messages but haven't created patients yet.
     Supports pagination via page and page_size parameters (preferred) or offset/limit (deprecated).
+    Supports search via search parameter to filter by LINE user display_name or patient names.
     If pagination parameters are not provided, returns all line users (backward compatible).
     Note: page and page_size must both be provided together, or offset and limit together, or all omitted.
     """
@@ -3300,7 +3305,8 @@ async def get_line_users(
             page=page,
             page_size=page_size,
             offset=offset,
-            limit=limit
+            limit=limit,
+            search=search
         )
         
         # Validate page number doesn't exceed total pages

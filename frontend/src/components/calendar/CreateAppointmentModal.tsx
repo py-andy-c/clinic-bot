@@ -12,12 +12,13 @@ import { DateTimePicker } from './DateTimePicker';
 import { apiService } from '../../services/api';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
-import { LoadingSpinner, SearchInput } from '../shared';
+import { SearchInput } from '../shared';
 import { Patient } from '../../types';
 import moment from 'moment-timezone';
 import { formatTo12Hour } from '../../utils/calendarUtils';
 import { useApiData } from '../../hooks/useApiData';
 import { useAuth } from '../../hooks/useAuth';
+import { useDebouncedSearch, shouldTriggerSearch } from '../../utils/searchUtils';
 
 type CreateStep = 'patient' | 'appointmentType' | 'practitioner' | 'datetime' | 'confirm';
 
@@ -61,15 +62,37 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchInput, setSearchInput] = useState<string>('');
+  const [isComposing, setIsComposing] = useState(false);
   const isNavigatingBack = useRef(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus preservation is now handled inside SearchInput component
+  // No need for additional focus logic here
+  
+  // Use debounced search for server-side search
+  const debouncedSearchQuery = useDebouncedSearch(searchInput, 400, isComposing);
+  
+  // Only fetch when there's a valid search query (3+ digits, 1+ letter, or 1+ Chinese char)
+  // This prevents fetching all patients on modal open, which could be slow for large clinics
+  const hasValidSearch = debouncedSearchQuery.trim().length > 0 && shouldTriggerSearch(debouncedSearchQuery);
   
   // Use useApiData for patients with caching and request deduplication
   // This shares cache with PatientsPage, reducing redundant API calls
   const { isLoading: authLoading, isAuthenticated } = useAuth();
-  // Fetch all patients without pagination for dropdown selection
-  // Backend returns all patients with page=1, page_size=total when no pagination params provided
-  const fetchPatientsFn = useCallback(() => apiService.getPatients(), []);
+  // Fetch patients with server-side search
+  // Limit to top 100 results for modal (no pagination)
+  // Only fetch when hasValidSearch is true
+  // Pass pageSize: 100 to limit results at backend for better performance
+  const fetchPatientsFn = useCallback(
+    () => apiService.getPatients(
+      1, // page 1
+      100, // pageSize: limit to 100 results at backend
+      undefined, // no signal
+      debouncedSearchQuery // search parameter (only called when hasValidSearch is true)
+    ),
+    [debouncedSearchQuery]
+  );
   const shouldFetchPatients = step === 'patient' || !!preSelectedPatientId;
   
   const { 
@@ -84,16 +107,47 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   }>(
     fetchPatientsFn,
     {
-      enabled: !authLoading && isAuthenticated && shouldFetchPatients,
-      dependencies: [authLoading, isAuthenticated, step, preSelectedPatientId],
+      enabled: !authLoading && isAuthenticated && shouldFetchPatients && hasValidSearch,
+      dependencies: [authLoading, isAuthenticated, step, preSelectedPatientId, debouncedSearchQuery, hasValidSearch],
       cacheTTL: 5 * 60 * 1000, // 5 minutes cache - shares with PatientsPage
       defaultErrorMessage: '無法載入病患列表',
       initialData: { patients: [], total: 0, page: 1, page_size: 1 },
     }
   );
   
-  // Ensure patients is always an array (never null)
-  const patients = patientsData?.patients || [];
+  // Keep previous data visible during loading to prevent flicker
+  // Clear previous data when search becomes invalid (user deletes all search text)
+  const [previousPatientsData, setPreviousPatientsData] = useState<{
+    patients: Patient[];
+    total: number;
+    page: number;
+    page_size: number;
+  } | null>(null);
+
+  // Update previous data when new data arrives (not during loading)
+  // Clear previous data when search is invalid
+  useEffect(() => {
+    if (!hasValidSearch) {
+      // Clear previous data when search is invalid (no search query)
+      setPreviousPatientsData(null);
+    } else if (!isLoadingPatients && patientsData) {
+      // Update previous data when new data arrives
+      setPreviousPatientsData(patientsData);
+    }
+  }, [isLoadingPatients, patientsData, hasValidSearch]);
+
+  // Use previous data if currently loading, otherwise use current data
+  // If no valid search, always show empty (no previous data)
+  const displayData = hasValidSearch && isLoadingPatients && previousPatientsData 
+    ? previousPatientsData 
+    : hasValidSearch 
+      ? patientsData 
+      : null;
+  const patients = displayData?.patients || [];
+  const totalPatients = displayData?.total || 0;
+  
+  // Results are already limited to 100 at backend, no need to slice
+  const displayPatients = patients;
   
   // Update error state when patients fetch fails
   useEffect(() => {
@@ -115,15 +169,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     practitioners.find(p => p.id === selectedPractitionerId) || null,
     [practitioners, selectedPractitionerId]
   );
-  const filteredPatients = useMemo(() => {
-    if (!searchQuery.trim()) return patients;
-    const query = searchQuery.toLowerCase();
-    return patients.filter(p =>
-      p.full_name.toLowerCase().includes(query) ||
-      p.phone_number?.toLowerCase().includes(query) ||
-      p.line_user_display_name?.toLowerCase().includes(query)
-    );
-  }, [patients, searchQuery]);
 
   // Auto-advance on patient selection (only if not navigating back)
   useEffect(() => {
@@ -191,10 +236,10 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     setSelectedAppointmentTypeId(null);
     setSelectedPractitionerId(null);
     setSelectedDate(initialDate || null); // Preserve initialDate if provided
-      setSelectedTime('');
-      setSearchQuery('');
-      setStep('patient');
-      setError(null);
+    setSelectedTime('');
+    setSearchInput('');
+    setStep('patient');
+    setError(null);
   }, [initialDate]);
 
   // Reset state when preSelectedPatientId changes
@@ -209,9 +254,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       setSelectedPractitionerId(null);
       setSelectedDate(initialDate || null); // Preserve initialDate if provided
       setSelectedTime('');
-      setSearchQuery('');
+      setSearchInput('');
       setStep('appointmentType');
-        setError(null);
+      setError(null);
     }
   }, [preSelectedPatientId, resetState, initialDate]);
 
@@ -266,7 +311,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       setSelectedPractitionerId(null);
       setSelectedDate(null);
       setSelectedTime('');
-      setSearchQuery('');
+      setSearchInput('');
       setStep('patient');
     } catch (err) {
       logger.error('Error creating appointment:', err);
@@ -293,21 +338,20 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         return (
           <div className="space-y-4">
             <SearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
+              ref={searchInputRef}
+              value={searchInput}
+              onChange={setSearchInput}
+              onCompositionStart={() => { setIsComposing(true); }}
+              onCompositionEnd={() => { setIsComposing(false); }}
               placeholder="搜尋病患姓名、電話或LINE..."
             />
-            {isLoadingPatients ? (
-              <div className="flex items-center justify-center py-8">
-                <LoadingSpinner size="sm" />
-              </div>
-            ) : !searchQuery.trim() ? (
+            {!isLoadingPatients && !searchInput.trim() ? (
               <div className="text-center py-8 text-gray-500">請輸入搜尋關鍵字以尋找病患</div>
-            ) : filteredPatients.length === 0 ? (
+            ) : !isLoadingPatients && displayPatients.length === 0 ? (
               <div className="text-center py-8 text-gray-500">找不到符合的病患</div>
-            ) : (
+            ) : displayPatients.length > 0 ? (
               <div className="space-y-3">
-                {filteredPatients.map((patient) => (
+                {displayPatients.map((patient) => (
                   <button
                     key={patient.id}
                     onClick={() => setSelectedPatientId(patient.id)}
@@ -323,8 +367,13 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                     )}
                   </button>
                 ))}
+                {totalPatients > 100 && (
+                  <div className="text-center py-2 text-sm text-gray-500">
+                    找到 {totalPatients} 筆結果
+                  </div>
+                )}
               </div>
-            )}
+            ) : null}
           </div>
         );
 

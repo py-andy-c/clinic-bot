@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../contexts/ModalContext';
@@ -10,6 +10,7 @@ import { BaseModal } from '../components/shared/BaseModal';
 import { useApiData } from '../hooks/useApiData';
 import { useHighlightRow } from '../hooks/useHighlightRow';
 import PageHeader from '../components/PageHeader';
+import { useDebouncedSearch } from '../utils/searchUtils';
 
 const LineUsersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -34,12 +35,24 @@ const LineUsersPage: React.FC = () => {
 
   // Get pagination state from URL with validation
   const currentPage = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
-  const pageSize = Math.max(1, Math.min(100, parseInt(searchParams.get('pageSize') || '10', 10) || 10));
+  // Default page size increased from 10 to 25 for better UX (fewer pagination clicks)
+  const pageSize = Math.max(1, Math.min(100, parseInt(searchParams.get('pageSize') || '25', 10) || 25));
+
+  // Server-side search functionality (declare before useCallback)
+  const [searchInput, setSearchInput] = useState<string>('');
+  const [isComposing, setIsComposing] = useState(false);
+  const debouncedSearchQuery = useDebouncedSearch(searchInput, 400, isComposing);
 
   // Stable fetch function using useCallback
+  // Only search if debouncedSearchQuery has a value (empty string means no search)
   const fetchLineUsers = useCallback(
-    () => apiService.getLineUsers(currentPage, pageSize),
-    [currentPage, pageSize]
+    () => apiService.getLineUsers(
+      currentPage,
+      pageSize,
+      undefined, // no signal
+      debouncedSearchQuery || undefined // search parameter (empty string becomes undefined)
+    ),
+    [currentPage, pageSize, debouncedSearchQuery]
   );
 
   const { data: lineUsersData, loading, error, refetch } = useApiData<{
@@ -51,14 +64,31 @@ const LineUsersPage: React.FC = () => {
     fetchLineUsers,
     {
       enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated, activeClinicId, currentPage, pageSize],
+      dependencies: [isLoading, isAuthenticated, activeClinicId, currentPage, pageSize, debouncedSearchQuery],
       defaultErrorMessage: '無法載入LINE使用者列表',
-      initialData: { line_users: [], total: 0, page: 1, page_size: 10 },
+      initialData: { line_users: [], total: 0, page: 1, page_size: 25 },
     }
   );
 
-  const lineUsers = lineUsersData?.line_users || [];
-  const totalLineUsers = lineUsersData?.total || 0;
+  // Keep previous data visible during loading to prevent flicker
+  const [previousLineUsersData, setPreviousLineUsersData] = useState<{
+    line_users: LineUserWithStatus[];
+    total: number;
+    page: number;
+    page_size: number;
+  } | null>(null);
+
+  // Update previous data when new data arrives (not during loading)
+  useEffect(() => {
+    if (!loading && lineUsersData) {
+      setPreviousLineUsersData(lineUsersData);
+    }
+  }, [loading, lineUsersData]);
+
+  // Use previous data if currently loading, otherwise use current data
+  const displayData = loading && previousLineUsersData ? previousLineUsersData : lineUsersData;
+  const lineUsers = displayData?.line_users || [];
+  const totalLineUsers = displayData?.total || 0;
   const totalPages = Math.ceil(totalLineUsers / pageSize);
   
   // Validate currentPage doesn't exceed totalPages and reset if needed
@@ -77,8 +107,15 @@ const LineUsersPage: React.FC = () => {
   const [toggling, setToggling] = useState<Set<string>>(new Set());
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
   const [showAiStatusInfo, setShowAiStatusInfo] = useState(false);
-  const [searchQuery, setSearchQuery] = useState<string>('');
   const targetLineUserIdRef = useRef<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Memoize PageHeader to prevent re-renders when only data changes
+  // Must be called before any conditional returns to follow Rules of Hooks
+  const pageHeader = useMemo(() => <PageHeader title="LINE 使用者" />, []);
+
+  // Focus preservation is now handled inside SearchInput component
+  // No need for additional focus logic here
 
   // Get lineUserId from query parameter
   const lineUserIdFromQuery = searchParams.get('lineUserId');
@@ -105,7 +142,7 @@ const LineUsersPage: React.FC = () => {
         
         // Auto-fill search with display name if available and search is empty
         if (targetUser.display_name) {
-          setSearchQuery(targetUser.display_name);
+          setSearchInput(targetUser.display_name);
         }
         
         // Remove query parameter after handling
@@ -121,26 +158,17 @@ const LineUsersPage: React.FC = () => {
     }
   }, [lineUserIdFromQuery, lineUsers, searchParams, setSearchParams, setExpandedUsers]);
 
-  // Filter line users based on search query (client-side for now)
-  // NOTE: Client-side search only filters the current page's results.
-  // For full search across all line users, server-side search is needed (Phase 3).
-  const filteredLineUsers = useMemo(() => {
-    if (!searchQuery.trim()) return lineUsers;
-    const normalizedQuery = searchQuery.toLowerCase().trim();
-    return lineUsers.filter(lu =>
-      lu.display_name?.toLowerCase().includes(normalizedQuery) ||
-      lu.patient_names.some(name => name.toLowerCase().includes(normalizedQuery))
-    );
-  }, [lineUsers, searchQuery]);
-
-  // Reset to page 1 when search query changes
+  // Reset to page 1 when search query changes (including when cleared)
+  const prevSearchQueryRef = useRef<string>('');
   useEffect(() => {
-    if (searchQuery.trim() && currentPage !== 1) {
+    // Only reset if search query actually changed and we're not on page 1
+    if (prevSearchQueryRef.current !== debouncedSearchQuery && currentPage !== 1) {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('page', '1');
       setSearchParams(newSearchParams, { replace: true });
     }
-  }, [searchQuery, currentPage, searchParams, setSearchParams]);
+    prevSearchQueryRef.current = debouncedSearchQuery;
+  }, [debouncedSearchQuery, currentPage, searchParams, setSearchParams]);
 
   // Handle page change
   const handlePageChange = useCallback((page: number) => {
@@ -225,8 +253,9 @@ const LineUsersPage: React.FC = () => {
     navigate(`/admin/clinic/patients?patientName=${encodeURIComponent(patientName)}`);
   };
 
-  // Show loading spinner during initial load or page changes
-  if (loading && lineUsers.length === 0) {
+  // Only show full-page loading on initial load (when we have no previous data)
+  // During search/deletion, keep previous data visible
+  if (loading && !previousLineUsersData) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner />
@@ -237,7 +266,7 @@ const LineUsersPage: React.FC = () => {
   if (error) {
     return (
       <div className="max-w-4xl mx-auto">
-        <PageHeader title="LINE 使用者" />
+        {pageHeader}
         <ErrorMessage message={error} onRetry={refetch} />
       </div>
     );
@@ -246,7 +275,7 @@ const LineUsersPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
-      <PageHeader title="LINE 使用者" />
+      {pageHeader}
 
       <div className="space-y-8">
         {/* Line Users List */}
@@ -254,13 +283,16 @@ const LineUsersPage: React.FC = () => {
           {/* Search Bar */}
           <div className="p-4 border-b border-gray-200">
             <SearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
+              ref={searchInputRef}
+              value={searchInput}
+              onChange={setSearchInput}
+              onCompositionStart={() => { setIsComposing(true); }}
+              onCompositionEnd={() => { setIsComposing(false); }}
               placeholder="搜尋LINE使用者名稱或病患姓名..."
             />
           </div>
           
-          {totalLineUsers === 0 ? (
+          {!loading && totalLineUsers === 0 ? (
             <div className="text-center py-12">
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -270,22 +302,17 @@ const LineUsersPage: React.FC = () => {
                 目前沒有LINE使用者連結到此診所的病患
               </p>
             </div>
-          ) : filteredLineUsers.length === 0 ? (
+          ) : !loading && lineUsers.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500">
-                {searchQuery.trim()
-                  ? '找不到符合搜尋條件的LINE使用者（搜尋僅限於當前頁面）'
+                {searchInput.trim()
+                  ? '找不到符合搜尋條件的LINE使用者'
                   : '目前頁面沒有LINE使用者'}
               </p>
             </div>
           ) : (
             <>
               <div className="overflow-x-auto relative">
-                {loading && (
-                  <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-20 rounded-lg">
-                    <LoadingSpinner />
-                  </div>
-                )}
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
@@ -347,7 +374,7 @@ const LineUsersPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredLineUsers.map((lineUser) => {
+                    {lineUsers.map((lineUser) => {
                       const isToggling = toggling.has(lineUser.line_user_id);
                       const isExpanded = expandedUsers.has(lineUser.line_user_id);
                       return (
