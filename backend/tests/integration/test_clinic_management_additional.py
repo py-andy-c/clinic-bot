@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, time, timezone
 from fastapi.testclient import TestClient
 
 from main import app
+from utils.datetime_utils import taiwan_now
 from core.database import get_db
 from models import Clinic, User, Patient, AppointmentType, Appointment, CalendarEvent, PractitionerAppointmentTypes
 from tests.conftest import create_calendar_event_with_clinic, create_user_with_clinic_association
@@ -126,7 +127,7 @@ class TestSettingsDestructiveUpdate:
 
         # Create an appointment tied to the appointment type
         # Use a fixed time to avoid midnight spanning issues
-        start = datetime.combine((datetime.now(timezone.utc) + timedelta(days=1)).date(), time(10, 0))
+        start = datetime.combine((taiwan_now() + timedelta(days=1)).date(), time(10, 0))
         end = start + timedelta(minutes=60)
 
         # Create CalendarEvent first

@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from main import app
+from utils.datetime_utils import taiwan_now
 from models import (
     Clinic, LineUser, AvailabilityNotification, AppointmentType, User,
     UserClinicAssociation
@@ -124,7 +125,7 @@ class TestCreateNotification:
         """Test successful notification creation."""
         token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
         
-        today = date.today()
+        today = taiwan_now().date()
         tomorrow = today + timedelta(days=1)
         
         response = client.post(
@@ -163,7 +164,7 @@ class TestCreateNotification:
         """Test creating notification with specific practitioner."""
         token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
         
-        tomorrow = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+        tomorrow = (taiwan_now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
         
         response = client.post(
             "/api/liff/availability-notifications",
@@ -188,7 +189,7 @@ class TestCreateNotification:
         token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
         
         # Too many time windows
-        tomorrow = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+        tomorrow = (taiwan_now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
         response = client.post(
             "/api/liff/availability-notifications",
             json={
@@ -202,7 +203,7 @@ class TestCreateNotification:
         assert response.status_code == 422
         
         # Past date
-        yesterday = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+        yesterday = (taiwan_now().date() - timedelta(days=1)).strftime("%Y-%m-%d")
         response = client.post(
             "/api/liff/availability-notifications",
             json={
@@ -239,7 +240,7 @@ class TestCreateNotification:
         """Test user notification limit."""
         token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
         
-        tomorrow = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+        tomorrow = (taiwan_now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
         
         # Create max notifications
         from core.constants import MAX_NOTIFICATIONS_PER_USER
@@ -281,7 +282,7 @@ class TestListNotifications:
         """Test successful notification listing."""
         token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
         
-        tomorrow = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+        tomorrow = (taiwan_now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
         
         # Create notifications
         for i in range(3):
@@ -315,7 +316,7 @@ class TestListNotifications:
         """Test pagination."""
         token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
         
-        tomorrow = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+        tomorrow = (taiwan_now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
         
         # Create 5 notifications
         for i in range(5):
@@ -367,7 +368,7 @@ class TestListNotifications:
         db_session.refresh(clinic2)
         
         # Create notification in clinic2
-        tomorrow = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+        tomorrow = (taiwan_now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
         notification2 = AvailabilityNotification(
             line_user_id=test_line_user.id,
             clinic_id=clinic2.id,
@@ -401,7 +402,7 @@ class TestDeleteNotification:
         """Test successful notification deletion."""
         token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
         
-        tomorrow = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+        tomorrow = (taiwan_now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
         
         # Create notification
         notification = AvailabilityNotification(
@@ -463,7 +464,7 @@ class TestDeleteNotification:
             db_session.add(line_user2)
             db_session.flush()
         
-        tomorrow = (date.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+        tomorrow = (taiwan_now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
         
         # Create notification owned by line_user2
         notification = AvailabilityNotification(

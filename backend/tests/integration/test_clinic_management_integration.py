@@ -11,6 +11,7 @@ from unittest.mock import patch, AsyncMock, Mock
 from fastapi.testclient import TestClient
 
 from main import app
+from utils.datetime_utils import taiwan_now
 from core.database import get_db
 from models.user import User
 
@@ -314,7 +315,7 @@ class TestAppointmentLifecycleIntegration:
         db_session.commit()
 
         # Create original appointment
-        original_start = datetime.combine((datetime.now() + timedelta(days=1)).date(), time(10, 0))
+        original_start = datetime.combine((taiwan_now() + timedelta(days=1)).date(), time(10, 0))
         original_end = original_start + timedelta(minutes=apt_type.duration_minutes)
 
         # Create CalendarEvent first
@@ -340,7 +341,7 @@ class TestAppointmentLifecycleIntegration:
 
         # Test reschedule to different time (this would be handled by the reschedule tool)
         # For now, we'll simulate the expected behavior
-        new_start = datetime.combine((datetime.now() + timedelta(days=1)).date(), time(14, 0))
+        new_start = datetime.combine((taiwan_now() + timedelta(days=1)).date(), time(14, 0))
         new_end = new_start + timedelta(minutes=apt_type.duration_minutes)
 
         # Update calendar event (simulating reschedule)
@@ -381,7 +382,7 @@ class TestAppointmentLifecycleIntegration:
         db_session.commit()
 
         # Create appointment
-        start_time = datetime.combine((datetime.now() + timedelta(days=1)).date(), time(10, 0))
+        start_time = datetime.combine((taiwan_now() + timedelta(days=1)).date(), time(10, 0))
         end_time = start_time + timedelta(minutes=apt_type.duration_minutes)
 
         # Create CalendarEvent first
@@ -445,7 +446,7 @@ class TestClinicAppointmentManagement:
         )
 
         # Create an appointment
-        start_time = datetime.now() + timedelta(days=1)
+        start_time = taiwan_now() + timedelta(days=1)
         end_time = start_time + timedelta(hours=1)
         calendar_event = CalendarEvent(
             user_id=therapist.id,
@@ -567,7 +568,7 @@ class TestClinicAppointmentManagement:
         )
 
         # Create a cancelled appointment
-        start_time = datetime.now() + timedelta(days=1)
+        start_time = taiwan_now() + timedelta(days=1)
         end_time = start_time + timedelta(hours=1)
         calendar_event = CalendarEvent(
             user_id=therapist.id,
@@ -632,7 +633,7 @@ class TestClinicAppointmentManagement:
         db_session.commit()
 
         # Create an appointment for therapist (not the practitioner)
-        start_time = datetime.now() + timedelta(days=1)
+        start_time = taiwan_now() + timedelta(days=1)
         end_time = start_time + timedelta(hours=1)
         calendar_event = CalendarEvent(
             user_id=therapist.id,
@@ -687,7 +688,7 @@ class TestClinicAppointmentManagement:
         clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
 
         # Create an appointment for therapist
-        start_time = datetime.now() + timedelta(days=1)
+        start_time = taiwan_now() + timedelta(days=1)
         end_time = start_time + timedelta(hours=1)
         calendar_event = CalendarEvent(
             user_id=therapist.id,

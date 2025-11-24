@@ -642,7 +642,7 @@ class TestLiffDatabaseOperations:
 
         try:
             # Book appointment
-            future_date = (datetime.now() + timedelta(days=3)).date().isoformat()
+            future_date = (taiwan_now() + timedelta(days=3)).date().isoformat()
             appointment_data = {
                 "patient_id": patient.id,
                 "appointment_type_id": appt_types[0].id,
@@ -795,7 +795,7 @@ class TestLiffDatabaseOperations:
             assert len(appt_types_data) == 3
 
             # Step 3: Check availability for 2 days from now (to ensure it's definitely in the future)
-            future_date_obj = (datetime.now() + timedelta(days=2)).date()
+            future_date_obj = (taiwan_now() + timedelta(days=2)).date()
             future_date = future_date_obj.isoformat()
             
             # Get day of week (0=Monday, 6=Sunday)
@@ -950,7 +950,7 @@ class TestLiffReturningUserFlow:
                 assert response.status_code == 200
 
             # Book appointment for first patient
-            future_date = (datetime.now() + timedelta(days=3)).date().isoformat()
+            future_date = (taiwan_now() + timedelta(days=3)).date().isoformat()
             start_time = f"{future_date}T10:00:00+08:00"
 
             appointment_data = {
@@ -1022,8 +1022,8 @@ class TestLiffReturningUserFlow:
 
             # Book multiple appointments at different times - use dates definitely in the future
             appointments_data = [
-                (f"{(datetime.now() + timedelta(days=3)).date().isoformat()}T09:00:00+08:00", "第一次看診"),
-                (f"{(datetime.now() + timedelta(days=10)).date().isoformat()}T14:00:00+08:00", "第二次看診"),
+                (f"{(taiwan_now() + timedelta(days=3)).date().isoformat()}T09:00:00+08:00", "第一次看診"),
+                (f"{(taiwan_now() + timedelta(days=10)).date().isoformat()}T14:00:00+08:00", "第二次看診"),
             ]
 
             booked_appointments = []
@@ -1093,7 +1093,7 @@ class TestLiffReturningUserFlow:
             patient = response.json()
 
             # Book appointment (more than 24 hours in the future to allow cancellation)
-            future_date = (datetime.now() + timedelta(days=2)).date().isoformat()
+            future_date = (taiwan_now() + timedelta(days=2)).date().isoformat()
             response = client.post(
                 "/api/liff/appointments",
                 json={
@@ -1377,7 +1377,7 @@ class TestLiffAvailabilityAndScheduling:
             patient = response.json()
 
             # Book appointment
-            future_date = (datetime.now() + timedelta(days=3)).date()
+            future_date = (taiwan_now() + timedelta(days=3)).date()
             start_time = f"{future_date.isoformat()}T10:30:00+08:00"
 
             response = client.post(
@@ -1446,8 +1446,8 @@ class TestLiffAvailabilityAndScheduling:
             db_session.commit()
             
             # Calculate dates (next Monday and Tuesday)
-            from datetime import timedelta, date
-            today = date.today()
+            from datetime import timedelta
+            today = taiwan_now().date()
             days_until_monday = (0 - today.weekday()) % 7
             if days_until_monday == 0 and today.weekday() != 0:
                 days_until_monday = 7
@@ -1634,7 +1634,7 @@ class TestLiffAvailabilityAndScheduling:
 
             # Book without specifying practitioner
             # Use 3 days in future to avoid timezone edge cases, similar to other tests
-            future_date = (datetime.now() + timedelta(days=3)).date()
+            future_date = (taiwan_now() + timedelta(days=3)).date()
             start_time = f"{future_date.isoformat()}T11:00:00+08:00"
             response = client.post(
                 "/api/liff/appointments",
@@ -1764,7 +1764,7 @@ class TestLiffErrorHandling:
             patient = response.json()
 
             # Try to book in the past
-            past_time = (datetime.now() - timedelta(hours=1)).isoformat()
+            past_time = (taiwan_now() - timedelta(hours=1)).isoformat()
 
             response = client.post(
                 "/api/liff/appointments",
@@ -1812,7 +1812,7 @@ class TestLiffErrorHandling:
             db_session.commit()
 
             # Set up practitioner availability for a future date (2 days from now to avoid timezone issues)
-            future_date = (datetime.now() + timedelta(days=2)).date()
+            future_date = (taiwan_now() + timedelta(days=2)).date()
             future_weekday = future_date.weekday()
             create_practitioner_availability_with_clinic(
                 db_session, practitioner, clinic,
@@ -1905,7 +1905,7 @@ class TestLiffErrorHandling:
             patient = response.json()
 
             # Try to book more than 90 days in future (default booking window)
-            far_future = (datetime.now() + timedelta(days=100)).isoformat()
+            far_future = (taiwan_now() + timedelta(days=100)).isoformat()
 
             response = client.post(
                 "/api/liff/appointments",

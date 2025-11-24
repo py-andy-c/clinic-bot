@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from main import app
+from utils.datetime_utils import taiwan_now
 from models import User, Clinic, AppointmentType, Patient, PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment
 from core.database import get_db
 from tests.conftest import (
@@ -310,7 +311,7 @@ class TestPractitionerCalendarAPI:
         clinic, practitioner = test_clinic_and_practitioner
 
         # Create default availability for future date
-        future_date = (datetime.now() + timedelta(days=5)).date()
+        future_date = (taiwan_now() + timedelta(days=5)).date()
         day_of_week = future_date.weekday()
         create_practitioner_availability_with_clinic(
             db_session, practitioner, clinic,
@@ -566,7 +567,7 @@ class TestPractitionerCalendarAPI:
         db_session.flush()
 
         # Create confirmed appointment (use future date)
-        future_date = (datetime.now() + timedelta(days=5)).date()
+        future_date = (taiwan_now() + timedelta(days=5)).date()
         confirmed_event = create_calendar_event_with_clinic(
             db_session, practitioner, clinic,
             event_type="appointment",
@@ -710,7 +711,7 @@ class TestPractitionerCalendarAPI:
         clinic, practitioner = test_clinic_and_practitioner
 
         # Create default availability for future date
-        future_date = (datetime.now() + timedelta(days=5)).date()
+        future_date = (taiwan_now() + timedelta(days=5)).date()
         day_of_week = future_date.weekday()
         create_practitioner_availability_with_clinic(
             db_session, practitioner, clinic,
@@ -1206,8 +1207,8 @@ class TestPractitionerCalendarAPI:
         db_session.flush()
         
         # Create appointments for both practitioners on different dates
-        target_date1 = date.today() + timedelta(days=1)
-        target_date2 = date.today() + timedelta(days=2)
+        target_date1 = taiwan_now().date() + timedelta(days=1)
+        target_date2 = taiwan_now().date() + timedelta(days=2)
         
         # Create appointment type
         appointment_type = AppointmentType(
@@ -1335,7 +1336,7 @@ class TestPractitionerCalendarAPI:
         db_session.commit()
 
         # Calculate dates (next Monday and Tuesday)
-        today = date.today()
+        today = taiwan_now().date()
         days_until_monday = (0 - today.weekday()) % 7
         if days_until_monday == 0 and today.weekday() != 0:
             days_until_monday = 7
@@ -1406,7 +1407,7 @@ class TestPractitionerCalendarAPI:
         )
 
         # Calculate next Monday
-        today = date.today()
+        today = taiwan_now().date()
         days_until_monday = (0 - today.weekday()) % 7
         if days_until_monday == 0 and today.weekday() != 0:
             days_until_monday = 7
