@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
-from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation, Appointment, AvailabilityException, Patient, LineUser, LineMessage
+from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation, Appointment, AvailabilityException, Patient
 from models.clinic import ClinicSettings, ChatSettings as ChatSettingsModel
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
 from services.availability_service import AvailabilityService
@@ -3188,47 +3188,6 @@ async def delete_availability_exception(
 
 # ===== LINE User AI Control =====
 
-def _verify_line_user_has_interaction(
-    db: Session,
-    line_user_id: str,
-    clinic_id: int
-) -> None:
-    """
-    Verify that LINE user has interacted with clinic (has patients OR has sent messages).
-    
-    Raises HTTPException if the user has no active patients and no messages in this clinic.
-    This allows managing AI settings for users who have sent messages but haven't created patients yet.
-    
-    Args:
-        db: Database session
-        line_user_id: LINE user ID string
-        clinic_id: Clinic ID
-        
-    Raises:
-        HTTPException: 404 if user has no active patients and no messages
-    """
-    # Check if user has active patients in this clinic
-    has_patients = db.query(Patient).join(
-        LineUser, LineUser.id == Patient.line_user_id
-    ).filter(
-        LineUser.line_user_id == line_user_id,
-        Patient.clinic_id == clinic_id,
-        Patient.is_deleted == False
-    ).first() is not None
-    
-    # Check if user has sent messages to this clinic
-    has_messages = db.query(LineMessage).filter(
-        LineMessage.line_user_id == line_user_id,
-        LineMessage.clinic_id == clinic_id
-    ).first() is not None
-    
-    if not has_patients and not has_messages:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="找不到此LINE使用者或該使用者在此診所沒有互動記錄"
-        )
-
-
 class LineUserWithStatusResponse(BaseModel):
     """Response model for LineUser with AI status."""
     line_user_id: str
@@ -3402,17 +3361,21 @@ async def disable_ai_for_line_user_endpoint(
         
         clinic_id = ensure_clinic_access(current_user)
         
-        # Verify LINE user has interacted with this clinic (patients or messages)
-        _verify_line_user_has_interaction(db, line_user_id, clinic_id)
-        
-        # Disable AI
-        disable_ai_for_line_user(
-            db=db,
-            line_user_id=line_user_id,
-            clinic_id=clinic_id,
-            disabled_by_user_id=current_user.user_id,
-            reason=request.reason
-        )
+        # Disable AI (service will raise ValueError if LineUser doesn't exist)
+        try:
+            disable_ai_for_line_user(
+                db=db,
+                line_user_id=line_user_id,
+                clinic_id=clinic_id,
+                disabled_by_user_id=current_user.user_id,
+                reason=request.reason
+            )
+        except ValueError as e:
+            # LineUser doesn't exist for this clinic
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到此LINE使用者"
+            ) from e
         
         logger.info(
             f"AI disabled for line_user_id={line_user_id}, "
@@ -3455,22 +3418,19 @@ async def enable_ai_for_line_user_endpoint(
         
         clinic_id = ensure_clinic_access(current_user)
         
-        # Verify LINE user has interacted with this clinic (patients or messages)
-        _verify_line_user_has_interaction(db, line_user_id, clinic_id)
-        
         # Enable AI (clears disable fields on LineUser)
-        # Note: enable_ai_for_line_user returns Optional[LineUser] - None if LineUser doesn't exist.
-        # However, _verify_line_user_has_interaction ensures LineUser exists, so this should not be None.
+        # Returns None if LineUser doesn't exist
         result = enable_ai_for_line_user(
             db=db,
             line_user_id=line_user_id,
             clinic_id=clinic_id
         )
-        # Log if LineUser wasn't found (shouldn't happen after verification, but defensive check)
+        
         if result is None:
-            logger.warning(
-                f"enable_ai_for_line_user returned None for line_user_id={line_user_id}, "
-                f"clinic_id={clinic_id} (LineUser should exist after verification)"
+            # LineUser doesn't exist for this clinic
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到此LINE使用者"
             )
         
         logger.info(
