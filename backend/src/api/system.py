@@ -214,7 +214,7 @@ async def get_clinic(
         # Generate LIFF URL (read-only operation - no auto-generation)
         # Tokens should be generated via explicit endpoints or during clinic creation
         from utils.liff_token import generate_liff_url
-        liff_url = generate_liff_url(clinic)  # Will use clinic_id if token missing (backward compat)
+        liff_url = generate_liff_url(clinic, mode="home")  # Will use clinic_id if token missing (backward compat)
 
         return {
             "id": clinic.id,
