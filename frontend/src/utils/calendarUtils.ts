@@ -11,6 +11,28 @@ import { logger } from './logger';
 const TAIWAN_TIMEZONE = 'Asia/Taipei';
 
 /**
+ * Weekday names in Traditional Chinese (Sunday = 0, Monday = 1, ..., Saturday = 6)
+ * Used as fallback when i18n is not available or returns invalid data
+ */
+export const WEEKDAY_NAMES_ZH_TW = ['日', '一', '二', '三', '四', '五', '六'] as const;
+
+/**
+ * Get weekday names using i18n with fallback to WEEKDAY_NAMES_ZH_TW
+ * Returns an array of weekday abbreviations in the current language
+ */
+export const getWeekdayNames = (): readonly string[] => {
+  try {
+    const weekdayAbbr = i18n.t('datetime.weekdayAbbr', { returnObjects: true }) as string[];
+    if (Array.isArray(weekdayAbbr) && weekdayAbbr.length === 7) {
+      return weekdayAbbr;
+    }
+  } catch (error) {
+    logger.warn('Failed to get weekday names from i18n, using fallback');
+  }
+  return WEEKDAY_NAMES_ZH_TW;
+};
+
+/**
  * Generate date string in YYYY-MM-DD format (Taiwan timezone)
  */
 export const getDateString = (date: Date): string => {
@@ -34,8 +56,7 @@ export const formatDateTime = (dateTime: Date | string): string => {
   // Validate weekday abbreviations array
   if (!Array.isArray(weekdayAbbr) || weekdayAbbr.length !== 7) {
     logger.warn('Invalid weekday abbreviations, using fallback');
-    const fallback = ['日', '一', '二', '三', '四', '五', '六'];
-    const weekday = fallback[taiwanMoment.day()] || '';
+    const weekday = WEEKDAY_NAMES_ZH_TW[taiwanMoment.day()] || '';
     const dateStr = taiwanMoment.format('MM/DD');
     const timeStr = taiwanMoment.format('h:mm A');
     return `${dateStr} (${weekday}) ${timeStr}`;
@@ -57,8 +78,7 @@ export const formatAppointmentTime = (start: Date, end: Date): string => {
   // Validate weekday abbreviations array
   if (!Array.isArray(weekdayAbbr) || weekdayAbbr.length !== 7) {
     logger.warn('Invalid weekday abbreviations, using fallback');
-    const fallback = ['日', '一', '二', '三', '四', '五', '六'];
-    const weekday = fallback[startMoment.day()] || '';
+    const weekday = WEEKDAY_NAMES_ZH_TW[startMoment.day()] || '';
     const dateStr = `${startMoment.format('MM/DD')} (${weekday})`;
     return `${dateStr} ${startMoment.format('h:mm A')} - ${endMoment.format('h:mm A')}`;
   }

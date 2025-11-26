@@ -98,6 +98,36 @@ describe('calendarUtils', () => {
       expect(startMoment.date()).toBe(1);
     });
 
+    it('should return week range for week view', () => {
+      // 2024-01-15 is a Monday
+      const date = new Date('2024-01-15T12:00:00+08:00');
+      const { start, end } = getDateRange(date, 'week');
+      
+      const startMoment = moment(start).tz('Asia/Taipei');
+      const endMoment = moment(end).tz('Asia/Taipei');
+      
+      // Week should start on Sunday (2024-01-14) and end on Saturday (2024-01-20)
+      // moment.js with zh-tw locale uses Sunday as the first day of the week
+      expect(startMoment.format('YYYY-MM-DD')).toBe('2024-01-14');
+      expect(endMoment.format('YYYY-MM-DD')).toBe('2024-01-20');
+      expect(startMoment.day()).toBe(0); // Sunday
+      expect(endMoment.day()).toBe(6); // Saturday
+    });
+
+    it('should handle week view across month boundaries', () => {
+      // 2024-01-31 is a Wednesday, week should span Jan 28 - Feb 3
+      const date = new Date('2024-01-31T12:00:00+08:00');
+      const { start, end } = getDateRange(date, 'week');
+      
+      const startMoment = moment(start).tz('Asia/Taipei');
+      const endMoment = moment(end).tz('Asia/Taipei');
+      
+      expect(startMoment.format('YYYY-MM-DD')).toBe('2024-01-28');
+      expect(endMoment.format('YYYY-MM-DD')).toBe('2024-02-03');
+      expect(startMoment.day()).toBe(0); // Sunday
+      expect(endMoment.day()).toBe(6); // Saturday
+    });
+
     it('should handle uppercase view names', () => {
       const date = new Date('2024-01-15T12:00:00+08:00');
       const { start, end } = getDateRange(date, 'DAY');

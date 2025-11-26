@@ -32,6 +32,7 @@ import {
   getDateRange,
   formatTimeString,
   getScrollToTime,
+  getWeekdayNames,
 } from '../utils/calendarUtils';
 
 // Configure moment for Taiwan timezone
@@ -74,6 +75,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Track in-flight batch calendar requests to prevent duplicate concurrent requests
   const inFlightBatchRequestsRef = useRef<Map<string, Promise<any>>>(new Map());
   const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  // Counter for cache cleanup - increments on each fetch to enable deterministic cleanup
+  const cacheCleanupCounterRef = useRef(0);
 
   // Helper to invalidate cache for a specific date range
   const invalidateCacheForDateRange = useCallback((startDate: string, endDate: string) => {
@@ -223,6 +226,15 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Set scroll position to 9 AM for day view
   const scrollToTime = useMemo(() => getScrollToTime(currentDate), [currentDate]);
 
+  // Create practitioner lookup map for O(1) access instead of O(n) find()
+  const practitionerMap = useMemo(() => {
+    const map = new Map<number, string>();
+    availablePractitioners.forEach(p => {
+      map.set(p.id, p.full_name);
+    });
+    return map;
+  }, [availablePractitioners]);
+
   // Fetch all events for the visible date range using batch endpoint
   // Memoize fetchCalendarData to prevent unnecessary re-renders and enable proper dependency tracking
   const fetchCalendarData = useCallback(async (forceRefresh: boolean = false) => {
@@ -234,7 +246,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       return;
     }
 
-    const { start, end } = getDateRange(currentDate, 'day');
+    // Determine the view type for date range calculation
+    const viewType = view === Views.WEEK ? 'week' : 'day';
+    const { start, end } = getDateRange(currentDate, viewType);
     
     // Collect all practitioner IDs to fetch (primary + additional)
     const allPractitionerIds = [userId, ...additionalPractitionerIds].sort((a, b) => a - b); // Sort for consistent cache key
@@ -272,9 +286,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           for (const result of batchData.results) {
             const practitionerId = result.user_id;
             const dateStr = result.date;
-            // Use availablePractitioners (from prop or fetched data)
-            const practitioner = availablePractitioners.find(p => p.id === practitionerId);
-            const practitionerName = practitioner?.full_name || '';
+            // Use practitionerMap for O(1) lookup instead of O(n) find()
+            const practitionerName = practitionerMap.get(practitionerId) || '';
             const transformedEvents = result.events.map((event: any) => ({
               ...event,
               date: dateStr,
@@ -316,9 +329,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         const practitionerId = result.user_id;
         const dateStr = result.date;
         
-        // Find practitioner name - use availablePractitioners (from prop or fetched data)
-        const practitioner = availablePractitioners.find(p => p.id === practitionerId);
-        const practitionerName = practitioner?.full_name || '';
+        // Use practitionerMap for O(1) lookup instead of O(n) find()
+        const practitionerName = practitionerMap.get(practitionerId) || '';
         
         // Add date and practitioner ID to each event for proper display and color-coding
         const transformedEvents = result.events.map((event: any) => ({
@@ -338,11 +350,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         timestamp: Date.now()
       });
 
-      // Clean up old cache entries (older than TTL)
-      const now = Date.now();
-      for (const [key, value] of cachedCalendarDataRef.current.entries()) {
-        if (now - value.timestamp >= CACHE_TTL) {
-          cachedCalendarDataRef.current.delete(key);
+      // Clean up old cache entries (older than TTL) - only run cleanup occasionally to avoid performance impact
+      // Clean up every 10th request or if cache size exceeds 50 entries
+      cacheCleanupCounterRef.current += 1;
+      const cacheSize = cachedCalendarDataRef.current.size;
+      if (cacheSize > 50 || cacheCleanupCounterRef.current % 10 === 0) {
+        const now = Date.now();
+        for (const [key, value] of cachedCalendarDataRef.current.entries()) {
+          if (now - value.timestamp >= CACHE_TTL) {
+            cachedCalendarDataRef.current.delete(key);
+          }
         }
       }
 
@@ -359,7 +376,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [userId, additionalPractitionerIds, currentDate, view, availablePractitioners]);
+  }, [userId, additionalPractitionerIds, currentDate, view, practitionerMap]);
 
   // Fetch calendar data when date/view/practitioners change
   useEffect(() => {
@@ -447,10 +464,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
   }, [onSelectEvent]);
 
-  // Handle slot selection - only for monthly view navigation
+  // Handle slot selection - for monthly and weekly view navigation
   const handleSelectSlot = useCallback((slotInfo: any) => {
     // In monthly view, clicking a date should navigate to daily view of that date
     if (view === Views.MONTH) {
+      setCurrentDate(slotInfo.start);
+      setView(Views.DAY);
+      if (onNavigate) {
+        onNavigate(slotInfo.start);
+      }
+    } else if (view === Views.WEEK) {
+      // In week view, clicking a time slot should navigate to day view of that date/time
       setCurrentDate(slotInfo.start);
       setView(Views.DAY);
       if (onNavigate) {
@@ -811,14 +835,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           startAccessor="start"
           endAccessor="end"
           view={view}
-          views={[Views.MONTH, Views.DAY]}
+          views={[Views.MONTH, Views.WEEK, Views.DAY]}
           date={currentDate}
           scrollToTime={scrollToTime}
           onNavigate={handleNavigate}
           onView={setView}
           onSelectEvent={handleSelectEvent}
           onSelectSlot={handleSelectSlot}
-          selectable={view === Views.MONTH}
+          selectable={view === Views.MONTH || view === Views.WEEK}
           components={{
             toolbar: CustomToolbar,
             event: CustomEventComponent,
@@ -829,6 +853,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             day: {
               header: CustomDayHeader,
             },
+            week: {
+              header: CustomDayHeader,
+            },
           }}
           formats={{
             monthHeaderFormat: (date: Date) => {
@@ -837,12 +864,21 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             },
             dayHeaderFormat: (date: Date) => {
               const taiwanDate = moment(date).tz('Asia/Taipei');
-              const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+              const weekdayNames = getWeekdayNames();
               const weekday = weekdayNames[taiwanDate.day()];
               return `${taiwanDate.format('M月D日')} (${weekday})`;
             },
+            dayRangeHeaderFormat: ({ start, end }: { start: Date; end: Date }) => {
+              const startDate = moment(start).tz('Asia/Taipei');
+              const endDate = moment(end).tz('Asia/Taipei');
+              const weekdayNames = getWeekdayNames();
+              const startWeekday = weekdayNames[startDate.day()];
+              const endWeekday = weekdayNames[endDate.day()];
+              // Format: "M月D日 (X) - M月D日 (X)" - used for week view header
+              return `${startDate.format('M月D日')} (${startWeekday}) - ${endDate.format('M月D日')} (${endWeekday})`;
+            },
             // Note: weekday column headers in month view are handled by CustomWeekdayHeader component
-            // dayRangeHeaderFormat is not needed since we use CustomDayHeader component for day view
+            // dayRangeHeaderFormat is used for week view to show the date range in the header
             timeGutterFormat: (date: Date) => {
               // Format for time slots in day view: "12 AM" instead of "12:00 AM"
               const taiwanDate = moment(date).tz('Asia/Taipei');
