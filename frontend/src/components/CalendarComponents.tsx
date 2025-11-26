@@ -165,6 +165,26 @@ export const CustomDayHeader = ({ date }: any) => {
   );
 };
 
+// Custom Week Header Component for Week View
+// Displays weekday and date for each day column in week view
+export const CustomWeekHeader = ({ date }: any) => {
+  const taiwanDate = moment(date).tz('Asia/Taipei');
+  const weekdayNames = getWeekdayNames();
+  const weekday = weekdayNames[taiwanDate.day()];
+  const isToday = moment().tz('Asia/Taipei').isSame(taiwanDate, 'day');
+  
+  return (
+    <div className="text-center py-2 px-1 min-h-[60px] flex flex-col justify-center">
+      <div className={`text-xs font-medium mb-1 ${isToday ? 'text-primary-600 font-semibold' : 'text-gray-500'}`}>
+        {weekday}
+      </div>
+      <div className={`text-sm font-semibold ${isToday ? 'text-primary-700' : 'text-gray-900'}`}>
+        {taiwanDate.format('M/D')}
+      </div>
+    </div>
+  );
+};
+
 // Custom Event Component
 export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
   const timeStr = formatEventTimeRange(event.start, event.end);

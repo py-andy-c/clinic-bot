@@ -90,8 +90,10 @@
   @apply bg-gray-50 border-b border-gray-200;
 }
 
+/* Root cause fix: Don't hide overflowing time header - we need it visible for week view */
+/* The rbc-overflowing class is added by react-big-calendar when content overflows, but we still need to show the headers */
 .rbc-time-header.rbc-overflowing {
-  display: none;
+  display: block !important;
 }
 
 .rbc-time-header-content {

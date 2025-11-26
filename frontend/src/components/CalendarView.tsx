@@ -15,7 +15,7 @@ import {
   CalendarEvent 
 } from '../utils/calendarDataAdapter';
 import { getPractitionerColor } from '../utils/practitionerColors';
-import { CustomToolbar, CustomEventComponent, CustomDateHeader, CustomDayHeader, CustomWeekdayHeader } from './CalendarComponents';
+import { CustomToolbar, CustomEventComponent, CustomDateHeader, CustomDayHeader, CustomWeekdayHeader, CustomWeekHeader } from './CalendarComponents';
 import {
   EventModal,
   ExceptionModal,
@@ -854,7 +854,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               header: CustomDayHeader,
             },
             week: {
-              header: CustomDayHeader,
+              header: CustomWeekHeader,
             },
           }}
           formats={{
