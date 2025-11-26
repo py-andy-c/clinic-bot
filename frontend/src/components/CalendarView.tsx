@@ -140,6 +140,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [isFullDay, setIsFullDay] = useState(false);
   const scrollYRef = useRef(0);
   const calendarContainerRef = useRef<HTMLDivElement>(null);
+  // Ref for resize timeout - must be at component level to persist across renders
+  // but be accessible in useEffect cleanup. If declared inside useEffect, it would
+  // be recreated on every render, defeating the purpose of using a ref.
+  const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get current user for role checking
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
@@ -226,82 +230,178 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   useEffect(() => {
     if (view !== Views.WEEK) return;
 
-    const syncColumnWidths = () => {
-      if (!calendarContainerRef.current) return;
+    // Constants for width syncing timing
+    const SYNC_DELAY_MS = 100; // Delay for delayed layout calculations (especially on mobile)
+    const RESIZE_DEBOUNCE_MS = 50; // Debounce timeout for resize events
 
-      // Get all day slots (event columns)
-      const daySlots = Array.from(
-        calendarContainerRef.current.querySelectorAll('.rbc-time-content > .rbc-day-slot')
-      ) as HTMLElement[];
-      
-      // Get all headers
-      const headers = Array.from(
-        calendarContainerRef.current.querySelectorAll('.rbc-time-header .rbc-header')
-      ) as HTMLElement[];
-      
-      // Get all day backgrounds (all-day row)
-      const dayBgs = Array.from(
-        calendarContainerRef.current.querySelectorAll('.rbc-allday-cell .rbc-day-bg')
-      ) as HTMLElement[];
-      
-      // Sync time gutter first
-      const timeGutter = calendarContainerRef.current.querySelector('.rbc-time-content > .rbc-time-gutter') as HTMLElement;
-      const headerGutter = calendarContainerRef.current.querySelector('.rbc-time-header .rbc-time-header-gutter') as HTMLElement;
-      
-      if (timeGutter && headerGutter) {
-        const timeGutterWidth = timeGutter.getBoundingClientRect().width;
-        if (timeGutterWidth > 0) {
-          headerGutter.style.setProperty('width', `${timeGutterWidth}px`, 'important');
-          headerGutter.style.setProperty('min-width', `${timeGutterWidth}px`, 'important');
-          headerGutter.style.setProperty('max-width', `${timeGutterWidth}px`, 'important');
+    /**
+     * Synchronizes column widths between the time header and time content tables
+     * in week view to ensure perfect alignment.
+     * 
+     * This function:
+     * 1. Syncs the time gutter width
+     * 2. Syncs each day column width
+     * 3. Calculates total width from actual column widths (to avoid rounding issues)
+     * 4. Sets both tables to the exact same total width
+     */
+    const syncColumnWidths = () => {
+      try {
+        if (!calendarContainerRef.current) return;
+
+        const timeContent = calendarContainerRef.current.querySelector('.rbc-time-content') as HTMLElement;
+        if (!timeContent) return;
+
+        // Get all day slots (event columns)
+        const daySlots = Array.from(
+          calendarContainerRef.current.querySelectorAll('.rbc-time-content > .rbc-day-slot')
+        ) as HTMLElement[];
+        
+        // Get all headers
+        const headers = Array.from(
+          calendarContainerRef.current.querySelectorAll('.rbc-time-header .rbc-header')
+        ) as HTMLElement[];
+        
+        // Get all day backgrounds (all-day row)
+        const dayBgs = Array.from(
+          calendarContainerRef.current.querySelectorAll('.rbc-allday-cell .rbc-day-bg')
+        ) as HTMLElement[];
+        
+        // Sync time gutter first - this is critical for left edge alignment
+        const timeGutter = calendarContainerRef.current.querySelector('.rbc-time-content > .rbc-time-gutter') as HTMLElement;
+        const headerGutter = calendarContainerRef.current.querySelector('.rbc-time-header .rbc-time-header-gutter') as HTMLElement;
+        
+        if (timeGutter && headerGutter) {
+          // Use offsetWidth to include borders in the calculation
+          const timeGutterWidth = timeGutter.offsetWidth;
+          if (timeGutterWidth > 0) {
+            headerGutter.style.setProperty('width', `${timeGutterWidth}px`, 'important');
+            headerGutter.style.setProperty('min-width', `${timeGutterWidth}px`, 'important');
+            headerGutter.style.setProperty('max-width', `${timeGutterWidth}px`, 'important');
+          }
         }
-      }
-      
-      // Sync each day column width
-      if (daySlots.length === headers.length) {
-        daySlots.forEach((daySlot, index) => {
-          const header = headers[index];
-          const dayBg = dayBgs[index];
-          
-          // Use getBoundingClientRect for more accurate width
-          const slotWidth = daySlot.getBoundingClientRect().width;
-          
-          if (slotWidth > 0 && header) {
-            header.style.setProperty('width', `${slotWidth}px`, 'important');
-            header.style.setProperty('min-width', `${slotWidth}px`, 'important');
-            header.style.setProperty('max-width', `${slotWidth}px`, 'important');
-            header.style.setProperty('flex', '0 0 auto', 'important');
-          }
-          
-          if (slotWidth > 0 && dayBg) {
-            dayBg.style.setProperty('width', `${slotWidth}px`, 'important');
-            dayBg.style.setProperty('min-width', `${slotWidth}px`, 'important');
-            dayBg.style.setProperty('max-width', `${slotWidth}px`, 'important');
-            dayBg.style.setProperty('flex', '0 0 auto', 'important');
-          }
+        
+        // Sync each day column width
+        if (daySlots.length === headers.length) {
+          daySlots.forEach((daySlot, index) => {
+            const header = headers[index];
+            const dayBg = dayBgs[index];
+            
+            // Use offsetWidth to include borders in the calculation
+            // This ensures the total width (including borders) matches
+            const slotWidth = daySlot.offsetWidth;
+            
+            if (slotWidth > 0 && header) {
+              header.style.setProperty('width', `${slotWidth}px`, 'important');
+              header.style.setProperty('min-width', `${slotWidth}px`, 'important');
+              header.style.setProperty('max-width', `${slotWidth}px`, 'important');
+              header.style.setProperty('flex', '0 0 auto', 'important');
+            }
+            
+            if (slotWidth > 0 && dayBg) {
+              dayBg.style.setProperty('width', `${slotWidth}px`, 'important');
+              dayBg.style.setProperty('min-width', `${slotWidth}px`, 'important');
+              dayBg.style.setProperty('max-width', `${slotWidth}px`, 'important');
+              dayBg.style.setProperty('flex', '0 0 auto', 'important');
+            }
+          });
+        }
+        
+        // Calculate total width from actual column widths to avoid rounding issues
+        // This ensures both tables have exactly the same total width
+        let totalContentWidth = 0;
+        if (timeGutter) {
+          totalContentWidth += timeGutter.offsetWidth;
+        }
+        daySlots.forEach(slot => {
+          totalContentWidth += slot.offsetWidth;
         });
+        
+        // Set both tables to the exact same total width
+        const timeHeader = calendarContainerRef.current.querySelector('.rbc-time-header') as HTMLElement;
+        if (timeHeader && timeContent && totalContentWidth > 0) {
+          // Use the calculated total width to ensure exact match
+          timeHeader.style.setProperty('width', `${totalContentWidth}px`, 'important');
+          timeContent.style.setProperty('width', `${totalContentWidth}px`, 'important');
+        }
+      } catch (error) {
+        logger.error('Error syncing column widths:', error);
+        // Don't throw - allow calendar to continue functioning even if sync fails
       }
     };
 
-    // Use requestAnimationFrame to ensure DOM is ready
+    // Use double requestAnimationFrame to ensure DOM is ready
+    // First frame: browser completes style recalculation
+    // Second frame: browser completes layout recalculation (critical for accurate width measurements)
     const rafId = requestAnimationFrame(() => {
-      syncColumnWidths();
-      // Also sync after a delay to catch any delayed layout calculations
-      setTimeout(syncColumnWidths, 100);
-      setTimeout(syncColumnWidths, 300);
+      requestAnimationFrame(() => {
+        syncColumnWidths();
+        // Additional sync for delayed layout calculations (especially on mobile)
+        // Some browsers/devices need extra time for sub-pixel rendering and font loading
+        // This ensures alignment is correct even after all async layout work completes
+        setTimeout(syncColumnWidths, SYNC_DELAY_MS);
+      });
     });
     
-    const resizeObserver = new ResizeObserver(() => {
-      requestAnimationFrame(syncColumnWidths);
-    });
+    // Debounce function to avoid excessive syncing during rapid resizes
+    const debouncedSync = () => {
+      if (resizeTimeoutRef.current) {
+        clearTimeout(resizeTimeoutRef.current);
+      }
+      resizeTimeoutRef.current = setTimeout(() => {
+        // Clear fixed widths to let browser recalculate natural widths based on new container size
+        const timeHeader = calendarContainerRef.current?.querySelector('.rbc-time-header') as HTMLElement;
+        const timeContent = calendarContainerRef.current?.querySelector('.rbc-time-content') as HTMLElement;
+        const headers = Array.from(
+          calendarContainerRef.current?.querySelectorAll('.rbc-time-header .rbc-header') || []
+        ) as HTMLElement[];
+        const headerGutter = calendarContainerRef.current?.querySelector('.rbc-time-header .rbc-time-header-gutter') as HTMLElement;
+        
+        if (timeHeader) timeHeader.style.removeProperty('width');
+        if (timeContent) timeContent.style.removeProperty('width');
+        headers.forEach(h => {
+          h.style.removeProperty('width');
+          h.style.removeProperty('min-width');
+          h.style.removeProperty('max-width');
+        });
+        if (headerGutter) {
+          headerGutter.style.removeProperty('width');
+          headerGutter.style.removeProperty('min-width');
+          headerGutter.style.removeProperty('max-width');
+        }
+        
+        // Wait for browser to recalculate layout, then sync
+        // Double RAF ensures layout is complete after clearing widths
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            syncColumnWidths();
+          });
+        });
+      }, RESIZE_DEBOUNCE_MS);
+    };
     
+    const resizeObserver = new ResizeObserver(debouncedSync);
+    
+    // Observe both the container and the time-view for more reliable resize detection
     if (calendarContainerRef.current) {
       resizeObserver.observe(calendarContainerRef.current);
+      
+      // Also observe the time-view directly if it exists
+      const timeViewElement = calendarContainerRef.current.querySelector('.rbc-time-view') as HTMLElement;
+      if (timeViewElement) {
+        resizeObserver.observe(timeViewElement);
+      }
     }
+    
+    // Also listen to window resize events (for cases where ResizeObserver might miss changes)
+    window.addEventListener('resize', debouncedSync);
 
     return () => {
       cancelAnimationFrame(rafId);
       resizeObserver.disconnect();
+      window.removeEventListener('resize', debouncedSync);
+      if (resizeTimeoutRef.current) {
+        clearTimeout(resizeTimeoutRef.current);
+      }
     };
   }, [view, currentDate, calendarEvents.length]);
 

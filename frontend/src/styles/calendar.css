@@ -86,6 +86,18 @@
   @apply border border-gray-200 rounded-lg overflow-hidden;
 }
 
+/* Allow vertical scrolling in week view */
+/* The time-view should be the scrollable container */
+.rbc-week-view .rbc-time-view {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  position: relative !important;
+  /* Responsive max-height: 600px on desktop, smaller on mobile */
+  max-height: min(600px, calc(100vh - 200px)) !important;
+}
+
 .rbc-time-header {
   @apply bg-gray-50 border-b border-gray-200;
 }
@@ -106,12 +118,26 @@
   display: table !important;
   width: 100% !important;
   table-layout: fixed !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 10 !important;
+  background-color: rgb(249 250 251) !important; /* bg-gray-50 */
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+  /* Ensure header starts at the same position as content */
+  margin: 0 !important;
+  padding: 0 !important;
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
 }
 
 .rbc-week-view .rbc-time-header .rbc-time-header-gutter {
   display: table-cell !important;
   width: auto !important;
   vertical-align: middle !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 .rbc-week-view .rbc-time-header .rbc-time-header-content {
@@ -128,6 +154,9 @@
   display: table-cell !important;
   width: auto !important;
   vertical-align: middle !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 /* Hide all-day cell when there are no all-day events */
@@ -153,22 +182,35 @@
   vertical-align: top !important;
 }
 
+/* Day view time content - keep original styling (week view already has border-t above) */
+.rbc-time-content {
+  @apply border-t border-gray-200;
+}
+
+/* Week view time content - maintain table layout for alignment */
+/* The parent .rbc-time-view is the scrollable container */
 .rbc-week-view .rbc-time-content {
   @apply border-t border-gray-200;
   display: table !important;
   width: 100% !important;
   table-layout: fixed !important;
-}
-
-/* Day view time content - keep original styling (week view already has border-t above) */
-.rbc-time-content {
-  @apply border-t border-gray-200;
+  flex: 0 0 auto !important;
+  box-sizing: border-box !important;
+  /* Ensure content starts at the same position as header */
+  margin: 0 !important;
+  padding: 0 !important;
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  /* Don't make this scrollable - parent handles scrolling */
 }
 
 .rbc-week-view .rbc-time-content > .rbc-time-gutter {
   display: table-cell !important;
   width: auto !important;
   vertical-align: top !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 .rbc-week-view .rbc-time-content > .rbc-time-gutter .rbc-time-column {
@@ -181,6 +223,9 @@
   display: table-cell !important;
   width: auto !important;
   vertical-align: top !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 /* Override scrollbar margin that can cause misalignment */
@@ -268,8 +313,9 @@
   }
   
   /* Reduce time gutter width on mobile to save space */
-  .rbc-time-gutter,
-  .rbc-time-gutter.rbc-time-column {
+  /* Only apply to day view - week view uses table layout and needs width syncing */
+  .rbc-day-view .rbc-time-gutter,
+  .rbc-day-view .rbc-time-gutter.rbc-time-column {
     min-width: 45px !important;
     max-width: 45px !important;
     padding: 0 4px !important;
@@ -295,12 +341,14 @@
   }
   
   /* Increase time header content padding */
-  .rbc-time-header-content {
+  /* Exclude week view - it uses table layout and padding would break alignment */
+  .rbc-day-view .rbc-time-header-content {
     @apply px-3 py-2;
   }
   
-  /* Better spacing for time content */
-  .rbc-time-content {
-    padding-left: 8px !important;
+  /* Ensure week view header content has no padding for alignment */
+  .rbc-week-view .rbc-time-header .rbc-time-header-content {
+    padding: 0 !important;
   }
+  
 }
