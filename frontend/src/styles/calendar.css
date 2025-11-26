@@ -130,18 +130,24 @@
   vertical-align: middle !important;
 }
 
-/* Ensure all-day cell uses table layout - only for week view */
-.rbc-week-view .rbc-allday-cell {
+/* Hide all-day cell when there are no all-day events */
+/* This hides the empty all-day row that appears in month and week views */
+.rbc-allday-cell:not(:has(.rbc-allday-event)) {
+  display: none !important;
+}
+
+/* Ensure all-day cell uses table layout - only for week view when it has events */
+.rbc-week-view .rbc-allday-cell:has(.rbc-allday-event) {
   display: table !important;
   width: 100% !important;
   table-layout: fixed !important;
 }
 
-.rbc-week-view .rbc-allday-cell .rbc-row-bg {
+.rbc-week-view .rbc-allday-cell:has(.rbc-allday-event) .rbc-row-bg {
   display: table-row !important;
 }
 
-.rbc-week-view .rbc-allday-cell .rbc-row-bg .rbc-day-bg {
+.rbc-week-view .rbc-allday-cell:has(.rbc-allday-event) .rbc-row-bg .rbc-day-bg {
   display: table-cell !important;
   width: auto !important;
   vertical-align: top !important;
