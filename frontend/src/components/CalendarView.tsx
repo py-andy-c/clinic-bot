@@ -139,6 +139,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
   const [isFullDay, setIsFullDay] = useState(false);
   const scrollYRef = useRef(0);
+  const calendarContainerRef = useRef<HTMLDivElement>(null);
 
   // Get current user for role checking
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
@@ -219,6 +220,90 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     
     return transformToCalendarEvents(events);
   }, [allEvents]); // Removed unused dependencies: defaultSchedule, currentDate, view
+
+  // Sync column widths between header and event columns for proper alignment in week view
+  // This must be after calendarEvents is declared
+  useEffect(() => {
+    if (view !== Views.WEEK) return;
+
+    const syncColumnWidths = () => {
+      if (!calendarContainerRef.current) return;
+
+      // Get all day slots (event columns)
+      const daySlots = Array.from(
+        calendarContainerRef.current.querySelectorAll('.rbc-time-content > .rbc-day-slot')
+      ) as HTMLElement[];
+      
+      // Get all headers
+      const headers = Array.from(
+        calendarContainerRef.current.querySelectorAll('.rbc-time-header .rbc-header')
+      ) as HTMLElement[];
+      
+      // Get all day backgrounds (all-day row)
+      const dayBgs = Array.from(
+        calendarContainerRef.current.querySelectorAll('.rbc-allday-cell .rbc-day-bg')
+      ) as HTMLElement[];
+      
+      // Sync time gutter first
+      const timeGutter = calendarContainerRef.current.querySelector('.rbc-time-content > .rbc-time-gutter') as HTMLElement;
+      const headerGutter = calendarContainerRef.current.querySelector('.rbc-time-header .rbc-time-header-gutter') as HTMLElement;
+      
+      if (timeGutter && headerGutter) {
+        const timeGutterWidth = timeGutter.getBoundingClientRect().width;
+        if (timeGutterWidth > 0) {
+          headerGutter.style.setProperty('width', `${timeGutterWidth}px`, 'important');
+          headerGutter.style.setProperty('min-width', `${timeGutterWidth}px`, 'important');
+          headerGutter.style.setProperty('max-width', `${timeGutterWidth}px`, 'important');
+        }
+      }
+      
+      // Sync each day column width
+      if (daySlots.length === headers.length) {
+        daySlots.forEach((daySlot, index) => {
+          const header = headers[index];
+          const dayBg = dayBgs[index];
+          
+          // Use getBoundingClientRect for more accurate width
+          const slotWidth = daySlot.getBoundingClientRect().width;
+          
+          if (slotWidth > 0 && header) {
+            header.style.setProperty('width', `${slotWidth}px`, 'important');
+            header.style.setProperty('min-width', `${slotWidth}px`, 'important');
+            header.style.setProperty('max-width', `${slotWidth}px`, 'important');
+            header.style.setProperty('flex', '0 0 auto', 'important');
+          }
+          
+          if (slotWidth > 0 && dayBg) {
+            dayBg.style.setProperty('width', `${slotWidth}px`, 'important');
+            dayBg.style.setProperty('min-width', `${slotWidth}px`, 'important');
+            dayBg.style.setProperty('max-width', `${slotWidth}px`, 'important');
+            dayBg.style.setProperty('flex', '0 0 auto', 'important');
+          }
+        });
+      }
+    };
+
+    // Use requestAnimationFrame to ensure DOM is ready
+    const rafId = requestAnimationFrame(() => {
+      syncColumnWidths();
+      // Also sync after a delay to catch any delayed layout calculations
+      setTimeout(syncColumnWidths, 100);
+      setTimeout(syncColumnWidths, 300);
+    });
+    
+    const resizeObserver = new ResizeObserver(() => {
+      requestAnimationFrame(syncColumnWidths);
+    });
+    
+    if (calendarContainerRef.current) {
+      resizeObserver.observe(calendarContainerRef.current);
+    }
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      resizeObserver.disconnect();
+    };
+  }, [view, currentDate, calendarEvents.length]);
 
   // Check for mobile view
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -828,7 +913,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Calendar Component */}
-      <div className="bg-white md:rounded-lg md:shadow-sm md:border md:border-gray-200 p-0 md:p-6">
+      <div ref={calendarContainerRef} className={`bg-white md:rounded-lg md:shadow-sm md:border md:border-gray-200 p-0 md:p-6 ${view === Views.WEEK ? 'rbc-week-view' : ''}`}>
         <Calendar
           localizer={localizer}
           events={calendarEvents}

@@ -100,8 +100,86 @@
   @apply text-sm font-medium text-gray-700;
 }
 
+/* Fix alignment between header cells and event columns in week view only */
+/* Use class added by JavaScript to scope styles to week view */
+.rbc-week-view .rbc-time-header {
+  display: table !important;
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+
+.rbc-week-view .rbc-time-header .rbc-time-header-gutter {
+  display: table-cell !important;
+  width: auto !important;
+  vertical-align: middle !important;
+}
+
+.rbc-week-view .rbc-time-header .rbc-time-header-content {
+  display: table-cell !important;
+  width: auto !important;
+  vertical-align: middle !important;
+}
+
+.rbc-week-view .rbc-time-header .rbc-row.rbc-time-header-cell {
+  display: table-row !important;
+}
+
+.rbc-week-view .rbc-time-header .rbc-header {
+  display: table-cell !important;
+  width: auto !important;
+  vertical-align: middle !important;
+}
+
+/* Ensure all-day cell uses table layout - only for week view */
+.rbc-week-view .rbc-allday-cell {
+  display: table !important;
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+
+.rbc-week-view .rbc-allday-cell .rbc-row-bg {
+  display: table-row !important;
+}
+
+.rbc-week-view .rbc-allday-cell .rbc-row-bg .rbc-day-bg {
+  display: table-cell !important;
+  width: auto !important;
+  vertical-align: top !important;
+}
+
+.rbc-week-view .rbc-time-content {
+  @apply border-t border-gray-200;
+  display: table !important;
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+
+/* Day view time content - keep original styling (week view already has border-t above) */
 .rbc-time-content {
   @apply border-t border-gray-200;
+}
+
+.rbc-week-view .rbc-time-content > .rbc-time-gutter {
+  display: table-cell !important;
+  width: auto !important;
+  vertical-align: top !important;
+}
+
+.rbc-week-view .rbc-time-content > .rbc-time-gutter .rbc-time-column {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+}
+
+.rbc-week-view .rbc-time-content > .rbc-day-slot {
+  display: table-cell !important;
+  width: auto !important;
+  vertical-align: top !important;
+}
+
+/* Override scrollbar margin that can cause misalignment */
+.rbc-calendar .rbc-time-view .rbc-time-header.rbc-overflowing {
+  margin-right: unset !important;
 }
 
 .rbc-timeslot-group,
@@ -114,8 +192,15 @@
 }
 
 /* Right-align time gutter labels using flexbox */
-.rbc-time-view .rbc-time-gutter,
-.rbc-time-content > .rbc-time-gutter {
+/* For day view, apply flex directly to time gutter */
+.rbc-time-view .rbc-time-gutter {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+}
+
+/* For week view, time gutter is table-cell (set above), so flex goes on inner wrapper */
+.rbc-week-view .rbc-time-content > .rbc-time-gutter .rbc-time-column {
   display: flex !important;
   flex-direction: column !important;
   align-items: flex-end !important;
