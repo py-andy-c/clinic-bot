@@ -405,10 +405,72 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     };
   }, [view, currentDate, calendarEvents.length]);
 
+  // Scroll week view to 9 AM (same as day view)
+  useEffect(() => {
+    if (view !== Views.WEEK) return;
+
+    const SCROLL_DELAY_MS = 100; // Delay for layout calculations (especially on mobile)
+    const HOURS_TO_9AM = 9;
+    const ESTIMATED_SLOT_HEIGHT_PX = 60; // pixels per hour
+
+    const scrollTo9AM = () => {
+      if (!calendarContainerRef.current) return;
+
+      const timeView = calendarContainerRef.current.querySelector('.rbc-time-view') as HTMLElement;
+      if (!timeView) return;
+
+      const timeGutter = timeView.querySelector('.rbc-time-gutter');
+      if (!timeGutter) return;
+
+      // Get header height once (used in both branches)
+      const header = timeView.querySelector('.rbc-time-header') as HTMLElement;
+      const headerHeight = header?.getBoundingClientRect().height || 0;
+
+      // Find 9 AM time slot label
+      const timeLabels = timeGutter.querySelectorAll('.rbc-label');
+      let targetSlot: HTMLElement | null = null;
+
+      for (const label of timeLabels) {
+        const text = label.textContent?.trim() || '';
+        if (text === '9 AM' || text === '9:00 AM') {
+          targetSlot = label.closest('.rbc-timeslot-group') as HTMLElement;
+          if (targetSlot) break;
+        }
+      }
+
+      // Calculate scroll position
+      let scrollPosition: number;
+      if (targetSlot) {
+        // Use actual slot position
+        const timeViewRect = timeView.getBoundingClientRect();
+        const slotRect = targetSlot.getBoundingClientRect();
+        scrollPosition = slotRect.top - timeViewRect.top + timeView.scrollTop - headerHeight;
+      } else {
+        // Fallback: estimate position (9 hours * slot height)
+        scrollPosition = HOURS_TO_9AM * ESTIMATED_SLOT_HEIGHT_PX - headerHeight;
+      }
+
+      timeView.scrollTop = scrollPosition;
+    };
+
+    // Use double RAF to ensure DOM is ready, similar to width syncing
+    const rafId = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollTo9AM();
+        // Additional delay for layout calculations (especially on mobile)
+        setTimeout(scrollTo9AM, SCROLL_DELAY_MS);
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(rafId);
+    };
+  }, [view, currentDate]);
+
   // Check for mobile view
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
-  // Set scroll position to 9 AM for day view
+  // Set scroll position to 9 AM for day view (week view uses manual scrolling in useEffect above)
   const scrollToTime = useMemo(() => getScrollToTime(currentDate), [currentDate]);
 
   // Create practitioner lookup map for O(1) access instead of O(n) find()
