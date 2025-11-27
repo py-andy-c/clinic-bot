@@ -74,26 +74,26 @@ const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
       {/* Overlay */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-20 z-40 transition-opacity"
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
           onClick={() => setIsOpen(false)}
         />
       )}
 
       {/* FAB Container */}
-      <div ref={fabRef} className={`fixed bottom-6 right-6 z-50 ${className}`}>
+      <div ref={fabRef} className={`fixed bottom-6 right-6 z-50 flex flex-col items-center gap-3 ${className}`}>
         {/* Menu Items */}
         {isOpen && (
-          <div className="absolute bottom-20 right-0 flex flex-col-reverse gap-3 mb-2">
+          <>
             {items.map((item, index) => (
               <div
                 key={item.id}
-                className="flex items-center gap-3 animate-slide-up"
+                className="relative flex items-center animate-slide-up"
                 style={{
                   animationDelay: `${index * 50}ms`,
                   animationFillMode: 'both',
                 }}
               >
-                <span className="bg-white text-gray-700 px-3 py-1.5 rounded-lg shadow-lg text-sm font-medium whitespace-nowrap">
+                <span className="absolute right-14 mr-3 bg-white text-gray-700 px-3 py-1.5 rounded-lg shadow-lg text-sm font-medium whitespace-nowrap text-right">
                   {item.label}
                 </span>
                 <button
@@ -101,11 +101,17 @@ const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
                   className={`${getColorClasses(item.color)} text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-white`}
                   aria-label={item.label}
                 >
-                  {item.icon || item.label.charAt(0)}
+                  {item.icon ? (
+                    <span className="flex items-center justify-center w-full h-full">
+                      {item.icon}
+                    </span>
+                  ) : (
+                    item.label.charAt(0)
+                  )}
                 </button>
               </div>
             ))}
-          </div>
+          </>
         )}
 
         {/* Main FAB Button */}
@@ -114,7 +120,7 @@ const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
           className={`bg-primary-600 hover:bg-primary-700 text-white rounded-full w-16 h-16 flex items-center justify-center shadow-lg transition-transform ${isOpen ? 'rotate-45' : 'rotate-0'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-primary-500`}
           aria-label={isOpen ? 'Close menu' : 'Open menu'}
         >
-          <span className="text-2xl font-light">{mainIcon}</span>
+          <span className="text-2xl font-light leading-none">{mainIcon}</span>
         </button>
       </div>
     </>

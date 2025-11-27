@@ -201,24 +201,39 @@ const AvailabilityPage: React.FC = () => {
       {isMobile && (
         <FloatingActionButton
           items={[
-            ...(practitioners.length > 0 ? [{
-              id: 'add-practitioner',
-              label: '加入其他治療師',
-              onClick: () => setShowPractitionerModal(true),
-              color: 'purple' as const,
-            }] : []),
-            ...(addExceptionHandler && isPractitioner ? [{
-              id: 'add-exception',
-              label: '新增休診時段',
-              onClick: addExceptionHandler,
-              color: 'blue' as const,
-            }] : []),
             {
               id: 'create-appointment',
               label: '新增預約',
               onClick: handleCreateAppointment,
               color: 'green' as const,
+              icon: (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              ),
             },
+            ...(addExceptionHandler && isPractitioner ? [{
+              id: 'add-exception',
+              label: '新增休診時段',
+              onClick: addExceptionHandler,
+              color: 'blue' as const,
+              icon: (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              ),
+            }] : []),
+            ...(practitioners.length > 0 ? [{
+              id: 'add-practitioner',
+              label: '加入其他治療師',
+              onClick: () => setShowPractitionerModal(true),
+              color: 'purple' as const,
+              icon: (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+              ),
+            }] : []),
           ]}
         />
       )}
