@@ -193,9 +193,10 @@ export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
   const isAutoAssigned = event.resource.is_auto_assigned === true;
   
   // Build tooltip with practitioner name if available
+  // Order: Patient - Appointment Type, then Time
   const tooltipText = showPractitionerName 
-    ? `${practitionerName} - ${timeStr} ${event.title || ''}`.trim()
-    : `${timeStr} ${event.title || ''}`.trim();
+    ? `${practitionerName} - ${event.title || ''} ${timeStr}`.trim()
+    : `${event.title || ''} ${timeStr}`.trim();
 
   return (
     <div 
@@ -204,10 +205,10 @@ export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
     >
       <div className="flex-1 min-w-0 overflow-hidden">
         <div className="text-xs leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
-          <span className="font-medium">{timeStr}</span>
           {event.title && (
-            <span className="ml-1">{event.title}</span>
+            <span className="font-medium">{event.title}</span>
           )}
+          <span className="ml-1">{timeStr}</span>
           {isAutoAssigned && (
             <span className="ml-1 text-white/80" title="系統自動指派">*</span>
           )}
