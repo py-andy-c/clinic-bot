@@ -4,6 +4,7 @@ import { LoadingSpinner, ErrorMessage } from './shared';
 import { useModal } from '../contexts/ModalContext';
 import { useAuth } from '../hooks/useAuth';
 import { useApiData } from '../hooks/useApiData';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { Calendar, momentLocalizer, View, Views } from 'react-big-calendar';
 import moment from 'moment-timezone';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -497,8 +498,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     };
   }, [view, currentDate]);
 
-  // Check for mobile view
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  // Check for mobile view using hook (reactive to window resize)
+  const isMobile = useIsMobile();
 
   // Set scroll position to 9 AM for day view (week view uses manual scrolling in useEffect above)
   const scrollToTime = useMemo(() => getScrollToTime(currentDate), [currentDate]);
