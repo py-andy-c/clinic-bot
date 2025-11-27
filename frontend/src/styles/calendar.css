@@ -54,7 +54,11 @@
 }
 
 .rbc-date-cell {
-  @apply relative p-2 min-h-[80px] border-r border-gray-200 hover:bg-gray-50 cursor-pointer;
+  @apply relative p-2 min-h-[80px] border-r border-gray-200 cursor-pointer;
+}
+
+.rbc-date-cell:not(.rbc-off-range):hover {
+  @apply bg-gray-50;
 }
 
 .rbc-date-cell:last-child {
@@ -66,8 +70,20 @@
   border-top: 1px solid rgb(229 231 235); /* border-gray-200 */
 }
 
+/* Out-of-month dates - entire container should be gray */
+/* Style both the background layer (rbc-day-bg) and content layer (rbc-date-cell) */
+.rbc-day-bg.rbc-off-range-bg {
+  background-color: rgb(229 231 235) !important; /* bg-gray-200 */
+}
+
 .rbc-date-cell.rbc-off-range {
-  @apply bg-gray-50 text-gray-400;
+  background-color: rgb(229 231 235) !important; /* bg-gray-200 */
+  color: rgb(156 163 175) !important; /* text-gray-400 */
+  border-right-color: rgb(209 213 219) !important; /* border-gray-300 - darker border for visibility */
+}
+
+.rbc-date-cell.rbc-off-range:hover {
+  background-color: rgb(229 231 235) !important; /* Keep gray on hover */
 }
 
 .rbc-date-cell.rbc-today {
@@ -81,6 +97,11 @@
 
 .rbc-date-number {
   @apply text-sm font-medium text-gray-900;
+}
+
+/* Out-of-month date numbers should be gray */
+.rbc-date-cell.rbc-off-range .rbc-date-number {
+  @apply text-gray-400;
 }
 
 /* Events */
@@ -270,6 +291,12 @@
   @apply text-xs text-gray-500 py-1;
 }
 
+/* Current time indicator line - make it thicker */
+.rbc-current-time-indicator {
+  height: 3px !important; /* Thicker line (default is usually 2px) */
+  background-color: #22c55e !important; /* green-500 */
+}
+
 /* Right-align time gutter labels using flexbox */
 /* For day view, apply flex directly to time gutter */
 .rbc-time-view .rbc-time-gutter {
@@ -318,6 +345,25 @@
 /* Month view specific */
 .rbc-month-view .rbc-date-cell {
   @apply min-h-[100px];
+}
+
+/* Out-of-month dates in month view - higher specificity for month view */
+.rbc-month-view .rbc-day-bg.rbc-off-range-bg {
+  background-color: rgb(229 231 235) !important; /* bg-gray-200 */
+}
+
+.rbc-month-view .rbc-date-cell.rbc-off-range {
+  background-color: rgb(229 231 235) !important; /* bg-gray-200 */
+  color: rgb(156 163 175) !important; /* text-gray-400 */
+  border-right-color: rgb(209 213 219) !important; /* border-gray-300 */
+}
+
+.rbc-month-view .rbc-date-cell.rbc-off-range:hover {
+  background-color: rgb(229 231 235) !important; /* Keep gray on hover */
+}
+
+.rbc-month-view .rbc-date-cell.rbc-off-range .rbc-date-number {
+  color: rgb(156 163 175) !important; /* text-gray-400 */
 }
 
 /* Hide events in month view on mobile */
