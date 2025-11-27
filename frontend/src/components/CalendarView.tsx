@@ -141,6 +141,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const [isFullDay, setIsFullDay] = useState(false);
   const scrollYRef = useRef(0);
   const calendarContainerRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  
+  // Swipe gesture detection
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const touchStartTimeRef = useRef<number | null>(null);
+  const SWIPE_THRESHOLD = 50; // Minimum distance for swipe
+  const SWIPE_VELOCITY_THRESHOLD = 0.3; // Minimum velocity for swipe (px/ms)
   // Ref for resize timeout - must be at component level to persist across renders
   // but be accessible in useEffect cleanup. If declared inside useEffect, it would
   // be recreated on every render, defeating the purpose of using a ref.
@@ -498,8 +506,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     };
   }, [view, currentDate]);
 
-  // Check for mobile view using hook (reactive to window resize)
-  const isMobile = useIsMobile();
+  // isMobile is already declared above
 
   // Set scroll position to 9 AM for day view (week view uses manual scrolling in useEffect above)
   const scrollToTime = useMemo(() => getScrollToTime(currentDate), [currentDate]);
@@ -782,6 +789,57 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       onNavigate(date);
     }
   }, [onNavigate]);
+
+  // Swipe gesture handlers
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    touchStartXRef.current = touch.clientX;
+    touchStartYRef.current = touch.clientY;
+    touchStartTimeRef.current = Date.now();
+  }, [isMobile]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || touchStartXRef.current === null || touchStartYRef.current === null || touchStartTimeRef.current === null) {
+      return;
+    }
+
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    
+    const deltaX = touch.clientX - touchStartXRef.current;
+    const deltaY = touch.clientY - touchStartYRef.current;
+    const deltaTime = Date.now() - touchStartTimeRef.current;
+    const distance = Math.abs(deltaX);
+    const velocity = distance / deltaTime;
+
+    // Reset touch tracking
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+    touchStartTimeRef.current = null;
+
+    // Check if horizontal swipe is dominant (more horizontal than vertical)
+    if (Math.abs(deltaX) < Math.abs(deltaY)) {
+      return; // Vertical scroll, not a swipe
+    }
+
+    // Check if swipe meets threshold
+    if (distance < SWIPE_THRESHOLD || velocity < SWIPE_VELOCITY_THRESHOLD) {
+      return;
+    }
+
+    // Navigate based on swipe direction
+    if (deltaX > 0) {
+      // Swipe right - go to previous
+      const newDate = moment(currentDate).subtract(1, view === Views.WEEK ? 'week' : 'day').toDate();
+      handleNavigate(newDate);
+    } else {
+      // Swipe left - go to next
+      const newDate = moment(currentDate).add(1, view === Views.WEEK ? 'week' : 'day').toDate();
+      handleNavigate(newDate);
+    }
+  }, [isMobile, currentDate, view, handleNavigate]);
 
 
   // Handle adding availability exception via button
@@ -1106,7 +1164,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Calendar Component */}
-      <div ref={calendarContainerRef} className={`bg-white md:rounded-lg md:shadow-sm md:border md:border-gray-200 p-0 md:p-6 ${view === Views.WEEK ? 'rbc-week-view' : ''}`}>
+      <div 
+        ref={calendarContainerRef} 
+        className={`bg-white md:rounded-lg md:shadow-sm md:border md:border-gray-200 p-0 md:p-6 ${view === Views.WEEK ? 'rbc-week-view' : ''}`}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <Calendar
           localizer={localizer}
           events={calendarEvents}

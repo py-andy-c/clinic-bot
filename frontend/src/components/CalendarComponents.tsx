@@ -66,23 +66,28 @@ export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
   return (
     <div className="flex justify-between items-center mb-4">
       <div className="flex items-center space-x-2">
-        <button
-          onClick={() => toolbar.onNavigate('PREV')}
-          className="p-2 hover:bg-gray-100 rounded-md"
-        >
-          ‹
-        </button>
+        {/* Hide navigation arrows on mobile */}
+        {!isMobile && (
+          <button
+            onClick={() => toolbar.onNavigate('PREV')}
+            className="p-2 hover:bg-gray-100 rounded-md"
+          >
+            ‹
+          </button>
+        )}
         {formattedLabel && (
           <h2 className="text-xl font-semibold text-gray-900">
             {formattedLabel}
           </h2>
         )}
-        <button
-          onClick={() => toolbar.onNavigate('NEXT')}
-          className="p-2 hover:bg-gray-100 rounded-md"
-        >
-          ›
-        </button>
+        {!isMobile && (
+          <button
+            onClick={() => toolbar.onNavigate('NEXT')}
+            className="p-2 hover:bg-gray-100 rounded-md"
+          >
+            ›
+          </button>
+        )}
         <button
           onClick={handleToday}
           className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md"
