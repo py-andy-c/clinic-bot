@@ -964,3 +964,165 @@ class TestClinicAdminBypassBehavior:
         assert result is not None
         assert 'appointment_id' in result
 
+    def test_clinic_admin_bypasses_max_booking_window_days(
+        self, db_session: Session
+    ):
+        """Test that clinic admin can create appointments beyond max_booking_window_days."""
+        clinic, practitioner1, practitioner2, appointment_type, patient = _setup_clinic_with_practitioners(
+            db_session
+        )
+
+        # Set restrictive booking settings - max_booking_window_days = 14 days
+        from models.clinic import ClinicSettings
+        settings = clinic.get_validated_settings()
+        settings.booking_restriction_settings.max_booking_window_days = 14
+        clinic.set_validated_settings(settings)
+        db_session.commit()
+
+        # Create availability for a date beyond the 14-day window (e.g., 30 days from now)
+        future_date = taiwan_now().date() + timedelta(days=30)
+        day_of_week = future_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner1, clinic, day_of_week, time(9, 0), time(17, 0)
+        )
+
+        # Clinic admin creates appointment beyond max_booking_window_days (should succeed)
+        start_time = datetime.combine(future_date, time(10, 0)).replace(tzinfo=TAIWAN_TZ)
+        
+        result = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            start_time=start_time,
+            practitioner_id=practitioner1.id,
+            line_user_id=None  # Admin booking - restrictions bypassed
+        )
+
+        assert result['appointment_id'] is not None
+
+    def test_clinic_admin_bypasses_max_future_appointments(
+        self, db_session: Session
+    ):
+        """Test that clinic admin can create appointments beyond max_future_appointments limit."""
+        clinic, practitioner1, practitioner2, appointment_type, patient = _setup_clinic_with_practitioners(
+            db_session
+        )
+
+        # Set restrictive booking settings - max_future_appointments = 1
+        from models.clinic import ClinicSettings
+        settings = clinic.get_validated_settings()
+        settings.booking_restriction_settings.max_future_appointments = 1
+        clinic.set_validated_settings(settings)
+        db_session.commit()
+
+        # Create availability for multiple days
+        for day_offset in [1, 2, 3]:
+            target_date = (taiwan_now() + timedelta(days=day_offset)).date()
+            day_of_week = target_date.weekday()
+            create_practitioner_availability_with_clinic(
+                db_session, practitioner1, clinic,
+                day_of_week=day_of_week,
+                start_time=time(9, 0),
+                end_time=time(17, 0)
+            )
+
+        # Clinic admin creates first appointment (should succeed)
+        start_time1 = taiwan_now() + timedelta(days=1)
+        start_time1 = start_time1.replace(hour=10, minute=0, second=0, microsecond=0)
+        
+        result1 = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            start_time=start_time1,
+            practitioner_id=practitioner1.id,
+            line_user_id=None  # Admin booking - restrictions bypassed
+        )
+        assert result1['appointment_id'] is not None
+
+        # Clinic admin creates second appointment (should succeed - bypasses max_future_appointments)
+        start_time2 = taiwan_now() + timedelta(days=2)
+        start_time2 = start_time2.replace(hour=11, minute=0, second=0, microsecond=0)
+        
+        result2 = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            start_time=start_time2,
+            practitioner_id=practitioner1.id,
+            line_user_id=None  # Admin booking - restrictions bypassed
+        )
+        assert result2['appointment_id'] is not None
+
+        # Clinic admin creates third appointment (should succeed - bypasses max_future_appointments)
+        start_time3 = taiwan_now() + timedelta(days=3)
+        start_time3 = start_time3.replace(hour=12, minute=0, second=0, microsecond=0)
+        
+        result3 = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            start_time=start_time3,
+            practitioner_id=practitioner1.id,
+            line_user_id=None  # Admin booking - restrictions bypassed
+        )
+        assert result3['appointment_id'] is not None
+
+    def test_clinic_admin_bypasses_all_restrictions_combined(
+        self, db_session: Session
+    ):
+        """Test that clinic admin can create appointments bypassing all restrictions at once."""
+        clinic, practitioner1, practitioner2, appointment_type, patient = _setup_clinic_with_practitioners(
+            db_session
+        )
+
+        # Set all restrictive booking settings
+        from models.clinic import ClinicSettings
+        settings = clinic.get_validated_settings()
+        settings.booking_restriction_settings.minimum_booking_hours_ahead = 48
+        settings.booking_restriction_settings.max_booking_window_days = 14
+        settings.booking_restriction_settings.max_future_appointments = 1
+        clinic.set_validated_settings(settings)
+        db_session.commit()
+
+        # Create availability for a date beyond all restrictions
+        # - Beyond 14 days (max_booking_window_days)
+        # - Within 48 hours (minimum_booking_hours_ahead)
+        future_date = taiwan_now().date() + timedelta(days=20)
+        day_of_week = future_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner1, clinic, day_of_week, time(9, 0), time(17, 0)
+        )
+
+        # Create first appointment to test max_future_appointments bypass
+        start_time1 = datetime.combine(future_date, time(10, 0)).replace(tzinfo=TAIWAN_TZ)
+        
+        result1 = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            start_time=start_time1,
+            practitioner_id=practitioner1.id,
+            line_user_id=None  # Admin booking - all restrictions bypassed
+        )
+        assert result1['appointment_id'] is not None
+
+        # Create second appointment (should succeed - bypasses max_future_appointments)
+        start_time2 = datetime.combine(future_date, time(11, 0)).replace(tzinfo=TAIWAN_TZ)
+        
+        result2 = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            start_time=start_time2,
+            practitioner_id=practitioner1.id,
+            line_user_id=None  # Admin booking - all restrictions bypassed
+        )
+        assert result2['appointment_id'] is not None
+

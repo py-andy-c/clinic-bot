@@ -101,48 +101,18 @@ class AppointmentService:
                     detail="診所不存在"
                 )
 
-            # Get clinic settings
-            settings = clinic.get_validated_settings()
-            booking_settings = settings.booking_restriction_settings
-            
-            # Validate booking window
-            now = taiwan_now()
-            max_booking_window_days = booking_settings.max_booking_window_days
-            max_booking_date = now + timedelta(days=max_booking_window_days)
-            
-            if start_time > max_booking_date:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"最多只能預約 {max_booking_window_days} 天內的時段"
-                )
-
-            # Check max future appointments limit
-            max_future_appointments = booking_settings.max_future_appointments
-
-            from utils.appointment_queries import count_future_appointments_for_patient
-            current_future_count = count_future_appointments_for_patient(
-                db, patient_id, status="confirmed"
-            )
-
-            if current_future_count >= max_future_appointments:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"您已有 {current_future_count} 個未來的預約，最多只能有 {max_future_appointments} 個未來預約"
-                )
-
-            # Check minimum_booking_hours_ahead for patient bookings (when line_user_id is provided)
-            # Clinic admins (line_user_id=None) bypass this restriction
+            # Validate booking restrictions for patient bookings only
+            # Clinic admins (line_user_id=None) bypass all booking restrictions
             if line_user_id is not None:
-                minimum_booking_hours_ahead = booking_settings.minimum_booking_hours_ahead
-                if minimum_booking_hours_ahead and minimum_booking_hours_ahead > 0:
-                    time_until_appointment = start_time - now
-                    hours_until = time_until_appointment.total_seconds() / 3600
-                    
-                    if hours_until < minimum_booking_hours_ahead:
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"預約必須至少提前 {minimum_booking_hours_ahead} 小時預約"
-                        )
+                AppointmentService._validate_booking_constraints(
+                    clinic=clinic,
+                    new_start_time=start_time,
+                    db=db,
+                    patient_id=patient_id,
+                    check_max_future_appointments=True,
+                    check_minimum_cancellation_hours=False
+                )
+            # Clinic admins bypass all booking restrictions (no validation when line_user_id is None)
 
             # Get appointment type and validate it belongs to clinic
             appointment_type = AppointmentTypeService.get_appointment_type_by_id(
@@ -1127,34 +1097,51 @@ class AppointmentService:
     @staticmethod
     def _validate_booking_constraints(
         clinic: Clinic,
-        current_start_time: datetime,
-        new_start_time: datetime
+        new_start_time: datetime,
+        db: Optional[Session] = None,
+        patient_id: Optional[int] = None,
+        current_start_time: Optional[datetime] = None,
+        check_max_future_appointments: bool = False,
+        check_minimum_cancellation_hours: bool = False
     ) -> None:
         """
-        Validate booking constraints for patient reschedules.
+        Validate booking constraints for patient appointments.
+        
+        Used for both appointment creation and editing. Validates restrictions that apply
+        to patient bookings (LINE users). Clinic admins bypass all restrictions.
         
         Args:
             clinic: Clinic object with settings
-            current_start_time: Current appointment start time
-            new_start_time: New appointment start time
+            new_start_time: New/appointment start time to validate
+            db: Database session (required if check_max_future_appointments=True)
+            patient_id: Patient ID (required if check_max_future_appointments=True)
+            current_start_time: Current appointment time (required if check_minimum_cancellation_hours=True)
+            check_max_future_appointments: Whether to check max future appointments limit (for creation)
+            check_minimum_cancellation_hours: Whether to check minimum cancellation hours (for edits)
             
         Raises:
             HTTPException: If any booking constraint is violated
         """
+        from utils.appointment_queries import count_future_appointments_for_patient
+        
         settings = clinic.get_validated_settings()
         booking_settings = settings.booking_restriction_settings
         now = taiwan_now()
 
-        # Check minimum_cancellation_hours_before for CURRENT appointment time
-        minimum_cancellation_hours = booking_settings.minimum_cancellation_hours_before
-        time_until_appointment = current_start_time - now
-        hours_until_appointment = time_until_appointment.total_seconds() / 3600
+        # Check minimum_cancellation_hours_before for CURRENT appointment time (edit only)
+        if check_minimum_cancellation_hours:
+            if current_start_time is None:
+                raise ValueError("current_start_time is required when check_minimum_cancellation_hours=True")
+            
+            minimum_cancellation_hours = booking_settings.minimum_cancellation_hours_before
+            time_until_appointment = current_start_time - now
+            hours_until_appointment = time_until_appointment.total_seconds() / 3600
 
-        if hours_until_appointment < minimum_cancellation_hours:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"預約必須在至少 {minimum_cancellation_hours} 小時前改期"
-            )
+            if hours_until_appointment < minimum_cancellation_hours:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"預約必須在至少 {minimum_cancellation_hours} 小時前改期"
+                )
 
         # Check max_booking_window_days for NEW appointment time
         max_booking_window_days = booking_settings.max_booking_window_days
@@ -1176,6 +1163,22 @@ class AppointmentService:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"預約必須至少提前 {minimum_booking_hours_ahead} 小時預約"
+                )
+
+        # Check max_future_appointments limit (creation only)
+        if check_max_future_appointments:
+            if db is None or patient_id is None:
+                raise ValueError("db and patient_id are required when check_max_future_appointments=True")
+            
+            max_future_appointments = booking_settings.max_future_appointments
+            current_future_count = count_future_appointments_for_patient(
+                db, patient_id, status="confirmed"
+            )
+
+            if current_future_count >= max_future_appointments:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"您已有 {current_future_count} 個未來的預約，最多只能有 {max_future_appointments} 個未來預約"
                 )
 
     @staticmethod
@@ -1325,7 +1328,11 @@ class AppointmentService:
         # Apply booking constraints if requested (for patients)
         if apply_booking_constraints:
             AppointmentService._validate_booking_constraints(
-                clinic, current_start_time, normalized_start_time
+                clinic=clinic,
+                new_start_time=normalized_start_time,
+                current_start_time=current_start_time,
+                check_max_future_appointments=False,
+                check_minimum_cancellation_hours=True
             )
 
         # Get appointment type for duration
