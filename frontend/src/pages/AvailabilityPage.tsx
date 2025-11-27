@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useApiData } from '../hooks/useApiData';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { LoadingSpinner } from '../components/shared';
 import { View } from 'react-big-calendar';
 import CalendarView from '../components/CalendarView';
@@ -11,6 +12,7 @@ import { sharedFetchFunctions } from '../services/api';
 
 const AvailabilityPage: React.FC = () => {
   const { user, isPractitioner, isLoading: authLoading, isAuthenticated } = useAuth();
+  const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [addExceptionHandler, setAddExceptionHandler] = useState<(() => void) | null>(null);
@@ -122,9 +124,9 @@ const AvailabilityPage: React.FC = () => {
 
   return (
     <div className="max-w-full md:max-w-4xl mx-auto">
-      {/* Header */}
+      {/* Header - Hide title on mobile */}
       <PageHeader
-        title="行事曆"
+        title={isMobile ? "" : "行事曆"}
         action={
           <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4 w-full md:w-auto">
             {/* Practitioner Selector */}

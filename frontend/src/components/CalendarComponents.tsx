@@ -3,6 +3,7 @@ import moment from 'moment-timezone';
 import { View, NavigateAction } from 'react-big-calendar';
 import { CalendarEvent, formatEventTimeRange } from '../utils/calendarDataAdapter';
 import { getWeekdayNames } from '../utils/calendarUtils';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 // TypeScript interface for toolbar props - matches react-big-calendar's ToolbarProps signature
 // Using a compatible interface since the library's ToolbarProps is generic and not easily imported
@@ -16,16 +17,22 @@ interface ToolbarProps {
 }
 
 // Format date in Traditional Chinese
-const formatChineseDate = (date: Date, view: string) => {
+const formatChineseDate = (date: Date, view: string, isMobile: boolean) => {
   const taiwanDate = moment(date).tz('Asia/Taipei');
   const weekdayNames = getWeekdayNames();
   const weekday = weekdayNames[taiwanDate.day()];
   
   if (view === 'month') {
-    // Month view: "YYYY年M月"
+    // Month view: "YYYY年M月" - hide on mobile
+    if (isMobile) {
+      return '';
+    }
     return taiwanDate.format('YYYY年M月');
   } else if (view === 'week') {
-    // Week view: "M月D日 (X) - M月D日 (X)" - show the week range
+    // Week view: "M月D日 (X) - M月D日 (X)" - hide on mobile (redundant with column headers)
+    if (isMobile) {
+      return '';
+    }
     // Note: startOf('week') uses locale settings, which should be Sunday for zh-tw
     const weekStart = taiwanDate.clone().startOf('week');
     const weekEnd = taiwanDate.clone().endOf('week');
@@ -33,13 +40,18 @@ const formatChineseDate = (date: Date, view: string) => {
     const endWeekday = weekdayNames[weekEnd.day()];
     return `${weekStart.format('M月D日')} (${startWeekday}) - ${weekEnd.format('M月D日')} (${endWeekday})`;
   } else {
-    // Day view: "M月D日 (X)"
+    // Day view: "M月D日 (X)" - hide on mobile (redundant with navigation)
+    if (isMobile) {
+      return '';
+    }
     return `${taiwanDate.format('M月D日')} (${weekday})`;
   }
 };
 
 // Custom Toolbar Component
 export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
+  const isMobile = useIsMobile();
+  
   const handleToday = () => {
     // Navigate to today using React Big Calendar's built-in TODAY action
     toolbar.onNavigate('TODAY');
@@ -47,8 +59,8 @@ export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
 
   // Format date label in Traditional Chinese - memoize to avoid recreating moment objects
   const formattedLabel = React.useMemo(
-    () => formatChineseDate(toolbar.date, toolbar.view),
-    [toolbar.date, toolbar.view]
+    () => formatChineseDate(toolbar.date, toolbar.view, isMobile),
+    [toolbar.date, toolbar.view, isMobile]
   );
 
   return (
@@ -60,9 +72,11 @@ export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
         >
           ‹
         </button>
-        <h2 className="text-xl font-semibold text-gray-900">
-          {formattedLabel}
-        </h2>
+        {formattedLabel && (
+          <h2 className="text-xl font-semibold text-gray-900">
+            {formattedLabel}
+          </h2>
+        )}
         <button
           onClick={() => toolbar.onNavigate('NEXT')}
           className="p-2 hover:bg-gray-100 rounded-md"
@@ -149,9 +163,15 @@ export const CustomDateHeader = ({ date, onClick }: any) => {
 
 // Custom Day Header Component for Day View
 export const CustomDayHeader = ({ date }: any) => {
+  const isMobile = useIsMobile();
   const taiwanDate = moment(date).tz('Asia/Taipei');
   const weekdayNames = getWeekdayNames();
   const weekday = weekdayNames[taiwanDate.day()];
+  
+  // Hide on mobile - date is already shown in navigation bar
+  if (isMobile) {
+    return null;
+  }
   
   return (
     <div className="text-center">
