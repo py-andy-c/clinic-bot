@@ -88,6 +88,10 @@
   @apply rounded-md border-0 text-sm font-medium cursor-pointer;
   padding: 2px 4px;
   margin: 1px 0;
+  /* Allow text wrapping in week view */
+  white-space: normal !important;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .rbc-event:hover {
@@ -308,6 +312,13 @@
   @apply min-h-[100px];
 }
 
+/* Hide events in month view on mobile */
+@media (max-width: 768px) {
+  .rbc-month-view .rbc-event {
+    display: none !important;
+  }
+}
+
 /* Mobile optimizations */
 @media (max-width: 768px) {
   .calendar-container {
@@ -374,6 +385,19 @@
   /* Ensure week view header content has no padding for alignment */
   .rbc-week-view .rbc-time-header .rbc-time-header-content {
     padding: 0 !important;
+  }
+
+  /* Week view event text wrapping */
+  .rbc-week-view .rbc-event {
+    white-space: normal !important;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.3;
+    padding: 2px 4px !important;
   }
   
 }

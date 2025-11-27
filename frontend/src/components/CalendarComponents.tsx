@@ -64,7 +64,7 @@ export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
   );
 
   return (
-    <div className="flex justify-between items-center mb-4">
+    <div className={`flex justify-between items-center ${isMobile ? 'mb-2' : 'mb-4'}`}>
       <div className="flex items-center space-x-2">
         {/* Hide navigation arrows on mobile */}
         {!isMobile && (
@@ -76,7 +76,7 @@ export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
           </button>
         )}
         {formattedLabel && (
-          <h2 className="text-xl font-semibold text-gray-900">
+          <h2 className={`${isMobile ? 'text-base' : 'text-xl'} font-semibold text-gray-900`}>
             {formattedLabel}
           </h2>
         )}
@@ -90,7 +90,7 @@ export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
         )}
         <button
           onClick={handleToday}
-          className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md"
+          className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-2 text-sm'} font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md`}
         >
           今天
         </button>
@@ -98,7 +98,7 @@ export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
       <div className="flex space-x-1">
         <button
           onClick={() => toolbar.onView('month')}
-          className={`px-3 py-2 rounded-md text-sm font-medium ${
+          className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-2 text-sm'} rounded-md font-medium ${
             toolbar.view === 'month'
               ? 'bg-primary-100 text-primary-700'
               : 'text-gray-500 hover:text-gray-700'
@@ -108,7 +108,7 @@ export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
         </button>
         <button
           onClick={() => toolbar.onView('week')}
-          className={`px-3 py-2 rounded-md text-sm font-medium ${
+          className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-2 text-sm'} rounded-md font-medium ${
             toolbar.view === 'week'
               ? 'bg-primary-100 text-primary-700'
               : 'text-gray-500 hover:text-gray-700'
@@ -118,7 +118,7 @@ export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
         </button>
         <button
           onClick={() => toolbar.onView('day')}
-          className={`px-3 py-2 rounded-md text-sm font-medium ${
+          className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-2 text-sm'} rounded-md font-medium ${
             toolbar.view === 'day'
               ? 'bg-primary-100 text-primary-700'
               : 'text-gray-500 hover:text-gray-700'

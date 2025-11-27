@@ -1166,7 +1166,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       {/* Calendar Component */}
       <div 
         ref={calendarContainerRef} 
-        className={`bg-white md:rounded-lg md:shadow-sm md:border md:border-gray-200 p-0 md:p-6 ${view === Views.WEEK ? 'rbc-week-view' : ''}`}
+        className={`bg-white md:rounded-lg md:shadow-sm md:border md:border-gray-200 p-0 md:p-6 ${view === Views.WEEK ? 'rbc-week-view' : ''} ${isMobile ? 'calendar-container-mobile' : ''}`}
+        style={isMobile ? { 
+          height: 'calc(100vh - 200px)',
+          minHeight: '400px'
+        } : undefined}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
