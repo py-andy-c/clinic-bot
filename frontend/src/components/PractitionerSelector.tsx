@@ -13,6 +13,7 @@ interface PractitionerSelectorProps {
   isPractitioner: boolean;
   onChange: (practitionerIds: number[]) => void;
   maxSelectable?: number; // Maximum number of practitioners that can be selected
+  showAsList?: boolean; // If true, show all practitioners as a list instead of dropdown
 }
 
 const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
@@ -22,6 +23,7 @@ const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
   isPractitioner,
   onChange,
   maxSelectable = 5, // Default limit of 5 additional practitioners
+  showAsList = false, // Default to dropdown mode
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -172,6 +174,69 @@ const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
     }
   }, [isOpen]);
 
+  // List view - show all practitioners directly
+  if (showAsList) {
+    return (
+      <div className="w-full">
+        <div className="flex flex-col gap-2">
+          {/* Error message */}
+          {errorMessage && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-2 text-sm text-red-800">
+              {errorMessage}
+            </div>
+          )}
+          
+          {/* All practitioners as selectable items */}
+          <div className="space-y-2">
+            {availablePractitioners.map((practitioner) => {
+              const isSelected = selectedPractitionerIds.includes(practitioner.id);
+              const isDisabled = !isSelected && selectedPractitionerIds.length >= maxSelectable;
+              
+              return (
+                <button
+                  key={practitioner.id}
+                  type="button"
+                  onClick={() => handleTogglePractitioner(practitioner.id)}
+                  disabled={isDisabled}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border-2 transition-colors ${
+                    isSelected
+                      ? 'bg-primary-50 border-primary-500 text-primary-900'
+                      : isDisabled
+                      ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-white border-gray-200 text-gray-700 hover:border-primary-300 hover:bg-gray-50'
+                  } disabled:opacity-50`}
+                >
+                  <span className="font-medium">{practitioner.full_name}</span>
+                  {isSelected && (
+                    <svg
+                      className="w-5 h-5 text-primary-600"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+            {selectedPractitionerIds.length >= maxSelectable && (
+              <div className="px-4 py-2 text-xs text-gray-500 text-center">
+                已達上限 ({maxSelectable} 位)
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Dropdown view - original implementation
   return (
     <div className="relative w-full" ref={dropdownRef}>
       <div className="flex flex-col gap-2">
@@ -266,7 +331,7 @@ const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
       {isOpen && (
         <div 
           ref={dropdownMenuRef}
-          className="absolute z-50 w-full md:w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none"
+          className="absolute z-[60] w-full md:w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none"
         >
           <div className="py-1 max-h-64 overflow-y-auto" role="menu">
             {availablePractitioners.map((practitioner) => {

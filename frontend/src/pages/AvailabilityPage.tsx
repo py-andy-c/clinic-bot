@@ -134,6 +134,7 @@ const AvailabilityPage: React.FC = () => {
           selectedPractitionerIds={additionalPractitionerIds}
           currentUserId={user?.user_id || null}
           isPractitioner={isPractitioner || false}
+          primaryUserId={primaryUserId || null}
           onRemove={(id) => setAdditionalPractitionerIds(prev => prev.filter(pid => pid !== id))}
         />
       )}
@@ -240,9 +241,9 @@ const AvailabilityPage: React.FC = () => {
 
       {/* Practitioner Selector Modal - Mobile only */}
       {isMobile && showPractitionerModal && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black bg-opacity-50" onClick={() => setShowPractitionerModal(false)}>
-          <div className="bg-white rounded-t-lg md:rounded-lg w-full md:w-auto md:max-w-md max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="sticky top-0 bg-white border-b px-4 py-3 flex justify-between items-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={() => setShowPractitionerModal(false)}>
+          <div className="bg-white rounded-lg w-full md:w-auto md:max-w-md max-h-[80vh] flex flex-col mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex-shrink-0 bg-white border-b px-4 py-3 flex justify-between items-center z-10 rounded-t-lg">
               <h2 className="text-lg font-semibold">加入其他治療師</h2>
               <button
                 onClick={() => setShowPractitionerModal(false)}
@@ -252,7 +253,7 @@ const AvailabilityPage: React.FC = () => {
                 ×
               </button>
             </div>
-            <div className="p-4">
+            <div className="flex-1 overflow-y-auto p-4">
               {practitioners.length > 0 && (
                 <PractitionerSelector
                   practitioners={practitioners}
@@ -261,6 +262,7 @@ const AvailabilityPage: React.FC = () => {
                   isPractitioner={isPractitioner || false}
                   onChange={setAdditionalPractitionerIds}
                   maxSelectable={5}
+                  showAsList={true}
                 />
               )}
             </div>
