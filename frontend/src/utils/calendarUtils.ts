@@ -258,8 +258,8 @@ export const formatDateString = (date: Date): string => {
  */
 export const getScrollToTime = (currentDate: Date): Date => {
   const scrollDate = moment(currentDate).tz(TAIWAN_TIMEZONE);
-  // Scroll to 0:00 (midnight) to show full day from start
-  scrollDate.set({ hour: 0, minute: 0, second: 0, millisecond: 0 });
+  // Scroll to 9:00 AM
+  scrollDate.set({ hour: 9, minute: 0, second: 0, millisecond: 0 });
   return scrollDate.toDate();
 };
 
