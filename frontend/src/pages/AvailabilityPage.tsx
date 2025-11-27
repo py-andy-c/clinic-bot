@@ -8,6 +8,7 @@ import { View } from 'react-big-calendar';
 import CalendarView from '../components/CalendarView';
 import PageHeader from '../components/PageHeader';
 import PractitionerSelector from '../components/PractitionerSelector';
+import PractitionerChips from '../components/PractitionerChips';
 import FloatingActionButton from '../components/FloatingActionButton';
 import { sharedFetchFunctions } from '../services/api';
 
@@ -19,6 +20,7 @@ const AvailabilityPage: React.FC = () => {
   const [addExceptionHandler, setAddExceptionHandler] = useState<(() => void) | null>(null);
   const [additionalPractitionerIds, setAdditionalPractitionerIds] = useState<number[]>([]);
   const [defaultPractitionerId, setDefaultPractitionerId] = useState<number | null>(null);
+  const [showPractitionerModal, setShowPractitionerModal] = useState(false);
   
   // Get pre-selected patient ID from query parameter
   const preSelectedPatientId = searchParams.get('createAppointment') 
@@ -125,14 +127,25 @@ const AvailabilityPage: React.FC = () => {
 
   return (
     <div className="max-w-full md:max-w-4xl mx-auto">
+      {/* Practitioner Chips - Mobile only, show below header */}
+      {isMobile && practitioners.length > 0 && additionalPractitionerIds.length > 0 && (
+        <PractitionerChips
+          practitioners={practitioners}
+          selectedPractitionerIds={additionalPractitionerIds}
+          currentUserId={user?.user_id || null}
+          isPractitioner={isPractitioner || false}
+          onRemove={(id) => setAdditionalPractitionerIds(prev => prev.filter(pid => pid !== id))}
+        />
+      )}
+
       {/* Header - Hide title on mobile */}
       <PageHeader
         title={isMobile ? "" : "行事曆"}
         action={
           <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4 w-full md:w-auto">
-            {/* Practitioner Selector */}
+            {/* Practitioner Selector - Desktop only */}
             {practitioners.length > 0 && (
-              <div className="w-full md:w-auto">
+              <div className="desktop-only w-full md:w-auto">
                 <PractitionerSelector
                   practitioners={practitioners}
                   selectedPractitionerIds={additionalPractitionerIds}
@@ -188,6 +201,12 @@ const AvailabilityPage: React.FC = () => {
       {isMobile && (
         <FloatingActionButton
           items={[
+            ...(practitioners.length > 0 ? [{
+              id: 'add-practitioner',
+              label: '加入其他治療師',
+              onClick: () => setShowPractitionerModal(true),
+              color: 'purple' as const,
+            }] : []),
             ...(addExceptionHandler && isPractitioner ? [{
               id: 'add-exception',
               label: '新增休診時段',
@@ -202,6 +221,36 @@ const AvailabilityPage: React.FC = () => {
             },
           ]}
         />
+      )}
+
+      {/* Practitioner Selector Modal - Mobile only */}
+      {isMobile && showPractitionerModal && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black bg-opacity-50" onClick={() => setShowPractitionerModal(false)}>
+          <div className="bg-white rounded-t-lg md:rounded-lg w-full md:w-auto md:max-w-md max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b px-4 py-3 flex justify-between items-center">
+              <h2 className="text-lg font-semibold">加入其他治療師</h2>
+              <button
+                onClick={() => setShowPractitionerModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                aria-label="關閉"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-4">
+              {practitioners.length > 0 && (
+                <PractitionerSelector
+                  practitioners={practitioners}
+                  selectedPractitionerIds={additionalPractitionerIds}
+                  currentUserId={user?.user_id || null}
+                  isPractitioner={isPractitioner || false}
+                  onChange={setAdditionalPractitionerIds}
+                  maxSelectable={5}
+                />
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
