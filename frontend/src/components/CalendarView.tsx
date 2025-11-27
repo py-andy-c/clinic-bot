@@ -409,25 +409,43 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   useEffect(() => {
     if (view !== Views.WEEK) return;
 
-    const SCROLL_DELAY_MS = 100; // Delay for layout calculations (especially on mobile)
+    const SCROLL_DELAY_MS = 300; // Delay to ensure calendar is fully rendered
+    const MAX_RETRIES = 10; // Maximum retries to find 9 AM slot
+    const RETRY_DELAY_MS = 100; // Delay between retries
     const HOURS_TO_9AM = 9;
     const ESTIMATED_SLOT_HEIGHT_PX = 60; // pixels per hour
 
-    const scrollTo9AM = () => {
-      if (!calendarContainerRef.current) return;
+    let retryCount = 0;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let isActive = true; // Track if effect is still active
+
+    const scrollTo9AM = (): boolean => {
+      if (!isActive || !calendarContainerRef.current) return false;
 
       const timeView = calendarContainerRef.current.querySelector('.rbc-time-view') as HTMLElement;
-      if (!timeView) return;
+      if (!timeView) return false;
 
       const timeGutter = timeView.querySelector('.rbc-time-gutter');
-      if (!timeGutter) return;
+      if (!timeGutter) return false;
+
+      // Check if time slots are actually rendered (not just empty container)
+      const timeLabels = timeGutter.querySelectorAll('.rbc-label');
+      if (timeLabels.length === 0) {
+        // Calendar not ready yet, retry
+        if (retryCount < MAX_RETRIES && isActive) {
+          retryCount++;
+          timeoutId = setTimeout(scrollTo9AM, RETRY_DELAY_MS);
+          return false;
+        }
+        // Retries exhausted - will use estimated position below
+        // (targetSlot will be null, triggering fallback calculation)
+      }
 
       // Get header height once (used in both branches)
       const header = timeView.querySelector('.rbc-time-header') as HTMLElement;
       const headerHeight = header?.getBoundingClientRect().height || 0;
 
       // Find 9 AM time slot label
-      const timeLabels = timeGutter.querySelectorAll('.rbc-label');
       let targetSlot: HTMLElement | null = null;
 
       for (const label of timeLabels) {
@@ -450,20 +468,32 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         scrollPosition = HOURS_TO_9AM * ESTIMATED_SLOT_HEIGHT_PX - headerHeight;
       }
 
-      timeView.scrollTop = scrollPosition;
+      // Perform scroll with error handling
+      try {
+        timeView.scrollTop = scrollPosition;
+        return true;
+      } catch (error) {
+        logger.warn('Failed to scroll to 9 AM:', error);
+        return false;
+      }
     };
 
-    // Use double RAF to ensure DOM is ready, similar to width syncing
+    // Use double RAF to ensure DOM is ready, then wait for calendar to fully render
     const rafId = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        scrollTo9AM();
-        // Additional delay for layout calculations (especially on mobile)
-        setTimeout(scrollTo9AM, SCROLL_DELAY_MS);
+        // Wait a bit longer to ensure React Big Calendar has finished its own scroll operations
+        timeoutId = setTimeout(() => {
+          scrollTo9AM();
+        }, SCROLL_DELAY_MS);
       });
     });
 
     return () => {
+      isActive = false;
       cancelAnimationFrame(rafId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [view, currentDate]);
 
@@ -1084,7 +1114,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           view={view}
           views={[Views.MONTH, Views.WEEK, Views.DAY]}
           date={currentDate}
-          scrollToTime={scrollToTime}
+          scrollToTime={view === Views.DAY ? scrollToTime : undefined}
           onNavigate={handleNavigate}
           onView={setView}
           onSelectEvent={handleSelectEvent}
