@@ -52,7 +52,7 @@
 }
 
 .rbc-date-cell.rbc-today {
-  @apply bg-primary-50;
+  @apply bg-blue-100;
 }
 
 /* Remove today highlight in day view */
@@ -157,6 +157,11 @@
   box-sizing: border-box !important;
   padding: 0 !important;
   margin: 0 !important;
+}
+
+/* Highlight current day in week view header with same blue as monthly view */
+.rbc-week-view .rbc-time-header .rbc-header.rbc-today {
+  @apply bg-blue-100;
 }
 
 /* Hide all-day cell when there are no all-day events */
