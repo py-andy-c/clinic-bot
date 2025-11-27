@@ -93,9 +93,13 @@ const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
                   animationFillMode: 'both',
                 }}
               >
-                <span className="absolute right-14 mr-3 bg-white text-gray-700 px-3 py-1.5 rounded-lg shadow-lg text-sm font-medium whitespace-nowrap text-right">
+                <button
+                  onClick={() => handleItemClick(item)}
+                  className="absolute right-14 mr-3 bg-white text-gray-700 px-3 py-1.5 rounded-lg shadow-lg text-sm font-medium whitespace-nowrap text-right hover:bg-gray-50 transition-colors"
+                  aria-label={item.label}
+                >
                   {item.label}
-                </span>
+                </button>
                 <button
                   onClick={() => handleItemClick(item)}
                   className={`${getColorClasses(item.color)} text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-transparent focus:ring-white`}
