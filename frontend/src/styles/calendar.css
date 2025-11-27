@@ -106,7 +106,7 @@
 
 /* Time slots for day/week view */
 .rbc-time-view {
-  @apply border border-gray-200 rounded-lg overflow-hidden;
+  @apply overflow-hidden;
 }
 
 /* Allow vertical scrolling in week view */
@@ -117,8 +117,6 @@
   overflow-y: auto !important;
   overflow-x: hidden !important;
   position: relative !important;
-  /* Responsive max-height: 600px on desktop, smaller on mobile */
-  max-height: min(600px, calc(100vh - 200px)) !important;
 }
 
 .rbc-time-header {
@@ -213,12 +211,14 @@
 /* Day view time content - keep original styling (week view already has border-t above) */
 .rbc-time-content {
   @apply border-t border-gray-200;
+  border-bottom: none !important;
 }
 
 /* Week view time content - maintain table layout for alignment */
 /* The parent .rbc-time-view is the scrollable container */
 .rbc-week-view .rbc-time-content {
   @apply border-t border-gray-200;
+  border-bottom: none !important;
   display: table !important;
   width: 100% !important;
   table-layout: fixed !important;
@@ -263,7 +263,7 @@
 
 .rbc-timeslot-group,
 .rbc-day-view .rbc-time-slot {
-  @apply border-b border-gray-100;
+  /* Removed border-b to let calendar expand to bottom */
 }
 
 .rbc-time-slot {
@@ -307,6 +307,14 @@
   margin: 1px 2px;
 }
 
+/* Remove bottom borders from all calendar elements */
+.rbc-day-slot:last-child,
+.rbc-time-slot:last-child,
+.rbc-time-content:last-child,
+.rbc-time-view:last-child {
+  border-bottom: none !important;
+}
+
 /* Month view specific */
 .rbc-month-view .rbc-date-cell {
   @apply min-h-[100px];
@@ -343,9 +351,17 @@
     @apply px-2 py-1 text-xs;
   }
   
-  /* Day view mobile optimizations */
+  /* Day view mobile optimizations - remove all padding/margins for full screen */
   .rbc-time-view {
     @apply overflow-x-auto;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Remove padding from calendar container */
+  .rbc-calendar {
+    margin: 0 !important;
+    padding: 0 !important;
   }
   
   /* Reduce time gutter width on mobile to save space */

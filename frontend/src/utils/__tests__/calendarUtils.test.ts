@@ -168,12 +168,12 @@ describe('calendarUtils', () => {
   });
 
   describe('getScrollToTime', () => {
-    it('should return date set to 9 AM in Taiwan timezone', () => {
+    it('should return date set to 0:00 (midnight) in Taiwan timezone', () => {
       const currentDate = new Date('2024-01-15T14:30:00+08:00');
       const result = getScrollToTime(currentDate);
       
       const resultMoment = moment(result).tz('Asia/Taipei');
-      expect(resultMoment.hour()).toBe(9);
+      expect(resultMoment.hour()).toBe(0);
       expect(resultMoment.minute()).toBe(0);
       expect(resultMoment.second()).toBe(0);
       expect(resultMoment.format('YYYY-MM-DD')).toBe('2024-01-15');
@@ -185,7 +185,7 @@ describe('calendarUtils', () => {
       
       const resultMoment = moment(result).tz('Asia/Taipei');
       expect(resultMoment.format('YYYY-MM-DD')).toBe('2024-12-31');
-      expect(resultMoment.hour()).toBe(9);
+      expect(resultMoment.hour()).toBe(0);
     });
   });
 

@@ -126,7 +126,7 @@ const AvailabilityPage: React.FC = () => {
     : defaultPractitionerId;
 
   return (
-    <div className="max-w-full md:max-w-4xl mx-auto">
+    <div className="-mx-4 sm:-mx-6 lg:-mx-8 -my-2 md:-my-6">
       {/* Practitioner Chips - Mobile only, show below header */}
       {isMobile && practitioners.length > 0 && additionalPractitionerIds.length > 0 && (
         <PractitionerChips
@@ -181,23 +181,21 @@ const AvailabilityPage: React.FC = () => {
       />
 
       {/* Calendar View */}
-      <div>
-        {primaryUserId && (
-          <CalendarView 
-            userId={primaryUserId}
-            additionalPractitionerIds={displayedPractitionerIds.filter(id => id !== primaryUserId)}
-            practitioners={practitioners}
-            onAddExceptionHandlerReady={handleAddExceptionHandlerReady}
-            {...(preSelectedPatientId !== undefined ? { preSelectedPatientId } : {})}
-          />
-        )}
-        {!primaryUserId && practitioners.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            <p className="text-lg mb-2">目前沒有可用的治療師</p>
-            <p className="text-sm">請先新增治療師到診所</p>
-          </div>
-        )}
-      </div>
+      {primaryUserId && (
+        <CalendarView 
+          userId={primaryUserId}
+          additionalPractitionerIds={displayedPractitionerIds.filter(id => id !== primaryUserId)}
+          practitioners={practitioners}
+          onAddExceptionHandlerReady={handleAddExceptionHandlerReady}
+          {...(preSelectedPatientId !== undefined ? { preSelectedPatientId } : {})}
+        />
+      )}
+      {!primaryUserId && practitioners.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          <p className="text-lg mb-2">目前沒有可用的治療師</p>
+          <p className="text-sm">請先新增治療師到診所</p>
+        </div>
+      )}
 
       {/* Floating Action Button - Mobile only */}
       {isMobile && (

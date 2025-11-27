@@ -1162,15 +1162,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <>
       {/* Calendar Component */}
       <div 
         ref={calendarContainerRef} 
-        className={`bg-white md:rounded-lg md:shadow-sm md:border md:border-gray-200 p-0 md:p-6 ${view === Views.WEEK ? 'rbc-week-view' : ''} ${isMobile ? 'calendar-container-mobile' : ''}`}
-        style={isMobile ? { 
-          height: 'calc(100vh - 200px)',
-          minHeight: '400px'
-        } : undefined}
+        className={view === Views.WEEK ? 'rbc-week-view' : ''}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -1246,9 +1242,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           timeslots={isMobile ? 1 : 2}
           // Timezone configuration
           culture="zh-TW"
-          // Styling
-          style={{ height: isMobile ? 'calc(100vh - 200px)' : 600 }}
-          className="calendar-container"
+          // Styling - expand to full screen, use full viewport height on mobile
+          style={{ height: isMobile ? '100vh' : 600 }}
         />
       </div>
 
@@ -1376,7 +1371,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           onConfirm={handleConfirmCreateAppointment}
         />
       )}
-    </div>
+    </>
   );
 };
 
