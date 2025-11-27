@@ -46,6 +46,13 @@ export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
     [toolbar.date, toolbar.view]
   );
 
+  // View mode options for the switcher
+  const viewModes: Array<{ view: View; label: string }> = [
+    { view: 'month', label: '月' },
+    { view: 'week', label: '週' },
+    { view: 'day', label: '日' },
+  ];
+
   return (
     <div className={`flex justify-between items-center ${isMobile ? 'mb-2' : 'mb-4'}`}>
       <div className="flex items-center space-x-2 pl-4">
@@ -71,43 +78,31 @@ export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
           {dateMonthDisplay}
         </h2>
       </div>
-      <div className="flex space-x-1 pr-4">
+      <div className="flex items-center space-x-3 pr-4">
         <button
           onClick={handleToday}
-          className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-2 text-sm'} font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md`}
+          className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-2 text-sm'} font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md border border-gray-300`}
         >
           今天
         </button>
-        <button
-          onClick={() => toolbar.onView('month')}
-          className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-2 text-sm'} rounded-md font-medium ${
-            toolbar.view === 'month'
-              ? 'bg-primary-100 text-primary-700'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          月
-        </button>
-        <button
-          onClick={() => toolbar.onView('week')}
-          className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-2 text-sm'} rounded-md font-medium ${
-            toolbar.view === 'week'
-              ? 'bg-primary-100 text-primary-700'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          週
-        </button>
-        <button
-          onClick={() => toolbar.onView('day')}
-          className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-2 text-sm'} rounded-md font-medium ${
-            toolbar.view === 'day'
-              ? 'bg-primary-100 text-primary-700'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          日
-        </button>
+        <div className="flex space-x-0 rounded-md border border-gray-300 bg-gray-50 p-0.5">
+          {viewModes.map(({ view, label }) => {
+            const isActive = toolbar.view === view;
+            return (
+              <button
+                key={view}
+                onClick={() => toolbar.onView(view)}
+                className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-2 text-sm'} rounded-md font-semibold transition-colors ${
+                  isActive
+                    ? 'bg-primary-600 text-white shadow-md'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
