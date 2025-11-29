@@ -1153,14 +1153,17 @@ class TestLiffAvailabilityAndScheduling:
             db_session.add(primary_patient)
             db_session.commit()
 
-            # Use Taiwan timezone to calculate tomorrow (consistent with booking restriction filter)
-            tomorrow = (taiwan_now() + timedelta(days=1)).date()
-            tomorrow_iso = tomorrow.isoformat()
+            # Use a date that's always > 24 hours away to avoid time-dependent test failures
+            # Calculate date that ensures slots are always > 24 hours away (minimum_booking_hours_ahead = 24)
+            now = taiwan_now()
+            # Use 2 days from now to ensure we're always > 24 hours away regardless of test execution time
+            target_date = (now + timedelta(days=2)).date()
+            target_date_iso = target_date.isoformat()
             
             # Get day of week (0=Monday, 6=Sunday)
-            day_of_week = tomorrow.weekday()
+            day_of_week = target_date.weekday()
             
-            # Create practitioner availability for tomorrow's day of week
+            # Create practitioner availability for target date's day of week
             create_practitioner_availability_with_clinic(
                 db_session, practitioner, clinic,
                 day_of_week=day_of_week,
@@ -1171,11 +1174,11 @@ class TestLiffAvailabilityAndScheduling:
 
             appt_type_id = appt_types[0].id  # 30-minute consultation
 
-            response = client.get(f"/api/liff/availability?date={tomorrow_iso}&appointment_type_id={appt_type_id}")
+            response = client.get(f"/api/liff/availability?date={target_date_iso}&appointment_type_id={appt_type_id}")
             assert response.status_code == 200
 
             data = response.json()
-            assert data["date"] == tomorrow_iso
+            assert data["date"] == target_date_iso
             assert "slots" in data
 
 
@@ -1271,9 +1274,14 @@ class TestLiffAvailabilityAndScheduling:
         db_session.add_all([pat1, pat2])
         db_session.commit()
 
+        # Use a date that's always > 24 hours away to avoid time-dependent test failures
+        # Calculate date that ensures slots are always > 24 hours away (minimum_booking_hours_ahead = 24)
+        now = taiwan_now()
+        # Use 2 days from now to ensure we're always > 24 hours away regardless of test execution time
+        target_date = (now + timedelta(days=2)).date()
+        day_of_week = target_date.weekday()
+        
         # Create availability for practitioner at clinic2
-        tomorrow = (taiwan_now() + timedelta(days=1)).date()
-        day_of_week = tomorrow.weekday()
         create_practitioner_availability_with_clinic(
             db_session, practitioner, clinic2,
             day_of_week=day_of_week,
@@ -1307,17 +1315,17 @@ class TestLiffAvailabilityAndScheduling:
             db_session.add(primary_patient)
             db_session.commit()
 
-            tomorrow_iso = tomorrow.isoformat()
+            target_date_iso = target_date.isoformat()
 
             # Test availability with practitioner_id for clinic2
             # This should work even though practitioner's first association is with clinic1
             response = client.get(
-                f"/api/liff/availability?date={tomorrow_iso}&appointment_type_id={appt_type2.id}&practitioner_id={practitioner.id}"
+                f"/api/liff/availability?date={target_date_iso}&appointment_type_id={appt_type2.id}&practitioner_id={practitioner.id}"
             )
             assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
 
             data = response.json()
-            assert data["date"] == tomorrow_iso
+            assert data["date"] == target_date_iso
             assert "slots" in data
             slots = data["slots"]
             assert len(slots) > 0, "Should have available slots"
@@ -1332,7 +1340,7 @@ class TestLiffAvailabilityAndScheduling:
             # Test that requesting availability for clinic1's appointment type with clinic2 context fails
             # (practitioner is associated with clinic1, but we're in clinic2 context)
             response = client.get(
-                f"/api/liff/availability?date={tomorrow_iso}&appointment_type_id={appt_type1.id}&practitioner_id={practitioner.id}"
+                f"/api/liff/availability?date={target_date_iso}&appointment_type_id={appt_type1.id}&practitioner_id={practitioner.id}"
             )
             assert response.status_code == 404, "Should fail when appointment type belongs to different clinic"
 
@@ -1535,10 +1543,13 @@ class TestLiffAvailabilityAndScheduling:
             db_session.add(primary_patient)
             db_session.commit()
             
-            # Use Taiwan timezone to calculate tomorrow
-            tomorrow = (taiwan_now() + timedelta(days=1)).date()
-            tomorrow_iso = tomorrow.isoformat()
-            day_of_week = tomorrow.weekday()
+            # Use a date that's always > 24 hours away to avoid time-dependent test failures
+            # Calculate date that ensures slots are always > 24 hours away (minimum_booking_hours_ahead = 24)
+            now = taiwan_now()
+            # Use 2 days from now to ensure we're always > 24 hours away regardless of test execution time
+            target_date = (now + timedelta(days=2)).date()
+            target_date_iso = target_date.isoformat()
+            day_of_week = target_date.weekday()
             
             # Create same availability for both practitioners (9:00-17:00)
             # This will create overlapping time slots
@@ -1559,12 +1570,12 @@ class TestLiffAvailabilityAndScheduling:
             # Request availability without specifying practitioner (不指定治療師)
             appt_type_id = appt_types[0].id  # 30-minute consultation
             response = client.get(
-                f"/api/liff/availability?date={tomorrow_iso}&appointment_type_id={appt_type_id}"
+                f"/api/liff/availability?date={target_date_iso}&appointment_type_id={appt_type_id}"
             )
             
             assert response.status_code == 200
             data = response.json()
-            assert data["date"] == tomorrow_iso
+            assert data["date"] == target_date_iso
             assert "slots" in data
             
             slots = data["slots"]
@@ -2363,12 +2374,17 @@ class TestCompactScheduleFeature:
         # Enable compact schedule for practitioner
         self._enable_compact_schedule(db_session, practitioner, clinic, enabled=True)
         
+        # Use a date that's always > 24 hours away to avoid time-dependent test failures
+        # Calculate date that ensures slots are always > 24 hours away (minimum_booking_hours_ahead = 24)
+        now = taiwan_now()
+        # Use 2 days from now to ensure we're always > 24 hours away regardless of test execution time
+        target_date = (now + timedelta(days=2)).date()
+        
         # Create a single appointment at 10:00-10:30
-        tomorrow = (taiwan_now().date() + timedelta(days=1))
         event = create_calendar_event_with_clinic(
             db_session, practitioner, clinic,
             event_type='appointment',
-            event_date=tomorrow,
+            event_date=target_date,
             start_time=time(10, 0),
             end_time=time(10, 30)
         )
@@ -2391,7 +2407,7 @@ class TestCompactScheduleFeature:
             response = client.get(
                 f"/api/liff/availability",
                 params={
-                    "date": tomorrow.strftime("%Y-%m-%d"),
+                    "date": target_date.strftime("%Y-%m-%d"),
                     "appointment_type_id": appt_type.id,
                     "practitioner_id": practitioner.id
                 }
@@ -2448,14 +2464,18 @@ class TestCompactScheduleFeature:
         # Enable compact schedule for practitioner
         self._enable_compact_schedule(db_session, practitioner, clinic, enabled=True)
         
+        # Use a date that's always > 24 hours away to avoid time-dependent test failures
+        # Calculate date that ensures slots are always > 24 hours away (minimum_booking_hours_ahead = 24)
+        now = taiwan_now()
+        # Use 2 days from now to ensure we're always > 24 hours away regardless of test execution time
+        target_date = (now + timedelta(days=2)).date()
+        
         # Create two appointments: 10:00-10:30 and 14:00-14:30
         # Total span: 10:00 to 14:30
-        tomorrow = (taiwan_now().date() + timedelta(days=1))
-        
         event1 = create_calendar_event_with_clinic(
             db_session, practitioner, clinic,
             event_type='appointment',
-            event_date=tomorrow,
+            event_date=target_date,
             start_time=time(10, 0),
             end_time=time(10, 30)
         )
@@ -2473,7 +2493,7 @@ class TestCompactScheduleFeature:
         event2 = create_calendar_event_with_clinic(
             db_session, practitioner, clinic,
             event_type='appointment',
-            event_date=tomorrow,
+            event_date=target_date,
             start_time=time(14, 0),
             end_time=time(14, 30)
         )
@@ -2496,7 +2516,7 @@ class TestCompactScheduleFeature:
             response = client.get(
                 f"/api/liff/availability",
                 params={
-                    "date": tomorrow.strftime("%Y-%m-%d"),
+                    "date": target_date.strftime("%Y-%m-%d"),
                     "appointment_type_id": appt_type.id,
                     "practitioner_id": practitioner.id
                 }
@@ -2552,12 +2572,17 @@ class TestCompactScheduleFeature:
         # Ensure compact schedule is disabled (default)
         self._enable_compact_schedule(db_session, practitioner, clinic, enabled=False)
         
+        # Use a date that's always > 24 hours away to avoid time-dependent test failures
+        # Calculate date that ensures slots are always > 24 hours away (minimum_booking_hours_ahead = 24)
+        now = taiwan_now()
+        # Use 2 days from now to ensure we're always > 24 hours away regardless of test execution time
+        target_date = (now + timedelta(days=2)).date()
+        
         # Create an appointment
-        tomorrow = (taiwan_now().date() + timedelta(days=1))
         event = create_calendar_event_with_clinic(
             db_session, practitioner, clinic,
             event_type='appointment',
-            event_date=tomorrow,
+            event_date=target_date,
             start_time=time(10, 0),
             end_time=time(10, 30)
         )
@@ -2580,7 +2605,7 @@ class TestCompactScheduleFeature:
             response = client.get(
                 f"/api/liff/availability",
                 params={
-                    "date": tomorrow.strftime("%Y-%m-%d"),
+                    "date": target_date.strftime("%Y-%m-%d"),
                     "appointment_type_id": appt_type.id,
                     "practitioner_id": practitioner.id
                 }
@@ -2621,11 +2646,16 @@ class TestCompactScheduleFeature:
             client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
             client.app.dependency_overrides[get_db] = lambda: db_session
             
-            tomorrow = (taiwan_now().date() + timedelta(days=1))
+            # Use a date that's always > 24 hours away to avoid time-dependent test failures
+            # Calculate date that ensures slots are always > 24 hours away (minimum_booking_hours_ahead = 24)
+            now = taiwan_now()
+            # Use 2 days from now to ensure we're always > 24 hours away regardless of test execution time
+            target_date = (now + timedelta(days=2)).date()
+            
             response = client.get(
                 f"/api/liff/availability",
                 params={
-                    "date": tomorrow.strftime("%Y-%m-%d"),
+                    "date": target_date.strftime("%Y-%m-%d"),
                     "appointment_type_id": appt_type.id,
                     "practitioner_id": practitioner.id
                 }

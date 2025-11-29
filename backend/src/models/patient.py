@@ -36,8 +36,8 @@ class Patient(Base):
     full_name: Mapped[str] = mapped_column(String(255))
     """Full name of the patient (first and last name)."""
 
-    phone_number: Mapped[str] = mapped_column(String(50))
-    """Contact phone number for the patient, used for appointment confirmations and reminders."""
+    phone_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    """Contact phone number for the patient, used for appointment confirmations and reminders. Optional for clinic-created patients."""
 
     birthday: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     """Optional birthday of the patient (date only, no time)."""
@@ -47,6 +47,9 @@ class Patient(Base):
 
     line_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("line_users.id"), nullable=True)
     """Optional reference to the LINE user account managing this patient."""
+
+    created_by_type: Mapped[str] = mapped_column(String(20), nullable=False, default='line_user')
+    """Source of patient creation: 'line_user' or 'clinic_user'. Tracks whether patient was created via LINE or by clinic staff."""
 
     # Soft delete support
     is_deleted: Mapped[bool] = mapped_column(default=False)

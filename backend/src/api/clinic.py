@@ -13,12 +13,13 @@ from datetime import datetime, timedelta, date as date_type, time
 from typing import Dict, List, Optional, Any, Union
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, model_validator, field_validator
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, cast, String
 from sqlalchemy.sql import sqltypes
-from utils.datetime_utils import datetime_validator, parse_date_string
+from utils.datetime_utils import datetime_validator, parse_date_string, taiwan_now
 from utils.practitioner_helpers import verify_practitioner_in_clinic
+from utils.phone_validator import validate_taiwanese_phone_optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,8 @@ from api.responses import (
     AppointmentTypeResponse, PractitionerAppointmentTypesResponse, PractitionerStatusResponse,
     AppointmentTypeDeletionErrorResponse, AppointmentTypeReference,
     MemberResponse, MemberListResponse,
-    AvailableSlotsResponse, AvailableSlotResponse, ConflictWarningResponse, ConflictDetail
+    AvailableSlotsResponse, AvailableSlotResponse, ConflictWarningResponse, ConflictDetail,
+    PatientCreateResponse
 )
 
 router = APIRouter()
@@ -1353,6 +1355,164 @@ async def get_patients(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得病患列表"
         )
+
+
+# ===== Patient Creation Endpoints =====
+
+class ClinicPatientCreateRequest(BaseModel):
+    """Request model for creating patient by clinic users."""
+    full_name: str
+    phone_number: Optional[str] = None
+    birthday: Optional[date_type] = None
+
+    @field_validator('full_name')
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError('姓名不能為空')
+        if len(v) > 255:
+            raise ValueError('姓名長度過長')
+        # Basic XSS prevention: Reject angle brackets to prevent HTML/script injection
+        # This is a simple but effective check for patient names, which are displayed
+        # in the UI. More comprehensive sanitization is handled at the frontend layer.
+        if '<' in v or '>' in v:
+            raise ValueError('姓名包含無效字元')
+        return v
+
+    @field_validator('phone_number')
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        """Validate phone number if provided, allow None or empty string."""
+        return validate_taiwanese_phone_optional(v)
+
+    @field_validator('birthday', mode='before')
+    @classmethod
+    def validate_birthday(cls, v: Union[str, date_type, None]) -> Optional[date_type]:
+        """Validate birthday format (YYYY-MM-DD) and reasonable range."""
+        if v is None:
+            return None
+        if isinstance(v, date_type):
+            # Already a date object, just validate range
+            today = taiwan_now().date()
+            if v > today:
+                raise ValueError('生日不能是未來日期')
+            # Approximate 150 years check
+            if (today - v).days > 150 * 365:
+                raise ValueError('生日日期不合理')
+            return v
+        # v is str at this point
+        try:
+            parsed_date = parse_date_string(v)
+            today = taiwan_now().date()
+            if parsed_date > today:
+                raise ValueError('生日不能是未來日期')
+            if (today - parsed_date).days > 150 * 365:
+                raise ValueError('生日日期不合理')
+            return parsed_date
+        except ValueError as e:
+            # If it's already a birthday-related error, re-raise
+            if '生日' in str(e) or 'date' in str(e).lower():
+                raise
+            # For parsing errors, provide clear message
+            raise ValueError('生日格式錯誤，請使用 YYYY-MM-DD 格式') from e
+
+
+class DuplicateCheckResponse(BaseModel):
+    """Response model for duplicate name check."""
+    count: int
+    """Number of patients with exact same name (case-insensitive)."""
+
+
+@router.post("/patients", summary="Create patient (clinic users)", response_model=PatientCreateResponse)
+async def create_patient(
+    request: ClinicPatientCreateRequest,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+) -> PatientCreateResponse:
+    """
+    Create a new patient record for the clinic.
+    
+    Available to clinic admins and practitioners.
+    Phone number and birthday are optional.
+    Duplicate phone numbers are allowed.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Create patient with clinic_user as created_by_type
+        patient = PatientService.create_patient(
+            db=db,
+            clinic_id=clinic_id,
+            full_name=request.full_name,
+            phone_number=request.phone_number,  # Can be None
+            line_user_id=None,  # Clinic-created patients are not linked to LINE users
+            birthday=request.birthday,
+            created_by_type='clinic_user'
+        )
+
+        return PatientCreateResponse(
+            patient_id=patient.id,
+            full_name=patient.full_name,
+            phone_number=patient.phone_number,
+            birthday=patient.birthday,
+            created_at=patient.created_at
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        # Validation errors from validators
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.exception(f"Patient creation error: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="建立病患失敗"
+        )
+
+
+@router.get("/patients/check-duplicate", summary="Check for duplicate patient names", response_model=DuplicateCheckResponse)
+async def check_duplicate_patient_name(
+    name: str = Query(..., description="Patient name to check (exact match, case-insensitive)"),
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> DuplicateCheckResponse:
+    """
+    Check for existing patients with exact same name (case-insensitive).
+    
+    Used for duplicate detection in patient creation form.
+    Returns count of patients with matching name (excluding soft-deleted).
+    Available to all clinic users (including read-only).
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Trim name
+        trimmed_name = name.strip()
+        if not trimmed_name or len(trimmed_name) < 2:
+            # Return 0 for very short names (not meaningful to check)
+            return DuplicateCheckResponse(count=0)
+        
+        count = PatientService.check_duplicate_by_name(
+            db=db,
+            clinic_id=clinic_id,
+            full_name=trimmed_name
+        )
+        
+        return DuplicateCheckResponse(count=count)
+        
+    except Exception as e:
+        logger.exception(f"Error checking duplicate patient name: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="檢查重複病患名稱時發生錯誤"
+        )
+
 
 @router.delete("/appointments/{appointment_id}", summary="Cancel appointment by clinic admin or practitioner")
 async def cancel_clinic_appointment(

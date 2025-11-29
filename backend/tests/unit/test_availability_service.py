@@ -150,6 +150,9 @@ class TestBookingRestrictionFiltering:
         NOTE: This method (_filter_slots_by_booking_restrictions) is no longer used in availability checks.
         Booking restrictions are now enforced only during appointment creation/editing, not in availability display.
         This test is kept for backward compatibility verification of the method itself.
+        
+        NOTE: same_day_disallowed is auto-migrated to minimum_hours_required, so we use a date
+        that's always > 24 hours away to ensure slots pass the minimum_hours_required check.
         """
         from models.clinic import BookingRestrictionSettings
         clinic = Mock(spec=Clinic)
@@ -163,13 +166,15 @@ class TestBookingRestrictionFiltering:
         )
         clinic.get_validated_settings.return_value.booking_restriction_settings = booking_settings
 
-        tomorrow = taiwan_now().date() + timedelta(days=1)
+        # Use a date that's always > 24 hours away (2 days from now) to avoid time-dependent failures
+        # This ensures slots pass the minimum_booking_hours_ahead check even when test runs late in the day
+        future_date = taiwan_now().date() + timedelta(days=2)
 
         filtered = AvailabilityService._filter_slots_by_booking_restrictions(
-            mock_slots_tomorrow, tomorrow, clinic
+            mock_slots_tomorrow, future_date, clinic
         )
 
-        # All tomorrow's slots should be allowed
+        # All slots should be allowed (date is > 24 hours away, so passes minimum_hours_required check)
         assert len(filtered) == len(mock_slots_tomorrow)
 
     def test_minimum_hours_required_filters_recent_slots(self, mock_slots_today):

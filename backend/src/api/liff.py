@@ -491,7 +491,8 @@ async def create_patient(
             full_name=request.full_name,
             phone_number=request.phone_number,
             line_user_id=line_user.id,
-            birthday=request.birthday
+            birthday=request.birthday,
+            created_by_type='line_user'  # Explicit: patients created via LINE
         )
 
         return PatientCreateResponse(

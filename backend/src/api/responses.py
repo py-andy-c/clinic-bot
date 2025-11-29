@@ -15,7 +15,7 @@ class PatientResponse(BaseModel):
     """Response model for patient information."""
     id: int
     full_name: str
-    phone_number: str
+    phone_number: Optional[str] = None  # Optional for clinic-created patients
     birthday: Optional[date] = None  # Python date object (serialized to YYYY-MM-DD in JSON)
     created_at: datetime
     future_appointments_count: Optional[int] = None  # Number of future appointments for this patient
@@ -26,7 +26,7 @@ class PatientCreateResponse(BaseModel):
     """Response model for patient creation."""
     patient_id: int
     full_name: str
-    phone_number: str
+    phone_number: Optional[str] = None  # Optional for clinic-created patients
     birthday: Optional[date] = None
     created_at: datetime
 

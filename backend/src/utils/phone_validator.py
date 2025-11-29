@@ -56,19 +56,20 @@ def validate_taiwanese_phone_optional(phone: Optional[str]) -> Optional[str]:
     Validate and clean Taiwanese phone number format (09xxxxxxxx) for optional fields.
     
     Args:
-        phone: Optional phone number string to validate
+        phone: Optional phone number string to validate (can be None or empty string)
     
     Returns:
-        Cleaned phone number (09xxxxxxxx format) or None
+        Cleaned phone number (09xxxxxxxx format) or None if phone is None/empty
     
     Raises:
-        ValueError: If phone number is invalid
+        ValueError: If phone number is invalid (but not empty)
     """
     if phone is None:
         return None
     
-    if not phone.strip():
-        raise ValueError('Phone number cannot be empty')
+    # Treat empty strings as None (for clinic-created patients without phone)
+    if not phone or not phone.strip():
+        return None
     
     cleaned = clean_phone_number(phone)
     

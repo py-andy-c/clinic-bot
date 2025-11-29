@@ -11,7 +11,9 @@ from datetime import date
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from models import Patient, LineUser
+from utils.datetime_utils import taiwan_now
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +31,10 @@ class PatientService:
         db: Session,
         clinic_id: int,
         full_name: str,
-        phone_number: str,
+        phone_number: Optional[str] = None,
         line_user_id: Optional[int] = None,
-        birthday: Optional[date] = None
+        birthday: Optional[date] = None,
+        created_by_type: str = 'line_user'
     ) -> Patient:
         """
         Create a new patient record.
@@ -40,9 +43,10 @@ class PatientService:
             db: Database session
             clinic_id: Clinic ID the patient belongs to
             full_name: Patient's full name
-            phone_number: Phone number (required)
+            phone_number: Optional phone number (can be None for clinic-created patients)
             line_user_id: Optional LINE user ID for association
             birthday: Optional patient birthday
+            created_by_type: Source of creation - 'line_user' or 'clinic_user' (default: 'line_user')
 
         Returns:
             Created Patient object
@@ -63,9 +67,11 @@ class PatientService:
             patient = Patient(
                 clinic_id=clinic_id,
                 full_name=full_name,
-                phone_number=phone_number,
+                phone_number=phone_number,  # Can be None
                 line_user_id=line_user_id,
-                birthday=birthday
+                birthday=birthday,
+                created_by_type=created_by_type,
+                created_at=taiwan_now()  # Use Taiwan timezone to match rest of codebase
             )
 
             db.add(patient)
@@ -287,4 +293,35 @@ class PatientService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to update patient"
             )
+
+    @staticmethod
+    def check_duplicate_by_name(
+        db: Session,
+        clinic_id: int,
+        full_name: str
+    ) -> int:
+        """
+        Check for existing patients with exact same name (case-insensitive).
+
+        Args:
+            db: Database session
+            clinic_id: Clinic ID to search within
+            full_name: Patient name to check (will be trimmed and case-insensitive matched)
+
+        Returns:
+            Count of patients with exact same name (excluding soft-deleted patients)
+        """
+        # Trim and normalize name
+        normalized_name = full_name.strip()
+        if not normalized_name:
+            return 0
+        
+        # Count patients with exact same name (case-insensitive)
+        count = db.query(Patient).filter(
+            Patient.clinic_id == clinic_id,
+            func.lower(Patient.full_name) == func.lower(normalized_name),
+            Patient.is_deleted == False
+        ).count()
+        
+        return count
 
