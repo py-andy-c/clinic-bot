@@ -10,6 +10,7 @@ import { apiService, sharedFetchFunctions } from '../services/api';
 import { useApiData, invalidateCacheByPattern } from '../hooks/useApiData';
 import { ClinicSettings } from '../schemas/api';
 import ProfileForm from '../components/ProfileForm';
+import { getErrorMessage } from '../types/api';
 import AvailabilitySettings from '../components/AvailabilitySettings';
 import PractitionerAppointmentTypes from '../components/PractitionerAppointmentTypes';
 import CompactScheduleSettings from '../components/CompactScheduleSettings';
@@ -38,7 +39,7 @@ const LineLinkingSection: React.FC<LineLinkingSectionProps> = ({ lineLinked, onR
       setExpiresAt(new Date(response.expires_at));
     } catch (err: any) {
       logger.error('Error generating link code:', err);
-      alert('產生連結代碼失敗', err?.response?.data?.detail || '請稍後再試');
+      alert('產生連結代碼失敗', getErrorMessage(err) || '請稍後再試');
     } finally {
       setIsGenerating(false);
     }
@@ -58,7 +59,7 @@ const LineLinkingSection: React.FC<LineLinkingSectionProps> = ({ lineLinked, onR
       onRefresh();
     } catch (err: any) {
       logger.error('Error unlinking LINE account:', err);
-      alert('取消連結失敗', err?.response?.data?.detail || '請稍後再試');
+      alert('取消連結失敗', getErrorMessage(err) || '請稍後再試');
     } finally {
       setIsUnlinking(false);
     }

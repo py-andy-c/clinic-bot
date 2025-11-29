@@ -11,6 +11,7 @@ import { useApiData } from '../hooks/useApiData';
 import { useHighlightRow } from '../hooks/useHighlightRow';
 import PageHeader from '../components/PageHeader';
 import { useDebouncedSearch } from '../utils/searchUtils';
+import { getErrorMessage } from '../types/api';
 
 const LineUsersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -214,13 +215,13 @@ const LineUsersPage: React.FC = () => {
     } catch (err: any) {
       logger.error('Toggle AI error:', err);
       const status = err?.response?.status;
-      let errorMessage = err?.response?.data?.detail || err?.message;
+      let errorMessage = getErrorMessage(err);
       
       if (status === 403) {
         errorMessage = '您沒有權限執行此操作';
       } else if (status === 404) {
         errorMessage = '找不到此LINE使用者';
-      } else if (status === 400) {
+      } else if (status === 400 && !errorMessage) {
         errorMessage = '無效的請求';
       } else if (!errorMessage) {
         errorMessage = '請稍後再試';

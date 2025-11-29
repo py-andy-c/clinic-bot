@@ -5,6 +5,7 @@ import { useModal } from '../contexts/ModalContext';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { InAppBrowserWarning } from './InAppBrowserWarning';
+import { getErrorMessage } from '../types/api';
 
 interface SignupPageProps {
   signupType: 'clinic' | 'member';
@@ -127,7 +128,7 @@ const SignupPage: React.FC<SignupPageProps> = ({
     } catch (err: any) {
       logger.error('Join clinic error:', err);
       if (err.response?.status === 400) {
-        const detail = err.response?.data?.detail || '無法加入診所';
+        const detail = getErrorMessage(err) || '無法加入診所';
         if (detail.includes('已經是此診所的成員')) {
           setError('您已經是此診所的成員');
         } else if (detail.includes('已失效')) {

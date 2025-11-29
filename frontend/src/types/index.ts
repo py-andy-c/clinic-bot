@@ -115,7 +115,7 @@ export interface Patient {
   id: number;
   clinic_id: number;
   full_name: string;
-  phone_number: string;
+  phone_number: string | null; // Can be null for clinic-created patients
   birthday?: string; // YYYY-MM-DD format
   created_at: string;
   line_user_id?: string;

@@ -10,12 +10,28 @@ import { useHighlightRow } from '../hooks/useHighlightRow';
 import PageHeader from '../components/PageHeader';
 import { ClinicSettings } from '../schemas/api';
 import { useDebouncedSearch } from '../utils/searchUtils';
+import { PatientCreationModal } from '../components/PatientCreationModal';
+import { PatientCreationSuccessModal } from '../components/PatientCreationSuccessModal';
 
 const PatientsPage: React.FC = () => {
   const navigate = useNavigate();
   const { isLoading, isAuthenticated, user } = useAuth();
   const activeClinicId = user?.active_clinic_id;
   const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Patient creation modal state
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [createdPatientId, setCreatedPatientId] = useState<number | null>(null);
+  const [createdPatientName, setCreatedPatientName] = useState<string>('');
+  const [createdPatientPhone, setCreatedPatientPhone] = useState<string | null>(null);
+  const [createdPatientBirthday, setCreatedPatientBirthday] = useState<string | null>(null);
+
+  // Check if user can create patients (admin or practitioner)
+  const canCreatePatient = useMemo(() => {
+    if (!user?.roles) return false;
+    return user.roles.includes('admin') || user.roles.includes('practitioner');
+  }, [user?.roles]);
 
   // Get pagination state from URL with validation
   const currentPage = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
@@ -108,7 +124,24 @@ const PatientsPage: React.FC = () => {
 
   // Memoize PageHeader to prevent re-renders when only data changes
   // Must be called before any conditional returns to follow Rules of Hooks
-  const pageHeader = useMemo(() => <PageHeader title="病患管理" />, []);
+  const pageHeader = useMemo(() => (
+    <PageHeader 
+      title="病患管理"
+      action={
+        canCreatePatient && !searchInput.trim() ? (
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="btn btn-primary whitespace-nowrap flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            新增病患
+          </button>
+        ) : undefined
+      }
+    />
+  ), [canCreatePatient, searchInput]);
 
   // Focus preservation is now handled inside SearchInput component
   // No need for additional focus logic here
@@ -153,6 +186,32 @@ const PatientsPage: React.FC = () => {
 
   // Use highlight hook for navigation from Line Users page
   const highlightedPatientId = useHighlightRow(targetPatientId, 'data-patient-id');
+
+  // Handle patient creation success
+  const handlePatientCreated = useCallback((
+    patientId: number,
+    patientName: string,
+    phoneNumber: string | null,
+    birthday: string | null
+  ) => {
+    setCreatedPatientId(patientId);
+    setCreatedPatientName(patientName);
+    setCreatedPatientPhone(phoneNumber);
+    setCreatedPatientBirthday(birthday);
+    setIsCreateModalOpen(false);
+    setIsSuccessModalOpen(true);
+    // Refetch patients list to show new patient
+    refetch();
+  }, [refetch]);
+
+  // Handle success modal close
+  const handleSuccessModalClose = useCallback(() => {
+    setIsSuccessModalOpen(false);
+    setCreatedPatientId(null);
+    setCreatedPatientName('');
+    setCreatedPatientPhone(null);
+    setCreatedPatientBirthday(null);
+  }, []);
 
   // Handle navigation from Line Users page
   useEffect(() => {
@@ -268,7 +327,7 @@ const PatientsPage: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {patient.phone_number}
+                          {patient.phone_number || '-'}
                         </td>
                         {requireBirthday && (
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -327,6 +386,27 @@ const PatientsPage: React.FC = () => {
         </div>
       </div>
       </div>
+
+      {/* Patient Creation Modal */}
+      {canCreatePatient && (
+        <PatientCreationModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={handlePatientCreated}
+        />
+      )}
+
+      {/* Success Modal */}
+      {createdPatientId && (
+        <PatientCreationSuccessModal
+          isOpen={isSuccessModalOpen}
+          onClose={handleSuccessModalClose}
+          patientId={createdPatientId}
+          patientName={createdPatientName}
+          phoneNumber={createdPatientPhone}
+          birthday={createdPatientBirthday}
+        />
+      )}
     </div>
   );
 };

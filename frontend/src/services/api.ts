@@ -258,6 +258,32 @@ export class ApiService {
     return response.data;
   }
 
+  async createPatient(data: {
+    full_name: string;
+    phone_number?: string | null;
+    birthday?: string;
+  }): Promise<{
+    patient_id: number;
+    full_name: string;
+    phone_number: string | null;
+    birthday?: string | null;
+    created_at: string;
+  }> {
+    const response = await this.client.post('/clinic/patients', {
+      full_name: data.full_name.trim(),
+      phone_number: data.phone_number?.trim() || null,
+      birthday: data.birthday || undefined,
+    });
+    return response.data;
+  }
+
+  async checkDuplicatePatientName(name: string): Promise<{ count: number }> {
+    const response = await this.client.get('/clinic/patients/check-duplicate', {
+      params: { name: name.trim() },
+    });
+    return response.data;
+  }
+
   async getAutoAssignedAppointments(): Promise<{
     appointments: Array<{
       appointment_id: number;

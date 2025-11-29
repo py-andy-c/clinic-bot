@@ -94,3 +94,4 @@ The issue was caused by React Big Calendar's `scrollToTime` prop being applied t
 - Previous commit: "Fix calendar week view alignment and scrolling issues" - Added week view scrolling container and alignment fixes
 - This commit: "Add scroll-to-9am for week view and simplify code" - Added scroll-to-9AM functionality
 
+

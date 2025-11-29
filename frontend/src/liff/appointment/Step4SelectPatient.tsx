@@ -73,6 +73,8 @@ const Step4SelectPatient: React.FC = () => {
     setPatient(patient.id, {
       id: patient.id,
       full_name: patient.full_name,
+      phone_number: patient.phone_number,
+      ...(patient.birthday && { birthday: patient.birthday }),
       created_at: patient.created_at,
     });
   };
@@ -96,6 +98,8 @@ const Step4SelectPatient: React.FC = () => {
         setPatient(createdPatient.id, {
           id: createdPatient.id,
           full_name: createdPatient.full_name,
+          phone_number: createdPatient.phone_number,
+          ...(createdPatient.birthday && { birthday: createdPatient.birthday }),
           created_at: createdPatient.created_at,
         });
       }

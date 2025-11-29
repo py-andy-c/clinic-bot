@@ -33,6 +33,7 @@ export const getPhoneValidationErrorMessage = (): string => {
 
 /**
  * Checks if a phone number is valid and returns validation result
+ * For required phone numbers (LIFF flow)
  */
 export const validatePhoneNumber = (phone: string): {
   isValid: boolean;
@@ -42,6 +43,27 @@ export const validatePhoneNumber = (phone: string): {
     return { isValid: false, error: i18n.t('patient.form.phone.error.required') };
   }
 
+  if (!validateTaiwanPhoneNumber(phone)) {
+    return { isValid: false, error: getPhoneValidationErrorMessage() };
+  }
+
+  return { isValid: true };
+};
+
+/**
+ * Validates an optional phone number (for clinic-created patients)
+ * Returns valid if phone is empty, validates format if provided
+ */
+export const validateOptionalPhoneNumber = (phone: string): {
+  isValid: boolean;
+  error?: string;
+} => {
+  // Empty phone is valid (optional field)
+  if (!phone || phone.trim() === '') {
+    return { isValid: true };
+  }
+
+  // If provided, must be valid format
   if (!validateTaiwanPhoneNumber(phone)) {
     return { isValid: false, error: getPhoneValidationErrorMessage() };
   }

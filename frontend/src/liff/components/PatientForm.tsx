@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
 import { NameWarning, DateInput } from '../../components/shared';
-import { validatePhoneNumber } from '../../utils/phoneValidation';
+import { validateLiffPatientForm } from '../../utils/patientFormValidation';
 import { formatDateForApi } from '../../utils/dateFormat';
 import { liffApiService } from '../../services/liffApi';
 
@@ -75,21 +75,10 @@ export const PatientForm: React.FC<PatientFormProps> = ({
   const handleSubmit = async () => {
     if (!fullName.trim() || !clinicId) return;
 
-    // Validate phone number
-    if (!phoneNumber.trim()) {
-      setError(t('patient.form.phone.error.required'));
-      return;
-    }
-
-    const phoneValidation = validatePhoneNumber(phoneNumber);
-    if (!phoneValidation.isValid && phoneValidation.error) {
-      setError(phoneValidation.error);
-      return;
-    }
-
-    // Validate required birthday
-    if (requireBirthday && !birthday.trim()) {
-      setError(t('patient.form.birthday.error.required'));
+    // Validate using shared validation utility
+    const validation = validateLiffPatientForm(fullName, phoneNumber, birthday, requireBirthday);
+    if (!validation.isValid) {
+      setError(validation.error || t('patient.form.error.generic'));
       return;
     }
 
@@ -97,11 +86,11 @@ export const PatientForm: React.FC<PatientFormProps> = ({
       setIsSubmitting(true);
       setError(null);
       const formData: PatientFormData = {
-        full_name: fullName.trim(),
-        phone_number: phoneNumber.replace(/[\s\-\(\)]/g, ''),
+        full_name: validation.normalizedData!.full_name,
+        phone_number: validation.normalizedData!.phone_number!,
       };
-      if (birthday.trim()) {
-        formData.birthday = formatDateForApi(birthday.trim());
+      if (validation.normalizedData!.birthday) {
+        formData.birthday = formatDateForApi(validation.normalizedData!.birthday);
       }
       await onSubmit(formData);
     } catch (err) {

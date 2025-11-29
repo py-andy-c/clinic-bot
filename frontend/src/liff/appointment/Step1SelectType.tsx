@@ -7,7 +7,7 @@ import { AppointmentType } from '../../types';
 import { liffApiService } from '../../services/liffApi';
 
 const Step1SelectType: React.FC = () => {
-  const { setAppointmentType, setAppointmentTypeInstructions, appointmentTypeInstructions, clinicId } = useAppointmentStore();
+  const { setAppointmentType, setAppointmentTypeInstructions, appointmentTypeInstructions, clinicId, patient } = useAppointmentStore();
   const { t } = useTranslation();
   const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,6 +65,12 @@ const Step1SelectType: React.FC = () => {
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
           {t('appointment.selectType.title')}
         </h2>
+        {patient && (
+          <div className="bg-gray-50 rounded-md p-4 mb-4">
+            <span className="text-sm font-medium text-gray-700">病患：</span>
+            <span className="text-sm text-gray-900">{patient.full_name}</span>
+          </div>
+        )}
         {appointmentTypeInstructions && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
             <div className="flex">

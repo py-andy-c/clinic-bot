@@ -9,6 +9,7 @@ import { useSettingsPage } from '../hooks/useSettingsPage';
 import { useModal } from '../contexts/ModalContext';
 import { useApiData, invalidateCacheForFunction, invalidateCacheByPattern } from '../hooks/useApiData';
 import { validateClinicSettings, getClinicSectionChanges } from '../utils/clinicSettings';
+import { getErrorMessage } from '../types/api';
 import ClinicAppointmentSettings from '../components/ClinicAppointmentSettings';
 import ClinicReminderSettings from '../components/ClinicReminderSettings';
 import ClinicInfoSettings from '../components/ClinicInfoSettings';
@@ -207,7 +208,7 @@ const SettingsPage: React.FC = () => {
       });
     } catch (error: any) {
       logger.error('Error validating appointment type deletion:', error);
-      const errorMessage = error.response?.data?.detail || error.message || '驗證刪除失敗，請稍後再試';
+      const errorMessage = getErrorMessage(error) || '驗證刪除失敗，請稍後再試';
       await alert(errorMessage, '驗證失敗');
     }
   };

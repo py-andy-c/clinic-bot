@@ -52,8 +52,11 @@ export interface ApiResult<T> {
 
 /**
  * Helper function to extract error message from various error types
+ * Strips FastAPI's "Value error, " prefix and ensures messages are user-friendly
  */
 export const getErrorMessage = (error: ApiErrorType): string => {
+  let message = '';
+
   // Axios error with response
   if (typeof error === 'object' && error && 'response' in error) {
     const axiosError = error as AxiosErrorResponse;
@@ -62,33 +65,40 @@ export const getErrorMessage = (error: ApiErrorType): string => {
     if (axiosError.response?.data?.detail) {
       const detail = axiosError.response.data.detail;
       if (Array.isArray(detail)) {
-        return detail.map(d => d.msg).join(', ');
-      }
-      if (typeof detail === 'string') {
-        return detail;
+        message = detail.map(d => d.msg).join(', ');
+      } else if (typeof detail === 'string') {
+        message = detail;
       }
     }
 
     // Other API error messages
-    if (axiosError.response?.data?.message) {
-      return axiosError.response.data.message;
+    if (!message && axiosError.response?.data?.message) {
+      message = axiosError.response.data.message;
     }
 
-    if (axiosError.response?.data?.error) {
-      return axiosError.response.data.error;
+    if (!message && axiosError.response?.data?.error) {
+      message = axiosError.response.data.error;
     }
   }
 
   // Standard Error object
-  if (error instanceof Error) {
-    return error.message;
+  if (!message && error instanceof Error) {
+    message = error.message;
   }
 
   // ApiError interface
-  if (typeof error === 'object' && error && 'message' in error) {
-    return (error as ApiError).message;
+  if (!message && typeof error === 'object' && error && 'message' in error) {
+    message = (error as ApiError).message;
   }
 
   // Fallback - use i18n for translation
-  return i18n.t('common.unknownError');
+  if (!message) {
+    return i18n.t('common.unknownError');
+  }
+
+  // Strip FastAPI's "Value error, " prefix (case-insensitive)
+  // FastAPI automatically prefixes ValueError messages with "Value error, "
+  message = message.replace(/^Value error,\s*/i, '');
+
+  return message;
 };

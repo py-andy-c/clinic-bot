@@ -4,6 +4,8 @@ import { AppointmentType, Practitioner } from '../types';
 export interface Patient {
   id: number;
   full_name: string;
+  phone_number?: string | null;
+  birthday?: string;
   created_at: string;
 }
 

@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { useApiData } from '../hooks/useApiData';
 import PageHeader from '../components/PageHeader';
+import { getErrorMessage } from '../types/api';
 
 const MembersPage: React.FC = () => {
   const { isClinicAdmin, user: currentUser, isAuthenticated, checkAuthStatus, isLoading } = useAuth();
@@ -50,7 +51,7 @@ const MembersPage: React.FC = () => {
       return response;
     } catch (err: any) {
       logger.error('Invite member error:', err);
-      const errorMessage = err?.response?.data?.detail;
+      const errorMessage = getErrorMessage(err);
       if (errorMessage === 'Invalid role specified') {
         await alert('指定的角色無效。請選擇有效的角色。');
       } else {
@@ -75,7 +76,7 @@ const MembersPage: React.FC = () => {
       }
     } catch (err: any) {
       logger.error('Update roles error:', err);
-      const errorMessage = err?.response?.data?.detail;
+      const errorMessage = getErrorMessage(err);
       if (errorMessage === '找不到成員') {
         await alert('找不到該成員，請重新載入頁面後再試。');
       } else if (errorMessage === '無法從最後一位管理員停用管理員權限') {
@@ -103,7 +104,7 @@ const MembersPage: React.FC = () => {
       logger.error('Remove member error:', err);
 
       // Check for specific error messages from backend
-      const errorMessage = err?.response?.data?.detail;
+      const errorMessage = getErrorMessage(err);
       if (errorMessage === '無法停用最後一位管理員') {
         await alert('無法停用最後一位管理員。請先指派其他成員為管理員。');
       } else if (errorMessage === '找不到成員') {
@@ -128,7 +129,7 @@ const MembersPage: React.FC = () => {
       logger.error('Reactivate member error:', err);
 
       // Check for specific error messages from backend
-      const errorMessage = err?.response?.data?.detail;
+      const errorMessage = getErrorMessage(err);
       if (errorMessage === '找不到已停用的成員') {
         await alert('找不到已停用的成員，請重新載入頁面後再試。');
       } else {

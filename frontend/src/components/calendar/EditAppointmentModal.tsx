@@ -72,6 +72,13 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const appointmentType = appointmentTypes.find(
     at => at.id === event.resource.appointment_type_id
   );
+
+  // Determine if this appointment has an associated LINE user.
+  // If there's no LINE user, we should not ask for notification notes or show LINE preview.
+  const hasLineUser = !!event.resource.line_display_name;
+
+  // Track whether the currently selected date has any available time slots
+  const [hasAvailableSlots, setHasAvailableSlots] = useState<boolean>(true);
   
   // Use appointment_type_id directly from event if available, even if appointmentType not found yet
   const appointmentTypeId = event.resource.appointment_type_id || appointmentType?.id || null;
@@ -125,6 +132,19 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     if (!timeChanged && !practitionerChanged && !allowConfirmWithoutChanges) {
       // No changes - just close (unless allowConfirmWithoutChanges is true)
       onClose();
+      return;
+    }
+
+    // If there is no LINE user attached to this appointment, skip the note/preview flow
+    // and just save the updated practitioner/time without sending any notification.
+    if (!hasLineUser) {
+      setError(null);
+      const newStartTimeISO = newStartTime.toISOString();
+      const formData: { practitioner_id: number | null; start_time: string; notes?: string; notification_note?: string } = {
+        practitioner_id: selectedPractitionerId,
+        start_time: newStartTimeISO,
+      };
+      await onConfirm(formData);
       return;
     }
 
@@ -293,6 +313,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             originalPractitionerId={originalPractitionerId}
             excludeCalendarEventId={event.resource.calendar_event_id}
             error={error && !externalErrorMessage ? error : null}
+            onHasAvailableSlotsChange={setHasAvailableSlots}
           />
         )}
       </div>
@@ -300,8 +321,20 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       <div className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200 flex-shrink-0">
         <button
           onClick={handleFormSubmit}
-          disabled={!selectedPractitionerId || !selectedTime || (!hasChanges && !allowConfirmWithoutChanges)}
-          className={`btn-primary ${(!selectedPractitionerId || !selectedTime || (!hasChanges && !allowConfirmWithoutChanges)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+          disabled={
+            !selectedPractitionerId ||
+            !selectedTime ||
+            (!hasChanges && !allowConfirmWithoutChanges) ||
+            !hasAvailableSlots
+          }
+          className={`btn-primary ${
+            (!selectedPractitionerId ||
+              !selectedTime ||
+              (!hasChanges && !allowConfirmWithoutChanges) ||
+              !hasAvailableSlots)
+              ? 'opacity-50 cursor-not-allowed'
+              : ''
+          }`}
         >
           {formSubmitButtonText}
         </button>

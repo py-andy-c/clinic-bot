@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { logger } from '../utils/logger';
 import { InAppBrowserWarning } from '../components/InAppBrowserWarning';
+import { getErrorMessage } from '../types/api';
 
 const LoginPage: React.FC = () => {
   const { login, isLoading } = useAuth();
@@ -30,8 +31,8 @@ const LoginPage: React.FC = () => {
       // Handle different types of errors
       let errorMsg = '登入失敗，請稍後再試';
       
-      if (error?.response?.data?.detail) {
-        const backendError = error.response.data.detail;
+      const backendError = getErrorMessage(error);
+      if (backendError) {
         
         // Translate specific backend error messages to user-friendly Traditional Chinese
         if (backendError.includes('診所使用者認證必須透過註冊流程')) {
