@@ -41,12 +41,18 @@ def upgrade() -> None:
     4. Update Patient references
     """
     conn = op.get_bind()
+    inspector = inspect(conn)
+    tables = inspector.get_table_names()
+    
+    # Check which tables exist
+    has_ai_disabled_table = 'line_user_ai_disabled' in tables
+    has_ai_opt_outs_table = 'line_user_ai_opt_outs' in tables
     
     # Step 1: Find all LineUsers that need migration (clinic_id is NULL)
     # and get their associated clinics from multiple sources
-    migration_query = text("""
-        WITH user_clinics AS (
-            -- Clinics from Patient records
+    # Build query dynamically based on which tables exist
+    query_parts = [
+        """-- Clinics from Patient records
             SELECT DISTINCT 
                 lu.id as old_line_user_id,
                 lu.line_user_id as line_user_id_string,
@@ -54,40 +60,41 @@ def upgrade() -> None:
             FROM line_users lu
             INNER JOIN patients p ON p.line_user_id = lu.id
             WHERE lu.clinic_id IS NULL
-              AND p.is_deleted = false
-            
-            UNION
-            
-            -- Clinics from LineMessage records
+              AND p.is_deleted = false""",
+        
+        """-- Clinics from LineMessage records
             SELECT DISTINCT
                 lu.id as old_line_user_id,
                 lu.line_user_id as line_user_id_string,
                 lm.clinic_id
             FROM line_users lu
             INNER JOIN line_messages lm ON lm.line_user_id = lu.line_user_id
-            WHERE lu.clinic_id IS NULL
-            
-            UNION
-            
-            -- Clinics from line_user_ai_disabled (users who only have settings, no patients/messages)
+            WHERE lu.clinic_id IS NULL"""
+    ]
+    
+    if has_ai_disabled_table:
+        query_parts.append("""-- Clinics from line_user_ai_disabled (users who only have settings, no patients/messages)
             SELECT DISTINCT
                 lu.id as old_line_user_id,
                 lu.line_user_id as line_user_id_string,
                 luad.clinic_id
             FROM line_users lu
             INNER JOIN line_user_ai_disabled luad ON luad.line_user_id = lu.line_user_id
-            WHERE lu.clinic_id IS NULL
-            
-            UNION
-            
-            -- Clinics from line_user_ai_opt_outs (users who only have opt-out, no patients/messages)
+            WHERE lu.clinic_id IS NULL""")
+    
+    if has_ai_opt_outs_table:
+        query_parts.append("""-- Clinics from line_user_ai_opt_outs (users who only have opt-out, no patients/messages)
             SELECT DISTINCT
                 lu.id as old_line_user_id,
                 lu.line_user_id as line_user_id_string,
                 luo.clinic_id
             FROM line_users lu
             INNER JOIN line_user_ai_opt_outs luo ON luo.line_user_id = lu.line_user_id
-            WHERE lu.clinic_id IS NULL
+            WHERE lu.clinic_id IS NULL""")
+    
+    migration_query_sql = f"""
+        WITH user_clinics AS (
+            {' UNION '.join(query_parts)}
         )
         SELECT DISTINCT
             uc.old_line_user_id,
@@ -98,8 +105,9 @@ def upgrade() -> None:
         FROM user_clinics uc
         INNER JOIN line_users lu ON lu.id = uc.old_line_user_id
         ORDER BY uc.old_line_user_id, uc.clinic_id
-    """)
+    """
     
+    migration_query = text(migration_query_sql)
     result = conn.execute(migration_query)
     user_clinic_pairs = result.fetchall()
     
@@ -130,31 +138,35 @@ def upgrade() -> None:
             # Already migrated, skip
             continue
         
-        # Get AI disabled settings from line_user_ai_disabled table
-        ai_disabled_query = text("""
-            SELECT disabled_at, disabled_by_user_id, reason
-            FROM line_user_ai_disabled
-            WHERE line_user_id = :line_user_id_string
-              AND clinic_id = :clinic_id
-            LIMIT 1
-        """)
-        ai_disabled_row = conn.execute(
-            ai_disabled_query,
-            {"line_user_id_string": line_user_id_string, "clinic_id": clinic_id}
-        ).first()
+        # Get AI disabled settings from line_user_ai_disabled table (if it exists)
+        ai_disabled_row = None
+        if has_ai_disabled_table:
+            ai_disabled_query = text("""
+                SELECT disabled_at, disabled_by_user_id, reason
+                FROM line_user_ai_disabled
+                WHERE line_user_id = :line_user_id_string
+                  AND clinic_id = :clinic_id
+                LIMIT 1
+            """)
+            ai_disabled_row = conn.execute(
+                ai_disabled_query,
+                {"line_user_id_string": line_user_id_string, "clinic_id": clinic_id}
+            ).first()
         
-        # Get AI opt-out settings from line_user_ai_opt_outs table
-        ai_opt_out_query = text("""
-            SELECT opted_out_until
-            FROM line_user_ai_opt_outs
-            WHERE line_user_id = :line_user_id_string
-              AND clinic_id = :clinic_id
-            LIMIT 1
-        """)
-        ai_opt_out_row = conn.execute(
-            ai_opt_out_query,
-            {"line_user_id_string": line_user_id_string, "clinic_id": clinic_id}
-        ).first()
+        # Get AI opt-out settings from line_user_ai_opt_outs table (if it exists)
+        ai_opt_out_row = None
+        if has_ai_opt_outs_table:
+            ai_opt_out_query = text("""
+                SELECT opted_out_until
+                FROM line_user_ai_opt_outs
+                WHERE line_user_id = :line_user_id_string
+                  AND clinic_id = :clinic_id
+                LIMIT 1
+            """)
+            ai_opt_out_row = conn.execute(
+                ai_opt_out_query,
+                {"line_user_id_string": line_user_id_string, "clinic_id": clinic_id}
+            ).first()
         
         # Prepare AI disabled values
         ai_disabled = ai_disabled_row is not None
