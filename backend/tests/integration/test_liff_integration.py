@@ -1703,12 +1703,17 @@ class TestLiffErrorHandling:
             db_session.add(primary_patient)
             db_session.commit()
 
+            # Use a future date to avoid validation errors
+            future_time = taiwan_now() + timedelta(days=3)
+            # Format as ISO string with timezone (e.g., "2025-12-15T10:00:00+08:00")
+            future_time_str = future_time.isoformat()
+
             response = client.post(
                 "/api/liff/appointments",
                 json={
                     "patient_id": 99999,  # Non-existent patient
-                    "appointment_type_id": 1,
-                    "start_time": "2025-12-01T10:00:00+08:00",
+                    "appointment_type_id": appt_types[0].id,  # Use appointment type from fixture
+                    "start_time": future_time_str,
                 }
             )
             assert response.status_code == 403

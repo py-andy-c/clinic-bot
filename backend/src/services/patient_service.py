@@ -188,8 +188,8 @@ class PatientService:
         """
         Delete a patient record for a LINE user.
 
-        This performs a soft delete by unlinking the patient from the LINE user
-        while preserving appointment history.
+        This performs a soft delete while preserving appointment history and
+        maintaining the LINE user association.
 
         Args:
             db: Database session
@@ -215,10 +215,12 @@ class PatientService:
                 detail="Cannot delete patient with future appointments"
             )
 
-        # Check if this is the last patient for this LINE user at this clinic
+        # Check if this is the last active patient for this LINE user at this clinic
         total_patients = db.query(Patient).filter_by(
             line_user_id=line_user_id,
             clinic_id=clinic_id
+        ).filter(
+            Patient.is_deleted == False
         ).count()
 
         if total_patients <= 1:
@@ -227,12 +229,11 @@ class PatientService:
                 detail="至少需保留一位就診人"
             )
 
-        # Soft delete by marking as deleted and unlinking from LINE user (preserves appointment history)
+        # Soft delete by marking as deleted (preserves appointment history and LINE user association)
         from datetime import datetime, timezone
 
         patient.is_deleted = True
         patient.deleted_at = datetime.now(timezone.utc)
-        patient.line_user_id = None  # Also unlink for backward compatibility
         db.commit()
 
         logger.info(f"Soft deleted patient {patient_id} for LINE user {line_user_id}")
