@@ -38,19 +38,46 @@ export const useDateSlotSelection = ({
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
+  // Clear slots when practitioner changes
+  useEffect(() => {
+    setAvailableSlots([]);
+    setIsLoadingSlots(false);
+  }, [selectedPractitionerId]);
+
   // Update slots from cache when cache is updated and a date is selected
   // This effect handles the case where batch completes after date is already selected
   useEffect(() => {
-    if (selectedDate && !loadingAvailability && cachedAvailabilityData.size > 0 && batchInitiatedRef.current) {
-      const cachedData = cachedAvailabilityData.get(selectedDate);
+    if (!selectedDate || !selectedPractitionerId) {
+      return;
+    }
+
+    // Wait for loading to complete before checking cache
+    if (loadingAvailability) {
+      return;
+    }
+
+    // Cache key includes practitioner ID to ensure we get the right practitioner's slots
+    const cacheKey = `${selectedPractitionerId}-${selectedDate}`;
+    
+    if (cachedAvailabilityData.size > 0) {
+      const cachedData = cachedAvailabilityData.get(cacheKey);
       if (cachedData) {
         // Use cached data - no API call needed
         const slots = cachedData.slots.map((slot: any) => slot.start_time);
         setAvailableSlots(slots);
         setIsLoadingSlots(false);
+      } else {
+        // Cache exists but doesn't have data for this practitioner-date combination
+        // This can happen when switching practitioners - clear slots
+        setAvailableSlots([]);
+        setIsLoadingSlots(false);
       }
+    } else {
+      // Cache is empty - clear slots
+      setAvailableSlots([]);
+      setIsLoadingSlots(false);
     }
-  }, [selectedDate, cachedAvailabilityData, loadingAvailability, batchInitiatedRef]);
+  }, [selectedDate, selectedPractitionerId, cachedAvailabilityData, loadingAvailability]);
 
   // Load available slots when date is selected
   // Only makes API calls for dates outside the current month (not in batch cache)
@@ -73,7 +100,9 @@ export const useDateSlotSelection = ({
         // If date is in current month, rely entirely on cache - don't make GET call
         // The cache update effect will handle populating slots when batch completes
         if (isInCurrentMonth) {
-          const cachedData = cachedAvailabilityData.get(selectedDate);
+          // Cache key includes practitioner ID
+          const cacheKey = `${selectedPractitionerId}-${selectedDate}`;
+          const cachedData = cachedAvailabilityData.get(cacheKey);
           if (cachedData) {
             // Use cached data - no API call needed
             const slots = cachedData.slots.map((slot: any) => slot.start_time);
@@ -85,7 +114,9 @@ export const useDateSlotSelection = ({
         }
 
         // Date is outside current month - check cache first
-        const cachedData = cachedAvailabilityData.get(selectedDate);
+        // Cache key includes practitioner ID
+        const cacheKey = `${selectedPractitionerId}-${selectedDate}`;
+        const cachedData = cachedAvailabilityData.get(cacheKey);
         if (cachedData) {
           // Use cached data - no API call needed
           const slots = cachedData.slots.map((slot: any) => slot.start_time);

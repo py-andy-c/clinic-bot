@@ -50,9 +50,12 @@ const Step3SelectDateTime: React.FC = () => {
         });
 
         // Cache the batch data for reuse when dates are selected
+        // Cache key includes practitioner ID to ensure cache is practitioner-specific
         const newCache = new Map<string, { slots: any[] }>();
         batchResponse.results.forEach(result => {
-          newCache.set(result.date, { slots: result.slots });
+          // Cache key includes practitioner ID to prevent cross-practitioner cache pollution
+          const cacheKey = practitionerId ? `${practitionerId}-${result.date}` : result.date;
+          newCache.set(cacheKey, { slots: result.slots });
         });
         setCachedAvailabilityData(newCache);
 
@@ -80,7 +83,9 @@ const Step3SelectDateTime: React.FC = () => {
     if (!clinicId || !appointmentTypeId) return;
 
     // Check if we already have this data cached from batch call
-    const cachedData = cachedAvailabilityData.get(date);
+    // Cache key includes practitioner ID to ensure we get the right practitioner's slots
+    const cacheKey = practitionerId ? `${practitionerId}-${date}` : date;
+    const cachedData = cachedAvailabilityData.get(cacheKey);
     if (cachedData) {
       // Use cached data - no API call needed
       const slots = cachedData.slots.map((slot: any) => slot.start_time);

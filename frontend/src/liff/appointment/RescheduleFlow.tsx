@@ -164,7 +164,9 @@ const RescheduleFlow: React.FC = () => {
         const newCache = new Map<string, { slots: AvailabilitySlot[] }>();
         const newSlotDetails = new Map<string, SlotDetail>();
         batchResponse.results.forEach(result => {
-          newCache.set(result.date, { slots: result.slots });
+          // Cache key includes practitioner ID to ensure cache is practitioner-specific
+          const cacheKey = selectedPractitionerId ? `${selectedPractitionerId}-${result.date}` : result.date;
+          newCache.set(cacheKey, { slots: result.slots });
           // Store slot details for recommended badge display
           if (result.slots) {
             result.slots.forEach((slot: AvailabilitySlot) => {
@@ -204,7 +206,9 @@ const RescheduleFlow: React.FC = () => {
 
     const loadSlots = async () => {
       try {
-        const cachedData = cachedAvailabilityData.get(selectedDate);
+        // Cache key includes practitioner ID to ensure we get the right practitioner's slots
+        const cacheKey = selectedPractitionerId ? `${selectedPractitionerId}-${selectedDate}` : selectedDate;
+        const cachedData = cachedAvailabilityData.get(cacheKey);
         if (cachedData && cachedData.slots && cachedData.slots.length > 0) {
           const slots = cachedData.slots.map((slot: AvailabilitySlot) => slot.start_time);
           setAvailableSlots(slots);

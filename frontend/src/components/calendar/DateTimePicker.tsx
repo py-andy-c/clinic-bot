@@ -36,6 +36,10 @@ export interface DateTimePickerProps {
   error?: string | null;
   // Optional: notify parent when the current date has any available slots
   onHasAvailableSlotsChange?: (hasSlots: boolean) => void;
+  // Optional: notify parent when practitioner doesn't offer appointment type (404 error)
+  onPractitionerError?: (errorMessage: string) => void;
+  // Optional: force clear cache when practitioner error is detected
+  practitionerError?: string | null;
 }
 
 const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
@@ -53,6 +57,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   excludeCalendarEventId,
   error,
   onHasAvailableSlotsChange,
+  onPractitionerError,
+  practitionerError,
 }) => {
   const [currentMonth, setCurrentMonth] = useState<Date>(() => {
     // Initialize to selected date or today
@@ -108,6 +114,16 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     }
   }, [selectedDate]); // Only run when selectedDate changes, not when currentMonth changes
 
+  // Clear slots and cache when practitioner changes or when practitioner error is detected
+  useEffect(() => {
+    setDatesWithSlots(new Set());
+    setCachedAvailabilityData(new Map());
+    batchInitiatedRef.current = false;
+    if (onHasAvailableSlotsChange) {
+      onHasAvailableSlotsChange(false);
+    }
+  }, [selectedPractitionerId, practitionerError, onHasAvailableSlotsChange]);
+
   // Load month availability for calendar
   useEffect(() => {
     if (!appointmentTypeId || !selectedPractitionerId) {
@@ -147,13 +163,16 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
           );
 
           // Cache batch results for reuse when dates are selected
+          // Cache key includes practitioner ID to ensure cache is practitioner-specific
           const newCache = new Map<string, { slots: any[] }>();
           const datesWithAvailableSlots = new Set<string>();
           batchResponse.results.forEach((result) => {
             // Date is now included in response (unified format with LIFF endpoint)
             if (result.date) {
+              // Cache key includes practitioner ID to prevent cross-practitioner cache pollution
+              const cacheKey = `${selectedPractitionerId}-${result.date}`;
               // Cache the slots data for this date
-              newCache.set(result.date, { slots: result.available_slots || [] });
+              newCache.set(cacheKey, { slots: result.available_slots || [] });
               
               // Track dates with available slots
               if (result.available_slots && result.available_slots.length > 0) {
@@ -176,6 +195,19 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
             // Set empty results but don't treat as error - backend now filters invalid dates
             setDatesWithSlots(new Set());
             setCachedAvailabilityData(new Map());
+          } else if (statusCode === 404) {
+            // Practitioner doesn't offer this appointment type
+            logger.warn(`Practitioner ${selectedPractitionerId} doesn't offer appointment type ${appointmentTypeId}:`, errorMessage);
+            const practitionerErrorMessage = '此治療師不提供此預約類型';
+            if (onPractitionerError) {
+              onPractitionerError(practitionerErrorMessage);
+            }
+            setDatesWithSlots(new Set());
+            setCachedAvailabilityData(new Map()); // Clear cache on error
+            // Clear available slots
+            if (onHasAvailableSlotsChange) {
+              onHasAvailableSlotsChange(false);
+            }
           } else {
             logger.warn(`Failed to load batch availability for month ${currentMonth.getFullYear()}-${currentMonth.getMonth() + 1}:`, errorMessage, err);
             setDatesWithSlots(new Set());
@@ -220,22 +252,36 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
-  // Build time slots list - include original time if editing and date/practitioner match
+  // Build time slots list - include original time if editing
   const allTimeSlots = useMemo(() => {
+    // If there's a practitioner error, don't show any slots (including original time)
+    if (practitionerError) {
+      return [];
+    }
+    
     const slots = [...availableSlots];
     
-    // If editing and original time/date/practitioner match, include original time even if not available
-    if (originalTime && originalDate && originalPractitionerId) {
+    // If editing and original date matches, include original time:
+    // 1. If same practitioner: always include (even if not available)
+    // 2. If different practitioner: include if time is available for new practitioner
+    if (originalTime && originalDate) {
       const isOriginalDate = selectedDate === originalDate;
-      const isOriginalPractitioner = selectedPractitionerId === originalPractitionerId;
-      if (isOriginalDate && isOriginalPractitioner && !slots.includes(originalTime)) {
-        slots.push(originalTime);
-        slots.sort();
+      if (isOriginalDate) {
+        const isOriginalPractitioner = selectedPractitionerId === originalPractitionerId;
+        // Include original time if:
+        // - Same practitioner: always include (even if not in available slots)
+        // - Different practitioner: only include if time is available for new practitioner
+        // Only add to array if not already present
+        const shouldInclude = isOriginalPractitioner || slots.includes(originalTime);
+        if (shouldInclude && !slots.includes(originalTime)) {
+          slots.push(originalTime);
+          slots.sort();
+        }
       }
     }
     
     return slots;
-  }, [availableSlots, originalTime, originalDate, originalPractitionerId, selectedDate, selectedPractitionerId]);
+  }, [availableSlots, originalTime, originalDate, originalPractitionerId, selectedDate, selectedPractitionerId, practitionerError]);
 
   // Group time slots
   const { amSlots, pmSlots } = useMemo(() => {
@@ -248,6 +294,27 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       onHasAvailableSlotsChange(allTimeSlots.length > 0);
     }
   }, [allTimeSlots.length, onHasAvailableSlotsChange]);
+
+  // Auto-select original time when slots are loaded and original time is available
+  useEffect(() => {
+    // Only auto-select if:
+    // 1. We have the original time and date
+    // 2. Selected date matches original date
+    // 3. No time is currently selected
+    // 4. Original time is in the available slots (either same practitioner or available for new practitioner)
+    // 5. No practitioner error exists
+    if (
+      originalTime &&
+      originalDate &&
+      selectedDate === originalDate &&
+      !selectedTime &&
+      !practitionerError &&
+      allTimeSlots.length > 0 &&
+      allTimeSlots.includes(originalTime)
+    ) {
+      onTimeSelect(originalTime);
+    }
+  }, [originalTime, originalDate, selectedDate, selectedTime, practitionerError, allTimeSlots, onTimeSelect]);
 
   return (
     <div className="space-y-6">

@@ -80,6 +80,9 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   // Track whether the currently selected date has any available time slots
   const [hasAvailableSlots, setHasAvailableSlots] = useState<boolean>(true);
   
+  // Track practitioner-specific errors
+  const [practitionerError, setPractitionerError] = useState<string | null>(null);
+  
   // Use appointment_type_id directly from event if available, even if appointmentType not found yet
   const appointmentTypeId = event.resource.appointment_type_id || appointmentType?.id || null;
 
@@ -109,6 +112,49 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       setError(externalErrorMessage);
     }
   }, [externalErrorMessage]);
+
+  // Check practitioner status when practitioner is selected
+  useEffect(() => {
+    const checkPractitionerStatus = async () => {
+      // Clear previous error
+      setPractitionerError(null);
+      // Don't clear selectedTime here - let it be auto-selected if available
+      setHasAvailableSlots(false); // Reset until availability is loaded
+      
+      if (!selectedPractitionerId || !appointmentTypeId) {
+        return;
+      }
+
+      try {
+        // Check if practitioner has availability configured
+        const status = await apiService.getPractitionerStatus(selectedPractitionerId);
+        
+        if (!status.has_availability) {
+          setPractitionerError('此治療師尚未設定每日可預約時段');
+          setHasAvailableSlots(false);
+          setSelectedTime(''); // Clear selected time only when error
+          return;
+        }
+        
+        // If has availability, DateTimePicker will make batch call automatically
+        // via its useEffect that depends on selectedPractitionerId
+      } catch (err) {
+        logger.error('Failed to check practitioner status:', err);
+        // Don't block user - let DateTimePicker try batch call anyway
+        // The batch call will handle 404 errors if practitioner doesn't offer appointment type
+      }
+    };
+
+    checkPractitionerStatus();
+  }, [selectedPractitionerId, appointmentTypeId]);
+
+  // Handle practitioner error from DateTimePicker (404 errors)
+  const handlePractitionerError = (errorMessage: string) => {
+    setPractitionerError(errorMessage);
+    setHasAvailableSlots(false);
+    // Clear selected time when error occurs
+    setSelectedTime('');
+  };
 
   const handleFormSubmit = async () => {
     // Validate practitioner is selected (required for edit)
@@ -300,6 +346,11 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         </div>
 
         {/* Date/Time Picker */}
+        {practitionerError && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
+            <p className="text-sm text-red-800">{practitionerError}</p>
+          </div>
+        )}
         {appointmentTypeId && (
           <DateTimePicker
             selectedDate={selectedDate}
@@ -314,6 +365,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             excludeCalendarEventId={event.resource.calendar_event_id}
             error={error && !externalErrorMessage ? error : null}
             onHasAvailableSlotsChange={setHasAvailableSlots}
+            onPractitionerError={handlePractitionerError}
+            practitionerError={practitionerError}
           />
         )}
       </div>
@@ -325,13 +378,15 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             !selectedPractitionerId ||
             !selectedTime ||
             (!hasChanges && !allowConfirmWithoutChanges) ||
-            !hasAvailableSlots
+            !hasAvailableSlots ||
+            !!practitionerError
           }
           className={`btn-primary ${
             (!selectedPractitionerId ||
               !selectedTime ||
               (!hasChanges && !allowConfirmWithoutChanges) ||
-              !hasAvailableSlots)
+              !hasAvailableSlots ||
+              !!practitionerError)
               ? 'opacity-50 cursor-not-allowed'
               : ''
           }`}
