@@ -8,6 +8,54 @@ import moment from 'moment-timezone';
 import i18n from '../i18n';
 import { logger } from './logger';
 
+/**
+ * Practitioner name display utility
+ */
+export interface Practitioner {
+  id: number;
+  full_name: string;
+}
+
+/**
+ * Get practitioner name for display in review/editing contexts
+ * 
+ * @param practitioners - Array of practitioners to search
+ * @param practitionerId - ID of the practitioner (can be null)
+ * @param isAutoAssigned - Whether the appointment is auto-assigned
+ * @param options - Optional configuration
+ * @param options.useTranslation - If true, use translation key for auto-assigned (patient-facing). If false, show "(自動指派)" suffix (clinic-facing)
+ * @param options.t - Translation function (required if useTranslation is true)
+ * @returns Formatted practitioner name string
+ */
+export const getPractitionerDisplayName = (
+  practitioners: Practitioner[],
+  practitionerId: number | null,
+  isAutoAssigned: boolean,
+  options?: {
+    useTranslation?: boolean;
+    t?: (key: string) => string;
+  }
+): string => {
+  // Handle auto-assigned or null practitioner
+  if (isAutoAssigned || practitionerId === null) {
+    if (options?.useTranslation && options?.t) {
+      // Patient-facing: use translation
+      return options.t('practitioner.notSpecified');
+    } else {
+      // Clinic-facing: show practitioner name with suffix if available, otherwise just "自動指派"
+      if (practitionerId !== null) {
+        const practitioner = practitioners.find(p => p.id === practitionerId);
+        return practitioner ? `${practitioner.full_name} (自動指派)` : '自動指派';
+      }
+      return '自動指派';
+    }
+  }
+
+  // Find practitioner by ID
+  const practitioner = practitioners.find(p => p.id === practitionerId);
+  return practitioner ? practitioner.full_name : '未知';
+};
+
 const TAIWAN_TIMEZONE = 'Asia/Taipei';
 
 /**

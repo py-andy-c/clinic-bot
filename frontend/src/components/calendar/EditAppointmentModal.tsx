@@ -12,10 +12,10 @@ import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { apiService } from '../../services/api';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
-import { formatTo12Hour } from '../../utils/calendarUtils';
+import { formatTo12Hour, getPractitionerDisplayName } from '../../utils/calendarUtils';
 import moment from 'moment-timezone';
 
-type EditStep = 'form' | 'note' | 'preview';
+type EditStep = 'form' | 'review' | 'note' | 'preview';
 
 export interface EditAppointmentModalProps {
   event: CalendarEvent;
@@ -27,6 +27,7 @@ export interface EditAppointmentModalProps {
   errorMessage?: string | null; // Error message to display (e.g., from failed save)
   showReadOnlyFields?: boolean; // If false, skip patient name, appointment type, and notes fields (default: true)
   formSubmitButtonText?: string; // Custom text for the form submit button (default: "下一步")
+  saveButtonText?: string; // Custom text for the final save button (default: "確認更動")
   allowConfirmWithoutChanges?: boolean; // If true, allow confirmation even when nothing changed (default: false)
 }
 
@@ -39,9 +40,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   errorMessage: externalErrorMessage,
   showReadOnlyFields = true,
   formSubmitButtonText = '下一步',
+  saveButtonText = '確認更動',
   allowConfirmWithoutChanges = false,
 }) => {
-  // Step state: 'form' | 'note' | 'preview'
+  // Step state: 'form' | 'review' | 'note' | 'preview'
   const [step, setStep] = useState<EditStep>('form');
   
   // Form data
@@ -104,6 +106,21 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     const practitionerChanged = selectedPractitionerId !== originalPractitionerId;
     
     return timeChanged || practitionerChanged;
+  }, [selectedDate, selectedTime, selectedPractitionerId, originalPractitionerId, event.start]);
+
+  // Check which specific fields changed
+  const changeDetails = useMemo(() => {
+    if (!selectedPractitionerId || !selectedTime) {
+      return { practitionerChanged: false, timeChanged: false, dateChanged: false };
+    }
+
+    const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
+    const originalStartTime = moment(event.start).tz('Asia/Taipei');
+    const timeChanged = !newStartTime.isSame(originalStartTime, 'minute');
+    const dateChanged = !newStartTime.isSame(originalStartTime, 'day');
+    const practitionerChanged = selectedPractitionerId !== originalPractitionerId;
+
+    return { practitionerChanged, timeChanged, dateChanged };
   }, [selectedDate, selectedTime, selectedPractitionerId, originalPractitionerId, event.start]);
 
   // Reset step when modal closes or error occurs
@@ -182,11 +199,19 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       return;
     }
 
+    // Proceed to review step
+    setError(null);
+    setStep('review');
+  };
+
+  const handleReviewNext = async () => {
+    // Calculate new start time once for all code paths
+    const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
+    const newStartTimeISO = newStartTime.toISOString();
+
     // If there is no LINE user attached to this appointment, skip the note/preview flow
     // and just save the updated practitioner/time without sending any notification.
     if (!hasLineUser) {
-      setError(null);
-      const newStartTimeISO = newStartTime.toISOString();
       const formData: { practitioner_id: number | null; start_time: string; notes?: string; notification_note?: string } = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTimeISO,
@@ -197,10 +222,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
 
     // For originally auto-assigned appointments: only show note step if time changed
     // (patients don't need to know about practitioner reassignment, only time changes)
-    if (originallyAutoAssigned && !timeChanged) {
+    if (originallyAutoAssigned && !changeDetails.timeChanged) {
       // Time didn't change - skip note step and go directly to save
-      setError(null);
-      const newStartTimeISO = newStartTime.toISOString();
       // Don't send notes or notification_note to preserve original patient notes
       // and avoid notifying the patient (omit properties instead of setting to undefined)
       const formData: { practitioner_id: number | null; start_time: string; notes?: string; notification_note?: string } = {
@@ -212,7 +235,6 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     }
 
     // Time changed (or not originally auto-assigned) - proceed to note step
-    setError(null);
     setStep('note');
   };
 
@@ -405,6 +427,108 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     </>
   );
 
+  // Render review step
+  const renderReviewStep = () => {
+    const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
+    const originalStartTime = moment(event.start).tz('Asia/Taipei');
+    const newDateStr = newStartTime.format('YYYY-MM-DD');
+    const newTimeStr = formatTo12Hour(selectedTime).display;
+    const originalDateStr = originalStartTime.format('YYYY-MM-DD');
+    const originalTimeStr = formatTo12Hour(originalTime).display;
+    const showTimeWarning = changeDetails.timeChanged || changeDetails.dateChanged;
+
+    // Determine if this is the final step (will go directly to save)
+    const isFinalStep = !hasLineUser || (originallyAutoAssigned && !changeDetails.timeChanged);
+    const reviewButtonText = isFinalStep ? saveButtonText : '下一步';
+
+    return (
+      <>
+        <div className="space-y-4 mb-6">
+          {/* Original Appointment */}
+          <div>
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">原預約</h4>
+            <div className="bg-gray-50 border border-gray-200 rounded-md p-4 space-y-2">
+              <div>
+                <span className="text-sm text-gray-600">治療師：</span>
+                <span className="text-sm text-gray-900">
+                  {getPractitionerDisplayName(availablePractitioners, originalPractitionerId, originallyAutoAssigned)}
+                </span>
+              </div>
+              <div>
+                <span className="text-sm text-gray-600">日期：</span>
+                <span className="text-sm text-gray-900">{originalDateStr}</span>
+              </div>
+              <div>
+                <span className="text-sm text-gray-600">時間：</span>
+                <span className="text-sm text-gray-900">{originalTimeStr}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* New Appointment */}
+          <div>
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">新預約</h4>
+            <div className="bg-gray-50 border border-gray-200 rounded-md p-4 space-y-2">
+              <div>
+                <span className="text-sm text-gray-600">治療師：</span>
+                <span className="text-sm text-gray-900">
+                  {getPractitionerDisplayName(availablePractitioners, selectedPractitionerId, false)}
+                  {changeDetails.practitionerChanged && <span className="ml-2 text-blue-600">✏️</span>}
+                </span>
+              </div>
+              <div>
+                <span className="text-sm text-gray-600">日期：</span>
+                <span className="text-sm text-gray-900">
+                  {newDateStr}
+                  {changeDetails.dateChanged && <span className="ml-2 text-blue-600">✏️</span>}
+                </span>
+              </div>
+              <div>
+                <span className="text-sm text-gray-600">時間：</span>
+                <span className="text-sm text-gray-900">
+                  {newTimeStr}
+                  {changeDetails.timeChanged && <span className="ml-2 text-blue-600">✏️</span>}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Time Change Warning */}
+          {showTimeWarning && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+              <div className="flex items-start">
+                <svg className="w-5 h-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <p className="text-sm text-yellow-800">
+                  時間已變更，請確認病患可配合此時間
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200 flex-shrink-0">
+          <button
+            onClick={() => {
+              setStep('form');
+              setError(null);
+            }}
+            className="btn-secondary"
+          >
+            返回修改
+          </button>
+          <button
+            onClick={handleReviewNext}
+            className="btn-primary"
+          >
+            {reviewButtonText}
+          </button>
+        </div>
+      </>
+    );
+  };
+
   // Render note step
   const renderNoteStep = () => (
     <>
@@ -477,7 +601,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           disabled={isSaving}
           className="btn-primary"
         >
-          {isSaving ? '儲存中...' : '確認並發送'}
+          {isSaving ? '儲存中...' : saveButtonText}
         </button>
       </div>
     </>
@@ -498,6 +622,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         </div>
           <h3 className="text-base font-semibold text-blue-800">
           {step === 'form' && '編輯預約'}
+          {step === 'review' && '確認變更'}
           {step === 'note' && '編輯預約備註(選填)'}
           {step === 'preview' && 'LINE訊息預覽'}
         </h3>
@@ -523,6 +648,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
 
       {/* Render current step */}
       {step === 'form' && renderFormStep()}
+      {step === 'review' && renderReviewStep()}
       {step === 'note' && renderNoteStep()}
       {step === 'preview' && renderPreviewStep()}
       </div>

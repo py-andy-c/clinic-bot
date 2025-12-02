@@ -1140,7 +1140,7 @@ class AppointmentService:
             if hours_until_appointment < minimum_cancellation_hours:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"預約必須在至少 {minimum_cancellation_hours} 小時前改期"
+                    detail=f"預約必須在至少 {minimum_cancellation_hours} 小時前修改"
                 )
 
         # Check max_booking_window_days for NEW appointment time

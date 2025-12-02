@@ -1121,7 +1121,7 @@ async def reschedule_appointment(
         if appointment.patient.line_user_id != line_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="您沒有權限改期此預約"
+                detail="您沒有權限修改此預約"
             )
 
         # Reschedule appointment using service
@@ -1136,7 +1136,7 @@ async def reschedule_appointment(
             allow_auto_assignment=True,  # Patients can request auto-assignment
             reassigned_by_user_id=None,  # Patient reschedule, not clinic user
             notification_note=None,  # No custom note for patient reschedule
-            success_message='預約已改期',
+            success_message='預約已修改',
             appointment=appointment  # Pass pre-fetched appointment to avoid duplicate query
         )
 
@@ -1151,7 +1151,7 @@ async def reschedule_appointment(
         # If the service didn't commit, rollback is unnecessary
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="改期失敗"
+            detail="修改失敗"
         )
 
 

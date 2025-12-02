@@ -436,7 +436,8 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
             const endMoment = moment(end).tz('Asia/Taipei');
             return `${startMoment.format('YYYY-MM-DD HH:mm')} - ${endMoment.format('HH:mm')}`;
           }}
-          formSubmitButtonText="確認指派"
+          formSubmitButtonText="下一步"
+          saveButtonText="確認指派"
           allowConfirmWithoutChanges={true}
         />
       )}

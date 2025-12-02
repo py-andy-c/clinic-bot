@@ -16,6 +16,7 @@ import {
   formatDateString,
   buildDatesToCheckForMonth,
   isToday,
+  getPractitionerDisplayName,
 } from '../../utils/calendarUtils';
 import moment from 'moment-timezone';
 import { checkCancellationConstraint } from '../../utils/appointmentConstraints';
@@ -31,6 +32,8 @@ interface AvailabilitySlot {
   is_recommended?: boolean;
 }
 
+type RescheduleStep = 'form' | 'review';
+
 const RescheduleFlow: React.FC = () => {
   const { t } = useTranslation();
   const { alert: showAlert } = useModal();
@@ -41,6 +44,9 @@ const RescheduleFlow: React.FC = () => {
 
   // Enable back button navigation
   useLiffBackButton('query');
+
+  // Step state
+  const [step, setStep] = useState<RescheduleStep>('form');
 
   // Loading states
   const [isLoadingDetails, setIsLoadingDetails] = useState(true);
@@ -254,7 +260,26 @@ const RescheduleFlow: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, selectedPractitionerId, appointmentDetails?.appointment_type_id, clinicId]);
 
-  const handleSubmit = async () => {
+  const handleFormSubmit = () => {
+    if (!appointmentId || !selectedDate || !selectedTime || !appointmentDetails) {
+      showAlert(t('appointment.errors.selectDateTime'), t('appointment.rescheduleFailedTitle'));
+      return;
+    }
+
+    // Check constraint before proceeding to review
+    if (!checkCancellationConstraint(appointmentDetails.start_time, minimumCancellationHours)) {
+      showAlert(
+        t('appointment.errors.rescheduleTooSoon', { hours: minimumCancellationHours || 24 }),
+        t('appointment.rescheduleFailedTitle')
+      );
+      return;
+    }
+
+    // Proceed to review step
+    setStep('review');
+  };
+
+  const handleReviewSubmit = async () => {
     if (!appointmentId || !selectedDate || !selectedTime || !appointmentDetails) {
       await showAlert(t('appointment.errors.selectDateTime'), t('appointment.rescheduleFailedTitle'));
       return;
@@ -323,8 +348,8 @@ const RescheduleFlow: React.FC = () => {
         // Check for numeric pattern that works across languages
         const hoursMatch = errorMessage.match(/(\d+)/);
         if (hoursMatch && (
-          errorMessage.includes('改期') || 
-          errorMessage.includes('reschedule') || 
+          errorMessage.includes('修改') || 
+          errorMessage.includes('edit') || 
           errorMessage.includes('変更')
         )) {
           const hours = hoursMatch[1];
@@ -418,6 +443,25 @@ const RescheduleFlow: React.FC = () => {
     return practitionerChanged || dateChanged || timeChanged || notesChanged;
   }, [appointmentDetails, selectedDate, selectedTime, selectedPractitionerId, notes, originalDate, originalTime]);
 
+  // Check which specific fields changed
+  const changeDetails = useMemo(() => {
+    if (!appointmentDetails || !selectedDate || !selectedTime) {
+      return { practitionerChanged: false, timeChanged: false, dateChanged: false, notesChanged: false };
+    }
+
+    const originalNotes = appointmentDetails.notes || '';
+    const originalWasAutoAssigned = appointmentDetails.is_auto_assigned ?? false;
+    const practitionerChanged = originalWasAutoAssigned
+      ? selectedPractitionerId !== null
+      : selectedPractitionerId !== appointmentDetails.practitioner_id;
+    const dateChanged = selectedDate !== originalDate;
+    const timeChanged = selectedTime !== originalTime;
+    const notesChanged = notes !== originalNotes;
+
+    return { practitionerChanged, timeChanged, dateChanged, notesChanged };
+  }, [appointmentDetails, selectedDate, selectedTime, selectedPractitionerId, notes, originalDate, originalTime]);
+
+
   if (isLoadingDetails) {
     return (
       <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -453,6 +497,121 @@ const RescheduleFlow: React.FC = () => {
     const dateString = formatDateString(date);
     return datesWithSlots.has(dateString);
   };
+
+  // Render review step
+  const renderReviewStep = () => {
+    if (!appointmentDetails || !selectedDate || !selectedTime) return null;
+
+    const newDateStr = selectedDate;
+    const newTimeStr = formatTo12Hour(selectedTime).display;
+    const originalDateStr = originalDate || '';
+    const originalTimeStr = originalTime ? formatTo12Hour(originalTime).display : '';
+
+    return (
+      <div className="min-h-screen bg-gray-50 py-8 px-4">
+        <div className="max-w-md mx-auto">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">{t('appointment.reschedule.reviewTitle') || '確認變更'}</h1>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
+            {/* Original Appointment */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">{t('appointment.reschedule.original')}</h4>
+              <div className="bg-gray-50 border border-gray-200 rounded-md p-4 space-y-2">
+                <div>
+                  <span className="text-sm text-gray-600">{t('appointment.reschedule.practitioner')}：</span>
+                  <span className="text-sm text-gray-900">
+                    {getPractitionerDisplayName(practitioners, appointmentDetails.practitioner_id, appointmentDetails.is_auto_assigned ?? false, { useTranslation: true, t })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-600">{t('appointment.reschedule.date') || '日期'}：</span>
+                  <span className="text-sm text-gray-900">{originalDateStr}</span>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-600">{t('appointment.reschedule.time') || '時間'}：</span>
+                  <span className="text-sm text-gray-900">{originalTimeStr}</span>
+                </div>
+                {appointmentDetails.notes && (
+                  <div>
+                    <span className="text-sm text-gray-600">{t('notes.title')}：</span>
+                    <span className="text-sm text-gray-900">{appointmentDetails.notes}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* New Appointment */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">{t('appointment.reschedule.new') || '新預約'}</h4>
+              <div className="bg-gray-50 border border-gray-200 rounded-md p-4 space-y-2">
+                <div>
+                  <span className="text-sm text-gray-600">{t('appointment.reschedule.practitioner')}：</span>
+                  <span className="text-sm text-gray-900">
+                    {getPractitionerDisplayName(practitioners, selectedPractitionerId, false, { useTranslation: true, t })}
+                    {changeDetails.practitionerChanged && <span className="ml-2 text-blue-600">✏️</span>}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-600">{t('appointment.reschedule.date') || '日期'}：</span>
+                  <span className="text-sm text-gray-900">
+                    {newDateStr}
+                    {changeDetails.dateChanged && <span className="ml-2 text-blue-600">✏️</span>}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-600">{t('appointment.reschedule.time') || '時間'}：</span>
+                  <span className="text-sm text-gray-900">
+                    {newTimeStr}
+                    {changeDetails.timeChanged && <span className="ml-2 text-blue-600">✏️</span>}
+                  </span>
+                </div>
+                {changeDetails.notesChanged && notes && (
+                  <div>
+                    <span className="text-sm text-gray-600">{t('notes.title')}：</span>
+                    <span className="text-sm text-gray-900">
+                      {notes}
+                      <span className="ml-2 text-blue-600">✏️</span>
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="pt-4 border-t border-gray-200 space-y-2">
+              <button
+                onClick={() => setStep('form')}
+                disabled={isSubmitting}
+                className="w-full py-3 px-4 rounded-md font-medium bg-gray-200 text-gray-700 hover:bg-gray-300"
+              >
+                {t('appointment.reschedule.backButton') || '返回修改'}
+              </button>
+              <button
+                onClick={handleReviewSubmit}
+                disabled={isSubmitting}
+                className={`
+                  w-full py-3 px-4 rounded-md font-medium
+                  ${isSubmitting
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }
+                `}
+              >
+                {isSubmitting ? t('appointment.reschedule.submitting') : t('appointment.reschedule.confirmButton')}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Render based on current step
+  if (step === 'review') {
+    return renderReviewStep();
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -508,7 +667,7 @@ const RescheduleFlow: React.FC = () => {
                 const isOriginalPractitioner = !appointmentDetails?.is_auto_assigned && p.id === appointmentDetails?.practitioner_id;
                 return (
                   <option key={p.id} value={p.id}>
-                    {p.full_name}{isOriginalPractitioner ? ` (${t('appointment.reschedule.original')})` : ''}
+                    {p.full_name}{isOriginalPractitioner ? ` (${t('appointment.reschedule.originalPractitioner')})` : ''}
                   </option>
                 );
               })}
@@ -723,7 +882,7 @@ const RescheduleFlow: React.FC = () => {
           {/* Submit button */}
           <div className="pt-4 border-t border-gray-200">
             <button
-              onClick={handleSubmit}
+              onClick={handleFormSubmit}
               disabled={!selectedDate || !selectedTime || isSubmitting || !hasChanges}
               className={`
                 w-full py-3 px-4 rounded-md font-medium
@@ -733,7 +892,7 @@ const RescheduleFlow: React.FC = () => {
                 }
               `}
             >
-              {isSubmitting ? t('appointment.reschedule.submitting') : t('appointment.reschedule.confirmButton')}
+              {t('appointment.reschedule.nextButton') || '下一步'}
             </button>
           </div>
         </div>
