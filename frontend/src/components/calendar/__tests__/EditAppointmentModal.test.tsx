@@ -189,5 +189,36 @@ describe('EditAppointmentModal', () => {
       expect(apiService.getPractitionerStatus).toHaveBeenCalledWith(1);
     });
   });
+
+  it('should display original appointment time', async () => {
+    vi.mocked(apiService.getPractitionerStatus).mockResolvedValue({
+      has_appointment_types: true,
+      has_availability: true,
+      appointment_types_count: 1,
+    });
+
+    render(
+      <EditAppointmentModal
+        event={mockAppointmentEvent}
+        practitioners={mockPractitioners}
+        appointmentTypes={mockAppointmentTypes}
+        onClose={mockOnClose}
+        onConfirm={mockOnConfirm}
+        formatAppointmentTime={mockFormatAppointmentTime}
+      />
+    );
+
+    // Wait for the component to render
+    await waitFor(() => {
+      expect(apiService.getPractitionerStatus).toHaveBeenCalled();
+    });
+
+    // Check that original time is displayed (format: "原預約時間：YYYY-MM-DD HH:mm AM/PM")
+    // The date/time will be converted to Asia/Taipei timezone
+    const originalTimeContainer = screen.getByText(/原預約時間：/).closest('div');
+    expect(originalTimeContainer).toBeInTheDocument();
+    // Verify the container has the date and time in 12-hour format
+    expect(originalTimeContainer?.textContent).toMatch(/原預約時間：\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}\s+(AM|PM)/i);
+  });
 });
 

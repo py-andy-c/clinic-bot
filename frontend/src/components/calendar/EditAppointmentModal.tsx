@@ -12,6 +12,7 @@ import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { apiService } from '../../services/api';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
+import { formatTo12Hour } from '../../utils/calendarUtils';
 import moment from 'moment-timezone';
 
 type EditStep = 'form' | 'note' | 'preview';
@@ -351,6 +352,13 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             <p className="text-sm text-red-800">{practitionerError}</p>
           </div>
         )}
+        {/* Display original appointment time */}
+        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-md p-3">
+          <p className="text-sm font-medium text-blue-900">
+            <span className="font-semibold">原預約時間：</span>
+            {originalDate} {formatTo12Hour(originalTime).display}
+          </p>
+        </div>
         {appointmentTypeId && (
           <DateTimePicker
             selectedDate={selectedDate}

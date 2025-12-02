@@ -252,7 +252,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
-  // Build time slots list - include original time if editing
+  // Build time slots list - include original time only if same practitioner AND same date
   const allTimeSlots = useMemo(() => {
     // If there's a practitioner error, don't show any slots (including original time)
     if (practitionerError) {
@@ -261,22 +261,15 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     
     const slots = [...availableSlots];
     
-    // If editing and original date matches, include original time:
-    // 1. If same practitioner: always include (even if not available)
-    // 2. If different practitioner: include if time is available for new practitioner
-    if (originalTime && originalDate) {
+    // Only include original time if same practitioner AND same date
+    // (The appointment being edited holds that slot, so it won't be in available slots)
+    if (originalTime && originalDate && originalPractitionerId) {
       const isOriginalDate = selectedDate === originalDate;
-      if (isOriginalDate) {
-        const isOriginalPractitioner = selectedPractitionerId === originalPractitionerId;
-        // Include original time if:
-        // - Same practitioner: always include (even if not in available slots)
-        // - Different practitioner: only include if time is available for new practitioner
-        // Only add to array if not already present
-        const shouldInclude = isOriginalPractitioner || slots.includes(originalTime);
-        if (shouldInclude && !slots.includes(originalTime)) {
-          slots.push(originalTime);
-          slots.sort();
-        }
+      const isOriginalPractitioner = selectedPractitionerId === originalPractitionerId;
+      
+      if (isOriginalDate && isOriginalPractitioner && !slots.includes(originalTime)) {
+        slots.push(originalTime);
+        slots.sort();
       }
     }
     
@@ -295,18 +288,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     }
   }, [allTimeSlots.length, onHasAvailableSlotsChange]);
 
-  // Auto-select original time when slots are loaded and original time is available
+  // Auto-select original time whenever it's in the displayed slots
   useEffect(() => {
-    // Only auto-select if:
-    // 1. We have the original time and date
-    // 2. Selected date matches original date
-    // 3. No time is currently selected
-    // 4. Original time is in the available slots (either same practitioner or available for new practitioner)
-    // 5. No practitioner error exists
+    // Auto-select if:
+    // 1. Original time is in the displayed slots
+    // 2. No time is currently selected
+    // 3. No practitioner error exists
     if (
       originalTime &&
-      originalDate &&
-      selectedDate === originalDate &&
       !selectedTime &&
       !practitionerError &&
       allTimeSlots.length > 0 &&
@@ -314,7 +303,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     ) {
       onTimeSelect(originalTime);
     }
-  }, [originalTime, originalDate, selectedDate, selectedTime, practitionerError, allTimeSlots, onTimeSelect]);
+  }, [originalTime, selectedTime, practitionerError, allTimeSlots, onTimeSelect]);
 
   return (
     <div className="space-y-6">
@@ -369,11 +358,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               const dateString = formatDateString(date);
               const available = isDateAvailable(date);
               const selected = selectedDate === dateString;
-              const isOriginalDate = originalDate ? dateString === originalDate : false;
-              // Only show blue ring when the original date is actually selected
-              const showOriginalRing = isOriginalDate && selected;
-              // Show original indicator when original date is not selected and a different date has been selected
-              const isOriginalButNotSelected = isOriginalDate && !selected && selectedDate !== null;
               const todayDate = isToday(date);
 
               return (
@@ -381,21 +365,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                   key={dateString}
                   onClick={() => handleDateSelect(date)}
                   disabled={!available}
-                  className={`aspect-square text-center rounded-lg transition-colors relative ${
+                  className={`aspect-square text-center rounded-lg transition-colors ${
                     selected
                       ? 'bg-teal-500 text-white font-semibold'
                       : available
                       ? 'bg-white text-gray-900 font-semibold hover:bg-gray-50 border border-gray-200'
                       : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-100'
-                  } ${showOriginalRing ? 'ring-2 ring-blue-300' : ''}`}
+                  }`}
                 >
-                  {isOriginalButNotSelected && (
-                    <span className={`absolute -top-1.5 -right-1.5 text-[10px] font-medium px-1 py-0.5 rounded ${
-                      available ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
-                    }`}>
-                      原
-                    </span>
-                  )}
                   <div className="flex flex-col items-center justify-center h-full">
                     <span className={selected ? 'text-white' : available ? 'text-gray-900' : 'text-gray-400'}>
                       {date.getDate()}
@@ -433,29 +410,17 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                     {amSlots.map((time) => {
                       const formatted = formatTo12Hour(time);
                       const isSelected = selectedTime === time;
-                      const isOriginalTime = originalTime && originalDate && originalPractitionerId
-                        ? time === originalTime && selectedDate === originalDate && selectedPractitionerId === originalPractitionerId
-                        : false;
-                      // Only show blue ring when the original time is actually selected
-                      const showOriginalRing = isOriginalTime && isSelected;
-                      // Show original indicator when original time is not selected and a different time has been selected
-                      const isOriginalButNotSelected = isOriginalTime && !isSelected && selectedTime !== null;
 
                       return (
                         <button
                           key={time}
                           onClick={() => onTimeSelect(time)}
-                          className={`bg-white border rounded-md py-2 px-2 transition-colors text-sm font-medium relative ${
+                          className={`bg-white border rounded-md py-2 px-2 transition-colors text-sm font-medium ${
                             isSelected
                               ? 'border-primary-500 bg-primary-50 text-primary-700'
                               : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
-                          } ${showOriginalRing ? 'ring-2 ring-blue-300' : ''}`}
+                          }`}
                         >
-                          {isOriginalButNotSelected && (
-                            <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
-                              原
-                            </span>
-                          )}
                           {formatted.time12}
                         </button>
                       );
@@ -470,29 +435,17 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                     {pmSlots.map((time) => {
                       const formatted = formatTo12Hour(time);
                       const isSelected = selectedTime === time;
-                      const isOriginalTime = originalTime && originalDate && originalPractitionerId
-                        ? time === originalTime && selectedDate === originalDate && selectedPractitionerId === originalPractitionerId
-                        : false;
-                      // Only show blue ring when the original time is actually selected
-                      const showOriginalRing = isOriginalTime && isSelected;
-                      // Show original indicator when original time is not selected and a different time has been selected
-                      const isOriginalButNotSelected = isOriginalTime && !isSelected && selectedTime !== null;
 
                       return (
                         <button
                           key={time}
                           onClick={() => onTimeSelect(time)}
-                          className={`bg-white border rounded-md py-2 px-2 transition-colors text-sm font-medium relative ${
+                          className={`bg-white border rounded-md py-2 px-2 transition-colors text-sm font-medium ${
                             isSelected
                               ? 'border-primary-500 bg-primary-50 text-primary-700'
                               : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
-                          } ${showOriginalRing ? 'ring-2 ring-blue-300' : ''}`}
+                          }`}
                         >
-                          {isOriginalButNotSelected && (
-                            <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
-                              原
-                            </span>
-                          )}
                           {formatted.time12}
                         </button>
                       );

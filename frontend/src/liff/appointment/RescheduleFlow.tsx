@@ -342,59 +342,35 @@ const RescheduleFlow: React.FC = () => {
   const originalTime = appointmentDetails ? moment(appointmentDetails.start_time).tz('Asia/Taipei').format('HH:mm') : null;
   const originalDate = appointmentDetails ? moment(appointmentDetails.start_time).tz('Asia/Taipei').format('YYYY-MM-DD') : null;
 
-  // Helper component to render time slot badges (original and/or recommended)
-  const renderTimeSlotBadges = (isOriginalButNotSelected: boolean, isRecommended: boolean) => {
-    const showBoth = isOriginalButNotSelected && isRecommended;
-    
-    if (showBoth) {
-      return (
-        <div className="absolute -top-2 -right-2 flex flex-col gap-0.5">
-          <span className="bg-blue-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">
-            {t('appointment.reschedule.original')}
-          </span>
-          <span className="bg-teal-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap">
-            {t('datetime.recommended')}
-          </span>
-        </div>
-      );
-    }
-    
+  // Helper component to render recommended badge
+  const renderRecommendedBadge = (isRecommended: boolean) => {
+    if (!isRecommended) return null;
     return (
-      <>
-        {isOriginalButNotSelected && (
-          <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
-            {t('appointment.reschedule.original')}
-          </span>
-        )}
-        {isRecommended && (
-          <span className="absolute -top-2 -right-2 bg-teal-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
-            {t('datetime.recommended')}
-          </span>
-        )}
-      </>
+      <span className="absolute -top-2 -right-2 bg-teal-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
+        {t('datetime.recommended')}
+      </span>
     );
   };
   
-  // Build time slots list - include original time if editing and date/practitioner match
+  // Build time slots list - include original time only if same practitioner AND same date
   // Must be before early returns to maintain hook order
   const allTimeSlots = useMemo(() => {
     if (!selectedDate || !appointmentDetails) return availableSlots;
     
     const slots = [...availableSlots];
     
-    // If editing and original time/date match, include original time even if not available
+    // Only include original time if same practitioner AND same date
+    // (The appointment being edited holds that slot, so it won't be in available slots)
     if (originalTime && originalDate) {
       const isOriginalDate = selectedDate === originalDate;
-      
-      // For auto-assigned appointments, include original time if date matches (regardless of practitioner selection)
-      // For specific appointments, include original time if both date and practitioner match
+      // For auto-assigned appointments, practitioner_id is null, so check if selectedPractitionerId is also null
+      // For specific appointments, check if selectedPractitionerId matches
       const originalWasAutoAssigned = appointmentDetails.is_auto_assigned ?? false;
-      const shouldIncludeOriginalTime = isOriginalDate && (
-        originalWasAutoAssigned || 
-        selectedPractitionerId === appointmentDetails.practitioner_id
-      );
+      const isOriginalPractitioner = originalWasAutoAssigned
+        ? selectedPractitionerId === null
+        : selectedPractitionerId === appointmentDetails.practitioner_id;
       
-      if (shouldIncludeOriginalTime && !slots.includes(originalTime)) {
+      if (isOriginalDate && isOriginalPractitioner && !slots.includes(originalTime)) {
         slots.push(originalTime);
         slots.sort();
       }
@@ -403,6 +379,24 @@ const RescheduleFlow: React.FC = () => {
     return slots;
   }, [availableSlots, originalTime, originalDate, selectedDate, selectedPractitionerId, appointmentDetails]);
   
+  // Auto-select original time whenever it's in the displayed slots
+  useEffect(() => {
+    // Auto-select if:
+    // 1. Original time is in the displayed slots
+    // 2. No time is currently selected
+    // 3. We have appointment details and a selected date
+    if (
+      originalTime &&
+      !selectedTime &&
+      appointmentDetails &&
+      selectedDate &&
+      allTimeSlots.length > 0 &&
+      allTimeSlots.includes(originalTime)
+    ) {
+      setSelectedTime(originalTime);
+    }
+  }, [originalTime, selectedTime, appointmentDetails, selectedDate, allTimeSlots]);
+
   // Check if anything changed (must be before early returns for hooks)
   const hasChanges = useMemo(() => {
     if (!appointmentDetails || !selectedDate || !selectedTime) return false;
@@ -528,6 +522,16 @@ const RescheduleFlow: React.FC = () => {
               {t('appointment.reschedule.selectDateTime')}
             </label>
 
+            {/* Display original appointment time */}
+            {originalDate && originalTime && (
+              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-md p-3">
+                <p className="text-sm font-medium text-blue-900">
+                  <span className="font-semibold">{t('appointment.reschedule.original')}：</span>
+                  {originalDate} {formatTo12Hour(originalTime).display}
+                </p>
+              </div>
+            )}
+
             {/* Calendar */}
             <div className="mb-4">
               <div className="flex items-center justify-between mb-3">
@@ -583,9 +587,6 @@ const RescheduleFlow: React.FC = () => {
                     const dateStr = formatDateString(day);
                     const available = isDateAvailable(day);
                     const isSelected = selectedDate === dateStr;
-                    const isOriginalDate = dateStr === originalDate;
-                    // Show original indicator when original date is not selected and a different date has been selected
-                    const isOriginalButNotSelected = isOriginalDate && !isSelected && selectedDate !== null;
                     const todayDate = isToday(day);
 
                     return (
@@ -598,21 +599,14 @@ const RescheduleFlow: React.FC = () => {
                           }
                         }}
                         disabled={!available}
-                        className={`aspect-square text-center rounded-lg transition-colors relative ${
+                        className={`aspect-square text-center rounded-lg transition-colors ${
                           isSelected
                             ? 'bg-teal-500 text-white font-semibold'
                             : available
                             ? 'bg-white text-gray-900 font-semibold hover:bg-gray-50 border border-gray-200'
                             : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-100'
-                        } ${isOriginalDate ? 'ring-2 ring-blue-300' : ''}`}
+                        }`}
                       >
-                        {isOriginalButNotSelected && (
-                          <span className={`absolute -top-1.5 -right-1.5 text-[10px] font-medium px-1 py-0.5 rounded ${
-                            available ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'
-                          }`}>
-                            {t('appointment.reschedule.original')}
-                          </span>
-                        )}
                         <div className="flex flex-col items-center justify-center h-full">
                           <span className={isSelected ? 'text-white' : available ? 'text-gray-900' : 'text-gray-400'}>
                             {day.getDate()}
@@ -642,9 +636,6 @@ const RescheduleFlow: React.FC = () => {
                         <div className="grid grid-cols-3 gap-2">
                           {amSlots.map((slot) => {
                             const isSelected = selectedTime === slot;
-                            const isOriginalTime = slot === originalTime && selectedDate === originalDate;
-                            // Show original indicator when original time is not selected and a different time has been selected
-                            const isOriginalButNotSelected = isOriginalTime && !isSelected && selectedTime !== null;
                             const isRecommended = slotDetails.get(slot)?.is_recommended === true;
 
                             return (
@@ -654,11 +645,10 @@ const RescheduleFlow: React.FC = () => {
                                 className={`
                                   py-2 px-3 rounded-md text-sm font-medium relative
                                   ${isSelected ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:border-blue-500'}
-                                  ${isOriginalTime ? 'ring-2 ring-blue-300' : ''}
                                   ${isRecommended ? 'border-teal-400 border-2' : ''}
                                 `}
                               >
-                                {renderTimeSlotBadges(isOriginalButNotSelected, isRecommended)}
+                                {renderRecommendedBadge(isRecommended)}
                                 {(() => {
                                   const formatted = formatTo12Hour(slot);
                                   // Remove leading zero from hour for display (e.g., "09:00" -> "9:00")
@@ -679,9 +669,6 @@ const RescheduleFlow: React.FC = () => {
                         <div className="grid grid-cols-3 gap-2">
                           {pmSlots.map((slot) => {
                             const isSelected = selectedTime === slot;
-                            const isOriginalTime = slot === originalTime && selectedDate === originalDate;
-                            // Show original indicator when original time is not selected and a different time has been selected
-                            const isOriginalButNotSelected = isOriginalTime && !isSelected && selectedTime !== null;
                             const isRecommended = slotDetails.get(slot)?.is_recommended === true;
 
                             return (
@@ -691,11 +678,10 @@ const RescheduleFlow: React.FC = () => {
                                 className={`
                                   py-2 px-3 rounded-md text-sm font-medium relative
                                   ${isSelected ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:border-blue-500'}
-                                  ${isOriginalTime ? 'ring-2 ring-blue-300' : ''}
                                   ${isRecommended ? 'border-teal-400 border-2' : ''}
                                 `}
                               >
-                                {renderTimeSlotBadges(isOriginalButNotSelected, isRecommended)}
+                                {renderRecommendedBadge(isRecommended)}
                                 {(() => {
                                   const formatted = formatTo12Hour(slot);
                                   // Remove leading zero from hour for display (e.g., "09:00" -> "9:00")
