@@ -1665,6 +1665,8 @@ async def create_clinic_appointment(
             )
         
         # Create appointment (no LINE user validation for clinic users)
+        # The AppointmentService.create_appointment() method already handles sending
+        # LINE notifications to patients, so we don't need to send them here.
         result = AppointmentService.create_appointment(
             db=db,
             clinic_id=clinic_id,
@@ -1675,49 +1677,6 @@ async def create_clinic_appointment(
             notes=request.notes,
             line_user_id=None  # No LINE validation for clinic users
         )
-        
-        # Send LINE notification
-        try:
-            appointment = db.query(Appointment).filter(
-                Appointment.calendar_event_id == result['appointment_id']
-            ).first()
-            if appointment and appointment.patient:
-                patient = appointment.patient
-                if patient.line_user:
-                    # Format appointment time for notification
-                    from utils.datetime_utils import format_datetime
-                    appointment_time = format_datetime(request.start_time)
-                    # Get appointment type name from appointment object (more reliable)
-                    appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else '預約'
-                    
-                    # Get practitioner name (practitioner_id is always provided for clinic-initiated appointments)
-                    practitioner = db.query(User).get(request.practitioner_id)
-                    if practitioner:
-                        # Get practitioner name from association
-                        association = db.query(UserClinicAssociation).filter(
-                            UserClinicAssociation.user_id == practitioner.id,
-                            UserClinicAssociation.clinic_id == clinic_id,
-                            UserClinicAssociation.is_active == True
-                        ).first()
-                        practitioner_name = association.full_name if association else practitioner.email
-                    else:
-                        practitioner_name = "未知治療師"
-                    
-                    # Generate and send notification
-                    from services.line_service import LINEService
-                    clinic = patient.clinic
-                    line_service = LINEService(
-                        channel_secret=clinic.line_channel_secret,
-                        channel_access_token=clinic.line_channel_access_token
-                    )
-                    message = f"{patient.full_name}，您的預約已建立：\n\n{appointment_time} - 【{appointment_type_name}】{practitioner_name}治療師"
-                    if request.notes:
-                        message += f"\n\n備註：{request.notes}"
-                    message += "\n\n期待為您服務！"
-                    line_service.send_text_message(patient.line_user.line_user_id, message)
-        except Exception as e:
-            logger.exception(f"Failed to send LINE notification for appointment creation: {e}")
-            # Don't fail the request if notification fails
         
         return {
             "success": True,
