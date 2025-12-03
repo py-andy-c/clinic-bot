@@ -10,13 +10,10 @@ builder = "RAILPACK"
 
 # Specify Python version via nixpacksPlan (Railpack respects this)
 # This replaces runtime.txt for Python version specification
-nixpacksPlan = {
-  phases = {
-    setup = {
-      nixPkgs = ["python312"]
-    }
-  }
-}
+[build.nixpacksPlan]
+[build.nixpacksPlan.phases]
+[build.nixpacksPlan.phases.setup]
+nixPkgs = ["python312"]
 
 [deploy]
 # Start command - runs migrations and starts the app via start.sh
