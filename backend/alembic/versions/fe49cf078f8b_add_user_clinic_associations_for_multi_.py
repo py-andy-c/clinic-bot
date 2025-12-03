@@ -131,8 +131,11 @@ def upgrade() -> None:
     # Note: If users.clinic_id doesn't exist (baseline migration didn't create it), skip this step
     users_columns = [col['name'] for col in inspector.get_columns('users')]
     if 'clinic_id' in users_columns:
-        # Check if full_name column exists (may have been removed by later migration)
-        if 'full_name' in users_columns:
+        # Check if full_name and roles columns exist (may have been removed by later migrations)
+        has_full_name = 'full_name' in users_columns
+        has_roles = 'roles' in users_columns
+        
+        if has_full_name and has_roles:
             op.execute("""
                 INSERT INTO user_clinic_associations (user_id, clinic_id, roles, full_name, created_at, updated_at)
                 SELECT id, clinic_id, roles, COALESCE(full_name, email, 'User'), created_at, updated_at
@@ -140,11 +143,29 @@ def upgrade() -> None:
                 WHERE clinic_id IS NOT NULL
                 ON CONFLICT ON CONSTRAINT uq_user_clinic DO NOTHING
             """)
-        else:
+        elif has_full_name and not has_roles:
+            # roles column doesn't exist - use default empty array
+            op.execute("""
+                INSERT INTO user_clinic_associations (user_id, clinic_id, roles, full_name, created_at, updated_at)
+                SELECT id, clinic_id, '[]'::jsonb, COALESCE(full_name, email, 'User'), created_at, updated_at
+                FROM users
+                WHERE clinic_id IS NOT NULL
+                ON CONFLICT ON CONSTRAINT uq_user_clinic DO NOTHING
+            """)
+        elif not has_full_name and has_roles:
             # full_name column doesn't exist - use email as name
             op.execute("""
                 INSERT INTO user_clinic_associations (user_id, clinic_id, roles, full_name, created_at, updated_at)
                 SELECT id, clinic_id, roles, COALESCE(email, 'User'), created_at, updated_at
+                FROM users
+                WHERE clinic_id IS NOT NULL
+                ON CONFLICT ON CONSTRAINT uq_user_clinic DO NOTHING
+            """)
+        else:
+            # Neither full_name nor roles exist - use defaults
+            op.execute("""
+                INSERT INTO user_clinic_associations (user_id, clinic_id, roles, full_name, created_at, updated_at)
+                SELECT id, clinic_id, '[]'::jsonb, COALESCE(email, 'User'), created_at, updated_at
                 FROM users
                 WHERE clinic_id IS NOT NULL
                 ON CONFLICT ON CONSTRAINT uq_user_clinic DO NOTHING
