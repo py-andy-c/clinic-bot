@@ -48,6 +48,11 @@ const LineUsersPage: React.FC = () => {
   const [searchInput, setSearchInput] = useState<string>('');
   const [isComposing, setIsComposing] = useState(false);
   const debouncedSearchQuery = useDebouncedSearch(searchInput, 400, isComposing);
+  
+  // State for editing display names
+  const [editingLineUserId, setEditingLineUserId] = useState<string | null>(null);
+  const [editingDisplayName, setEditingDisplayName] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Stable fetch function using useCallback
   // Only search if debouncedSearchQuery has a value (empty string means no search)
@@ -188,6 +193,30 @@ const LineUsersPage: React.FC = () => {
   }, [searchParams, setSearchParams, totalPages]);
 
 
+  const handleSaveDisplayName = async (lineUser: LineUserWithStatus) => {
+    if (isSaving) return;
+    
+    setIsSaving(true);
+    try {
+      const newDisplayName = editingDisplayName.trim() || null;
+      await apiService.updateLineUserDisplayName(lineUser.line_user_id, newDisplayName);
+      
+      // Update local state
+      setEditingLineUserId(null);
+      setEditingDisplayName('');
+      
+      // Refetch to get updated data
+      await refetch();
+      
+      await alert('顯示名稱已更新');
+    } catch (error) {
+      logger.error('Failed to update display name:', error);
+      await alert(getErrorMessage(error) || '無法更新顯示名稱');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleToggleAi = async (lineUser: LineUserWithStatus, e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation(); // Prevent row click when toggling
     e.preventDefault(); // Prevent default checkbox behavior
@@ -322,7 +351,7 @@ const LineUsersPage: React.FC = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50 whitespace-nowrap">
                         LINE 使用者
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -392,12 +421,78 @@ const LineUsersPage: React.FC = () => {
                             }`}
                             onClick={() => toggleExpand(lineUser.line_user_id)}
                           >
-                            <td className="px-6 py-4 sticky left-0 z-10 bg-white group-hover:bg-gray-50">
-                              <div className="text-sm font-medium text-gray-900 whitespace-nowrap max-w-xs truncate" title={lineUser.display_name || '未設定名稱'}>
-                                {lineUser.display_name || '未設定名稱'}
-                              </div>
+                            <td className={`px-6 py-4 whitespace-nowrap sticky left-0 z-10 transition-colors ${
+                              highlightedLineUserId === lineUser.line_user_id
+                                ? 'bg-blue-50 group-hover:bg-blue-50'
+                                : 'bg-white group-hover:bg-gray-50'
+                            }`}>
+                              {editingLineUserId === lineUser.line_user_id ? (
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="text"
+                                    value={editingDisplayName}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      setEditingDisplayName(e.target.value);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      e.stopPropagation();
+                                      if (e.key === 'Enter') {
+                                        handleSaveDisplayName(lineUser);
+                                      } else if (e.key === 'Escape') {
+                                        setEditingLineUserId(null);
+                                        setEditingDisplayName('');
+                                      }
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-32 px-1.5 py-0.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    autoFocus
+                                    disabled={isSaving}
+                                  />
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleSaveDisplayName(lineUser);
+                                    }}
+                                    disabled={isSaving}
+                                    className="px-1.5 py-0.5 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {isSaving ? '...' : '✓'}
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingLineUserId(null);
+                                      setEditingDisplayName('');
+                                    }}
+                                    disabled={isSaving}
+                                    className="px-1.5 py-0.5 text-xs text-gray-600 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div className="text-sm font-medium text-gray-900 whitespace-nowrap truncate min-w-0 flex-1" title={lineUser.display_name || '未設定名稱'}>
+                                    {lineUser.display_name || '未設定名稱'}
+                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingLineUserId(lineUser.line_user_id);
+                                      setEditingDisplayName(lineUser.display_name || '');
+                                    }}
+                                    className="px-1 py-1 text-gray-400 hover:text-gray-600 transition-colors"
+                                    title="編輯顯示名稱"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              )}
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
                                 <div className="flex-1">
                                   <div className="text-sm text-gray-900">

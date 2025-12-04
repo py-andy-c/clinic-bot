@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Any, Union
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi import status as http_status
-from pydantic import BaseModel, model_validator, field_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, cast, String
 from sqlalchemy.sql import sqltypes
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 from core.database import get_db
 from core.config import FRONTEND_URL
 from auth.dependencies import require_admin_role, require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
-from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation, Appointment, AvailabilityException, Patient
+from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation, Appointment, AvailabilityException, Patient, LineUser
 from models.clinic import ClinicSettings, ChatSettings as ChatSettingsModel
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
 from services.availability_service import AvailabilityService
@@ -1327,7 +1327,7 @@ async def get_patients(
                 birthday=patient.birthday,
                 notes=patient.notes,
                 line_user_id=patient.line_user.line_user_id if patient.line_user else None,
-                line_user_display_name=patient.line_user.display_name if patient.line_user else None,
+                line_user_display_name=patient.line_user.effective_display_name if patient.line_user else None,
                 created_at=patient.created_at,
                 is_deleted=patient.is_deleted
             )
@@ -1626,7 +1626,7 @@ async def get_patient(
             birthday=patient.birthday,
             notes=patient.notes,
             line_user_id=patient.line_user.line_user_id if patient.line_user else None,
-            line_user_display_name=patient.line_user.display_name if patient.line_user else None,
+            line_user_display_name=patient.line_user.effective_display_name if patient.line_user else None,
             created_at=patient.created_at,
             is_deleted=patient.is_deleted
         )
@@ -1675,7 +1675,7 @@ async def update_patient(
             birthday=patient.birthday,
             notes=patient.notes,
             line_user_id=patient.line_user.line_user_id if patient.line_user else None,
-            line_user_display_name=patient.line_user.display_name if patient.line_user else None,
+            line_user_display_name=patient.line_user.effective_display_name if patient.line_user else None,
             created_at=patient.created_at,
             is_deleted=patient.is_deleted
         )
@@ -2910,7 +2910,7 @@ async def get_calendar_data(
                         # Get LINE display name if patient has LINE user (already loaded)
                         line_display_name = None
                         if appointment.patient and appointment.patient.line_user:
-                            line_display_name = appointment.patient.line_user.display_name
+                            line_display_name = appointment.patient.line_user.effective_display_name
                         
                         # Get appointment type name safely (handles cases where appointment_type may be None)
                         appointment_type_name = _get_appointment_type_name(appointment)
@@ -3145,7 +3145,7 @@ async def get_batch_calendar(
                         if appointment and appointment.status == 'confirmed' and not appointment.is_auto_assigned:
                             line_display_name = None
                             if appointment.patient and appointment.patient.line_user:
-                                line_display_name = appointment.patient.line_user.display_name
+                                line_display_name = appointment.patient.line_user.effective_display_name
                             
                             appointment_type_name = _get_appointment_type_name(appointment)
                             
@@ -3556,6 +3556,11 @@ class DisableAiRequest(BaseModel):
     reason: Optional[str] = None
 
 
+class UpdateLineUserDisplayNameRequest(BaseModel):
+    """Request model for updating LINE user clinic display name."""
+    clinic_display_name: Optional[str] = Field(None, max_length=255, description="Clinic display name (clinic internal only). Set to null to clear.")
+
+
 @router.get("/line-users", summary="List all LINE users for clinic with AI status", response_model=LineUserListResponse)
 async def get_line_users(
     current_user: UserContext = Depends(require_authenticated),
@@ -3792,6 +3797,89 @@ async def enable_ai_for_line_user_endpoint(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法啟用AI"
+        )
+
+
+@router.put("/line-users/{line_user_id}/display-name", summary="Update LINE user clinic display name", response_model=LineUserWithStatusResponse)
+async def update_line_user_display_name(
+    line_user_id: str,
+    request: UpdateLineUserDisplayNameRequest,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> LineUserWithStatusResponse:
+    """
+    Update the clinic display name for a LINE user (clinic internal only).
+    
+    Any authenticated clinic user can update the display name. This allows clinics
+    to customize how they see LINE users internally. If clinic_display_name is set,
+    it will be shown everywhere instead of the original display_name. Set to null
+    to clear and fall back to the original display_name.
+    
+    Args:
+        line_user_id: LINE user ID string (from LINE platform)
+        request: New clinic display name (or null to clear)
+    """
+    try:
+        # Validate line_user_id format
+        if not line_user_id or not line_user_id.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無效的LINE使用者ID"
+            )
+        
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Get LineUser for this clinic
+        line_user = db.query(LineUser).filter(
+            LineUser.line_user_id == line_user_id,
+            LineUser.clinic_id == clinic_id
+        ).first()
+        
+        if not line_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到此LINE使用者"
+            )
+        
+        # Update clinic_display_name
+        # Allow empty string to clear (normalize to None)
+        new_display_name = request.clinic_display_name.strip() if request.clinic_display_name else None
+        if new_display_name == "":
+            new_display_name = None
+        
+        line_user.clinic_display_name = new_display_name
+        db.commit()
+        db.refresh(line_user)
+        
+        logger.info(
+            f"Updated clinic_display_name for line_user_id={line_user_id}, "
+            f"clinic_id={clinic_id}, new_name={new_display_name}"
+        )
+        
+        # Get patient count and names for response
+        patients = db.query(Patient).filter(
+            Patient.line_user_id == line_user.id,
+            Patient.clinic_id == clinic_id,
+            Patient.is_deleted == False
+        ).all()
+        
+        return LineUserWithStatusResponse(
+            line_user_id=line_user.line_user_id,
+            display_name=line_user.effective_display_name,  # This is the effective display name
+            patient_count=len(patients),
+            patient_names=sorted(list(set([p.full_name for p in patients if p.full_name]))),
+            ai_disabled=line_user.ai_disabled,
+            disabled_at=line_user.ai_disabled_at
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error updating display name for line_user_id={line_user_id}: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法更新顯示名稱"
         )
 
 

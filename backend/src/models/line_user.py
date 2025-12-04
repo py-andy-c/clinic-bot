@@ -56,7 +56,15 @@ class LineUser(Base):
     """
     Display name from LINE profile (may be None if not provided).
     
-    This is clinic-specific - each clinic can customize the display name for the same LINE user.
+    This is the original display name from LINE platform.
+    """
+
+    clinic_display_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    """
+    Clinic-overwritten display name (clinic internal only).
+    
+    If set, this name will be shown everywhere instead of the original display_name.
+    This allows clinics to customize how they see LINE users internally.
     """
 
     preferred_language: Mapped[Optional[str]] = mapped_column(
@@ -109,6 +117,15 @@ class LineUser(Base):
 
     disabled_by_user = relationship("User", foreign_keys=[ai_disabled_by_user_id])
     """Relationship to the User who disabled AI for this LINE user."""
+
+    @property
+    def effective_display_name(self) -> Optional[str]:
+        """
+        Get the effective display name to show.
+        
+        Returns clinic_display_name if set, otherwise falls back to display_name.
+        """
+        return self.clinic_display_name if self.clinic_display_name else self.display_name
 
     __table_args__ = (
         # TODO: Add composite unique constraint in Phase 3 migration (make_line_users_clinic_id_not_null_phase3.py)

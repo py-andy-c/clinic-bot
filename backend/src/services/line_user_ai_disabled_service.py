@@ -211,9 +211,10 @@ def get_line_users_for_clinic(
     
     # Query: Get all LineUsers for this clinic with patient information
     # Use LEFT JOIN so users without patients still appear (with 0 patient_count)
+    # Use COALESCE to get effective display name (clinic_display_name if set, else display_name)
     base_query = db.query(
         LineUser.line_user_id,
-        LineUser.display_name,
+        func.coalesce(LineUser.clinic_display_name, LineUser.display_name).label('display_name'),
         func.coalesce(func.count(func.distinct(Patient.id)), 0).label('patient_count'),
         func.array_agg(Patient.full_name).label('patient_names'),
         LineUser.ai_disabled.label('ai_disabled'),
@@ -234,9 +235,11 @@ def get_line_users_for_clinic(
     search_pattern = None
     if search and search.strip():
         search_pattern = f"%{search.strip()}%"
-        # Search in LINE user display_name or patient names
+        # Search in LINE user display names (both clinic_display_name and display_name) or patient names
+        # This allows finding users by either their clinic display name or original display name
         base_query = base_query.filter(
             or_(
+                LineUser.clinic_display_name.ilike(search_pattern),
                 LineUser.display_name.ilike(search_pattern),
                 Patient.full_name.ilike(search_pattern)
             )
@@ -245,11 +248,12 @@ def get_line_users_for_clinic(
     base_query = base_query.group_by(
         LineUser.id,
         LineUser.line_user_id,
+        LineUser.clinic_display_name,
         LineUser.display_name,
         LineUser.ai_disabled,
         LineUser.ai_disabled_at
     ).order_by(
-        LineUser.display_name.nulls_last(),
+        func.coalesce(LineUser.clinic_display_name, LineUser.display_name).nulls_last(),
         LineUser.line_user_id
     )
     
@@ -268,6 +272,7 @@ def get_line_users_for_clinic(
             )
         ).filter(
             or_(
+                LineUser.clinic_display_name.ilike(search_pattern),
                 LineUser.display_name.ilike(search_pattern),
                 Patient.full_name.ilike(search_pattern)
             )

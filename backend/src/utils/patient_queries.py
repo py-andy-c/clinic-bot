@@ -103,8 +103,10 @@ def get_active_patients_for_clinic(
         phone_search_pattern = f"%{normalized_search}%" if normalized_search else None
         
         # Build search conditions
+        # Search both clinic_display_name and display_name to allow finding by either
         search_conditions = [
             Patient.full_name.ilike(search_pattern),
+            LineUser.clinic_display_name.ilike(search_pattern),
             LineUser.display_name.ilike(search_pattern)
         ]
         

@@ -366,6 +366,13 @@ export class ApiService {
     await this.client.post(`/clinic/line-users/${lineUserId}/enable-ai`);
   }
 
+  async updateLineUserDisplayName(lineUserId: string, clinicDisplayName: string | null): Promise<LineUserWithStatus> {
+    const response = await this.client.put(`/clinic/line-users/${lineUserId}/display-name`, {
+      clinic_display_name: clinicDisplayName
+    });
+    return response.data;
+  }
+
   async getClinicSettings(): Promise<ClinicSettings> {
     const response = await this.client.get('/clinic/settings');
     return validateClinicSettings(response.data);
