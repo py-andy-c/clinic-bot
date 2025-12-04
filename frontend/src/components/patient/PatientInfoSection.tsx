@@ -6,7 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useApiData } from '../../hooks/useApiData';
 import { apiService } from '../../services/api';
 import { DateInput } from '../shared/DateInput';
-import { formatDateForApi } from '../../utils/dateFormat';
+import { formatDateForApi, convertApiDateToDisplay } from '../../utils/dateFormat';
 import { validateClinicPatientForm } from '../../utils/patientFormValidation';
 
 interface PatientInfoSectionProps {
@@ -55,17 +55,11 @@ export const PatientInfoSection: React.FC<PatientInfoSectionProps> = ({
     }
   }, [clinicSettings]);
 
-  // Convert API date format (YYYY-MM-DD) to display format (YYYY/MM/DD)
-  const convertApiDateToDisplay = (apiDate: string | undefined): string => {
-    if (!apiDate) return '';
-    // API format is YYYY-MM-DD, convert to YYYY/MM/DD
-    return apiDate.replace(/-/g, '/');
-  };
-
   // Update form when patient changes
   useEffect(() => {
     setFullName(patient.full_name);
     setPhoneNumber(patient.phone_number || '');
+    // Convert API format (YYYY-MM-DD) to display format (YYYY/MM/DD) for DateInput
     setBirthday(convertApiDateToDisplay(patient.birthday));
   }, [patient]);
 

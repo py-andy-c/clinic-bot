@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import moment from 'moment-timezone';
 import { logger } from '../../utils/logger';
 import { LoadingSpinner, ErrorMessage, DateInput } from '../../components/shared';
-import { formatDateForApi, formatDateForDisplay } from '../../utils/dateFormat';
+import { formatDateForApi, convertApiDateToDisplay } from '../../utils/dateFormat';
 import { validatePhoneNumber } from '../../utils/phoneValidation';
 import { ApiErrorType, getErrorMessage, AxiosErrorResponse } from '../../types';
 import { useAppointmentStore } from '../../stores/appointmentStore';
@@ -94,7 +95,8 @@ const PatientManagement: React.FC = () => {
     setEditingPatientId(patient.id);
     setEditPatientName(patient.full_name);
     setEditPatientPhone(patient.phone_number);
-    setEditPatientBirthday(formatDateForDisplay(patient.birthday));
+    // Convert API format (YYYY-MM-DD) to display format (YYYY/MM/DD) for DateInput
+    setEditPatientBirthday(convertApiDateToDisplay(patient.birthday));
     setError(null);
   };
 
@@ -296,7 +298,9 @@ const PatientManagement: React.FC = () => {
                       <div className="font-medium text-gray-900">{patient.full_name}</div>
                       <div className="text-sm text-gray-600 mt-1">{patient.phone_number}</div>
                       {patient.birthday && (
-                        <div className="text-sm text-gray-500 mt-1">{t('patient.management.birthday', { date: formatDateForDisplay(patient.birthday) })}</div>
+                        <div className="text-sm text-gray-500 mt-1">
+                          {t('patient.management.birthday', { date: moment(patient.birthday).format('YYYY/MM/DD') })}
+                        </div>
                       )}
                     </div>
                     <div className="flex space-x-2">

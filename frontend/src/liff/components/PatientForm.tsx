@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
 import { NameWarning, DateInput } from '../../components/shared';
 import { validateLiffPatientForm } from '../../utils/patientFormValidation';
-import { formatDateForApi } from '../../utils/dateFormat';
+import { formatDateForApi, convertApiDateToDisplay } from '../../utils/dateFormat';
 import { liffApiService } from '../../services/liffApi';
 
 export interface PatientFormData {
@@ -68,7 +68,10 @@ export const PatientForm: React.FC<PatientFormProps> = ({
     if (initialData) {
       if (initialData.full_name !== undefined) setFullName(initialData.full_name);
       if (initialData.phone_number !== undefined) setPhoneNumber(initialData.phone_number);
-      if (initialData.birthday !== undefined) setBirthday(initialData.birthday);
+      if (initialData.birthday !== undefined) {
+        // Convert API format (YYYY-MM-DD) to display format (YYYY/MM/DD) for DateInput
+        setBirthday(convertApiDateToDisplay(initialData.birthday));
+      }
     }
   }, [initialData]);
 

@@ -21,6 +21,18 @@ export const formatDateForDisplay = (date: string | null | undefined): string =>
 };
 
 /**
+ * Convert date from API format (YYYY-MM-DD) to DateInput display format (YYYY/MM/DD).
+ * This is used when setting initial values for DateInput components.
+ * @param date - Date string in YYYY-MM-DD format, or null/undefined
+ * @returns Date string in YYYY/MM/DD format, or empty string if input is empty
+ */
+export const convertApiDateToDisplay = (date: string | null | undefined): string => {
+  if (!date) return '';
+  // API format is YYYY-MM-DD, convert to YYYY/MM/DD
+  return date.replace(/-/g, '/');
+};
+
+/**
  * Normalize date string to YYYY/MM/DD format.
  * Pads single-digit months/days with zeros (e.g., "2022/1/1" -> "2022/01/01").
  * @param date - Date string in YYYY/MM/DD format (may have single digits)
