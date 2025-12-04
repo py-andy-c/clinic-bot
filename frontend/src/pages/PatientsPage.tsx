@@ -2,7 +2,7 @@ import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LoadingSpinner, ErrorMessage, SearchInput, PaginationControls } from '../components/shared';
 import moment from 'moment-timezone';
-import { apiService } from '../services/api';
+import { apiService, sharedFetchFunctions } from '../services/api';
 import { Patient } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { useApiData } from '../hooks/useApiData';
@@ -12,6 +12,10 @@ import { ClinicSettings } from '../schemas/api';
 import { useDebouncedSearch } from '../utils/searchUtils';
 import { PatientCreationModal } from '../components/PatientCreationModal';
 import { PatientCreationSuccessModal } from '../components/PatientCreationSuccessModal';
+import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
+import { useModal } from '../contexts/ModalContext';
+import { logger } from '../utils/logger';
+import { getErrorMessage } from '../types/api';
 
 const PatientsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -26,6 +30,10 @@ const PatientsPage: React.FC = () => {
   const [createdPatientName, setCreatedPatientName] = useState<string>('');
   const [createdPatientPhone, setCreatedPatientPhone] = useState<string | null>(null);
   const [createdPatientBirthday, setCreatedPatientBirthday] = useState<string | null>(null);
+
+  // Appointment creation modal state
+  const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
+  const [selectedPatientIdForAppointment, setSelectedPatientIdForAppointment] = useState<number | undefined>(undefined);
 
   // Check if user can create patients (admin or practitioner)
   const canCreatePatient = useMemo(() => {
@@ -121,6 +129,22 @@ const PatientsPage: React.FC = () => {
   const requireBirthday = clinicSettings?.clinic_info_settings?.require_birthday || false;
   const hasHandledQueryRef = useRef(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const { alert } = useModal();
+
+  // Fetch practitioners and appointment types for appointment modal
+  // Only fetch when modal is opened to reduce initial load
+  const fetchPractitioners = useCallback(() => sharedFetchFunctions.getPractitioners(), []);
+  const { data: practitionersData } = useApiData(
+    fetchPractitioners,
+    {
+      enabled: !isLoading && isAuthenticated && isAppointmentModalOpen,
+      dependencies: [isLoading, isAuthenticated, isAppointmentModalOpen],
+      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
+    }
+  );
+
+  const practitioners = practitionersData || [];
+  const appointmentTypes = clinicSettings?.appointment_types || [];
 
   // Memoize PageHeader to prevent re-renders when only data changes
   // Must be called before any conditional returns to follow Rules of Hooks
@@ -374,8 +398,9 @@ const PatientsPage: React.FC = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              // Navigate to calendar page with pre-selected patient (client-side navigation)
-                              navigate(`/admin/calendar?createAppointment=${patient.id}`);
+                              // Open appointment modal with pre-selected patient
+                              setSelectedPatientIdForAppointment(patient.id);
+                              setIsAppointmentModalOpen(true);
                             }}
                             className="text-blue-600 hover:text-blue-800 font-medium"
                           >
@@ -422,6 +447,34 @@ const PatientsPage: React.FC = () => {
           patientName={createdPatientName}
           phoneNumber={createdPatientPhone}
           birthday={createdPatientBirthday}
+        />
+      )}
+
+      {/* Create Appointment Modal */}
+      {isAppointmentModalOpen && (
+        <CreateAppointmentModal
+          {...(selectedPatientIdForAppointment !== undefined && { preSelectedPatientId: selectedPatientIdForAppointment })}
+          initialDate={null}
+          practitioners={practitioners}
+          appointmentTypes={appointmentTypes}
+          onClose={() => {
+            setIsAppointmentModalOpen(false);
+            setSelectedPatientIdForAppointment(undefined);
+          }}
+          onConfirm={async (formData) => {
+            try {
+              await apiService.createClinicAppointment(formData);
+              setIsAppointmentModalOpen(false);
+              setSelectedPatientIdForAppointment(undefined);
+              await alert('預約已建立');
+              // Refetch patients list in case any data changed
+              refetch();
+            } catch (error) {
+              logger.error('Error creating appointment:', error);
+              const errorMessage = getErrorMessage(error);
+              throw new Error(errorMessage);
+            }
+          }}
         />
       )}
     </div>
