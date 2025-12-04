@@ -556,6 +556,7 @@ async def list_patients(
                     full_name=p.full_name,
                     phone_number=p.phone_number,
                     birthday=p.birthday,
+                    notes=None,  # Notes are clinic-internal, not exposed to LINE users
                     created_at=p.created_at,
                     future_appointments_count=future_count,
                     max_future_appointments=max_future_appointments
@@ -604,6 +605,7 @@ async def update_patient(
             full_name=patient.full_name,
             phone_number=patient.phone_number,
             birthday=patient.birthday,
+            notes=None,  # Notes are clinic-internal, not exposed to LINE users
             created_at=patient.created_at
         )
 

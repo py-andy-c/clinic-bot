@@ -267,6 +267,7 @@ export class ApiService {
     full_name?: string;
     phone_number?: string | null;
     birthday?: string;
+    notes?: string | null;
   }): Promise<Patient> {
     const response = await this.client.put(`/clinic/patients/${patientId}`, data);
     return response.data;

@@ -10,6 +10,7 @@ import { getErrorMessage } from '../types/api';
 import { useModal } from '../contexts/ModalContext';
 import PageHeader from '../components/PageHeader';
 import { PatientInfoSection } from '../components/patient/PatientInfoSection';
+import { PatientNotesSection } from '../components/patient/PatientNotesSection';
 import { PatientAppointmentsList } from '../components/patient/PatientAppointmentsList';
 import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
 
@@ -19,6 +20,7 @@ const PatientDetailPage: React.FC = () => {
   const { hasRole, isLoading: authLoading, isAuthenticated } = useAuth();
   const { alert } = useModal();
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
 
   const patientId = id ? parseInt(id, 10) : null;
@@ -76,6 +78,7 @@ const PatientDetailPage: React.FC = () => {
     full_name?: string;
     phone_number?: string | null;
     birthday?: string;
+    notes?: string | null;
   }) => {
     if (!patientId) return;
 
@@ -90,6 +93,7 @@ const PatientDetailPage: React.FC = () => {
       invalidateCacheForFunction(fetchPatient);
 
       setIsEditing(false);
+      setIsEditingNotes(false);
       await alert('病患資料已更新');
     } catch (err: any) {
       logger.error('Update patient error:', err);
@@ -162,6 +166,15 @@ const PatientDetailPage: React.FC = () => {
           isEditing={isEditing}
           onEdit={() => setIsEditing(true)}
           onCancel={() => setIsEditing(false)}
+          onUpdate={handleUpdate}
+          canEdit={canEdit}
+        />
+
+        <PatientNotesSection
+          patient={patient}
+          isEditing={isEditingNotes}
+          onEdit={() => setIsEditingNotes(true)}
+          onCancel={() => setIsEditingNotes(false)}
           onUpdate={handleUpdate}
           canEdit={canEdit}
         />

@@ -274,6 +274,7 @@ class PatientService:
         try:
             # Update allowed fields
             # Note: phone_number is already cleaned and validated by PatientUpdateRequest validator
+            # Note: notes are clinic-internal and cannot be updated by LINE users
             if full_name is not None:
                 patient.full_name = full_name.strip()
             if phone_number is not None:
@@ -366,7 +367,8 @@ class PatientService:
         clinic_id: int,
         full_name: Optional[str] = None,
         phone_number: Optional[str] = None,
-        birthday: Optional[date] = None
+        birthday: Optional[date] = None,
+        notes: Optional[str] = None
     ) -> Patient:
         """
         Update a patient record for clinic users.
@@ -378,6 +380,7 @@ class PatientService:
             full_name: Optional new full name
             phone_number: Optional new phone number
             birthday: Optional new birthday
+            notes: Optional new notes
 
         Returns:
             Updated Patient object
@@ -396,6 +399,8 @@ class PatientService:
                 patient.phone_number = phone_number
             if birthday is not None:
                 patient.birthday = birthday
+            if notes is not None:
+                patient.notes = notes
 
             db.commit()
             db.refresh(patient)

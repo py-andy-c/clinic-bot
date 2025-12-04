@@ -7,7 +7,7 @@ and can optionally be linked to a LINE user account for communication and appoin
 management through the LIFF app.
 """
 
-from sqlalchemy import String, ForeignKey, TIMESTAMP, Date, Index
+from sqlalchemy import String, Text, ForeignKey, TIMESTAMP, Date, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime, date
 from typing import Optional
@@ -41,6 +41,9 @@ class Patient(Base):
 
     birthday: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     """Optional birthday of the patient (date only, no time)."""
+
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    """Optional notes/remarks about the patient (備注)."""
 
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     """Timestamp when the patient was first created."""

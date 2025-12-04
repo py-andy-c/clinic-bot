@@ -1325,6 +1325,7 @@ async def get_patients(
                 full_name=patient.full_name,
                 phone_number=patient.phone_number,
                 birthday=patient.birthday,
+                notes=patient.notes,
                 line_user_id=patient.line_user.line_user_id if patient.line_user else None,
                 line_user_display_name=patient.line_user.display_name if patient.line_user else None,
                 created_at=patient.created_at,
@@ -1521,6 +1522,7 @@ class ClinicPatientUpdateRequest(BaseModel):
     full_name: Optional[str] = None
     phone_number: Optional[str] = None
     birthday: Optional[date_type] = None
+    notes: Optional[str] = None
 
     @field_validator('full_name')
     @classmethod
@@ -1568,9 +1570,30 @@ class ClinicPatientUpdateRequest(BaseModel):
                 raise
             raise ValueError('生日格式錯誤，請使用 YYYY-MM-DD 格式') from e
 
+    @field_validator('notes')
+    @classmethod
+    def validate_notes(cls, v: Optional[str]) -> Optional[str]:
+        """Validate notes field if provided."""
+        if v is None:
+            return None
+        # Trim whitespace, allow empty strings
+        v = v.strip() if v else ''
+        # Limit length to prevent abuse (e.g., 5000 characters)
+        if len(v) > 5000:
+            raise ValueError('備注長度過長（最多5000字元）')
+        return v
+
     @model_validator(mode='after')
     def validate_at_least_one_field(self):
         """Ensure at least one field is provided for update."""
+        # Check what fields were actually set (exclude unset fields)
+        provided_fields = self.model_dump(exclude_unset=True)
+        
+        # If notes is in the provided fields (even if empty string), allow the update
+        if 'notes' in provided_fields:
+            return self
+        
+        # Otherwise, require at least one non-None field
         if self.full_name is None and self.phone_number is None and self.birthday is None:
             raise ValueError('至少需提供一個欄位進行更新')
         return self
@@ -1601,6 +1624,7 @@ async def get_patient(
             full_name=patient.full_name,
             phone_number=patient.phone_number,
             birthday=patient.birthday,
+            notes=patient.notes,
             line_user_id=patient.line_user.line_user_id if patient.line_user else None,
             line_user_display_name=patient.line_user.display_name if patient.line_user else None,
             created_at=patient.created_at,
@@ -1640,7 +1664,8 @@ async def update_patient(
             clinic_id=clinic_id,
             full_name=request.full_name,
             phone_number=request.phone_number,
-            birthday=request.birthday
+            birthday=request.birthday,
+            notes=request.notes
         )
 
         return ClinicPatientResponse(
@@ -1648,6 +1673,7 @@ async def update_patient(
             full_name=patient.full_name,
             phone_number=patient.phone_number,
             birthday=patient.birthday,
+            notes=patient.notes,
             line_user_id=patient.line_user.line_user_id if patient.line_user else None,
             line_user_display_name=patient.line_user.display_name if patient.line_user else None,
             created_at=patient.created_at,
