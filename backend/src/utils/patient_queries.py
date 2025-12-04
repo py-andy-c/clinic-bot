@@ -54,10 +54,11 @@ def get_active_patients_for_clinic(
     clinic_id: int,
     page: Optional[int] = None,
     page_size: Optional[int] = None,
-    search: Optional[str] = None
+    search: Optional[str] = None,
+    include_deleted: bool = False
 ) -> tuple[List[Patient], int]:
     """
-    Get all active (non-deleted) patients for a clinic.
+    Get patients for a clinic, optionally including deleted patients.
 
     Uses eager loading for line_user relationship to avoid N+1 queries
     when accessing patient.line_user in the API response.
@@ -68,9 +69,10 @@ def get_active_patients_for_clinic(
         page: Optional page number (1-indexed). If None, returns all patients.
         page_size: Optional items per page. If None, returns all patients.
         search: Optional search query to filter patients by name, phone, or LINE user display name.
+        include_deleted: If True, include soft-deleted patients. Defaults to False.
 
     Returns:
-        Tuple of (List of active Patient objects with line_user relationship eagerly loaded, total count)
+        Tuple of (List of Patient objects with line_user relationship eagerly loaded, total count)
     """
     from sqlalchemy.orm import joinedload
     from sqlalchemy import or_
@@ -83,7 +85,12 @@ def get_active_patients_for_clinic(
     ).filter(
         Patient.clinic_id == clinic_id
     )
-    query = filter_active_patients(base_query)
+    
+    # Apply soft delete filter unless including deleted patients
+    if not include_deleted:
+        query = filter_active_patients(base_query)
+    else:
+        query = base_query
     
     # Apply search filter if provided
     if search and search.strip():
