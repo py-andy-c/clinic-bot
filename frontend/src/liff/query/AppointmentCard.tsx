@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatDateTime } from '../../utils/calendarUtils';
+import { getStatusBadgeColor } from '../../utils/appointmentStatus';
 
 interface Appointment {
   id: number;
@@ -23,16 +24,8 @@ interface AppointmentCardProps {
 const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel, onReschedule }) => {
   const { t } = useTranslation();
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return 'bg-green-100 text-green-800';
-      case 'canceled_by_patient':
-      case 'canceled_by_clinic':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+  const getStatusColor = (status: string): string | null => {
+    return getStatusBadgeColor(status);
   };
 
   const getStatusText = (status: string) => {
@@ -55,14 +48,16 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-      <div className="flex justify-between items-start mb-3">
-        <div>
+      <div className="flex justify-between items-start mb-3 gap-2">
+        <div className="flex-1 min-w-0">
           <h3 className="font-medium text-gray-900">{appointment.patient_name}</h3>
           <p className="text-sm text-gray-600">{appointment.appointment_type_name}</p>
         </div>
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(appointment.status)}`}>
-          {getStatusText(appointment.status)}
-        </span>
+        {getStatusColor(appointment.status) && (
+          <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0 ${getStatusColor(appointment.status)}`}>
+            {getStatusText(appointment.status)}
+          </span>
+        )}
       </div>
 
       <div className="space-y-2 mb-4">

@@ -258,6 +258,44 @@ export class ApiService {
     return response.data;
   }
 
+  async getPatient(patientId: number): Promise<Patient> {
+    const response = await this.client.get(`/clinic/patients/${patientId}`);
+    return response.data;
+  }
+
+  async updatePatient(patientId: number, data: {
+    full_name?: string;
+    phone_number?: string | null;
+    birthday?: string;
+  }): Promise<Patient> {
+    const response = await this.client.put(`/clinic/patients/${patientId}`, data);
+    return response.data;
+  }
+
+  async getPatientAppointments(
+    patientId: number,
+    status?: 'confirmed' | 'canceled_by_patient' | 'canceled_by_clinic',
+    upcomingOnly?: boolean
+  ): Promise<{
+    appointments: Array<{
+      id: number;
+      patient_id: number;
+      patient_name: string;
+      practitioner_name: string;
+      appointment_type_name: string;
+      start_time: string;
+      end_time: string;
+      status: string;
+      notes?: string | null;
+    }>;
+  }> {
+    const params: Record<string, string> = {};
+    if (status) params.status = status;
+    if (upcomingOnly !== undefined) params.upcoming_only = upcomingOnly.toString();
+    const response = await this.client.get(`/clinic/patients/${patientId}/appointments`, { params });
+    return response.data;
+  }
+
   async createPatient(data: {
     full_name: string;
     phone_number?: string | null;

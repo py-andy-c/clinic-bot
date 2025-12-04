@@ -127,11 +127,11 @@ export const formatAppointmentTime = (start: Date, end: Date): string => {
   if (!Array.isArray(weekdayAbbr) || weekdayAbbr.length !== 7) {
     logger.warn('Invalid weekday abbreviations, using fallback');
     const weekday = WEEKDAY_NAMES_ZH_TW[startMoment.day()] || '';
-    const dateStr = `${startMoment.format('MM/DD')} (${weekday})`;
+    const dateStr = `${startMoment.format('MM/DD')}(${weekday})`;
     return `${dateStr} ${startMoment.format('h:mm A')} - ${endMoment.format('h:mm A')}`;
   }
   const weekday = weekdayAbbr[startMoment.day()] || '';
-  const dateStr = `${startMoment.format('MM/DD')} (${weekday})`;
+  const dateStr = `${startMoment.format('MM/DD')}(${weekday})`;
   return `${dateStr} ${startMoment.format('h:mm A')} - ${endMoment.format('h:mm A')}`;
 };
 

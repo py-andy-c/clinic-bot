@@ -4,14 +4,16 @@
 A dedicated page for viewing and editing patient information, along with viewing their appointment history (future, completed, and cancelled).
 
 ## User Flow
-1. User clicks on a patient row in the Patients list page (`/admin/clinic/patients`)
+1. User clicks on a patient name in the Patients list page (`/admin/clinic/patients`)
 2. Navigate to patient detail page (`/admin/clinic/patients/:id`)
 3. View patient information and appointments
-4. Edit patient information (if permitted)
+4. Click "Edit" button to toggle edit mode
+5. Edit patient information (if permitted)
 
 ## Features
 
 ### Patient Information Section
+- **Page header:** Patient's full name
 - **Display fields:**
   - Full name
   - Phone number
@@ -19,10 +21,16 @@ A dedicated page for viewing and editing patient information, along with viewing
   - LINE user link (if linked)
   - Created date
 - **Edit capability:**
-  - Inline edit form (similar to existing patient creation modal)
+  - "Edit" button to toggle edit mode
+  - Inline edit form (edit directly on the page, not in a modal)
   - Editable fields: `full_name`, `phone_number`, `birthday`
-  - Save/Cancel buttons
+  - Save/Cancel buttons (shown in edit mode)
   - Validation (same as patient creation)
+- **Soft-deleted patients:**
+  - **Detail page:** Display warning banner: "此病患已自行刪除帳號。病患無法自行預約，但診所仍可查看、編輯此病患資料，並為其安排預約。"
+  - **List page:** Warning icon (⚠️) with tooltip next to patient name (tooltip shows full message)
+  - Clinic can still view, edit, and schedule appointments for soft-deleted patients
+  - LINE user will receive notifications for appointments scheduled by clinic
 
 ### Appointments Section
 - **Three tabs/sections:**
@@ -34,8 +42,9 @@ A dedicated page for viewing and editing patient information, along with viewing
   - Practitioner name
   - Appointment type
   - Status badge
-  - Notes (if any)
-  - Clickable to view/edit appointment (if permitted)
+  - Notes (patient-provided notes shown for future appointments only)
+  - Display-only (not clickable, not editable)
+- **No pagination** - Show all appointments
 
 ## Technical Design
 
@@ -69,6 +78,11 @@ A dedicated page for viewing and editing patient information, along with viewing
 - Returns patient details
 - Access: All clinic members (read-only users can view)
 - Response: `ClinicPatientResponse` (same as list endpoint)
+- Includes `is_deleted` flag to indicate if patient was soft-deleted by LINE user
+
+**GET /clinic/patients** (existing endpoint)
+- Response should include `is_deleted` flag in `ClinicPatientResponse` for each patient
+- Used to display warning indicator in patient list
 
 **PUT /clinic/patients/:id**
 - Updates patient information
@@ -84,6 +98,7 @@ A dedicated page for viewing and editing patient information, along with viewing
   - `upcoming_only`: Boolean (true = future appointments only)
 - Response: `AppointmentListResponse` (reuse existing structure)
 - Order: Most recent first
+- No pagination - returns all matching appointments
 
 #### Service Layer
 - Extend `PatientService` with:
@@ -96,7 +111,7 @@ A dedicated page for viewing and editing patient information, along with viewing
 - **View patient details:** All clinic members (admin, practitioner, read-only)
 - **Edit patient information:** Admin and Practitioner only
 - **View appointments:** All clinic members
-- **Edit appointments:** Same as existing appointment edit permissions
+- **Edit appointments:** Not allowed on patient detail page (appointments are display-only)
 
 ## UI/UX Considerations
 - Back button to return to patients list
@@ -106,9 +121,13 @@ A dedicated page for viewing and editing patient information, along with viewing
 - Responsive design (mobile-friendly)
 - Consistent styling with existing pages
 
-## Open Questions
-1. Should appointments be paginated? (Recommend: Yes, if > 50)
-2. Should cancelled appointments show cancellation reason/note?
-3. Should we show appointment count badges on tabs?
-4. Should patient edit form be inline or modal? (Recommend: Inline for better UX)
+## Decisions
+- **Navigation:** Click patient name in list to navigate to detail page
+- **Edit mode:** "Edit" button toggles edit mode
+- **Appointments:** Show all appointments (no pagination), display-only (not clickable)
+- **Page header:** Patient's full name
+- **Patient notes:** Display patient-provided notes for future appointments only
+- **Cancellation notes:** Do not display cancellation reason/note for cancelled appointments
+- **Edit form:** Inline editing (not modal)
+- **Soft-deleted patients:** Warning icon with tooltip on list page, warning banner on detail page. Clinic can still view/edit/schedule appointments
 

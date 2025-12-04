@@ -63,6 +63,7 @@ const SystemClinicsPage: React.FC = () => {
   } = useApiData<ClinicDetailsData>(fetchClinicDetails, {
     enabled: !!id,
     dependencies: [id],
+    // Cache key now includes clinic id via dependencies, so caching is safe
   });
 
   const selectedClinic = clinicDetails?.clinic ?? null;

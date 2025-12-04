@@ -317,13 +317,28 @@ const PatientsPage: React.FC = () => {
                       <tr 
                         key={patient.id} 
                         data-patient-id={patient.id}
-                        className={`group hover:bg-gray-50 transition-colors ${
+                        onClick={() => navigate(`/admin/clinic/patients/${patient.id}`)}
+                        className={`group hover:bg-gray-50 transition-colors cursor-pointer ${
                           highlightedPatientId === patient.id.toString() ? 'bg-blue-50' : ''
                         }`}
                       >
-                        <td className="px-6 py-4 whitespace-nowrap sticky left-0 z-10 bg-white group-hover:bg-gray-50">
-                          <div className="text-sm font-medium text-gray-900">
-                            {patient.full_name}
+                        <td className={`px-6 py-4 whitespace-nowrap sticky left-0 z-10 transition-colors ${
+                          highlightedPatientId === patient.id.toString()
+                            ? 'bg-blue-50 group-hover:bg-blue-50'
+                            : 'bg-white group-hover:bg-gray-50'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-blue-600 hover:text-blue-800">
+                              {patient.full_name}
+                            </span>
+                            {patient.is_deleted && (
+                              <span
+                                className="text-amber-500"
+                                title="此病患已自行刪除帳號。病患無法自行預約，但診所仍可查看、編輯此病患資料，並為其安排預約。"
+                              >
+                                ⚠️
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -337,7 +352,8 @@ const PatientsPage: React.FC = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           {patient.line_user_id ? (
                             <button
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 const lineUserId = patient.line_user_id;
                                 if (lineUserId) {
                                   navigate(`/admin/clinic/line-users?lineUserId=${encodeURIComponent(lineUserId)}`);
@@ -356,7 +372,8 @@ const PatientsPage: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               // Navigate to calendar page with pre-selected patient (client-side navigation)
                               navigate(`/admin/calendar?createAppointment=${patient.id}`);
                             }}

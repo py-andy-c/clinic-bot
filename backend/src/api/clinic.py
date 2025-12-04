@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, date as date_type, time
 from typing import Dict, List, Optional, Any, Union
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import status as http_status
 from pydantic import BaseModel, model_validator, field_validator
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, cast, String
@@ -45,7 +46,7 @@ from api.responses import (
     AppointmentTypeDeletionErrorResponse, AppointmentTypeReference,
     MemberResponse, MemberListResponse,
     AvailableSlotsResponse, AvailableSlotResponse, ConflictWarningResponse, ConflictDetail,
-    PatientCreateResponse
+    PatientCreateResponse, AppointmentListResponse, AppointmentListItem
 )
 
 router = APIRouter()
@@ -236,7 +237,7 @@ async def list_members(
     except Exception as e:
         logger.exception(f"Error getting members list: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得成員列表"
         )
 
@@ -290,7 +291,7 @@ async def list_practitioners(
     except Exception as e:
         logger.exception(f"Error getting practitioners list: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得治療師列表"
         )
 
@@ -348,7 +349,7 @@ async def invite_member(
         logger.exception(f"Error inviting member: {e}")
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法產生邀請"
         )
 
@@ -443,7 +444,7 @@ async def update_member_roles(
         logger.exception(f"Error updating member roles for user {user_id}: {e}")
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法更新成員角色"
         )
 
@@ -516,7 +517,7 @@ async def remove_member(
         logger.exception(f"Error removing member {user_id}: {e}")
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法停用成員"
         )
 
@@ -573,7 +574,7 @@ async def reactivate_member(
         logger.exception(f"Error reactivating member {user_id}: {e}")
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法重新啟用成員"
         )
 
@@ -652,7 +653,7 @@ async def get_settings(
     except Exception as e:
         logger.exception(f"Error getting clinic settings: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得設定"
         )
 
@@ -772,7 +773,7 @@ async def validate_appointment_type_deletion(
     except Exception as e:
         logger.exception(f"Error validating appointment type deletion: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="驗證刪除失敗"
         )
 
@@ -987,7 +988,7 @@ async def update_settings(
         logger.exception(f"Error updating clinic settings: {e}")
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法更新設定"
         )
 
@@ -1041,7 +1042,7 @@ async def regenerate_liff_token(
         if not new_token:
             db.rollback()
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="無法產生新的 token，請稍後再試"
             )
         
@@ -1068,7 +1069,7 @@ async def regenerate_liff_token(
         db.rollback()
         logger.exception(f"Failed to regenerate LIFF token for clinic: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法重新產生 token"
         )
 
@@ -1132,7 +1133,7 @@ async def generate_reminder_preview(
     except Exception as e:
         logger.exception(f"Error generating reminder preview: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法產生預覽訊息"
         )
 
@@ -1183,7 +1184,7 @@ async def generate_cancellation_preview(
     except Exception as e:
         logger.exception(f"Error generating cancellation preview: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法產生取消預覽訊息"
         )
 
@@ -1268,7 +1269,7 @@ async def test_chatbot(
     except Exception as e:
         logger.exception(f"Error testing chatbot: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法處理測試訊息"
         )
 
@@ -1326,7 +1327,8 @@ async def get_patients(
                 birthday=patient.birthday,
                 line_user_id=patient.line_user.line_user_id if patient.line_user else None,
                 line_user_display_name=patient.line_user.display_name if patient.line_user else None,
-                created_at=patient.created_at
+                created_at=patient.created_at,
+                is_deleted=patient.is_deleted
             )
             for patient in patients
         ]
@@ -1352,7 +1354,7 @@ async def get_patients(
     except Exception as e:
         logger.exception(f"Error getting patients list: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得病患列表"
         )
 
@@ -1471,7 +1473,7 @@ async def create_patient(
         logger.exception(f"Patient creation error: {e}")
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="建立病患失敗"
         )
 
@@ -1509,8 +1511,206 @@ async def check_duplicate_patient_name(
     except Exception as e:
         logger.exception(f"Error checking duplicate patient name: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="檢查重複病患名稱時發生錯誤"
+        )
+
+
+class ClinicPatientUpdateRequest(BaseModel):
+    """Request model for updating patient by clinic users."""
+    full_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    birthday: Optional[date_type] = None
+
+    @field_validator('full_name')
+    @classmethod
+    def validate_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v = v.strip()
+        if not v:
+            raise ValueError('姓名不能為空')
+        if len(v) > 255:
+            raise ValueError('姓名長度過長')
+        if '<' in v or '>' in v:
+            raise ValueError('姓名包含無效字元')
+        return v
+
+    @field_validator('phone_number')
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        """Validate phone number if provided, allow None or empty string."""
+        return validate_taiwanese_phone_optional(v)
+
+    @field_validator('birthday', mode='before')
+    @classmethod
+    def validate_birthday(cls, v: Union[str, date_type, None]) -> Optional[date_type]:
+        """Validate birthday format (YYYY-MM-DD) and reasonable range."""
+        if v is None:
+            return None
+        if isinstance(v, date_type):
+            today = taiwan_now().date()
+            if v > today:
+                raise ValueError('生日不能是未來日期')
+            if (today - v).days > 150 * 365:
+                raise ValueError('生日日期不合理')
+            return v
+        try:
+            parsed_date = parse_date_string(v)
+            today = taiwan_now().date()
+            if parsed_date > today:
+                raise ValueError('生日不能是未來日期')
+            if (today - parsed_date).days > 150 * 365:
+                raise ValueError('生日日期不合理')
+            return parsed_date
+        except ValueError as e:
+            if '生日' in str(e) or 'date' in str(e).lower():
+                raise
+            raise ValueError('生日格式錯誤，請使用 YYYY-MM-DD 格式') from e
+
+    @model_validator(mode='after')
+    def validate_at_least_one_field(self):
+        """Ensure at least one field is provided for update."""
+        if self.full_name is None and self.phone_number is None and self.birthday is None:
+            raise ValueError('至少需提供一個欄位進行更新')
+        return self
+
+
+@router.get("/patients/{patient_id}", summary="Get patient details", response_model=ClinicPatientResponse)
+async def get_patient(
+    patient_id: int,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> ClinicPatientResponse:
+    """
+    Get patient details by ID.
+
+    Available to all clinic members (including read-only users).
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+
+        patient = PatientService.get_patient_by_id(
+            db=db,
+            patient_id=patient_id,
+            clinic_id=clinic_id
+        )
+
+        return ClinicPatientResponse(
+            id=patient.id,
+            full_name=patient.full_name,
+            phone_number=patient.phone_number,
+            birthday=patient.birthday,
+            line_user_id=patient.line_user.line_user_id if patient.line_user else None,
+            line_user_display_name=patient.line_user.display_name if patient.line_user else None,
+            created_at=patient.created_at,
+            is_deleted=patient.is_deleted
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting patient {patient_id}: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得病患資料"
+        )
+
+
+@router.put("/patients/{patient_id}", summary="Update patient information", response_model=ClinicPatientResponse)
+async def update_patient(
+    patient_id: int,
+    request: ClinicPatientUpdateRequest,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+) -> ClinicPatientResponse:
+    """
+    Update patient information.
+
+    Available to clinic admins and practitioners only.
+    Read-only users cannot update patients.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+
+        # Note: require_practitioner_or_admin dependency already excludes read-only users
+        patient = PatientService.update_patient_for_clinic(
+            db=db,
+            patient_id=patient_id,
+            clinic_id=clinic_id,
+            full_name=request.full_name,
+            phone_number=request.phone_number,
+            birthday=request.birthday
+        )
+
+        return ClinicPatientResponse(
+            id=patient.id,
+            full_name=patient.full_name,
+            phone_number=patient.phone_number,
+            birthday=patient.birthday,
+            line_user_id=patient.line_user.line_user_id if patient.line_user else None,
+            line_user_display_name=patient.line_user.display_name if patient.line_user else None,
+            created_at=patient.created_at,
+            is_deleted=patient.is_deleted
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error updating patient {patient_id}: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="更新病患資料失敗"
+        )
+
+
+@router.get("/patients/{patient_id}/appointments", summary="Get patient appointments", response_model=AppointmentListResponse)
+async def get_patient_appointments(
+    patient_id: int,
+    status: Optional[str] = Query(None, description="Filter by status: confirmed, canceled_by_patient, canceled_by_clinic"),
+    upcoming_only: bool = Query(False, description="Filter for upcoming appointments only"),
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> AppointmentListResponse:
+    """
+    Get appointments for a specific patient.
+
+    Available to all clinic members (including read-only users).
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+
+        # Validate status if provided
+        if status and status not in ['confirmed', 'canceled_by_patient', 'canceled_by_clinic']:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,  # Use http_status to avoid shadowing parameter
+                detail="無效的狀態值"
+            )
+
+        appointments_data = AppointmentService.list_appointments_for_patient(
+            db=db,
+            patient_id=patient_id,
+            clinic_id=clinic_id,
+            status=status,
+            upcoming_only=upcoming_only
+        )
+
+        # Convert dicts to response objects
+        appointments = [
+            AppointmentListItem(**appointment)
+            for appointment in appointments_data
+        ]
+
+        return AppointmentListResponse(appointments=appointments)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting appointments for patient {patient_id}: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,  # Use http_status to avoid shadowing parameter
+            detail="無法取得預約記錄"
         )
 
 
@@ -1589,7 +1789,7 @@ async def cancel_clinic_appointment(
         logger.exception(f"Failed to cancel appointment {appointment_id}: {e}")
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="取消預約失敗"
         )
 
@@ -1690,7 +1890,7 @@ async def create_clinic_appointment(
         logger.exception(f"Failed to create appointment: {e}")
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="建立預約失敗"
         )
 
@@ -1803,7 +2003,7 @@ async def preview_edit_notification(
     except Exception as e:
         logger.exception(f"Failed to preview edit notification: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="預覽失敗"
         )
 
@@ -1888,7 +2088,7 @@ async def edit_clinic_appointment(
         logger.exception(f"Failed to edit appointment: {e}")
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="編輯預約失敗"
         )
 
@@ -1939,7 +2139,7 @@ async def get_practitioner_appointment_types(
     except Exception as e:
         logger.exception(f"Failed to get practitioner appointment types for user {user_id}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="獲取治療師預約類型失敗"
         )
 
@@ -2004,7 +2204,7 @@ async def update_practitioner_appointment_types(
             return {"success": True, "message": "治療師預約類型已更新"}
         else:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="更新治療師預約類型失敗"
             )
 
@@ -2014,7 +2214,7 @@ async def update_practitioner_appointment_types(
         logger.exception(f"Failed to update practitioner appointment types for user {user_id}: {e}")
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="更新治療師預約類型失敗"
         )
 
@@ -2087,7 +2287,7 @@ async def get_practitioner_status(
     except Exception as e:
         logger.exception(f"Failed to get practitioner status for user {user_id}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="獲取治療師狀態失敗"
         )
 
@@ -2193,7 +2393,7 @@ async def get_batch_practitioner_status(
             f"practitioner_ids={request.practitioner_ids}, clinic_id={clinic_id}, error={e}"
         )
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="獲取治療師狀態失敗"
         )
 
@@ -2490,7 +2690,7 @@ async def get_default_schedule(
     except Exception as e:
         logger.exception(f"Failed to fetch default schedule for user {user_id}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得預設排程"
         )
 
@@ -2606,7 +2806,7 @@ async def update_default_schedule(
         db.rollback()
         logger.exception(f"Failed to update default schedule for user {user_id}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法更新預設排程"
         )
 
@@ -2793,7 +2993,7 @@ async def get_calendar_data(
     except Exception as e:
         logger.exception(f"Failed to fetch calendar data for user {user_id}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得行事曆資料"
         )
 
@@ -2974,7 +3174,7 @@ async def get_batch_calendar(
     except Exception as e:
         logger.exception(f"Failed to fetch batch calendar data: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得行事曆資料"
         )
 
@@ -3039,7 +3239,7 @@ async def get_available_slots(
     except Exception as e:
         logger.exception(f"Failed to fetch available slots for user {user_id}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得可用時段"
         )
 
@@ -3125,7 +3325,7 @@ async def get_available_slots_batch(
             f"exclude_calendar_event_id={request.exclude_calendar_event_id}, error={e}"
         )
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得可用時段"
         )
 
@@ -3245,7 +3445,7 @@ async def create_availability_exception(
         db.rollback()
         logger.exception(f"Failed to create availability exception for user {user_id}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法建立可用時間例外"
         )
 
@@ -3300,7 +3500,7 @@ async def delete_availability_exception(
         db.rollback()
         logger.exception(f"Failed to delete availability exception {exception_id} for user {user_id}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法刪除可用時間例外"
         )
 
@@ -3448,7 +3648,7 @@ async def get_line_users(
     except Exception as e:
         logger.exception(f"Error getting LINE users list: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得LINE使用者列表"
         )
 
@@ -3508,7 +3708,7 @@ async def disable_ai_for_line_user_endpoint(
     except Exception as e:
         logger.exception(f"Error disabling AI for line_user_id={line_user_id}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法停用AI"
         )
 
@@ -3564,7 +3764,7 @@ async def enable_ai_for_line_user_endpoint(
     except Exception as e:
         logger.exception(f"Error enabling AI for line_user_id={line_user_id}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法啟用AI"
         )
 
@@ -3705,6 +3905,6 @@ async def list_auto_assigned_appointments(
     except Exception as e:
         logger.exception(f"Error listing auto-assigned appointments: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得待審核預約列表"
         )

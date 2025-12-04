@@ -40,7 +40,7 @@
  * - Debouncing/throttling
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, DependencyList } from 'react';
 import { logger } from '../utils/logger';
 import { ApiErrorType, getErrorMessage } from '../types';
 
@@ -117,7 +117,7 @@ function simpleHash(str: string): string {
   return Math.abs(hash).toString(36);
 }
 
-function getCacheKey(fetchFn: () => Promise<any>): string {
+function getCacheKey(fetchFn: () => Promise<any>, dependencies?: DependencyList): string {
   // Normalize function string to extract method name
   // This handles minification differences (e.g., xe.getClinicSettings() vs j.getClinicSettings())
   const functionString = fetchFn.toString();
@@ -132,38 +132,81 @@ function getCacheKey(fetchFn: () => Promise<any>): string {
     // Extract parameters to include in cache key
     const params = extractParameters(functionString);
     
+    // Include dependencies in cache key if provided (for parameterized functions)
+    // This ensures different IDs get different cache keys
+    let dependencySuffix = '';
+    if (dependencies && dependencies.length > 0) {
+      // Create a stable string representation of dependencies
+      // Filter out undefined/null and create a hash for complex objects
+      const depValues = dependencies
+        .filter(dep => dep !== undefined && dep !== null)
+        .map(dep => {
+          if (Array.isArray(dep)) {
+            // For arrays, sort elements for consistent cache keys
+            // Handle arrays of primitives and objects
+            try {
+              const sorted = [...dep].sort((a, b) => {
+                if (typeof a === 'number' && typeof b === 'number') return a - b;
+                if (typeof a === 'string' && typeof b === 'string') return a.localeCompare(b);
+                return String(a).localeCompare(String(b));
+              });
+              return JSON.stringify(sorted);
+            } catch {
+              return JSON.stringify(dep);
+            }
+          } else if (typeof dep === 'object' && dep !== null) {
+            // For objects, use JSON stringify (sorted keys for consistency)
+            try {
+              return JSON.stringify(dep, Object.keys(dep).sort());
+            } catch {
+              return String(dep);
+            }
+          }
+          return String(dep);
+        })
+        .join('|');
+
+      if (depValues) {
+        dependencySuffix = depValues.length > 50 ? `_${simpleHash(depValues)}` : `_${depValues}`;
+      }
+    }
+
     if (params) {
-      // Parameterized function - include parameters in cache key
+      // Parameterized function - include parameters and dependencies in cache key
       // Use hash for long parameter strings to keep keys manageable
       const paramHash = params.length > 50 ? simpleHash(params) : params;
-      const normalizedKey = `api_${methodName}_${paramHash}`;
-      
+      const normalizedKey = `api_${methodName}_${paramHash}${dependencySuffix}`;
+
       if (functionStringToKeyMap.has(normalizedKey)) {
         return functionStringToKeyMap.get(normalizedKey)!;
       }
-      
+
       functionStringToKeyMap.set(normalizedKey, normalizedKey);
       return normalizedKey;
     } else {
-      // Non-parameterized function - use method name only
-      const normalizedKey = `api_${methodName}`;
-      
+      // Non-parameterized function - use method name and dependencies
+      const normalizedKey = `api_${methodName}${dependencySuffix}`;
+
       if (functionStringToKeyMap.has(normalizedKey)) {
         return functionStringToKeyMap.get(normalizedKey)!;
       }
-      
+
       functionStringToKeyMap.set(normalizedKey, normalizedKey);
       return normalizedKey;
     }
   }
-  
-  // Fallback for non-standard functions - use full function string for uniqueness
-  if (functionStringToKeyMap.has(functionString)) {
-    return functionStringToKeyMap.get(functionString)!;
+
+  // Fallback for non-standard functions - use full function string and dependencies for uniqueness
+  const fallbackKey = dependencies && dependencies.length > 0
+    ? `${functionString}_${dependencies.filter(d => d !== undefined && d !== null).join('|')}`
+    : functionString;
+
+  if (functionStringToKeyMap.has(fallbackKey)) {
+    return functionStringToKeyMap.get(fallbackKey)!;
   }
-  
-  const key = `fn_${cacheKeyCounter++}_${functionString.slice(0, 50)}`;
-  functionStringToKeyMap.set(functionString, key);
+
+  const key = `fn_${cacheKeyCounter++}_${fallbackKey.slice(0, 50)}`;
+  functionStringToKeyMap.set(fallbackKey, key);
   return key;
 }
 
@@ -223,7 +266,7 @@ export interface UseApiDataOptions<T> {
    * Dependencies array - refetch when these values change.
    * Similar to useEffect dependencies.
    */
-  dependencies?: React.DependencyList;
+  dependencies?: DependencyList;
 
   /**
    * Initial data value before first fetch completes.
@@ -347,7 +390,8 @@ export function useApiData<T>(
 
     // Check in-flight requests first to prevent race conditions
     // Compute cache key synchronously to ensure we use the latest key
-    const cacheKey = getCacheKey(fetchFn);
+    // Include dependencies in cache key to differentiate between different parameter values
+    const cacheKey = getCacheKey(fetchFn, dependencies);
     if (cacheKey && inFlightRequests.has(cacheKey)) {
       try {
         const result = await inFlightRequests.get(cacheKey)!;

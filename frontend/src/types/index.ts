@@ -120,6 +120,7 @@ export interface Patient {
   created_at: string;
   line_user_id?: string;
   line_user_display_name?: string;
+  is_deleted?: boolean; // Indicates if patient was soft-deleted by LINE user
 }
 
 // LINE User types

@@ -166,21 +166,52 @@ def parse_datetime_to_taiwan(v: str | datetime) -> datetime:
 
 def parse_date_string(date_str: str) -> date:
     """
-    Parse a date string in YYYY-MM-DD format.
-    
+    Parse a date string in YYYY-MM-DD or YYYY/MM/DD format.
+
+    Accepts both formats:
+    - YYYY-MM-DD (e.g., "2022-01-01", "2022-1-1")
+    - YYYY/MM/DD (e.g., "2022/01/01", "2022/1/1")
+
+    Automatically normalizes single-digit months/days.
+
     Args:
-        date_str: Date string in YYYY-MM-DD format
-        
+        date_str: Date string in YYYY-MM-DD or YYYY/MM/DD format
+
     Returns:
         Date object
-        
+
     Raises:
         ValueError: If date string cannot be parsed
     """
+    if not date_str or not date_str.strip():
+        raise ValueError("Date string cannot be empty")
+
+    date_str = date_str.strip()
+
+    # Normalize separators and pad single-digit months/days
+    # Try to detect separator (either - or /)
+    if '/' in date_str:
+        parts = date_str.split('/')
+    elif '-' in date_str:
+        parts = date_str.split('-')
+    else:
+        raise ValueError(f"Invalid date format (expected YYYY-MM-DD or YYYY/MM/DD): {date_str}")
+
+    if len(parts) != 3:
+        raise ValueError(f"Invalid date format (expected YYYY-MM-DD or YYYY/MM/DD): {date_str}")
+
+    # Pad year, month, day to ensure proper format
+    year = parts[0].zfill(4)  # Ensure 4 digits
+    month = parts[1].zfill(2)  # Ensure 2 digits
+    day = parts[2].zfill(2)    # Ensure 2 digits
+
+    # Normalize to YYYY-MM-DD format for parsing
+    normalized = f"{year}-{month}-{day}"
+
     try:
-        return datetime.strptime(date_str, '%Y-%m-%d').date()
+        return datetime.strptime(normalized, '%Y-%m-%d').date()
     except ValueError as e:
-        raise ValueError(f"Invalid date format (expected YYYY-MM-DD): {date_str}") from e
+        raise ValueError(f"Invalid date format (expected YYYY-MM-DD or YYYY/MM/DD): {date_str}") from e
 
 
 def datetime_validator(field_name: str = 'start_time'):

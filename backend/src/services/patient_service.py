@@ -326,3 +326,90 @@ class PatientService:
         
         return count
 
+    @staticmethod
+    def get_patient_by_id(
+        db: Session,
+        patient_id: int,
+        clinic_id: int
+    ) -> Patient:
+        """
+        Get a patient by ID for a clinic.
+
+        Args:
+            db: Database session
+            patient_id: Patient ID
+            clinic_id: Clinic ID
+
+        Returns:
+            Patient object
+
+        Raises:
+            HTTPException: If patient not found or doesn't belong to clinic
+        """
+        patient = db.query(Patient).filter(
+            Patient.id == patient_id,
+            Patient.clinic_id == clinic_id
+        ).first()
+
+        if not patient:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="病患不存在"
+            )
+
+        return patient
+
+    @staticmethod
+    def update_patient_for_clinic(
+        db: Session,
+        patient_id: int,
+        clinic_id: int,
+        full_name: Optional[str] = None,
+        phone_number: Optional[str] = None,
+        birthday: Optional[date] = None
+    ) -> Patient:
+        """
+        Update a patient record for clinic users.
+
+        Args:
+            db: Database session
+            patient_id: Patient ID to update
+            clinic_id: Clinic ID
+            full_name: Optional new full name
+            phone_number: Optional new phone number
+            birthday: Optional new birthday
+
+        Returns:
+            Updated Patient object
+
+        Raises:
+            HTTPException: If patient not found, access denied, or update fails
+        """
+        # Get patient
+        patient = PatientService.get_patient_by_id(db, patient_id, clinic_id)
+
+        try:
+            # Update allowed fields
+            if full_name is not None:
+                patient.full_name = full_name.strip()
+            if phone_number is not None:
+                patient.phone_number = phone_number
+            if birthday is not None:
+                patient.birthday = birthday
+
+            db.commit()
+            db.refresh(patient)
+
+            logger.info(f"Updated patient {patient_id} for clinic {clinic_id}")
+            return patient
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"Failed to update patient {patient_id}: {e}")
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="更新病患資料失敗"
+            )
+

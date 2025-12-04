@@ -116,6 +116,7 @@ class ClinicPatientResponse(PatientResponse):
     """Response model for patient information in clinic context (includes line_user_id and display_name)."""
     line_user_id: Optional[str]
     line_user_display_name: Optional[str]
+    is_deleted: Optional[bool] = False  # Indicates if patient was soft-deleted by LINE user
     # birthday is inherited from PatientResponse
 
 

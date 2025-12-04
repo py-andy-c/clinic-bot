@@ -17,6 +17,7 @@ const ClinicLayout = lazy(() => import('./components/ClinicLayout'));
 const SystemClinicsPage = lazy(() => import('./pages/SystemClinicsPage'));
 const MembersPage = lazy(() => import('./pages/MembersPage'));
 const PatientsPage = lazy(() => import('./pages/PatientsPage'));
+const PatientDetailPage = lazy(() => import('./pages/PatientDetailPage'));
 const LineUsersPage = lazy(() => import('./pages/LineUsersPage'));
 const AutoAssignedAppointmentsPage = lazy(() => import('./pages/AutoAssignedAppointmentsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
@@ -97,6 +98,7 @@ const AdminRoutes: React.FC = () => {
           <Route path="/" element={<Navigate to={getDefaultRoute()} replace />} />
           <Route path="clinic/members" element={<MembersPage />} />
           <Route path="clinic/patients" element={<PatientsPage />} />
+          <Route path="clinic/patients/:id" element={<PatientDetailPage />} />
           <Route path="clinic/line-users" element={<LineUsersPage />} />
           <Route path="clinic/pending-review-appointments" element={<AutoAssignedAppointmentsPage />} />
           <Route path="clinic/settings" element={<SettingsPage />} />

@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, time
 from typing import List, Optional, Dict, Any, Tuple
 
 from fastapi import HTTPException, status
+from fastapi import status as http_status
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
@@ -22,6 +23,7 @@ from services.availability_service import AvailabilityService
 from services.appointment_type_service import AppointmentTypeService
 from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 from utils.appointment_type_queries import get_appointment_type_by_id_with_soft_delete_check
+from utils.appointment_queries import filter_future_appointments
 
 logger = logging.getLogger(__name__)
 
@@ -422,7 +424,6 @@ class AppointmentService:
 
         if upcoming_only:
             # Filter for upcoming appointments using utility function
-            from utils.appointment_queries import filter_future_appointments
             query = filter_future_appointments(query)
 
         # Eagerly load all relationships to avoid N+1 queries
@@ -473,6 +474,111 @@ class AppointmentService:
                 "id": appointment.calendar_event_id,
                 "patient_id": appointment.patient_id,
                 "patient_name": patient.full_name,
+                "practitioner_name": practitioner_name,
+                "appointment_type_name": get_appointment_type_name_safe(appointment.appointment_type_id, db),
+                "start_time": start_datetime.isoformat() if start_datetime else "",
+                "end_time": end_datetime.isoformat() if end_datetime else "",
+                "status": appointment.status,
+                "notes": appointment.notes
+            })
+
+        return result
+
+    @staticmethod
+    def list_appointments_for_patient(
+        db: Session,
+        patient_id: int,
+        clinic_id: int,
+        status: Optional[str] = None,
+        upcoming_only: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        List appointments for a specific patient.
+
+        Args:
+            db: Database session
+            patient_id: Patient ID
+            clinic_id: Clinic ID
+            status: Optional status filter ('confirmed', 'canceled_by_patient', 'canceled_by_clinic')
+            upcoming_only: Filter for upcoming appointments only
+
+        Returns:
+            List of appointment dictionaries
+        """
+        # Verify patient belongs to clinic
+        patient = db.query(Patient).filter(
+            Patient.id == patient_id,
+            Patient.clinic_id == clinic_id
+        ).first()
+
+        if not patient:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,  # Use http_status to avoid shadowing parameter
+                detail="病患不存在"
+            )
+
+        # Build query - explicitly join CalendarEvent for filtering and ordering
+        query = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).filter(
+            Appointment.patient_id == patient_id,
+            CalendarEvent.clinic_id == clinic_id
+        )
+
+        # Apply status filter if provided
+        if status:
+            query = query.filter(Appointment.status == status)
+
+        if upcoming_only:
+            # Filter for upcoming appointments using utility function
+            query = filter_future_appointments(query)
+
+        # Eagerly load all relationships to avoid N+1 queries
+        from sqlalchemy.orm import contains_eager
+        appointments: List[Appointment] = query.options(
+            contains_eager(Appointment.calendar_event).joinedload(CalendarEvent.user),
+            joinedload(Appointment.appointment_type),
+            joinedload(Appointment.patient)
+        ).order_by(CalendarEvent.date.desc(), CalendarEvent.start_time.desc()).all()
+
+        # Format response
+        result: List[Dict[str, Any]] = []
+
+        for appointment in appointments:
+            # All relationships are now eagerly loaded, no database queries needed
+            practitioner = appointment.calendar_event.user
+            appointment_type = appointment.appointment_type
+            patient_obj = appointment.patient
+
+            if not all([practitioner, appointment_type, patient_obj]):
+                continue  # Skip if any related object not found
+
+            # Type assertions for Pyright
+            assert practitioner is not None
+            assert appointment_type is not None
+            assert patient_obj is not None
+
+            # Get practitioner name from association
+            from utils.practitioner_helpers import get_practitioner_display_name_for_appointment
+            practitioner_name = get_practitioner_display_name_for_appointment(
+                db, appointment, clinic_id
+            )
+
+            # Combine date and time into full datetime strings (Taiwan timezone)
+            event_date = appointment.calendar_event.date
+            if appointment.calendar_event.start_time:
+                start_datetime = datetime.combine(event_date, appointment.calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+            else:
+                start_datetime = None
+            if appointment.calendar_event.end_time:
+                end_datetime = datetime.combine(event_date, appointment.calendar_event.end_time).replace(tzinfo=TAIWAN_TZ)
+            else:
+                end_datetime = None
+
+            result.append({
+                "id": appointment.calendar_event_id,
+                "patient_id": appointment.patient_id,
+                "patient_name": patient_obj.full_name,
                 "practitioner_name": practitioner_name,
                 "appointment_type_name": get_appointment_type_name_safe(appointment.appointment_type_id, db),
                 "start_time": start_datetime.isoformat() if start_datetime else "",
