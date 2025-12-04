@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TimeInterval } from '../types';
 import { logger } from '../utils/logger';
 import { LoadingSpinner } from '../components/shared';
@@ -170,6 +170,10 @@ const ProfilePage: React.FC = () => {
   const activeClinicId = authUser?.active_clinic_id;
   const { alert } = useModal();
 
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   // Profile state for display (set from useSettingsPage fetchData)
   const [profile, setProfile] = React.useState<any>(null);

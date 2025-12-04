@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../contexts/ModalContext';
 import { apiService } from '../services/api';
@@ -36,6 +36,11 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [minimumBookingHoursAhead, setMinimumBookingHoursAhead] = useState<number | null>(null);
   const [isLoadingSettings, setIsLoadingSettings] = useState(false);
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   // If not authenticated, show a message
   if (!isAuthenticated) {

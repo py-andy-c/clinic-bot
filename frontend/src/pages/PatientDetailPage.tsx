@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { apiService, sharedFetchFunctions } from '../services/api';
@@ -24,6 +24,11 @@ const PatientDetailPage: React.FC = () => {
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
 
   const patientId = id ? parseInt(id, 10) : null;
+
+  // Scroll to top when component mounts or patientId changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [patientId]);
 
   const fetchPatient = useCallback(
     () => {

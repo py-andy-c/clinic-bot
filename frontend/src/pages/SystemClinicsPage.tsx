@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { logger } from '../utils/logger';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { useModal } from '../contexts/ModalContext';
@@ -22,6 +22,11 @@ const SystemClinicsPage: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingClinic, setEditingClinic] = useState<Partial<ClinicCreateData>>({});
   const [updating, setUpdating] = useState(false);
+
+  // Scroll to top when component mounts or id changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [id]);
 
   // Stable fetch functions using useCallback
   const fetchClinics = useCallback(() => apiService.getClinics(), []);

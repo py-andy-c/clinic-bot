@@ -34,6 +34,11 @@ const LineUsersPage: React.FC = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   // Get pagination state from URL with validation
   const currentPage = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
   // Default page size increased from 10 to 25 for better UX (fewer pagination clicks)

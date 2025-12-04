@@ -22,6 +22,11 @@ const AvailabilityPage: React.FC = () => {
   const [defaultPractitionerId, setDefaultPractitionerId] = useState<number | null>(null);
   const [showPractitionerModal, setShowPractitionerModal] = useState(false);
   
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   // Get pre-selected patient ID from query parameter
   const preSelectedPatientId = searchParams.get('createAppointment') 
     ? parseInt(searchParams.get('createAppointment') || '0', 10) 

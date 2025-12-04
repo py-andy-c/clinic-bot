@@ -23,6 +23,11 @@ const PatientsPage: React.FC = () => {
   const activeClinicId = user?.active_clinic_id;
   const [searchParams, setSearchParams] = useSearchParams();
   
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   // Patient creation modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);

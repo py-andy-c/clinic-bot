@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useModal } from '../contexts/ModalContext';
 import { apiService } from '../services/api';
@@ -14,6 +14,11 @@ const MembersPage: React.FC = () => {
   const activeClinicId = currentUser?.active_clinic_id;
   const { alert, confirm } = useModal();
   
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   // If not authenticated, show a message (in real app, this would redirect to login)
   if (!isAuthenticated) {
     return (

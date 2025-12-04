@@ -23,6 +23,11 @@ const SettingsPage: React.FC = () => {
   const { alert, confirm } = useModal();
   const [clinicInfoRefreshTrigger, setClinicInfoRefreshTrigger] = React.useState(0);
 
+  // Scroll to top when component mounts
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   // Only clinic users can access clinic settings
   if (!isClinicUser) {
     return (
