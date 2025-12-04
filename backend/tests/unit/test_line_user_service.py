@@ -27,8 +27,10 @@ class TestGetOrCreateLineUser:
         line_user_id = "U_test_user_123"
         display_name = "Test User"
         
-        # Mock LINEService
+        # Mock LINEService - when display_name is provided, profile won't be fetched
+        # But we still need to mock it in case picture_url is missing
         mock_line_service = Mock(spec=LINEService)
+        mock_line_service.get_user_profile.return_value = None
         
         # Create user
         line_user = LineUserService.get_or_create_line_user(
@@ -96,17 +98,19 @@ class TestGetOrCreateLineUser:
         old_display_name = "Old Name"
         new_display_name = "New Name"
         
-        # Create existing user with old name
+        # Create existing user with old name (and no picture_url to trigger lazy update)
         existing_user = LineUser(
             line_user_id=line_user_id,
             clinic_id=clinic.id,
-            display_name=old_display_name
+            display_name=old_display_name,
+            picture_url=None
         )
         db_session.add(existing_user)
         db_session.commit()
         
-        # Mock LINEService
+        # Mock LINEService - return None for profile fetch (no picture_url available)
         mock_line_service = Mock(spec=LINEService)
+        mock_line_service.get_user_profile.return_value = None
         
         # Get or create with new name
         line_user = LineUserService.get_or_create_line_user(
@@ -124,6 +128,74 @@ class TestGetOrCreateLineUser:
         db_session.refresh(line_user)
         assert line_user.display_name == new_display_name
     
+    def test_stores_picture_url_when_provided(self, db_session: Session, sample_clinic_data):
+        """Test that picture_url is stored when provided."""
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        
+        line_user_id = "U_test_user_123"
+        display_name = "Test User"
+        picture_url = "https://example.com/pic.jpg"
+        
+        # Mock LINEService
+        mock_line_service = Mock(spec=LINEService)
+        
+        # Create user with picture_url
+        line_user = LineUserService.get_or_create_line_user(
+            db=db_session,
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            line_service=mock_line_service,
+            display_name=display_name,
+            picture_url=picture_url
+        )
+        
+        assert line_user.picture_url == picture_url
+        db_session.refresh(line_user)
+        assert line_user.picture_url == picture_url
+    
+    def test_lazy_updates_picture_url_when_missing(self, db_session: Session, sample_clinic_data):
+        """Test that picture_url is fetched for existing users when missing (lazy update)."""
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        
+        line_user_id = "U_test_user_123"
+        display_name = "Test User"
+        picture_url = "https://example.com/pic.jpg"
+        
+        # Create existing user without picture_url
+        existing_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name=display_name,
+            picture_url=None
+        )
+        db_session.add(existing_user)
+        db_session.commit()
+        
+        # Mock LINEService with profile response
+        mock_line_service = Mock(spec=LINEService)
+        mock_line_service.get_user_profile.return_value = {
+            "displayName": display_name,
+            "userId": line_user_id,
+            "pictureUrl": picture_url
+        }
+        
+        # Get or create (should trigger lazy update)
+        line_user = LineUserService.get_or_create_line_user(
+            db=db_session,
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            line_service=mock_line_service,
+            display_name=display_name
+        )
+        
+        assert line_user.id == existing_user.id
+        assert line_user.picture_url == picture_url
+        mock_line_service.get_user_profile.assert_called_once_with(line_user_id)
+    
     def test_fetches_profile_when_display_name_not_provided(self, db_session: Session, sample_clinic_data):
         """Test that user profile is fetched when display_name is not provided."""
         clinic = Clinic(**sample_clinic_data)
@@ -132,13 +204,14 @@ class TestGetOrCreateLineUser:
         
         line_user_id = "U_test_user_123"
         fetched_display_name = "Fetched Name"
+        picture_url = "https://example.com/pic.jpg"
         
         # Mock LINEService with profile response
         mock_line_service = Mock(spec=LINEService)
         mock_line_service.get_user_profile.return_value = {
             "displayName": fetched_display_name,
             "userId": line_user_id,
-            "pictureUrl": "https://example.com/pic.jpg"
+            "pictureUrl": picture_url
         }
         
         # Create user without display name
@@ -151,7 +224,109 @@ class TestGetOrCreateLineUser:
         )
         
         assert line_user.display_name == fetched_display_name
+        assert line_user.picture_url == picture_url
         mock_line_service.get_user_profile.assert_called_once_with(line_user_id)
+    
+    def test_fetches_profile_when_display_name_provided_but_picture_url_not(self, db_session: Session, sample_clinic_data):
+        """Test that profile is fetched when display_name is provided but picture_url is not."""
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        
+        line_user_id = "U_test_user_123"
+        display_name = "Test User"
+        picture_url = "https://example.com/pic.jpg"
+        
+        # Mock LINEService with profile response
+        mock_line_service = Mock(spec=LINEService)
+        mock_line_service.get_user_profile.return_value = {
+            "displayName": display_name,
+            "userId": line_user_id,
+            "pictureUrl": picture_url
+        }
+        
+        # Create user with display_name but without picture_url
+        line_user = LineUserService.get_or_create_line_user(
+            db=db_session,
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            line_service=mock_line_service,
+            display_name=display_name,
+            picture_url=None
+        )
+        
+        assert line_user.display_name == display_name
+        assert line_user.picture_url == picture_url
+        mock_line_service.get_user_profile.assert_called_once_with(line_user_id)
+    
+    def test_does_not_fetch_profile_when_both_provided(self, db_session: Session, sample_clinic_data):
+        """Test that profile is NOT fetched when both display_name and picture_url are provided."""
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        
+        line_user_id = "U_test_user_123"
+        display_name = "Test User"
+        picture_url = "https://example.com/pic.jpg"
+        
+        # Mock LINEService
+        mock_line_service = Mock(spec=LINEService)
+        
+        # Create user with both display_name and picture_url
+        line_user = LineUserService.get_or_create_line_user(
+            db=db_session,
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            line_service=mock_line_service,
+            display_name=display_name,
+            picture_url=picture_url
+        )
+        
+        assert line_user.display_name == display_name
+        assert line_user.picture_url == picture_url
+        # Should not fetch profile when both are provided
+        mock_line_service.get_user_profile.assert_not_called()
+    
+    def test_updates_picture_url_when_different_value_provided(self, db_session: Session, sample_clinic_data):
+        """Test that picture_url is updated when a different value is provided to existing user."""
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        
+        line_user_id = "U_test_user_123"
+        display_name = "Test User"
+        old_picture_url = "https://example.com/old.jpg"
+        new_picture_url = "https://example.com/new.jpg"
+        
+        # Create existing user with old picture_url
+        existing_user = LineUser(
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            display_name=display_name,
+            picture_url=old_picture_url
+        )
+        db_session.add(existing_user)
+        db_session.commit()
+        
+        # Mock LINEService
+        mock_line_service = Mock(spec=LINEService)
+        
+        # Get or create with new picture_url
+        line_user = LineUserService.get_or_create_line_user(
+            db=db_session,
+            line_user_id=line_user_id,
+            clinic_id=clinic.id,
+            line_service=mock_line_service,
+            display_name=display_name,
+            picture_url=new_picture_url
+        )
+        
+        assert line_user.id == existing_user.id
+        assert line_user.picture_url == new_picture_url
+        
+        # Verify update in database
+        db_session.refresh(line_user)
+        assert line_user.picture_url == new_picture_url
     
     def test_creates_user_without_display_name_when_profile_fetch_fails(self, db_session: Session, sample_clinic_data):
         """Test that user is created without display name when profile fetch fails."""

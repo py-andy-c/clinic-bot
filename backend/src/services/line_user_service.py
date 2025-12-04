@@ -31,7 +31,8 @@ class LineUserService:
         line_user_id: str,
         clinic_id: int,
         line_service: LINEService,
-        display_name: Optional[str] = None
+        display_name: Optional[str] = None,
+        picture_url: Optional[str] = None
     ) -> LineUser:
         """
         Get or create LINE user for a specific clinic, fetching profile if needed.
@@ -48,6 +49,7 @@ class LineUserService:
             clinic_id: Clinic ID this LineUser belongs to (must not be None)
             line_service: LINEService instance for API calls
             display_name: Optional display name (if already known from event)
+            picture_url: Optional profile picture URL (if already known, e.g., from LIFF)
         
         Returns:
             LineUser instance (existing or newly created) for this clinic
@@ -68,39 +70,71 @@ class LineUserService:
         
         if line_user:
             # Update display name if provided and different
+            updated = False
             if display_name and line_user.display_name != display_name:
+                line_user.display_name = display_name
+                updated = True
+            
+            # Update picture_url if provided
+            if picture_url and line_user.picture_url != picture_url:
+                line_user.picture_url = picture_url
+                updated = True
+            
+            # Lazy update: fetch profile if picture_url is missing
+            if not line_user.picture_url and line_service:
                 try:
-                    line_user.display_name = display_name
+                    profile = line_service.get_user_profile(line_user_id)
+                    if profile and profile.get('pictureUrl'):
+                        line_user.picture_url = profile.get('pictureUrl')
+                        updated = True
+                        logger.debug(
+                            f"Fetched and updated picture_url for existing LineUser {line_user_id[:10]}... "
+                            f"at clinic_id={clinic_id}"
+                        )
+                except Exception as e:
+                    # Log but don't fail - picture_url is optional
+                    logger.debug(
+                        f"Failed to fetch profile for existing user {line_user_id[:10]}...: {e}"
+                    )
+            
+            if updated:
+                try:
                     db.commit()
                     logger.debug(
-                        f"Updated display name for LineUser {line_user_id[:10]}... "
+                        f"Updated LineUser {line_user_id[:10]}... "
                         f"at clinic_id={clinic_id}"
                     )
                 except Exception as e:
                     logger.warning(
-                        f"Failed to update display name for {line_user_id[:10]}... "
+                        f"Failed to update LineUser {line_user_id[:10]}... "
                         f"at clinic_id={clinic_id}: {e}"
                     )
                     db.rollback()
             return line_user
         
-        # User doesn't exist for this clinic - fetch profile from LINE API if display_name not provided
-        if not display_name:
+        # User doesn't exist for this clinic - fetch profile from LINE API if needed
+        # Fetch profile if either display_name OR picture_url is missing (OR condition, not AND)
+        # This ensures we get complete profile data when creating new users
+        if not display_name or not picture_url:
             try:
                 profile = line_service.get_user_profile(line_user_id)
                 if profile:
-                    display_name = profile.get('displayName')
+                    if not display_name:
+                        display_name = profile.get('displayName')
+                    if not picture_url:
+                        picture_url = profile.get('pictureUrl')
                     logger.debug(
                         f"Fetched profile for {line_user_id[:10]}...: "
-                        f"display_name={display_name}, clinic_id={clinic_id}"
+                        f"display_name={display_name}, picture_url={'set' if picture_url else 'none'}, "
+                        f"clinic_id={clinic_id}"
                     )
                 else:
                     logger.debug(f"Profile fetch returned None for {line_user_id[:10]}...")
             except Exception as e:
-                # Log but don't fail - we can create user without display name
+                # Log but don't fail - we can create user without profile data
                 logger.debug(
                     f"Failed to fetch profile for {line_user_id[:10]}...: {e}. "
-                    "Creating user without display name."
+                    "Creating user without profile data."
                 )
         
         # Create new user for this clinic
@@ -109,7 +143,8 @@ class LineUserService:
             line_user = LineUser(
                 line_user_id=line_user_id,
                 clinic_id=clinic_id,
-                display_name=display_name
+                display_name=display_name,
+                picture_url=picture_url
             )
             db.add(line_user)
             db.commit()

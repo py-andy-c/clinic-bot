@@ -101,6 +101,7 @@ class LiffLoginRequest(BaseModel):
     liff_access_token: str
     clinic_token: Optional[str] = None  # New preferred method (secure token)
     clinic_id: Optional[int] = None     # Deprecated, for backward compatibility
+    picture_url: Optional[str] = None   # Profile picture URL from LINE (optional)
 
     @model_validator(mode='after')
     def validate_clinic_identifier(self):
@@ -374,7 +375,8 @@ async def liff_login(
                     line_user_id=request.line_user_id,
                     clinic_id=clinic.id,
                     line_service=line_service,
-                    display_name=request.display_name
+                    display_name=request.display_name,
+                    picture_url=request.picture_url
                 )
             else:
                 # Fallback: create directly if LINEService unavailable (shouldn't happen in normal flow)
@@ -388,7 +390,8 @@ async def liff_login(
                     line_user = LineUser(
                         line_user_id=request.line_user_id,
                         clinic_id=clinic.id,
-                        display_name=request.display_name
+                        display_name=request.display_name,
+                        picture_url=request.picture_url
                     )
                     db.add(line_user)
                     try:

@@ -121,6 +121,7 @@ export interface Patient {
   created_at: string;
   line_user_id?: string;
   line_user_display_name?: string;
+  line_user_picture_url?: string | null;
   is_deleted?: boolean; // Indicates if patient was soft-deleted by LINE user
 }
 
@@ -132,6 +133,7 @@ export interface LineUserWithStatus {
   patient_names: string[];
   ai_disabled: boolean;
   disabled_at?: string;
+  picture_url?: string | null;
 }
 
 // Note: PaginatedResponse type is not currently used as responses use field-specific names

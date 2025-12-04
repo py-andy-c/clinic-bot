@@ -1328,6 +1328,7 @@ async def get_patients(
                 notes=patient.notes,
                 line_user_id=patient.line_user.line_user_id if patient.line_user else None,
                 line_user_display_name=patient.line_user.effective_display_name if patient.line_user else None,
+                line_user_picture_url=patient.line_user.picture_url if patient.line_user else None,
                 created_at=patient.created_at,
                 is_deleted=patient.is_deleted
             )
@@ -3541,6 +3542,7 @@ class LineUserWithStatusResponse(BaseModel):
     patient_names: List[str]
     ai_disabled: bool
     disabled_at: Optional[datetime]
+    picture_url: Optional[str] = None
 
 
 class LineUserListResponse(BaseModel):
@@ -3643,7 +3645,8 @@ async def get_line_users(
                 patient_count=lu.patient_count,
                 patient_names=lu.patient_names,
                 ai_disabled=lu.ai_disabled,
-                disabled_at=lu.disabled_at
+                disabled_at=lu.disabled_at,
+                picture_url=lu.picture_url
             )
             for lu in line_users
         ]
@@ -3869,7 +3872,8 @@ async def update_line_user_display_name(
             patient_count=len(patients),
             patient_names=sorted(list(set([p.full_name for p in patients if p.full_name]))),
             ai_disabled=line_user.ai_disabled,
-            disabled_at=line_user.ai_disabled_at
+            disabled_at=line_user.ai_disabled_at,
+            picture_url=line_user.picture_url
         )
         
     except HTTPException:

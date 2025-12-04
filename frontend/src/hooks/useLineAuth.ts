@@ -21,7 +21,7 @@ interface UseLineAuthReturn {
   refreshAuth: () => Promise<void>;
 }
 
-export const useLineAuth = (lineProfile: { userId: string; displayName: string } | null, liffAccessToken: string | null): UseLineAuthReturn => {
+export const useLineAuth = (lineProfile: { userId: string; displayName: string; pictureUrl?: string | undefined } | null, liffAccessToken: string | null): UseLineAuthReturn => {
   const { t } = useTranslation();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isFirstTime, setIsFirstTime] = useState(false);
@@ -136,6 +136,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
     lineUserId: string,
     displayName: string,
     accessToken: string,
+    pictureUrl?: string | undefined,
     checkCancelled?: () => boolean
   ): Promise<void> => {
     if (checkCancelled?.()) return;
@@ -154,6 +155,10 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
       display_name: displayName,
       liff_access_token: accessToken,
     };
+    
+    if (pictureUrl) {
+      request.picture_url = pictureUrl;
+    }
 
     // Add clinic_token or clinic_id based on what's in URL
     if (identifier.type === 'token') {
@@ -221,7 +226,7 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string }
       if (checkCancelled?.()) return;
 
       try {
-        await performAuthentication(lineProfile.userId, lineProfile.displayName, liffAccessToken, checkCancelled);
+        await performAuthentication(lineProfile.userId, lineProfile.displayName, liffAccessToken, lineProfile.pictureUrl, checkCancelled);
       } catch (err) {
         if (checkCancelled?.()) return;
           logger.error('LINE authentication failed:', err);

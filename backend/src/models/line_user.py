@@ -67,6 +67,14 @@ class LineUser(Base):
     This allows clinics to customize how they see LINE users internally.
     """
 
+    picture_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    """
+    Profile picture URL from LINE API.
+    
+    This URL is fetched when creating new users or when missing for existing users.
+    May be None if user hasn't added account as friend or profile is private.
+    """
+
     preferred_language: Mapped[Optional[str]] = mapped_column(
         String(10),
         nullable=True,

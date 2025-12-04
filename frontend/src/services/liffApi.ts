@@ -10,6 +10,7 @@ export interface LiffLoginRequest {
   liff_access_token: string;
   clinic_token?: string;  // New preferred method (secure token)
   clinic_id?: number;     // Deprecated, for backward compatibility
+  picture_url?: string;   // Profile picture URL from LINE (optional)
 }
 
 export interface LiffLoginResponse {

@@ -161,7 +161,8 @@ class LineUserWithStatus:
         patient_count: int,
         patient_names: List[str],
         ai_disabled: bool,
-        disabled_at: Optional[datetime]
+        disabled_at: Optional[datetime],
+        picture_url: Optional[str] = None
     ):
         self.line_user_id = line_user_id
         self.display_name = display_name
@@ -169,6 +170,7 @@ class LineUserWithStatus:
         self.patient_names = patient_names
         self.ai_disabled = ai_disabled
         self.disabled_at = disabled_at
+        self.picture_url = picture_url
 
 
 def get_line_users_for_clinic(
@@ -218,7 +220,8 @@ def get_line_users_for_clinic(
         func.coalesce(func.count(func.distinct(Patient.id)), 0).label('patient_count'),
         func.array_agg(Patient.full_name).label('patient_names'),
         LineUser.ai_disabled.label('ai_disabled'),
-        LineUser.ai_disabled_at.label('disabled_at')
+        LineUser.ai_disabled_at.label('disabled_at'),
+        LineUser.picture_url.label('picture_url')
     ).filter(
         LineUser.clinic_id == clinic_id
     ).outerjoin(
@@ -251,7 +254,8 @@ def get_line_users_for_clinic(
         LineUser.clinic_display_name,
         LineUser.display_name,
         LineUser.ai_disabled,
-        LineUser.ai_disabled_at
+        LineUser.ai_disabled_at,
+        LineUser.picture_url
     ).order_by(
         func.coalesce(LineUser.clinic_display_name, LineUser.display_name).nulls_last(),
         LineUser.line_user_id
@@ -323,7 +327,8 @@ def get_line_users_for_clinic(
                 patient_count=row.patient_count,
                 patient_names=patient_names,
                 ai_disabled=bool(row.ai_disabled) if row.ai_disabled is not None else False,
-                disabled_at=row.disabled_at
+                disabled_at=row.disabled_at,
+                picture_url=row.picture_url
             )
         )
     
