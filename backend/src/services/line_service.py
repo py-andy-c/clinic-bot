@@ -12,7 +12,10 @@ import hashlib
 import hmac
 import base64
 import logging
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 import httpx
 from linebot.v3.messaging import MessagingApi, PushMessageRequest, ReplyMessageRequest
@@ -224,7 +227,15 @@ class LINEService:
             logger.warning(f"Failed to get user profile for {line_user_id[:10]}...: {e}")
             return None
 
-    def send_text_message(self, line_user_id: str, text: str, reply_token: Optional[str] = None) -> Optional[str]:
+    def send_text_message(
+        self, 
+        line_user_id: str, 
+        text: str, 
+        reply_token: Optional[str] = None,
+        db: Optional["Session"] = None,
+        clinic_id: Optional[int] = None,
+        labels: Optional[dict[str, str]] = None
+    ) -> Optional[str]:
         """
         Send text message to LINE user.
 
@@ -236,6 +247,13 @@ class LINEService:
             text: Text content to send
             reply_token: Optional reply token from webhook event. If provided, uses reply_message.
                         If None, uses push_message as fallback.
+            db: Optional database session for tracking push messages. Required if labels provided.
+            clinic_id: Optional clinic ID for tracking push messages. Required if labels provided.
+            labels: Optional labels dictionary for tracking push messages. Should contain:
+                    - 'recipient_type': 'patient', 'practitioner', or 'admin'
+                    - 'event_type': Event type code (e.g., 'appointment_confirmation')
+                    - 'trigger_source': 'clinic_triggered', 'patient_triggered', or 'system_triggered'
+                    - Additional flexible labels can be included
 
         Returns:
             LINE message ID if successful, None otherwise. The message ID can be used
@@ -285,6 +303,39 @@ class LINEService:
                 # If we can't extract message ID, log but don't fail
                 logger.debug(f"Could not extract message ID from LINE API response: {e}")
                 message_id = None
+            
+            # Track push message only if:
+            # 1. This is a push message (reply_token is None)
+            # 2. LINE API call succeeded (we got here without exception)
+            # 3. Labels are provided (indicating we should track this message)
+            # 4. Database session and clinic_id are provided
+            if reply_token is None and labels and db is not None and clinic_id is not None:
+                try:
+                    from models.line_push_message import LinePushMessage
+                    
+                    push_message = LinePushMessage(
+                        line_user_id=line_user_id,
+                        clinic_id=clinic_id,
+                        line_message_id=message_id,
+                        recipient_type=labels.get('recipient_type', ''),
+                        event_type=labels.get('event_type', ''),
+                        trigger_source=labels.get('trigger_source', ''),
+                        labels=labels  # Store all labels including flexible ones
+                    )
+                    db.add(push_message)
+                    db.commit()
+                    logger.debug(
+                        f"Tracked push message: line_user_id={line_user_id[:10]}..., "
+                        f"event_type={labels.get('event_type')}, clinic_id={clinic_id}"
+                    )
+                except Exception as e:
+                    # Log but don't fail - tracking is best effort
+                    # If tracking fails, the message was still sent successfully
+                    db.rollback()
+                    logger.warning(
+                        f"Failed to track push message for {line_user_id[:10]}...: {e}. "
+                        f"Message was sent successfully but not tracked."
+                    )
             
             return message_id
         except Exception as e:

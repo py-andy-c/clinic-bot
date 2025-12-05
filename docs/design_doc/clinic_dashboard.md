@@ -535,7 +535,7 @@ class LinePushMessage(Base):
 - Add model to `models/__init__.py`
 - **Testing:** Unit tests for model creation and validation
 
-### PR 2: Update LINEService to Track Push Messages
+### PR 2: Update LINEService to Track Push Messages ⏳ IN PROGRESS
 **Scope:** Modify `LINEService.send_text_message()` to record push messages
 - Update `LINEService.send_text_message()` to accept optional `labels` parameter
 - Create `LinePushMessage` record only after successful LINE API call (when `reply_token` is None)

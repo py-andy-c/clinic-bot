@@ -251,3 +251,268 @@ class TestGetUserProfile:
         call_args = mock_get.call_args
         assert call_args[0][0] == f"https://api.line.me/v2/bot/profile/{line_user_id}"
 
+
+class TestSendTextMessageTracking:
+    """Test push message tracking in send_text_message."""
+    
+    @patch('services.line_service.MessagingApi')
+    def test_tracks_push_message_when_labels_provided(self, mock_api_class, db_session, sample_clinic_data):
+        """Test that push messages are tracked when labels are provided."""
+        from models import Clinic, LinePushMessage
+        
+        # Create clinic
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        db_session.refresh(clinic)
+        
+        # Mock LINE API response
+        mock_api = Mock()
+        mock_sent_message = Mock()
+        mock_sent_message.id = "msg_123456"
+        mock_response = Mock()
+        mock_response.sent_messages = [mock_sent_message]
+        mock_api.push_message.return_value = mock_response
+        mock_api_class.return_value = mock_api
+        
+        service = LINEService(
+            channel_secret="test_secret",
+            channel_access_token="test_token"
+        )
+        service.api = mock_api
+        
+        labels = {
+            'recipient_type': 'patient',
+            'event_type': 'appointment_confirmation',
+            'trigger_source': 'clinic_triggered',
+            'appointment_context': 'new_appointment'
+        }
+        
+        # Send push message (no reply_token)
+        result = service.send_text_message(
+            line_user_id="U1234567890",
+            text="Test message",
+            reply_token=None,
+            db=db_session,
+            clinic_id=clinic.id,
+            labels=labels
+        )
+        
+        # Verify message was sent
+        assert result == "msg_123456"
+        mock_api.push_message.assert_called_once()
+        
+        # Verify push message was tracked
+        db_session.commit()
+        push_message = db_session.query(LinePushMessage).filter_by(
+            line_user_id="U1234567890",
+            clinic_id=clinic.id
+        ).first()
+        
+        assert push_message is not None
+        assert push_message.recipient_type == 'patient'
+        assert push_message.event_type == 'appointment_confirmation'
+        assert push_message.trigger_source == 'clinic_triggered'
+        assert push_message.labels == labels
+        assert push_message.line_message_id == "msg_123456"
+    
+    @patch('services.line_service.MessagingApi')
+    def test_does_not_track_reply_messages(self, mock_api_class, db_session, sample_clinic_data):
+        """Test that reply messages (with reply_token) are not tracked."""
+        from models import Clinic, LinePushMessage
+        
+        # Create clinic
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        db_session.refresh(clinic)
+        
+        # Mock LINE API response
+        mock_api = Mock()
+        mock_sent_message = Mock()
+        mock_sent_message.id = "msg_123456"
+        mock_response = Mock()
+        mock_response.sent_messages = [mock_sent_message]
+        mock_api.reply_message.return_value = mock_response
+        mock_api_class.return_value = mock_api
+        
+        service = LINEService(
+            channel_secret="test_secret",
+            channel_access_token="test_token"
+        )
+        service.api = mock_api
+        
+        labels = {
+            'recipient_type': 'patient',
+            'event_type': 'appointment_confirmation',
+            'trigger_source': 'clinic_triggered'
+        }
+        
+        # Send reply message (with reply_token)
+        result = service.send_text_message(
+            line_user_id="U1234567890",
+            text="Test message",
+            reply_token="reply_token_123",
+            db=db_session,
+            clinic_id=clinic.id,
+            labels=labels
+        )
+        
+        # Verify message was sent
+        assert result == "msg_123456"
+        mock_api.reply_message.assert_called_once()
+        
+        # Verify push message was NOT tracked (reply messages are free)
+        db_session.commit()
+        push_message = db_session.query(LinePushMessage).filter_by(
+            line_user_id="U1234567890",
+            clinic_id=clinic.id
+        ).first()
+        
+        assert push_message is None
+    
+    @patch('services.line_service.MessagingApi')
+    def test_does_not_track_when_labels_not_provided(self, mock_api_class, db_session, sample_clinic_data):
+        """Test that push messages are not tracked when labels are not provided."""
+        from models import Clinic, LinePushMessage
+        
+        # Create clinic
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        db_session.refresh(clinic)
+        
+        # Mock LINE API response
+        mock_api = Mock()
+        mock_sent_message = Mock()
+        mock_sent_message.id = "msg_123456"
+        mock_response = Mock()
+        mock_response.sent_messages = [mock_sent_message]
+        mock_api.push_message.return_value = mock_response
+        mock_api_class.return_value = mock_api
+        
+        service = LINEService(
+            channel_secret="test_secret",
+            channel_access_token="test_token"
+        )
+        service.api = mock_api
+        
+        # Send push message without labels
+        result = service.send_text_message(
+            line_user_id="U1234567890",
+            text="Test message",
+            reply_token=None,
+            db=db_session,
+            clinic_id=clinic.id,
+            labels=None
+        )
+        
+        # Verify message was sent
+        assert result == "msg_123456"
+        
+        # Verify push message was NOT tracked
+        db_session.commit()
+        push_message = db_session.query(LinePushMessage).filter_by(
+            line_user_id="U1234567890",
+            clinic_id=clinic.id
+        ).first()
+        
+        assert push_message is None
+    
+    @patch('services.line_service.MessagingApi')
+    def test_does_not_track_when_line_api_fails(self, mock_api_class, db_session, sample_clinic_data):
+        """Test that push messages are not tracked when LINE API call fails."""
+        from models import Clinic, LinePushMessage
+        
+        # Create clinic
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        db_session.refresh(clinic)
+        
+        # Mock LINE API failure
+        mock_api = Mock()
+        mock_api.push_message.side_effect = Exception("LINE API error")
+        mock_api_class.return_value = mock_api
+        
+        service = LINEService(
+            channel_secret="test_secret",
+            channel_access_token="test_token"
+        )
+        service.api = mock_api
+        
+        labels = {
+            'recipient_type': 'patient',
+            'event_type': 'appointment_confirmation',
+            'trigger_source': 'clinic_triggered'
+        }
+        
+        # Send push message - should raise exception
+        with pytest.raises(Exception, match="LINE API error"):
+            service.send_text_message(
+                line_user_id="U1234567890",
+                text="Test message",
+                reply_token=None,
+                db=db_session,
+                clinic_id=clinic.id,
+                labels=labels
+            )
+        
+        # Verify push message was NOT tracked (API failed)
+        db_session.commit()
+        push_message = db_session.query(LinePushMessage).filter_by(
+            line_user_id="U1234567890",
+            clinic_id=clinic.id
+        ).first()
+        
+        assert push_message is None
+    
+    @patch('services.line_service.MessagingApi')
+    def test_handles_tracking_failure_gracefully(self, mock_api_class, db_session, sample_clinic_data):
+        """Test that tracking failure doesn't prevent message from being sent."""
+        from models import Clinic
+        from unittest.mock import patch
+        
+        # Create clinic
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        db_session.refresh(clinic)
+        
+        # Mock LINE API response
+        mock_api = Mock()
+        mock_sent_message = Mock()
+        mock_sent_message.id = "msg_123456"
+        mock_response = Mock()
+        mock_response.sent_messages = [mock_sent_message]
+        mock_api.push_message.return_value = mock_response
+        mock_api_class.return_value = mock_api
+        
+        service = LINEService(
+            channel_secret="test_secret",
+            channel_access_token="test_token"
+        )
+        service.api = mock_api
+        
+        labels = {
+            'recipient_type': 'patient',
+            'event_type': 'appointment_confirmation',
+            'trigger_source': 'clinic_triggered'
+        }
+        
+        # Mock database commit failure
+        with patch.object(db_session, 'commit', side_effect=Exception("DB error")):
+            # Message should still be sent successfully
+            result = service.send_text_message(
+                line_user_id="U1234567890",
+                text="Test message",
+                reply_token=None,
+                db=db_session,
+                clinic_id=clinic.id,
+                labels=labels
+            )
+            
+            # Verify message was sent despite tracking failure
+            assert result == "msg_123456"
+            mock_api.push_message.assert_called_once()
+
