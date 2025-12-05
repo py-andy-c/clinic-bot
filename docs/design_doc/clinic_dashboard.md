@@ -556,7 +556,7 @@ class LinePushMessage(Base):
 - Update `AdminAutoAssignedNotificationService._send_notification_for_admin()` - pass system_triggered
 - **Testing:** Integration tests to verify labels are correctly passed and stored
 
-### PR 4: Backend - Patient and Appointment Statistics Service
+### PR 4: Backend - Patient and Appointment Statistics Service ✅ COMPLETED
 **Scope:** Implement service methods for patient and appointment statistics
 - Create `DashboardService` class
 - Implement `get_active_patients_by_month()` - patients with appointments in each month (non-cancelled)
