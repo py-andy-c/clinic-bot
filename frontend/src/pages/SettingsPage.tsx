@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { apiService, sharedFetchFunctions } from '../services/api';
 import { logger } from '../utils/logger';
-import { LoadingSpinner } from '../components/shared';
+import { LoadingSpinner, BaseModal } from '../components/shared';
 import { ClinicSettings } from '../schemas/api';
 import { AppointmentType } from '../types';
 import { useAuth } from '../hooks/useAuth';
@@ -22,6 +22,7 @@ const SettingsPage: React.FC = () => {
   const activeClinicId = user?.active_clinic_id;
   const { alert, confirm } = useModal();
   const [clinicInfoRefreshTrigger, setClinicInfoRefreshTrigger] = React.useState(0);
+  const [showLiffInfoModal, setShowLiffInfoModal] = useState(false);
 
   // Scroll to top when component mounts
   React.useEffect(() => {
@@ -322,6 +323,99 @@ const SettingsPage: React.FC = () => {
             onRemoveType={removeAppointmentType}
             isClinicAdmin={isClinicAdmin}
           />
+
+          {/* 預約系統連結 Section - Unique block */}
+          {settings.liff_url && (
+            <div className="mt-8 pt-8 border-t border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">預約系統連結</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowLiffInfoModal(true)}
+                  className="inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+                  aria-label="查看設定說明"
+                >
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex items-center space-x-3">
+                <input
+                  type="text"
+                  readOnly
+                  value={settings.liff_url}
+                  className="flex-1 block w-full rounded-md border border-gray-400 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm font-mono text-xs bg-white px-3 py-2"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(settings.liff_url || '');
+                      await alert('預約系統連結已複製到剪貼簿！', '成功');
+                    } catch (err) {
+                      logger.error('Failed to copy to clipboard:', err);
+                      await alert('複製失敗', '錯誤');
+                    }
+                  }}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 whitespace-nowrap"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  複製連結
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Info Modal for 預約系統連結 setup steps */}
+          {showLiffInfoModal && (
+            <BaseModal
+              onClose={() => setShowLiffInfoModal(false)}
+              aria-label="預約系統連結設定說明"
+            >
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3 flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">預約系統連結設定步驟</h3>
+                  <div className="text-sm text-gray-700 space-y-2">
+                    <p className="mb-3">請將此連結加入您的 LINE 官方帳號選單，讓病患可以透過選單進行預約：</p>
+                    <ol className="list-decimal list-inside space-y-2 text-gray-700">
+                      <li>
+                        前往{' '}
+                        <a
+                          href="https://manager.line.biz/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 underline font-medium"
+                        >
+                          LINE 官方帳號管理頁面
+                        </a>
+                      </li>
+                      <li>點選診所的 LINE 官方帳號</li>
+                      <li>在目錄中，選擇「聊天室相關」底下的「圖文選單」</li>
+                      <li>新增選單項目，並將此連結設為動作類型</li>
+                      <li>儲存並發布選單</li>
+                    </ol>
+                  </div>
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowLiffInfoModal(false)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                    >
+                      關閉
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </BaseModal>
+          )}
         </SettingsSection>
 
         {/* Clinic Info Settings */}

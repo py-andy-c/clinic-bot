@@ -68,6 +68,7 @@ export const ClinicSettingsSchema = z.object({
   booking_restriction_settings: BookingRestrictionSettingsSchema,
   clinic_info_settings: ClinicInfoSettingsSchema,
   chat_settings: ChatSettingsSchema,
+  liff_url: z.string().optional(),
 });
 
 

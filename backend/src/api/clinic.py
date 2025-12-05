@@ -151,6 +151,7 @@ class SettingsResponse(BaseModel):
     booking_restriction_settings: BookingRestrictionSettings
     clinic_info_settings: ClinicInfoSettings
     chat_settings: ChatSettings
+    liff_url: Optional[str] = None
 
 
 class PractitionerAvailabilityRequest(BaseModel):
@@ -636,6 +637,11 @@ async def get_settings(
         # includes them in the API response without manual updates
         validated_settings = clinic.get_validated_settings()
         
+        # Generate LIFF URL (read-only operation - no auto-generation)
+        # Tokens should be generated via explicit endpoints or during clinic creation
+        from utils.liff_token import generate_liff_url
+        liff_url = generate_liff_url(clinic, mode="home")  # Will use clinic_id if token missing (backward compat)
+        
         # Convert validated settings to API response models (they have the same structure)
         # This ensures type compatibility while maintaining automatic field inclusion
         return SettingsResponse(
@@ -647,7 +653,8 @@ async def get_settings(
             notification_settings=NotificationSettings.model_validate(validated_settings.notification_settings.model_dump()),
             booking_restriction_settings=BookingRestrictionSettings.model_validate(validated_settings.booking_restriction_settings.model_dump()),
             clinic_info_settings=ClinicInfoSettings.model_validate(validated_settings.clinic_info_settings.model_dump()),
-            chat_settings=ChatSettings.model_validate(validated_settings.chat_settings.model_dump())
+            chat_settings=ChatSettings.model_validate(validated_settings.chat_settings.model_dump()),
+            liff_url=liff_url
         )
 
     except Exception as e:
