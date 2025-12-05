@@ -189,8 +189,10 @@ class AppointmentService:
                 )
                 
                 # Send notification (practitioner_name_for_notification is guaranteed to be str at this point)
+                # Determine trigger_source: if line_user_id is provided, it's patient_triggered, otherwise clinic_triggered
+                trigger_source = 'patient_triggered' if line_user_id is not None else 'clinic_triggered'
                 NotificationService.send_appointment_confirmation(
-                    db, appointment, practitioner_name_for_notification, clinic
+                    db, appointment, practitioner_name_for_notification, clinic, trigger_source=trigger_source
                 )
 
             logger.info(f"Created appointment {appointment.calendar_event_id} for patient {patient_id}")
@@ -1074,6 +1076,8 @@ class AppointmentService:
             # Send patient edit notification if requested
             if should_send_notification:
                 from services.notification_service import NotificationService
+                # Determine trigger_source: if reassigned_by_user_id is provided, it's clinic_triggered, otherwise patient_triggered
+                trigger_source = 'clinic_triggered' if reassigned_by_user_id is not None else 'patient_triggered'
                 NotificationService.send_appointment_edit_notification(
                     db=db,
                     appointment=appointment,
@@ -1081,7 +1085,8 @@ class AppointmentService:
                     new_practitioner=new_practitioner,
                     old_start_time=old_start_time,
                     new_start_time=new_start_time if new_start_time is not None else old_start_time,
-                    note=notification_note
+                    note=notification_note,
+                    trigger_source=trigger_source
                 )
 
             # Send practitioner notifications

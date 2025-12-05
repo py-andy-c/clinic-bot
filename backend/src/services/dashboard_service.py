@@ -6,16 +6,16 @@ for the clinic dashboard, including patient, appointment, and message statistics
 """
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import List, Dict, Any
 from calendar import monthrange
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_, case, distinct
+from sqlalchemy import func, and_
 
 from models import (
     Patient, Appointment, CalendarEvent, AppointmentType,
-    UserClinicAssociation, User, LinePushMessage, LineMessage
+    UserClinicAssociation, LinePushMessage, LineMessage
 )
 from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 
@@ -78,7 +78,7 @@ def get_months_for_dashboard() -> List[MonthInfo]:
     current_year = now.year
     current_month = now.month
     
-    months = []
+    months: List[MonthInfo] = []
     
     # Add past 3 months
     for i in range(3, 0, -1):
@@ -120,7 +120,7 @@ class DashboardService:
         Returns:
             List of dictionaries with 'month' (MonthInfo dict) and 'count' (int)
         """
-        results = []
+        results: List[Dict[str, Any]] = []
         
         for month_info in months:
             # Query distinct patients with non-cancelled appointments in this month
@@ -165,7 +165,7 @@ class DashboardService:
         Returns:
             List of dictionaries with 'month' (MonthInfo dict) and 'count' (int)
         """
-        results = []
+        results: List[Dict[str, Any]] = []
         
         for month_info in months:
             # Calculate start and end of month in Taiwan timezone
@@ -214,7 +214,7 @@ class DashboardService:
         Returns:
             List of dictionaries with 'month' (MonthInfo dict) and 'count' (int)
         """
-        results = []
+        results: List[Dict[str, Any]] = []
         
         for month_info in months:
             # Query non-cancelled appointments in this month
@@ -251,7 +251,7 @@ class DashboardService:
         Returns:
             List of dictionaries with cancellation statistics for each month
         """
-        results = []
+        results: List[Dict[str, Any]] = []
         
         for month_info in months:
             # Query all appointments in this month (including cancelled)
@@ -320,7 +320,7 @@ class DashboardService:
         Returns:
             List of dictionaries with appointment type statistics for each month
         """
-        results = []
+        results: List[Dict[str, Any]] = []
         
         for month_info in months:
             # Query appointment type counts for this month
@@ -376,7 +376,7 @@ class DashboardService:
         Returns:
             List of dictionaries with practitioner statistics for each month
         """
-        results = []
+        results: List[Dict[str, Any]] = []
         
         for month_info in months:
             # Query practitioner appointment counts for this month
@@ -438,7 +438,7 @@ class DashboardService:
             List of dictionaries with message statistics for each month,
             grouped by recipient_type and event_type
         """
-        results = []
+        results: List[Dict[str, Any]] = []
         
         for month_info in months:
             # Calculate start and end of month in Taiwan timezone
@@ -508,7 +508,7 @@ class DashboardService:
         Returns:
             List of dictionaries with AI reply message statistics for each month
         """
-        results = []
+        results: List[Dict[str, Any]] = []
         
         for month_info in months:
             # Calculate start and end of month in Taiwan timezone

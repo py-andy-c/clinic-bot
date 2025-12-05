@@ -74,9 +74,22 @@ class NotificationService:
                 note
             )
 
-            # Send notification
+            # Send notification with labels for tracking
             line_service = NotificationService._get_line_service(clinic)
-            line_service.send_text_message(patient.line_user.line_user_id, message)
+            trigger_source = 'clinic_triggered' if source == CancellationSource.CLINIC else 'patient_triggered'
+            labels = {
+                'recipient_type': 'patient',
+                'event_type': 'appointment_cancellation',
+                'trigger_source': trigger_source,
+                'appointment_context': 'cancellation'
+            }
+            line_service.send_text_message(
+                patient.line_user.line_user_id, 
+                message,
+                db=db,
+                clinic_id=clinic.id,
+                labels=labels
+            )
 
             logger.info(
                 f"Sent {source.value} cancellation notification to patient {patient.id} "
@@ -196,7 +209,8 @@ class NotificationService:
         new_practitioner: User | None,
         old_start_time: datetime,
         new_start_time: datetime,
-        note: str | None = None
+        note: str | None = None,
+        trigger_source: str = "clinic_triggered"
     ) -> bool:
         """
         Send appointment edit notification to patient.
@@ -209,6 +223,7 @@ class NotificationService:
             old_start_time: Old appointment start time
             new_start_time: New appointment start time
             note: Optional custom note
+            trigger_source: 'clinic_triggered' or 'patient_triggered' (default: 'clinic_triggered')
 
         Returns:
             True if notification sent successfully, False otherwise
@@ -260,13 +275,25 @@ class NotificationService:
                 note=note
             )
 
-            # Send notification
+            # Send notification with labels for tracking
             line_service = NotificationService._get_line_service(clinic)
             logger.debug(
                 f"Sending edit notification to LINE user {patient.line_user.line_user_id} "
                 f"for patient {patient.id} ({patient.full_name}), appointment {appointment.calendar_event_id}"
             )
-            line_service.send_text_message(patient.line_user.line_user_id, message)
+            labels = {
+                'recipient_type': 'patient',
+                'event_type': 'appointment_edit',
+                'trigger_source': trigger_source,
+                'appointment_context': 'reschedule'
+            }
+            line_service.send_text_message(
+                patient.line_user.line_user_id, 
+                message,
+                db=db,
+                clinic_id=clinic.id,
+                labels=labels
+            )
 
             logger.info(
                 f"Sent edit notification to patient {patient.id} ({patient.full_name}) "
@@ -348,7 +375,8 @@ class NotificationService:
         db: Session,
         appointment: Appointment,
         practitioner_name: str,
-        clinic: Clinic
+        clinic: Clinic,
+        trigger_source: str = "clinic_triggered"
     ) -> bool:
         """
         Send appointment confirmation notification to patient.
@@ -358,6 +386,7 @@ class NotificationService:
             appointment: New appointment
             practitioner_name: Practitioner name to display (can be "不指定" for auto-assigned)
             clinic: Clinic object
+            trigger_source: 'clinic_triggered' or 'patient_triggered' (default: 'clinic_triggered')
 
         Returns:
             True if notification sent successfully, False otherwise
@@ -387,9 +416,21 @@ class NotificationService:
             
             message += "\n\n期待為您服務！"
 
-            # Send notification
+            # Send notification with labels for tracking
             line_service = NotificationService._get_line_service(clinic)
-            line_service.send_text_message(patient.line_user.line_user_id, message)
+            labels = {
+                'recipient_type': 'patient',
+                'event_type': 'appointment_confirmation',
+                'trigger_source': trigger_source,
+                'appointment_context': 'new_appointment'
+            }
+            line_service.send_text_message(
+                patient.line_user.line_user_id, 
+                message,
+                db=db,
+                clinic_id=clinic.id,
+                labels=labels
+            )
 
             logger.info(
                 f"Sent appointment confirmation to patient {patient.id} ({patient.full_name}) "
@@ -453,9 +494,22 @@ class NotificationService:
             if appointment.notes:
                 message += f"\n備註：{appointment.notes}"
 
-            # Send notification
+            # Send notification with labels for tracking
             line_service = NotificationService._get_line_service(clinic)
-            line_service.send_text_message(practitioner.line_user_id, message)
+            # Practitioner notifications are always clinic_triggered (sent by system when clinic actions happen)
+            labels = {
+                'recipient_type': 'practitioner',
+                'event_type': 'new_appointment_notification',
+                'trigger_source': 'clinic_triggered',  # Practitioner notifications are always from clinic actions
+                'appointment_context': 'new_appointment'
+            }
+            line_service.send_text_message(
+                practitioner.line_user_id, 
+                message,
+                db=db,
+                clinic_id=clinic.id,
+                labels=labels
+            )
 
             logger.info(
                 f"Sent appointment notification to practitioner {practitioner.id} "
@@ -522,9 +576,23 @@ class NotificationService:
             message += f"類型：{appointment_type_name}\n"
             message += f"取消者：{cancelled_by_text}"
 
-            # Send notification
+            # Send notification with labels for tracking
             line_service = NotificationService._get_line_service(clinic)
-            line_service.send_text_message(practitioner.line_user_id, message)
+            # Practitioner notifications are always clinic_triggered (sent by system when clinic actions happen)
+            trigger_source = 'clinic_triggered' if cancelled_by == 'clinic' else 'patient_triggered'
+            labels = {
+                'recipient_type': 'practitioner',
+                'event_type': 'appointment_cancellation_notification',
+                'trigger_source': trigger_source,
+                'appointment_context': 'cancellation'
+            }
+            line_service.send_text_message(
+                practitioner.line_user_id, 
+                message,
+                db=db,
+                clinic_id=clinic.id,
+                labels=labels
+            )
 
             logger.info(
                 f"Sent cancellation notification to practitioner {practitioner.id} "
@@ -597,9 +665,21 @@ class NotificationService:
                         message += f"類型：{appointment_type_name}\n"
                         message += f"已轉移給：{new_practitioner_name}"
 
-                        # Send notification
+                        # Send notification with labels for tracking
                         line_service = NotificationService._get_line_service(clinic)
-                        line_service.send_text_message(old_practitioner.line_user_id, message)
+                        labels = {
+                            'recipient_type': 'practitioner',
+                            'event_type': 'appointment_edit_notification',
+                            'trigger_source': 'clinic_triggered',  # Practitioner notifications are always from clinic actions
+                            'appointment_context': 'reschedule'
+                        }
+                        line_service.send_text_message(
+                            old_practitioner.line_user_id, 
+                            message,
+                            db=db,
+                            clinic_id=clinic.id,
+                            labels=labels
+                        )
 
                         logger.info(
                             f"Sent reassignment notification to old practitioner {old_practitioner.id} "
@@ -654,7 +734,19 @@ class NotificationService:
 
                     # Send notification
                     line_service = NotificationService._get_line_service(clinic)
-                    line_service.send_text_message(new_practitioner.line_user_id, message)
+                    labels = {
+                        'recipient_type': 'practitioner',
+                        'event_type': 'appointment_edit_notification',
+                        'trigger_source': 'clinic_triggered',  # Practitioner notifications are always from clinic actions
+                        'appointment_context': 'reschedule'
+                    }
+                    line_service.send_text_message(
+                        new_practitioner.line_user_id, 
+                        message,
+                        db=db,
+                        clinic_id=clinic.id,
+                        labels=labels
+                    )
 
                     logger.info(
                         f"Sent reassignment notification to new practitioner {new_practitioner.id} "

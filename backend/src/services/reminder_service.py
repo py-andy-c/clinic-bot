@@ -337,8 +337,20 @@ class ReminderService:
                 clinic=clinic
             )
 
-            # Send reminder via LINE
-            line_service.send_text_message(line_user.line_user_id, message)
+            # Send reminder via LINE with labels for tracking
+            labels = {
+                'recipient_type': 'patient',
+                'event_type': 'appointment_reminder',
+                'trigger_source': 'system_triggered',
+                'appointment_context': 'existing_appointment'
+            }
+            line_service.send_text_message(
+                line_user.line_user_id, 
+                message,
+                db=db,
+                clinic_id=clinic.id,
+                labels=labels
+            )
 
             # Update reminder_sent_at after successful send
             # Note: LINE send and database commit are not truly atomic (they're separate systems).

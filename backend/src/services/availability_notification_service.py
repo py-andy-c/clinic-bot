@@ -541,10 +541,19 @@ class AvailabilityNotificationService:
                 )
             else:
                 # Message too long: send text message first, then template with button only
-                # Send full details as text message
+                # Send full details as text message with labels for tracking
+                labels = {
+                    'recipient_type': 'patient',
+                    'event_type': 'availability_notification',
+                    'trigger_source': 'system_triggered',
+                    'notification_context': 'new_slots_available'
+                }
                 line_service.send_text_message(
                     line_user_id=line_user.line_user_id,
-                    text=full_message_text
+                    text=full_message_text,
+                    db=db,
+                    clinic_id=clinic.id,
+                    labels=labels
                 )
                 
                 # Send template message with button only (minimal text - LINE requires non-empty text)
