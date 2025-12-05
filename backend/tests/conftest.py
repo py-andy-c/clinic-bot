@@ -32,6 +32,8 @@ from models.patient import Patient
 from models.appointment_type import AppointmentType
 from models.appointment import Appointment
 from models.line_user import LineUser
+from models.line_message import LineMessage
+from models.line_push_message import LinePushMessage
 from models.practitioner_availability import PractitionerAvailability
 from models.calendar_event import CalendarEvent
 from models.availability_notification import AvailabilityNotification

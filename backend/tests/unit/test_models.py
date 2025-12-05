@@ -11,6 +11,7 @@ from models.patient import Patient
 from models.appointment_type import AppointmentType
 from models.appointment import Appointment
 from models.calendar_event import CalendarEvent
+from models.line_push_message import LinePushMessage
 
 
 class TestClinicModel:
@@ -372,3 +373,206 @@ class TestAppointmentModel:
         assert hasattr(appointment, 'patient')
         assert hasattr(appointment, 'calendar_event')
         assert hasattr(appointment, 'appointment_type')
+
+
+class TestLinePushMessageModel:
+    """Test cases for LinePushMessage model."""
+
+    def test_line_push_message_creation(self, db_session, sample_clinic_data):
+        """Test LinePushMessage model creation with valid data."""
+        # Create clinic first
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        db_session.refresh(clinic)
+
+        push_message = LinePushMessage(
+            line_user_id="U1234567890abcdef",
+            clinic_id=clinic.id,
+            line_message_id="msg_123456",
+            recipient_type="patient",
+            event_type="appointment_confirmation",
+            trigger_source="clinic_triggered",
+            labels={"appointment_context": "new_appointment"}
+        )
+        db_session.add(push_message)
+        db_session.commit()
+        db_session.refresh(push_message)
+
+        assert push_message.line_user_id == "U1234567890abcdef"
+        assert push_message.clinic_id == clinic.id
+        assert push_message.line_message_id == "msg_123456"
+        assert push_message.recipient_type == "patient"
+        assert push_message.event_type == "appointment_confirmation"
+        assert push_message.trigger_source == "clinic_triggered"
+        assert push_message.labels == {"appointment_context": "new_appointment"}
+        assert push_message.created_at is not None
+
+    def test_line_push_message_default_labels(self, db_session, sample_clinic_data):
+        """Test LinePushMessage model defaults labels to empty dict."""
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        db_session.refresh(clinic)
+
+        push_message = LinePushMessage(
+            line_user_id="U1234567890abcdef",
+            clinic_id=clinic.id,
+            recipient_type="patient",
+            event_type="appointment_confirmation",
+            trigger_source="clinic_triggered"
+        )
+        db_session.add(push_message)
+        db_session.commit()
+        db_session.refresh(push_message)
+
+        assert push_message.labels == {}
+        assert isinstance(push_message.labels, dict)
+
+    def test_line_push_message_optional_line_message_id(self, db_session, sample_clinic_data):
+        """Test LinePushMessage model allows None for line_message_id."""
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        db_session.refresh(clinic)
+
+        push_message = LinePushMessage(
+            line_user_id="U1234567890abcdef",
+            clinic_id=clinic.id,
+            line_message_id=None,
+            recipient_type="practitioner",
+            event_type="new_appointment_notification",
+            trigger_source="patient_triggered"
+        )
+        db_session.add(push_message)
+        db_session.commit()
+        db_session.refresh(push_message)
+
+        assert push_message.line_message_id is None
+
+    def test_line_push_message_recipient_types(self, db_session, sample_clinic_data):
+        """Test LinePushMessage model accepts all recipient types."""
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        db_session.refresh(clinic)
+
+        recipient_types = ["patient", "practitioner", "admin"]
+        for recipient_type in recipient_types:
+            push_message = LinePushMessage(
+                line_user_id="U1234567890abcdef",
+                clinic_id=clinic.id,
+                recipient_type=recipient_type,
+                event_type="test_event",
+                trigger_source="system_triggered"
+            )
+            db_session.add(push_message)
+            db_session.commit()
+            db_session.refresh(push_message)
+            assert push_message.recipient_type == recipient_type
+            db_session.delete(push_message)
+            db_session.commit()
+
+    def test_line_push_message_trigger_sources(self, db_session, sample_clinic_data):
+        """Test LinePushMessage model accepts all trigger sources."""
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        db_session.refresh(clinic)
+
+        trigger_sources = ["clinic_triggered", "patient_triggered", "system_triggered"]
+        for trigger_source in trigger_sources:
+            push_message = LinePushMessage(
+                line_user_id="U1234567890abcdef",
+                clinic_id=clinic.id,
+                recipient_type="patient",
+                event_type="test_event",
+                trigger_source=trigger_source
+            )
+            db_session.add(push_message)
+            db_session.commit()
+            db_session.refresh(push_message)
+            assert push_message.trigger_source == trigger_source
+            db_session.delete(push_message)
+            db_session.commit()
+
+    def test_line_push_message_flexible_labels(self, db_session, sample_clinic_data):
+        """Test LinePushMessage model supports flexible labels in JSONB."""
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        db_session.refresh(clinic)
+
+        flexible_labels = {
+            "appointment_context": "new_appointment",
+            "priority": "high",
+            "campaign_id": "summer_2024",
+            "message_category": "notification"
+        }
+
+        push_message = LinePushMessage(
+            line_user_id="U1234567890abcdef",
+            clinic_id=clinic.id,
+            recipient_type="patient",
+            event_type="appointment_confirmation",
+            trigger_source="clinic_triggered",
+            labels=flexible_labels
+        )
+        db_session.add(push_message)
+        db_session.commit()
+        db_session.refresh(push_message)
+
+        assert push_message.labels == flexible_labels
+        assert push_message.labels["priority"] == "high"
+        assert push_message.labels["campaign_id"] == "summer_2024"
+
+    def test_line_push_message_relationship(self, db_session, sample_clinic_data):
+        """Test LinePushMessage model relationship with Clinic."""
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        db_session.refresh(clinic)
+
+        push_message = LinePushMessage(
+            line_user_id="U1234567890abcdef",
+            clinic_id=clinic.id,
+            recipient_type="patient",
+            event_type="appointment_confirmation",
+            trigger_source="clinic_triggered"
+        )
+        db_session.add(push_message)
+        db_session.commit()
+        db_session.refresh(push_message)
+
+        # Test relationship
+        assert hasattr(push_message, 'clinic')
+        assert push_message.clinic.id == clinic.id
+        assert push_message.clinic.name == clinic.name
+
+    def test_line_push_message_cascade_delete(self, db_session, sample_clinic_data):
+        """Test LinePushMessage is deleted when clinic is deleted (CASCADE)."""
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        db_session.refresh(clinic)
+
+        push_message = LinePushMessage(
+            line_user_id="U1234567890abcdef",
+            clinic_id=clinic.id,
+            recipient_type="patient",
+            event_type="appointment_confirmation",
+            trigger_source="clinic_triggered"
+        )
+        db_session.add(push_message)
+        db_session.commit()
+        push_message_id = push_message.id
+
+        # Delete clinic - should cascade delete push message
+        db_session.delete(clinic)
+        db_session.commit()
+
+        # Verify push message is deleted
+        deleted_message = db_session.query(LinePushMessage).filter(
+            LinePushMessage.id == push_message_id
+        ).first()
+        assert deleted_message is None

@@ -278,6 +278,7 @@ class Clinic(Base):
 
 
     line_messages = relationship("LineMessage", back_populates="clinic", cascade="all, delete-orphan")
+    line_push_messages = relationship("LinePushMessage", back_populates="clinic", cascade="all, delete-orphan")
     """LINE messages associated with this clinic."""
 
 
