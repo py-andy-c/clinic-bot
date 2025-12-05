@@ -544,4 +544,62 @@ class DashboardService:
             })
         
         return results
+    
+    @staticmethod
+    def get_clinic_metrics(
+        db: Session,
+        clinic_id: int
+    ) -> Dict[str, Any]:
+        """
+        Get all dashboard metrics for a clinic.
+        
+        This method aggregates all metrics by calling individual service methods
+        and returns them in the format expected by the API response.
+        
+        Args:
+            db: Database session
+            clinic_id: Clinic ID
+            
+        Returns:
+            Dictionary with all metrics, ready to be converted to ClinicDashboardMetricsResponse
+        """
+        months = get_months_for_dashboard()
+        
+        # Get all metrics
+        active_patients = DashboardService.get_active_patients_by_month(
+            db, clinic_id, months
+        )
+        new_patients = DashboardService.get_new_patients_by_month(
+            db, clinic_id, months
+        )
+        appointments = DashboardService.get_appointments_by_month(
+            db, clinic_id, months
+        )
+        cancellation_rate = DashboardService.get_cancellation_rate_by_month(
+            db, clinic_id, months
+        )
+        appointment_type_stats = DashboardService.get_appointment_type_stats_by_month(
+            db, clinic_id, months
+        )
+        practitioner_stats = DashboardService.get_practitioner_stats_by_month(
+            db, clinic_id, months
+        )
+        paid_messages = DashboardService.get_paid_messages_by_month(
+            db, clinic_id, months
+        )
+        ai_reply_messages = DashboardService.get_ai_reply_messages_by_month(
+            db, clinic_id, months
+        )
+        
+        return {
+            'months': [m.to_dict() for m in months],
+            'active_patients_by_month': active_patients,
+            'new_patients_by_month': new_patients,
+            'appointments_by_month': appointments,
+            'cancellation_rate_by_month': cancellation_rate,
+            'appointment_type_stats_by_month': appointment_type_stats,
+            'practitioner_stats_by_month': practitioner_stats,
+            'paid_messages_by_month': paid_messages,
+            'ai_reply_messages_by_month': ai_reply_messages
+        }
 

@@ -574,7 +574,7 @@ class LinePushMessage(Base):
 - Query logic for aggregating by month, recipient type, and event type
 - **Testing:** Unit tests for message aggregation logic
 
-### PR 6: Backend - Dashboard API Endpoint
+### PR 6: Backend - Dashboard API Endpoint ✅ COMPLETED
 **Scope:** Create API endpoint that aggregates all metrics
 - Create `GET /clinic/dashboard/metrics` endpoint
 - Implement `get_clinic_metrics()` method that calls all service methods

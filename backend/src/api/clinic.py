@@ -46,7 +46,8 @@ from api.responses import (
     AppointmentTypeDeletionErrorResponse, AppointmentTypeReference,
     MemberResponse, MemberListResponse,
     AvailableSlotsResponse, AvailableSlotResponse, ConflictWarningResponse, ConflictDetail,
-    PatientCreateResponse, AppointmentListResponse, AppointmentListItem
+    PatientCreateResponse, AppointmentListResponse, AppointmentListItem,
+    ClinicDashboardMetricsResponse
 )
 
 router = APIRouter()
@@ -4032,4 +4033,79 @@ async def list_auto_assigned_appointments(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得待審核預約列表"
+        )
+
+
+@router.get("/dashboard/metrics", summary="Get clinic dashboard metrics")
+async def get_dashboard_metrics(
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> ClinicDashboardMetricsResponse:
+    """
+    Get aggregated dashboard metrics for the clinic.
+    
+    Returns metrics for past 3 months + current month, including:
+    - Patient statistics (active patients, new patients)
+    - Appointment statistics (counts, cancellation rates, types, practitioners)
+    - Message statistics (paid messages, AI replies)
+    
+    Available to all clinic members (including read-only users).
+    """
+    try:
+        from services.dashboard_service import DashboardService
+        from api.responses import MonthInfo
+        
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Get all metrics
+        metrics = DashboardService.get_clinic_metrics(db, clinic_id)
+        
+        # Convert month dicts to MonthInfo objects for Pydantic
+        # Convert months list
+        metrics['months'] = [MonthInfo(**m) for m in metrics['months']]
+        
+        # Convert nested month dicts in all metric lists
+        for stat in metrics.get('active_patients_by_month', []):
+            if 'month' in stat and isinstance(stat['month'], dict):
+                stat['month'] = MonthInfo(**stat['month'])
+        
+        for stat in metrics.get('new_patients_by_month', []):
+            if 'month' in stat and isinstance(stat['month'], dict):
+                stat['month'] = MonthInfo(**stat['month'])
+        
+        for stat in metrics.get('appointments_by_month', []):
+            if 'month' in stat and isinstance(stat['month'], dict):
+                stat['month'] = MonthInfo(**stat['month'])
+        
+        for stat in metrics.get('cancellation_rate_by_month', []):
+            if 'month' in stat and isinstance(stat['month'], dict):
+                stat['month'] = MonthInfo(**stat['month'])
+        
+        for stat in metrics.get('appointment_type_stats_by_month', []):
+            if 'month' in stat and isinstance(stat['month'], dict):
+                stat['month'] = MonthInfo(**stat['month'])
+        
+        for stat in metrics.get('practitioner_stats_by_month', []):
+            if 'month' in stat and isinstance(stat['month'], dict):
+                stat['month'] = MonthInfo(**stat['month'])
+        
+        for stat in metrics.get('paid_messages_by_month', []):
+            if 'month' in stat and isinstance(stat['month'], dict):
+                stat['month'] = MonthInfo(**stat['month'])
+        
+        for stat in metrics.get('ai_reply_messages_by_month', []):
+            if 'month' in stat and isinstance(stat['month'], dict):
+                stat['month'] = MonthInfo(**stat['month'])
+        
+        # Convert to response model
+        return ClinicDashboardMetricsResponse(**metrics)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        clinic_id_str = str(getattr(current_user, 'active_clinic_id', 'unknown'))
+        logger.exception(f"Error getting dashboard metrics for clinic {clinic_id_str}: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得儀表板數據"
         )

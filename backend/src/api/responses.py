@@ -96,6 +96,79 @@ class AppointmentResponse(BaseModel):
 
 class AppointmentListItem(BaseModel):
     """Response model for appointment list item."""
+
+
+# Dashboard response models
+class MonthInfo(BaseModel):
+    """Month information for dashboard metrics."""
+    year: int
+    month: int  # 1-12
+    display_name: str  # e.g., "2024年1月"
+    is_current: bool
+
+
+class MonthlyPatientStat(BaseModel):
+    """Patient statistics for a specific month."""
+    month: MonthInfo
+    count: int
+
+
+class MonthlyAppointmentStat(BaseModel):
+    """Non-cancelled appointments for a specific month."""
+    month: MonthInfo
+    count: int
+
+
+class MonthlyCancellationStat(BaseModel):
+    """Cancellation breakdown for a specific month."""
+    month: MonthInfo
+    canceled_by_clinic_count: int
+    canceled_by_clinic_percentage: float
+    canceled_by_patient_count: int
+    canceled_by_patient_percentage: float
+    total_canceled_count: int
+    total_cancellation_rate: float
+
+
+class MonthlyAppointmentTypeStat(BaseModel):
+    """Appointment type statistics for a specific month."""
+    month: MonthInfo
+    appointment_type_id: int
+    appointment_type_name: str
+    count: int  # Non-cancelled only
+    percentage: float
+
+
+class MonthlyPractitionerStat(BaseModel):
+    """Practitioner statistics for a specific month."""
+    month: MonthInfo
+    user_id: int
+    practitioner_name: str
+    count: int  # Non-cancelled only
+    percentage: float
+
+
+class MonthlyMessageStat(BaseModel):
+    """Message statistics for a specific month."""
+    month: MonthInfo
+    recipient_type: Optional[str]  # 'patient', 'practitioner', 'admin', None for AI replies
+    event_type: Optional[str]  # Event type code, None for AI replies
+    event_display_name: str  # Display name for the event (e.g., "預約確認")
+    trigger_source: Optional[str]  # 'clinic_triggered', 'patient_triggered', 'system_triggered', None for AI replies
+    count: int
+
+
+class ClinicDashboardMetricsResponse(BaseModel):
+    """Response model for clinic dashboard metrics."""
+    months: List[MonthInfo]  # Past 3 months + current month
+    active_patients_by_month: List[MonthlyPatientStat]
+    new_patients_by_month: List[MonthlyPatientStat]
+    appointments_by_month: List[MonthlyAppointmentStat]
+    cancellation_rate_by_month: List[MonthlyCancellationStat]
+    appointment_type_stats_by_month: List[MonthlyAppointmentTypeStat]
+    practitioner_stats_by_month: List[MonthlyPractitionerStat]
+    paid_messages_by_month: List[MonthlyMessageStat]
+    ai_reply_messages_by_month: List[MonthlyMessageStat]
     id: int  # calendar_event_id (kept for backward compatibility)
     calendar_event_id: int  # Explicit field for clarity
     patient_id: int
@@ -208,3 +281,76 @@ class MemberResponse(BaseModel):
 class MemberListResponse(BaseModel):
     """Response model for listing clinic members."""
     members: List[MemberResponse]
+
+
+# Dashboard response models
+class MonthInfo(BaseModel):
+    """Month information for dashboard metrics."""
+    year: int
+    month: int  # 1-12
+    display_name: str  # e.g., "2024年1月"
+    is_current: bool
+
+
+class MonthlyPatientStat(BaseModel):
+    """Patient statistics for a specific month."""
+    month: MonthInfo
+    count: int
+
+
+class MonthlyAppointmentStat(BaseModel):
+    """Non-cancelled appointments for a specific month."""
+    month: MonthInfo
+    count: int
+
+
+class MonthlyCancellationStat(BaseModel):
+    """Cancellation breakdown for a specific month."""
+    month: MonthInfo
+    canceled_by_clinic_count: int
+    canceled_by_clinic_percentage: float
+    canceled_by_patient_count: int
+    canceled_by_patient_percentage: float
+    total_canceled_count: int
+    total_cancellation_rate: float
+
+
+class MonthlyAppointmentTypeStat(BaseModel):
+    """Appointment type statistics for a specific month."""
+    month: MonthInfo
+    appointment_type_id: int
+    appointment_type_name: str
+    count: int  # Non-cancelled only
+    percentage: float
+
+
+class MonthlyPractitionerStat(BaseModel):
+    """Practitioner statistics for a specific month."""
+    month: MonthInfo
+    user_id: int
+    practitioner_name: str
+    count: int  # Non-cancelled only
+    percentage: float
+
+
+class MonthlyMessageStat(BaseModel):
+    """Message statistics for a specific month."""
+    month: MonthInfo
+    recipient_type: Optional[str]  # 'patient', 'practitioner', 'admin', None for AI replies
+    event_type: Optional[str]  # Event type code, None for AI replies
+    event_display_name: str  # Display name for the event (e.g., "預約確認")
+    trigger_source: Optional[str]  # 'clinic_triggered', 'patient_triggered', 'system_triggered', None for AI replies
+    count: int
+
+
+class ClinicDashboardMetricsResponse(BaseModel):
+    """Response model for clinic dashboard metrics."""
+    months: List[MonthInfo]  # Past 3 months + current month
+    active_patients_by_month: List[MonthlyPatientStat]
+    new_patients_by_month: List[MonthlyPatientStat]
+    appointments_by_month: List[MonthlyAppointmentStat]
+    cancellation_rate_by_month: List[MonthlyCancellationStat]
+    appointment_type_stats_by_month: List[MonthlyAppointmentTypeStat]
+    practitioner_stats_by_month: List[MonthlyPractitionerStat]
+    paid_messages_by_month: List[MonthlyMessageStat]
+    ai_reply_messages_by_month: List[MonthlyMessageStat]
