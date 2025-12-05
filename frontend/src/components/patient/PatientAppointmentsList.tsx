@@ -1,35 +1,64 @@
 import React, { useState, useCallback } from 'react';
-import { useApiData } from '../../hooks/useApiData';
+import { useApiData, invalidateCacheForFunction, invalidateCacheByPattern } from '../../hooks/useApiData';
 import { apiService } from '../../services/api';
 import { LoadingSpinner, ErrorMessage } from '../shared';
 import moment from 'moment-timezone';
 import { formatAppointmentTime } from '../../utils/calendarUtils';
 import { renderStatusBadge } from '../../utils/appointmentStatus';
+import { EditAppointmentModal } from '../calendar/EditAppointmentModal';
+import { CancellationNoteModal } from '../calendar/CancellationNoteModal';
+import { CancellationPreviewModal } from '../calendar/CancellationPreviewModal';
+import { CalendarEvent } from '../../utils/calendarDataAdapter';
+import { appointmentToCalendarEvent } from './appointmentUtils';
+import { useModal } from '../../contexts/ModalContext';
+import { getErrorMessage } from '../../types/api';
+import { logger } from '../../utils/logger';
 
 const TAIWAN_TIMEZONE = 'Asia/Taipei';
 
 interface PatientAppointmentsListProps {
   patientId: number;
+  practitioners: Array<{ id: number; full_name: string }>;
+  appointmentTypes: Array<{ id: number; name: string; duration_minutes: number }>;
 }
 
 type TabType = 'future' | 'completed' | 'cancelled';
 
 interface Appointment {
   id: number;
+  calendar_event_id: number;
   patient_id: number;
   patient_name: string;
+  practitioner_id: number;
   practitioner_name: string;
+  appointment_type_id: number;
   appointment_type_name: string;
   start_time: string;
   end_time: string;
   status: string;
   notes?: string | null;
+  line_display_name?: string | null;
+  originally_auto_assigned?: boolean;
 }
 
 export const PatientAppointmentsList: React.FC<PatientAppointmentsListProps> = ({
   patientId,
+  practitioners,
+  appointmentTypes,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('future');
+  const { alert } = useModal();
+  
+  // Edit appointment state
+  const [editingAppointment, setEditingAppointment] = useState<CalendarEvent | null>(null);
+  const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
+  
+  // Delete appointment state
+  const [deletingAppointment, setDeletingAppointment] = useState<CalendarEvent | null>(null);
+  const [cancellationNote, setCancellationNote] = useState<string>('');
+  const [cancellationPreviewMessage, setCancellationPreviewMessage] = useState<string>('');
+  const [cancellationPreviewLoading, setCancellationPreviewLoading] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<'note' | 'preview' | null>(null);
 
   // Fetch ALL appointments once (no filters) so we can calculate accurate counts for all tabs
   const fetchAppointments = useCallback(() => {
@@ -40,7 +69,7 @@ export const PatientAppointmentsList: React.FC<PatientAppointmentsListProps> = (
     );
   }, [patientId]);
 
-  const { data, loading, error, refetch } = useApiData<{
+  const { data, loading, error, refetch, setData } = useApiData<{
     appointments: Appointment[];
   }>(
     fetchAppointments,
@@ -87,6 +116,108 @@ export const PatientAppointmentsList: React.FC<PatientAppointmentsListProps> = (
       : activeTab === 'completed'
       ? completedAppointments
       : cancelledAppointments;
+
+  // Helper function to refresh appointments list after mutations
+  const refreshAppointmentsList = useCallback(async () => {
+    // Invalidate cache for appointments list using pattern to catch all variations
+    invalidateCacheByPattern(`api_getPatientAppointments`);
+    invalidateCacheForFunction(fetchAppointments);
+    
+    // Force a fresh fetch by directly calling the API and updating data
+    // This ensures we get fresh data regardless of cache state
+    try {
+      const freshData = await fetchAppointments();
+      setData(freshData);
+    } catch (fetchError) {
+      // If direct fetch fails, try refetch as fallback
+      logger.warn('Direct fetch failed, trying refetch:', fetchError);
+      await refetch();
+    }
+  }, [fetchAppointments, setData, refetch]);
+
+  // Edit appointment handler
+  const handleEditConfirm = async (formData: {
+    practitioner_id: number | null;
+    start_time: string;
+    notes?: string;
+    notification_note?: string;
+  }) => {
+    if (!editingAppointment) return;
+    
+    try {
+      await apiService.editClinicAppointment(
+        editingAppointment.resource.calendar_event_id,
+        formData
+      );
+      
+      // Refresh appointments list
+      await refreshAppointmentsList();
+      
+      setEditingAppointment(null);
+      setEditErrorMessage(null);
+      await alert('預約已更新');
+    } catch (error) {
+      logger.error('Error editing appointment:', error);
+      const errorMessage = getErrorMessage(error);
+      setEditErrorMessage(errorMessage);
+      // Don't throw - let the modal handle the error display
+    }
+  };
+
+  // Delete appointment handlers
+  const handleCancellationNoteSubmit = async () => {
+    if (!deletingAppointment) return;
+    
+    setCancellationPreviewLoading(true);
+    try {
+      const response = await apiService.generateCancellationPreview({
+        appointment_type: deletingAppointment.resource.appointment_type_name || '',
+        appointment_time: formatAppointmentTime(
+          deletingAppointment.start,
+          deletingAppointment.end
+        ),
+        therapist_name: deletingAppointment.resource.practitioner_name || '',
+        patient_name: deletingAppointment.resource.patient_name || '',
+        ...(cancellationNote.trim() && { note: cancellationNote.trim() }),
+      });
+      
+      setCancellationPreviewMessage(response.preview_message);
+      setDeleteStep('preview');
+    } catch (error) {
+      logger.error('Error generating cancellation preview:', error);
+      const errorMessage = getErrorMessage(error);
+      await alert(`無法產生預覽訊息：${errorMessage}`, '錯誤');
+      // Stay on note step so user can retry
+    } finally {
+      setCancellationPreviewLoading(false);
+    }
+  };
+  
+  const handleConfirmDelete = async () => {
+    if (!deletingAppointment || !deletingAppointment.resource.calendar_event_id) return;
+    
+    try {
+      // Note: cancelClinicAppointment API uses calendar_event_id despite parameter name
+      await apiService.cancelClinicAppointment(
+        deletingAppointment.resource.calendar_event_id,
+        cancellationNote.trim() || undefined
+      );
+      
+      // Refresh appointments list
+      await refreshAppointmentsList();
+      
+      setDeletingAppointment(null);
+      setCancellationNote('');
+      setCancellationPreviewMessage('');
+      setDeleteStep(null);
+      await alert('預約已取消');
+    } catch (error) {
+      logger.error('Error deleting appointment:', error);
+      const errorMessage = getErrorMessage(error);
+      await alert(`取消預約失敗：${errorMessage}`, '錯誤');
+      // Stay on preview step so user can retry or go back
+    }
+  };
 
 
   if (loading) {
@@ -167,9 +298,49 @@ export const PatientAppointmentsList: React.FC<PatientAppointmentsListProps> = (
                     )}
                   </p>
                 </div>
-                {renderStatusBadge(appointment.status) && (
-                  <div className="flex-shrink-0">{renderStatusBadge(appointment.status)}</div>
-                )}
+                <div className="flex-shrink-0 flex items-center gap-2">
+                  {renderStatusBadge(appointment.status) && (
+                    <div className="flex-shrink-0">{renderStatusBadge(appointment.status)}</div>
+                  )}
+                  {activeTab === 'future' && (
+                    <>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const event = appointmentToCalendarEvent(appointment);
+                            setEditingAppointment(event);
+                            setEditErrorMessage(null);
+                          } catch (error) {
+                            logger.error('Error converting appointment to calendar event:', error);
+                            await alert('無法載入預約資料，請重新整理頁面', '錯誤');
+                          }
+                        }}
+                        className="btn-primary bg-blue-600 hover:bg-blue-700 text-sm px-3 py-1.5"
+                        aria-label="編輯預約"
+                      >
+                        編輯預約
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const event = appointmentToCalendarEvent(appointment);
+                            setDeletingAppointment(event);
+                            setCancellationNote('');
+                            setCancellationPreviewMessage('');
+                            setDeleteStep('note');
+                          } catch (error) {
+                            logger.error('Error converting appointment to calendar event:', error);
+                            await alert('無法載入預約資料，請重新整理頁面', '錯誤');
+                          }
+                        }}
+                        className="btn-primary bg-red-600 hover:bg-red-700 text-sm px-3 py-1.5"
+                        aria-label="刪除預約"
+                      >
+                        刪除預約
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="mt-2 space-y-1">
@@ -200,6 +371,50 @@ export const PatientAppointmentsList: React.FC<PatientAppointmentsListProps> = (
             </div>
           ))}
         </div>
+      )}
+
+      {/* Edit Appointment Modal */}
+      {editingAppointment && (
+        <EditAppointmentModal
+          event={editingAppointment}
+          practitioners={practitioners}
+          appointmentTypes={appointmentTypes}
+          onClose={() => {
+            setEditingAppointment(null);
+            setEditErrorMessage(null);
+          }}
+          onConfirm={handleEditConfirm}
+          formatAppointmentTime={(start, end) => {
+            const startMoment = moment(start).tz('Asia/Taipei');
+            const endMoment = moment(end).tz('Asia/Taipei');
+            return `${startMoment.format('YYYY-MM-DD HH:mm')} - ${endMoment.format('HH:mm')}`;
+          }}
+          errorMessage={editErrorMessage}
+        />
+      )}
+
+      {/* Cancellation Note Modal */}
+      {deletingAppointment && deleteStep === 'note' && (
+        <CancellationNoteModal
+          cancellationNote={cancellationNote}
+          isLoading={cancellationPreviewLoading}
+          onNoteChange={setCancellationNote}
+          onBack={() => {
+            setDeletingAppointment(null);
+            setDeleteStep(null);
+            setCancellationNote('');
+          }}
+          onSubmit={handleCancellationNoteSubmit}
+        />
+      )}
+
+      {/* Cancellation Preview Modal */}
+      {deletingAppointment && deleteStep === 'preview' && (
+        <CancellationPreviewModal
+          previewMessage={cancellationPreviewMessage}
+          onBack={() => setDeleteStep('note')}
+          onConfirm={handleConfirmDelete}
+        />
       )}
     </div>
   );

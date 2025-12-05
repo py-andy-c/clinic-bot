@@ -96,15 +96,20 @@ class AppointmentResponse(BaseModel):
 
 class AppointmentListItem(BaseModel):
     """Response model for appointment list item."""
-    id: int
+    id: int  # calendar_event_id (kept for backward compatibility)
+    calendar_event_id: int  # Explicit field for clarity
     patient_id: int
     patient_name: str
+    practitioner_id: int
     practitioner_name: str
+    appointment_type_id: int
     appointment_type_name: str
     start_time: str
     end_time: str
     status: str
     notes: Optional[str]
+    line_display_name: Optional[str] = None
+    originally_auto_assigned: bool = False
 
 
 class AppointmentListResponse(BaseModel):

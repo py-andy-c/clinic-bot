@@ -65,13 +65,13 @@ const PatientDetailPage: React.FC = () => {
     }
   );
 
-  // Fetch practitioners for appointment modal (lazy load when modal opens)
+  // Fetch practitioners (needed for edit/delete appointment buttons and create modal)
   const fetchPractitioners = useCallback(() => sharedFetchFunctions.getPractitioners(), []);
   const { data: practitionersData } = useApiData(
     fetchPractitioners,
     {
-      enabled: !authLoading && isAuthenticated && isAppointmentModalOpen,
-      dependencies: [authLoading, isAuthenticated, isAppointmentModalOpen],
+      enabled: !authLoading && isAuthenticated,
+      dependencies: [authLoading, isAuthenticated],
       cacheTTL: 5 * 60 * 1000, // 5 minutes cache
     }
   );
@@ -184,7 +184,11 @@ const PatientDetailPage: React.FC = () => {
           canEdit={canEdit}
         />
 
-        <PatientAppointmentsList patientId={patient.id} />
+        <PatientAppointmentsList 
+          patientId={patient.id}
+          practitioners={practitioners}
+          appointmentTypes={appointmentTypes}
+        />
       </div>
 
       {/* Create Appointment Modal */}

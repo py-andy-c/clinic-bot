@@ -451,3 +451,71 @@ class TestGetPatientAppointments:
         data = response.json()
         assert data["appointments"][0]["notes"] == "Test notes"
 
+    def test_get_appointments_includes_new_fields(self, auth_headers_admin, test_patient, future_appointment, practitioner_user, appointment_type):
+        """Appointments include new fields needed for edit/delete functionality."""
+        response = client.get(
+            f"/api/clinic/patients/{test_patient.id}/appointments",
+            headers=auth_headers_admin,
+            params={"upcoming_only": True}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        appointment = data["appointments"][0]
+        
+        # Check new fields are present
+        assert "calendar_event_id" in appointment
+        assert appointment["calendar_event_id"] == appointment["id"]  # Should match id field
+        assert "practitioner_id" in appointment
+        assert appointment["practitioner_id"] == practitioner_user.id
+        assert "appointment_type_id" in appointment
+        assert appointment["appointment_type_id"] == appointment_type.id
+        assert "line_display_name" in appointment
+        assert "originally_auto_assigned" in appointment
+        assert isinstance(appointment["originally_auto_assigned"], bool)
+
+    def test_get_appointments_with_line_user(self, db_session, auth_headers_admin, test_clinic, test_patient, future_appointment):
+        """Appointments include line_display_name when patient has LINE user."""
+        from models.line_user import LineUser
+        
+        # Create a LINE user and link it to the patient
+        line_user = LineUser(
+            line_user_id="test_line_user_123",
+            clinic_id=test_clinic.id,
+            display_name="Test LINE User",
+            clinic_display_name=None
+        )
+        db_session.add(line_user)
+        db_session.flush()
+        
+        test_patient.line_user_id = line_user.id
+        db_session.commit()
+        
+        response = client.get(
+            f"/api/clinic/patients/{test_patient.id}/appointments",
+            headers=auth_headers_admin,
+            params={"upcoming_only": True}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        appointment = data["appointments"][0]
+        
+        # Should have line_display_name
+        assert appointment["line_display_name"] == "Test LINE User"
+
+    def test_get_appointments_without_line_user(self, auth_headers_admin, test_patient, future_appointment):
+        """Appointments have null line_display_name when patient has no LINE user."""
+        # Ensure patient has no LINE user
+        assert test_patient.line_user_id is None
+        
+        response = client.get(
+            f"/api/clinic/patients/{test_patient.id}/appointments",
+            headers=auth_headers_admin,
+            params={"upcoming_only": True}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        appointment = data["appointments"][0]
+        
+        # Should have null line_display_name
+        assert appointment["line_display_name"] is None
+

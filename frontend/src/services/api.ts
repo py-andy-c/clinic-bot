@@ -279,15 +279,20 @@ export class ApiService {
     upcomingOnly?: boolean
   ): Promise<{
     appointments: Array<{
-      id: number;
+      id: number;  // calendar_event_id (kept for backward compatibility)
+      calendar_event_id: number;
       patient_id: number;
       patient_name: string;
+      practitioner_id: number;
       practitioner_name: string;
+      appointment_type_id: number;
       appointment_type_name: string;
       start_time: string;
       end_time: string;
       status: string;
       notes?: string | null;
+      line_display_name?: string | null;
+      originally_auto_assigned?: boolean;
     }>;
   }> {
     const params: Record<string, string> = {};

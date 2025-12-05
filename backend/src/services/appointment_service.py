@@ -432,7 +432,7 @@ class AppointmentService:
         appointments: List[Appointment] = query.options(
             contains_eager(Appointment.calendar_event).joinedload(CalendarEvent.user),
             joinedload(Appointment.appointment_type),
-            joinedload(Appointment.patient)
+            joinedload(Appointment.patient).joinedload(Patient.line_user)  # Load line_user for display_name
         ).order_by(CalendarEvent.date, CalendarEvent.start_time).all()
 
         # Format response
@@ -470,16 +470,26 @@ class AppointmentService:
             else:
                 end_datetime = None
 
+            # Get line_display_name if line_user exists
+            line_display_name = None
+            if patient.line_user:
+                line_display_name = patient.line_user.effective_display_name
+
             result.append({
-                "id": appointment.calendar_event_id,
+                "id": appointment.calendar_event_id,  # Keep for backward compatibility
+                "calendar_event_id": appointment.calendar_event_id,  # Explicit field
                 "patient_id": appointment.patient_id,
                 "patient_name": patient.full_name,
+                "practitioner_id": appointment.calendar_event.user_id,
                 "practitioner_name": practitioner_name,
+                "appointment_type_id": appointment.appointment_type_id,
                 "appointment_type_name": get_appointment_type_name_safe(appointment.appointment_type_id, db),
                 "start_time": start_datetime.isoformat() if start_datetime else "",
                 "end_time": end_datetime.isoformat() if end_datetime else "",
                 "status": appointment.status,
-                "notes": appointment.notes
+                "notes": appointment.notes,
+                "line_display_name": line_display_name,
+                "originally_auto_assigned": appointment.originally_auto_assigned
             })
 
         return result
@@ -538,7 +548,7 @@ class AppointmentService:
         appointments: List[Appointment] = query.options(
             contains_eager(Appointment.calendar_event).joinedload(CalendarEvent.user),
             joinedload(Appointment.appointment_type),
-            joinedload(Appointment.patient)
+            joinedload(Appointment.patient).joinedload(Patient.line_user)  # Load line_user for display_name
         ).order_by(CalendarEvent.date.desc(), CalendarEvent.start_time.desc()).all()
 
         # Format response
@@ -575,16 +585,26 @@ class AppointmentService:
             else:
                 end_datetime = None
 
+            # Get line_display_name if line_user exists
+            line_display_name = None
+            if patient_obj.line_user:
+                line_display_name = patient_obj.line_user.effective_display_name
+
             result.append({
-                "id": appointment.calendar_event_id,
+                "id": appointment.calendar_event_id,  # Keep for backward compatibility
+                "calendar_event_id": appointment.calendar_event_id,  # Explicit field
                 "patient_id": appointment.patient_id,
                 "patient_name": patient_obj.full_name,
+                "practitioner_id": appointment.calendar_event.user_id,
                 "practitioner_name": practitioner_name,
+                "appointment_type_id": appointment.appointment_type_id,
                 "appointment_type_name": get_appointment_type_name_safe(appointment.appointment_type_id, db),
                 "start_time": start_datetime.isoformat() if start_datetime else "",
                 "end_time": end_datetime.isoformat() if end_datetime else "",
                 "status": appointment.status,
-                "notes": appointment.notes
+                "notes": appointment.notes,
+                "line_display_name": line_display_name,
+                "originally_auto_assigned": appointment.originally_auto_assigned
             })
 
         return result
