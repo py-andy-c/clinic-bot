@@ -514,7 +514,7 @@ const LineUsersPage: React.FC = () => {
                                     alt={lineUser.display_name || 'LINE user'}
                                     size="medium"
                                   />
-                                  <div className="text-sm font-medium text-gray-900 whitespace-nowrap truncate min-w-0 flex-1" title={lineUser.display_name || '未設定名稱'}>
+                                  <div className="text-sm font-medium text-gray-900 whitespace-nowrap truncate min-w-0 max-w-[200px]" title={lineUser.display_name || '未設定名稱'}>
                                     {lineUser.display_name || '未設定名稱'}
                                   </div>
                                   <button
@@ -523,7 +523,7 @@ const LineUsersPage: React.FC = () => {
                                       setEditingLineUserId(lineUser.line_user_id);
                                       setEditingDisplayName(lineUser.display_name || '');
                                     }}
-                                    className="px-1 py-1 text-gray-400 hover:text-gray-600 transition-colors"
+                                    className="px-1 py-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
                                     title="編輯顯示名稱"
                                   >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

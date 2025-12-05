@@ -370,9 +370,6 @@ const PatientsPage: React.FC = () => {
                         LINE 使用者
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        註冊時間
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         操作
                       </th>
                     </tr>
@@ -436,9 +433,6 @@ const PatientsPage: React.FC = () => {
                           ) : (
                             <span className="text-sm text-gray-500">-</span>
                           )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {moment.tz(patient.created_at, 'Asia/Taipei').format('YYYY/MM/DD')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <button
