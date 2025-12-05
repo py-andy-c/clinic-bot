@@ -354,12 +354,24 @@ class AdminAutoAssignedNotificationService:
 
             message += "請前往「待審核預約」頁面進行確認或重新指派。"
 
-            # Send notification via LINE
+            # Send notification via LINE with labels for tracking
             line_service = LINEService(
                 channel_secret=clinic.line_channel_secret,
                 channel_access_token=clinic.line_channel_access_token
             )
-            line_service.send_text_message(admin.line_user_id, message)
+            labels = {
+                'recipient_type': 'admin',
+                'event_type': 'auto_assigned_notification',
+                'trigger_source': 'system_triggered',
+                'notification_context': 'auto_assignment'
+            }
+            line_service.send_text_message(
+                admin.line_user_id, 
+                message,
+                db=db,
+                clinic_id=clinic.id,
+                labels=labels
+            )
 
             logger.info(
                 f"Sent auto-assigned notification to admin {admin.id} "

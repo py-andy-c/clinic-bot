@@ -282,12 +282,24 @@ class PractitionerDailyNotificationService:
 
             message += "請準時為病患服務！"
 
-            # Send notification via LINE
+            # Send notification via LINE with labels for tracking
             line_service = LINEService(
                 channel_secret=clinic.line_channel_secret,
                 channel_access_token=clinic.line_channel_access_token
             )
-            line_service.send_text_message(practitioner.line_user_id, message)
+            labels = {
+                'recipient_type': 'practitioner',
+                'event_type': 'daily_appointment_reminder',
+                'trigger_source': 'system_triggered',
+                'notification_context': 'daily_summary'
+            }
+            line_service.send_text_message(
+                practitioner.line_user_id, 
+                message,
+                db=db,
+                clinic_id=clinic.id,
+                labels=labels
+            )
 
             logger.info(
                 f"Sent daily notification to practitioner {practitioner.id} "
