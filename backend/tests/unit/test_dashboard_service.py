@@ -15,6 +15,8 @@ from models.appointment_type import AppointmentType
 from models.appointment import Appointment
 from models.calendar_event import CalendarEvent
 from models.user_clinic_association import UserClinicAssociation
+from models.line_push_message import LinePushMessage
+from models.line_message import LineMessage
 from services.dashboard_service import (
     DashboardService, MonthInfo, get_months_for_dashboard
 )
@@ -815,4 +817,220 @@ class TestDashboardServicePractitionerStats:
         assert p2 is not None
         assert p2['count'] == 1
         assert p2['percentage'] == 25.0
+
+
+class TestDashboardServicePaidMessages:
+    """Test DashboardService.get_paid_messages_by_month."""
+    
+    def test_paid_messages_empty(self, db_session: Session):
+        """Test paid messages with no data."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        months = get_months_for_dashboard()
+        results = DashboardService.get_paid_messages_by_month(
+            db_session, clinic.id, months
+        )
+        
+        assert len(results) == 0  # No messages = no results
+    
+    def test_paid_messages_by_event_type(self, db_session: Session):
+        """Test paid messages grouped by event type."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        # Create push messages in current month
+        now = taiwan_now()
+        current_month = now.month
+        current_year = now.year
+        
+        # Create messages with different event types
+        # Note: Messages are grouped by (recipient_type, event_type, trigger_source)
+        messages = [
+            ('patient', 'appointment_confirmation', 'clinic_triggered', 'user1'),
+            ('patient', 'appointment_confirmation', 'clinic_triggered', 'user2'),  # Same group as above
+            ('patient', 'appointment_cancellation', 'patient_triggered', 'user3'),
+            ('practitioner', 'new_appointment_notification', 'clinic_triggered', 'user4'),
+        ]
+        
+        for recipient_type, event_type, trigger_source, line_user_id in messages:
+            # Calculate datetime in current month
+            message_datetime = datetime.combine(
+                date(current_year, current_month, 15),
+                datetime.min.time()
+            ).replace(tzinfo=TAIWAN_TZ)
+            
+            push_message = LinePushMessage(
+                line_user_id=line_user_id,
+                clinic_id=clinic.id,
+                recipient_type=recipient_type,
+                event_type=event_type,
+                trigger_source=trigger_source,
+                labels={}
+            )
+            # Override created_at for testing
+            push_message.created_at = message_datetime
+            db_session.add(push_message)
+        
+        db_session.commit()
+        
+        months = get_months_for_dashboard()
+        results = DashboardService.get_paid_messages_by_month(
+            db_session, clinic.id, months
+        )
+        
+        # Filter to current month
+        current_month_results = [
+            r for r in results if r['month']['is_current']
+        ]
+        
+        # Should have 3 groups: 
+        # 1. patient/appointment_confirmation/clinic_triggered (2 messages)
+        # 2. patient/appointment_cancellation/patient_triggered (1 message)
+        # 3. practitioner/new_appointment_notification/clinic_triggered (1 message)
+        assert len(current_month_results) == 3
+        
+        # Check appointment_confirmation (2 messages)
+        confirmation = next(
+            (r for r in current_month_results 
+             if r['event_type'] == 'appointment_confirmation' and r['recipient_type'] == 'patient'),
+            None
+        )
+        assert confirmation is not None
+        assert confirmation['count'] == 2
+        assert confirmation['event_display_name'] == '預約確認'
+        assert confirmation['trigger_source'] == 'clinic_triggered'
+        
+        # Check appointment_cancellation (1 message)
+        cancellation = next(
+            (r for r in current_month_results 
+             if r['event_type'] == 'appointment_cancellation' and r['recipient_type'] == 'patient'),
+            None
+        )
+        assert cancellation is not None
+        assert cancellation['count'] == 1
+        assert cancellation['event_display_name'] == '預約取消'
+        assert cancellation['trigger_source'] == 'patient_triggered'
+        
+        # Check new_appointment_notification (1 message)
+        notification = next(
+            (r for r in current_month_results 
+             if r['event_type'] == 'new_appointment_notification' and r['recipient_type'] == 'practitioner'),
+            None
+        )
+        assert notification is not None
+        assert notification['count'] == 1
+        assert notification['event_display_name'] == '新預約通知'
+
+
+class TestDashboardServiceAiReplyMessages:
+    """Test DashboardService.get_ai_reply_messages_by_month."""
+    
+    def test_ai_reply_messages_empty(self, db_session: Session):
+        """Test AI reply messages with no data."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        months = get_months_for_dashboard()
+        results = DashboardService.get_ai_reply_messages_by_month(
+            db_session, clinic.id, months
+        )
+        
+        assert len(results) == 4  # One result per month (even if count is 0)
+        assert all(r['count'] == 0 for r in results)
+        assert all(r['event_display_name'] == 'AI 回覆訊息' for r in results)
+        assert all(r['recipient_type'] is None for r in results)
+        assert all(r['event_type'] is None for r in results)
+        assert all(r['trigger_source'] is None for r in results)
+    
+    def test_ai_reply_messages_in_current_month(self, db_session: Session):
+        """Test AI reply messages in current month."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        # Create AI reply messages in current month
+        now = taiwan_now()
+        current_month = now.month
+        current_year = now.year
+        
+        # Create 3 AI reply messages (is_from_user=False)
+        for i in range(3):
+            message_datetime = datetime.combine(
+                date(current_year, current_month, 10 + i),
+                datetime.min.time()
+            ).replace(tzinfo=TAIWAN_TZ)
+            
+            line_message = LineMessage(
+                line_message_id=f"ai_reply_{i}",
+                line_user_id=f"user_{i}",
+                clinic_id=clinic.id,
+                message_text=f"AI reply {i}",
+                message_type="text",
+                is_from_user=False,
+                session_id=f"{clinic.id}-user_{i}"
+            )
+            # Override created_at for testing
+            line_message.created_at = message_datetime
+            db_session.add(line_message)
+        
+        # Create 1 user message (is_from_user=True) - should not be counted
+        user_message_datetime = datetime.combine(
+            date(current_year, current_month, 20),
+            datetime.min.time()
+        ).replace(tzinfo=TAIWAN_TZ)
+        
+        user_message = LineMessage(
+            line_message_id="user_message_1",
+            line_user_id="user_1",
+            clinic_id=clinic.id,
+            message_text="User message",
+            message_type="text",
+            is_from_user=True,
+            session_id=f"{clinic.id}-user_1"
+        )
+        user_message.created_at = user_message_datetime
+        db_session.add(user_message)
+        
+        db_session.commit()
+        
+        months = get_months_for_dashboard()
+        results = DashboardService.get_ai_reply_messages_by_month(
+            db_session, clinic.id, months
+        )
+        
+        # Find current month result
+        current_month_result = next(
+            (r for r in results if r['month']['is_current']), None
+        )
+        
+        assert current_month_result is not None
+        assert current_month_result['count'] == 3  # Only AI replies, not user messages
+        assert current_month_result['event_display_name'] == 'AI 回覆訊息'
+        assert current_month_result['recipient_type'] is None
+        assert current_month_result['event_type'] is None
+        assert current_month_result['trigger_source'] is None
 

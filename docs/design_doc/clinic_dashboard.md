@@ -567,7 +567,7 @@ class LinePushMessage(Base):
 - Implement `get_practitioner_stats_by_month()` - practitioner stats
 - **Testing:** Unit tests for each service method with various data scenarios
 
-### PR 5: Backend - Message Statistics Service
+### PR 5: Backend - Message Statistics Service ✅ COMPLETED
 **Scope:** Implement service methods for message statistics
 - Implement `get_paid_messages_by_month()` - paid messages breakdown by event type
 - Implement `get_ai_reply_messages_by_month()` - AI replies from `LineMessage` table

@@ -15,11 +15,28 @@ from sqlalchemy import func, and_, or_, case, distinct
 
 from models import (
     Patient, Appointment, CalendarEvent, AppointmentType,
-    UserClinicAssociation, User
+    UserClinicAssociation, User, LinePushMessage, LineMessage
 )
 from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 
 logger = logging.getLogger(__name__)
+
+# Event type display names mapping
+EVENT_TYPE_DISPLAY_NAMES = {
+    # To Patients
+    'appointment_confirmation': '預約確認',
+    'appointment_cancellation': '預約取消',
+    'appointment_edit': '預約調整',
+    'appointment_reminder': '預約提醒',
+    'availability_notification': '空檔通知',
+    # To Practitioners
+    'new_appointment_notification': '新預約通知',
+    'appointment_cancellation_notification': '預約取消通知',
+    'appointment_edit_notification': '預約調整通知',
+    'daily_appointment_reminder': '每日預約提醒',
+    # To Admins
+    'auto_assigned_notification': '待審核預約通知',
+}
 
 
 class MonthInfo:
@@ -400,6 +417,131 @@ class DashboardService:
                     'count': count,
                     'percentage': round(percentage, 1)
                 })
+        
+        return results
+    
+    @staticmethod
+    def get_paid_messages_by_month(
+        db: Session,
+        clinic_id: int,
+        months: List[MonthInfo]
+    ) -> List[Dict[str, Any]]:
+        """
+        Get paid messages (push messages) breakdown by event type for each month.
+        
+        Args:
+            db: Database session
+            clinic_id: Clinic ID
+            months: List of MonthInfo objects
+            
+        Returns:
+            List of dictionaries with message statistics for each month,
+            grouped by recipient_type and event_type
+        """
+        results = []
+        
+        for month_info in months:
+            # Calculate start and end of month in Taiwan timezone
+            start_datetime = datetime.combine(
+                month_info.start_date(),
+                datetime.min.time()
+            ).replace(tzinfo=TAIWAN_TZ)
+            
+            # Get last day of month
+            _, last_day = monthrange(month_info.year, month_info.month)
+            end_date = date(month_info.year, month_info.month, last_day)
+            end_datetime = datetime.combine(
+                end_date,
+                datetime.max.time()
+            ).replace(tzinfo=TAIWAN_TZ)
+            
+            # Query push messages grouped by recipient_type and event_type
+            message_counts = db.query(
+                LinePushMessage.recipient_type,
+                LinePushMessage.event_type,
+                LinePushMessage.trigger_source,
+                func.count(LinePushMessage.id).label('count')
+            ).filter(
+                LinePushMessage.clinic_id == clinic_id,
+                LinePushMessage.created_at >= start_datetime,
+                LinePushMessage.created_at <= end_datetime
+            ).group_by(
+                LinePushMessage.recipient_type,
+                LinePushMessage.event_type,
+                LinePushMessage.trigger_source
+            ).all()
+            
+            # Build results for this month
+            for recipient_type, event_type, trigger_source, count in message_counts:
+                event_display_name = EVENT_TYPE_DISPLAY_NAMES.get(
+                    event_type,
+                    event_type  # Fallback to event_type if not in mapping
+                )
+                
+                results.append({
+                    'month': month_info.to_dict(),
+                    'recipient_type': recipient_type,
+                    'event_type': event_type,
+                    'event_display_name': event_display_name,
+                    'trigger_source': trigger_source,
+                    'count': count
+                })
+        
+        return results
+    
+    @staticmethod
+    def get_ai_reply_messages_by_month(
+        db: Session,
+        clinic_id: int,
+        months: List[MonthInfo]
+    ) -> List[Dict[str, Any]]:
+        """
+        Get AI reply messages (free messages) for each month.
+        
+        AI replies are stored in LineMessage table where is_from_user=False.
+        
+        Args:
+            db: Database session
+            clinic_id: Clinic ID
+            months: List of MonthInfo objects
+            
+        Returns:
+            List of dictionaries with AI reply message statistics for each month
+        """
+        results = []
+        
+        for month_info in months:
+            # Calculate start and end of month in Taiwan timezone
+            start_datetime = datetime.combine(
+                month_info.start_date(),
+                datetime.min.time()
+            ).replace(tzinfo=TAIWAN_TZ)
+            
+            # Get last day of month
+            _, last_day = monthrange(month_info.year, month_info.month)
+            end_date = date(month_info.year, month_info.month, last_day)
+            end_datetime = datetime.combine(
+                end_date,
+                datetime.max.time()
+            ).replace(tzinfo=TAIWAN_TZ)
+            
+            # Query AI reply messages (is_from_user=False)
+            count = db.query(func.count(LineMessage.id)).filter(
+                LineMessage.clinic_id == clinic_id,
+                LineMessage.is_from_user == False,
+                LineMessage.created_at >= start_datetime,
+                LineMessage.created_at <= end_datetime
+            ).scalar() or 0
+            
+            # AI replies don't have recipient_type, event_type, or trigger_source
+            results.append({
+                'month': month_info.to_dict(),
+                'recipient_type': None,
+                'event_type': None,
+                'event_display_name': 'AI 回覆訊息',
+                'trigger_source': None,
+                'count': count
+            })
         
         return results
 
