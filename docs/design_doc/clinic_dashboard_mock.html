@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>診所儀表板 - Mock UI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .sticky-left {
+      position: sticky;
+      left: 0;
+      z-index: 10;
+      background-color: inherit;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+    }
+    .modal.active {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-content {
+      background-color: white;
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      max-width: 90%;
+      max-height: 90%;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div class="min-h-screen pb-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <!-- Page Header -->
+      <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">診所儀表板</h1>
+      </div>
+
+      <!-- Patient Statistics Section -->
+      <section class="mb-8">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">病患統計</h2>
+          
+          <!-- Active Patients Bar Chart -->
+          <div class="mb-6">
+            <div class="flex items-center gap-2 mb-4">
+              <p class="text-sm font-medium text-gray-700">活躍病患</p>
+              <button onclick="document.getElementById('activePatientsModal').classList.add('active')" class="text-gray-400 hover:text-gray-600 cursor-pointer flex-shrink-0 p-0 border-0 bg-transparent">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-.715-1.993A1 1 0 0110 7zm0 2a1 1 0 100 2 1 1 0 000-2zm-2 1a1 1 0 11-2 0 1 1 0 012 0zm6 0a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd"></path>
+                </svg>
+              </button>
+            </div>
+            <div>
+              <div class="flex items-end gap-3 px-2" style="height: 140px;">
+                <div class="flex-1 flex flex-col items-center min-w-0 h-full">
+                  <div class="relative w-full h-full flex items-end justify-center">
+                    <div class="relative w-full" style="height: 84.4%;">
+                      <div class="absolute top-0 left-0 right-0 bottom-0 rounded-t bg-blue-600"></div>
+                      <div class="absolute -top-7 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">38</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex-1 flex flex-col items-center min-w-0 h-full">
+                  <div class="relative w-full h-full flex items-end justify-center">
+                    <div class="relative w-full" style="height: 93.3%;">
+                      <div class="absolute top-0 left-0 right-0 bottom-0 rounded-t bg-blue-600"></div>
+                      <div class="absolute -top-7 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">42</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex-1 flex flex-col items-center min-w-0 h-full">
+                  <div class="relative w-full h-full flex items-end justify-center">
+                    <div class="relative w-full" style="height: 100%;">
+                      <div class="absolute top-0 left-0 right-0 bottom-0 rounded-t bg-blue-600"></div>
+                      <div class="absolute -top-7 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">45</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex-1 flex flex-col items-center min-w-0 h-full">
+                  <div class="relative w-full h-full flex items-end justify-center">
+                    <div class="relative w-full" style="height: 71.1%;">
+                      <div class="absolute top-0 left-0 right-0 bottom-0 rounded-t bg-blue-200 border-2 border-dashed border-blue-400"></div>
+                      <div class="absolute -top-7 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">32</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="flex gap-3 px-2 mt-2">
+                <div class="flex-1 text-xs text-gray-600 text-center">1月</div>
+                <div class="flex-1 text-xs text-gray-600 text-center">2月</div>
+                <div class="flex-1 text-xs text-gray-600 text-center">3月</div>
+                <div class="flex-1 text-xs text-gray-600 text-center">4月<span class="block text-blue-600 text-xs">(當月)</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- New Patients Bar Chart -->
+          <div>
+            <p class="text-sm font-medium text-gray-700 mb-4">新增病患</p>
+            <div>
+              <div class="flex items-end gap-3 px-2" style="height: 140px;">
+                <div class="flex-1 flex flex-col items-center min-w-0 h-full">
+                  <div class="relative w-full h-full flex items-end justify-center">
+                    <div class="relative w-full" style="height: 54.5%;">
+                      <div class="absolute top-0 left-0 right-0 bottom-0 rounded-t bg-green-600"></div>
+                      <div class="absolute -top-7 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">12</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex-1 flex flex-col items-center min-w-0 h-full">
+                  <div class="relative w-full h-full flex items-end justify-center">
+                    <div class="relative w-full" style="height: 68.2%;">
+                      <div class="absolute top-0 left-0 right-0 bottom-0 rounded-t bg-green-600"></div>
+                      <div class="absolute -top-7 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">15</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex-1 flex flex-col items-center min-w-0 h-full">
+                  <div class="relative w-full h-full flex items-end justify-center">
+                    <div class="relative w-full" style="height: 81.8%;">
+                      <div class="absolute top-0 left-0 right-0 bottom-0 rounded-t bg-green-600"></div>
+                      <div class="absolute -top-7 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">18</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex-1 flex flex-col items-center min-w-0 h-full">
+                  <div class="relative w-full h-full flex items-end justify-center">
+                    <div class="relative w-full" style="height: 100%;">
+                      <div class="absolute top-0 left-0 right-0 bottom-0 rounded-t bg-green-200 border-2 border-dashed border-green-400"></div>
+                      <div class="absolute -top-7 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">22</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="flex gap-3 px-2 mt-2">
+                <div class="flex-1 text-xs text-gray-600 text-center">1月</div>
+                <div class="flex-1 text-xs text-gray-600 text-center">2月</div>
+                <div class="flex-1 text-xs text-gray-600 text-center">3月</div>
+                <div class="flex-1 text-xs text-gray-600 text-center">4月<span class="block text-blue-600 text-xs">(當月)</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Appointment Statistics Section -->
+      <section class="mb-8">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">預約統計</h2>
+          
+          <!-- Appointments Bar Chart -->
+          <div class="mb-6">
+            <p class="text-sm font-medium text-gray-700 mb-4">本月預約數（不含已取消）</p>
+            <div>
+              <div class="flex items-end gap-3 px-2" style="height: 140px;">
+                <div class="flex-1 flex flex-col items-center min-w-0 h-full">
+                  <div class="relative w-full h-full flex items-end justify-center">
+                    <div class="relative w-full" style="height: 84.5%;">
+                      <div class="absolute top-0 left-0 right-0 bottom-0 rounded-t bg-purple-600"></div>
+                      <div class="absolute -top-7 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">120</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex-1 flex flex-col items-center min-w-0 h-full">
+                  <div class="relative w-full h-full flex items-end justify-center">
+                    <div class="relative w-full" style="height: 95.1%;">
+                      <div class="absolute top-0 left-0 right-0 bottom-0 rounded-t bg-purple-600"></div>
+                      <div class="absolute -top-7 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">135</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex-1 flex flex-col items-center min-w-0 h-full">
+                  <div class="relative w-full h-full flex items-end justify-center">
+                    <div class="relative w-full" style="height: 100%;">
+                      <div class="absolute top-0 left-0 right-0 bottom-0 rounded-t bg-purple-600"></div>
+                      <div class="absolute -top-7 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">142</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="flex-1 flex flex-col items-center min-w-0 h-full">
+                  <div class="relative w-full h-full flex items-end justify-center">
+                    <div class="relative w-full" style="height: 66.9%;">
+                      <div class="absolute top-0 left-0 right-0 bottom-0 rounded-t bg-purple-200 border-2 border-dashed border-purple-400"></div>
+                      <div class="absolute -top-7 left-1/2 transform -translate-x-1/2 text-xs font-medium text-gray-700 whitespace-nowrap">95</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="flex gap-3 px-2 mt-2">
+                <div class="flex-1 text-xs text-gray-600 text-center">1月</div>
+                <div class="flex-1 text-xs text-gray-600 text-center">2月</div>
+                <div class="flex-1 text-xs text-gray-600 text-center">3月</div>
+                <div class="flex-1 text-xs text-gray-600 text-center">4月<span class="block text-blue-600 text-xs">(當月)</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cancellation Rate Table -->
+          <div class="mb-6 overflow-x-auto">
+            <p class="text-sm font-medium text-gray-700 mb-3">取消率</p>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 text-xs">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-2 py-2 text-left font-medium text-gray-500 uppercase sticky-left bg-gray-50 whitespace-nowrap">項目</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase whitespace-nowrap">2024年1月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase whitespace-nowrap">2024年2月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase whitespace-nowrap">2024年3月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase bg-blue-50 whitespace-nowrap">2024年4月<span class="block text-blue-600 text-xs">(當月)</span></th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 font-medium sticky-left bg-white">診所取消</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">5(4%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">6(4%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">4(3%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right bg-blue-50">3(3%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 font-medium sticky-left bg-white">病患取消</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">8(7%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">9(7%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">10(7%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right bg-blue-50">5(5%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 font-medium sticky-left bg-white">總取消</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">13(11%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">15(11%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">14(10%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right bg-blue-50">8(9%)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Appointment Type Stats Table -->
+          <div class="mb-6 overflow-x-auto">
+            <p class="text-sm font-medium text-gray-700 mb-3">預約類型統計（不含已取消）</p>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 text-xs">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-2 py-2 text-left font-medium text-gray-500 uppercase sticky-left bg-gray-50">預約類型</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase">2024年1月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase">2024年2月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase">2024年3月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase bg-blue-50">2024年4月<span class="block text-blue-600 text-xs">(當月)</span></th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 font-medium sticky-left bg-white">物理治療</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">45(38%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">50(37%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">55(39%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right bg-blue-50">38(40%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 font-medium sticky-left bg-white">復健</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">30(25%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">35(26%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">38(27%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right bg-blue-50">25(26%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 font-medium sticky-left bg-white">運動治療</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">25(21%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">28(21%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">30(21%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right bg-blue-50">18(19%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 font-medium sticky-left bg-white">針灸</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">12(10%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">15(11%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">12(9%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right bg-blue-50">10(11%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 font-medium sticky-left bg-white">推拿</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">8(7%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">7(5%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">7(5%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right bg-blue-50">4(4%)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Practitioner Stats Table -->
+          <div class="overflow-x-auto">
+            <p class="text-sm font-medium text-gray-700 mb-3">治療師預約統計（不含已取消）</p>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 text-xs">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-2 py-2 text-left font-medium text-gray-500 uppercase sticky-left bg-gray-50">治療師</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase">2024年1月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase">2024年2月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase">2024年3月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase bg-blue-50">2024年4月<span class="block text-blue-600 text-xs">(當月)</span></th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 font-medium sticky-left bg-white">王醫師</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">60(50%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">68(50%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">72(51%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right bg-blue-50">48(51%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 font-medium sticky-left bg-white">李醫師</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">40(33%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">45(33%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">48(34%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right bg-blue-50">32(34%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 font-medium sticky-left bg-white">張醫師</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">20(17%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">22(16%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right">22(16%)</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right bg-blue-50">15(16%)</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Message Statistics Section -->
+      <section class="mb-8">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4">LINE 訊息統計</h2>
+          
+          <!-- Paid Messages Table -->
+          <div class="mb-6 overflow-x-auto">
+            <div class="flex items-center gap-2 mb-3">
+              <p class="text-sm font-medium text-gray-700">付費訊息</p>
+              <button onclick="document.getElementById('paidMessagesModal').classList.add('active')" class="text-gray-400 hover:text-gray-600 cursor-pointer flex-shrink-0 p-0 border-0 bg-transparent">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-.715-1.993A1 1 0 0110 7zm0 2a1 1 0 100 2 1 1 0 000-2zm-2 1a1 1 0 11-2 0 1 1 0 012 0zm6 0a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd"></path>
+                </svg>
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 text-xs">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-2 py-2 text-left font-medium text-gray-500 uppercase sticky-left bg-gray-50 whitespace-nowrap">收件者/情境</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase whitespace-nowrap">2024年1月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase whitespace-nowrap">2024年2月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase whitespace-nowrap">2024年3月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase bg-blue-50 whitespace-nowrap">2024年4月<span class="block text-blue-600 text-xs">(當月)</span></th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  <tr class="bg-gray-100">
+                    <td class="px-2 py-2 font-semibold text-gray-700 sticky-left bg-gray-100 whitespace-nowrap">發送給病患</td>
+                    <td class="px-2 py-2 bg-gray-100"></td>
+                    <td class="px-2 py-2 bg-gray-100"></td>
+                    <td class="px-2 py-2 bg-gray-100"></td>
+                    <td class="px-2 py-2 bg-gray-100"></td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 text-gray-700 pl-4 sticky-left bg-white whitespace-nowrap">預約確認</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">120(46%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">135(46%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">142(46%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right bg-blue-50 whitespace-nowrap">95(46%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 text-gray-700 pl-4 sticky-left bg-white whitespace-nowrap">預約取消</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">13(5%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">15(5%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">14(5%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right bg-blue-50 whitespace-nowrap">8(4%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 text-gray-700 pl-4 sticky-left bg-white whitespace-nowrap">預約調整</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">8(3%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">10(3%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">12(4%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right bg-blue-50 whitespace-nowrap">6(3%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 text-gray-700 pl-4 sticky-left bg-white whitespace-nowrap">預約提醒</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">110(42%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">125(42%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">132(42%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right bg-blue-50 whitespace-nowrap">88(42%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 text-gray-700 pl-4 sticky-left bg-white whitespace-nowrap">空檔通知</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">25(10%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">30(10%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">28(9%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right bg-blue-50 whitespace-nowrap">18(9%)</td>
+                  </tr>
+                  <tr class="bg-gray-100 font-semibold">
+                    <td class="px-2 py-2 text-gray-900 pl-4 sticky-left bg-gray-100 whitespace-nowrap">病患小計</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">276(54%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">315(55%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">328(54%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right bg-blue-50 whitespace-nowrap">215(55%)</td>
+                  </tr>
+                  <tr class="bg-gray-100">
+                    <td class="px-2 py-2 font-semibold text-gray-700 sticky-left bg-gray-100 whitespace-nowrap">發送給治療師</td>
+                    <td class="px-2 py-2 bg-gray-100"></td>
+                    <td class="px-2 py-2 bg-gray-100"></td>
+                    <td class="px-2 py-2 bg-gray-100"></td>
+                    <td class="px-2 py-2 bg-gray-100"></td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 text-gray-700 pl-4 sticky-left bg-white whitespace-nowrap">新預約通知</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">120(23%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">135(23%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">142(24%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right bg-blue-50 whitespace-nowrap">95(24%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 text-gray-700 pl-4 sticky-left bg-white whitespace-nowrap">預約取消通知</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">13(3%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">15(3%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">14(2%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right bg-blue-50 whitespace-nowrap">8(2%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 text-gray-700 pl-4 sticky-left bg-white whitespace-nowrap">預約調整通知</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">8(2%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">10(2%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">12(2%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right bg-blue-50 whitespace-nowrap">6(2%)</td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 text-gray-700 pl-4 sticky-left bg-white whitespace-nowrap">每日預約提醒</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">90(18%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">95(17%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">100(17%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right bg-blue-50 whitespace-nowrap">65(17%)</td>
+                  </tr>
+                  <tr class="bg-gray-100 font-semibold">
+                    <td class="px-2 py-2 text-gray-900 pl-4 sticky-left bg-gray-100 whitespace-nowrap">治療師小計</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">231(45%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">255(44%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">268(44%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right bg-blue-50 whitespace-nowrap">174(44%)</td>
+                  </tr>
+                  <tr class="bg-gray-100">
+                    <td class="px-2 py-2 font-semibold text-gray-700 sticky-left bg-gray-100 whitespace-nowrap">發送給管理員</td>
+                    <td class="px-2 py-2 bg-gray-100"></td>
+                    <td class="px-2 py-2 bg-gray-100"></td>
+                    <td class="px-2 py-2 bg-gray-100"></td>
+                    <td class="px-2 py-2 bg-gray-100"></td>
+                  </tr>
+                  <tr>
+                    <td class="px-2 py-2 text-gray-700 pl-4 sticky-left bg-white whitespace-nowrap">待審核預約通知</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">5(1%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">6(1%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">7(1%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right bg-blue-50 whitespace-nowrap">4(1%)</td>
+                  </tr>
+                  <tr class="bg-gray-100 font-semibold">
+                    <td class="px-2 py-2 text-gray-900 pl-4 sticky-left bg-gray-100 whitespace-nowrap">管理員小計</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">5(1%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">6(1%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">7(1%)</td>
+                    <td class="px-2 py-2 text-gray-900 text-right bg-blue-50 whitespace-nowrap">4(1%)</td>
+                  </tr>
+                  <tr class="bg-gray-200 font-semibold">
+                    <td class="px-2 py-2 text-gray-900 sticky-left bg-gray-200 whitespace-nowrap">總計</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">512</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">576</td>
+                    <td class="px-2 py-2 text-gray-900 text-right whitespace-nowrap">603</td>
+                    <td class="px-2 py-2 text-gray-900 text-right bg-blue-50 whitespace-nowrap">393</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- AI Reply Messages Table -->
+          <div class="overflow-x-auto">
+            <div class="flex items-center gap-2 mb-3">
+              <p class="text-sm font-medium text-gray-700">AI 回覆訊息</p>
+              <button onclick="document.getElementById('aiReplyModal').classList.add('active')" class="text-gray-400 hover:text-gray-600 cursor-pointer flex-shrink-0 p-0 border-0 bg-transparent">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-.715-1.993A1 1 0 0110 7zm0 2a1 1 0 100 2 1 1 0 000-2zm-2 1a1 1 0 11-2 0 1 1 0 012 0zm6 0a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd"></path>
+                </svg>
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200 text-xs">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-2 py-2 text-left font-medium text-gray-500 uppercase">項目</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase">2024年1月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase">2024年2月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase">2024年3月</th>
+                    <th class="px-2 py-2 text-right font-medium text-gray-500 uppercase bg-blue-50">2024年4月<span class="block text-blue-600 text-xs">(當月)</span></th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 font-medium">AI 回覆訊息</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right whitespace-nowrap">450</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right whitespace-nowrap">520</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right whitespace-nowrap">580</td>
+                    <td class="px-2 py-2 whitespace-nowrap text-gray-900 text-right bg-blue-50 whitespace-nowrap">320</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Active Patients Info Modal -->
+  <div id="activePatientsModal" class="modal" onclick="event.target === this && this.classList.remove('active')">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">活躍病患定義</h3>
+        <button onclick="document.getElementById('activePatientsModal').classList.remove('active')" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      <p class="text-gray-700">該月有預約的病患（不含已取消）</p>
+    </div>
+  </div>
+
+  <!-- Paid Messages Info Modal -->
+  <div id="paidMessagesModal" class="modal" onclick="event.target === this && this.classList.remove('active')">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">付費訊息說明</h3>
+        <button onclick="document.getElementById('paidMessagesModal').classList.remove('active')" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      <p class="text-gray-700">此為 LINE 訊息配額使用量，非本平台收費項目。</p>
+    </div>
+  </div>
+
+  <!-- AI Reply Messages Info Modal -->
+  <div id="aiReplyModal" class="modal" onclick="event.target === this && this.classList.remove('active')">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">AI 回覆訊息說明</h3>
+        <button onclick="document.getElementById('aiReplyModal').classList.remove('active')" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      <p class="text-gray-700">AI 回覆訊息不消耗 LINE 訊息配額。</p>
+    </div>
+  </div>
+
+  <script>
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        document.getElementById('activePatientsModal').classList.remove('active');
+        document.getElementById('paidMessagesModal').classList.remove('active');
+        document.getElementById('aiReplyModal').classList.remove('active');
+      }
+    });
+  </script>
+</body>
+</html>
