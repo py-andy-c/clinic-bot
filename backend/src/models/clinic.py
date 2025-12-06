@@ -281,6 +281,9 @@ class Clinic(Base):
     line_push_messages = relationship("LinePushMessage", back_populates="clinic", cascade="all, delete-orphan")
     """LINE messages associated with this clinic."""
 
+    line_ai_replies = relationship("LineAiReply", back_populates="clinic", cascade="all, delete-orphan")
+    """LINE AI reply messages (free messages) tracked for dashboard metrics."""
+
 
     # Settings convenience properties (match API keys)
     @property

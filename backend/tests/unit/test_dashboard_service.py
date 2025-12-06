@@ -16,7 +16,7 @@ from models.appointment import Appointment
 from models.calendar_event import CalendarEvent
 from models.user_clinic_association import UserClinicAssociation
 from models.line_push_message import LinePushMessage
-from models.line_message import LineMessage
+from models.line_ai_reply import LineAiReply
 from services.dashboard_service import (
     DashboardService, MonthInfo, get_months_for_dashboard
 )
@@ -977,43 +977,21 @@ class TestDashboardServiceAiReplyMessages:
         current_month = now.month
         current_year = now.year
         
-        # Create 3 AI reply messages (is_from_user=False)
+        # Create 3 AI reply messages
         for i in range(3):
             message_datetime = datetime.combine(
                 date(current_year, current_month, 10 + i),
                 datetime.min.time()
             ).replace(tzinfo=TAIWAN_TZ)
             
-            line_message = LineMessage(
+            ai_reply = LineAiReply(
                 line_message_id=f"ai_reply_{i}",
                 line_user_id=f"user_{i}",
-                clinic_id=clinic.id,
-                message_text=f"AI reply {i}",
-                message_type="text",
-                is_from_user=False,
-                session_id=f"{clinic.id}-user_{i}"
+                clinic_id=clinic.id
             )
             # Override created_at for testing
-            line_message.created_at = message_datetime
-            db_session.add(line_message)
-        
-        # Create 1 user message (is_from_user=True) - should not be counted
-        user_message_datetime = datetime.combine(
-            date(current_year, current_month, 20),
-            datetime.min.time()
-        ).replace(tzinfo=TAIWAN_TZ)
-        
-        user_message = LineMessage(
-            line_message_id="user_message_1",
-            line_user_id="user_1",
-            clinic_id=clinic.id,
-            message_text="User message",
-            message_type="text",
-            is_from_user=True,
-            session_id=f"{clinic.id}-user_1"
-        )
-        user_message.created_at = user_message_datetime
-        db_session.add(user_message)
+            ai_reply.created_at = message_datetime
+            db_session.add(ai_reply)
         
         db_session.commit()
         
@@ -1028,9 +1006,111 @@ class TestDashboardServiceAiReplyMessages:
         )
         
         assert current_month_result is not None
-        assert current_month_result['count'] == 3  # Only AI replies, not user messages
+        assert current_month_result['count'] == 3  # Only AI replies
         assert current_month_result['event_display_name'] == 'AI 回覆訊息'
         assert current_month_result['recipient_type'] is None
         assert current_month_result['event_type'] is None
         assert current_month_result['trigger_source'] is None
+
+
+class TestDashboardServiceFadeOutLogic:
+    """Test fade-out logic for deleted/inactive items."""
+    
+    def test_fade_out_deleted_appointment_type_with_no_data(self, db_session: Session):
+        """Test that deleted appointment types with 0 appointments are filtered out."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        # Create a deleted appointment type with no appointments
+        deleted_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Deleted Type",
+            duration_minutes=30,
+            is_deleted=True
+        )
+        db_session.add(deleted_type)
+        db_session.commit()
+        
+        months = get_months_for_dashboard()
+        metrics = DashboardService.get_clinic_metrics(db_session, clinic.id)
+        
+        # Deleted type with no appointments should not appear
+        deleted_type_stats = [
+            stat for stat in metrics['appointment_type_stats_by_month']
+            if stat['appointment_type_id'] == deleted_type.id
+        ]
+        assert len(deleted_type_stats) == 0
+    
+    def test_fade_out_inactive_practitioner_with_no_data(self, db_session: Session):
+        """Test that inactive practitioners with 0 appointments are filtered out."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        # Create inactive practitioner with no appointments
+        user, association = create_user_with_clinic_association(
+            db_session=db_session,
+            clinic=clinic,
+            full_name="Inactive Practitioner",
+            email="inactive@test.com",
+            google_subject_id="inactive_google_id",
+            roles=["practitioner"],
+            is_active=False
+        )
+        
+        months = get_months_for_dashboard()
+        metrics = DashboardService.get_clinic_metrics(db_session, clinic.id)
+        
+        # Inactive practitioner with no appointments should not appear
+        # (They won't appear in query results because query only returns practitioners with appointments)
+        inactive_practitioner_stats = [
+            stat for stat in metrics['practitioner_stats_by_month']
+            if stat['user_id'] == user.id
+        ]
+        assert len(inactive_practitioner_stats) == 0, "Inactive practitioner with no appointments should not appear"
+    
+    def test_active_appointment_type_with_zero_appointments_appears(self, db_session: Session):
+        """Test that active appointment types always appear, even with 0 appointments."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+        
+        # Create an active appointment type with no appointments
+        active_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Active Type",
+            duration_minutes=30,
+            is_deleted=False
+        )
+        db_session.add(active_type)
+        db_session.commit()
+        
+        months = get_months_for_dashboard()
+        metrics = DashboardService.get_clinic_metrics(db_session, clinic.id)
+        
+        # Active type should appear for all months (even with 0 appointments)
+        active_type_stats = [
+            stat for stat in metrics['appointment_type_stats_by_month']
+            if stat['appointment_type_id'] == active_type.id
+        ]
+        # Should appear for all months (past 3 + current = 4 months)
+        assert len(active_type_stats) == len(months)
+        assert all(stat['count'] == 0 for stat in active_type_stats)
+        assert all(not stat['is_deleted'] for stat in active_type_stats)
 

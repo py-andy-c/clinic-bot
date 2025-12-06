@@ -658,6 +658,55 @@ export class ApiService {
     });
     return response.data;
   }
+
+  async getDashboardMetrics(): Promise<{
+    months: Array<{ year: number; month: number; display_name: string; is_current: boolean }>;
+    active_patients_by_month: Array<{ month: { year: number; month: number; display_name: string; is_current: boolean }; count: number }>;
+    new_patients_by_month: Array<{ month: { year: number; month: number; display_name: string; is_current: boolean }; count: number }>;
+    appointments_by_month: Array<{ month: { year: number; month: number; display_name: string; is_current: boolean }; count: number }>;
+    cancellation_rate_by_month: Array<{
+      month: { year: number; month: number; display_name: string; is_current: boolean };
+      canceled_by_clinic_count: number;
+      canceled_by_clinic_percentage: number;
+      canceled_by_patient_count: number;
+      canceled_by_patient_percentage: number;
+      total_canceled_count: number;
+      total_cancellation_rate: number;
+    }>;
+    appointment_type_stats_by_month: Array<{
+      month: { year: number; month: number; display_name: string; is_current: boolean };
+      appointment_type_id: number;
+      appointment_type_name: string;
+      count: number;
+      percentage: number;
+    }>;
+    practitioner_stats_by_month: Array<{
+      month: { year: number; month: number; display_name: string; is_current: boolean };
+      user_id: number;
+      practitioner_name: string;
+      count: number;
+      percentage: number;
+    }>;
+    paid_messages_by_month: Array<{
+      month: { year: number; month: number; display_name: string; is_current: boolean };
+      recipient_type: string | null;
+      event_type: string | null;
+      event_display_name: string;
+      trigger_source: string | null;
+      count: number;
+    }>;
+    ai_reply_messages_by_month: Array<{
+      month: { year: number; month: number; display_name: string; is_current: boolean };
+      recipient_type: string | null;
+      event_type: string | null;
+      event_display_name: string;
+      trigger_source: string | null;
+      count: number;
+    }>;
+  }> {
+    const response = await this.client.get('/clinic/dashboard/metrics');
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();

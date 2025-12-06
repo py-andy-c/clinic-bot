@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from models import Clinic, PractitionerLinkCode, User
+from models import Clinic, PractitionerLinkCode, User, LineAiReply
 from services.line_service import LINEService
 from services.line_user_service import LineUserService
 from services.clinic_agent import ClinicAgentService
@@ -491,6 +491,29 @@ async def _process_regular_message(
             )
         except Exception as e:
             logger.warning(f"Failed to store bot response message: {e}")
+        
+        # Track AI reply for dashboard metrics (persists beyond 10-day LineMessage cleanup)
+        # Note: This uses a separate transaction from LineMessageService.store_message().
+        # This is intentional - if AI reply tracking fails, we don't want to rollback the
+        # LineMessage storage. Message storage is more critical than dashboard metrics tracking.
+        # The LineMessage table is used for quoted message functionality, while LineAiReply
+        # is only for dashboard statistics. If tracking fails, we log the error but continue.
+        try:
+            ai_reply = LineAiReply(
+                line_user_id=line_user_id,
+                clinic_id=clinic.id,
+                line_message_id=bot_message_id
+            )
+            db.add(ai_reply)
+            db.commit()
+            db.refresh(ai_reply)
+            logger.debug(
+                f"Tracked AI reply: clinic_id={clinic.id}, line_user_id={line_user_id[:10]}..."
+            )
+        except Exception as e:
+            db.rollback()
+            logger.exception(f"Failed to track AI reply for {line_user_id}: {e}")
+            # Do not re-raise, message sending is higher priority than tracking
 
     logger.info(
         f"Successfully processed and sent response for clinic_id={clinic.id}, "

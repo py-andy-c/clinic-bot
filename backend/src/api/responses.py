@@ -249,6 +249,7 @@ class MonthlyAppointmentTypeStat(BaseModel):
     appointment_type_name: str
     count: int  # Non-cancelled only
     percentage: float
+    is_deleted: bool = False  # True if appointment type is soft-deleted
 
 
 class MonthlyPractitionerStat(BaseModel):
@@ -258,6 +259,7 @@ class MonthlyPractitionerStat(BaseModel):
     practitioner_name: str
     count: int  # Non-cancelled only
     percentage: float
+    is_active: bool = True  # True if practitioner association is active
 
 
 class MonthlyMessageStat(BaseModel):

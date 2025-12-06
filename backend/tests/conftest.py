@@ -34,6 +34,7 @@ from models.appointment import Appointment
 from models.line_user import LineUser
 from models.line_message import LineMessage
 from models.line_push_message import LinePushMessage
+from models.line_ai_reply import LineAiReply
 from models.practitioner_availability import PractitionerAvailability
 from models.calendar_event import CalendarEvent
 from models.availability_notification import AvailabilityNotification

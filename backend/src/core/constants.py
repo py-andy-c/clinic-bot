@@ -73,3 +73,6 @@ NOTIFICATION_DATE_RANGE_DAYS = 30
 # Notification Check Times (Taiwan time)
 NOTIFICATION_CHECK_HOURS = [9, 15, 21]  # 9am, 3pm, 9pm
 NOTIFICATION_CLEANUP_HOUR = 3  # 3 AM
+
+# Dashboard settings
+DASHBOARD_PAST_MONTHS_COUNT = 3  # Number of past months to display (in addition to current month)

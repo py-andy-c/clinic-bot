@@ -15,6 +15,7 @@ from .availability_exception import AvailabilityException
 from .practitioner_appointment_types import PractitionerAppointmentTypes
 from .line_message import LineMessage
 from .line_push_message import LinePushMessage
+from .line_ai_reply import LineAiReply
 from .availability_notification import AvailabilityNotification
 from .practitioner_link_code import PractitionerLinkCode
 
@@ -34,6 +35,7 @@ __all__ = [
     "PractitionerAppointmentTypes",
     "LineMessage",
     "LinePushMessage",
+    "LineAiReply",
     "AvailabilityNotification",
     "PractitionerLinkCode",
 ]

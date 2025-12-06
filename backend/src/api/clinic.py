@@ -204,16 +204,16 @@ async def list_members(
         from sqlalchemy.orm import joinedload
         
         query = db.query(User).join(UserClinicAssociation).filter(
-            UserClinicAssociation.clinic_id == clinic_id,
-            UserClinicAssociation.is_active == True
-        ).options(joinedload(User.clinic_associations))  # Eager load associations for name lookup
+            UserClinicAssociation.clinic_id == clinic_id
+        )
         
-        # Admins can see both active and inactive members
-        if current_user.has_role("admin"):
-            members_with_associations = query.all()
-        else:
-            # Non-admins only see active members (already filtered by association.is_active == True)
-            members_with_associations = query.all()
+        # Non-admins only see active members
+        if not current_user.has_role("admin"):
+            query = query.filter(UserClinicAssociation.is_active == True)
+        
+        query = query.options(joinedload(User.clinic_associations))  # Eager load associations for name lookup
+        
+        members_with_associations = query.all()
         
         # Build member list with roles from associations
         member_list: List[MemberResponse] = []

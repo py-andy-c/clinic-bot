@@ -6,8 +6,8 @@ A metrics dashboard page under the "診所管理" (clinic management) menu that 
 ## Current Implementation Status
 
 **Database Tracking:**
-- ❌ **Push messages (paid messages) are NOT currently tracked** - New `LinePushMessage` model needs to be created
-- ⚠️ **AI reply messages** - Stored in `LineMessage` table but not specifically tracked for dashboard metrics (needs query logic)
+- ✅ **Push messages (paid messages)** - Tracked in `LinePushMessage` table
+- ✅ **AI reply messages** - Tracked in `LineAiReply` table (persists indefinitely, unlike `LineMessage` which is cleaned up after 10 days)
 - ✅ **Patient statistics** - Can be calculated from existing `Patient` and `Appointment` tables
 - ✅ **Appointment statistics** - Can be calculated from existing `Appointment` and `CalendarEvent` tables
 
@@ -279,15 +279,9 @@ class MonthlyMessageStat(BaseModel):
 
 #### Current Database Tracking Status
 
-**Currently NOT tracked:**
-- ❌ Push messages (paid messages) are NOT currently tracked in the database
-- ❌ Message counts for dashboard metrics are NOT currently tracked
-- ✅ AI reply messages are stored in `LineMessage` table (`is_from_user=False`) but not specifically tracked for dashboard metrics
-
-**What needs to be implemented:**
-- New `LinePushMessage` model to track all push messages
-- Update `LINEService.send_text_message()` to record push messages
-- Query logic for aggregating message statistics by month
+**Currently tracked:**
+- ✅ Push messages (paid messages) are tracked in `LinePushMessage` table
+- ✅ AI reply messages are tracked in `LineAiReply` table (persists indefinitely for historical dashboard data)
 
 #### Message Tracking
 
@@ -302,9 +296,10 @@ class MonthlyMessageStat(BaseModel):
     - This is acceptable for MVP - historical data would require LINE API integration to retrieve past messages
 
 - **AI Reply Messages (Free):**
-  - **Current State:** AI reply messages are stored in `LineMessage` table (`is_from_user=False`) but not specifically tracked for dashboard metrics
-  - **Implementation:** Query `LineMessage` table where `is_from_user=False` and filter by `created_at` within period
-  - These are reply messages (free) sent via `reply_token`
+  - **Current State:** AI reply messages are tracked in `LineAiReply` table
+  - **Implementation:** Track when AI replies are sent via `line_webhook.py` after successful LINE API call
+  - **Persistence:** Unlike `LineMessage` which is cleaned up after 10 days, `LineAiReply` persists indefinitely to maintain accurate historical dashboard statistics
+  - **Rationale:** `LineMessage` table is periodically cleaned up (messages older than 10 days are deleted) to prevent unbounded growth. Since the dashboard shows past 3 months + current month, we need a separate tracking table that persists beyond the 10-day retention period.
 
 #### LinePushMessage Model Design
 
@@ -405,6 +400,62 @@ class LinePushMessage(Base):
 - ✅ **Regrouping:** Can regroup messages by any combination of labels (e.g., all clinic-triggered vs patient-triggered)
 - ✅ **No Data Loss:** Historical messages retain all labels, enabling retrospective analysis
 - ✅ **Extensible:** New event types can be added by simply using new `event_type` values
+
+#### LineAiReply Model Design
+
+**Purpose:**
+Track AI reply messages (free messages) for dashboard metrics. Unlike `LineMessage` which is cleaned up after 10 days, this table persists indefinitely to maintain accurate historical dashboard statistics.
+
+**Rationale:**
+The `LineMessage` table is periodically cleaned up (messages older than 10 days are deleted) to prevent unbounded growth. Since the dashboard shows past 3 months + current month, we need a separate tracking table that persists beyond the 10-day retention period.
+
+```python
+class LineAiReply(Base):
+    """
+    Track LINE AI reply messages (free messages) for dashboard metrics.
+    
+    This table persists indefinitely (unlike LineMessage which is cleaned up after 10 days)
+    to maintain accurate historical dashboard statistics.
+    """
+    
+    __tablename__ = "line_ai_replies"
+    
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    """Unique identifier for the AI reply record."""
+    
+    line_user_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    """Recipient LINE user ID."""
+    
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id", ondelete="CASCADE"), nullable=False, index=True)
+    """Clinic ID."""
+    
+    line_message_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
+    """LINE message ID from LINE API response (for correlation with LineMessage if needed)."""
+    
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True
+    )
+    """Timestamp when the AI reply was sent."""
+    
+    # Composite index for efficient dashboard queries
+    __table_args__ = (
+        Index('idx_ai_replies_clinic_created', 'clinic_id', 'created_at'),
+    )
+```
+
+**Implementation:**
+- Track AI replies in `line_webhook.py` after successful LINE API call (when `bot_message_id` is returned)
+- Only track if LINE API call succeeds (same pattern as `LinePushMessage`)
+- Use database transactions to ensure atomicity
+- If tracking fails, log error but don't re-raise (message sending is higher priority than tracking)
+
+**Migration Strategy:**
+- No historical data exists (AI replies were never tracked in a persistent table)
+- Start tracking from implementation date (no backfill needed)
+- Existing clinics will have no historical AI reply statistics until they receive new AI replies
 
 **Implementation:**
 
@@ -570,7 +621,7 @@ class LinePushMessage(Base):
 ### PR 5: Backend - Message Statistics Service ✅ COMPLETED
 **Scope:** Implement service methods for message statistics
 - Implement `get_paid_messages_by_month()` - paid messages breakdown by event type
-- Implement `get_ai_reply_messages_by_month()` - AI replies from `LineMessage` table
+- Implement `get_ai_reply_messages_by_month()` - AI replies from `LineAiReply` table
 - Query logic for aggregating by month, recipient type, and event type
 - **Testing:** Unit tests for message aggregation logic
 
@@ -644,7 +695,7 @@ class LinePushMessage(Base):
 - **Message Tracking:**
   - Create `LinePushMessage` model to track paid push messages with flexible multi-label system (`recipient_type`, `event_type`, `trigger_source`, and flexible JSONB `labels`)
   - Track all event types separately to enable future per-event-type toggle functionality
-  - Query `LineMessage` table for free AI replies (`is_from_user=False`)
+  - Query `LineAiReply` table for AI replies (persists indefinitely for historical dashboard data)
   - Clearly distinguish paid vs free in UI
   - Show breakdown by recipient type and event type for cost visibility
   - `trigger_source` is tracked but not displayed in current dashboard (available for future regrouping)
@@ -663,4 +714,29 @@ class LinePushMessage(Base):
   - Info icon: SVG icon with standard info circle pattern (used in `ChatSettings`, `CompactScheduleSettings`, etc.)
   - Modal: Use `BaseModal` from `frontend/src/components/shared/BaseModal.tsx`
   - Follow existing pattern: button with info icon opens modal with explanation
+- **Soft Delete Handling:**
+  - **Patients:** Include soft-deleted patients in dashboard statistics. Patient deletion (`is_deleted=True`) is only for filtering on the LIFF patient side, not for clinic-side dashboard. All patients (including deleted) are included for accurate historical statistics.
+  - **Appointment Types:**
+    - Include both active and deleted appointment types in statistics
+    - Active appointment types always appear in the table, even with 0 appointments in displayed months
+    - Deleted appointment types only appear if they have appointments in any displayed month (fade-out after no data)
+    - Deleted types are marked with "(已刪除)" suffix and grayed out (opacity-60)
+    - Appointment type names are preserved on deletion (not renamed)
+    - Missing appointment types (deleted from DB) show as "未知服務類型" and are marked as deleted
+  - **Practitioners:**
+    - Include both active and inactive practitioners in statistics
+    - Use LEFT JOIN to handle missing `UserClinicAssociation` records (defensive programming)
+    - Fallback to `User.email` if `UserClinicAssociation.full_name` is missing
+    - Inactive practitioners only appear if they have appointments in any displayed month (fade-out after no data)
+    - Inactive practitioners are marked with "(已停用)" suffix and grayed out (opacity-60)
+    - Active status is determined by current state of `UserClinicAssociation.is_active`
+  - **Fade-out Logic:**
+    - Deleted appointment types and inactive practitioners are excluded from tables if they have 0 appointments in all displayed months (current + past N months)
+    - Uses `DASHBOARD_PAST_MONTHS_COUNT` constant (default: 3) for flexibility
+    - Active appointment types always appear regardless of appointment count
+  - **Visual Marking:**
+    - Deleted/inactive items are grayed out using `opacity-60` CSS class
+    - Deleted appointment types show "(已刪除)" suffix
+    - Inactive practitioners show "(已停用)" suffix
+    - Both use gray text colors (`text-gray-500`) for deleted/inactive state
 
