@@ -69,8 +69,8 @@ export const PatientStatsSection: React.FC<PatientStatsSectionProps> = ({
             </svg>
           </button>
         </div>
-        <div style={{ height: '140px' }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="w-full" style={{ height: '140px', minHeight: '140px' }}>
+          <ResponsiveContainer width="100%" height={140}>
             <BarChart data={activePatientsData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
               <XAxis
                 dataKey="name"
@@ -103,8 +103,8 @@ export const PatientStatsSection: React.FC<PatientStatsSectionProps> = ({
       {/* New Patients Bar Chart */}
       <div>
         <p className="text-sm font-medium text-gray-700 mb-4">新增病患</p>
-        <div style={{ height: '140px' }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="w-full" style={{ height: '140px', minHeight: '140px' }}>
+          <ResponsiveContainer width="100%" height={140}>
             <BarChart data={newPatientsData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
               <XAxis
                 dataKey="name"
@@ -150,7 +150,7 @@ export const PatientStatsSection: React.FC<PatientStatsSectionProps> = ({
             <div className="ml-3 flex-1">
               <h3 className="text-lg font-semibold text-gray-900 mb-3">活躍病患</h3>
               <div className="text-sm text-gray-700 space-y-2">
-                <p>活躍病患定義：該月有預約的病患（不含已取消）</p>
+                <p>該月有預約的病患（不含已取消的預約）</p>
               </div>
               <div className="mt-4 flex justify-end">
                 <button

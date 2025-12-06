@@ -179,12 +179,12 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-8">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">訊息統計</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">LINE 訊息統計</h2>
 
       {/* Paid Messages Table */}
       <div className="mb-6 overflow-x-auto">
         <div className="flex items-center gap-2 mb-4">
-          <p className="text-sm font-medium text-gray-700">付費訊息</p>
+          <p className="text-sm font-medium text-gray-700">LINE 推播訊息</p>
           <button
             type="button"
             onClick={() => setShowPaidMessagesModal(true)}
@@ -210,12 +210,11 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                 {paidMessagesTableData.months.map((month) => (
                   <th
                     key={`${month.year}-${month.month}`}
-                    className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
+                    className={`px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${
+                      month.is_current ? 'bg-blue-50' : ''
+                    }`}
                   >
                     {month.display_name}
-                    {month.is_current && (
-                      <span className="block text-blue-600 text-xs">(當月)</span>
-                    )}
                   </th>
                 ))}
               </tr>
@@ -228,14 +227,19 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                     <td className="sticky left-0 bg-gray-100 px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap z-10">
                       {group.label}
                     </td>
-                    {group.subtotal.map((cell, cellIdx) => (
-                      <td
-                        key={cellIdx}
-                        className="px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap font-medium"
-                      >
-                        {cell.count}({Math.round(cell.percentage)}%)
-                      </td>
-                    ))}
+                    {group.subtotal.map((cell, cellIdx) => {
+                      const month = paidMessagesTableData.months[cellIdx];
+                      return (
+                        <td
+                          key={cellIdx}
+                          className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap font-medium ${
+                            month?.is_current ? 'bg-blue-100' : ''
+                          }`}
+                        >
+                          {cell.count}({Math.round(cell.percentage)}%)
+                        </td>
+                      );
+                    })}
                   </tr>
                   {/* Events in this group */}
                   {group.events.map((event, eventIdx) => (
@@ -243,14 +247,19 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                       <td className="sticky left-0 bg-white px-4 py-3 pl-8 text-sm text-gray-900 whitespace-nowrap z-10">
                         {event.displayName}
                       </td>
-                      {event.data.map((cell, cellIdx) => (
-                        <td
-                          key={cellIdx}
-                          className="px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap"
-                        >
-                          {cell.count}({Math.round(cell.percentage)}%)
-                        </td>
-                      ))}
+                      {event.data.map((cell, cellIdx) => {
+                        const month = paidMessagesTableData.months[cellIdx];
+                        return (
+                          <td
+                            key={cellIdx}
+                            className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap ${
+                              month?.is_current ? 'bg-blue-50' : ''
+                            }`}
+                          >
+                            {cell.count}({Math.round(cell.percentage)}%)
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                   {/* Subtotal row */}
@@ -258,14 +267,19 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                     <td className="sticky left-0 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap z-10">
                       {group.label} 小計
                     </td>
-                    {group.subtotal.map((cell, cellIdx) => (
-                      <td
-                        key={cellIdx}
-                        className="px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap font-medium"
-                      >
-                        {cell.count}({Math.round(cell.percentage)}%)
-                      </td>
-                    ))}
+                    {group.subtotal.map((cell, cellIdx) => {
+                      const month = paidMessagesTableData.months[cellIdx];
+                      return (
+                        <td
+                          key={cellIdx}
+                          className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap font-medium ${
+                            month?.is_current ? 'bg-blue-100' : ''
+                          }`}
+                        >
+                          {cell.count}({Math.round(cell.percentage)}%)
+                        </td>
+                      );
+                    })}
                   </tr>
                 </React.Fragment>
               ))}
@@ -274,14 +288,19 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                 <td className="sticky left-0 bg-blue-50 px-4 py-3 text-sm font-bold text-gray-900 whitespace-nowrap z-10">
                   總計
                 </td>
-                {paidMessagesTableData.grandTotal.map((cell, cellIdx) => (
-                  <td
-                    key={cellIdx}
-                    className="px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap font-bold"
-                  >
-                    {cell.count}({Math.round(cell.percentage)}%)
-                  </td>
-                ))}
+                {paidMessagesTableData.grandTotal.map((cell, cellIdx) => {
+                  const month = paidMessagesTableData.months[cellIdx];
+                  return (
+                    <td
+                      key={cellIdx}
+                      className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap font-bold ${
+                        month?.is_current ? 'bg-blue-100' : ''
+                      }`}
+                    >
+                      {cell.count}({Math.round(cell.percentage)}%)
+                    </td>
+                  );
+                })}
               </tr>
             </tbody>
           </table>
@@ -317,12 +336,11 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                 {aiRepliesTableData.months.map((month) => (
                   <th
                     key={`${month.year}-${month.month}`}
-                    className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
+                    className={`px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${
+                      month.is_current ? 'bg-blue-50' : ''
+                    }`}
                   >
                     {month.display_name}
-                    {month.is_current && (
-                      <span className="block text-blue-600 text-xs">(當月)</span>
-                    )}
                   </th>
                 ))}
               </tr>
@@ -332,14 +350,19 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                 <td className="sticky left-0 bg-white px-4 py-3 text-sm text-gray-900 whitespace-nowrap z-10">
                   AI 回覆訊息
                 </td>
-                {aiRepliesTableData.data.map((cell, cellIdx) => (
-                  <td
-                    key={cellIdx}
-                    className="px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap"
-                  >
-                    {cell.count}({Math.round(cell.percentage)}%)
-                  </td>
-                ))}
+                {aiRepliesTableData.data.map((cell, cellIdx) => {
+                  const month = aiRepliesTableData.months[cellIdx];
+                  return (
+                    <td
+                      key={cellIdx}
+                      className={`px-4 py-3 text-sm text-gray-900 text-center whitespace-nowrap ${
+                        month?.is_current ? 'bg-blue-50' : ''
+                      }`}
+                    >
+                      {cell.count}({Math.round(cell.percentage)}%)
+                    </td>
+                  );
+                })}
               </tr>
             </tbody>
           </table>
@@ -348,7 +371,7 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
 
       {/* Paid Messages Info Modal */}
       {showPaidMessagesModal && (
-        <BaseModal onClose={() => setShowPaidMessagesModal(false)} aria-label="付費訊息說明">
+        <BaseModal onClose={() => setShowPaidMessagesModal(false)} aria-label="LINE 推播訊息說明">
           <div className="flex items-start">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
@@ -360,9 +383,10 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
               </svg>
             </div>
             <div className="ml-3 flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">付費訊息</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">LINE 推播訊息</h3>
               <div className="text-sm text-gray-700 space-y-2">
-                <p>付費訊息是指 LINE 推播訊息，會消耗 LINE 訊息配額（非本平台收費）。</p>
+                <p>LINE 推播訊息由 LINE 平台收費，診所需自行負擔相關費用。</p>
+                <p>若 LINE 訊息配額用盡，系統將無法發送推播訊息，但預約系統仍可正常運作。</p>
               </div>
               <div className="mt-4 flex justify-end">
                 <button
