@@ -35,11 +35,28 @@ from tests.conftest import (
 client = TestClient(app)
 
 
-def create_line_user_jwt(line_user_id: str, clinic_id: int) -> str:
+def create_line_user_jwt(line_user_id: str, clinic_id: int, clinic_token: str | None = None, db_session: Session | None = None) -> str:
     """Create a JWT token for LINE user authentication."""
+    # If clinic_token not provided, look it up from database
+    if clinic_token is None and db_session is not None:
+        from models.clinic import Clinic
+        clinic = db_session.query(Clinic).filter(Clinic.id == clinic_id).first()
+        if clinic and clinic.liff_access_token:
+            clinic_token = clinic.liff_access_token
+        else:
+            # Generate token if missing
+            from utils.liff_token import generate_liff_access_token
+            if clinic:
+                clinic_token = generate_liff_access_token(db_session, clinic_id)
+    
+    # If still no token, use a placeholder (tests should ensure clinic has token)
+    if clinic_token is None:
+        clinic_token = f"test_token_clinic_{clinic_id}"
+    
     payload = {
         "line_user_id": line_user_id,
         "clinic_id": clinic_id,
+        "clinic_token": clinic_token,  # Include clinic_token in JWT
         "exp": datetime.utcnow() + timedelta(hours=1),
         "iat": datetime.utcnow()
     }
@@ -128,7 +145,7 @@ def authenticated_line_user(db_session: Session, test_clinic_with_liff):
     db_session.commit()
 
     # Create JWT token for LINE user
-    token = create_line_user_jwt(line_user.line_user_id, clinic.id)
+    token = create_line_user_jwt(line_user.line_user_id, clinic.id, db_session=db_session)
 
     return line_user, token, clinic
 
@@ -2305,7 +2322,7 @@ class TestClinicIsolationSecurity:
         line_user1 = setup['line_user1']
 
         # Create JWT token for clinic1
-        token_clinic1 = create_line_user_jwt(line_user1.line_user_id, clinic1.id)
+        token_clinic1 = create_line_user_jwt(line_user1.line_user_id, clinic1.id, db_session=db_session)
 
         # Try to use clinic1 token to access clinic2 data
         try:
@@ -2330,6 +2347,30 @@ class TestClinicIsolationSecurity:
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
+
+    def test_jwt_contains_clinic_token(self, db_session: Session, multiple_clinics_setup):
+        """Test that JWT tokens include clinic_token in payload."""
+        import jwt
+        from core.config import JWT_SECRET_KEY
+        from utils.liff_token import generate_liff_access_token
+        
+        setup = multiple_clinics_setup
+        clinic1 = setup['clinic1']
+        line_user1 = setup['line_user1']
+        
+        # Ensure clinic has token
+        if not clinic1.liff_access_token:
+            clinic1.liff_access_token = generate_liff_access_token(db_session, clinic1.id)
+            db_session.commit()
+        
+        # Create JWT token for clinic1
+        token_clinic1 = create_line_user_jwt(line_user1.line_user_id, clinic1.id, db_session=db_session)
+        
+        # Decode JWT to verify clinic_token is included
+        payload = jwt.decode(token_clinic1, JWT_SECRET_KEY, algorithms=["HS256"])
+        assert "clinic_token" in payload, "JWT should contain clinic_token"
+        assert payload["clinic_token"] == clinic1.liff_access_token
+        assert payload["clinic_id"] == clinic1.id
 
 class TestCompactScheduleFeature:
     """Test compact schedule recommendation feature."""

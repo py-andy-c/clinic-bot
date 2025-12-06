@@ -8,8 +8,7 @@ export interface LiffLoginRequest {
   line_user_id: string;
   display_name: string;
   liff_access_token: string;
-  clinic_token?: string;  // New preferred method (secure token)
-  clinic_id?: number;     // Deprecated, for backward compatibility
+  clinic_token: string;  // Required - clinic_id is no longer supported
   picture_url?: string;   // Profile picture URL from LINE (optional)
 }
 

@@ -238,31 +238,21 @@ class TestURLGeneration:
         assert "appointment_type_id" not in url
         assert "practitioner_id" not in url
     
-    def test_generate_liff_url_missing_liff_id(self, monkeypatch):
-        """Test URL generation when LIFF_ID not configured."""
-        service = AvailabilityNotificationService()
-        
-        notification = Mock(spec=AvailabilityNotification)
-        notification.appointment_type_id = 1
-        notification.clinic_id = 2
+    def test_generate_liff_url_missing_token_raises_error(self, monkeypatch):
+        """Test URL generation raises error when clinic_token is missing."""
+        from utils.liff_token import generate_liff_url
         
         clinic = Mock(spec=Clinic)
         clinic.id = 1
-        clinic.liff_access_token = None  # No token - should fall back to clinic_id
+        clinic.liff_access_token = None  # No token - should raise error
         
         # Mock LIFF_ID as empty string in both modules
         monkeypatch.setattr("core.config.LIFF_ID", "")
         monkeypatch.setattr("utils.liff_token.LIFF_ID", "")
         
-        url = service._generate_liff_url(notification, clinic)
-        
-        # Should use placeholder URL
-        assert "clinic_1" in url
-        assert "mode=book" in url
-        # When token is missing, falls back to clinic_id for backward compatibility
-        assert "clinic_id=1" in url  # Uses clinic.id, not notification.clinic_id
-        assert "appointment_type_id" not in url
-        assert "practitioner_id" not in url
+        # Should raise ValueError when token is missing
+        with pytest.raises(ValueError, match="missing liff_access_token"):
+            generate_liff_url(clinic, mode="book")
 
 
 class TestDeduplication:

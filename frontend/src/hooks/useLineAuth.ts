@@ -30,25 +30,15 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // Extract clinic identifier from URL parameters (supports both clinic_token and clinic_id)
-  const getClinicIdentifierFromUrl = (): { type: 'token' | 'id', value: string } | null => {
+  // Extract clinic identifier from URL parameters (clinic_token only)
+  const getClinicIdentifierFromUrl = (): { type: 'token', value: string } | null => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('clinic_token');
-    const id = params.get('clinic_id');
 
     if (token) return { type: 'token', value: token };
-    if (id) return { type: 'id', value: id };
-    return null;
+    return null;  // No clinic_id fallback - clinic_token is required
   };
 
-  // Legacy function for backward compatibility
-  const getClinicIdFromUrl = (): number | null => {
-    const identifier = getClinicIdentifierFromUrl();
-    if (identifier && identifier.type === 'id') {
-      return parseInt(identifier.value, 10);
-    }
-    return null;
-  };
 
   // Extract clinic_id from JWT token payload
   const getClinicIdFromToken = (token: string): number | null => {
@@ -66,26 +56,41 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
     }
   };
 
-  // Get clinic identifier from URL (prefers token, falls back to id)
-  const getClinicIdentifier = (): { type: 'token' | 'id', value: string } | null => {
+  // Extract clinic_token from JWT token payload
+  const getClinicTokenFromToken = (token: string): string | null => {
+    try {
+      const parts = token.split('.');
+      if (parts.length < 2 || !parts[1]) {
+        return null;
+      }
+      const payload = JSON.parse(atob(parts[1]));
+      return payload.clinic_token || null;
+    } catch (e) {
+      logger.error('Failed to decode JWT token:', e);
+      return null;
+    }
+  };
+
+  // Extract clinic_token from URL parameters
+  const getClinicTokenFromUrl = (): string | null => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('clinic_token');
+  };
+
+  // Get clinic identifier from URL (clinic_token only)
+  const getClinicIdentifier = (): { type: 'token', value: string } | null => {
     return getClinicIdentifierFromUrl();
   };
 
-  // Legacy function for backward compatibility - get clinic_id with fallback
+  // Get clinic_id from JWT token (clinic_id is no longer in URL)
   const getClinicId = (token?: string | null): number | null => {
-    // Try URL first
-    const identifier = getClinicIdentifierFromUrl();
-    if (identifier && identifier.type === 'id') {
-      return parseInt(identifier.value, 10);
-    }
-
-    // Fallback to JWT token if provided
+    // Get from JWT token if provided
     if (token) {
       const tokenClinicId = getClinicIdFromToken(token);
       if (tokenClinicId) return tokenClinicId;
     }
 
-    // Try localStorage token as last resort
+    // Try localStorage token as fallback
     const storedToken = localStorage.getItem('liff_jwt_token');
     if (storedToken && storedToken !== token) {
       const storedClinicId = getClinicIdFromToken(storedToken);
@@ -144,27 +149,25 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
         setIsLoading(true);
         setError(null);
 
-    // Get clinic identifier from URL (prefers token, falls back to id)
+    // Get clinic_token from URL (required)
     const identifier = getClinicIdentifier();
-    if (!identifier) {
-      throw new Error(t('status.invalidClinicId'));
+    if (!identifier || identifier.type !== 'token') {
+      logger.error('Missing clinic_token in URL - invalid LIFF access', {
+        url: window.location.href,
+        searchParams: Object.fromEntries(new URLSearchParams(window.location.search))
+      });
+      throw new Error(t('status.invalidClinicId') || 'Missing clinic identifier in URL');
     }
 
     const request: any = {
       line_user_id: lineUserId,
       display_name: displayName,
       liff_access_token: accessToken,
+      clinic_token: identifier.value,  // Always use token
     };
     
     if (pictureUrl) {
       request.picture_url = pictureUrl;
-    }
-
-    // Add clinic_token or clinic_id based on what's in URL
-    if (identifier.type === 'token') {
-      request.clinic_token = identifier.value;
-    } else {
-      request.clinic_id = parseInt(identifier.value, 10);
     }
 
         const response: LiffLoginResponse = await liffApiService.liffLogin(request);
@@ -187,16 +190,62 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
     setIsLoading(false);
   };
 
-  // Simplified validation: trust backend to validate token/clinic_id
-  // Frontend no longer needs to compare URL vs token since backend handles validation
+  /**
+   * CRITICAL SECURITY: Validate clinic isolation by comparing URL clinic_token with JWT clinic_token.
+   * 
+   * This function MUST compare the URL's clinic_token with the JWT token's clinic_token to prevent
+   * cross-clinic data access when users visit URLs for different clinics while having a cached token.
+   * 
+   * Why this check is critical:
+   * - Backend validates the request (clinic_token), but doesn't know what's in the URL
+   * - When a cached JWT exists, frontend skips authentication and uses cached token
+   * - Without this check, a user with clinic 4 token visiting clinic 2 URL would access clinic 4 data
+   * - This is a CRITICAL clinic isolation violation that compromises patient data privacy
+   * 
+   * DO NOT REMOVE THIS CHECK - even if backend validation is added, this frontend check is still
+   * necessary because the backend never sees the URL, only the request body.
+   * 
+   * @param token - JWT token from localStorage
+   * @returns true if URL clinic_token matches JWT clinic_token, false otherwise
+   */
   const validateClinicIsolation = (token: string): boolean => {
-    // Backend now validates clinic_token or clinic_id, so we just check token is valid
+    // Extract clinic_token from JWT
+    const tokenClinicToken = getClinicTokenFromToken(token);
     const tokenClinicId = getClinicIdFromToken(token);
+    
+    if (!tokenClinicToken) {
+      // Old token format (missing clinic_token) - force re-authentication
+      logger.warn(
+        'Old token format detected (missing clinic_token) - forcing re-authentication to get new token format'
+      );
+      return false;
+    }
+    
     if (!tokenClinicId) {
       logger.warn('Missing clinic_id in token - potential security issue');
       return false;
     }
-    // Trust backend validation - no need to compare URL vs token anymore
+
+    // Get clinic_token from URL
+    const urlClinicToken = getClinicTokenFromUrl();
+    
+    if (!urlClinicToken) {
+      // URL has no clinic_token - this shouldn't happen but err on side of caution
+      logger.error('Missing clinic_token in URL - cannot validate clinic isolation');
+      return false;
+    }
+
+    // Compare URL clinic_token with JWT clinic_token
+    if (urlClinicToken !== tokenClinicToken) {
+      logger.error(
+        `CRITICAL SECURITY: Clinic token mismatch! ` +
+        `URL token: ${urlClinicToken.substring(0, 20)}..., ` +
+        `JWT token: ${tokenClinicToken.substring(0, 20)}... ` +
+        `This indicates a clinic isolation violation - user may be accessing wrong clinic's data.`
+      );
+      return false;
+    }
+
     return true;
   };
 
@@ -208,8 +257,14 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
       const isValid = await validateExistingToken(token, checkCancelled);
       if (isValid) {
         // CRITICAL SECURITY CHECK: Ensure clinic isolation
+        // This check compares URL clinic_token with JWT clinic_token to prevent cross-clinic access
+        // DO NOT REMOVE - this is the last line of defense against clinic isolation violations
+        // See validateClinicIsolation function documentation for why this is critical
         if (!validateClinicIsolation(token)) {
-          logger.log('Clinic isolation validation failed - clearing token and re-authenticating');
+          logger.error(
+            'CRITICAL: Clinic isolation validation failed - URL clinic_token does not match JWT clinic_token. ' +
+            'Clearing token and forcing re-authentication to prevent cross-clinic data access.'
+          );
           localStorage.removeItem('liff_jwt_token');
           setClinicId(null);
           setError(t('status.clinicValidationFailed'));
@@ -245,14 +300,13 @@ export const useLineAuth = (lineProfile: { userId: string; displayName: string; 
   }, [lineProfile, liffAccessToken]);
 
   // Initialize clinicId from URL on mount to prevent showing InvalidAccess prematurely
-  // This runs once on mount to extract clinic_id from URL before authentication completes
+  // This runs once on mount - clinicId will be set from authentication response
+  // Note: We can't extract clinic_id from clinic_token without backend call, so we wait for auth
   useEffect(() => {
-    const urlClinicId = getClinicIdFromUrl();
-    if (urlClinicId && !clinicId) {
-      setClinicId(urlClinicId);
-    }
+    // ClinicId will be set from authentication response, not from URL
+    // This prevents showing InvalidAccess prematurely
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Intentionally empty: only run once on mount, clinicId check prevents overwriting
+  }, []); // Intentionally empty: clinicId comes from auth response
 
   // Consolidated authentication effect - handles all auth logic in one place
   useEffect(() => {

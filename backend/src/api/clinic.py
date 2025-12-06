@@ -641,7 +641,12 @@ async def get_settings(
         # Generate LIFF URL (read-only operation - no auto-generation)
         # Tokens should be generated via explicit endpoints or during clinic creation
         from utils.liff_token import generate_liff_url
-        liff_url = generate_liff_url(clinic, mode="home")  # Will use clinic_id if token missing (backward compat)
+        try:
+            liff_url = generate_liff_url(clinic, mode="home")
+        except ValueError:
+            # Clinic doesn't have liff_access_token yet - return None
+            # Frontend should handle this gracefully (e.g., show "Generate LIFF URL" button)
+            liff_url = None
         
         # Convert validated settings to API response models (they have the same structure)
         # This ensures type compatibility while maintaining automatic field inclusion

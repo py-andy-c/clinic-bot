@@ -1,7 +1,7 @@
 /**
  * URL utility functions for preserving query parameters.
  * 
- * This helps prevent bugs where important URL parameters (like clinic_id)
+ * This helps prevent bugs where important URL parameters (like clinic_token)
  * are accidentally lost during URL updates.
  */
 
@@ -10,7 +10,7 @@
  * 
  * @param pathname - URL pathname
  * @param paramsToSet - Parameters to set/update
- * @param paramsToPreserve - Parameters to preserve (default: ['clinic_token', 'clinic_id'])
+ * @param paramsToPreserve - Parameters to preserve (default: ['clinic_token'])
  * @returns New URL string with preserved and updated parameters
  * 
  * @example
@@ -23,33 +23,24 @@
 export const preserveQueryParams = (
   pathname: string,
   paramsToSet: Record<string, string>,
-  paramsToPreserve: string[] = ['clinic_token', 'clinic_id']  // Support both during migration
+  paramsToPreserve: string[] = ['clinic_token']  // Only clinic_token, clinic_id removed
 ): string => {
   const urlParams = new URLSearchParams();
 
   // Preserve specified params from current URL
   const currentParams = new URLSearchParams(window.location.search);
 
-  // Preserve clinic_token/clinic_id only if they're in the preserve list (or default)
-  // Check if clinic_token or clinic_id should be preserved
-  const shouldPreserveToken = paramsToPreserve.includes('clinic_token');
-  const shouldPreserveId = paramsToPreserve.includes('clinic_id');
-
-  if (shouldPreserveToken || shouldPreserveId) {
-    // Prioritize clinic_token if both are present in current URL
+  // Preserve clinic_token if it's in the preserve list (or default)
+  if (paramsToPreserve.includes('clinic_token')) {
     const currentToken = currentParams.get('clinic_token');
-    const currentId = currentParams.get('clinic_id');
-
-    if (shouldPreserveToken && currentToken) {
+    if (currentToken) {
       urlParams.set('clinic_token', currentToken);
-    } else if (shouldPreserveId && currentId) {
-      urlParams.set('clinic_id', currentId);
     }
   }
 
-  // Preserve other specified params, ensuring clinic_token/id are not overwritten if already set
+  // Preserve other specified params, ensuring clinic_token is not overwritten if already set
   paramsToPreserve.forEach(param => {
-    if (param !== 'clinic_token' && param !== 'clinic_id') {
+    if (param !== 'clinic_token') {
       const value = currentParams.get(param);
       if (value) {
         urlParams.set(param, value);

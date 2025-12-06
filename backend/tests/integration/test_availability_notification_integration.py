@@ -36,11 +36,28 @@ def client(db_session: Session):
     app.dependency_overrides.pop(get_db, None)
 
 
-def create_line_user_jwt(line_user_id: str, clinic_id: int) -> str:
+def create_line_user_jwt(line_user_id: str, clinic_id: int, clinic_token: str | None = None, db_session: Session | None = None) -> str:
     """Create a JWT token for LINE user authentication."""
+    # If clinic_token not provided, look it up from database
+    if clinic_token is None and db_session is not None:
+        from models.clinic import Clinic
+        clinic = db_session.query(Clinic).filter(Clinic.id == clinic_id).first()
+        if clinic and clinic.liff_access_token:
+            clinic_token = clinic.liff_access_token
+        else:
+            # Generate token if missing
+            from utils.liff_token import generate_liff_access_token
+            if clinic:
+                clinic_token = generate_liff_access_token(db_session, clinic_id)
+    
+    # If still no token, use a placeholder (tests should ensure clinic has token)
+    if clinic_token is None:
+        clinic_token = f"test_token_clinic_{clinic_id}"
+    
     payload = {
         "line_user_id": line_user_id,
         "clinic_id": clinic_id,
+        "clinic_token": clinic_token,  # Include clinic_token in JWT
         "exp": datetime.utcnow() + timedelta(hours=1),
         "iat": datetime.utcnow()
     }
@@ -123,7 +140,7 @@ class TestCreateNotification:
         test_line_user: LineUser, test_appointment_type: AppointmentType
     ):
         """Test successful notification creation."""
-        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
+        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id, db_session=db_session)
         
         today = taiwan_now().date()
         tomorrow = today + timedelta(days=1)
@@ -162,7 +179,7 @@ class TestCreateNotification:
         test_practitioner: User
     ):
         """Test creating notification with specific practitioner."""
-        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
+        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id, db_session=db_session)
         
         tomorrow = (taiwan_now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
         
@@ -186,7 +203,7 @@ class TestCreateNotification:
         self, client: TestClient, db_session: Session, test_clinic: Clinic, test_line_user: LineUser
     ):
         """Test validation errors."""
-        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
+        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id, db_session=db_session)
         
         # Too many time windows
         tomorrow = (taiwan_now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
@@ -238,7 +255,7 @@ class TestCreateNotification:
         test_line_user: LineUser, test_appointment_type: AppointmentType
     ):
         """Test user notification limit."""
-        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
+        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id, db_session=db_session)
         
         tomorrow = (taiwan_now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
         
@@ -280,7 +297,7 @@ class TestListNotifications:
         test_line_user: LineUser, test_appointment_type: AppointmentType
     ):
         """Test successful notification listing."""
-        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
+        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id, db_session=db_session)
         
         tomorrow = (taiwan_now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
         
@@ -314,7 +331,7 @@ class TestListNotifications:
         test_line_user: LineUser, test_appointment_type: AppointmentType
     ):
         """Test pagination."""
-        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
+        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id, db_session=db_session)
         
         tomorrow = (taiwan_now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
         
@@ -381,7 +398,7 @@ class TestListNotifications:
         db_session.commit()
         
         # List notifications for test_clinic (should not see clinic2's notification)
-        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
+        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id, db_session=db_session)
         response = client.get(
             "/api/liff/availability-notifications",
             headers={"Authorization": f"Bearer {token}"}
@@ -400,7 +417,7 @@ class TestDeleteNotification:
         test_line_user: LineUser, test_appointment_type: AppointmentType
     ):
         """Test successful notification deletion."""
-        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
+        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id, db_session=db_session)
         
         tomorrow = (taiwan_now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
         
@@ -436,7 +453,7 @@ class TestDeleteNotification:
         self, client: TestClient, db_session: Session, test_clinic: Clinic, test_line_user: LineUser
     ):
         """Test deleting non-existent notification."""
-        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
+        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id, db_session=db_session)
         
         response = client.delete(
             "/api/liff/availability-notifications/99999",
@@ -479,7 +496,7 @@ class TestDeleteNotification:
         db_session.commit()
         
         # Try to delete with test_line_user's token
-        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id)
+        token = create_line_user_jwt(test_line_user.line_user_id, test_clinic.id, db_session=db_session)
         response = client.delete(
             f"/api/liff/availability-notifications/{notification.id}",
             headers={"Authorization": f"Bearer {token}"}

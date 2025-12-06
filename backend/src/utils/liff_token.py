@@ -99,8 +99,7 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
     """
     Generate LIFF URL for a clinic.
 
-    Uses secure clinic_token if available, otherwise falls back to clinic_id
-    for backward compatibility.
+    Requires clinic.liff_access_token to be set.
 
     Args:
         clinic: Clinic model instance
@@ -109,9 +108,18 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
     Returns:
         Complete LIFF URL with query parameters
 
+    Raises:
+        ValueError: If clinic.liff_access_token is missing
+
     Example:
         https://liff.line.me/{liff_id}?mode=book&clinic_token=...
     """
+    if not clinic.liff_access_token:
+        raise ValueError(
+            f"Clinic {clinic.id} missing liff_access_token - cannot generate LIFF URL. "
+            "Please generate a token via admin interface."
+        )
+    
     # LIFF ID comes from environment variable (LIFF_ID)
     if LIFF_ID:
         base_url = f"https://liff.line.me/{LIFF_ID}"
@@ -122,15 +130,8 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
 
     params = {
         "mode": mode,
+        "clinic_token": clinic.liff_access_token,  # Always use token
     }
-
-    # Use secure token if available, otherwise fall back to clinic_id for backward compatibility
-    if clinic.liff_access_token:
-        params["clinic_token"] = clinic.liff_access_token
-    else:
-        # Backward compatibility: use clinic_id if token not available
-        logger.warning(f"Clinic {clinic.id} missing liff_access_token, using deprecated clinic_id")
-        params["clinic_id"] = str(clinic.id)
 
     query_string = "&".join([f"{k}={v}" for k, v in params.items()])
 

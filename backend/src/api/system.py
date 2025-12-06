@@ -160,18 +160,26 @@ async def list_clinics(
         
         # Generate LIFF URLs without auto-generating tokens (read-only operation)
         # Tokens should be generated via explicit endpoints or during clinic creation
-        return [
-            ClinicResponse(
-                id=clinic.id,
-                name=clinic.name,
-                line_channel_id=clinic.line_channel_id,
-                subscription_status=clinic.subscription_status,
-                trial_ends_at=clinic.trial_ends_at,
-                created_at=clinic.created_at,
-                liff_url=generate_liff_url(clinic)  # Will use clinic_id if token missing (backward compat)
+        clinic_responses: List[ClinicResponse] = []
+        for clinic in clinics:
+            try:
+                liff_url = generate_liff_url(clinic)
+            except ValueError:
+                # Clinic doesn't have liff_access_token yet - return None
+                liff_url = None
+            
+            clinic_responses.append(
+                ClinicResponse(
+                    id=clinic.id,
+                    name=clinic.name,
+                    line_channel_id=clinic.line_channel_id,
+                    subscription_status=clinic.subscription_status,
+                    trial_ends_at=clinic.trial_ends_at,
+                    created_at=clinic.created_at,
+                    liff_url=liff_url
+                )
             )
-            for clinic in clinics
-        ]
+        return clinic_responses
 
     except Exception as e:
         logger.exception(f"Failed to list clinics: {e}")
@@ -214,7 +222,11 @@ async def get_clinic(
         # Generate LIFF URL (read-only operation - no auto-generation)
         # Tokens should be generated via explicit endpoints or during clinic creation
         from utils.liff_token import generate_liff_url
-        liff_url = generate_liff_url(clinic, mode="home")  # Will use clinic_id if token missing (backward compat)
+        try:
+            liff_url = generate_liff_url(clinic, mode="home")
+        except ValueError:
+            # Clinic doesn't have liff_access_token yet - return None
+            liff_url = None
 
         return {
             "id": clinic.id,

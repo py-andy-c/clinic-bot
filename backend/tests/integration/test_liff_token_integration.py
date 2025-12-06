@@ -67,9 +67,9 @@ class TestLiffLoginWithToken:
         finally:
             client.app.dependency_overrides.pop(get_db, None)
     
-    def test_liff_login_with_deprecated_clinic_id(self, db_session: Session):
-        """Test LIFF login using deprecated clinic_id (backward compatibility)."""
-        # Create clinic without token initially
+    def test_liff_login_rejects_clinic_id(self, db_session: Session):
+        """Test LIFF login rejects clinic_id (no longer supported)."""
+        # Create clinic with token
         clinic = Clinic(
             name="Test Clinic",
             line_channel_id="test_channel",
@@ -79,17 +79,12 @@ class TestLiffLoginWithToken:
         )
         db_session.add(clinic)
         db_session.commit()
+        db_session.refresh(clinic)
         
-        # Create LINE user
-        line_user = LineUser(
-            line_user_id="test_line_user",
-            clinic_id=clinic.id,
-            display_name="Test User"
-        )
-        db_session.add(line_user)
+        clinic.liff_access_token = generate_liff_access_token(db_session, clinic.id)
         db_session.commit()
         
-        # Login with clinic_id (should auto-generate token)
+        # Login with clinic_id should be rejected
         client = TestClient(app)
         client.app.dependency_overrides[get_db] = lambda: db_session
         
@@ -104,14 +99,8 @@ class TestLiffLoginWithToken:
                 }
             )
             
-            assert response.status_code == 200
-            data = response.json()
-            assert "access_token" in data
-            assert data["clinic_id"] == clinic.id
-            
-            # Verify token was auto-generated
-            db_session.refresh(clinic)
-            assert clinic.liff_access_token is not None
+            # Should reject clinic_id (validation error)
+            assert response.status_code == 422
         finally:
             client.app.dependency_overrides.pop(get_db, None)
     
@@ -135,8 +124,8 @@ class TestLiffLoginWithToken:
         finally:
             client.app.dependency_overrides.pop(get_db, None)
     
-    def test_liff_login_missing_clinic_identifier(self, db_session: Session):
-        """Test LIFF login requires either clinic_token or clinic_id."""
+    def test_liff_login_missing_clinic_token(self, db_session: Session):
+        """Test LIFF login requires clinic_token."""
         client = TestClient(app)
         client.app.dependency_overrides[get_db] = lambda: db_session
         
@@ -154,8 +143,12 @@ class TestLiffLoginWithToken:
         finally:
             client.app.dependency_overrides.pop(get_db, None)
     
-    def test_liff_login_both_token_and_id_provided(self, db_session: Session):
-        """Test LIFF login rejects when both clinic_token and clinic_id are provided."""
+    def test_liff_login_jwt_contains_clinic_token(self, db_session: Session):
+        """Test that JWT token includes clinic_token in payload."""
+        import jwt
+        from core.config import JWT_SECRET_KEY
+        
+        # Create clinic with token
         clinic = Clinic(
             name="Test Clinic",
             line_channel_id="test_channel2",
@@ -180,12 +173,20 @@ class TestLiffLoginWithToken:
                     "line_user_id": "test_line_user2",
                     "display_name": "Test User",
                     "liff_access_token": "line_access_token",
-                    "clinic_token": clinic.liff_access_token,
-                    "clinic_id": clinic.id
+                    "clinic_token": clinic.liff_access_token
                 }
             )
             
-            assert response.status_code == 422  # Validation error
+            assert response.status_code == 200
+            data = response.json()
+            assert "access_token" in data
+            
+            # Decode JWT to verify clinic_token is included
+            token = data["access_token"]
+            payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
+            assert "clinic_token" in payload
+            assert payload["clinic_token"] == clinic.liff_access_token
+            assert payload["clinic_id"] == clinic.id
         finally:
             client.app.dependency_overrides.pop(get_db, None)
 
