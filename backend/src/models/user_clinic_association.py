@@ -56,15 +56,31 @@ class UserClinicAssociation(Base):
     }
     """
     
+    # LINE integration (optional - for practitioner/admin notifications per clinic)
+    line_user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    """
+    LINE user ID for practitioner/admin LINE account linking per clinic.
+    
+    Used to send appointment notifications to practitioners/admins via LINE.
+    Optional - practitioners/admins can link their LINE account independently for each clinic.
+    Each clinic may use a different LINE Messaging API channel, so the same physical LINE
+    user will have different line_user_id values per channel.
+    
+    Unique constraint on (clinic_id, line_user_id) ensures one LINE account can only
+    link to one user per clinic.
+    """
+    
     # Relationships
     user = relationship("User", back_populates="clinic_associations")
     clinic = relationship("Clinic", back_populates="user_associations")
     
     __table_args__ = (
         UniqueConstraint('user_id', 'clinic_id', name='uq_user_clinic'),
+        UniqueConstraint('clinic_id', 'line_user_id', name='uq_user_clinic_associations_clinic_line_user'),
         # Indexes for query performance
         Index('idx_user_clinic_associations_user', 'user_id'),
         Index('idx_user_clinic_associations_clinic', 'clinic_id'),
+        Index('idx_user_clinic_associations_line_user_id', 'line_user_id'),
         # Composite index for user + active + clinic lookups
         Index(
             'idx_user_clinic_associations_user_active_clinic',

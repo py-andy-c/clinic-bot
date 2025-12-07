@@ -7,6 +7,7 @@ from datetime import datetime, date, time
 
 from services.notification_service import NotificationService
 from models import Appointment, User, Clinic
+from models.user_clinic_association import UserClinicAssociation
 
 
 @pytest.fixture
@@ -36,12 +37,12 @@ def mock_appointment():
 
 
 @pytest.fixture
-def mock_practitioner():
-    """Create a mock practitioner."""
-    practitioner = Mock(spec=User)
-    practitioner.id = 1
-    practitioner.line_user_id = "U1234567890abcdef"
-    return practitioner
+def mock_association():
+    """Create a mock user-clinic association."""
+    association = Mock(spec=UserClinicAssociation)
+    association.user_id = 1
+    association.line_user_id = "U1234567890abcdef"
+    return association
 
 
 @pytest.fixture
@@ -66,7 +67,7 @@ def test_send_practitioner_notification_success(
     mock_line_service_class,
     mock_format_datetime,
     mock_appointment,
-    mock_practitioner,
+    mock_association,
     mock_clinic,
     mock_db
 ):
@@ -78,7 +79,7 @@ def test_send_practitioner_notification_success(
     
     # Execute
     result = NotificationService.send_practitioner_appointment_notification(
-        mock_db, mock_practitioner, mock_appointment, mock_clinic
+        mock_db, mock_association, mock_appointment, mock_clinic
     )
     
     # Assert
@@ -102,17 +103,17 @@ def test_send_practitioner_notification_no_line_account(
     mock_line_service_class,
     mock_format_datetime,
     mock_appointment,
-    mock_practitioner,
+    mock_association,
     mock_clinic,
     mock_db
 ):
     """Test notification skipped when practitioner has no LINE account."""
     # Setup
-    mock_practitioner.line_user_id = None
+    mock_association.line_user_id = None
     
     # Execute
     result = NotificationService.send_practitioner_appointment_notification(
-        mock_db, mock_practitioner, mock_appointment, mock_clinic
+        mock_db, mock_association, mock_appointment, mock_clinic
     )
     
     # Assert
@@ -126,7 +127,7 @@ def test_send_practitioner_notification_no_clinic_credentials(
     mock_line_service_class,
     mock_format_datetime,
     mock_appointment,
-    mock_practitioner,
+    mock_association,
     mock_clinic,
     mock_db
 ):
@@ -137,7 +138,7 @@ def test_send_practitioner_notification_no_clinic_credentials(
     
     # Execute
     result = NotificationService.send_practitioner_appointment_notification(
-        mock_db, mock_practitioner, mock_appointment, mock_clinic
+        mock_db, mock_association, mock_appointment, mock_clinic
     )
     
     # Assert
@@ -151,7 +152,7 @@ def test_send_practitioner_notification_with_notes(
     mock_line_service_class,
     mock_format_datetime,
     mock_appointment,
-    mock_practitioner,
+    mock_association,
     mock_clinic,
     mock_db
 ):
@@ -164,7 +165,7 @@ def test_send_practitioner_notification_with_notes(
     
     # Execute
     result = NotificationService.send_practitioner_appointment_notification(
-        mock_db, mock_practitioner, mock_appointment, mock_clinic
+        mock_db, mock_association, mock_appointment, mock_clinic
     )
     
     # Assert
@@ -179,7 +180,7 @@ def test_send_practitioner_notification_no_patient(
     mock_line_service_class,
     mock_format_datetime,
     mock_appointment,
-    mock_practitioner,
+    mock_association,
     mock_clinic,
     mock_db
 ):
@@ -192,7 +193,7 @@ def test_send_practitioner_notification_no_patient(
     
     # Execute
     result = NotificationService.send_practitioner_appointment_notification(
-        mock_db, mock_practitioner, mock_appointment, mock_clinic
+        mock_db, mock_association, mock_appointment, mock_clinic
     )
     
     # Assert
@@ -207,7 +208,7 @@ def test_send_practitioner_notification_line_service_error(
     mock_line_service_class,
     mock_format_datetime,
     mock_appointment,
-    mock_practitioner,
+    mock_association,
     mock_clinic,
     mock_db
 ):
@@ -220,7 +221,7 @@ def test_send_practitioner_notification_line_service_error(
     
     # Execute
     result = NotificationService.send_practitioner_appointment_notification(
-        mock_db, mock_practitioner, mock_appointment, mock_clinic
+        mock_db, mock_association, mock_appointment, mock_clinic
     )
     
     # Assert

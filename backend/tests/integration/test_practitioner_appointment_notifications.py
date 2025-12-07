@@ -50,7 +50,6 @@ def clinic_with_practitioner(db_session):
     practitioner = User(
         email="practitioner@test.com",
         google_subject_id="google_subject_practitioner",
-        line_user_id="U1234567890",  # Linked LINE account
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc)
     )
@@ -62,6 +61,7 @@ def clinic_with_practitioner(db_session):
         clinic_id=clinic.id,
         roles=["practitioner"],
         full_name="測試治療師",
+        line_user_id="U1234567890",  # Linked LINE account for this clinic
         is_active=True,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc)
@@ -194,7 +194,13 @@ class TestPractitionerAppointmentNotifications:
         clinic, practitioner, appointment_type, patient = clinic_with_practitioner
         
         # Remove LINE account
-        practitioner.line_user_id = None
+        from models.user_clinic_association import UserClinicAssociation
+        association = db_session.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == practitioner.id,
+            UserClinicAssociation.clinic_id == clinic.id
+        ).first()
+        if association:
+            association.line_user_id = None
         db_session.commit()
         
         # Setup mocks

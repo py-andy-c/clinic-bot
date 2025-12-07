@@ -63,3 +63,4 @@ class LineAiReply(Base):
             f"line_user_id={self.line_user_id[:10]}...)>"
         )
 
+

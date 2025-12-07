@@ -3,8 +3,12 @@ from datetime import datetime
 from enum import Enum
 from sqlalchemy.orm import Session
 import logging
+from typing import TYPE_CHECKING
 from models import Appointment, User, Clinic
 from utils.datetime_utils import format_datetime
+
+if TYPE_CHECKING:
+    from models.user_clinic_association import UserClinicAssociation
 
 logger = logging.getLogger(__name__)
 
@@ -445,7 +449,7 @@ class NotificationService:
     @staticmethod
     def send_practitioner_appointment_notification(
         db: Session,
-        practitioner: User,
+        association: "UserClinicAssociation",
         appointment: Appointment,
         clinic: Clinic
     ) -> bool:
@@ -454,7 +458,7 @@ class NotificationService:
 
         Args:
             db: Database session
-            practitioner: Practitioner who has the appointment
+            association: UserClinicAssociation for the practitioner at this clinic
             appointment: New appointment
             clinic: Clinic object
 
@@ -462,9 +466,9 @@ class NotificationService:
             True if notification sent successfully, False otherwise
         """
         try:
-            # Check if practitioner has LINE account linked
-            if not practitioner.line_user_id:
-                logger.info(f"Practitioner {practitioner.id} has no LINE account linked, skipping notification")
+            # Check if practitioner has LINE account linked for this clinic
+            if not association.line_user_id:
+                logger.info(f"Practitioner {association.user_id} has no LINE account linked for clinic {clinic.id}, skipping notification")
                 return False
 
             # Check if clinic has LINE credentials
@@ -504,7 +508,7 @@ class NotificationService:
                 'appointment_context': 'new_appointment'
             }
             line_service.send_text_message(
-                practitioner.line_user_id, 
+                association.line_user_id, 
                 message,
                 db=db,
                 clinic_id=clinic.id,
@@ -512,8 +516,8 @@ class NotificationService:
             )
 
             logger.info(
-                f"Sent appointment notification to practitioner {practitioner.id} "
-                f"for appointment {appointment.calendar_event_id}"
+                f"Sent appointment notification to practitioner {association.user_id} "
+                f"for appointment {appointment.calendar_event_id} at clinic {clinic.id}"
             )
             return True
 
@@ -524,7 +528,7 @@ class NotificationService:
     @staticmethod
     def send_practitioner_cancellation_notification(
         db: Session,
-        practitioner: User,
+        association: "UserClinicAssociation",
         appointment: Appointment,
         clinic: Clinic,
         cancelled_by: str
@@ -534,7 +538,7 @@ class NotificationService:
 
         Args:
             db: Database session
-            practitioner: Practitioner who had the appointment
+            association: UserClinicAssociation for the practitioner at this clinic
             appointment: Cancelled appointment
             clinic: Clinic object
             cancelled_by: Who cancelled - 'patient' or 'clinic'
@@ -543,9 +547,9 @@ class NotificationService:
             True if notification sent successfully, False otherwise
         """
         try:
-            # Check if practitioner has LINE account linked
-            if not practitioner.line_user_id:
-                logger.info(f"Practitioner {practitioner.id} has no LINE account linked, skipping cancellation notification")
+            # Check if practitioner has LINE account linked for this clinic
+            if not association.line_user_id:
+                logger.info(f"Practitioner {association.user_id} has no LINE account linked for clinic {clinic.id}, skipping cancellation notification")
                 return False
 
             # Check if clinic has LINE credentials
@@ -587,7 +591,7 @@ class NotificationService:
                 'appointment_context': 'cancellation'
             }
             line_service.send_text_message(
-                practitioner.line_user_id, 
+                association.line_user_id, 
                 message,
                 db=db,
                 clinic_id=clinic.id,
@@ -595,8 +599,8 @@ class NotificationService:
             )
 
             logger.info(
-                f"Sent cancellation notification to practitioner {practitioner.id} "
-                f"for appointment {appointment.calendar_event_id}"
+                f"Sent cancellation notification to practitioner {association.user_id} "
+                f"for appointment {appointment.calendar_event_id} at clinic {clinic.id}"
             )
             return True
 
@@ -632,8 +636,16 @@ class NotificationService:
         # Notify old practitioner (if exists and different from new)
         if old_practitioner and old_practitioner.id != new_practitioner.id:
             try:
-                # Check if old practitioner has LINE account linked
-                if old_practitioner.line_user_id:
+                # Get association for old practitioner
+                from models.user_clinic_association import UserClinicAssociation
+                old_association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == old_practitioner.id,
+                    UserClinicAssociation.clinic_id == clinic.id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                
+                # Check if old practitioner has LINE account linked for this clinic
+                if old_association and old_association.line_user_id:
                     # Check if clinic has LINE credentials
                     if clinic.line_channel_secret and clinic.line_channel_access_token:
                         # Get patient name
@@ -650,7 +662,6 @@ class NotificationService:
                         appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
 
                         # Get new practitioner name
-                        from models.user_clinic_association import UserClinicAssociation
                         new_practitioner_assoc = db.query(UserClinicAssociation).filter(
                             UserClinicAssociation.user_id == new_practitioner.id,
                             UserClinicAssociation.clinic_id == clinic.id,
@@ -674,7 +685,7 @@ class NotificationService:
                             'appointment_context': 'reschedule'
                         }
                         line_service.send_text_message(
-                            old_practitioner.line_user_id, 
+                            old_association.line_user_id, 
                             message,
                             db=db,
                             clinic_id=clinic.id,
@@ -691,8 +702,16 @@ class NotificationService:
 
         # Notify new practitioner
         try:
-            # Check if new practitioner has LINE account linked
-            if new_practitioner.line_user_id:
+            # Get association for new practitioner
+            from models.user_clinic_association import UserClinicAssociation
+            new_association = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == new_practitioner.id,
+                UserClinicAssociation.clinic_id == clinic.id,
+                UserClinicAssociation.is_active == True
+            ).first()
+            
+            # Check if new practitioner has LINE account linked for this clinic
+            if new_association and new_association.line_user_id:
                 # Check if clinic has LINE credentials
                 if clinic.line_channel_secret and clinic.line_channel_access_token:
                     # Get patient name
@@ -709,7 +728,6 @@ class NotificationService:
                     appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
 
                     # Get old practitioner name (if exists)
-                    from models.user_clinic_association import UserClinicAssociation
                     old_practitioner_name = None
                     if old_practitioner:
                         old_practitioner_assoc = db.query(UserClinicAssociation).filter(
@@ -741,7 +759,7 @@ class NotificationService:
                         'appointment_context': 'reschedule'
                     }
                     line_service.send_text_message(
-                        new_practitioner.line_user_id, 
+                        new_association.line_user_id, 
                         message,
                         db=db,
                         clinic_id=clinic.id,

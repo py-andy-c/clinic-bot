@@ -79,6 +79,7 @@ async def get_profile(
         active_clinic_id: Optional[int] = None
         settings: Optional[Dict[str, Any]] = None
 
+        line_linked = False
         if current_user.active_clinic_id:
             # Find association from eagerly loaded clinic_associations
             association = next(
@@ -92,6 +93,8 @@ async def get_profile(
                 # Include settings if user is a practitioner
                 if 'practitioner' in roles:
                     settings = association.get_validated_settings().model_dump()
+                # Check if LINE account is linked for this clinic
+                line_linked = bool(association.line_user_id)
 
         return ProfileResponse(
             id=user.id,
@@ -102,7 +105,7 @@ async def get_profile(
             created_at=user.created_at,
             last_login_at=user.last_login_at,
             settings=settings,
-            line_linked=bool(user.line_user_id)  # Check if LINE account is linked
+            line_linked=line_linked  # Check if LINE account is linked for this clinic
         )
 
     except HTTPException:
@@ -210,6 +213,7 @@ async def update_profile(
         active_clinic_id: Optional[int] = None
         clinic_full_name = user.email  # Default to email (for system admins)
         settings: Optional[Dict[str, Any]] = None
+        line_linked = False
 
         if current_user.active_clinic_id:
             # Use association from eagerly loaded relationships (already loaded above)
@@ -222,6 +226,8 @@ async def update_profile(
                 # Include settings if user is a practitioner
                 if 'practitioner' in roles:
                     settings = association.get_validated_settings().model_dump()
+                # Check if LINE account is linked for this clinic
+                line_linked = bool(association.line_user_id)
             else:
                 # Clinic users must have an association
                 raise HTTPException(
@@ -238,7 +244,7 @@ async def update_profile(
             created_at=user.created_at,
             last_login_at=user.last_login_at,
             settings=settings,
-            line_linked=bool(user.line_user_id)  # Check if LINE account is linked
+            line_linked=line_linked  # Check if LINE account is linked for this clinic
         )
 
     except HTTPException:
@@ -369,18 +375,33 @@ async def unlink_line_account(
     try:
         # Ensure user has clinic access (not system admin)
         # ensure_clinic_access raises HTTPException (403) for system admins
-        ensure_clinic_access(current_user)
+        clinic_id = ensure_clinic_access(current_user)
 
-        # Get user
-        user = db.query(User).filter(User.id == current_user.user_id).first()
+        # Get user with association
+        user = db.query(User).options(
+            joinedload(User.clinic_associations)
+        ).filter(User.id == current_user.user_id).first()
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="找不到使用者"
             )
 
-        # Unlink LINE account
-        user.line_user_id = None
+        # Find association for this clinic
+        association = next(
+            (a for a in user.clinic_associations
+             if a.clinic_id == clinic_id and a.is_active),
+            None
+        )
+        if not association:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到診所關聯"
+            )
+
+        # Unlink LINE account for this clinic
+        association.line_user_id = None
+        association.updated_at = taiwan_now()
         db.commit()
 
         return {"message": "LINE 帳號已取消連結"}

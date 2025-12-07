@@ -46,7 +46,7 @@ class TestAdminAutoAssignedNotificationService:
             roles=["admin"],
             is_active=True
         )
-        admin_user.line_user_id = "test_admin_line_user_id"
+        admin_association.line_user_id = "test_admin_line_user_id"
         # Set admin's notification time to 09:00 (9 AM)
         from models.user_clinic_association import PractitionerSettings
         admin_settings = PractitionerSettings(auto_assigned_notification_time="09:00")
@@ -159,7 +159,7 @@ class TestAdminAutoAssignedNotificationService:
             roles=["admin"],
             is_active=True
         )
-        admin_user.line_user_id = "test_admin_line_user_id"
+        admin_association.line_user_id = "test_admin_line_user_id"
         # Use default notification time (09:00)
         db_session.flush()
 
@@ -260,7 +260,7 @@ class TestAdminAutoAssignedNotificationService:
             roles=["admin"],
             is_active=True
         )
-        admin_user.line_user_id = "test_admin_line_user_id"
+        admin_association.line_user_id = "test_admin_line_user_id"
         # Set admin's notification time to 09:00 (9 AM)
         admin_settings = PractitionerSettings(auto_assigned_notification_time="09:00")
         admin_association.set_validated_settings(admin_settings)
@@ -421,7 +421,7 @@ class TestAdminAutoAssignedNotificationService:
             roles=["admin"],
             is_active=True
         )
-        admin_user.line_user_id = "test_admin_line_user_id"
+        admin_association.line_user_id = "test_admin_line_user_id"
         # Don't set notification time (will use default 21:00)
         db_session.flush()
 
@@ -523,7 +523,7 @@ class TestAdminAutoAssignedNotificationService:
             roles=["admin"],
             is_active=True
         )
-        admin_user.line_user_id = "test_admin_line_user_id"
+        admin_association.line_user_id = "test_admin_line_user_id"
         # Set admin's notification time to 09:00 (9 AM)
         admin_settings = PractitionerSettings(auto_assigned_notification_time="09:00")
         admin_association.set_validated_settings(admin_settings)
@@ -760,11 +760,11 @@ class TestAdminAutoAssignedNotificationService:
             roles=["admin"],
             is_active=True
         )
-        admin1.line_user_id = "admin1_line_id"
+        admin1_association.line_user_id = "admin1_line_id"
         db_session.flush()
 
         # Create admin without LINE account
-        admin2, _ = create_user_with_clinic_association(
+        admin2, admin2_association = create_user_with_clinic_association(
             db_session, clinic,
             full_name="Admin Two",
             email="admin2@test.com",
@@ -784,7 +784,7 @@ class TestAdminAutoAssignedNotificationService:
             roles=["practitioner"],
             is_active=True
         )
-        practitioner.line_user_id = "practitioner_line_id"
+        # Note: practitioner association line_user_id would be set here if needed
         db_session.flush()
 
         # Test the method

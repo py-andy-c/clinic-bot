@@ -1919,7 +1919,13 @@ class TestPatientCancellationNotifications:
             # Verify practitioner notification was sent
             mock_practitioner_notify.assert_called_once()
             call_args = mock_practitioner_notify.call_args
-            assert call_args[0][1] == practitioner  # Second arg is practitioner
+            # Second arg is now association, not practitioner
+            from models.user_clinic_association import UserClinicAssociation
+            association = db_session.query(UserClinicAssociation).filter(
+                UserClinicAssociation.user_id == practitioner.id,
+                UserClinicAssociation.clinic_id == clinic.id
+            ).first()
+            assert call_args[0][1] == association  # Second arg is association
             assert call_args[0][3] == clinic  # Fourth arg is clinic
             assert call_args[0][4] == 'patient'  # Fifth arg is cancelled_by
 

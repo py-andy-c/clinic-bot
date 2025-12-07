@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from core.database import get_db
 from models import Clinic, PractitionerLinkCode, User, LineAiReply
 from services.line_service import LINEService
+from utils.datetime_utils import taiwan_now
 from services.line_user_service import LineUserService
 from services.clinic_agent import ClinicAgentService
 from services.line_message_service import LineMessageService, QUOTE_ATTEMPTED_BUT_NOT_AVAILABLE
@@ -318,8 +319,29 @@ def _handle_link_code_command(
             )
             return {"status": "ok", "message": "User not found"}
 
-        # Idempotency check: if code was already used to link this LINE account to this user, return success
-        if link_code.used_at is not None and user.line_user_id == line_user_id:
+        # Get the user-clinic association for this clinic
+        from models.user_clinic_association import UserClinicAssociation
+        association = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == link_code.user_id,
+            UserClinicAssociation.clinic_id == clinic.id,
+            UserClinicAssociation.is_active == True
+        ).first()
+
+        if not association:
+            error_message = "找不到診所關聯。"
+            line_service.send_text_message(
+                line_user_id=line_user_id,
+                text=error_message,
+                reply_token=reply_token
+            )
+            logger.error(
+                f"Association not found for link code: clinic_id={clinic.id}, "
+                f"line_user_id={line_user_id}, code=LINK-{code}, user_id={link_code.user_id}"
+            )
+            return {"status": "ok", "message": "Association not found"}
+
+        # Idempotency check: if code was already used to link this LINE account to this association, return success
+        if link_code.used_at is not None and association.line_user_id == line_user_id:
             success_message = "✅ LINE 帳號連結成功！\n\n您現在將收到預約通知。"
             line_service.send_text_message(
                 line_user_id=line_user_id,
@@ -332,13 +354,14 @@ def _handle_link_code_command(
             )
             return {"status": "ok", "message": "LINE account already linked (idempotent)"}
 
-        # Check if this LINE account is already linked to a different user
-        existing_user = db.query(User).filter(
-            User.line_user_id == line_user_id,
-            User.id != link_code.user_id
+        # Check if this LINE account is already linked to a different user in the same clinic
+        existing_association = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.clinic_id == clinic.id,
+            UserClinicAssociation.line_user_id == line_user_id,
+            UserClinicAssociation.user_id != link_code.user_id
         ).first()
 
-        if existing_user:
+        if existing_association:
             error_message = "此 LINE 帳號已連結至其他帳號。"
             line_service.send_text_message(
                 line_user_id=line_user_id,
@@ -346,8 +369,8 @@ def _handle_link_code_command(
                 reply_token=reply_token
             )
             logger.warning(
-                f"LINE account already linked to different user: clinic_id={clinic.id}, "
-                f"line_user_id={line_user_id}, code=LINK-{code}, existing_user_id={existing_user.id}, code_user_id={link_code.user_id}"
+                f"LINE account already linked to different user in same clinic: clinic_id={clinic.id}, "
+                f"line_user_id={line_user_id}, code=LINK-{code}, existing_user_id={existing_association.user_id}, code_user_id={link_code.user_id}"
             )
             return {"status": "ok", "message": "LINE account already linked to different user"}
 
@@ -361,12 +384,13 @@ def _handle_link_code_command(
             )
             logger.warning(
                 f"Link code already used for different LINE account: clinic_id={clinic.id}, "
-                f"line_user_id={line_user_id}, code=LINK-{code}, user_id={link_code.user_id}, user_line_user_id={user.line_user_id}"
+                f"line_user_id={line_user_id}, code=LINK-{code}, user_id={link_code.user_id}, association_line_user_id={association.line_user_id}"
             )
             return {"status": "ok", "message": "Link code already used"}
 
         # Link the LINE account (code is valid and unused)
-        user.line_user_id = line_user_id
+        association.line_user_id = line_user_id
+        association.updated_at = taiwan_now()
         link_code.mark_used()
         db.commit()
 

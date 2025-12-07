@@ -170,12 +170,20 @@ class AppointmentService:
             # Send LINE notifications
             from services.notification_service import NotificationService
             from utils.practitioner_helpers import get_practitioner_name_for_notification
+            from models.user_clinic_association import UserClinicAssociation
             
             # Send practitioner notification if NOT auto-assigned (practitioners shouldn't see auto-assigned appointments)
             if practitioner and not was_auto_assigned:
-                NotificationService.send_practitioner_appointment_notification(
-                    db, practitioner, appointment, clinic
-                )
+                # Get association for this practitioner and clinic
+                association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == practitioner.id,
+                    UserClinicAssociation.clinic_id == clinic_id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                if association:
+                    NotificationService.send_practitioner_appointment_notification(
+                        db, association, appointment, clinic
+                    )
 
             # Send patient confirmation notification (always, regardless of auto-assignment)
             if patient and patient.line_user:
@@ -735,11 +743,20 @@ class AppointmentService:
         if practitioner and clinic:
             try:
                 from services.notification_service import NotificationService, CancellationSource
+                from models.user_clinic_association import UserClinicAssociation
+                
+                # Get association for this practitioner and clinic
+                association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == practitioner.id,
+                    UserClinicAssociation.clinic_id == clinic.id,
+                    UserClinicAssociation.is_active == True
+                ).first()
                 
                 # Send practitioner cancellation notification
-                NotificationService.send_practitioner_cancellation_notification(
-                    db, practitioner, appointment, clinic, cancelled_by
-                )
+                if association:
+                    NotificationService.send_practitioner_cancellation_notification(
+                        db, association, appointment, clinic, cancelled_by
+                    )
                 
                 # Send patient cancellation notification
                 cancellation_source = CancellationSource.PATIENT if cancelled_by == 'patient' else CancellationSource.CLINIC
@@ -1069,9 +1086,16 @@ class AppointmentService:
                 practitioner_actually_changed):
                 # Only send cancellation if practitioner actually changed
                 from services.notification_service import NotificationService
-                NotificationService.send_practitioner_cancellation_notification(
-                    db, old_practitioner, appointment, clinic, cancelled_by='patient'
-                )
+                from models.user_clinic_association import UserClinicAssociation
+                old_association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == old_practitioner.id,
+                    UserClinicAssociation.clinic_id == clinic.id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                if old_association:
+                    NotificationService.send_practitioner_cancellation_notification(
+                        db, old_association, appointment, clinic, cancelled_by='patient'
+                    )
 
             # Send patient edit notification if requested
             if should_send_notification:
@@ -1103,23 +1127,43 @@ class AppointmentService:
                         )
                 else:
                     # Patient edit: old receives cancellation, new receives appointment
+                    from models.user_clinic_association import UserClinicAssociation
                     if old_practitioner:
                         # Old practitioner receives cancellation notification (as if patient cancelled)
-                        NotificationService.send_practitioner_cancellation_notification(
-                            db, old_practitioner, appointment, clinic, cancelled_by='patient'
-                        )
+                        old_association = db.query(UserClinicAssociation).filter(
+                            UserClinicAssociation.user_id == old_practitioner.id,
+                            UserClinicAssociation.clinic_id == clinic.id,
+                            UserClinicAssociation.is_active == True
+                        ).first()
+                        if old_association:
+                            NotificationService.send_practitioner_cancellation_notification(
+                                db, old_association, appointment, clinic, cancelled_by='patient'
+                            )
                     if new_practitioner:
                         # New practitioner receives appointment notification (as if patient just made appointment)
-                        NotificationService.send_practitioner_appointment_notification(
-                            db, new_practitioner, appointment, clinic
-                        )
+                        new_association = db.query(UserClinicAssociation).filter(
+                            UserClinicAssociation.user_id == new_practitioner.id,
+                            UserClinicAssociation.clinic_id == clinic.id,
+                            UserClinicAssociation.is_active == True
+                        ).first()
+                        if new_association:
+                            NotificationService.send_practitioner_appointment_notification(
+                                db, new_association, appointment, clinic
+                            )
             # Case 2: Auto-assigned becomes visible (due to recency limit being reached during reschedule)
             elif old_is_auto_assigned and not appointment.is_auto_assigned and new_practitioner is not None:
                 # Was auto-assigned: use standard appointment notification (as if patient booked directly)
                 from services.notification_service import NotificationService
-                NotificationService.send_practitioner_appointment_notification(
-                    db, new_practitioner, appointment, clinic
-                )
+                from models.user_clinic_association import UserClinicAssociation
+                new_association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == new_practitioner.id,
+                    UserClinicAssociation.clinic_id == clinic.id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                if new_association:
+                    NotificationService.send_practitioner_appointment_notification(
+                        db, new_association, appointment, clinic
+                    )
             # Case 3: Time changed but practitioner didn't change (and was manually assigned)
             # - Practitioner should receive notification about time change
             elif time_actually_changed and not practitioner_actually_changed and not old_is_auto_assigned and old_practitioner:

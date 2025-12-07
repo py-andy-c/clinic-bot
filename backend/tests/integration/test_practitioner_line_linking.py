@@ -154,10 +154,13 @@ class TestPractitionerLineLinking:
         user, clinic = clinic_user
         
         # First link the account
-        db_user = db_session.query(User).filter(User.id == user.id).first()
-        db_user.line_user_id = "U1234567890"
+        association = db_session.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == user.id,
+            UserClinicAssociation.clinic_id == clinic.id
+        ).first()
+        association.line_user_id = "U1234567890"
         db_session.commit()
-        db_session.refresh(db_user)
+        db_session.refresh(association)
         
         # Unlink
         response = client.delete(
@@ -170,8 +173,8 @@ class TestPractitionerLineLinking:
         assert "message" in data
         
         # Verify account is unlinked
-        db_session.refresh(db_user)
-        assert db_user.line_user_id is None
+        db_session.refresh(association)
+        assert association.line_user_id is None
     
     def test_profile_shows_line_linked_status(self, client, clinic_user, auth_token, db_session):
         """Test that profile endpoint shows LINE linked status."""
@@ -187,10 +190,13 @@ class TestPractitionerLineLinking:
         assert data["line_linked"] is False
         
         # Link account
-        db_user = db_session.query(User).filter(User.id == user.id).first()
-        db_user.line_user_id = "U1234567890"
+        association = db_session.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == user.id,
+            UserClinicAssociation.clinic_id == clinic.id
+        ).first()
+        association.line_user_id = "U1234567890"
         db_session.commit()
-        db_session.refresh(db_user)
+        db_session.refresh(association)
         
         # Check when linked
         response = client.get(
@@ -221,15 +227,18 @@ class TestPractitionerLineLinking:
         ).first()
         
         # Link the account
-        db_user = db_session.query(User).filter(User.id == user.id).first()
-        db_user.line_user_id = "U1234567890"
+        association = db_session.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == user.id,
+            UserClinicAssociation.clinic_id == clinic.id
+        ).first()
+        association.line_user_id = "U1234567890"
         link_code.mark_used()
         db_session.commit()
         db_session.refresh(link_code)
-        db_session.refresh(db_user)
+        db_session.refresh(association)
         
         # Verify account is linked
-        assert db_user.line_user_id == "U1234567890"
+        assert association.line_user_id == "U1234567890"
         assert link_code.used_at is not None
         
         # Simulate sending the same code again (should be idempotent)
@@ -241,8 +250,8 @@ class TestPractitionerLineLinking:
         
         assert link_code_check is not None
         assert link_code_check.used_at is not None
-        assert db_user.line_user_id == "U1234567890"
+        assert association.line_user_id == "U1234567890"
         
-        # The idempotency check should pass: used_at is not None AND user.line_user_id == line_user_id
+        # The idempotency check should pass: used_at is not None AND association.line_user_id == line_user_id
         # This would return success in the actual webhook handler
 

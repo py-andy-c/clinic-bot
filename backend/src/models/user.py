@@ -25,15 +25,6 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True)  # Globally unique (not per-clinic)
     google_subject_id: Mapped[str] = mapped_column(String(255), unique=True)
 
-    # LINE integration (optional - for practitioner notifications)
-    line_user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    """
-    LINE user ID for practitioner LINE account linking.
-
-    Used to send appointment notifications to practitioners via LINE.
-    Optional - practitioners can link their LINE account to receive notifications.
-    """
-
     # Metadata
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)

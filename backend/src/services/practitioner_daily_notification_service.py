@@ -154,9 +154,9 @@ class PractitionerDailyNotificationService:
                         f"{notification_hour}:00 (current: {current_hour}:00)"
                     )
 
-                    # Check if practitioner has LINE account linked
-                    if not association.user.line_user_id:
-                        logger.debug(f"Practitioner {association.user_id} has no LINE account linked, skipping")
+                    # Check if practitioner has LINE account linked for this clinic
+                    if not association.line_user_id:
+                        logger.debug(f"Practitioner {association.user_id} has no LINE account linked for clinic {association.clinic_id}, skipping")
                         total_skipped += 1
                         continue
 
@@ -293,13 +293,16 @@ class PractitionerDailyNotificationService:
                 'trigger_source': 'system_triggered',
                 'notification_context': 'daily_summary'
             }
-            line_service.send_text_message(
-                practitioner.line_user_id, 
-                message,
-                db=db,
-                clinic_id=clinic.id,
-                labels=labels
-            )
+            # Type safety check: association.line_user_id is filtered to be non-null before calling this method,
+            # but type system doesn't know this, so we check here for type safety
+            if association.line_user_id:
+                line_service.send_text_message(
+                    association.line_user_id, 
+                    message,
+                    db=db,
+                    clinic_id=clinic.id,
+                    labels=labels
+                )
 
             logger.info(
                 f"Sent daily notification to practitioner {practitioner.id} "

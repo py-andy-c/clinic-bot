@@ -205,9 +205,15 @@ class AutoAssignmentService:
                                     # Use the SAME notification format as patient booking or admin reassignment
                                     if practitioner:
                                         try:
-                                            NotificationService.send_practitioner_appointment_notification(
-                                                db, practitioner, appointment, clinic
-                                            )
+                                            association = db.query(UserClinicAssociation).filter(
+                                                UserClinicAssociation.user_id == practitioner.id,
+                                                UserClinicAssociation.clinic_id == clinic.id,
+                                                UserClinicAssociation.is_active == True
+                                            ).first()
+                                            if association:
+                                                NotificationService.send_practitioner_appointment_notification(
+                                                    db, association, appointment, clinic
+                                                )
                                             # No custom notes, no mention of auto-assignment
                                             # Practitioner receives standard notification as if patient booked directly
                                         except Exception as notify_error:

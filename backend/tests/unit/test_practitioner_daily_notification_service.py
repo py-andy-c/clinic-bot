@@ -51,8 +51,8 @@ class TestPractitionerDailyNotificationService:
         association.set_validated_settings(settings)
         db_session.flush()
 
-        # Link LINE account (user.line_user_id is the LINE user ID string, not a foreign key)
-        user.line_user_id = "test_line_user_id"
+        # Link LINE account (association.line_user_id is the LINE user ID string per clinic)
+        association.line_user_id = "test_line_user_id"
         db_session.flush()
 
         patient = Patient(
@@ -155,8 +155,8 @@ class TestPractitionerDailyNotificationService:
         association.set_validated_settings(settings)
         db_session.flush()
 
-        # Link LINE account (user.line_user_id is the LINE user ID string, not a foreign key)
-        user.line_user_id = "test_line_user_id"
+        # Link LINE account (association.line_user_id is the LINE user ID string per clinic)
+        association.line_user_id = "test_line_user_id"
         db_session.flush()
 
         patient = Patient(
@@ -251,8 +251,8 @@ class TestPractitionerDailyNotificationService:
         association.set_validated_settings(settings)
         db_session.flush()
 
-        # Link LINE account (user.line_user_id is the LINE user ID string, not a foreign key)
-        user.line_user_id = "test_line_user_id"
+        # Link LINE account (association.line_user_id is the LINE user ID string per clinic)
+        association.line_user_id = "test_line_user_id"
         db_session.flush()
 
         # No appointments created
@@ -312,7 +312,7 @@ class TestPractitionerDailyNotificationService:
         association.set_validated_settings(settings)
         db_session.flush()
 
-        # No LINE account linked (user.line_user_id is None)
+        # No LINE account linked (association.line_user_id is None)
 
         patient = Patient(
             clinic_id=clinic.id,
@@ -407,8 +407,8 @@ class TestPractitionerDailyNotificationService:
         association.set_validated_settings(settings)
         db_session.flush()
 
-        # Link LINE account (user.line_user_id is the LINE user ID string, not a foreign key)
-        user.line_user_id = "test_line_user_id"
+        # Link LINE account (association.line_user_id is the LINE user ID string per clinic)
+        association.line_user_id = "test_line_user_id"
         db_session.flush()
 
         patient = Patient(
@@ -504,8 +504,8 @@ class TestPractitionerDailyNotificationService:
         association.set_validated_settings(settings)
         db_session.flush()
 
-        # Link LINE account (user.line_user_id is the LINE user ID string, not a foreign key)
-        user.line_user_id = "test_line_user_id"
+        # Link LINE account (association.line_user_id is the LINE user ID string per clinic)
+        association.line_user_id = "test_line_user_id"
         db_session.flush()
 
         patient1 = Patient(

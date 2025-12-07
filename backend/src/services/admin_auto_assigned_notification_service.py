@@ -267,18 +267,17 @@ class AdminAutoAssignedNotificationService:
             joinedload(User.clinic_associations)
         ).all()
         
-        # Filter to only admins with LINE accounts linked
+        # Filter to only admins with LINE accounts linked for this clinic
         admin_associations: List[UserClinicAssociation] = []
         for user in admins_query:
-            if user.line_user_id:
-                # Find the association for this clinic
-                association = next(
-                    (a for a in user.clinic_associations 
-                     if a.clinic_id == clinic_id and a.is_active),
-                    None
-                )
-                if association:
-                    admin_associations.append(association)
+            # Find the association for this clinic
+            association = next(
+                (a for a in user.clinic_associations 
+                 if a.clinic_id == clinic_id and a.is_active),
+                None
+            )
+            if association and association.line_user_id:
+                admin_associations.append(association)
         
         return admin_associations
 
@@ -365,13 +364,16 @@ class AdminAutoAssignedNotificationService:
                 'trigger_source': 'system_triggered',
                 'notification_context': 'auto_assignment'
             }
-            line_service.send_text_message(
-                admin.line_user_id, 
-                message,
-                db=db,
-                clinic_id=clinic.id,
-                labels=labels
-            )
+            # Type safety check: association.line_user_id is filtered to be non-null in _get_admins_with_line_accounts,
+            # but type system doesn't know this, so we check here for type safety
+            if association.line_user_id:
+                line_service.send_text_message(
+                    association.line_user_id, 
+                    message,
+                    db=db,
+                    clinic_id=clinic.id,
+                    labels=labels
+                )
 
             logger.info(
                 f"Sent auto-assigned notification to admin {admin.id} "
