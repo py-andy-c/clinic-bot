@@ -180,7 +180,7 @@ const validateClinicIsolation = (token: string): boolean => {
   const tokenPayload = decodeJWT(token);
   const context = liff.getContext();
   const liffId = context?.liffId;
-  
+
   // Clinic-specific LIFF app: validate liff_id matches
   if (liffId && tokenPayload.liff_id) {
     if (liffId !== tokenPayload.liff_id) {
@@ -189,7 +189,7 @@ const validateClinicIsolation = (token: string): boolean => {
     }
     return true;
   }
-  
+
   // Shared LIFF app: validate clinic_token matches (existing logic)
   if (tokenPayload.clinic_token) {
     const urlClinicToken = getClinicTokenFromUrl();
@@ -199,7 +199,7 @@ const validateClinicIsolation = (token: string): boolean => {
     }
     return true;
   }
-  
+
   // No identifier in token - invalid
   logger.error('Missing clinic identifier in token');
   return false;
@@ -231,17 +231,17 @@ class LiffLoginRequest(BaseModel):
         """Ensure at least one clinic identifier is provided."""
         if not self.liff_id and not self.clinic_token:
             raise ValueError("Either liff_id or clinic_token is required")
-        
+
         # Validate LIFF ID format if provided
         if self.liff_id and not validate_liff_id_format(self.liff_id):
             raise ValueError("Invalid LIFF ID format")
-        
+
         return self
 
 @router.post("/auth/liff-login")
 async def liff_login(request: LiffLoginRequest, db: Session = Depends(get_db)):
     clinic = None
-    
+
     # Priority 1: Look up by liff_id (clinic-specific LIFF apps)
     if request.liff_id:
         # Format already validated by model validator
@@ -249,20 +249,20 @@ async def liff_login(request: LiffLoginRequest, db: Session = Depends(get_db)):
             Clinic.liff_id == request.liff_id,
             Clinic.is_active == True
         ).first()
-    
+
     # Priority 2: Fall back to clinic_token (shared LIFF app)
     if not clinic and request.clinic_token:
         if not validate_token_format(request.clinic_token):
             raise HTTPException(status_code=400, detail="Invalid token format")
-        
+
         clinic = db.query(Clinic).filter(
             Clinic.liff_access_token == request.clinic_token,
             Clinic.is_active == True
         ).first()
-    
+
     if not clinic:
         raise HTTPException(status_code=404, detail="診所不存在或已停用")
-    
+
     # Generate JWT with appropriate identifiers
     now = datetime.now(timezone.utc)
     token_payload = {
@@ -274,7 +274,7 @@ async def liff_login(request: LiffLoginRequest, db: Session = Depends(get_db)):
         "iat": now
     }
     access_token = jwt.encode(token_payload, JWT_SECRET_KEY, algorithm="HS256")
-    
+
     # Rest of login logic...
 ```
 
@@ -288,12 +288,12 @@ async def liff_login(request: LiffLoginRequest, db: Session = Depends(get_db)):
    - **Configure endpoint URL**: `https://yourdomain.com/liff/appointment?liff_id={LIFF_ID}`
      - Replace `{LIFF_ID}` with the actual LIFF ID (e.g., `https://yourdomain.com/liff/appointment?liff_id=1234567890-abcdefgh`)
      - This URL parameter is required for frontend to know which LIFF ID to use for initialization
-   
+
 2. **Admin registers LIFF ID in our system**
    - UI: Clinic settings → "Register LIFF App"
    - Input: LIFF ID (copy from LINE Console)
    - Backend: Store in `clinics.liff_id`
-   - Validation: 
+   - Validation:
      - Ensure LIFF ID format is valid (alphanumeric + hyphens)
      - Ensure LIFF ID is unique across all clinics
      - Verify clinic is active
@@ -367,28 +367,28 @@ async def liff_login(request: LiffLoginRequest, db: Session = Depends(get_db)):
 
 ## Security Considerations
 
-1. **LIFF ID validation**: 
+1. **LIFF ID validation**:
    - Format: `^[0-9]+-[a-zA-Z0-9]+$` (e.g., `1234567890-abcdefgh`)
    - Validate on registration to catch typos early
    - Backend validates format before database lookup
 
-2. **Clinic isolation**: 
+2. **Clinic isolation**:
    - Verify clinic is active before authentication
    - Frontend validates `liff_id` from `getContext()` matches JWT `liff_id` (can't be spoofed)
    - Backend validates `liff_id` exists and belongs to active clinic
 
-3. **Token security**: 
+3. **Token security**:
    - Keep `liff_access_token` secure (already implemented)
    - `liff_id` is public (visible in URLs) but requires LINE authentication
    - Always use `getContext().liffId` as authoritative source (not URL parameter)
 
-4. **User ID mapping**: 
+4. **User ID mapping**:
    - Handle different user IDs per provider correctly (already handled via `LineUser.clinic_id`)
 
-5. **Rate limiting**: 
+5. **Rate limiting**:
    - Consider rate limiting on `/auth/liff-login` to prevent brute force on `liff_id` lookup
 
-6. **Audit logging**: 
+6. **Audit logging**:
    - Log clinic identification method (`liff_id` vs `clinic_token`) for security monitoring
 
 ## Testing Strategy
@@ -415,7 +415,7 @@ async def liff_login(request: LiffLoginRequest, db: Session = Depends(get_db)):
 def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
     """
     Generate LIFF URL for a clinic.
-    
+
     For clinic-specific LIFF apps: Uses clinic.liff_id
     For shared LIFF app: Uses shared LIFF_ID from env + clinic_token
     """
@@ -430,16 +430,16 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
             raise ValueError(
                 f"Clinic {clinic.id} missing liff_access_token - cannot generate LIFF URL"
             )
-        
+
         if not LIFF_ID:
             raise ValueError("LIFF_ID not configured for shared LIFF app")
-        
+
         base_url = f"https://liff.line.me/{LIFF_ID}"
         params = {
             "mode": mode,
             "clinic_token": clinic.liff_access_token,
         }
-    
+
     query_string = "&".join([f"{k}={v}" for k, v in params.items()])
     return f"{base_url}?{query_string}"
 ```
@@ -449,62 +449,59 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
 ## Implementation Checklist
 
 ### Database & Models
-- [ ] Add `liff_id` column to `clinics` table (nullable, unique, indexed)
-- [ ] Update `Clinic` model with `liff_id` field
-- [ ] Create migration script
+- [x] Add `liff_id` column to `clinics` table (nullable, unique, indexed)
+- [x] Update `Clinic` model with `liff_id` field
+- [x] Create migration script
 
 ### Backend
-- [ ] Update `LiffLoginRequest` to accept both `liff_id` and `clinic_token`
-- [ ] Update backend login logic (dual lookup: `liff_id` first, then `clinic_token`)
-- [ ] Update `generate_liff_url()` to use `clinic.liff_id` for clinic-specific apps
-- [ ] Add validation for LIFF ID format (alphanumeric + hyphens)
-- [ ] Add API endpoint for registering/updating clinic LIFF ID
+- [x] Update `LiffLoginRequest` to accept both `liff_id` and `clinic_token`
+- [x] Update backend login logic (dual lookup: `liff_id` first, then `clinic_token`)
+- [x] Update `generate_liff_url()` to use `clinic.liff_id` for clinic-specific apps
+- [x] Add validation for LIFF ID format (alphanumeric + hyphens)
+- [x] Add API endpoint for registering/updating clinic LIFF ID
 
 ### Frontend
-- [ ] **Update `useLiff` hook**: Extract LIFF ID from URL parameter (`?liff_id=...`) for clinic-specific apps, fall back to `VITE_LIFF_ID` for shared LIFF
-- [ ] **Update `useLineAuth` hook**: Get `liff_id` from `liff.getContext()` after initialization and send to backend
-- [ ] Update clinic isolation validation to handle both `liff_id` and `clinic_token`
+- [x] **Update `useLiff` hook**: Extract LIFF ID from URL parameter (`?liff_id=...`) for clinic-specific apps, fall back to `VITE_LIFF_ID` for shared LIFF
+- [x] **Update `useLineAuth` hook**: Get `liff_id` from `liff.getContext()` after initialization and send to backend
+- [x] Update clinic isolation validation to handle both `liff_id` and `clinic_token`
 
 ### Admin UI
-- [ ] Add UI for registering clinic-specific LIFF IDs (clinic settings page)
-- [ ] Add validation and error handling:
-  - Format validation (regex: `^[0-9]+-[a-zA-Z0-9]+$`)
-  - Uniqueness check (database)
-  - Show endpoint URL template: `https://yourdomain.com/liff/appointment?liff_id={LIFF_ID}`
-  - Optional: Validate LIFF ID exists via LINE API (if permissions available)
-- [ ] Show current LIFF ID status (registered/not registered)
-- [ ] Add instructions for LINE Console configuration:
+- [ ] Add UI for registering clinic-specific LIFF IDs (clinic settings page) - *Frontend UI feature, can be added later*
+- [x] Add validation and error handling (backend API ready):
+  - Format validation (regex: `^[0-9]+-[a-zA-Z0-9]+$`) ✅
+  - Uniqueness check (database) ✅
+  - Show endpoint URL template: `https://yourdomain.com/liff/appointment?liff_id={LIFF_ID}` - *Documentation*
+  - Optional: Validate LIFF ID exists via LINE API (if permissions available) - *Future enhancement*
+- [ ] Show current LIFF ID status (registered/not registered) - *Frontend UI feature*
+- [ ] Add instructions for LINE Console configuration - *Documentation*
   - Step-by-step guide with screenshots
   - Copy-paste template for endpoint URL
   - Troubleshooting common issues
-- [ ] Add test button to verify LIFF ID validity (attempt initialization)
+- [ ] Add test button to verify LIFF ID validity - *Frontend UI feature*
 
 ### Testing
-- [ ] **CRITICAL**: Test query parameter preservation in LINE redirect flow
-  - Access `https://liff.line.me/{liff_id}?mode=book` directly
-  - Verify LINE forwards query params to endpoint URL
-  - Test with endpoint URL configured as `https://yourdomain.com/liff/appointment?liff_id={LIFF_ID}`
-- [ ] Test shared LIFF app (backward compatibility)
-- [ ] Test clinic-specific LIFF app initialization
-- [ ] Test clinic lookup by `liff_id`
-- [ ] Test clinic lookup by `clinic_token` (shared LIFF)
-- [ ] Test edge cases:
+- [x] **CRITICAL**: Test query parameter preservation in LINE redirect flow (verified by user)
+- [x] Test shared LIFF app (backward compatibility)
+- [x] Test clinic-specific LIFF app initialization
+- [x] Test clinic lookup by `liff_id`
+- [x] Test clinic lookup by `clinic_token` (shared LIFF)
+- [x] Test edge cases:
   - Both identifiers present (should prefer `liff_id`)
   - Neither identifier (should fail gracefully)
   - Invalid `liff_id` format
   - LIFF ID mismatch (URL param vs getContext)
   - Direct endpoint URL access (bypassing LINE redirect)
-- [ ] Test LIFF URL generation for both types
-- [ ] Test clinic isolation validation:
+- [x] Test LIFF URL generation for both types
+- [x] Test clinic isolation validation:
   - Clinic-specific: `liff_id` from `getContext()` matches JWT `liff_id`
   - Shared LIFF: `clinic_token` from URL matches JWT `clinic_token`
-- [ ] Test JWT token structure with both `liff_id` and `clinic_token`
-- [ ] Test migration scenario: Clinic with both identifiers
+- [x] Test JWT token structure with both `liff_id` and `clinic_token`
+- [x] Test migration scenario: Clinic with both identifiers
 
 ### Documentation
-- [ ] Document LIFF app registration process for admins
-- [ ] Create step-by-step guide for LINE Console configuration
-- [ ] Update API documentation
+- [x] Document LIFF app registration process for admins (in design doc)
+- [ ] Create step-by-step guide for LINE Console configuration - *Can be added when Admin UI is built*
+- [x] Update API documentation (endpoint supports `liff_id` in `ClinicUpdateRequest`)
 
 ## Technical Details and LINE SDK Verification
 
@@ -520,12 +517,12 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
 
 **Question**: Does LINE preserve query parameters when redirecting from `https://liff.line.me/{liff_id}?mode=book` to the endpoint URL configured in LINE Console?
 
-**Why This Matters**: 
+**Why This Matters**:
 - Our design relies on extracting `liff_id` from URL parameter (`?liff_id=...`) before initialization
 - If LINE strips query parameters during redirect, frontend can't extract `liff_id`
 - This would break the entire clinic-specific LIFF flow
 
-**Action Required**: 
+**Action Required**:
 - **MUST TEST** this flow before implementation
 - Test: Configure endpoint URL as `https://yourdomain.com/liff/appointment?liff_id=1234567890-abc`
 - Access: `https://liff.line.me/1234567890-abc?mode=book`
@@ -554,7 +551,7 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
 
 **For shared LIFF app**: Continue using `VITE_LIFF_ID` env var (current behavior). No URL parameter needed.
 
-**For clinic-specific LIFF apps**: 
+**For clinic-specific LIFF apps**:
 - Each clinic's LIFF app endpoint URL must include `?liff_id={CLINIC_LIFF_ID}`
 - Frontend extracts from URL parameter for initialization
 - After initialization, uses `liff.getContext().liffId` to send to backend
@@ -580,7 +577,7 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
 1. **LIFF ID Mismatch Between URL Parameter and getContext()**
    - **Scenario**: URL has `?liff_id=ABC` but `liff.getContext().liffId` returns `XYZ`
    - **Cause**: Misconfigured endpoint URL in LINE Console (wrong LIFF ID in parameter)
-   - **Handling**: 
+   - **Handling**:
      - Log warning during initialization
      - Use `getContext().liffId` as authoritative source (it's what LINE actually initialized)
      - Send `getContext().liffId` to backend (not URL parameter)
@@ -588,7 +585,7 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
 
 2. **Clinic Has Both `liff_id` and `clinic_token`**
    - **Scenario**: Clinic registered `liff_id` but still has `clinic_token` from shared LIFF days
-   - **Handling**: 
+   - **Handling**:
      - Backend prefers `liff_id` (already implemented)
      - If `liff_id` lookup succeeds, ignore `clinic_token`
      - Consider: Should we clear `clinic_token` when `liff_id` is registered? (Optional cleanup)
@@ -596,14 +593,14 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
 3. **Endpoint URL Missing `liff_id` Parameter**
    - **Scenario**: Admin configures endpoint as `https://yourdomain.com/liff/appointment` (no `?liff_id=...`)
    - **Impact**: Frontend can't extract LIFF ID, initialization fails
-   - **Handling**: 
+   - **Handling**:
      - Frontend shows clear error: "LIFF app misconfigured - missing liff_id parameter"
      - Admin UI should validate endpoint URL format when registering LIFF ID
      - Provide template: `https://yourdomain.com/liff/appointment?liff_id={LIFF_ID}`
 
 4. **Invalid or Non-Existent LIFF ID**
    - **Scenario**: Admin registers invalid LIFF ID (typo, deleted app, wrong format)
-   - **Handling**: 
+   - **Handling**:
      - Validate format on registration (alphanumeric + hyphens)
      - LIFF initialization will fail if ID is invalid - frontend shows error
      - Consider: Should we validate LIFF ID exists via LINE API? (May require additional permissions)
@@ -611,7 +608,7 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
 5. **Clinic Migration: User ID Changes**
    - **Scenario**: Clinic migrates from shared LIFF to clinic-specific LIFF → different provider → different user IDs
    - **Impact**: Same physical user has different LINE user IDs, existing appointments/patients may be orphaned
-   - **Handling**: 
+   - **Handling**:
      - This is expected behavior (already handled via `LineUser.clinic_id`)
      - Users will need to re-register when accessing clinic-specific LIFF
      - Existing data remains linked to old `line_user_id` under shared provider
@@ -620,7 +617,7 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
 6. **LIFF App Deleted in LINE Console**
    - **Scenario**: Clinic deletes LIFF app in LINE Console but `liff_id` still registered in our system
    - **Impact**: LIFF initialization fails, users can't access app
-   - **Handling**: 
+   - **Handling**:
      - Frontend shows error on initialization failure
      - Admin should be able to clear/update `liff_id` when LIFF app is recreated
      - Consider: Periodic validation job to check if registered LIFF IDs are still valid?
@@ -628,7 +625,7 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
 7. **Direct URL Access vs LINE App Access**
    - **Scenario**: User accesses `https://liff.line.me/{liff_id}?mode=book` directly (not through LINE app)
    - **Impact**: LINE redirects to endpoint URL, but endpoint URL has `?liff_id=...` parameter
-   - **Handling**: 
+   - **Handling**:
      - This should work - LINE redirects to endpoint URL which includes the parameter
      - Frontend extracts `liff_id` from endpoint URL parameter
      - **Question**: Does LINE preserve query parameters when redirecting? (Needs verification)
@@ -636,34 +633,34 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
 8. **Multiple LIFF Apps Per Clinic**
    - **Scenario**: Clinic wants multiple LIFF apps (e.g., one for patients, one for staff)
    - **Current Design**: One `liff_id` per clinic
-   - **Handling**: 
+   - **Handling**:
      - Not supported in current design
      - If needed: Could extend to support multiple LIFF IDs per clinic (requires schema change)
 
 9. **LIFF ID Format Changes**
    - **Scenario**: LINE changes LIFF ID format in future
-   - **Handling**: 
+   - **Handling**:
      - Validation regex should be flexible enough
      - Current pattern: alphanumeric + hyphens (common format)
      - Update validation if LINE announces format changes
 
 10. **Backward Compatibility During Migration**
     - **Scenario**: System is partially migrated - some services still generate old URLs
-    - **Handling**: 
+    - **Handling**:
       - `generate_liff_url()` handles both cases (checks `clinic.liff_id` first)
       - Old URLs with `clinic_token` continue to work
       - Gradual migration is safe
 
 11. **Security: LIFF ID Spoofing**
     - **Scenario**: Attacker tries to use another clinic's `liff_id` in URL parameter
-    - **Handling**: 
+    - **Handling**:
       - Backend validates `liff_id` exists and belongs to active clinic
       - `liff.getContext().liffId` is authoritative (can't be spoofed - comes from LINE SDK)
       - Frontend should prefer `getContext().liffId` over URL parameter for security
 
 12. **Error Handling: LIFF Initialization Failure**
     - **Scenario**: Invalid `liff_id` causes `liff.init()` to fail
-    - **Handling**: 
+    - **Handling**:
       - Frontend catches error and shows user-friendly message
       - Logs error for admin debugging
       - Suggests contacting clinic if persistent
@@ -690,7 +687,7 @@ def generate_liff_url(clinic: Clinic, mode: str = "book") -> str:
 
 5. **What if endpoint URL domain changes?**
    - **Question**: If we change our domain, all endpoint URLs in LINE Console need updating
-   - **Recommendation**: 
+   - **Recommendation**:
      - Document this as admin responsibility
      - Provide migration script to generate new endpoint URLs for all clinics
      - Admin UI: Bulk-export endpoint URLs for easy copy-paste

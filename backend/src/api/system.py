@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -20,6 +20,7 @@ from auth.dependencies import require_system_admin, UserContext
 from models import Clinic, SignupToken
 from models.clinic import ClinicSettings
 from utils.datetime_utils import taiwan_now, TAIWAN_TZ
+from utils.liff_token import validate_liff_id_format
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,15 @@ class ClinicCreateRequest(BaseModel):
     line_channel_secret: str
     line_channel_access_token: str
     subscription_status: Optional[str] = "trial"
+    liff_id: Optional[str] = None  # LIFF ID for clinic-specific LIFF apps
+
+    @model_validator(mode='after')
+    def validate_liff_id(self):
+        """Validate LIFF ID format if provided."""
+        if self.liff_id is not None:
+            if not validate_liff_id_format(self.liff_id):
+                raise ValueError("Invalid LIFF ID format. Expected format: {channel_id}-{random_string} (e.g., '1234567890-abcdefgh')")
+        return self
 
 
 class ClinicUpdateRequest(BaseModel):
@@ -42,6 +52,15 @@ class ClinicUpdateRequest(BaseModel):
     line_channel_secret: Optional[str] = None
     line_channel_access_token: Optional[str] = None
     subscription_status: Optional[str] = None
+    liff_id: Optional[str] = None  # LIFF ID for clinic-specific LIFF apps
+
+    @model_validator(mode='after')
+    def validate_liff_id(self):
+        """Validate LIFF ID format if provided."""
+        if self.liff_id is not None:
+            if not validate_liff_id_format(self.liff_id):
+                raise ValueError("Invalid LIFF ID format. Expected format: {channel_id}-{random_string} (e.g., '1234567890-abcdefgh')")
+        return self
 
 
 class ClinicResponse(BaseModel):
@@ -53,6 +72,7 @@ class ClinicResponse(BaseModel):
     trial_ends_at: Optional[datetime]
     created_at: datetime
     liff_url: Optional[str] = None  # LIFF URL for the clinic
+    liff_id: Optional[str] = None  # LIFF ID for clinic-specific LIFF apps
 
 
 class SignupLinkResponse(BaseModel):
@@ -85,6 +105,18 @@ async def create_clinic(
                 detail="LINE 頻道 ID 已存在"
             )
 
+        # Check if LIFF ID already exists (if provided)
+        if clinic_data.liff_id:
+            existing_liff = db.query(Clinic).filter(
+                Clinic.liff_id == clinic_data.liff_id
+            ).first()
+
+            if existing_liff:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="LIFF ID 已被其他診所使用"
+                )
+
         # Fetch bot info (official account user ID) from LINE API
         from services.line_service import LINEService
         line_service = LINEService(
@@ -92,7 +124,7 @@ async def create_clinic(
             channel_access_token=clinic_data.line_channel_access_token
         )
         bot_user_id = line_service.get_bot_info()
-        
+
         if not bot_user_id:
             logger.warning(
                 f"Failed to fetch bot info for clinic {clinic_data.name}. "
@@ -103,7 +135,7 @@ async def create_clinic(
         # Create clinic
         # Use ClinicSettings with all defaults - display_name will be None, and effective_display_name will fallback to clinic.name on read
         from utils.liff_token import generate_liff_access_token
-        
+
         clinic = Clinic(
             name=clinic_data.name,
             line_channel_id=clinic_data.line_channel_id,
@@ -112,18 +144,24 @@ async def create_clinic(
             line_official_account_user_id=bot_user_id,
             subscription_status=clinic_data.subscription_status,
             trial_ends_at=taiwan_now() + timedelta(days=14) if clinic_data.subscription_status == "trial" else None,
+            liff_id=clinic_data.liff_id,  # Set LIFF ID if provided (for clinic-specific LIFF apps)
             settings=ClinicSettings().model_dump()  # Use all defaults from Pydantic model
         )
 
         db.add(clinic)
         db.commit()
         db.refresh(clinic)
-        
+
         # Generate LIFF access token immediately upon clinic creation
-        # Note: generate_liff_access_token() commits internally, so no need to commit again
+        # Note: Even if clinic has liff_id (clinic-specific LIFF), we still generate clinic_token
+        # for backward compatibility and in case they switch back to shared LIFF
         clinic.liff_access_token = generate_liff_access_token(db, clinic.id)
         db.refresh(clinic)  # Refresh to get the updated token
-        logger.info(f"Generated LIFF access token for newly created clinic {clinic.id}")
+
+        if clinic.liff_id:
+            logger.info(f"Created clinic {clinic.id} with clinic-specific LIFF ID: {clinic.liff_id}")
+        else:
+            logger.info(f"Generated LIFF access token for newly created clinic {clinic.id} (shared LIFF)")
 
         return ClinicResponse(
             id=clinic.id,
@@ -131,7 +169,8 @@ async def create_clinic(
             line_channel_id=clinic.line_channel_id,
             subscription_status=clinic.subscription_status,
             trial_ends_at=clinic.trial_ends_at,
-            created_at=clinic.created_at
+            created_at=clinic.created_at,
+            liff_id=clinic.liff_id  # Include LIFF ID for clinic-specific LIFF apps
         )
 
     except HTTPException:
@@ -157,7 +196,7 @@ async def list_clinics(
         from utils.liff_token import generate_liff_url
 
         clinics = db.query(Clinic).all()
-        
+
         # Generate LIFF URLs without auto-generating tokens (read-only operation)
         # Tokens should be generated via explicit endpoints or during clinic creation
         clinic_responses: List[ClinicResponse] = []
@@ -167,7 +206,7 @@ async def list_clinics(
             except ValueError:
                 # Clinic doesn't have liff_access_token yet - return None
                 liff_url = None
-            
+
             clinic_responses.append(
                 ClinicResponse(
                     id=clinic.id,
@@ -176,7 +215,8 @@ async def list_clinics(
                     subscription_status=clinic.subscription_status,
                     trial_ends_at=clinic.trial_ends_at,
                     created_at=clinic.created_at,
-                    liff_url=liff_url
+                    liff_url=liff_url,
+                    liff_id=clinic.liff_id  # Include LIFF ID for clinic-specific LIFF apps
                 )
             )
         return clinic_responses
@@ -238,6 +278,7 @@ async def get_clinic(
             "trial_ends_at": clinic.trial_ends_at,
             "created_at": clinic.created_at,
             "updated_at": clinic.updated_at,
+            "liff_id": clinic.liff_id,  # Include LIFF ID for clinic-specific LIFF apps
             "settings": validated_settings.model_dump(),
             "statistics": {
                 "users": user_count,
@@ -266,7 +307,7 @@ async def update_clinic(
 ) -> ClinicResponse:
     """
     Update clinic information.
-    
+
     Only system admins can update clinics. All fields are optional.
     If LINE credentials are updated, bot info will be refreshed.
     """
@@ -292,24 +333,43 @@ async def update_clinic(
                     detail="LINE 頻道 ID 已存在"
                 )
 
+        # Check if LIFF ID is being changed and if it already exists
+        if clinic_data.liff_id is not None and clinic_data.liff_id != clinic.liff_id:
+            # Allow clearing liff_id (setting to empty string or None)
+            if clinic_data.liff_id:
+                existing = db.query(Clinic).filter(
+                    Clinic.liff_id == clinic_data.liff_id,
+                    Clinic.id != clinic_id
+                ).first()
+
+                if existing:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="LIFF ID 已被其他診所使用"
+                    )
+
         # Update fields if provided
         if clinic_data.name is not None:
             clinic.name = clinic_data.name
-        
+
         if clinic_data.line_channel_id is not None:
             clinic.line_channel_id = clinic_data.line_channel_id
-        
+
         if clinic_data.line_channel_secret is not None:
             clinic.line_channel_secret = clinic_data.line_channel_secret
-        
+
         if clinic_data.line_channel_access_token is not None:
             clinic.line_channel_access_token = clinic_data.line_channel_access_token
-        
+
         if clinic_data.subscription_status is not None:
             clinic.subscription_status = clinic_data.subscription_status
 
+        # Update liff_id if provided (can be set to None to clear it)
+        if clinic_data.liff_id is not None:
+            clinic.liff_id = clinic_data.liff_id if clinic_data.liff_id else None
+
         # If LINE credentials were updated, refresh bot info
-        if (clinic_data.line_channel_secret is not None or 
+        if (clinic_data.line_channel_secret is not None or
             clinic_data.line_channel_access_token is not None):
             from services.line_service import LINEService
             line_service = LINEService(
@@ -334,7 +394,8 @@ async def update_clinic(
             line_channel_id=clinic.line_channel_id,
             subscription_status=clinic.subscription_status,
             trial_ends_at=clinic.trial_ends_at,
-            created_at=clinic.created_at
+            created_at=clinic.created_at,
+            liff_id=clinic.liff_id  # Include LIFF ID for clinic-specific LIFF apps
         )
 
     except HTTPException:
@@ -540,7 +601,7 @@ async def get_clinic_practitioners(
 ) -> Dict[str, Any]:
     """
     Get all practitioners for a clinic with their settings.
-    
+
     Returns practitioners with their appointment types, default schedule, and availability.
     """
     try:
@@ -564,7 +625,7 @@ async def get_clinic_practitioners(
         ).options(joinedload(User.clinic_associations))
 
         all_users = practitioners_query.all()
-        
+
         practitioners_list: List[Dict[str, Any]] = []
         for user in all_users:
             # Get association for this clinic
@@ -572,14 +633,14 @@ async def get_clinic_practitioners(
                 (a for a in user.clinic_associations if a.clinic_id == clinic_id),
                 None
             )
-            
+
             # Only include users with practitioner role
             if association and 'practitioner' in (association.roles or []):
                 # Get appointment types for this practitioner in this clinic
                 appointment_types = PractitionerService.get_practitioner_appointment_types(
                     db, user.id, clinic_id
                 )
-                
+
                 # Get default schedule
                 availability = db.query(PractitionerAvailability).filter(
                     PractitionerAvailability.user_id == user.id,
@@ -588,7 +649,7 @@ async def get_clinic_practitioners(
                     PractitionerAvailability.day_of_week,
                     PractitionerAvailability.start_time
                 ).all()
-                
+
                 # Format availability by day
                 schedule_by_day: Dict[str, List[Dict[str, str]]] = {}
                 day_names = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
@@ -602,7 +663,7 @@ async def get_clinic_practitioners(
                     ]
                     if day_availability:
                         schedule_by_day[day_name] = day_availability
-                
+
                 practitioners_list.append({
                     "id": user.id,
                     "email": user.email,

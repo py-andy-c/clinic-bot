@@ -28,8 +28,8 @@ const MODE_COMPONENTS: Record<AppMode, FC> = {
 };
 
 const LiffApp: FC = () => {
-  const { isReady, profile, accessToken, error: liffError } = useLiff();
-  const { isLoading: authLoading, clinicId, error: authError, refreshAuth } = useLineAuth(profile, accessToken);
+  const { isReady, profile, accessToken, liff, error: liffError } = useLiff();
+  const { isLoading: authLoading, clinicId, error: authError, refreshAuth } = useLineAuth(profile, accessToken, liff);
   const [searchParams] = useSearchParams();
   const setClinicId = useAppointmentStore(state => state.setClinicId);
   const setClinicInfo = useAppointmentStore(state => state.setClinicInfo);

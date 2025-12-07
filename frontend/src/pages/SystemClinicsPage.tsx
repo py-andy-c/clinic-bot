@@ -39,8 +39,8 @@ const SystemClinicsPage: React.FC = () => {
       apiService.getClinicHealth(parseInt(id)),
       apiService.getClinicPractitioners(parseInt(id)).catch(() => ({ practitioners: [] }))
     ]);
-    return { 
-      clinic: clinicData, 
+    return {
+      clinic: clinicData,
       health: healthData,
       practitioners: practitionersData.practitioners || []
     };
@@ -104,6 +104,7 @@ const SystemClinicsPage: React.FC = () => {
         line_channel_secret: selectedClinic.line_channel_secret || '',
         line_channel_access_token: selectedClinic.line_channel_access_token || '',
         subscription_status: selectedClinic.subscription_status,
+        liff_id: selectedClinic.liff_id || '',
       });
       setIsEditing(true);
     }
@@ -121,7 +122,7 @@ const SystemClinicsPage: React.FC = () => {
       setUpdating(true);
       // Only send fields that have changed, and exclude empty password fields
       const updateData: Partial<ClinicCreateData> = {};
-      
+
       if (editingClinic.name !== undefined && editingClinic.name !== selectedClinic.name) {
         updateData.name = editingClinic.name;
       }
@@ -136,6 +137,9 @@ const SystemClinicsPage: React.FC = () => {
       }
       if (editingClinic.subscription_status !== undefined && editingClinic.subscription_status !== selectedClinic.subscription_status) {
         updateData.subscription_status = editingClinic.subscription_status;
+      }
+      if (editingClinic.liff_id !== undefined && editingClinic.liff_id !== (selectedClinic.liff_id || '')) {
+        updateData.liff_id = editingClinic.liff_id || undefined; // Convert empty string to undefined
       }
 
       await apiService.updateClinic(selectedClinic.id, updateData);
@@ -165,7 +169,7 @@ const SystemClinicsPage: React.FC = () => {
       const result = await apiService.generateClinicSignupLink(clinicId);
       // Copy to clipboard with fallback
       let copied = false;
-      
+
       // Try modern Clipboard API first
       if (navigator.clipboard && navigator.clipboard.writeText) {
         try {
@@ -182,7 +186,7 @@ const SystemClinicsPage: React.FC = () => {
           logger.warn('Clipboard API failed, using fallback:', clipboardErr);
         }
       }
-      
+
       // Fallback for browsers/environments without Clipboard API or when it fails
       if (!copied) {
         const textArea = document.createElement('textarea');
@@ -444,6 +448,28 @@ const SystemClinicsPage: React.FC = () => {
                   )}
                 </dd>
               </div>
+              <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                <dt className="text-sm font-medium text-gray-500">LIFF ID</dt>
+                <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                  {isEditing ? (
+                    <div>
+                      <input
+                        type="text"
+                        id="edit_liff_id"
+                        value={editingClinic.liff_id || ''}
+                        onChange={(e) => setEditingClinic({ ...editingClinic, liff_id: e.target.value })}
+                        placeholder="e.g., 1234567890-abcdefgh"
+                        className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        For clinic-specific LIFF apps. Leave empty to use shared LIFF app. Format: channel_id-random_string
+                      </p>
+                    </div>
+                  ) : (
+                    <span className="text-gray-900">{selectedClinic.liff_id || 'N/A (使用共享 LIFF)'}</span>
+                  )}
+                </dd>
+              </div>
             </dl>
           </div>
         </div>
@@ -638,7 +664,7 @@ const SystemClinicsPage: React.FC = () => {
                       <div className="space-y-1">
                         <div>
                           限制類型: {
-                            selectedClinic.settings.booking_restriction_settings.booking_restriction_type === 'same_day_disallowed' 
+                            selectedClinic.settings.booking_restriction_settings.booking_restriction_type === 'same_day_disallowed'
                               ? '預約前至少需幾小時 (已從舊設定遷移)'
                               : selectedClinic.settings.booking_restriction_settings.booking_restriction_type === 'minimum_hours_required'
                               ? '預約前至少需幾小時'
@@ -781,7 +807,7 @@ const SystemClinicsPage: React.FC = () => {
                       <p className="text-sm text-gray-500">ID: {practitioner.id} | Email: {practitioner.email}</p>
                       <p className="text-sm text-gray-500">角色: {practitioner.roles?.map((r: string) => r === 'admin' ? '管理員' : r === 'practitioner' ? '治療師' : r).join('、') || 'N/A'}</p>
                     </div>
-                    
+
                     {/* Appointment Types */}
                     <div className="mt-4">
                       <h5 className="text-sm font-medium text-gray-700 mb-2">預約類型:</h5>
@@ -955,7 +981,8 @@ const CreateClinicModal: React.FC<CreateClinicModalProps> = ({ onClose, onSubmit
     line_channel_id: '',
     line_channel_secret: '',
     line_channel_access_token: '',
-    subscription_status: 'trial'
+    subscription_status: 'trial',
+    liff_id: ''
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1059,6 +1086,24 @@ const CreateClinicModal: React.FC<CreateClinicModalProps> = ({ onClose, onSubmit
                     <option value="past_due">Past Due</option>
                     <option value="canceled">Canceled</option>
                   </select>
+                </div>
+
+                <div>
+                  <label htmlFor="liff_id" className="block text-sm font-medium text-gray-700">
+                    LIFF ID (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    name="liff_id"
+                    id="liff_id"
+                    value={formData.liff_id}
+                    onChange={handleChange}
+                    placeholder="e.g., 1234567890-abcdefgh"
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    For clinic-specific LIFF apps. Leave empty to use shared LIFF app. Format: channel_id-random_string
+                  </p>
                 </div>
 
                 <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">

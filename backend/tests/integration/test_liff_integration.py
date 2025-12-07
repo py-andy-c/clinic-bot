@@ -35,28 +35,31 @@ from tests.conftest import (
 client = TestClient(app)
 
 
-def create_line_user_jwt(line_user_id: str, clinic_id: int, clinic_token: str | None = None, db_session: Session | None = None) -> str:
+def create_line_user_jwt(line_user_id: str, clinic_id: int, clinic_token: str | None = None, liff_id: str | None = None, db_session: Session | None = None) -> str:
     """Create a JWT token for LINE user authentication."""
-    # If clinic_token not provided, look it up from database
-    if clinic_token is None and db_session is not None:
+    # If identifiers not provided, look them up from database
+    if db_session is not None:
         from models.clinic import Clinic
         clinic = db_session.query(Clinic).filter(Clinic.id == clinic_id).first()
-        if clinic and clinic.liff_access_token:
-            clinic_token = clinic.liff_access_token
-        else:
-            # Generate token if missing
-            from utils.liff_token import generate_liff_access_token
-            if clinic:
-                clinic_token = generate_liff_access_token(db_session, clinic_id)
-    
-    # If still no token, use a placeholder (tests should ensure clinic has token)
-    if clinic_token is None:
+        if clinic:
+            if liff_id is None:
+                liff_id = clinic.liff_id
+            if clinic_token is None:
+                clinic_token = clinic.liff_access_token
+                if not clinic_token:
+                    # Generate token if missing
+                    from utils.liff_token import generate_liff_access_token
+                    clinic_token = generate_liff_access_token(db_session, clinic_id)
+
+    # If still no token and no liff_id, use a placeholder (tests should ensure clinic has identifier)
+    if clinic_token is None and liff_id is None:
         clinic_token = f"test_token_clinic_{clinic_id}"
-    
+
     payload = {
         "line_user_id": line_user_id,
         "clinic_id": clinic_id,
-        "clinic_token": clinic_token,  # Include clinic_token in JWT
+        "liff_id": liff_id,  # Include liff_id for clinic-specific apps
+        "clinic_token": clinic_token if not liff_id else None,  # Only include clinic_token for shared LIFF
         "exp": datetime.utcnow() + timedelta(hours=1),
         "iat": datetime.utcnow()
     }
@@ -814,10 +817,10 @@ class TestLiffDatabaseOperations:
             # Step 3: Check availability for 2 days from now (to ensure it's definitely in the future)
             future_date_obj = (taiwan_now() + timedelta(days=2)).date()
             future_date = future_date_obj.isoformat()
-            
+
             # Get day of week (0=Monday, 6=Sunday)
             day_of_week = future_date_obj.weekday()
-            
+
             # Create practitioner availability for the future date's day of week
             create_practitioner_availability_with_clinic(
                 db_session, practitioner, clinic,
@@ -826,7 +829,7 @@ class TestLiffDatabaseOperations:
                 end_time=time(17, 0)
             )
             db_session.commit()
-            
+
             appt_type_id = appt_types_data[0]["id"]
 
             response = client.get(
@@ -1176,10 +1179,10 @@ class TestLiffAvailabilityAndScheduling:
             # Use 2 days from now to ensure we're always > 24 hours away regardless of test execution time
             target_date = (now + timedelta(days=2)).date()
             target_date_iso = target_date.isoformat()
-            
+
             # Get day of week (0=Monday, 6=Sunday)
             day_of_week = target_date.weekday()
-            
+
             # Create practitioner availability for target date's day of week
             create_practitioner_availability_with_clinic(
                 db_session, practitioner, clinic,
@@ -1217,7 +1220,7 @@ class TestLiffAvailabilityAndScheduling:
 
     def test_availability_with_practitioner_id_multi_clinic(self, db_session: Session):
         """Test availability endpoint with practitioner_id for multi-clinic practitioner.
-        
+
         This test ensures that when a practitioner is associated with multiple clinics,
         the availability endpoint correctly validates the practitioner's association
         with the requested clinic (not just any clinic).
@@ -1250,7 +1253,7 @@ class TestLiffAvailabilityAndScheduling:
             full_name="Dr. Multi-Clinic",
             roles=["practitioner"]
         )
-        
+
         # Associate with clinic2 second
         from models import UserClinicAssociation
         assoc2 = UserClinicAssociation(
@@ -1297,7 +1300,7 @@ class TestLiffAvailabilityAndScheduling:
         # Use 2 days from now to ensure we're always > 24 hours away regardless of test execution time
         target_date = (now + timedelta(days=2)).date()
         day_of_week = target_date.weekday()
-        
+
         # Create availability for practitioner at clinic2
         create_practitioner_availability_with_clinic(
             db_session, practitioner, clinic2,
@@ -1444,7 +1447,7 @@ class TestLiffAvailabilityAndScheduling:
     def test_batch_availability_endpoint(self, db_session: Session, test_clinic_with_liff):
         """Test batch availability endpoint for multiple dates."""
         clinic, practitioner, appt_types, _ = test_clinic_with_liff
-        
+
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_batch_test_123",
@@ -1453,12 +1456,12 @@ class TestLiffAvailabilityAndScheduling:
         )
         db_session.add(line_user)
         db_session.commit()
-        
+
         # Mock authentication
         from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
-        
+
         try:
             # Create primary patient
             primary_patient = Patient(
@@ -1469,7 +1472,7 @@ class TestLiffAvailabilityAndScheduling:
             )
             db_session.add(primary_patient)
             db_session.commit()
-            
+
             # Calculate dates (next Monday and Tuesday)
             from datetime import timedelta
             today = taiwan_now().date()
@@ -1478,7 +1481,7 @@ class TestLiffAvailabilityAndScheduling:
                 days_until_monday = 7
             monday = today + timedelta(days=days_until_monday)
             tuesday = monday + timedelta(days=1)
-            
+
             # Test batch endpoint
             response = client.post(
                 "/api/liff/availability/batch",
@@ -1488,26 +1491,26 @@ class TestLiffAvailabilityAndScheduling:
                     "practitioner_id": practitioner.id
                 }
             )
-            
+
             assert response.status_code == 200
             data = response.json()
             assert "results" in data
             assert len(data["results"]) == 2
-            
+
             # Verify results contain data for both dates
             result_dict = {r["date"]: r for r in data["results"]}
-            
+
             # Both dates should have slots (default availability covers all days)
             assert monday.strftime('%Y-%m-%d') in result_dict
             monday_result = result_dict[monday.strftime('%Y-%m-%d')]
             assert "slots" in monday_result
             assert "date" in monday_result
-            
+
             assert tuesday.strftime('%Y-%m-%d') in result_dict
             tuesday_result = result_dict[tuesday.strftime('%Y-%m-%d')]
             assert "slots" in tuesday_result
             assert "date" in tuesday_result
-            
+
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
@@ -1515,7 +1518,7 @@ class TestLiffAvailabilityAndScheduling:
     def test_availability_deduplicates_slots_for_multiple_practitioners(self, db_session: Session, test_clinic_with_liff):
         """Test that availability endpoint deduplicates time slots when multiple practitioners have the same times."""
         clinic, practitioner1, appt_types, _ = test_clinic_with_liff
-        
+
         # Create a second practitioner
         practitioner2, practitioner2_assoc = create_user_with_clinic_association(
             db_session,
@@ -1525,7 +1528,7 @@ class TestLiffAvailabilityAndScheduling:
             full_name="Dr. Second Practitioner",
             roles=["practitioner"]
         )
-        
+
         # Associate second practitioner with appointment types
         for appt_type in appt_types:
             pat = PractitionerAppointmentTypes(
@@ -1534,7 +1537,7 @@ class TestLiffAvailabilityAndScheduling:
                 appointment_type_id=appt_type.id
             )
             db_session.add(pat)
-        
+
         # Create LINE user
         line_user = LineUser(
             line_user_id="U_dedup_test_123",
@@ -1543,12 +1546,12 @@ class TestLiffAvailabilityAndScheduling:
         )
         db_session.add(line_user)
         db_session.commit()
-        
+
         # Mock authentication
         from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
         client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
         client.app.dependency_overrides[get_db] = lambda: db_session
-        
+
         try:
             # Create primary patient
             primary_patient = Patient(
@@ -1559,7 +1562,7 @@ class TestLiffAvailabilityAndScheduling:
             )
             db_session.add(primary_patient)
             db_session.commit()
-            
+
             # Use a date that's always > 24 hours away to avoid time-dependent test failures
             # Calculate date that ensures slots are always > 24 hours away (minimum_booking_hours_ahead = 24)
             now = taiwan_now()
@@ -1567,7 +1570,7 @@ class TestLiffAvailabilityAndScheduling:
             target_date = (now + timedelta(days=2)).date()
             target_date_iso = target_date.isoformat()
             day_of_week = target_date.weekday()
-            
+
             # Create same availability for both practitioners (9:00-17:00)
             # This will create overlapping time slots
             create_practitioner_availability_with_clinic(
@@ -1583,34 +1586,34 @@ class TestLiffAvailabilityAndScheduling:
                 end_time=time(17, 0)
             )
             db_session.commit()
-            
+
             # Request availability without specifying practitioner (不指定治療師)
             appt_type_id = appt_types[0].id  # 30-minute consultation
             response = client.get(
                 f"/api/liff/availability?date={target_date_iso}&appointment_type_id={appt_type_id}"
             )
-            
+
             assert response.status_code == 200
             data = response.json()
             assert data["date"] == target_date_iso
             assert "slots" in data
-            
+
             slots = data["slots"]
             assert len(slots) > 0, "Should have available slots"
-            
+
             # Verify no duplicate start_times
             start_times = [slot["start_time"] for slot in slots]
             unique_start_times = set(start_times)
             assert len(start_times) == len(unique_start_times), \
                 f"Found duplicate start_times. Total: {len(start_times)}, Unique: {len(unique_start_times)}"
-            
+
             # Verify slots are sorted chronologically
             for i in range(len(slots) - 1):
                 current_time = slots[i]["start_time"]
                 next_time = slots[i + 1]["start_time"]
                 assert current_time <= next_time, \
                     f"Slots not sorted: {current_time} should be <= {next_time}"
-            
+
             # Verify slot structure
             for slot in slots:
                 assert "start_time" in slot
@@ -1619,7 +1622,7 @@ class TestLiffAvailabilityAndScheduling:
                 assert "practitioner_name" in slot
                 # Practitioner ID should be one of the two practitioners
                 assert slot["practitioner_id"] in [practitioner1.id, practitioner2.id]
-            
+
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
@@ -1755,7 +1758,7 @@ class TestLiffErrorHandling:
                 phone_number="0912345678",
                 line_user_id=99999  # Non-existent line_user_id
             )
-        
+
         assert exc_info.value.status_code == 400
         assert "無效的 LINE 使用者 ID" in exc_info.value.detail
 
@@ -2349,32 +2352,71 @@ class TestClinicIsolationSecurity:
             client.app.dependency_overrides.pop(get_db, None)
 
     def test_jwt_contains_clinic_token(self, db_session: Session, multiple_clinics_setup):
-        """Test that JWT tokens include clinic_token in payload."""
+        """Test that JWT tokens include clinic_token in payload for shared LIFF apps."""
         import jwt
         from core.config import JWT_SECRET_KEY
         from utils.liff_token import generate_liff_access_token
-        
+
         setup = multiple_clinics_setup
         clinic1 = setup['clinic1']
         line_user1 = setup['line_user1']
-        
-        # Ensure clinic has token
+
+        # Ensure clinic has token (and no liff_id for shared LIFF)
         if not clinic1.liff_access_token:
             clinic1.liff_access_token = generate_liff_access_token(db_session, clinic1.id)
             db_session.commit()
-        
+        clinic1.liff_id = None  # Ensure it's a shared LIFF app
+        db_session.commit()
+
         # Create JWT token for clinic1
         token_clinic1 = create_line_user_jwt(line_user1.line_user_id, clinic1.id, db_session=db_session)
-        
+
         # Decode JWT to verify clinic_token is included
         payload = jwt.decode(token_clinic1, JWT_SECRET_KEY, algorithms=["HS256"])
-        assert "clinic_token" in payload, "JWT should contain clinic_token"
+        assert "clinic_token" in payload, "JWT should contain clinic_token for shared LIFF"
         assert payload["clinic_token"] == clinic1.liff_access_token
+        assert payload.get("liff_id") is None, "JWT should not contain liff_id for shared LIFF"
         assert payload["clinic_id"] == clinic1.id
+
+    def test_jwt_contains_liff_id(self, db_session: Session):
+        """Test that JWT tokens include liff_id in payload for clinic-specific LIFF apps."""
+        import jwt
+        from core.config import JWT_SECRET_KEY
+
+        # Create clinic with liff_id
+        clinic = Clinic(
+            name="Test Clinic LIFF",
+            line_channel_id="test_channel_liff_jwt",
+            line_channel_secret="test_secret_liff_jwt",
+            line_channel_access_token="test_token_liff_jwt",
+            is_active=True,
+            liff_id="1234567890-jwttest"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="test_line_user_liff_jwt",
+            clinic_id=clinic.id,
+            display_name="Test User LIFF JWT"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create JWT token for clinic with liff_id
+        token = create_line_user_jwt(line_user.line_user_id, clinic.id, db_session=db_session)
+
+        # Decode JWT to verify liff_id is included
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
+        assert "liff_id" in payload, "JWT should contain liff_id for clinic-specific LIFF"
+        assert payload["liff_id"] == clinic.liff_id
+        assert payload.get("clinic_token") is None, "JWT should not contain clinic_token for clinic-specific LIFF"
+        assert payload["clinic_id"] == clinic.id
 
 class TestCompactScheduleFeature:
     """Test compact schedule recommendation feature."""
-    
+
     def _setup_test_user_and_patient(self, db_session: Session, clinic: Clinic, line_user_id: str, patient_name: str, phone: str):
         """Helper to create LINE user and patient for tests."""
         line_user = LineUser(
@@ -2384,7 +2426,7 @@ class TestCompactScheduleFeature:
         )
         db_session.add(line_user)
         db_session.commit()
-        
+
         patient = Patient(
             clinic_id=clinic.id,
             full_name=patient_name,
@@ -2393,9 +2435,9 @@ class TestCompactScheduleFeature:
         )
         db_session.add(patient)
         db_session.commit()
-        
+
         return line_user, patient
-    
+
     def _enable_compact_schedule(self, db_session: Session, practitioner: User, clinic: Clinic, enabled: bool = True):
         """Helper to enable/disable compact schedule for a practitioner."""
         association = db_session.query(UserClinicAssociation).filter(
@@ -2405,27 +2447,27 @@ class TestCompactScheduleFeature:
         settings = PractitionerSettings(compact_schedule_enabled=enabled)
         association.set_validated_settings(settings)
         db_session.commit()
-    
+
     def test_compact_schedule_single_appointment_recommends_before_after(self, db_session: Session, test_clinic_with_liff):
         """Test that compact schedule recommends slots right before and after a single appointment."""
         clinic, practitioner, appt_types, _ = test_clinic_with_liff
         appt_type = appt_types[0]  # 30-minute appointment
-        
+
         # Create LINE user and patient
         line_user, patient = self._setup_test_user_and_patient(
-            db_session, clinic, "U_compact_schedule_test_123", 
+            db_session, clinic, "U_compact_schedule_test_123",
             "Compact Schedule Patient", "0912345678"
         )
-        
+
         # Enable compact schedule for practitioner
         self._enable_compact_schedule(db_session, practitioner, clinic, enabled=True)
-        
+
         # Use a date that's always > 24 hours away to avoid time-dependent test failures
         # Calculate date that ensures slots are always > 24 hours away (minimum_booking_hours_ahead = 24)
         now = taiwan_now()
         # Use 2 days from now to ensure we're always > 24 hours away regardless of test execution time
         target_date = (now + timedelta(days=2)).date()
-        
+
         # Create a single appointment at 10:00-10:30
         event = create_calendar_event_with_clinic(
             db_session, practitioner, clinic,
@@ -2435,7 +2477,7 @@ class TestCompactScheduleFeature:
             end_time=time(10, 30)
         )
         db_session.commit()
-        
+
         appointment = Appointment(
             calendar_event_id=event.id,
             patient_id=patient.id,
@@ -2444,12 +2486,12 @@ class TestCompactScheduleFeature:
         )
         db_session.add(appointment)
         db_session.commit()
-        
+
         # Get availability
         try:
             client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
             client.app.dependency_overrides[get_db] = lambda: db_session
-            
+
             response = client.get(
                 f"/api/liff/availability",
                 params={
@@ -2461,20 +2503,20 @@ class TestCompactScheduleFeature:
             assert response.status_code == 200
             data = response.json()
             slots = data['slots']
-            
+
             # Find recommended slots
             recommended_slots = [s for s in slots if s.get('is_recommended') == True]
-            
+
             # Should have some recommended slots
             assert len(recommended_slots) > 0
-            
+
             # Verify recommended slots are:
             # 1. Within the span (10:00-10:30) - but there are no slots within a single 30-min appointment
             # 2. Latest slot before 10:00 (if exists)
             # 3. Earliest slot after 10:30 (if exists)
             appt_start_minutes = 10 * 60 + 0  # 10:00
             appt_end_minutes = 10 * 60 + 30  # 10:30
-            
+
             for slot in recommended_slots:
                 slot_end = slot['end_time']
                 slot_start = slot['start_time']
@@ -2482,16 +2524,16 @@ class TestCompactScheduleFeature:
                 slot_end_hour, slot_end_min = map(int, slot_end.split(':'))
                 slot_start_minutes = slot_start_hour * 60 + slot_start_min
                 slot_end_minutes = slot_end_hour * 60 + slot_end_min
-                
+
                 # Should be: within span OR latest before OR earliest after
-                within_span = (slot_start_minutes >= appt_start_minutes and 
+                within_span = (slot_start_minutes >= appt_start_minutes and
                               slot_end_minutes <= appt_end_minutes)
                 before_first = slot_end_minutes <= appt_start_minutes
                 after_last = slot_start_minutes >= appt_end_minutes
-                
+
                 assert within_span or before_first or after_last, \
                     f"Slot {slot_start}-{slot_end} should be within span, before first, or after last"
-        
+
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
@@ -2500,22 +2542,22 @@ class TestCompactScheduleFeature:
         """Test that compact schedule recommends slots within total time span for multiple appointments."""
         clinic, practitioner, appt_types, _ = test_clinic_with_liff
         appt_type = appt_types[0]  # 30-minute appointment
-        
+
         # Create LINE user and patient
         line_user, patient = self._setup_test_user_and_patient(
             db_session, clinic, "U_compact_schedule_test_456",
             "Compact Schedule Patient 2", "0912345679"
         )
-        
+
         # Enable compact schedule for practitioner
         self._enable_compact_schedule(db_session, practitioner, clinic, enabled=True)
-        
+
         # Use a date that's always > 24 hours away to avoid time-dependent test failures
         # Calculate date that ensures slots are always > 24 hours away (minimum_booking_hours_ahead = 24)
         now = taiwan_now()
         # Use 2 days from now to ensure we're always > 24 hours away regardless of test execution time
         target_date = (now + timedelta(days=2)).date()
-        
+
         # Create two appointments: 10:00-10:30 and 14:00-14:30
         # Total span: 10:00 to 14:30
         event1 = create_calendar_event_with_clinic(
@@ -2526,7 +2568,7 @@ class TestCompactScheduleFeature:
             end_time=time(10, 30)
         )
         db_session.commit()
-        
+
         appointment1 = Appointment(
             calendar_event_id=event1.id,
             patient_id=patient.id,
@@ -2535,7 +2577,7 @@ class TestCompactScheduleFeature:
         )
         db_session.add(appointment1)
         db_session.commit()
-        
+
         event2 = create_calendar_event_with_clinic(
             db_session, practitioner, clinic,
             event_type='appointment',
@@ -2544,7 +2586,7 @@ class TestCompactScheduleFeature:
             end_time=time(14, 30)
         )
         db_session.commit()
-        
+
         appointment2 = Appointment(
             calendar_event_id=event2.id,
             patient_id=patient.id,
@@ -2553,12 +2595,12 @@ class TestCompactScheduleFeature:
         )
         db_session.add(appointment2)
         db_session.commit()
-        
+
         # Get availability
         try:
             client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
             client.app.dependency_overrides[get_db] = lambda: db_session
-            
+
             response = client.get(
                 f"/api/liff/availability",
                 params={
@@ -2570,19 +2612,19 @@ class TestCompactScheduleFeature:
             assert response.status_code == 200
             data = response.json()
             slots = data['slots']
-            
+
             # Find recommended and non-recommended slots
             recommended_slots = [s for s in slots if s.get('is_recommended') == True]
-            
+
             # Should have some recommended slots (those within 10:00-14:30 OR extending the least)
             assert len(recommended_slots) > 0
-            
+
             # Verify recommended slots are either:
             # 1. Within the span [10:00, 14:30]
             # 2. Extend the total time the least (right before first or right after last)
             earliest_start_minutes = 10 * 60 + 0  # 10:00
             latest_end_minutes = 14 * 60 + 30  # 14:30
-            
+
             for slot in recommended_slots:
                 slot_start_str = slot['start_time']
                 slot_end_str = slot['end_time']
@@ -2590,16 +2632,16 @@ class TestCompactScheduleFeature:
                 slot_end_hour, slot_end_min = map(int, slot_end_str.split(':'))
                 slot_start_minutes = slot_start_hour * 60 + slot_start_min
                 slot_end_minutes = slot_end_hour * 60 + slot_end_min
-                
+
                 # Check if slot is within span OR extends the least
-                within_span = (slot_start_minutes >= earliest_start_minutes and 
+                within_span = (slot_start_minutes >= earliest_start_minutes and
                               slot_end_minutes <= latest_end_minutes)
                 extends_least_before = slot_end_minutes == earliest_start_minutes  # Right before first
                 extends_least_after = slot_start_minutes == latest_end_minutes  # Right after last
-                
+
                 assert within_span or extends_least_before or extends_least_after, \
                     f"Slot {slot_start_str}-{slot_end_str} should be within 10:00-14:30 or extend the least (right before 10:00 or right after 14:30)"
-        
+
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
@@ -2608,22 +2650,22 @@ class TestCompactScheduleFeature:
         """Test that when compact schedule is disabled, no recommendations are made."""
         clinic, practitioner, appt_types, _ = test_clinic_with_liff
         appt_type = appt_types[0]  # 30-minute appointment
-        
+
         # Create LINE user and patient
         line_user, patient = self._setup_test_user_and_patient(
             db_session, clinic, "U_compact_schedule_test_789",
             "Compact Schedule Patient 3", "0912345680"
         )
-        
+
         # Ensure compact schedule is disabled (default)
         self._enable_compact_schedule(db_session, practitioner, clinic, enabled=False)
-        
+
         # Use a date that's always > 24 hours away to avoid time-dependent test failures
         # Calculate date that ensures slots are always > 24 hours away (minimum_booking_hours_ahead = 24)
         now = taiwan_now()
         # Use 2 days from now to ensure we're always > 24 hours away regardless of test execution time
         target_date = (now + timedelta(days=2)).date()
-        
+
         # Create an appointment
         event = create_calendar_event_with_clinic(
             db_session, practitioner, clinic,
@@ -2633,7 +2675,7 @@ class TestCompactScheduleFeature:
             end_time=time(10, 30)
         )
         db_session.commit()
-        
+
         appointment = Appointment(
             calendar_event_id=event.id,
             patient_id=patient.id,
@@ -2642,12 +2684,12 @@ class TestCompactScheduleFeature:
         )
         db_session.add(appointment)
         db_session.commit()
-        
+
         # Get availability
         try:
             client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
             client.app.dependency_overrides[get_db] = lambda: db_session
-            
+
             response = client.get(
                 f"/api/liff/availability",
                 params={
@@ -2659,11 +2701,11 @@ class TestCompactScheduleFeature:
             assert response.status_code == 200
             data = response.json()
             slots = data['slots']
-            
+
             # No slots should have is_recommended set (or all should be None/False)
             recommended_slots = [s for s in slots if s.get('is_recommended') == True]
             assert len(recommended_slots) == 0
-        
+
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
@@ -2672,7 +2714,7 @@ class TestCompactScheduleFeature:
         """Test that when there are no appointments, no recommendations are made."""
         clinic, practitioner, appt_types, _ = test_clinic_with_liff
         appt_type = appt_types[0]  # 30-minute appointment
-        
+
         # Create LINE user (no patient needed for this test)
         line_user = LineUser(
             line_user_id="U_compact_schedule_test_000",
@@ -2681,23 +2723,23 @@ class TestCompactScheduleFeature:
         )
         db_session.add(line_user)
         db_session.commit()
-        
+
         # Enable compact schedule
         self._enable_compact_schedule(db_session, practitioner, clinic, enabled=True)
-        
+
         # No appointments created
-        
+
         # Get availability
         try:
             client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
             client.app.dependency_overrides[get_db] = lambda: db_session
-            
+
             # Use a date that's always > 24 hours away to avoid time-dependent test failures
             # Calculate date that ensures slots are always > 24 hours away (minimum_booking_hours_ahead = 24)
             now = taiwan_now()
             # Use 2 days from now to ensure we're always > 24 hours away regardless of test execution time
             target_date = (now + timedelta(days=2)).date()
-            
+
             response = client.get(
                 f"/api/liff/availability",
                 params={
@@ -2709,11 +2751,11 @@ class TestCompactScheduleFeature:
             assert response.status_code == 200
             data = response.json()
             slots = data['slots']
-            
+
             # No slots should have is_recommended set
             recommended_slots = [s for s in slots if s.get('is_recommended') == True]
             assert len(recommended_slots) == 0
-        
+
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)

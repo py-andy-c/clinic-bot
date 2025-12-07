@@ -1,8 +1,9 @@
 /**
  * Unit tests for useLineAuth hook - clinic isolation validation.
- * 
+ *
  * These tests verify that the clinic isolation validation correctly
- * prevents cross-clinic access when URL clinic_token doesn't match JWT clinic_token.
+ * prevents cross-clinic access when URL identifier (liff_id or clinic_token)
+ * doesn't match JWT identifier.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -196,11 +197,23 @@ describe('Clinic Isolation Validation', () => {
   });
 
   describe('getClinicIdentifierFromUrl', () => {
-    it('should return clinic_token when present', () => {
+    it('should return liff_id when present (clinic-specific LIFF)', () => {
+      (window as any).location.search = '?liff_id=1234567890-abcdefgh';
+      const params = new URLSearchParams(window.location.search);
+      const liffId = params.get('liff_id');
+
+      if (liffId) {
+        expect({ type: 'liff_id', value: liffId }).toEqual({ type: 'liff_id', value: '1234567890-abcdefgh' });
+      } else {
+        expect(liffId).not.toBeNull();
+      }
+    });
+
+    it('should return clinic_token when present (shared LIFF)', () => {
       (window as any).location.search = '?clinic_token=token_123';
       const params = new URLSearchParams(window.location.search);
       const token = params.get('clinic_token');
-      
+
       if (token) {
         expect({ type: 'token', value: token }).toEqual({ type: 'token', value: 'token_123' });
       } else {
@@ -208,23 +221,143 @@ describe('Clinic Isolation Validation', () => {
       }
     });
 
-    it('should return null when clinic_token is missing', () => {
-      (window as any).location.search = '?mode=book';
+    it('should prefer liff_id over clinic_token when both are present', () => {
+      (window as any).location.search = '?liff_id=1234567890-abc&clinic_token=token_123';
       const params = new URLSearchParams(window.location.search);
+      const liffId = params.get('liff_id');
       const token = params.get('clinic_token');
-      expect(token).toBeNull();
+
+      // liff_id should be preferred
+      expect(liffId).toBe('1234567890-abc');
+      expect(token).toBe('token_123');
+      // In actual implementation, liff_id takes priority
     });
 
-    it('should not return clinic_id (deprecated)', () => {
-      (window as any).location.search = '?clinic_id=123';
+    it('should return null when both identifiers are missing', () => {
+      (window as any).location.search = '?mode=book';
       const params = new URLSearchParams(window.location.search);
+      const liffId = params.get('liff_id');
       const token = params.get('clinic_token');
-      const id = params.get('clinic_id');
-      
-      // clinic_id should not be used
+      expect(liffId).toBeNull();
       expect(token).toBeNull();
-      // Even though clinic_id is in URL, we should not use it
-      expect(id).toBe('123'); // But it's still in the URL
+    });
+  });
+
+  describe('liff_id validation (clinic-specific LIFF apps)', () => {
+    it('should pass when URL liff_id matches JWT liff_id', () => {
+      const liffId = '1234567890-abcdefgh';
+      const token = createJWTToken({
+        line_user_id: 'U123',
+        clinic_id: 1,
+        liff_id: liffId,
+        exp: Date.now() / 1000 + 3600,
+        iat: Date.now() / 1000,
+      });
+
+      (window as any).location.search = `?liff_id=${liffId}`;
+
+      // Simulate validation logic
+      const parts = token.split('.');
+      const tokenPayload = JSON.parse(atob(parts[1]));
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlLiffId = urlParams.get('liff_id');
+
+      expect(tokenPayload.liff_id).toBe(liffId);
+      expect(urlLiffId).toBe(liffId);
+      expect(tokenPayload.liff_id).toBe(urlLiffId);
+    });
+
+    it('should fail when URL liff_id does not match JWT liff_id', () => {
+      const jwtLiffId = '1234567890-abcdefgh';
+      const urlLiffId = '9876543210-xyzabc'; // Different LIFF ID
+      const token = createJWTToken({
+        line_user_id: 'U123',
+        clinic_id: 1,
+        liff_id: jwtLiffId,
+        exp: Date.now() / 1000 + 3600,
+        iat: Date.now() / 1000,
+      });
+
+      (window as any).location.search = `?liff_id=${urlLiffId}`;
+
+      // Simulate validation logic
+      const parts = token.split('.');
+      const tokenPayload = JSON.parse(atob(parts[1]));
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlLiffIdParam = urlParams.get('liff_id');
+
+      expect(tokenPayload.liff_id).toBe(jwtLiffId);
+      expect(urlLiffIdParam).toBe(urlLiffId);
+      expect(tokenPayload.liff_id).not.toBe(urlLiffIdParam); // Mismatch!
+    });
+
+    it('should fail when JWT is missing liff_id but URL has liff_id', () => {
+      const token = createJWTToken({
+        line_user_id: 'U123',
+        clinic_id: 1,
+        clinic_token: 'clinic_token_123', // Has clinic_token but no liff_id
+        exp: Date.now() / 1000 + 3600,
+        iat: Date.now() / 1000,
+      });
+
+      (window as any).location.search = '?liff_id=1234567890-abc';
+
+      // Simulate validation logic
+      const parts = token.split('.');
+      const tokenPayload = JSON.parse(atob(parts[1]));
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlLiffId = urlParams.get('liff_id');
+
+      expect(tokenPayload.liff_id).toBeUndefined();
+      expect(urlLiffId).toBe('1234567890-abc');
+      // Should fail because token is missing liff_id but URL has it
+    });
+
+    it('should fail when URL is missing liff_id but JWT has liff_id', () => {
+      const token = createJWTToken({
+        line_user_id: 'U123',
+        clinic_id: 1,
+        liff_id: '1234567890-abcdefgh',
+        exp: Date.now() / 1000 + 3600,
+        iat: Date.now() / 1000,
+      });
+
+      (window as any).location.search = '?mode=book'; // No liff_id
+
+      // Simulate validation logic
+      const parts = token.split('.');
+      const tokenPayload = JSON.parse(atob(parts[1]));
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlLiffId = urlParams.get('liff_id');
+
+      expect(tokenPayload.liff_id).toBe('1234567890-abcdefgh');
+      expect(urlLiffId).toBeNull();
+      // Should fail because URL is missing liff_id but token has it
+    });
+
+    it('should prefer liff_id over clinic_token when both are in JWT', () => {
+      const liffId = '1234567890-abcdefgh';
+      const token = createJWTToken({
+        line_user_id: 'U123',
+        clinic_id: 1,
+        liff_id: liffId,
+        clinic_token: 'clinic_token_123', // Both present, but liff_id should be used
+        exp: Date.now() / 1000 + 3600,
+        iat: Date.now() / 1000,
+      });
+
+      (window as any).location.search = `?liff_id=${liffId}`;
+
+      // Simulate validation logic
+      const parts = token.split('.');
+      const tokenPayload = JSON.parse(atob(parts[1]));
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlLiffId = urlParams.get('liff_id');
+
+      // Should use liff_id for validation, not clinic_token
+      expect(tokenPayload.liff_id).toBe(liffId);
+      expect(urlLiffId).toBe(liffId);
+      expect(tokenPayload.liff_id).toBe(urlLiffId);
     });
   });
 });

@@ -26,6 +26,7 @@ export interface Clinic {
   last_health_check_at?: string;
   health_check_errors?: string;
   liff_url?: string;  // LIFF URL for the clinic
+  liff_id?: string;  // LIFF ID for clinic-specific LIFF apps
   settings?: {
     notification_settings?: {
       reminder_hours_before?: number;
@@ -207,6 +208,7 @@ export interface ClinicCreateData {
   line_channel_access_token: string;
   subscription_status?: 'trial' | 'active' | 'past_due' | 'canceled';
   trial_ends_at?: string;
+  liff_id?: string; // Optional: LIFF ID for clinic-specific LIFF apps
 }
 
 export interface ClinicHealth {

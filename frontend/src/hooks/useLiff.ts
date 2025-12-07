@@ -36,11 +36,18 @@ export const useLiff = (): UseLiffReturn => {
 
     const initLiff = async () => {
       try {
-        // Get LIFF ID from environment variables
-        const liffId = import.meta.env.VITE_LIFF_ID;
+        // Extract LIFF ID from URL parameter (for clinic-specific LIFF apps)
+        const getLiffIdFromUrl = (): string | null => {
+          const params = new URLSearchParams(window.location.search);
+          return params.get('liff_id');
+        };
+
+        // Get LIFF ID: try URL param first (clinic-specific), fall back to env var (shared LIFF)
+        const liffIdFromUrl = getLiffIdFromUrl();
+        const liffId = liffIdFromUrl || import.meta.env.VITE_LIFF_ID;
 
         if (!liffId) {
-          throw new Error('VITE_LIFF_ID environment variable is not set');
+          throw new Error('LIFF ID not found in URL parameter or environment variable');
         }
 
         // Check if LIFF is already initialized globally to prevent multiple init calls
@@ -66,7 +73,7 @@ export const useLiff = (): UseLiffReturn => {
             logger.log('LIFF appears initialized but profile fetch failed, re-initializing');
             liffInitialized = false;
           }
-          
+
           if (liffInitialized) {
             return;
           }
@@ -75,6 +82,12 @@ export const useLiff = (): UseLiffReturn => {
         // Initialize LIFF
         await liff.init({ liffId });
         liffInitialized = true;
+
+        // After initialization, verify with getContext() (optional but recommended)
+        const context = liff.getContext();
+        if (context?.liffId && context.liffId !== liffId) {
+          logger.warn(`LIFF ID mismatch: initialized with ${liffId}, context has ${context.liffId}`);
+        }
 
         // Check if user is logged in
         if (!liff.isLoggedIn()) {

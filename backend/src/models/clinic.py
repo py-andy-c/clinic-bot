@@ -38,7 +38,7 @@ class BookingRestrictionSettings(BaseModel):
     def migrate_same_day_disallowed(cls, data: Any) -> Any:
         """
         Auto-migrate deprecated same_day_disallowed to minimum_hours_required.
-        
+
         This ensures backward compatibility while deprecating the old setting.
         If same_day_disallowed is provided, it is automatically converted to
         minimum_hours_required with a default of 24 hours if not specified.
@@ -199,6 +199,19 @@ class Clinic(Base):
     enumerated, providing better security for clinic isolation.
 
     Generated using secrets.token_urlsafe(32), producing ~43 characters URL-safe.
+    Used for shared LIFF app (when liff_id is not set).
+    """
+
+    liff_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True, index=True)
+    """
+    LIFF ID for clinic-specific LIFF apps.
+
+    This is the LIFF app ID from LINE Developers Console for clinics that have
+    their own LINE provider. When set, the clinic uses its own LIFF app instead
+    of the shared LIFF app.
+
+    Format: {channel_id}-{random_string} (e.g., "1234567890-abcdefgh")
+    Only one clinic can have a specific liff_id (unique constraint).
     """
     # Clinic Settings (JSONB column for all configurable settings)
     settings: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)

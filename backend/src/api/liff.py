@@ -32,7 +32,7 @@ from services import PatientService, AppointmentService, AvailabilityService, Pr
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
 from utils.datetime_utils import TAIWAN_TZ, taiwan_now, parse_datetime_to_taiwan, parse_date_string
 from utils.practitioner_helpers import get_practitioner_display_name
-from utils.liff_token import validate_token_format
+from utils.liff_token import validate_token_format, validate_liff_id_format
 from api.responses import (
     PatientResponse, PatientCreateResponse, PatientListResponse,
     AppointmentTypeResponse, AppointmentTypeListResponse,
@@ -99,14 +99,20 @@ class LiffLoginRequest(BaseModel):
     line_user_id: str
     display_name: str
     liff_access_token: str
-    clinic_token: str  # Required - clinic_id is no longer supported
+    liff_id: Optional[str] = None  # For clinic-specific LIFF apps
+    clinic_token: Optional[str] = None  # For shared LIFF app (backward compatibility)
     picture_url: Optional[str] = None   # Profile picture URL from LINE (optional)
 
     @model_validator(mode='after')
     def validate_clinic_identifier(self):
-        """Ensure clinic_token is provided."""
-        if not self.clinic_token:
-            raise ValueError("clinic_token is required")
+        """Ensure at least one clinic identifier is provided."""
+        if not self.liff_id and not self.clinic_token:
+            raise ValueError("Either liff_id or clinic_token is required")
+
+        # Validate LIFF ID format if provided
+        if self.liff_id:
+            if not validate_liff_id_format(self.liff_id):
+                raise ValueError("Invalid LIFF ID format. Expected format: {channel_id}-{random_string} (e.g., '1234567890-abcdefgh')")
         return self
 
 
@@ -124,7 +130,7 @@ class LiffLoginResponse(BaseModel):
 class LanguagePreferenceRequest(BaseModel):
     """Request model for updating language preference."""
     language: str
-    
+
     @field_validator('language')
     @classmethod
     def validate_language(cls, v: str) -> str:
@@ -286,18 +292,28 @@ async def liff_login(
     Authenticate LIFF user and create/update LINE user record.
 
     This endpoint is called after LIFF authentication succeeds.
-    Clinic context comes from URL parameter (?clinic_token=...).
+    Clinic context comes from either:
+    - liff_id (for clinic-specific LIFF apps)
+    - clinic_token (for shared LIFF app)
     It creates/updates the LINE user record and determines if this
     is a first-time user for the clinic.
 
-    Requires clinic_token in request (clinic_id is no longer supported).
+    Supports both clinic-specific LIFF apps (via liff_id) and shared LIFF app (via clinic_token).
     """
     try:
-        # Look up clinic by token or ID (with backward compatibility)
-        # We need clinic_id before creating LineUser
+        # Look up clinic by liff_id (priority) or clinic_token (fallback)
         clinic = None
 
-        if request.clinic_token:
+        # Priority 1: Look up by liff_id (clinic-specific LIFF apps)
+        if request.liff_id:
+            # Format already validated by model validator
+            clinic = db.query(Clinic).filter(
+                Clinic.liff_id == request.liff_id,
+                Clinic.is_active == True
+            ).first()
+
+        # Priority 2: Fall back to clinic_token (shared LIFF app)
+        if not clinic and request.clinic_token:
             # Validate token format first
             if not validate_token_format(request.clinic_token):
                 raise HTTPException(
@@ -310,24 +326,17 @@ async def liff_login(
                 Clinic.is_active == True
             ).first()
 
-            if not clinic:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="診所不存在或已停用"
-                )
-
-        else:
-            # This should not happen due to model validation, but defensive check
+        if not clinic:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="clinic_token is required"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="診所不存在或已停用"
             )
 
         # Now get or create LINE user for this clinic using service method for race condition handling
         from services.line_user_service import LineUserService
         from services.line_service import LINEService
         from sqlalchemy.exc import IntegrityError
-        
+
         # Create LINEService from clinic credentials (if available) for profile fetching
         # If credentials are missing, service will use provided display_name
         line_service = None
@@ -341,7 +350,7 @@ async def liff_login(
                 # Invalid credentials - will use provided display_name instead
                 logger.warning(f"Invalid LINE credentials for clinic {clinic.id}, using provided display_name")
                 line_service = None
-        
+
         # Use service method for proper race condition handling
         try:
             if line_service:
@@ -360,7 +369,7 @@ async def liff_login(
                     line_user_id=request.line_user_id,
                     clinic_id=clinic.id
                 ).first()
-                
+
                 if not line_user:
                     line_user = LineUser(
                         line_user_id=request.line_user_id,
@@ -405,19 +414,22 @@ async def liff_login(
 
         is_first_time = patient is None
 
-        # Validate clinic has liff_access_token before creating JWT
-        if not clinic.liff_access_token:
+        # Validate clinic has appropriate identifier before creating JWT
+        # For clinic-specific LIFF: liff_id is required
+        # For shared LIFF: liff_access_token is required
+        if not clinic.liff_id and not clinic.liff_access_token:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Clinic missing liff_access_token - cannot create authentication token"
+                detail="Clinic missing LIFF identifier - cannot create authentication token"
             )
-        
+
         # Generate JWT with LINE user context
         now = datetime.now(timezone.utc)
         token_payload = {
             "line_user_id": line_user.line_user_id,
             "clinic_id": clinic.id,
-            "clinic_token": clinic.liff_access_token,  # Add for frontend validation
+            "liff_id": clinic.liff_id if clinic.liff_id else None,  # Include for clinic-specific apps
+            "clinic_token": clinic.liff_access_token if not clinic.liff_id else None,  # Only for shared LIFF
             "exp": now + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES),
             "iat": now
         }
@@ -801,13 +813,13 @@ async def get_availability_batch(
     reducing API calls from N to 1.
 
     Clinic isolation is enforced through LIFF token context.
-    
+
     Args:
         request: Batch availability request with dates, appointment_type_id, and optional practitioner_id
-        
+
     Returns:
         BatchAvailabilityResponse with one AvailabilityResponse per date
-        
+
     Raises:
         HTTPException: If validation fails or dates are invalid
     """
@@ -825,7 +837,7 @@ async def get_availability_batch(
             exclude_calendar_event_id=request.exclude_calendar_event_id,
             apply_booking_restrictions=True  # Patients must follow booking restrictions
         )
-        
+
         # Convert to response format
         results: List[AvailabilityResponse] = []
         for result in batch_results:
@@ -931,7 +943,7 @@ async def get_appointment_details(
     Returns appointment information including practitioner_id and appointment_type_id
     needed for the reschedule flow.
     Clinic isolation is enforced through LIFF token context.
-    
+
     Note: The `appointment_id` parameter is actually the calendar_event_id.
     This is consistent with other endpoints that use calendar_event_id as the identifier.
     """
@@ -1207,7 +1219,7 @@ class AvailabilityNotificationCreateRequest(BaseModel):
             raise ValueError(f'最多只能設定{MAX_TIME_WINDOWS_PER_NOTIFICATION}個時段')
         if len(v) == 0:
             raise ValueError('至少需要設定1個時段')
-        
+
         # Check for duplicate date+time_window combinations
         seen: set[tuple[str, str]] = set()
         for tw in v:
@@ -1215,18 +1227,18 @@ class AvailabilityNotificationCreateRequest(BaseModel):
             if key in seen:
                 raise ValueError(f'重複的時段設定：{tw.date} {tw.time_window}')
             seen.add(key)
-        
+
         # Validate dates are within 30 days
         today = taiwan_now().date()
         max_date = today + timedelta(days=NOTIFICATION_DATE_RANGE_DAYS)
-        
+
         for tw in v:
             tw_date = parse_date_string(tw.date)
             if tw_date < today:
                 raise ValueError(f'日期 {tw.date} 不能是過去日期')
             if tw_date > max_date:
                 raise ValueError(f'日期 {tw.date} 不能超過{NOTIFICATION_DATE_RANGE_DAYS}天後')
-        
+
         return v
 
 
@@ -1455,10 +1467,10 @@ async def update_language_preference(
 ) -> LanguagePreferenceResponse:
     """
     Update LINE user's language preference for the current clinic.
-    
+
     Language preference is clinic-specific - each clinic can have different
     language settings for the same LINE user.
-    
+
     Note: LineUser is created during LIFF login, so it will always exist here.
     """
     try:
