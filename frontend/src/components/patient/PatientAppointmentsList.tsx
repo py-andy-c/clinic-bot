@@ -33,6 +33,7 @@ interface Appointment {
   practitioner_name: string;
   appointment_type_id: number;
   appointment_type_name: string;
+  event_name: string;  // Effective calendar event name (custom_event_name or default format)
   start_time: string;
   end_time: string;
   status: string;
@@ -289,7 +290,7 @@ export const PatientAppointmentsList: React.FC<PatientAppointmentsListProps> = (
               <div className="flex justify-between items-start mb-2 gap-2">
                 <div className="flex-1 min-w-0">
                   <h3 className="font-medium text-gray-900">
-                    {appointment.appointment_type_name}
+                    {appointment.event_name}
                   </h3>
                   <p className="text-sm text-gray-600 mt-1">
                     {formatAppointmentTime(

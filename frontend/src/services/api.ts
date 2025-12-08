@@ -287,6 +287,7 @@ export class ApiService {
       practitioner_name: string;
       appointment_type_id: number;
       appointment_type_name: string;
+      event_name: string;  // Effective calendar event name (custom_event_name or default format)
       start_time: string;
       end_time: string;
       status: string;

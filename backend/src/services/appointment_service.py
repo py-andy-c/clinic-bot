@@ -485,6 +485,15 @@ class AppointmentService:
             if patient.line_user:
                 line_display_name = patient.line_user.effective_display_name
 
+            # Get effective event name (custom_event_name or default format)
+            calendar_event = appointment.calendar_event
+            if calendar_event.custom_event_name:
+                event_name = calendar_event.custom_event_name
+            else:
+                # Default format: "{patient_name} - {appointment_type_name}"
+                appointment_type_name = get_appointment_type_name_safe(appointment.appointment_type_id, db)
+                event_name = f"{patient.full_name} - {appointment_type_name or '未設定'}"
+
             result.append({
                 "id": appointment.calendar_event_id,  # Keep for backward compatibility
                 "calendar_event_id": appointment.calendar_event_id,  # Explicit field
@@ -494,6 +503,7 @@ class AppointmentService:
                 "practitioner_name": practitioner_name,
                 "appointment_type_id": appointment.appointment_type_id,
                 "appointment_type_name": get_appointment_type_name_safe(appointment.appointment_type_id, db),
+                "event_name": event_name,  # Effective calendar event name
                 "start_time": start_datetime.isoformat() if start_datetime else "",
                 "end_time": end_datetime.isoformat() if end_datetime else "",
                 "status": appointment.status,
@@ -600,6 +610,15 @@ class AppointmentService:
             if patient_obj.line_user:
                 line_display_name = patient_obj.line_user.effective_display_name
 
+            # Get effective event name (custom_event_name or default format)
+            calendar_event = appointment.calendar_event
+            if calendar_event.custom_event_name:
+                event_name = calendar_event.custom_event_name
+            else:
+                # Default format: "{patient_name} - {appointment_type_name}"
+                appointment_type_name = get_appointment_type_name_safe(appointment.appointment_type_id, db)
+                event_name = f"{patient_obj.full_name} - {appointment_type_name or '未設定'}"
+
             result.append({
                 "id": appointment.calendar_event_id,  # Keep for backward compatibility
                 "calendar_event_id": appointment.calendar_event_id,  # Explicit field
@@ -609,6 +628,7 @@ class AppointmentService:
                 "practitioner_name": practitioner_name,
                 "appointment_type_id": appointment.appointment_type_id,
                 "appointment_type_name": get_appointment_type_name_safe(appointment.appointment_type_id, db),
+                "event_name": event_name,  # Effective calendar event name
                 "start_time": start_datetime.isoformat() if start_datetime else "",
                 "end_time": end_datetime.isoformat() if end_datetime else "",
                 "status": appointment.status,

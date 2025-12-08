@@ -104,6 +104,7 @@ class AppointmentListItem(BaseModel):
     practitioner_name: str
     appointment_type_id: int
     appointment_type_name: str
+    event_name: str  # Effective calendar event name (custom_event_name or default format)
     start_time: str
     end_time: str
     status: str

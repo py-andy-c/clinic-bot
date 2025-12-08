@@ -470,6 +470,9 @@ class TestGetPatientAppointments:
         assert "appointment_type_id" in appointment
         assert appointment["appointment_type_id"] == appointment_type.id
         assert "line_display_name" in appointment
+        assert "event_name" in appointment
+        # event_name should be the default format when custom_event_name is not set
+        assert appointment["event_name"] == f"{test_patient.full_name} - {appointment_type.name}"
         assert "originally_auto_assigned" in appointment
         assert isinstance(appointment["originally_auto_assigned"], bool)
 
