@@ -1,10 +1,10 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { apiService, sharedFetchFunctions } from '../services/api';
 import { Patient } from '../types';
 import { useAuth } from '../hooks/useAuth';
-import { useApiData, invalidateCacheForFunction } from '../hooks/useApiData';
+import { useApiData, invalidateCacheForFunction, invalidateCacheByPattern } from '../hooks/useApiData';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
 import { useModal } from '../contexts/ModalContext';
@@ -22,6 +22,7 @@ const PatientDetailPage: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
+  const appointmentsListRefetchRef = useRef<(() => Promise<void>) | null>(null);
 
   const patientId = id ? parseInt(id, 10) : null;
 
@@ -188,6 +189,9 @@ const PatientDetailPage: React.FC = () => {
           patientId={patient.id}
           practitioners={practitioners}
           appointmentTypes={appointmentTypes}
+          onRefetchReady={(refetch) => {
+            appointmentsListRefetchRef.current = refetch;
+          }}
         />
       </div>
 
@@ -207,12 +211,12 @@ const PatientDetailPage: React.FC = () => {
               setIsAppointmentModalOpen(false);
               
               // Invalidate appointments cache to refresh the list
-              const fetchAppointments = () => apiService.getPatientAppointments(
-                patientId,
-                undefined,
-                false
-              );
-              invalidateCacheForFunction(fetchAppointments);
+              invalidateCacheByPattern('api_getPatientAppointments');
+              
+              // Trigger refetch of appointments list if available
+              if (appointmentsListRefetchRef.current) {
+                await appointmentsListRefetchRef.current();
+              }
               
               await alert('預約已建立');
             } catch (error) {

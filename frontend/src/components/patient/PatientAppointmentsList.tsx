@@ -33,6 +33,7 @@ interface PatientAppointmentsListProps {
     name: string;
     duration_minutes: number;
   }>;
+  onRefetchReady?: (refetch: () => Promise<void>) => void;
 }
 
 type TabType = "future" | "completed" | "cancelled";
@@ -58,7 +59,7 @@ interface Appointment {
 
 export const PatientAppointmentsList: React.FC<
   PatientAppointmentsListProps
-> = ({ patientId, practitioners, appointmentTypes }) => {
+> = ({ patientId, practitioners, appointmentTypes, onRefetchReady }) => {
   const [activeTab, setActiveTab] = useState<TabType>("future");
   const { alert } = useModal();
   const { hasRole } = useAuth();
@@ -201,6 +202,13 @@ export const PatientAppointmentsList: React.FC<
       await refetch();
     }
   }, [fetchAppointments, setData, refetch]);
+
+  // Expose refetch function to parent component
+  useEffect(() => {
+    if (onRefetchReady) {
+      onRefetchReady(refreshAppointmentsList);
+    }
+  }, [onRefetchReady, refreshAppointmentsList]);
 
   // Handle appointment card click - open EventModal
   const handleAppointmentClick = useCallback(
