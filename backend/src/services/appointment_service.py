@@ -966,7 +966,8 @@ class AppointmentService:
         send_patient_notification: bool,
         notification_note: Optional[str] = None,
         time_actually_changed: Optional[bool] = None,
-        originally_auto_assigned: Optional[bool] = None
+        originally_auto_assigned: Optional[bool] = None,
+        new_appointment_type_id: Optional[int] = None
     ) -> None:
         """
         Core shared logic for updating an appointment.
@@ -1015,6 +1016,10 @@ class AppointmentService:
         # Update clinic notes if provided
         if new_clinic_notes is not None:
             appointment.clinic_notes = new_clinic_notes
+
+        # Update appointment type if provided
+        if new_appointment_type_id is not None:
+            appointment.appointment_type_id = new_appointment_type_id
 
         # Update practitioner if changed
         if practitioner_actually_changed:
@@ -1482,10 +1487,11 @@ class AppointmentService:
         reassigned_by_user_id: Optional[int] = None,
         notification_note: Optional[str] = None,
         success_message: str = '預約已更新',
-        appointment: Optional[Appointment] = None
+        appointment: Optional[Appointment] = None,
+        new_appointment_type_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        Update an appointment (time and/or practitioner).
+        Update an appointment (time, practitioner, and/or appointment type).
         
         Unified method for both clinic edits and patient reschedules.
         Authorization checks should be performed by the caller.
@@ -1503,6 +1509,7 @@ class AppointmentService:
             notification_note: Optional custom note for patient notification
             success_message: Success message to return
             appointment: Optional pre-fetched appointment to avoid duplicate query
+            new_appointment_type_id: New appointment type ID (None = keep current)
 
         Returns:
             Dict with updated appointment details
@@ -1525,6 +1532,20 @@ class AppointmentService:
                 detail="診所不存在"
             )
 
+        # Handle appointment type change
+        appointment_type_id_to_use = appointment.appointment_type_id
+        if new_appointment_type_id is not None and new_appointment_type_id != appointment.appointment_type_id:
+            # Validate new appointment type exists and belongs to clinic
+            new_appointment_type = AppointmentTypeService.get_appointment_type_by_id(
+                db, new_appointment_type_id, clinic_id=clinic_id
+            )
+            if not new_appointment_type:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="預約類型不存在"
+                )
+            appointment_type_id_to_use = new_appointment_type_id
+
         # Normalize start times
         # start_time and date are already validated in _get_and_validate_appointment_for_update
         # Type assertion: validated upstream, but type checker needs help
@@ -1544,9 +1565,9 @@ class AppointmentService:
                 check_minimum_cancellation_hours=True
             )
 
-        # Get appointment type for duration
+        # Get appointment type for duration (use new type if changed)
         appointment_type = AppointmentTypeService.get_appointment_type_by_id(
-            db, appointment.appointment_type_id, clinic_id=clinic_id
+            db, appointment_type_id_to_use, clinic_id=clinic_id
         )
         duration_minutes = appointment_type.duration_minutes
 
@@ -1567,15 +1588,26 @@ class AppointmentService:
             allow_auto_assignment=allow_auto_assignment
         )
 
-        # Check if practitioner or time actually changed
+        # Check if practitioner, time, or appointment type actually changed
         practitioner_actually_changed = (practitioner_id_to_use != calendar_event.user_id)
         time_actually_changed = (normalized_start_time != current_start_time)
+        appointment_type_actually_changed = (appointment_type_id_to_use != appointment.appointment_type_id)
 
-        # Validate conflicts only if time or practitioner is actually being changed
-        if practitioner_actually_changed or time_actually_changed:
+        # Validate that practitioner offers the appointment type (if appointment type changed or practitioner changed)
+        if appointment_type_actually_changed or practitioner_actually_changed:
+            if not AvailabilityService.validate_practitioner_offers_appointment_type(
+                db, practitioner_id_to_use, appointment_type_id_to_use, clinic_id
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="此治療師不提供此預約類型"
+                )
+
+        # Validate conflicts only if time, practitioner, or appointment type is actually being changed
+        if practitioner_actually_changed or time_actually_changed or appointment_type_actually_changed:
             is_valid, error_message, _ = AppointmentService.check_appointment_edit_conflicts(
                 db, appointment_id, practitioner_id_to_use, normalized_start_time,
-                appointment.appointment_type_id, clinic_id
+                appointment_type_id_to_use, clinic_id
             )
 
             if not is_valid:
@@ -1618,7 +1650,8 @@ class AppointmentService:
             send_patient_notification=should_send_patient_notification,
             notification_note=notification_note if should_send_patient_notification else None,
             time_actually_changed=time_actually_changed,  # Pass pre-calculated value to avoid recalculation
-            originally_auto_assigned=originally_auto_assigned  # Pass for special handling
+            originally_auto_assigned=originally_auto_assigned,  # Pass for special handling
+            new_appointment_type_id=appointment_type_id_to_use if appointment_type_actually_changed else None
         )
 
         logger.info(f"Updated appointment {appointment_id}")

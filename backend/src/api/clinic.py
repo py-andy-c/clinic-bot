@@ -259,13 +259,16 @@ class PractitionerListResponse(BaseModel):
 
 @router.get("/practitioners", summary="List all practitioners for current clinic")
 async def list_practitioners(
+    appointment_type_id: Optional[int] = Query(None, description="Optional appointment type ID to filter practitioners"),
     current_user: UserContext = Depends(require_authenticated),
     db: Session = Depends(get_db)
 ) -> PractitionerListResponse:
     """
     Get all practitioners for the current user's clinic.
     
-    Returns basic information (id, full_name) for all practitioners.
+    Optionally filter by appointment type to get only practitioners who offer that type.
+    
+    Returns basic information (id, full_name) for all practitioners (or filtered list).
     Available to all clinic members (including read-only users).
     """
     # Check clinic access first (raises HTTPException if denied)
@@ -276,7 +279,7 @@ async def list_practitioners(
         practitioners_data = PractitionerService.list_practitioners_for_clinic(
             db=db,
             clinic_id=clinic_id,
-            appointment_type_id=None  # Get all practitioners, not filtered by appointment type
+            appointment_type_id=appointment_type_id  # Filter by appointment type if provided
         )
         
         # Build response
@@ -1872,6 +1875,7 @@ class ClinicAppointmentCreateRequest(BaseModel):
 
 class AppointmentEditRequest(BaseModel):
     """Request model for editing appointment."""
+    appointment_type_id: Optional[int] = None  # None = keep current
     practitioner_id: Optional[int] = None  # None = keep current
     start_time: Optional[datetime] = None  # None = keep current
     clinic_notes: Optional[str] = None  # If provided, updates appointment.clinic_notes. If None, preserves current clinic notes.
@@ -2155,6 +2159,7 @@ async def edit_clinic_appointment(
         result = AppointmentService.update_appointment(
             db=db,
             appointment_id=appointment_id,
+            new_appointment_type_id=request.appointment_type_id,
             new_practitioner_id=request.practitioner_id,
             new_start_time=request.start_time,
             new_notes=None,  # Clinic users cannot update patient notes

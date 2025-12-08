@@ -219,9 +219,10 @@ export class ApiService {
     return response.data.members;
   }
 
-  async getPractitioners(signal?: AbortSignal): Promise<{ id: number; full_name: string }[]> {
+  async getPractitioners(appointmentTypeId?: number, signal?: AbortSignal): Promise<{ id: number; full_name: string }[]> {
     const config = signal ? { signal } : {};
-    const response = await this.client.get('/clinic/practitioners', config);
+    const params = appointmentTypeId ? { appointment_type_id: appointmentTypeId } : {};
+    const response = await this.client.get('/clinic/practitioners', { ...config, params });
     return response.data.practitioners;
   }
 
@@ -567,6 +568,7 @@ export class ApiService {
   }
 
   async editClinicAppointment(appointmentId: number, data: {
+    appointment_type_id?: number | null;
     practitioner_id?: number | null;
     start_time?: string | null; // ISO datetime string
     clinic_notes?: string;

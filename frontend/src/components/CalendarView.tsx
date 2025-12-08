@@ -1082,9 +1082,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Type definition for edit appointment form data
   type EditAppointmentFormData = {
+    appointment_type_id?: number | null;
     practitioner_id: number | null;
     start_time: string;
-    notes?: string;
+    clinic_notes?: string;
     notification_note?: string;
   };
 
@@ -1102,9 +1103,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       await apiService.editClinicAppointment(
         modalState.data.resource.calendar_event_id,
         {
+          ...(formData.appointment_type_id !== undefined ? { appointment_type_id: formData.appointment_type_id } : {}),
           practitioner_id: formData.practitioner_id,
           start_time: formData.start_time,
-          ...(formData.notes !== undefined ? { notes: formData.notes } : {}),
+          ...(formData.clinic_notes !== undefined ? { clinic_notes: formData.clinic_notes } : {}),
           ...(formData.notification_note ? { notification_note: formData.notification_note } : {}),
         }
       );

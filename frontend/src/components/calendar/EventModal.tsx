@@ -8,6 +8,7 @@ import React, { useState, useCallback } from 'react';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { BaseModal } from './BaseModal';
 import { apiService } from '../../services/api';
+import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 import { logger } from '../../utils/logger';
 
 // Maximum length for custom event names
@@ -245,13 +246,10 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                     </button>
                   )}
                 </div>
-                <textarea
+                <ClinicNotesTextarea
                   value={clinicNotes}
                   onChange={(e) => setClinicNotes(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 resize-y"
-                  placeholder="診所內部備注（僅診所人員可見）"
                   rows={3}
-                  maxLength={1000}
                   disabled={isSavingClinicNotes}
                 />
               </div>

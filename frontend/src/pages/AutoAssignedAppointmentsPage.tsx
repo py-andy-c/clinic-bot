@@ -226,9 +226,10 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
   };
 
   const handleEditConfirm = async (formData: {
+    appointment_type_id?: number | null;
     practitioner_id: number | null;
     start_time: string;
-    notes?: string;
+    clinic_notes?: string;
     notification_note?: string;
   }) => {
     if (!selectedAppointment) return;
@@ -237,17 +238,22 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
       // Call update appointment API
       // Build request object conditionally to avoid undefined values (for exactOptionalPropertyTypes)
       const updateData: {
+        appointment_type_id?: number | null;
         practitioner_id?: number | null;
         start_time?: string | null;
-        notes?: string;
+        clinic_notes?: string;
         notification_note?: string;
       } = {
         practitioner_id: formData.practitioner_id,
         start_time: formData.start_time,
       };
       
-      if (formData.notes !== undefined) {
-        updateData.notes = formData.notes;
+      if (formData.appointment_type_id !== undefined) {
+        updateData.appointment_type_id = formData.appointment_type_id;
+      }
+      
+      if (formData.clinic_notes !== undefined) {
+        updateData.clinic_notes = formData.clinic_notes;
       }
       
       if (formData.notification_note !== undefined) {

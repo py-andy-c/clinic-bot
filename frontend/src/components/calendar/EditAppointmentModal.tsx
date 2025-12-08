@@ -14,6 +14,7 @@ import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
 import { formatTo12Hour, getPractitionerDisplayName } from '../../utils/calendarUtils';
 import moment from 'moment-timezone';
+import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 
 type EditStep = 'form' | 'review' | 'note' | 'preview';
 
@@ -22,7 +23,7 @@ export interface EditAppointmentModalProps {
   practitioners: { id: number; full_name: string }[];
   appointmentTypes: { id: number; name: string; duration_minutes: number }[];
   onClose: () => void;
-  onConfirm: (formData: { practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string }) => Promise<void>;
+  onConfirm: (formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string }) => Promise<void>;
   formatAppointmentTime: (start: Date, end: Date) => string;
   errorMessage?: string | null; // Error message to display (e.g., from failed save)
   showReadOnlyFields?: boolean; // If false, skip patient name, appointment type, and notes fields (default: true)
@@ -47,6 +48,9 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const [step, setStep] = useState<EditStep>('form');
   
   // Form data
+  const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<number | null>(() => {
+    return event.resource.appointment_type_id || null;
+  });
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(() => {
     if (event.resource.practitioner_id) {
       return event.resource.practitioner_id;
@@ -85,20 +89,26 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   // Track whether the currently selected date has any available time slots
   const [hasAvailableSlots, setHasAvailableSlots] = useState<boolean>(true);
   
-  // Track practitioner-specific errors
-  const [practitionerError, setPractitionerError] = useState<string | null>(null);
+  // Note: We no longer show practitioner errors - we just deselect the practitioner
   
-  // Use appointment_type_id directly from event if available, even if appointmentType not found yet
-  const appointmentTypeId = event.resource.appointment_type_id || appointmentType?.id || null;
+  // Conditional practitioner fetching
+  const [availablePractitioners, setAvailablePractitioners] = useState<{ id: number; full_name: string }[]>(practitioners);
+  const [isLoadingPractitioners, setIsLoadingPractitioners] = useState(false);
+  
+  // Use selectedAppointmentTypeId, fallback to event's appointment_type_id
+  const appointmentTypeId = selectedAppointmentTypeId || event.resource.appointment_type_id || appointmentType?.id || null;
 
   // Get original appointment details for DateTimePicker
         const originalTime = moment(event.start).tz('Asia/Taipei').format('HH:mm');
         const originalDate = moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD');
   const originalPractitionerId = event.resource.practitioner_id ?? null;
 
+  // Get original appointment type ID
+  const originalAppointmentTypeId = event.resource.appointment_type_id || null;
+
   // Check if any changes have been made
   const hasChanges = useMemo(() => {
-    if (!selectedPractitionerId || !selectedTime) {
+    if (!selectedAppointmentTypeId || !selectedPractitionerId || !selectedTime) {
       return false;
     }
     
@@ -106,14 +116,15 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     const originalStartTime = moment(event.start).tz('Asia/Taipei');
     const timeChanged = !newStartTime.isSame(originalStartTime, 'minute');
     const practitionerChanged = selectedPractitionerId !== originalPractitionerId;
+    const appointmentTypeChanged = selectedAppointmentTypeId !== originalAppointmentTypeId;
     
-    return timeChanged || practitionerChanged;
-  }, [selectedDate, selectedTime, selectedPractitionerId, originalPractitionerId, event.start]);
+    return timeChanged || practitionerChanged || appointmentTypeChanged;
+  }, [selectedDate, selectedTime, selectedPractitionerId, selectedAppointmentTypeId, originalPractitionerId, originalAppointmentTypeId, event.start]);
 
   // Check which specific fields changed
   const changeDetails = useMemo(() => {
-    if (!selectedPractitionerId || !selectedTime) {
-      return { practitionerChanged: false, timeChanged: false, dateChanged: false };
+    if (!selectedAppointmentTypeId || !selectedPractitionerId || !selectedTime) {
+      return { appointmentTypeChanged: false, practitionerChanged: false, timeChanged: false, dateChanged: false };
     }
 
     const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
@@ -121,9 +132,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     const timeChanged = !newStartTime.isSame(originalStartTime, 'minute');
     const dateChanged = !newStartTime.isSame(originalStartTime, 'day');
     const practitionerChanged = selectedPractitionerId !== originalPractitionerId;
+    const appointmentTypeChanged = selectedAppointmentTypeId !== originalAppointmentTypeId;
 
-    return { practitionerChanged, timeChanged, dateChanged };
-  }, [selectedDate, selectedTime, selectedPractitionerId, originalPractitionerId, event.start]);
+    return { appointmentTypeChanged, practitionerChanged, timeChanged, dateChanged };
+  }, [selectedDate, selectedTime, selectedPractitionerId, selectedAppointmentTypeId, originalPractitionerId, originalAppointmentTypeId, event.start]);
 
   // Reset step when modal closes or error occurs
   useEffect(() => {
@@ -133,11 +145,62 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     }
   }, [externalErrorMessage]);
 
+  // Fetch practitioners when appointment type is selected
+  useEffect(() => {
+    const fetchPractitioners = async () => {
+      if (!selectedAppointmentTypeId) {
+        // No appointment type selected - use all practitioners
+        setAvailablePractitioners(practitioners);
+        return;
+      }
+
+      setIsLoadingPractitioners(true);
+      try {
+        const fetchedPractitioners = await apiService.getPractitioners(selectedAppointmentTypeId);
+        // Sort alphabetically by name (supports Chinese)
+        const sorted = [...fetchedPractitioners].sort((a, b) => a.full_name.localeCompare(b.full_name, 'zh-TW'));
+        setAvailablePractitioners(sorted);
+        
+        // Auto-deselect practitioner if current selection is not in the filtered list
+        if (selectedPractitionerId && !sorted.find(p => p.id === selectedPractitionerId)) {
+          setSelectedPractitionerId(null);
+          setSelectedTime('');
+        }
+      } catch (err) {
+        logger.error('Failed to fetch practitioners:', err);
+        setError('無法載入治療師列表，請稍後再試');
+        setAvailablePractitioners([]);
+        // Clear selections
+        setSelectedPractitionerId(null);
+        setSelectedTime('');
+      } finally {
+        setIsLoadingPractitioners(false);
+      }
+    };
+
+    fetchPractitioners();
+  }, [selectedAppointmentTypeId, practitioners, selectedPractitionerId]);
+
+  // Auto-deselection: When appointment type changes, clear practitioner, date, time
+  useEffect(() => {
+    if (selectedAppointmentTypeId === null && (selectedPractitionerId !== null || selectedTime !== '')) {
+      // Appointment type was cleared - clear dependent fields
+      setSelectedPractitionerId(null);
+      setSelectedTime('');
+    }
+  }, [selectedAppointmentTypeId, selectedPractitionerId, selectedTime]);
+
+  // Auto-deselection: When practitioner changes, clear date, time
+  useEffect(() => {
+    if (selectedPractitionerId === null && selectedTime !== '') {
+      // Practitioner was cleared - clear dependent fields
+      setSelectedTime('');
+    }
+  }, [selectedPractitionerId, selectedTime]);
+
   // Check practitioner status when practitioner is selected
   useEffect(() => {
     const checkPractitionerStatus = async () => {
-      // Clear previous error
-      setPractitionerError(null);
       // Don't clear selectedTime here - let it be auto-selected if available
       setHasAvailableSlots(false); // Reset until availability is loaded
       
@@ -150,9 +213,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         const status = await apiService.getPractitionerStatus(selectedPractitionerId);
         
         if (!status.has_availability) {
-          setPractitionerError('此治療師尚未設定每日可預約時段');
           setHasAvailableSlots(false);
-          setSelectedTime(''); // Clear selected time only when error
+          setSelectedTime(''); // Clear selected time when no availability
           return;
         }
         
@@ -168,15 +230,33 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     checkPractitionerStatus();
   }, [selectedPractitionerId, appointmentTypeId]);
 
-  // Handle practitioner error from DateTimePicker (404 errors)
-  const handlePractitionerError = (errorMessage: string) => {
-    setPractitionerError(errorMessage);
-    setHasAvailableSlots(false);
-    // Clear selected time when error occurs
+  // Handle practitioner error from DateTimePicker (404 errors) - just deselect practitioner
+  const handlePractitionerError = (_errorMessage: string) => {
+    // Simply deselect the practitioner - no error message needed
+    setSelectedPractitionerId(null);
     setSelectedTime('');
+    setHasAvailableSlots(false);
+  };
+
+  // Handle appointment type change - clear dependent fields
+  const handleAppointmentTypeChange = (appointmentTypeId: number | null) => {
+    setSelectedAppointmentTypeId(appointmentTypeId);
+    // Auto-deselection handled by useEffect
+  };
+
+  // Handle practitioner change - clear dependent fields
+  const handlePractitionerChange = (practitionerId: number | null) => {
+    setSelectedPractitionerId(practitionerId);
+    // Auto-deselection handled by useEffect
   };
 
   const handleFormSubmit = async () => {
+    // Validate appointment type is selected
+    if (!selectedAppointmentTypeId) {
+      setError('請選擇預約類型');
+      return;
+    }
+
     // Validate practitioner is selected (required for edit)
     if (!selectedPractitionerId) {
       setError('請選擇治療師');
@@ -190,12 +270,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     }
 
     // Check if any changes were made
-    const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
-    const originalStartTime = moment(event.start).tz('Asia/Taipei');
-    const timeChanged = !newStartTime.isSame(originalStartTime, 'minute');
-    const practitionerChanged = selectedPractitionerId !== (event.resource.practitioner_id || null);
-
-    if (!timeChanged && !practitionerChanged && !allowConfirmWithoutChanges) {
+    if (!hasChanges && !allowConfirmWithoutChanges) {
       // No changes - just close (unless allowConfirmWithoutChanges is true)
       onClose();
       return;
@@ -214,10 +289,14 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     // If there is no LINE user attached to this appointment, skip the note/preview flow
     // and just save the updated practitioner/time without sending any notification.
     if (!hasLineUser) {
-      const formData: { practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string } = {
+      const formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string } = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTimeISO,
       };
+      // Include appointment_type_id if it changed
+      if (changeDetails.appointmentTypeChanged && selectedAppointmentTypeId) {
+        formData.appointment_type_id = selectedAppointmentTypeId;
+      }
       // Always send clinic_notes if it has changed from original (allows clearing notes)
       if (clinicNotes.trim() !== originalClinicNotes.trim()) {
         formData.clinic_notes = clinicNotes.trim();
@@ -232,10 +311,14 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       // Time didn't change - skip note step and go directly to save
       // Don't send notes or notification_note to preserve original patient notes
       // and avoid notifying the patient (omit properties instead of setting to undefined)
-      const formData: { practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string } = {
+      const formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string } = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTimeISO,
       };
+      // Include appointment_type_id if it changed
+      if (changeDetails.appointmentTypeChanged && selectedAppointmentTypeId) {
+        formData.appointment_type_id = selectedAppointmentTypeId;
+      }
       // Always send clinic_notes if it has changed from original (allows clearing notes)
       if (clinicNotes.trim() !== originalClinicNotes.trim()) {
         formData.clinic_notes = clinicNotes.trim();
@@ -282,10 +365,14 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     
     try {
       const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toISOString();
-      const formData: { practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string } = {
+      const formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string } = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTime,
       };
+      // Include appointment_type_id if it changed
+      if (changeDetails.appointmentTypeChanged && selectedAppointmentTypeId) {
+        formData.appointment_type_id = selectedAppointmentTypeId;
+      }
       // Always send clinic_notes if it has changed from original (allows clearing notes)
       if (clinicNotes.trim() !== originalClinicNotes.trim()) {
         formData.clinic_notes = clinicNotes.trim();
@@ -307,8 +394,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     }
   };
 
-  // Get practitioners who offer this appointment type
-  const availablePractitioners = practitioners;
+  // Sort appointment types alphabetically
+  const sortedAppointmentTypes = useMemo(() => {
+    return [...appointmentTypes].sort((a, b) => a.name.localeCompare(b.name, 'zh-TW'));
+  }, [appointmentTypes]);
 
   // Render form step
   const renderFormStep = () => (
@@ -330,19 +419,6 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
               />
             </div>
 
-            {/* Appointment type (read-only) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                預約類型
-              </label>
-              <input
-                type="text"
-                value={appointmentType?.name || event.resource.appointment_type_name || '未知'}
-                disabled
-                className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-600"
-              />
-            </div>
-
             {/* Patient Notes - Read-only, only show if patient provided notes */}
             {originalNotes && (
               <div>
@@ -354,59 +430,58 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
                 </div>
               </div>
             )}
-
-            {/* Clinic Notes - Editable */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                診所備注（選填）
-              </label>
-              <textarea
-                value={clinicNotes}
-                onChange={(e) => setClinicNotes(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 resize-y"
-                placeholder="請輸入診所內部備注"
-                rows={4}
-                maxLength={1000}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                {clinicNotes.length}/1000
-              </p>
-            </div>
           </>
         )}
+
+        {/* Appointment type selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            預約類型 <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={selectedAppointmentTypeId || ''}
+            onChange={(e) => handleAppointmentTypeChange(e.target.value ? parseInt(e.target.value) : null)}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          >
+            <option value="">選擇預約類型</option>
+            {sortedAppointmentTypes.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.name} ({type.duration_minutes}分鐘){type.id === originalAppointmentTypeId ? ' (原)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {/* Practitioner selection */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            治療師
+            治療師 <span className="text-red-500">*</span>
           </label>
           <select
             value={selectedPractitionerId || ''}
-            onChange={(e) => {
-              const newPractitionerId = e.target.value ? parseInt(e.target.value) : null;
-              setSelectedPractitionerId(newPractitionerId);
-            }}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => handlePractitionerChange(e.target.value ? parseInt(e.target.value) : null)}
+            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
             required
+            disabled={!selectedAppointmentTypeId || isLoadingPractitioners}
           >
-            <option value="">請選擇治療師</option>
-            {availablePractitioners.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name}{p.id === originalPractitionerId ? ' (原)' : ''}
-              </option>
-            ))}
+            <option value="">選擇治療師</option>
+            {isLoadingPractitioners ? (
+              <option value="" disabled>載入中...</option>
+            ) : (
+              availablePractitioners.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.full_name}{p.id === originalPractitionerId ? ' (原)' : ''}
+                </option>
+              ))
+            )}
           </select>
-          {!selectedPractitionerId && (
-            <p className="text-sm text-red-600 mt-1">請選擇治療師</p>
+          {selectedAppointmentTypeId && !isLoadingPractitioners && availablePractitioners.length === 0 && (
+            <p className="text-sm text-gray-500 mt-1">此預約類型目前沒有可用的治療師</p>
           )}
         </div>
 
         {/* Date/Time Picker */}
-        {practitionerError && (
-          <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
-            <p className="text-sm text-red-800">{practitionerError}</p>
-          </div>
-        )}
         {/* Display original appointment time */}
         <div className="mb-4 bg-blue-50 border border-blue-200 rounded-md p-3">
           <p className="text-sm font-medium text-blue-900">
@@ -414,7 +489,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             {originalDate} {formatTo12Hour(originalTime).display}
           </p>
         </div>
-        {appointmentTypeId && (
+        {appointmentTypeId && selectedPractitionerId && (
           <DateTimePicker
             selectedDate={selectedDate}
             selectedTime={selectedTime}
@@ -429,8 +504,21 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             error={error && !externalErrorMessage ? error : null}
             onHasAvailableSlotsChange={setHasAvailableSlots}
             onPractitionerError={handlePractitionerError}
-            practitionerError={practitionerError}
           />
+        )}
+
+        {/* Clinic Notes - Editable, moved to bottom */}
+        {showReadOnlyFields && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              診所備注
+            </label>
+            <ClinicNotesTextarea
+              value={clinicNotes}
+              onChange={(e) => setClinicNotes(e.target.value)}
+              rows={4}
+            />
+          </div>
         )}
       </div>
 
@@ -438,18 +526,18 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         <button
           onClick={handleFormSubmit}
           disabled={
+            !selectedAppointmentTypeId ||
             !selectedPractitionerId ||
             !selectedTime ||
             (!hasChanges && !allowConfirmWithoutChanges) ||
-            !hasAvailableSlots ||
-            !!practitionerError
+            !hasAvailableSlots
           }
           className={`btn-primary ${
-            (!selectedPractitionerId ||
+            (!selectedAppointmentTypeId ||
+              !selectedPractitionerId ||
               !selectedTime ||
               (!hasChanges && !allowConfirmWithoutChanges) ||
-              !hasAvailableSlots ||
-              !!practitionerError)
+              !hasAvailableSlots)
               ? 'opacity-50 cursor-not-allowed'
               : ''
           }`}
@@ -470,6 +558,9 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     const originalTimeStr = formatTo12Hour(originalTime).display;
     const showTimeWarning = changeDetails.timeChanged || changeDetails.dateChanged;
 
+    const originalAppointmentType = appointmentTypes.find(at => at.id === originalAppointmentTypeId);
+    const newAppointmentType = appointmentTypes.find(at => at.id === selectedAppointmentTypeId);
+
     // Determine if this is the final step (will go directly to save)
     const isFinalStep = !hasLineUser || (originallyAutoAssigned && !changeDetails.timeChanged);
     const reviewButtonText = isFinalStep ? saveButtonText : '下一步';
@@ -481,6 +572,12 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           <div>
             <h4 className="text-sm font-semibold text-gray-700 mb-2">原預約</h4>
             <div className="bg-gray-50 border border-gray-200 rounded-md p-4 space-y-2">
+              <div>
+                <span className="text-sm text-gray-600">預約類型：</span>
+                <span className="text-sm text-gray-900">
+                  {originalAppointmentType?.name || event.resource.appointment_type_name || '未知'}
+                </span>
+              </div>
               <div>
                 <span className="text-sm text-gray-600">治療師：</span>
                 <span className="text-sm text-gray-900">
@@ -502,6 +599,13 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           <div>
             <h4 className="text-sm font-semibold text-gray-700 mb-2">新預約</h4>
             <div className="bg-gray-50 border border-gray-200 rounded-md p-4 space-y-2">
+              <div>
+                <span className="text-sm text-gray-600">預約類型：</span>
+                <span className="text-sm text-gray-900">
+                  {newAppointmentType?.name || '未知'}
+                  {changeDetails.appointmentTypeChanged && <span className="ml-2 text-blue-600">✏️</span>}
+                </span>
+              </div>
               <div>
                 <span className="text-sm text-gray-600">治療師：</span>
                 <span className="text-sm text-gray-900">

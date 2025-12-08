@@ -1633,6 +1633,115 @@ class TestPractitionersList:
             client.app.dependency_overrides.pop(get_current_user, None)
             client.app.dependency_overrides.pop(get_db, None)
 
+    def test_list_practitioners_filtered_by_appointment_type(self, db_session, test_clinic_with_therapist):
+        """Test listing practitioners filtered by appointment type."""
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
+
+        # Create another practitioner
+        therapist2, therapist2_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Dr. Test 2", "dr.test2@example.com", "therapist_sub_456", ["practitioner"], True
+        )
+        db_session.commit()
+
+        # Get appointment types (from fixture)
+        appt_type_1 = appointment_types[0] if len(appointment_types) > 0 else None
+        appt_type_2 = appointment_types[1] if len(appointment_types) > 1 else None
+
+        # If we don't have enough appointment types, create them
+        if not appt_type_1:
+            appt_type_1 = AppointmentType(
+                clinic_id=clinic.id,
+                name="Type 1",
+                duration_minutes=30,
+                is_deleted=False
+            )
+            db_session.add(appt_type_1)
+            db_session.commit()
+
+        if not appt_type_2:
+            appt_type_2 = AppointmentType(
+                clinic_id=clinic.id,
+                name="Type 2",
+                duration_minutes=60,
+                is_deleted=False
+            )
+            db_session.add(appt_type_2)
+            db_session.commit()
+
+        # Associate therapist with appt_type_1 only
+        pat1 = PractitionerAppointmentTypes(
+            user_id=therapist.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type_1.id
+        )
+        db_session.add(pat1)
+
+        # Associate therapist2 with appt_type_2 only
+        pat2 = PractitionerAppointmentTypes(
+            user_id=therapist2.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type_2.id
+        )
+        db_session.add(pat2)
+        db_session.commit()
+
+        # Mock authentication for admin
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        admin, admin_assoc = create_user_with_clinic_association(
+            db_session, clinic, "Admin User", "admin@example.com", "admin_sub_789", ["admin"], True
+        )
+        db_session.commit()
+
+        user_context = UserContext(
+            user_type="clinic_user",
+            email=admin.email,
+            roles=admin_assoc.roles,
+            active_clinic_id=admin_assoc.clinic_id,
+            google_subject_id=admin.google_subject_id,
+            name=admin_assoc.full_name,
+            user_id=admin.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Test listing all practitioners (no filter)
+            response = client.get("/api/clinic/practitioners")
+            assert response.status_code == 200
+            data = response.json()
+            all_practitioners = data["practitioners"]
+            assert len(all_practitioners) == 2
+
+            # Test filtering by appointment_type_1 - should return only therapist
+            response = client.get(f"/api/clinic/practitioners?appointment_type_id={appt_type_1.id}")
+            assert response.status_code == 200
+            data = response.json()
+            filtered_practitioners = data["practitioners"]
+            assert len(filtered_practitioners) == 1
+            assert filtered_practitioners[0]["id"] == therapist.id
+
+            # Test filtering by appointment_type_2 - should return only therapist2
+            response = client.get(f"/api/clinic/practitioners?appointment_type_id={appt_type_2.id}")
+            assert response.status_code == 200
+            data = response.json()
+            filtered_practitioners = data["practitioners"]
+            assert len(filtered_practitioners) == 1
+            assert filtered_practitioners[0]["id"] == therapist2.id
+
+            # Test filtering by non-existent appointment type - should return empty list
+            response = client.get("/api/clinic/practitioners?appointment_type_id=99999")
+            assert response.status_code == 200
+            data = response.json()
+            filtered_practitioners = data["practitioners"]
+            assert len(filtered_practitioners) == 0
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
     def test_batch_practitioner_status_endpoint(self, db_session, test_clinic_with_therapist):
         """Test batch practitioner status endpoint for multiple practitioners."""
         clinic, therapist1, appointment_types, therapist1_assoc = test_clinic_with_therapist
