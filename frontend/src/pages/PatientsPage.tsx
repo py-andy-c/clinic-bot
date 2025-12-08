@@ -487,6 +487,12 @@ const PatientsPage: React.FC = () => {
           patientName={createdPatientName}
           phoneNumber={createdPatientPhone}
           birthday={createdPatientBirthday}
+          onCreateAppointment={() => {
+            // Close success modal and open appointment modal with the newly created patient
+            setIsSuccessModalOpen(false);
+            setSelectedPatientIdForAppointment(createdPatientId);
+            setIsAppointmentModalOpen(true);
+          }}
         />
       )}
 
