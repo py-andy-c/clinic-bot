@@ -114,6 +114,7 @@ export interface ClinicInfoResponse {
   require_birthday?: boolean;
   minimum_cancellation_hours_before?: number;
   appointment_notes_instructions?: string | null;
+  allow_patient_deletion?: boolean;
 }
 
 class LiffApiService {

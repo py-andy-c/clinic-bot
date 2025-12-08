@@ -29,6 +29,7 @@ const AppointmentList: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [minimumCancellationHours, setMinimumCancellationHours] = useState<number | null>(null);
+  const [allowPatientDeletion, setAllowPatientDeletion] = useState<boolean>(true);
 
   // Enable back button navigation - always goes back to home
   useLiffBackButton('query');
@@ -42,10 +43,12 @@ const AppointmentList: React.FC = () => {
     try {
       const clinicInfo = await liffApiService.getClinicInfo();
       setMinimumCancellationHours(clinicInfo.minimum_cancellation_hours_before || 24);
+      setAllowPatientDeletion(clinicInfo.allow_patient_deletion ?? true);
     } catch (err) {
       logger.error('Failed to load clinic info:', err);
-      // Use default if failed to load
+      // Use default if failed to load (defaulting to true for better UX - allows cancellation)
       setMinimumCancellationHours(24);
+      setAllowPatientDeletion(true);
     }
   };
 
@@ -175,6 +178,7 @@ const AppointmentList: React.FC = () => {
                 appointment={appointment}
                 onCancel={() => handleCancelAppointment(appointment.id, appointment.start_time)}
                 onReschedule={() => handleRescheduleAppointment(appointment.id, appointment.start_time)}
+                allowPatientDeletion={allowPatientDeletion}
               />
             ))}
           </div>

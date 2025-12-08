@@ -89,6 +89,7 @@ class BookingRestrictionSettings(BaseModel):
     max_future_appointments: int = 3
     max_booking_window_days: int = 90
     minimum_cancellation_hours_before: int = 24
+    allow_patient_deletion: bool = True
 
     @model_validator(mode='before')
     @classmethod

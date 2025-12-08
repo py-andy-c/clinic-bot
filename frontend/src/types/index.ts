@@ -38,6 +38,7 @@ export interface Clinic {
       max_future_appointments?: number;
       max_booking_window_days?: number;
       minimum_cancellation_hours_before?: number;
+      allow_patient_deletion?: boolean;
     };
     clinic_info_settings?: {
       display_name?: string | null;

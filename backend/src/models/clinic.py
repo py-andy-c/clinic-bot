@@ -32,6 +32,7 @@ class BookingRestrictionSettings(BaseModel):
     max_future_appointments: int = Field(default=3, ge=1, le=100, description="Maximum number of active future appointments a patient can have")
     max_booking_window_days: int = Field(default=90, ge=1, le=365, description="Maximum number of days in advance that patients can book appointments")
     minimum_cancellation_hours_before: int = Field(default=24, ge=1, le=168, description="Minimum number of hours before appointment that patients can cancel. Cancellations from clinic are not subject to this restriction.")
+    allow_patient_deletion: bool = Field(default=True, description="Whether patients are allowed to delete/cancel appointments on their own. When disabled, patients can only reschedule appointments.")
 
     @model_validator(mode='before')
     @classmethod

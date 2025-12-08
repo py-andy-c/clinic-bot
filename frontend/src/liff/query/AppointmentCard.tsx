@@ -19,9 +19,10 @@ interface AppointmentCardProps {
   appointment: Appointment;
   onCancel: () => void;
   onReschedule?: () => void;
+  allowPatientDeletion?: boolean;
 }
 
-const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel, onReschedule }) => {
+const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel, onReschedule, allowPatientDeletion = true }) => {
   const { t } = useTranslation();
 
   const getStatusColor = (status: string): string | null => {
@@ -93,12 +94,14 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
               {t('appointmentCard.rescheduleButton')}
             </button>
           )}
-          <button
-            onClick={onCancel}
-            className="flex-1 bg-red-50 text-red-600 border border-red-200 rounded-md py-2 px-4 hover:bg-red-100 transition-colors text-sm font-medium"
-          >
-            {t('appointmentCard.cancelButton')}
-          </button>
+          {allowPatientDeletion && (
+            <button
+              onClick={onCancel}
+              className="flex-1 bg-red-50 text-red-600 border border-red-200 rounded-md py-2 px-4 hover:bg-red-100 transition-colors text-sm font-medium"
+            >
+              {t('appointmentCard.cancelButton')}
+            </button>
+          )}
         </div>
       )}
     </div>

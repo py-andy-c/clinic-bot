@@ -1140,6 +1140,116 @@ class TestLiffReturningUserFlow:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
+    def test_user_cannot_cancel_when_deletion_disabled(self, db_session: Session, test_clinic_with_liff):
+        """Test user cannot cancel appointments when clinic disallows patient deletion."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Disable patient deletion for this clinic
+        clinic_settings = clinic.get_validated_settings()
+        clinic_settings.booking_restriction_settings.allow_patient_deletion = False
+        clinic.set_validated_settings(clinic_settings)
+        db_session.commit()
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_no_deletion_123",
+            clinic_id=clinic.id,
+            display_name="林小薇"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Mock authentication and database
+        from auth.dependencies import get_current_line_user_with_clinic, get_current_line_user
+
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Create primary patient directly in DB to establish clinic context
+            primary_patient = Patient(
+                clinic_id=clinic.id,
+                full_name="Primary Patient",
+                phone_number="0966666666",
+                line_user_id=line_user.id
+            )
+            db_session.add(primary_patient)
+            db_session.commit()
+
+            # Create additional patient
+            response = client.post(
+                "/api/liff/patients",
+                json={"full_name": "林小薇", "phone_number": "0966666667"}
+            )
+            patient = response.json()
+
+            # Book appointment (more than 24 hours in the future)
+            future_date = (taiwan_now() + timedelta(days=2)).date().isoformat()
+            response = client.post(
+                "/api/liff/appointments",
+                json={
+                    "patient_id": patient["patient_id"],
+                    "appointment_type_id": appt_types[0].id,
+                    "practitioner_id": practitioner.id,
+                    "start_time": f"{future_date}T16:00:00+08:00",
+                    "notes": "無法取消的預約"
+                }
+            )
+            appointment = response.json()
+
+            # Try to cancel appointment - should be rejected
+            response = client.delete(f"/api/liff/appointments/{appointment['calendar_event_id']}")
+            assert response.status_code == 403
+            assert "不允許病患自行取消預約" in response.json()["detail"]
+
+            # Verify appointment is still confirmed in database
+            db_appointment = db_session.query(Appointment).get(appointment["appointment_id"])
+            assert db_appointment.status == "confirmed"
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_get_clinic_info_includes_allow_patient_deletion(self, db_session: Session, test_clinic_with_liff):
+        """Test that get_clinic_info endpoint includes allow_patient_deletion setting."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_clinic_info_123",
+            clinic_id=clinic.id,
+            display_name="測試用戶"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+
+        try:
+            # Test with default setting (True)
+            response = client.get("/api/liff/clinic-info")
+            assert response.status_code == 200
+            data = response.json()
+            assert "allow_patient_deletion" in data
+            assert data["allow_patient_deletion"] == True
+
+            # Disable patient deletion
+            clinic_settings = clinic.get_validated_settings()
+            clinic_settings.booking_restriction_settings.allow_patient_deletion = False
+            clinic.set_validated_settings(clinic_settings)
+            db_session.commit()
+
+            # Test with setting disabled
+            response = client.get("/api/liff/clinic-info")
+            assert response.status_code == 200
+            data = response.json()
+            assert "allow_patient_deletion" in data
+            assert data["allow_patient_deletion"] == False
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+
 
 class TestLiffAvailabilityAndScheduling:
     """Test availability checking and intelligent scheduling."""

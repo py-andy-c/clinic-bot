@@ -77,6 +77,13 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
     });
   };
 
+  const handleAllowPatientDeletionChange = (value: boolean) => {
+    onBookingRestrictionSettingsChange({
+      ...bookingRestrictionSettings,
+      allow_patient_deletion: value,
+    });
+  };
+
   const [showStepSizePopup, setShowStepSizePopup] = useState(false);
 
   return (
@@ -329,10 +336,36 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
           </div>
         </div>
 
-        {/* 取消預約限制 */}
+        {/* 允許病患自行取消預約 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            取消預約限制
+            允許病患自行取消預約
+          </label>
+          <div className="flex items-center justify-between max-w-2xl">
+            <div>
+              <p className="text-sm text-gray-500">
+                啟用後，病患可以自行取消預約。停用後，病患只能修改預約時間，無法取消。
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={bookingRestrictionSettings.allow_patient_deletion ?? true}
+                onChange={(e) => handleAllowPatientDeletionChange(e.target.checked)}
+                className="sr-only peer"
+                disabled={!isClinicAdmin}
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"></div>
+            </label>
+          </div>
+        </div>
+
+        {/* 預約取消/修改限制 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            {bookingRestrictionSettings.allow_patient_deletion !== false
+              ? "預約取消/修改限制"
+              : "預約修改限制"}
           </label>
           <div className="space-y-4 max-w-xs">
             <div>
@@ -346,7 +379,9 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
                 disabled={!isClinicAdmin}
               />
               <p className="text-sm text-gray-500 mt-1">
-                患者必須在預約前至少幾小時取消（診所取消不受此限制）
+                {bookingRestrictionSettings.allow_patient_deletion !== false
+                  ? "患者必須在預約前至少幾小時取消或修改（診所取消不受此限制）"
+                  : "患者必須在預約前至少幾小時修改（診所取消不受此限制）"}
               </p>
             </div>
           </div>

@@ -1047,7 +1047,15 @@ async def cancel_appointment(
     """
     # Permission validation is handled by get_current_line_user_with_clinic dependency
     # which ensures the LINE user is authenticated and belongs to the clinic
-    _line_user, _clinic = line_user_clinic
+    _line_user, clinic = line_user_clinic
+
+    # Check if clinic allows patient deletion
+    clinic_settings = clinic.get_validated_settings()
+    if not clinic_settings.booking_restriction_settings.allow_patient_deletion:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="此診所不允許病患自行取消預約"
+        )
 
     try:
         # Cancel appointment using service
@@ -1177,6 +1185,7 @@ async def get_clinic_info(
             "require_birthday": clinic_settings.clinic_info_settings.require_birthday,
             "minimum_cancellation_hours_before": clinic_settings.booking_restriction_settings.minimum_cancellation_hours_before,
             "appointment_notes_instructions": clinic_settings.clinic_info_settings.appointment_notes_instructions,
+            "allow_patient_deletion": clinic_settings.booking_restriction_settings.allow_patient_deletion,
         }
 
     except Exception as e:
