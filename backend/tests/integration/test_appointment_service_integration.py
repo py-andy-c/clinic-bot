@@ -112,7 +112,8 @@ class TestAppointmentServiceIntegration:
             start_time=start_time,
             practitioner_id=practitioner.id,
             line_user_id=line_user.id,
-            notes="Integration test appointment"
+            notes="Integration test appointment",
+            clinic_notes="Internal clinic note - should not be visible to LINE users"
         )
 
         assert result["patient_name"] == "Test Patient"
@@ -131,6 +132,9 @@ class TestAppointmentServiceIntegration:
         assert appt["patient_name"] == "Test Patient"
         assert appt["practitioner_name"] == "Dr. Test Practitioner"
         assert appt["appointment_type_name"] == "Consultation"
+        # Security: clinic_notes should NOT be exposed to LINE users
+        # The service explicitly sets clinic_notes to None for LINE users
+        assert appt.get("clinic_notes") is None, "clinic_notes should be None for LINE users"
 
     def test_load_balancing_assigns_least_loaded_practitioner(
         self, db_session: Session

@@ -22,7 +22,7 @@ export interface EditAppointmentModalProps {
   practitioners: { id: number; full_name: string }[];
   appointmentTypes: { id: number; name: string; duration_minutes: number }[];
   onClose: () => void;
-  onConfirm: (formData: { practitioner_id: number | null; start_time: string; notes?: string; notification_note?: string }) => Promise<void>;
+  onConfirm: (formData: { practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string }) => Promise<void>;
   formatAppointmentTime: (start: Date, end: Date) => string;
   errorMessage?: string | null; // Error message to display (e.g., from failed save)
   showReadOnlyFields?: boolean; // If false, skip patient name, appointment type, and notes fields (default: true)
@@ -61,6 +61,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   );
   // Store original notes (from patient) - cannot be edited by clinic
   const originalNotes = event.resource.notes || '';
+  const originalClinicNotes = event.resource.clinic_notes || '';
+  const [clinicNotes, setClinicNotes] = useState<string>(originalClinicNotes);
   const [customNote, setCustomNote] = useState<string>(''); // Custom note for notification
   
   // Check if appointment was originally auto-assigned
@@ -212,10 +214,14 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     // If there is no LINE user attached to this appointment, skip the note/preview flow
     // and just save the updated practitioner/time without sending any notification.
     if (!hasLineUser) {
-      const formData: { practitioner_id: number | null; start_time: string; notes?: string; notification_note?: string } = {
+      const formData: { practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string } = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTimeISO,
       };
+      // Always send clinic_notes if it has changed from original (allows clearing notes)
+      if (clinicNotes.trim() !== originalClinicNotes.trim()) {
+        formData.clinic_notes = clinicNotes.trim();
+      }
       await onConfirm(formData);
       return;
     }
@@ -226,10 +232,14 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       // Time didn't change - skip note step and go directly to save
       // Don't send notes or notification_note to preserve original patient notes
       // and avoid notifying the patient (omit properties instead of setting to undefined)
-      const formData: { practitioner_id: number | null; start_time: string; notes?: string; notification_note?: string } = {
+      const formData: { practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string } = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTimeISO,
       };
+      // Always send clinic_notes if it has changed from original (allows clearing notes)
+      if (clinicNotes.trim() !== originalClinicNotes.trim()) {
+        formData.clinic_notes = clinicNotes.trim();
+      }
       await onConfirm(formData);
       return;
     }
@@ -272,13 +282,18 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     
     try {
       const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toISOString();
-      const formData: { practitioner_id: number | null; start_time: string; notes?: string; notification_note?: string } = {
+      const formData: { practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string } = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTime,
-        // Don't send notes to preserve original patient notes
-        // Send customNote as notification_note for the one-time notification only
-        ...(customNote.trim() ? { notification_note: customNote.trim() } : {}),
       };
+      // Always send clinic_notes if it has changed from original (allows clearing notes)
+      if (clinicNotes.trim() !== originalClinicNotes.trim()) {
+        formData.clinic_notes = clinicNotes.trim();
+      }
+      // Send customNote as notification_note for the one-time notification only
+      if (customNote.trim()) {
+        formData.notification_note = customNote.trim();
+      }
       await onConfirm(formData);
       // onConfirm will handle closing the modal and refreshing data
     } catch (err) {
@@ -339,6 +354,24 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
                 </div>
               </div>
             )}
+
+            {/* Clinic Notes - Editable */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                診所備注（選填）
+              </label>
+              <textarea
+                value={clinicNotes}
+                onChange={(e) => setClinicNotes(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 resize-y"
+                placeholder="請輸入診所內部備注"
+                rows={4}
+                maxLength={1000}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {clinicNotes.length}/1000
+              </p>
+            </div>
           </>
         )}
 
@@ -610,7 +643,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   return (
     <BaseModal
       onClose={onClose}
-      aria-label="編輯預約"
+      aria-label="調整預約"
       className="!p-0"
     >
       <div className="sticky top-0 bg-white z-10 px-6 py-3 flex items-center justify-between flex-shrink-0 border-b border-gray-200 rounded-t-lg">
@@ -621,9 +654,9 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           </svg>
         </div>
           <h3 className="text-base font-semibold text-blue-800">
-          {step === 'form' && '編輯預約'}
+          {step === 'form' && '調整預約'}
           {step === 'review' && '確認變更'}
-          {step === 'note' && '編輯預約備註(選填)'}
+          {step === 'note' && '調整預約備註(選填)'}
           {step === 'preview' && 'LINE訊息預覽'}
         </h3>
         </div>

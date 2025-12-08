@@ -22,6 +22,7 @@ export interface EventModalProps {
   onEditAppointment?: (() => void | Promise<void>) | undefined;
   formatAppointmentTime: (start: Date, end: Date) => string;
   onEventNameUpdated?: (newName: string | null) => void | Promise<void>;
+  hidePatientInfo?: boolean; // Hide 電話、生日、LINE when true (e.g., on patient detail page)
 }
 
 export const EventModal: React.FC<EventModalProps> = React.memo(({
@@ -32,16 +33,25 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
   onEditAppointment,
   formatAppointmentTime,
   onEventNameUpdated,
+  hidePatientInfo = false,
 }) => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editingName, setEditingName] = useState(event.title);
   const [isSaving, setIsSaving] = useState(false);
   const [currentTitle, setCurrentTitle] = useState(event.title);
+  const [clinicNotes, setClinicNotes] = useState(event.resource.clinic_notes || '');
+  const [isSavingClinicNotes, setIsSavingClinicNotes] = useState(false);
+  const [isEditingClinicNotes, setIsEditingClinicNotes] = useState(false);
 
   // Update currentTitle when event.title changes (e.g., after calendar refresh)
   React.useEffect(() => {
     setCurrentTitle(event.title);
   }, [event.title]);
+
+  // Update clinic notes when event changes (e.g., after calendar refresh)
+  React.useEffect(() => {
+    setClinicNotes(event.resource.clinic_notes || '');
+  }, [event.resource.clinic_notes]);
 
   const handleStartEdit = useCallback(() => {
     setEditingName(currentTitle);
@@ -98,6 +108,41 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
       handleCancelEdit();
     }
   }, [handleSaveName, handleCancelEdit]);
+
+  const handleSaveClinicNotes = useCallback(async () => {
+    if (isSavingClinicNotes) return;
+
+    setIsSavingClinicNotes(true);
+    const trimmedNotes = clinicNotes.trim();
+    const originalNotes = event.resource.clinic_notes || '';
+
+    try {
+      // Update clinic notes via edit appointment API
+      // Always include clinic_notes to allow clearing notes (send empty string to clear)
+      const updateData: {
+        clinic_notes: string;
+      } = {
+        clinic_notes: trimmedNotes, // Empty string clears the notes
+      };
+      await apiService.editClinicAppointment(event.resource.calendar_event_id, updateData);
+
+      // Optimistically update the event prop by calling the callback
+      // The parent will refresh calendar data and sync the modal state
+      if (onEventNameUpdated) {
+        await onEventNameUpdated(null);
+      }
+
+      // Note: The useEffect will sync clinicNotes from event.resource.clinic_notes
+      // when the event prop updates after calendar refresh
+    } catch (error) {
+      logger.error('Error updating clinic notes:', error);
+      alert('更新診所備注失敗，請重試');
+      // Revert to original value on error
+      setClinicNotes(originalNotes);
+    } finally {
+      setIsSavingClinicNotes(false);
+    }
+  }, [clinicNotes, event.resource.calendar_event_id, event.resource.clinic_notes, onEventNameUpdated, isSavingClinicNotes]);
 
   const displayTitle = currentTitle;
 
@@ -172,18 +217,55 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 </p>
               )}
               <p><strong>時間:</strong> {formatAppointmentTime(event.start, event.end)}</p>
-              {event.resource.notes && (
-                <p><strong>備註:</strong> {event.resource.notes}</p>
-              )}
-              {event.resource.patient_phone && (
+              {!hidePatientInfo && event.resource.patient_phone && (
                 <p><strong>電話:</strong> {event.resource.patient_phone}</p>
               )}
-              {event.resource.patient_birthday && (
+              {!hidePatientInfo && event.resource.patient_birthday && (
                 <p><strong>生日:</strong> {event.resource.patient_birthday}</p>
               )}
-              {event.resource.line_display_name && (
+              {!hidePatientInfo && event.resource.line_display_name && (
                 <p><strong>LINE:</strong> {event.resource.line_display_name}</p>
               )}
+              {event.resource.notes && (
+                <p><strong>病患備註:</strong> {event.resource.notes}</p>
+              )}
+              <div>
+                <p><strong>診所備注:</strong></p>
+                <textarea
+                  value={clinicNotes}
+                  onChange={(e) => setClinicNotes(e.target.value)}
+                  onFocus={() => setIsEditingClinicNotes(true)}
+                  onBlur={() => {
+                    // Use setTimeout to allow button click to register before blur
+                    setTimeout(() => setIsEditingClinicNotes(false), 200);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 resize-y mt-1"
+                  placeholder="診所內部備注（僅診所人員可見）"
+                  rows={3}
+                  maxLength={1000}
+                  disabled={isSavingClinicNotes}
+                />
+                <div className="flex items-center justify-between mt-1">
+                  {isEditingClinicNotes && (
+                    <p className="text-xs text-gray-500">
+                      {clinicNotes.length}/1000
+                    </p>
+                  )}
+                  {clinicNotes.trim() !== (event.resource.clinic_notes || '').trim() && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleSaveClinicNotes();
+                      }}
+                      disabled={isSavingClinicNotes}
+                      className="px-3 py-1 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSavingClinicNotes ? '儲存中...' : '儲存'}
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </>
         ) : (
@@ -202,7 +284,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
               onClick={onEditAppointment}
               className="btn-primary bg-blue-600 hover:bg-blue-700"
             >
-              編輯預約
+              調整預約
             </button>
           )}
           {event.resource.type === 'appointment' && onDeleteAppointment && (

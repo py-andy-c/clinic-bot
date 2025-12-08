@@ -67,6 +67,7 @@ class AppointmentService:
         start_time: datetime,
         practitioner_id: Optional[int] = None,
         notes: Optional[str] = None,
+        clinic_notes: Optional[str] = None,
         line_user_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
@@ -79,7 +80,8 @@ class AppointmentService:
             appointment_type_id: Appointment type ID
             start_time: Appointment start time
             practitioner_id: Specific practitioner ID or None for auto-assignment
-            notes: Optional appointment notes
+            notes: Optional patient-provided appointment notes
+            clinic_notes: Optional clinic internal notes (visible only to clinic users)
             line_user_id: LINE user ID for ownership validation (if provided)
 
         Returns:
@@ -155,6 +157,7 @@ class AppointmentService:
                 appointment_type_id=appointment_type_id,
                 status='confirmed',
                 notes=notes,
+                clinic_notes=clinic_notes,
                 is_auto_assigned=was_auto_assigned,
                 originally_auto_assigned=was_auto_assigned
             )
@@ -227,6 +230,7 @@ class AppointmentService:
                 'end_time': end_time,
                 'status': appointment.status,
                 'notes': appointment.notes,
+                'clinic_notes': appointment.clinic_notes,
                 'practitioner_id': assigned_practitioner_id,
                 'is_auto_assigned': was_auto_assigned
             }
@@ -508,6 +512,7 @@ class AppointmentService:
                 "end_time": end_datetime.isoformat() if end_datetime else "",
                 "status": appointment.status,
                 "notes": appointment.notes,
+                "clinic_notes": None,  # Not exposed to LINE users
                 "line_display_name": line_display_name,
                 "originally_auto_assigned": appointment.originally_auto_assigned
             })
@@ -633,6 +638,7 @@ class AppointmentService:
                 "end_time": end_datetime.isoformat() if end_datetime else "",
                 "status": appointment.status,
                 "notes": appointment.notes,
+                "clinic_notes": appointment.clinic_notes,  # Include clinic notes for clinic users
                 "line_display_name": line_display_name,
                 "originally_auto_assigned": appointment.originally_auto_assigned
             })
@@ -950,6 +956,7 @@ class AppointmentService:
         practitioner_id_to_use: int,
         new_start_time: Optional[datetime],
         new_notes: Optional[str],
+        new_clinic_notes: Optional[str],
         duration_minutes: int,
         old_practitioner_id: Optional[int],
         old_start_time: datetime,
@@ -974,7 +981,8 @@ class AppointmentService:
             clinic_id: Clinic ID
             practitioner_id_to_use: Final practitioner ID to use (already resolved)
             new_start_time: New start time (None = keep current)
-            new_notes: New notes (None = keep current)
+            new_notes: New patient notes (None = keep current, only for patient reschedules)
+            new_clinic_notes: New clinic notes (None = keep current)
             duration_minutes: Appointment duration in minutes
             old_practitioner_id: Original practitioner ID (for notifications)
             old_start_time: Original start time (for notifications)
@@ -1000,9 +1008,13 @@ class AppointmentService:
             old_practitioner_id, practitioner_id_to_use, old_start_time, new_start_time_for_check
         )
 
-        # Update notes if provided
+        # Update patient notes if provided (only for patient reschedules)
         if new_notes is not None:
             appointment.notes = new_notes
+
+        # Update clinic notes if provided
+        if new_clinic_notes is not None:
+            appointment.clinic_notes = new_clinic_notes
 
         # Update practitioner if changed
         if practitioner_actually_changed:
@@ -1464,6 +1476,7 @@ class AppointmentService:
         new_practitioner_id: Optional[int],
         new_start_time: Optional[datetime],
         new_notes: Optional[str] = None,
+        new_clinic_notes: Optional[str] = None,
         apply_booking_constraints: bool = False,
         allow_auto_assignment: bool = False,
         reassigned_by_user_id: Optional[int] = None,
@@ -1482,7 +1495,8 @@ class AppointmentService:
             appointment_id: Calendar event ID of the appointment
             new_practitioner_id: New practitioner ID (None = keep current, -1 = auto-assign if allowed)
             new_start_time: New start time (None = keep current, will use current time)
-            new_notes: New notes (None = keep current)
+            new_notes: New patient notes (None = keep current, only for patient reschedules)
+            new_clinic_notes: New clinic notes (None = keep current)
             apply_booking_constraints: If True, applies booking restrictions (for patients)
             allow_auto_assignment: If True, allows -1 for auto-assignment (for patients)
             reassigned_by_user_id: User ID who made the reassignment (None for patient, user_id for clinic)
@@ -1567,7 +1581,7 @@ class AppointmentService:
             if not is_valid:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail=error_message or "編輯預約時發生衝突"
+                    detail=error_message or "調整預約時發生衝突"
                 )
 
         # practitioner_id_to_use is guaranteed to be int from _resolve_practitioner_id
@@ -1592,6 +1606,7 @@ class AppointmentService:
             practitioner_id_to_use=practitioner_id_to_use,
             new_start_time=normalized_start_time if time_actually_changed else None,
             new_notes=new_notes,
+            new_clinic_notes=new_clinic_notes,
             duration_minutes=duration_minutes,
             old_practitioner_id=old_practitioner_id,
             old_start_time=current_start_time,

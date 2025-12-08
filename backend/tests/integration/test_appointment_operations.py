@@ -168,8 +168,9 @@ class TestAppointmentCreation:
         db_session.add(patient)
         db_session.commit()
 
-        # Create appointment with specific practitioner
+        # Create appointment with specific practitioner and clinic notes
         start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        clinic_notes = "Test clinic internal notes"
         result = AppointmentService.create_appointment(
             db=db_session,
             clinic_id=clinic.id,
@@ -177,6 +178,7 @@ class TestAppointmentCreation:
             appointment_type_id=appointment_type.id,
             start_time=start_time,
             practitioner_id=practitioner.id,
+            clinic_notes=clinic_notes,
             line_user_id=None
         )
 
@@ -187,6 +189,8 @@ class TestAppointmentCreation:
         assert appointment is not None
         assert appointment.is_auto_assigned is False
         assert appointment.originally_auto_assigned is False
+        assert appointment.clinic_notes == clinic_notes
+        assert result['clinic_notes'] == clinic_notes
 
 
 class TestAppointmentEditing:
@@ -277,11 +281,14 @@ class TestAppointmentEditing:
         )
         assert should_send is True, "Should send notification when time changes"
         
+        # Update appointment with clinic notes
+        new_clinic_notes = "Updated clinic notes"
         edit_result = AppointmentService.update_appointment(
             db=db_session,
             appointment_id=appointment_id,
             new_start_time=new_start_time,
             new_practitioner_id=None,
+            new_clinic_notes=new_clinic_notes,
             apply_booking_constraints=False,
             allow_auto_assignment=False,
             reassigned_by_user_id=practitioner.id
@@ -296,6 +303,112 @@ class TestAppointmentEditing:
         calendar_event = appointment.calendar_event
         assert calendar_event.date == new_start_time.date()
         assert calendar_event.start_time == new_start_time.time()
+        assert appointment.clinic_notes == new_clinic_notes
+
+    def test_clinic_notes_not_exposed_to_line_users(
+        self, db_session: Session
+    ):
+        """Test that clinic_notes are not exposed to LINE users via list_appointments_for_line_user."""
+        from models.line_user import LineUser
+
+        # Setup clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create practitioner (signature: clinic, full_name, email, google_subject_id, roles)
+        practitioner, _ = create_user_with_clinic_association(
+            db_session, clinic, "Dr. Test", "practitioner@test.com", "p_google", ["practitioner"]
+        )
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Consultation",
+            duration_minutes=30
+        )
+        db_session.add(appointment_type)
+        db_session.commit()
+
+        # Associate practitioner with appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appointment_type.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        # Create availability for practitioner
+        tomorrow = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = tomorrow.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic, day_of_week, time(9, 0), time(17, 0)
+        )
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_user",
+            clinic_id=clinic.id,
+            display_name="Test LINE User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create patient linked to LINE user
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Create appointment with clinic notes
+        # Use time far enough in the future to satisfy minimum_booking_hours_ahead (24 hours by default)
+        start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=2)
+        clinic_notes = "Sensitive clinic internal notes"
+        result = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            start_time=start_time,
+            practitioner_id=practitioner.id,
+            clinic_notes=clinic_notes,
+            line_user_id=line_user.id
+        )
+
+        appointment_id = result['appointment_id']
+
+        # Verify appointment was created with clinic notes
+        appointment = db_session.query(Appointment).filter(
+            Appointment.calendar_event_id == appointment_id
+        ).first()
+        assert appointment.clinic_notes == clinic_notes
+
+        # List appointments for LINE user - clinic_notes should NOT be included
+        appointments = AppointmentService.list_appointments_for_line_user(
+            db_session, line_user.id, clinic.id, upcoming_only=True
+        )
+
+        assert len(appointments) == 1
+        line_user_appointment = appointments[0]
+
+        # Security check: clinic_notes must not be exposed to LINE users
+        # The service explicitly sets clinic_notes to None for LINE users
+        assert line_user_appointment.get("clinic_notes") is None, "clinic_notes should be None for LINE users"
+
+        # Verify other fields are still present
+        assert line_user_appointment["patient_name"] == "Test Patient"
+        assert line_user_appointment["practitioner_name"] == "Dr. Test"
+        assert "notes" in line_user_appointment  # Patient notes should still be visible
 
     def test_edit_appointment_practitioner_from_auto_assigned(
         self, db_session: Session

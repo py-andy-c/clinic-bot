@@ -1848,7 +1848,20 @@ class ClinicAppointmentCreateRequest(BaseModel):
     appointment_type_id: int
     start_time: datetime
     practitioner_id: int  # Required - clinic users must select a practitioner
-    notes: Optional[str] = None
+    clinic_notes: Optional[str] = None
+
+    @field_validator('clinic_notes')
+    @classmethod
+    def validate_clinic_notes(cls, v: Optional[str]) -> Optional[str]:
+        """Validate clinic_notes field if provided."""
+        if v is None:
+            return None
+        # Trim whitespace, allow empty strings
+        v = v.strip() if v else ''
+        # Limit length to 1000 characters (matches database column and frontend maxLength)
+        if len(v) > 1000:
+            raise ValueError('診所備注長度過長（最多1000字元）')
+        return v
 
     @model_validator(mode='before')
     @classmethod
@@ -1861,8 +1874,21 @@ class AppointmentEditRequest(BaseModel):
     """Request model for editing appointment."""
     practitioner_id: Optional[int] = None  # None = keep current
     start_time: Optional[datetime] = None  # None = keep current
-    notes: Optional[str] = None  # If provided, updates appointment.notes. If None, preserves original patient notes.
+    clinic_notes: Optional[str] = None  # If provided, updates appointment.clinic_notes. If None, preserves current clinic notes.
     notification_note: Optional[str] = None  # Optional note to include in edit notification (does not update appointment.notes)
+
+    @field_validator('clinic_notes')
+    @classmethod
+    def validate_clinic_notes(cls, v: Optional[str]) -> Optional[str]:
+        """Validate clinic_notes field if provided."""
+        if v is None:
+            return None
+        # Trim whitespace, allow empty strings
+        v = v.strip() if v else ''
+        # Limit length to 1000 characters (matches database column and frontend maxLength)
+        if len(v) > 1000:
+            raise ValueError('診所備注長度過長（最多1000字元）')
+        return v
 
     @model_validator(mode='before')
     @classmethod
@@ -1932,7 +1958,8 @@ async def create_clinic_appointment(
             appointment_type_id=request.appointment_type_id,
             start_time=request.start_time,
             practitioner_id=request.practitioner_id,
-            notes=request.notes,
+            notes=None,  # Clinic users cannot set patient notes
+            clinic_notes=request.clinic_notes,
             line_user_id=None  # No LINE validation for clinic users
         )
         
@@ -2087,7 +2114,7 @@ async def edit_clinic_appointment(
         if current_user.has_role('read-only'):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="您沒有權限編輯預約"
+                detail="您沒有權限調整預約"
             )
         
         # Get appointment before edit (for notification and permission check)
@@ -2124,12 +2151,14 @@ async def edit_clinic_appointment(
         
         # Edit appointment (service handles business logic, notifications, and permissions)
         # Pass pre-fetched appointment to avoid duplicate query (already fetched for authorization check)
+        # Clinic users cannot update patient notes, only clinic notes
         result = AppointmentService.update_appointment(
             db=db,
             appointment_id=appointment_id,
             new_practitioner_id=request.practitioner_id,
             new_start_time=request.start_time,
-            new_notes=request.notes,
+            new_notes=None,  # Clinic users cannot update patient notes
+            new_clinic_notes=request.clinic_notes,
             apply_booking_constraints=False,  # Clinic edits bypass constraints
             allow_auto_assignment=False,  # Clinic edits don't support auto-assignment
             reassigned_by_user_id=current_user.user_id,
@@ -2147,7 +2176,7 @@ async def edit_clinic_appointment(
         db.rollback()
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="編輯預約失敗"
+            detail="調整預約失敗"
         )
 
 
@@ -2593,7 +2622,8 @@ class CalendarEventResponse(BaseModel):
     status: Optional[str] = None
     exception_id: Optional[int] = None
     appointment_id: Optional[int] = None  # For appointment cancellation
-    notes: Optional[str] = None  # Appointment notes
+    notes: Optional[str] = None  # Patient-provided appointment notes
+    clinic_notes: Optional[str] = None  # Clinic internal notes (visible only to clinic users)
     patient_phone: Optional[str] = None  # Patient phone number
     patient_birthday: Optional[str] = None  # Patient birthday (YYYY-MM-DD format, string for calendar display)
     line_display_name: Optional[str] = None  # LINE display name
@@ -3064,6 +3094,7 @@ async def get_calendar_data(
                             status=appointment.status,
                             appointment_id=appointment.calendar_event_id,
                             notes=appointment.notes,
+                            clinic_notes=appointment.clinic_notes,
                             patient_phone=appointment.patient.phone_number,
                             patient_birthday=patient_birthday_str,
                             line_display_name=line_display_name,
@@ -3297,6 +3328,7 @@ async def get_batch_calendar(
                                 status=appointment.status,
                                 appointment_id=appointment.calendar_event_id,
                                 notes=appointment.notes,
+                                clinic_notes=appointment.clinic_notes,
                                 patient_phone=appointment.patient.phone_number,
                                 patient_birthday=patient_birthday_str,
                                 line_display_name=line_display_name,

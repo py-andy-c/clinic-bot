@@ -13,7 +13,8 @@ import { ApiCalendarEvent } from '../types';
 import { getErrorMessage } from '../types/api';
 import { 
   transformToCalendarEvents, 
-  CalendarEvent 
+  CalendarEvent,
+  formatEventTimeRange
 } from '../utils/calendarDataAdapter';
 import { getPractitionerColor } from '../utils/practitionerColors';
 import { CustomToolbar, CustomEventComponent, CustomDateHeader, CustomDayHeader, CustomWeekdayHeader, CustomWeekHeader } from './CalendarComponents';
@@ -234,18 +235,26 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     return transformToCalendarEvents(events);
   }, [allEvents]); // Removed unused dependencies: defaultSchedule, currentDate, view
 
+  // Helper function to check if event has changed
+  const hasEventChanged = useCallback((current: CalendarEvent, updated: CalendarEvent): boolean => {
+    if (current.title !== updated.title) return true;
+    const currentNotes = current.resource.clinic_notes || '';
+    const updatedNotes = updated.resource?.clinic_notes || '';
+    return currentNotes !== updatedNotes;
+  }, []);
+
   // Sync modalState with updated calendar events after refresh
   useEffect(() => {
-    if (modalState.type === 'event' && modalState.data) {
+    if (modalState.type === 'event' && modalState.data?.resource?.calendar_event_id) {
       const eventId = modalState.data.resource.calendar_event_id;
       const updatedEvent = calendarEvents.find(
-        e => e.resource.calendar_event_id === eventId
+        e => e.resource?.calendar_event_id === eventId
       );
-      if (updatedEvent && updatedEvent.title !== modalState.data.title) {
+      if (updatedEvent && hasEventChanged(modalState.data, updatedEvent)) {
         setModalState(prev => ({ ...prev, data: updatedEvent }));
       }
     }
-  }, [calendarEvents, modalState.type, modalState.data?.resource.calendar_event_id]); // Sync when calendarEvents updates (after refresh)
+  }, [calendarEvents, modalState.type, modalState.data?.resource?.calendar_event_id, hasEventChanged]); // Sync when calendarEvents updates (after refresh)
 
   // Sync column widths between header and event columns for proper alignment in week view
   // This must be after calendarEvents is declared
@@ -1126,7 +1135,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     appointment_type_id: number;
     practitioner_id: number;
     start_time: string;
-    notes: string;
+    clinic_notes?: string;
   }) => {
     try {
       await apiService.createClinicAppointment(formData);
@@ -1280,23 +1289,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 ? handleEditAppointment 
                 : undefined
             }
-            formatAppointmentTime={formatAppointmentTime}
-            onEventNameUpdated={async (newName: string | null) => {
+            formatAppointmentTime={formatEventTimeRange}
+            onEventNameUpdated={async (_newName: string | null) => {
               // Store original state for potential rollback
               const originalEvent = modalState.data;
               
-              // Update the event in modalState immediately to reflect the change in the modal
-              if (modalState.data) {
-                // Optimistically update the title in the modal
-                const updatedEvent = {
-                  ...modalState.data,
-                  title: newName || modalState.data.title
-                };
-                setModalState(prev => ({ ...prev, data: updatedEvent }));
-              }
-              
               try {
-                // Refresh calendar data to get the updated event (with proper default title if newName is null)
+                // Refresh calendar data to get the updated event (with proper default title if _newName is null, or updated clinic_notes)
                 // The useEffect above will sync the modalState with the refreshed event
                 await fetchCalendarData(true);
                 

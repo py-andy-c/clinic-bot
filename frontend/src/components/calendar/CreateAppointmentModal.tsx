@@ -45,7 +45,7 @@ export interface CreateAppointmentModalProps {
     appointment_type_id: number;
     practitioner_id: number;
     start_time: string;
-    notes: string;
+    clinic_notes?: string;
   }) => Promise<void>;
 }
 
@@ -84,6 +84,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate || null);
   const [selectedTime, setSelectedTime] = useState<string>('');
+  const [clinicNotes, setClinicNotes] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [searchInput, setSearchInput] = useState<string>('');
@@ -314,6 +315,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     setSelectedPractitionerId(null);
     setSelectedDate(initialDate || null); // Preserve initialDate if provided
     setSelectedTime('');
+    setClinicNotes('');
     setSearchInput('');
     setStep('patient');
     setError(null);
@@ -336,6 +338,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       setSelectedPractitionerId(null);
       setSelectedDate(initialDate || null); // Preserve initialDate if provided
       setSelectedTime('');
+      setClinicNotes('');
       setSearchInput('');
       setStep('appointmentType');
       setError(null);
@@ -380,19 +383,29 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     setError(null);
     try {
       const startTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toISOString();
-      await onConfirm({
+      const formData: {
+        patient_id: number;
+        appointment_type_id: number;
+        practitioner_id: number;
+        start_time: string;
+        clinic_notes?: string;
+      } = {
         patient_id: selectedPatientId,
         appointment_type_id: selectedAppointmentTypeId,
         practitioner_id: selectedPractitionerId,
         start_time: startTime,
-        notes: '', // Clinic users cannot add notes during appointment creation
-      });
+      };
+      if (clinicNotes.trim()) {
+        formData.clinic_notes = clinicNotes.trim();
+      }
+      await onConfirm(formData);
       // Reset state after successful creation
       setSelectedPatientId(null);
       setSelectedAppointmentTypeId(null);
       setSelectedPractitionerId(null);
       setSelectedDate(null);
       setSelectedTime('');
+      setClinicNotes('');
       setSearchInput('');
       setStep('patient');
     } catch (err) {
@@ -574,6 +587,22 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                   })()}
                 </span>
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                診所備注（選填）
+              </label>
+              <textarea
+                value={clinicNotes}
+                onChange={(e) => setClinicNotes(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 resize-y"
+                placeholder="請輸入診所內部備注"
+                rows={4}
+                maxLength={1000}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {clinicNotes.length}/1000
+              </p>
             </div>
           </div>
         );

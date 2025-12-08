@@ -14,7 +14,8 @@ export interface CalendarEvent {
     status?: string;
     exception_id?: number;
     appointment_id?: number; // For appointment cancellation
-    notes?: string;
+    notes?: string; // Patient-provided notes
+    clinic_notes?: string; // Clinic internal notes (visible only to clinic users)
     patient_phone?: string;
     patient_birthday?: string;
     line_display_name?: string;
@@ -59,6 +60,7 @@ export const transformToCalendarEvents = (apiEvents: (ApiCalendarEvent | any)[])
         exception_id: event.exception_id,
         appointment_id: event.appointment_id,
         notes: event.notes,
+        clinic_notes: event.clinic_notes,
         patient_phone: event.patient_phone,
         patient_birthday: event.patient_birthday,
         line_display_name: event.line_display_name,

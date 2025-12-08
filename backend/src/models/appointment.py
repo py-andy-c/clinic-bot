@@ -63,6 +63,9 @@ class Appointment(Base):
     notes: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     """Optional patient-provided notes about the appointment (備註)."""
 
+    clinic_notes: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    """Optional clinic internal notes (備注), visible only to clinic users. Separate from patient-provided notes."""
+
     is_auto_assigned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     """
     Current auto-assignment state.

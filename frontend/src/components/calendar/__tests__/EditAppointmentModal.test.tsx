@@ -415,7 +415,7 @@ describe('EditAppointmentModal', () => {
 
       // Should be back to form step
       await waitFor(() => {
-        expect(screen.getByText('編輯預約')).toBeInTheDocument();
+        expect(screen.getByText('調整預約')).toBeInTheDocument();
       });
     });
 

@@ -90,6 +90,7 @@ class AppointmentResponse(BaseModel):
     end_time: datetime
     status: str
     notes: Optional[str]
+    clinic_notes: Optional[str] = None
     practitioner_id: int
     is_auto_assigned: Optional[bool] = False
 
@@ -109,6 +110,7 @@ class AppointmentListItem(BaseModel):
     end_time: str
     status: str
     notes: Optional[str]
+    clinic_notes: Optional[str] = None
     line_display_name: Optional[str] = None
     originally_auto_assigned: bool = False
 

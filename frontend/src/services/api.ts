@@ -537,7 +537,7 @@ export class ApiService {
     appointment_type_id: number;
     start_time: string; // ISO datetime string
     practitioner_id?: number | null;
-    notes?: string;
+    clinic_notes?: string;
   }): Promise<{ success: boolean; appointment_id: number; message: string }> {
     const response = await this.client.post('/clinic/appointments', data);
     return response.data;
@@ -569,7 +569,7 @@ export class ApiService {
   async editClinicAppointment(appointmentId: number, data: {
     practitioner_id?: number | null;
     start_time?: string | null; // ISO datetime string
-    notes?: string;
+    clinic_notes?: string;
     notification_note?: string; // Optional note for notification (does not update appointment.notes)
   }): Promise<{ success: boolean; appointment_id: number; message: string }> {
     const response = await this.client.put(`/clinic/appointments/${appointmentId}`, data);
