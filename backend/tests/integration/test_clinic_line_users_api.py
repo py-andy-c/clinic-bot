@@ -137,9 +137,15 @@ class TestGetLineUsers:
         assert "line_users" in data
         assert len(data["line_users"]) == 1
     
-    def test_get_line_users_returns_line_users(self, client, test_clinic, admin_user, line_user_with_patient):
+    def test_get_line_users_returns_line_users(self, client, db_session, test_clinic, admin_user, line_user_with_patient):
         """Test that endpoint returns LINE users with AI status."""
         headers = get_auth_headers(admin_user, test_clinic.id)
+        
+        # Get the patient ID from the database
+        patient = db_session.query(Patient).filter(
+            Patient.line_user_id == line_user_with_patient.id
+        ).first()
+        assert patient is not None
         
         response = client.get("/api/clinic/line-users", headers=headers)
         
@@ -150,6 +156,10 @@ class TestGetLineUsers:
         assert data["line_users"][0]["line_user_id"] == "U_test_user_123"
         assert data["line_users"][0]["display_name"] == "Test LINE User"
         assert data["line_users"][0]["patient_count"] == 1
+        assert "patient_info" in data["line_users"][0]
+        assert len(data["line_users"][0]["patient_info"]) == 1
+        assert data["line_users"][0]["patient_info"][0]["id"] == patient.id
+        assert data["line_users"][0]["patient_info"][0]["name"] == "Test Patient"
         assert data["line_users"][0]["ai_disabled"] is False
     
     def test_get_line_users_includes_users_with_only_soft_deleted_patients(self, client, db_session, test_clinic, admin_user):
@@ -188,6 +198,7 @@ class TestGetLineUsers:
         assert data["line_users"][0]["line_user_id"] == "U_deleted_patient_user"
         assert data["line_users"][0]["patient_count"] == 0  # No active patients
         assert data["line_users"][0]["patient_names"] == []  # No active patient names
+        assert data["line_users"][0]["patient_info"] == []  # No active patient info
     
     def test_get_line_users_pagination(self, client, db_session, test_clinic, admin_user):
         """Test that endpoint supports pagination."""

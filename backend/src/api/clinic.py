@@ -3703,12 +3703,19 @@ async def delete_availability_exception(
 
 # ===== LINE User AI Control =====
 
+class PatientInfo(BaseModel):
+    """Patient information with ID and name."""
+    id: int
+    name: str
+
+
 class LineUserWithStatusResponse(BaseModel):
     """Response model for LineUser with AI status."""
     line_user_id: str
     display_name: Optional[str]
     patient_count: int
     patient_names: List[str]
+    patient_info: List[PatientInfo]  # List of patient info with id and name
     ai_disabled: bool
     disabled_at: Optional[datetime]
     picture_url: Optional[str] = None
@@ -3813,6 +3820,7 @@ async def get_line_users(
                 display_name=lu.display_name,
                 patient_count=lu.patient_count,
                 patient_names=lu.patient_names,
+                patient_info=[PatientInfo(id=pi['id'], name=pi['name']) for pi in lu.patient_info],
                 ai_disabled=lu.ai_disabled,
                 disabled_at=lu.disabled_at,
                 picture_url=lu.picture_url
@@ -4035,11 +4043,21 @@ async def update_line_user_display_name(
             Patient.is_deleted == False
         ).all()
         
+        # Build patient_info list (filter out None names)
+        patient_info_list = [
+            PatientInfo(id=p.id, name=p.full_name)
+            for p in patients
+            if p.full_name
+        ]
+        # Sort by ID for consistency
+        patient_info_list.sort(key=lambda x: x.id)
+        
         return LineUserWithStatusResponse(
             line_user_id=line_user.line_user_id,
             display_name=line_user.effective_display_name,  # This is the effective display name
             patient_count=len(patients),
             patient_names=sorted(list(set([p.full_name for p in patients if p.full_name]))),
+            patient_info=patient_info_list,
             ai_disabled=line_user.ai_disabled,
             disabled_at=line_user.ai_disabled_at,
             picture_url=line_user.picture_url

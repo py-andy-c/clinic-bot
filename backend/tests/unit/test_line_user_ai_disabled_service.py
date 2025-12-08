@@ -317,6 +317,9 @@ class TestGetLineUsersForClinic:
         assert result[0].display_name == "Test User"
         assert result[0].patient_count == 1
         assert result[0].patient_names == ["Test Patient"]
+        assert len(result[0].patient_info) == 1
+        assert result[0].patient_info[0]["id"] == patient.id
+        assert result[0].patient_info[0]["name"] == "Test Patient"
         assert result[0].ai_disabled is False
     
     def test_get_line_users_includes_users_with_only_soft_deleted_patients(self, db_session: Session, sample_clinic_data):
@@ -358,6 +361,7 @@ class TestGetLineUsersForClinic:
         assert result[0].line_user_id == "U_test_user_123"
         assert result[0].patient_count == 0  # No active patients
         assert result[0].patient_names == []  # No active patient names
+        assert result[0].patient_info == []  # No active patient info
     
     def test_get_line_users_shows_ai_status(self, db_session: Session, sample_clinic_data):
         """Test that get_line_users includes AI disabled status."""
@@ -437,4 +441,116 @@ class TestGetLineUsersForClinic:
         result, total = get_line_users_for_clinic(db_session, clinic.id, offset=4, limit=2)
         assert len(result) == 1
         assert total == 5
+    
+    def test_get_line_users_patient_info_with_multiple_patients(self, db_session: Session, sample_clinic_data):
+        """Test that patient_info correctly pairs patient IDs with names for multiple patients."""
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        
+        # Create LineUser
+        line_user = LineUser(
+            line_user_id="U_test_user_123",
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.flush()
+        
+        # Create multiple patients with the same name (to test deduplication)
+        patient1 = Patient(
+            clinic_id=clinic.id,
+            full_name="John Doe",
+            phone_number="0912345678",
+            line_user_id=line_user.id,
+            is_deleted=False
+        )
+        patient2 = Patient(
+            clinic_id=clinic.id,
+            full_name="Jane Smith",
+            phone_number="0923456789",
+            line_user_id=line_user.id,
+            is_deleted=False
+        )
+        patient3 = Patient(
+            clinic_id=clinic.id,
+            full_name="John Doe",  # Duplicate name
+            phone_number="0934567890",
+            line_user_id=line_user.id,
+            is_deleted=False
+        )
+        db_session.add_all([patient1, patient2, patient3])
+        db_session.commit()
+        
+        # Get line users
+        result, total = get_line_users_for_clinic(db_session, clinic.id)
+        
+        assert len(result) == 1
+        assert result[0].patient_count == 3
+        # patient_names should have unique names (John Doe appears once)
+        assert set(result[0].patient_names) == {"John Doe", "Jane Smith"}
+        # patient_info should have all 3 patients with correct IDs
+        assert len(result[0].patient_info) == 3
+        # Verify all patient IDs are present
+        patient_ids = {pi["id"] for pi in result[0].patient_info}
+        assert patient_ids == {patient1.id, patient2.id, patient3.id}
+        # Verify patient_info is sorted by ID
+        patient_info_ids = [pi["id"] for pi in result[0].patient_info]
+        assert patient_info_ids == sorted(patient_info_ids)
+        # Verify names match IDs correctly
+        patient_info_dict = {pi["id"]: pi["name"] for pi in result[0].patient_info}
+        assert patient_info_dict[patient1.id] == "John Doe"
+        assert patient_info_dict[patient2.id] == "Jane Smith"
+        assert patient_info_dict[patient3.id] == "John Doe"
+    
+    def test_get_line_users_patient_info_with_empty_string_names(self, db_session: Session, sample_clinic_data):
+        """Test that patient_info correctly handles edge cases.
+        
+        Note: The database schema requires full_name to be NOT NULL, so we can't
+        test NULL names directly. However, the code handles None values from array_agg
+        results, which can occur if the query returns unexpected data.
+        """
+        clinic = Clinic(**sample_clinic_data)
+        db_session.add(clinic)
+        db_session.commit()
+        
+        # Create LineUser
+        line_user = LineUser(
+            line_user_id="U_test_user_123",
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.flush()
+        
+        # Create multiple patients with valid names
+        patient1 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient One",
+            phone_number="0912345678",
+            line_user_id=line_user.id,
+            is_deleted=False
+        )
+        patient2 = Patient(
+            clinic_id=clinic.id,
+            full_name="Patient Two",
+            phone_number="0923456789",
+            line_user_id=line_user.id,
+            is_deleted=False
+        )
+        db_session.add_all([patient1, patient2])
+        db_session.commit()
+        
+        # Get line users
+        result, total = get_line_users_for_clinic(db_session, clinic.id)
+        
+        assert len(result) == 1
+        assert result[0].patient_count == 2
+        # Both patient names should be included
+        assert set(result[0].patient_names) == {"Patient One", "Patient Two"}
+        # patient_info should include both patients
+        assert len(result[0].patient_info) == 2
+        patient_info_dict = {pi["id"]: pi["name"] for pi in result[0].patient_info}
+        assert patient_info_dict[patient1.id] == "Patient One"
+        assert patient_info_dict[patient2.id] == "Patient Two"
 

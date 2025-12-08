@@ -319,9 +319,9 @@ const LineUsersPage: React.FC = () => {
     });
   };
 
-  const handlePatientNameClick = (patientName: string, e: React.MouseEvent) => {
+  const handlePatientNameClick = (patientId: number, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent row expansion when clicking patient name
-    navigate(`/admin/clinic/patients?patientName=${encodeURIComponent(patientName)}`);
+    navigate(`/admin/clinic/patients/${patientId}`);
   };
 
   // Only show full-page loading on initial load (when we have no previous data)
@@ -539,40 +539,40 @@ const LineUsersPage: React.FC = () => {
                                   <div className="text-sm text-gray-900">
                                     {lineUser.patient_count} 位病患
                                   </div>
-                                  {!isExpanded && lineUser.patient_names.length > 0 && (
+                                  {!isExpanded && lineUser.patient_info.length > 0 && (
                                     <div className="text-sm text-gray-500 mt-1">
-                                      {lineUser.patient_names.slice(0, 3).map((name, index, array) => (
-                                        <React.Fragment key={`${lineUser.line_user_id}-${name}-${index}`}>
+                                      {lineUser.patient_info.slice(0, 3).map((patient, index, array) => (
+                                        <React.Fragment key={`${lineUser.line_user_id}-${patient.id}-${index}`}>
                                           <button
-                                            onClick={(e) => handlePatientNameClick(name, e)}
+                                            onClick={(e) => handlePatientNameClick(patient.id, e)}
                                             className="text-blue-600 hover:text-blue-800 hover:underline"
                                           >
-                                            {name}
+                                            {patient.name}
                                           </button>
                                           {index < array.length - 1 && ', '}
                                         </React.Fragment>
                                       ))}
-                                      {lineUser.patient_names.length > 3 && ` 等${lineUser.patient_names.length}位`}
+                                      {lineUser.patient_info.length > 3 && ` 等${lineUser.patient_info.length}位`}
                                     </div>
                                   )}
                                   {isExpanded && (
                                     <div className="mt-2">
                                       <div className="text-sm text-gray-700 font-medium mb-1">所有病患：</div>
                                       <div className="text-sm text-gray-600 space-y-1">
-                                        {lineUser.patient_names.map((name, index) => (
+                                        {lineUser.patient_info.map((patient, index) => (
                                           <button
-                                            key={`${lineUser.line_user_id}-${name}-${index}`}
-                                            onClick={(e) => handlePatientNameClick(name, e)}
+                                            key={`${lineUser.line_user_id}-${patient.id}-${index}`}
+                                            onClick={(e) => handlePatientNameClick(patient.id, e)}
                                             className="text-blue-600 hover:text-blue-800 hover:underline block text-left"
                                           >
-                                            {name}
+                                            {patient.name}
                                           </button>
                                         ))}
                                       </div>
                                     </div>
                                   )}
                                 </div>
-                                {lineUser.patient_names.length > 0 && (
+                                {lineUser.patient_info.length > 0 && (
                                   <div className="ml-2 flex-shrink-0">
                                     <svg
                                       className={`h-5 w-5 text-gray-400 transition-transform ${isExpanded ? 'transform rotate-180' : ''}`}

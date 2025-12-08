@@ -128,11 +128,17 @@ export interface Patient {
 }
 
 // LINE User types
+export interface PatientInfo {
+  id: number;
+  name: string;
+}
+
 export interface LineUserWithStatus {
   line_user_id: string;
   display_name: string | null;
   patient_count: number;
   patient_names: string[];
+  patient_info: PatientInfo[];  // List of patient info with id and name
   ai_disabled: boolean;
   disabled_at?: string;
   picture_url?: string | null;

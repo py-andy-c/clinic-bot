@@ -7,7 +7,7 @@ is admin-controlled and persists until manually changed.
 """
 
 import logging
-from typing import Optional, List, cast
+from typing import Optional, List, cast, TypedDict
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -17,6 +17,12 @@ from models import LineUser, Patient
 from utils.datetime_utils import taiwan_now
 
 logger = logging.getLogger(__name__)
+
+
+class PatientInfoDict(TypedDict):
+    """Type definition for patient info dictionary."""
+    id: int
+    name: str
 
 
 def is_ai_disabled(
@@ -160,6 +166,7 @@ class LineUserWithStatus:
         display_name: Optional[str],
         patient_count: int,
         patient_names: List[str],
+        patient_info: List[PatientInfoDict],  # List of patient info with id and name
         ai_disabled: bool,
         disabled_at: Optional[datetime],
         picture_url: Optional[str] = None
@@ -168,6 +175,7 @@ class LineUserWithStatus:
         self.display_name = display_name
         self.patient_count = patient_count
         self.patient_names = patient_names
+        self.patient_info = patient_info
         self.ai_disabled = ai_disabled
         self.disabled_at = disabled_at
         self.picture_url = picture_url
@@ -189,13 +197,28 @@ def get_line_users_for_clinic(
     1. Gets all LineUsers for this clinic (filtered by clinic_id)
     2. Left joins with Patient records to get patient count and names
     3. AI status is already a field on LineUser (no join needed)
-    4. Aggregates patient names
+    4. Aggregates patient names and IDs using array_agg
     5. Supports pagination (page/page_size or offset/limit)
     6. Supports search by display_name or patient names
     
     Note: LineUsers are only created when users interact with the clinic (via webhook
     messages, follow events, or LIFF login), so all LineUsers in the database have
     already interacted with the clinic. We simply query all LineUsers for the clinic.
+    
+    Patient Info Mapping Approach:
+    ------------------------------
+    Since PostgreSQL's array_agg() doesn't guarantee order consistency between
+    separate aggregations, we use a mapping approach to ensure correct pairing
+    of patient IDs with names:
+    
+    1. Aggregate both patient IDs and names separately using array_agg()
+    2. Create a dictionary mapping patient ID -> name by zipping the arrays
+    3. Filter out None values (for patients with NULL names)
+    4. Convert to a sorted list of {id, name} dictionaries for consistency
+    
+    This approach ensures that even if the arrays are in different orders, each
+    patient ID is correctly paired with its name. The resulting patient_info list
+    is sorted by patient ID for deterministic ordering.
     
     Args:
         db: Database session
@@ -214,11 +237,13 @@ def get_line_users_for_clinic(
     # Query: Get all LineUsers for this clinic with patient information
     # Use LEFT JOIN so users without patients still appear (with 0 patient_count)
     # Use COALESCE to get effective display name (clinic_display_name if set, else display_name)
+    # Note: array_agg doesn't guarantee order, so we use a mapping approach to pair IDs with names
     base_query = db.query(
         LineUser.line_user_id,
         func.coalesce(LineUser.clinic_display_name, LineUser.display_name).label('display_name'),
         func.coalesce(func.count(func.distinct(Patient.id)), 0).label('patient_count'),
         func.array_agg(Patient.full_name).label('patient_names'),
+        func.array_agg(Patient.id).label('patient_ids'),
         LineUser.ai_disabled.label('ai_disabled'),
         LineUser.ai_disabled_at.label('disabled_at'),
         LineUser.picture_url.label('picture_url')
@@ -310,15 +335,31 @@ def get_line_users_for_clinic(
         # values if some patients have NULL full_name
         # Note: Users with messages but no patients will have patient_count=0 and patient_names=None
         patient_names_raw = row.patient_names
+        patient_ids_raw = row.patient_ids
         if patient_names_raw is None:
             patient_names: List[str] = []
+            patient_info: List[PatientInfoDict] = []
         else:
             # Cast to List[Optional[str]] first since array_agg may contain None values
             # Filter out None values in case some patients have NULL full_name
             patient_names_list = cast(List[Optional[str]], list(patient_names_raw))
-            patient_names = [name for name in patient_names_list if name is not None]
-        # Remove duplicates and sort
-        patient_names = sorted(list(set(patient_names)))
+            patient_ids_list = cast(List[Optional[int]], list(patient_ids_raw)) if patient_ids_raw is not None else []
+            
+            # Create a mapping of patient ID to name to ensure correct pairing
+            # This handles cases where arrays might not be in the same order
+            patient_id_to_name: dict[int, str] = {}
+            for pid, name in zip(patient_ids_list, patient_names_list):
+                if pid is not None and name is not None:
+                    patient_id_to_name[pid] = name
+            
+            # Create list of patient info (id, name) pairs, sorted by ID for consistency
+            patient_info: List[PatientInfoDict] = [
+                {'id': pid, 'name': name}
+                for pid, name in sorted(patient_id_to_name.items())
+            ]
+            
+            # Get unique names for backward compatibility
+            patient_names = sorted(list(set([name for name in patient_names_list if name is not None])))
         
         line_users_with_status.append(
             LineUserWithStatus(
@@ -326,6 +367,7 @@ def get_line_users_for_clinic(
                 display_name=row.display_name,
                 patient_count=row.patient_count,
                 patient_names=patient_names,
+                patient_info=patient_info,
                 ai_disabled=bool(row.ai_disabled) if row.ai_disabled is not None else False,
                 disabled_at=row.disabled_at,
                 picture_url=row.picture_url
