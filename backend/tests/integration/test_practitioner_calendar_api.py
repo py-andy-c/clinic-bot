@@ -1554,3 +1554,260 @@ class TestPractitionerCalendarAPI:
         # Verify appointment was not changed
         db_session.refresh(appointment)
         assert appointment.calendar_event.start_time == time(10, 0)
+
+    def test_update_appointment_event_name(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test updating appointment event name."""
+        clinic, practitioner = test_clinic_and_practitioner
+        
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=30
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+        
+        # Create patient
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.flush()
+        
+        # Create appointment
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="appointment",
+            event_date=date(2025, 1, 15),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.flush()
+        
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.commit()
+        
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+        
+        # Update event name
+        response = client.put(
+            f"/api/clinic/calendar-events/{calendar_event.id}/event-name",
+            json={"event_name": "Custom Event Name"},
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["event_name"] == "Custom Event Name"
+        
+        # Verify event name was updated
+        db_session.refresh(calendar_event)
+        assert calendar_event.custom_event_name == "Custom Event Name"
+        
+        # Test clearing event name (use default)
+        response = client.put(
+            f"/api/clinic/calendar-events/{calendar_event.id}/event-name",
+            json={"event_name": None},
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        assert response.status_code == 200
+        db_session.refresh(calendar_event)
+        assert calendar_event.custom_event_name is None
+
+    def test_update_availability_exception_event_name(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test updating availability exception event name."""
+        clinic, practitioner = test_clinic_and_practitioner
+        
+        # Create availability exception
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="availability_exception",
+            event_date=date(2025, 1, 15),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.flush()
+        
+        exception = AvailabilityException(
+            calendar_event_id=calendar_event.id
+        )
+        db_session.add(exception)
+        db_session.commit()
+        
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+        
+        # Update event name
+        response = client.put(
+            f"/api/clinic/calendar-events/{calendar_event.id}/event-name",
+            json={"event_name": "Custom 休診 Name"},
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["event_name"] == "Custom 休診 Name"
+        
+        # Verify event name was updated
+        db_session.refresh(calendar_event)
+        assert calendar_event.custom_event_name == "Custom 休診 Name"
+
+    def test_update_event_name_permissions(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test that practitioners can only update their own event names."""
+        clinic, practitioner1 = test_clinic_and_practitioner
+        
+        # Create second practitioner
+        practitioner2, _ = create_user_with_clinic_association(
+            db_session=db_session,
+            clinic=clinic,
+            full_name="Dr. Test 2",
+            email="practitioner2@example.com",
+            google_subject_id="practitioner2_subject",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.flush()
+        
+        # Create appointment for practitioner1
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner1, clinic,
+            event_type="appointment",
+            event_date=date(2025, 1, 15),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.flush()
+        
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=30
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+        
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.flush()
+        
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.commit()
+        
+        # Practitioner2 tries to update practitioner1's event name
+        token2 = get_auth_token(client, practitioner2.email)
+        response = client.put(
+            f"/api/clinic/calendar-events/{calendar_event.id}/event-name",
+            json={"event_name": "Unauthorized Update"},
+            headers={"Authorization": f"Bearer {token2}"}
+        )
+        
+        assert response.status_code == 403
+        assert "您只能編輯自己的事件" in response.json()["detail"]
+        
+        # Admin can update any event
+        admin, _ = create_user_with_clinic_association(
+            db_session=db_session,
+            clinic=clinic,
+            full_name="Admin User",
+            email="admin@example.com",
+            google_subject_id="admin_subject",
+            roles=["admin"],
+            is_active=True
+        )
+        db_session.flush()
+        
+        admin_token = get_auth_token(client, admin.email)
+        response = client.put(
+            f"/api/clinic/calendar-events/{calendar_event.id}/event-name",
+            json={"event_name": "Admin Updated Name"},
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        
+        assert response.status_code == 200
+        db_session.refresh(calendar_event)
+        assert calendar_event.custom_event_name == "Admin Updated Name"
+
+    def test_update_event_name_validation(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test event name validation (max length)."""
+        clinic, practitioner = test_clinic_and_practitioner
+        
+        # Create appointment
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="appointment",
+            event_date=date(2025, 1, 15),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.flush()
+        
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=30
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+        
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.flush()
+        
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.commit()
+        
+        token = get_auth_token(client, practitioner.email)
+        
+        # Test name too long (over 100 characters)
+        long_name = "a" * 101
+        response = client.put(
+            f"/api/clinic/calendar-events/{calendar_event.id}/event-name",
+            json={"event_name": long_name},
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        assert response.status_code == 422  # Validation error
+        
+        # Test empty string (should be treated as null)
+        response = client.put(
+            f"/api/clinic/calendar-events/{calendar_event.id}/event-name",
+            json={"event_name": ""},
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        
+        assert response.status_code == 200
+        db_session.refresh(calendar_event)
+        assert calendar_event.custom_event_name is None

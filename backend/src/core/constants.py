@@ -4,6 +4,7 @@ from core.config import FRONTEND_URL
 
 # Database field lengths
 MAX_STRING_LENGTH = 255
+MAX_EVENT_NAME_LENGTH = 100  # Maximum length for custom calendar event names
 
 # OAuth and authentication
 GOOGLE_OAUTH_SCOPES = [

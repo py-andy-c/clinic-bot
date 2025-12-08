@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 from core.database import get_db
 from core.config import FRONTEND_URL
+from core.constants import MAX_EVENT_NAME_LENGTH
 from auth.dependencies import require_admin_role, require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
 from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation, Appointment, AvailabilityException, Patient, LineUser
 from models.clinic import ClinicSettings, ChatSettings as ChatSettingsModel
@@ -1870,6 +1871,22 @@ class AppointmentEditRequest(BaseModel):
         return datetime_validator('start_time')(cls, values)
 
 
+class UpdateEventNameRequest(BaseModel):
+    """Request model for updating calendar event name."""
+    event_name: Optional[str] = None  # None or empty string means use default format
+    
+    @field_validator('event_name')
+    @classmethod
+    def validate_event_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            v = v.strip()
+            if v == "":
+                return None  # Empty string means use default
+            if len(v) > MAX_EVENT_NAME_LENGTH:
+                raise ValueError(f'事件名稱過長（最多 {MAX_EVENT_NAME_LENGTH} 字元）')
+        return v
+
+
 class AppointmentEditPreviewRequest(BaseModel):
     """Request model for previewing edit notification."""
     new_practitioner_id: Optional[int] = None
@@ -2131,6 +2148,84 @@ async def edit_clinic_appointment(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="編輯預約失敗"
+        )
+
+
+@router.put("/calendar-events/{calendar_event_id}/event-name", summary="Update calendar event name")
+async def update_calendar_event_name(
+    calendar_event_id: int,
+    request: UpdateEventNameRequest,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Update the custom event name for a calendar event (appointment or availability exception).
+    
+    Admin can edit any event.
+    Practitioners can only edit their own events.
+    Read-only users cannot edit.
+    
+    If event_name is null or empty, the default format will be used:
+    - For appointments: "{patient_name} - {appointment_type_name}"
+    - For availability exceptions: "休診"
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Check if user is read-only
+        if current_user.has_role('read-only'):
+            raise HTTPException(
+                status_code=http_status.HTTP_403_FORBIDDEN,
+                detail="您沒有權限編輯事件名稱"
+            )
+        
+        # Get calendar event
+        calendar_event = db.query(CalendarEvent).filter(
+            CalendarEvent.id == calendar_event_id,
+            CalendarEvent.clinic_id == clinic_id
+        ).first()
+        
+        if not calendar_event:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="找不到此事件"
+            )
+        
+        # Check permissions
+        is_admin = current_user.has_role('admin')
+        if not is_admin:
+            # Practitioners can only edit their own events
+            if calendar_event.user_id != current_user.user_id:
+                raise HTTPException(
+                    status_code=http_status.HTTP_403_FORBIDDEN,
+                    detail="您只能編輯自己的事件"
+                )
+        
+        # Update custom_event_name
+        calendar_event.custom_event_name = request.event_name
+        db.commit()
+        db.refresh(calendar_event)
+        
+        logger.info(
+            f"Updated custom_event_name for calendar_event_id={calendar_event_id}, "
+            f"clinic_id={clinic_id}, new_name={request.event_name}"
+        )
+        
+        return {
+            "success": True,
+            "message": "事件名稱已更新",
+            "calendar_event_id": calendar_event_id,
+            "event_name": request.event_name
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to update event name: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="更新事件名稱失敗"
         )
 
 
@@ -2622,6 +2717,29 @@ def _check_time_overlap(start1: time, end1: time, start2: time, end2: time) -> b
     return start1 < end2 and start2 < end1
 
 
+def _get_event_title(event: CalendarEvent, appointment: Optional[Appointment] = None) -> str:
+    """
+    Get the event title for a calendar event.
+    
+    If custom_event_name is set, use it. Otherwise, use the default format:
+    - For appointments: "{patient_name} - {appointment_type_name}"
+    - For availability exceptions: "休診"
+    """
+    if event.custom_event_name:
+        return event.custom_event_name
+    
+    if event.event_type == 'appointment' and appointment:
+        appointment_type_name = _get_appointment_type_name(appointment)
+        return f"{appointment.patient.full_name} - {appointment_type_name or '未設定'}"
+    elif event.event_type == 'availability_exception':
+        return "休診"
+    
+    # Fallback (should not happen in normal operation)
+    # This handles edge cases like corrupted data or unexpected event types
+    logger.warning(f"Unexpected event type or missing appointment for calendar_event_id={event.id}, event_type={event.event_type}")
+    return "未知事件"
+
+
 def _get_appointment_type_name(appointment: Appointment) -> Optional[str]:
     """
     Safely get appointment type name, returning None if appointment_type is not set.
@@ -2940,7 +3058,7 @@ async def get_calendar_data(
                             type='appointment',
                             start_time=_format_time(event.start_time) if event.start_time else None,
                             end_time=_format_time(event.end_time) if event.end_time else None,
-                            title=f"{appointment.patient.full_name} - {appointment_type_name or '未設定'}",
+                            title=_get_event_title(event, appointment),
                             patient_id=appointment.patient_id,
                             appointment_type_id=appointment.appointment_type_id,
                             status=appointment.status,
@@ -2964,7 +3082,7 @@ async def get_calendar_data(
                             type='availability_exception',
                             start_time=_format_time(event.start_time) if event.start_time else None,
                             end_time=_format_time(event.end_time) if event.end_time else None,
-                            title="休診",
+                            title=_get_event_title(event),
                             exception_id=exception.id
                         ))
             
@@ -3173,7 +3291,7 @@ async def get_batch_calendar(
                                 type='appointment',
                                 start_time=_format_time(event.start_time) if event.start_time else None,
                                 end_time=_format_time(event.end_time) if event.end_time else None,
-                                title=f"{appointment.patient.full_name} - {appointment_type_name or '未設定'}",
+                                title=_get_event_title(event, appointment),
                                 patient_id=appointment.patient_id,
                                 appointment_type_id=appointment.appointment_type_id,
                                 status=appointment.status,
@@ -3195,7 +3313,7 @@ async def get_batch_calendar(
                                 type='availability_exception',
                                 start_time=_format_time(event.start_time) if event.start_time else None,
                                 end_time=_format_time(event.end_time) if event.end_time else None,
-                                title="休診",
+                                title=_get_event_title(event),
                                 exception_id=exception.id
                             ))
                 

@@ -378,6 +378,13 @@ export class ApiService {
     return response.data;
   }
 
+  async updateCalendarEventName(calendarEventId: number, eventName: string | null): Promise<{ success: boolean; message: string; calendar_event_id: number; event_name: string | null }> {
+    const response = await this.client.put(`/clinic/calendar-events/${calendarEventId}/event-name`, {
+      event_name: eventName
+    });
+    return response.data;
+  }
+
   async getClinicSettings(): Promise<ClinicSettings> {
     const response = await this.client.get('/clinic/settings');
     return validateClinicSettings(response.data);

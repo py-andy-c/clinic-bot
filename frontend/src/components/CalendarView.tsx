@@ -234,6 +234,19 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     return transformToCalendarEvents(events);
   }, [allEvents]); // Removed unused dependencies: defaultSchedule, currentDate, view
 
+  // Sync modalState with updated calendar events after refresh
+  useEffect(() => {
+    if (modalState.type === 'event' && modalState.data) {
+      const eventId = modalState.data.resource.calendar_event_id;
+      const updatedEvent = calendarEvents.find(
+        e => e.resource.calendar_event_id === eventId
+      );
+      if (updatedEvent && updatedEvent.title !== modalState.data.title) {
+        setModalState(prev => ({ ...prev, data: updatedEvent }));
+      }
+    }
+  }, [calendarEvents, modalState.type, modalState.data?.resource.calendar_event_id]); // Sync when calendarEvents updates (after refresh)
+
   // Sync column widths between header and event columns for proper alignment in week view
   // This must be after calendarEvents is declared
   useEffect(() => {
@@ -414,9 +427,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     };
   }, [view, currentDate, calendarEvents.length]);
 
-  // Scroll week view to 9 AM (same as day view)
-  useEffect(() => {
-    if (view !== Views.WEEK) return;
+  // Reusable function to scroll week view to 9 AM
+  const scrollWeekViewTo9AM = useCallback(() => {
+    if (view !== Views.WEEK || !calendarContainerRef.current) return;
 
     const SCROLL_DELAY_MS = 300; // Delay to ensure calendar is fully rendered
     const MAX_RETRIES = 10; // Maximum retries to find 9 AM slot
@@ -425,11 +438,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     const ESTIMATED_SLOT_HEIGHT_PX = 60; // pixels per hour
 
     let retryCount = 0;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    let isActive = true; // Track if effect is still active
 
     const scrollTo9AM = (): boolean => {
-      if (!isActive || !calendarContainerRef.current) return false;
+      if (!calendarContainerRef.current) return false;
 
       const timeView = calendarContainerRef.current.querySelector('.rbc-time-view') as HTMLElement;
       if (!timeView) return false;
@@ -441,9 +452,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       const timeLabels = timeGutter.querySelectorAll('.rbc-label');
       if (timeLabels.length === 0) {
         // Calendar not ready yet, retry
-        if (retryCount < MAX_RETRIES && isActive) {
+        if (retryCount < MAX_RETRIES) {
           retryCount++;
-          timeoutId = setTimeout(scrollTo9AM, RETRY_DELAY_MS);
+          setTimeout(scrollTo9AM, RETRY_DELAY_MS);
           return false;
         }
         // Retries exhausted - will use estimated position below
@@ -488,23 +499,21 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     };
 
     // Use double RAF to ensure DOM is ready, then wait for calendar to fully render
-    const rafId = requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         // Wait a bit longer to ensure React Big Calendar has finished its own scroll operations
-        timeoutId = setTimeout(() => {
+        setTimeout(() => {
           scrollTo9AM();
         }, SCROLL_DELAY_MS);
       });
     });
+  }, [view]);
 
-    return () => {
-      isActive = false;
-      cancelAnimationFrame(rafId);
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, [view, currentDate]);
+  // Scroll week view to 9 AM on initial load (same as day view)
+  useEffect(() => {
+    if (view !== Views.WEEK) return;
+    scrollWeekViewTo9AM();
+  }, [view, currentDate, scrollWeekViewTo9AM]);
 
   // isMobile is already declared above
 
@@ -1272,6 +1281,41 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 : undefined
             }
             formatAppointmentTime={formatAppointmentTime}
+            onEventNameUpdated={async (newName: string | null) => {
+              // Store original state for potential rollback
+              const originalEvent = modalState.data;
+              
+              // Update the event in modalState immediately to reflect the change in the modal
+              if (modalState.data) {
+                // Optimistically update the title in the modal
+                const updatedEvent = {
+                  ...modalState.data,
+                  title: newName || modalState.data.title
+                };
+                setModalState(prev => ({ ...prev, data: updatedEvent }));
+              }
+              
+              try {
+                // Refresh calendar data to get the updated event (with proper default title if newName is null)
+                // The useEffect above will sync the modalState with the refreshed event
+                await fetchCalendarData(true);
+                
+                // Scroll to 9am in week view after refresh (same as initial load)
+                if (view === Views.WEEK) {
+                  // Wait a bit for the calendar to re-render after refresh
+                  setTimeout(() => {
+                    scrollWeekViewTo9AM();
+                  }, 100);
+                }
+              } catch (error) {
+                // Revert optimistic update on error
+                if (originalEvent) {
+                  setModalState(prev => ({ ...prev, data: originalEvent }));
+                }
+                // Error is already handled in EventModal, so we just log here
+                logger.error('Failed to refresh calendar after event name update:', error);
+              }
+            }}
           />
         );
       })()}

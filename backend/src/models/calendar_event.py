@@ -12,6 +12,7 @@ from sqlalchemy import String, TIMESTAMP, ForeignKey, Date, Time, Index, CheckCo
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
+from core.constants import MAX_EVENT_NAME_LENGTH
 
 
 class CalendarEvent(Base):
@@ -65,6 +66,16 @@ class CalendarEvent(Base):
 
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     """Timestamp when the calendar event was last updated."""
+
+    custom_event_name: Mapped[Optional[str]] = mapped_column(String(MAX_EVENT_NAME_LENGTH), nullable=True)
+    """
+    Custom event name for calendar display.
+    
+    If set, this name will be used instead of the default format.
+    For appointments: defaults to "{patient_name} - {appointment_type_name}"
+    For availability exceptions: defaults to "休診"
+    If null, the default format is used.
+    """
 
     # Relationships
     user = relationship("User", back_populates="calendar_events")

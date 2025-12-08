@@ -4,9 +4,15 @@
  * Modal for displaying calendar event details (appointments or availability exceptions).
  */
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { BaseModal } from './BaseModal';
+import { apiService } from '../../services/api';
+import { logger } from '../../utils/logger';
+
+// Maximum length for custom event names
+// Must match backend/src/core/constants.py MAX_EVENT_NAME_LENGTH = 100
+const MAX_EVENT_NAME_LENGTH = 100;
 
 export interface EventModalProps {
   event: CalendarEvent;
@@ -15,6 +21,7 @@ export interface EventModalProps {
   onDeleteException?: (() => void | Promise<void>) | undefined;
   onEditAppointment?: (() => void | Promise<void>) | undefined;
   formatAppointmentTime: (start: Date, end: Date) => string;
+  onEventNameUpdated?: (newName: string | null) => void | Promise<void>;
 }
 
 export const EventModal: React.FC<EventModalProps> = React.memo(({
@@ -24,19 +31,130 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
   onDeleteException,
   onEditAppointment,
   formatAppointmentTime,
+  onEventNameUpdated,
 }) => {
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editingName, setEditingName] = useState(event.title);
+  const [isSaving, setIsSaving] = useState(false);
+  const [currentTitle, setCurrentTitle] = useState(event.title);
+
+  // Update currentTitle when event.title changes (e.g., after calendar refresh)
+  React.useEffect(() => {
+    setCurrentTitle(event.title);
+  }, [event.title]);
+
+  const handleStartEdit = useCallback(() => {
+    setEditingName(currentTitle);
+    setIsEditingName(true);
+  }, [currentTitle]);
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditingName(false);
+    setEditingName(currentTitle);
+  }, [currentTitle]);
+
+  const handleSaveName = useCallback(async () => {
+    if (isSaving) return;
+    
+    // Frontend validation: check max length before sending
+    const trimmedName = editingName.trim();
+    if (trimmedName.length > MAX_EVENT_NAME_LENGTH) {
+      alert(`事件名稱過長（最多 ${MAX_EVENT_NAME_LENGTH} 字元）`);
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      // Normalize: empty string or null means use default
+      const nameToSave = trimmedName === '' ? null : trimmedName;
+      
+      await apiService.updateCalendarEventName(event.resource.calendar_event_id, nameToSave);
+      
+      // Update local state immediately with the saved name
+      // If nameToSave is null, the backend will return the default format after refresh
+      // We'll use the saved name for now, and the useEffect will sync with the refreshed event
+      const newTitle = nameToSave || event.title;
+      
+      setCurrentTitle(newTitle);
+      setIsEditingName(false);
+      
+      // Notify parent to update the event and refresh calendar
+      // The refresh will provide the correct default title if nameToSave is null
+      if (onEventNameUpdated) {
+        await onEventNameUpdated(nameToSave);
+      }
+    } catch (error) {
+      logger.error('Error updating event name:', error);
+      alert('更新事件名稱失敗，請重試');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [editingName, event.resource.calendar_event_id, event.title, onEventNameUpdated, isSaving]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSaveName();
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
+  }, [handleSaveName, handleCancelEdit]);
+
+  const displayTitle = currentTitle;
+
   return (
     <BaseModal
       onClose={onClose}
       aria-label={event.resource.type === 'appointment' ? '預約詳情' : '休診詳情'}
     >
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">
-          {event.resource.type === 'appointment' ? event.title : '休診'}
-        </h3>
+        {isEditingName ? (
+          <div className="flex items-center gap-1 flex-1">
+            <input
+              type="text"
+              value={editingName}
+              onChange={(e) => setEditingName(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="flex-1 px-2 py-1 text-lg font-semibold border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              autoFocus
+              disabled={isSaving}
+              maxLength={MAX_EVENT_NAME_LENGTH}
+            />
+            <button
+              onClick={handleSaveName}
+              disabled={isSaving}
+              className="px-2 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="儲存"
+            >
+              {isSaving ? '...' : '✓'}
+            </button>
+            <button
+              onClick={handleCancelEdit}
+              disabled={isSaving}
+              className="px-2 py-1 text-sm text-gray-600 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="取消"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <h3 className="text-lg font-semibold truncate" title={displayTitle}>
+              {displayTitle}
+            </h3>
+            <button
+              onClick={handleStartEdit}
+              className="px-1 py-1 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+              title="編輯事件名稱"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+          </div>
+        )}
         <button
           onClick={onClose}
-          className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+          className="p-1 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
           aria-label="關閉"
         >
           <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
