@@ -8,13 +8,13 @@ import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { useAuth } from '../hooks/useAuth';
 
 const ClinicDashboardPage: React.FC = () => {
-  const { isLoading: authLoading, isAuthenticated } = useAuth();
+  const { isLoading: authLoading, isAuthenticated, user } = useAuth();
 
   const fetchDashboardMetrics = useCallback(() => apiService.getDashboardMetrics(), []);
 
   const { data, loading, error } = useApiData(fetchDashboardMetrics, {
     enabled: !authLoading && isAuthenticated,
-    dependencies: [authLoading, isAuthenticated],
+    dependencies: [authLoading, isAuthenticated, user?.active_clinic_id],
     defaultErrorMessage: '無法載入儀表板數據',
     cacheTTL: 2 * 60 * 1000, // 2 minutes cache
   });

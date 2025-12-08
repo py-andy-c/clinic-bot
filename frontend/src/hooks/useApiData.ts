@@ -370,6 +370,9 @@ export function useApiData<T>(
   const isMountedRef = useRef(true);
   // Track active lock for cleanup on unmount
   const activeLockRef = useRef<string | null>(null);
+  // Store latest dependencies in ref so performFetch always uses current values
+  // without needing to be recreated on every render
+  const dependenciesRef = useRef(dependencies);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -383,6 +386,11 @@ export function useApiData<T>(
     };
   }, []);
 
+  // Update dependencies ref whenever dependencies change
+  useEffect(() => {
+    dependenciesRef.current = dependencies;
+  }, [dependencies]);
+
   const performFetch = useCallback(async () => {
     if (!enabled) {
       return;
@@ -391,7 +399,8 @@ export function useApiData<T>(
     // Check in-flight requests first to prevent race conditions
     // Compute cache key synchronously to ensure we use the latest key
     // Include dependencies in cache key to differentiate between different parameter values
-    const cacheKey = getCacheKey(fetchFn, dependencies);
+    // Use ref to always get the latest dependencies without recreating this callback
+    const cacheKey = getCacheKey(fetchFn, dependenciesRef.current);
     if (cacheKey && inFlightRequests.has(cacheKey)) {
       try {
         const result = await inFlightRequests.get(cacheKey)!;
