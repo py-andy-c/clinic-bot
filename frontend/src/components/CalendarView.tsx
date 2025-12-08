@@ -560,8 +560,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     const startDateStr = moment(start).format('YYYY-MM-DD');
     const endDateStr = moment(end).format('YYYY-MM-DD');
     
-    // Create cache key
-    const cacheKey = `${allPractitionerIds.join(',')}-${startDateStr}-${endDateStr}`;
+    // Create cache key - include clinic ID to prevent stale data when switching clinics
+    const clinicId = user?.active_clinic_id ?? 'no-clinic';
+    const cacheKey = `${clinicId}-${allPractitionerIds.join(',')}-${startDateStr}-${endDateStr}`;
     
     // If force refresh, clear both caches for this specific key
     if (forceRefresh) {
@@ -687,9 +688,29 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         setLoading(false);
       }
     }
-  }, [userId, additionalPractitionerIds, currentDate, view, practitionerMap]);
+  }, [userId, additionalPractitionerIds, currentDate, view, practitionerMap, user?.active_clinic_id]);
 
-  // Fetch calendar data when date/view/practitioners change
+  // Invalidate cache when clinic changes to prevent stale data
+  const previousClinicIdRef = useRef<number | null | undefined>(user?.active_clinic_id ?? null);
+  useEffect(() => {
+    const currentClinicId = user?.active_clinic_id;
+    // If clinic changed (and we had a previous clinic), invalidate all cache
+    if (previousClinicIdRef.current !== null && previousClinicIdRef.current !== undefined && 
+        currentClinicId !== previousClinicIdRef.current) {
+      // Clear all cached calendar data
+      cachedCalendarDataRef.current.clear();
+      // Clear all in-flight requests
+      inFlightBatchRequestsRef.current.clear();
+      logger.log('Clinic changed, invalidated calendar cache', { 
+        from: previousClinicIdRef.current, 
+        to: currentClinicId 
+      });
+    }
+    // Update ref to track current clinic
+    previousClinicIdRef.current = currentClinicId ?? null;
+  }, [user?.active_clinic_id]);
+
+  // Fetch calendar data when date/view/practitioners/clinic change
   useEffect(() => {
     fetchCalendarData();
   }, [fetchCalendarData]);

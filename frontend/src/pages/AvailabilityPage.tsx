@@ -36,11 +36,12 @@ const AvailabilityPage: React.FC = () => {
   const fetchPractitionersFn = sharedFetchFunctions.getPractitioners;
 
   // Use useApiData for practitioners with caching and request deduplication
+  // Include active_clinic_id in dependencies to refetch when clinic changes
   const { data: practitionersData, loading: practitionersLoading } = useApiData(
     fetchPractitionersFn,
     {
       enabled: !authLoading && isAuthenticated,
-      dependencies: [authLoading, isAuthenticated],
+      dependencies: [authLoading, isAuthenticated, user?.active_clinic_id],
       cacheTTL: 5 * 60 * 1000, // 5 minutes cache
     }
   );
