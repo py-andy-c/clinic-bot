@@ -41,7 +41,6 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
   const [currentTitle, setCurrentTitle] = useState(event.title);
   const [clinicNotes, setClinicNotes] = useState(event.resource.clinic_notes || '');
   const [isSavingClinicNotes, setIsSavingClinicNotes] = useState(false);
-  const [isEditingClinicNotes, setIsEditingClinicNotes] = useState(false);
 
   // Update currentTitle when event.title changes (e.g., after calendar refresh)
   React.useEffect(() => {
@@ -230,27 +229,8 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 <p><strong>病患備註:</strong> {event.resource.notes}</p>
               )}
               <div>
-                <p><strong>診所備注:</strong></p>
-                <textarea
-                  value={clinicNotes}
-                  onChange={(e) => setClinicNotes(e.target.value)}
-                  onFocus={() => setIsEditingClinicNotes(true)}
-                  onBlur={() => {
-                    // Use setTimeout to allow button click to register before blur
-                    setTimeout(() => setIsEditingClinicNotes(false), 200);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 resize-y mt-1"
-                  placeholder="診所內部備注（僅診所人員可見）"
-                  rows={3}
-                  maxLength={1000}
-                  disabled={isSavingClinicNotes}
-                />
-                <div className="flex items-center justify-between mt-1">
-                  {isEditingClinicNotes && (
-                    <p className="text-xs text-gray-500">
-                      {clinicNotes.length}/1000
-                    </p>
-                  )}
+                <div className="flex items-center justify-between mb-1">
+                  <p><strong>診所備注:</strong></p>
                   {clinicNotes.trim() !== (event.resource.clinic_notes || '').trim() && (
                     <button
                       onClick={(e) => {
@@ -265,6 +245,15 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                     </button>
                   )}
                 </div>
+                <textarea
+                  value={clinicNotes}
+                  onChange={(e) => setClinicNotes(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 resize-y"
+                  placeholder="診所內部備注（僅診所人員可見）"
+                  rows={3}
+                  maxLength={1000}
+                  disabled={isSavingClinicNotes}
+                />
               </div>
             </div>
           </>
