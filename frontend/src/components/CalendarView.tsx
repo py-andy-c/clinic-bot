@@ -830,13 +830,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
 
     // Navigate based on swipe direction
+    const unit = view === Views.MONTH ? 'month' : view === Views.WEEK ? 'week' : 'day';
     if (deltaX > 0) {
       // Swipe right - go to previous
-      const newDate = moment(currentDate).subtract(1, view === Views.WEEK ? 'week' : 'day').toDate();
+      const newDate = moment(currentDate).subtract(1, unit).toDate();
       handleNavigate(newDate);
     } else {
       // Swipe left - go to next
-      const newDate = moment(currentDate).add(1, view === Views.WEEK ? 'week' : 'day').toDate();
+      const newDate = moment(currentDate).add(1, unit).toDate();
       handleNavigate(newDate);
     }
   }, [isMobile, currentDate, view, handleNavigate]);

@@ -139,7 +139,10 @@ const SystemClinicsPage: React.FC = () => {
         updateData.subscription_status = editingClinic.subscription_status;
       }
       if (editingClinic.liff_id !== undefined && editingClinic.liff_id !== (selectedClinic.liff_id || '')) {
-        updateData.liff_id = editingClinic.liff_id || undefined; // Convert empty string to undefined
+        // Set liff_id: convert empty string to null for clearing, or use the string value
+        // Type assertion needed: exactOptionalPropertyTypes doesn't allow undefined, but backend
+        // accepts null (Optional[str] in Python) to clear the value
+        (updateData as any).liff_id = editingClinic.liff_id.trim() === '' ? null : editingClinic.liff_id;
       }
 
       await apiService.updateClinic(selectedClinic.id, updateData);
