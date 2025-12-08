@@ -540,7 +540,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Fetch all events for the visible date range using batch endpoint
   // Memoize fetchCalendarData to prevent unnecessary re-renders and enable proper dependency tracking
-  const fetchCalendarData = useCallback(async (forceRefresh: boolean = false) => {
+  const fetchCalendarData = useCallback(async (forceRefresh: boolean = false, silent: boolean = false) => {
     if (!userId) return;
 
     // Monthly view is just for navigation - don't fetch events
@@ -612,7 +612,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
     // Data not in cache or expired - fetch it
     try {
-      setLoading(true);
+      // Only show loading state if not silent
+      if (!silent) {
+        setLoading(true);
+      }
       setError(null);
 
       // Create the fetch promise and store it for deduplication
@@ -674,10 +677,15 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     } catch (err) {
       // Remove from in-flight requests on error
       inFlightBatchRequestsRef.current.delete(cacheKey);
-      setError('無法載入月曆資料');
+      // Only show error if not silent (silent refreshes shouldn't disrupt UI)
+      if (!silent) {
+        setError('無法載入月曆資料');
+      }
       logger.error('Fetch calendar data error:', err);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [userId, additionalPractitionerIds, currentDate, view, practitionerMap]);
 
@@ -1294,18 +1302,25 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               // Store original state for potential rollback
               const originalEvent = modalState.data;
               
+              // Optimistic update: immediately update modalState.data for instant UI feedback
+              // For event name updates (_newName is a non-empty string), update the title immediately
+              // For clinic notes updates or cleared event names (_newName === null), we'll refresh silently and let useEffect sync
+              if (_newName !== null && _newName.trim() !== '' && originalEvent) {
+                // Event name was updated - optimistically update the title
+                setModalState(prev => ({
+                  ...prev,
+                  data: {
+                    ...prev.data,
+                    title: _newName.trim(),
+                  }
+                }));
+              }
+              
               try {
-                // Refresh calendar data to get the updated event (with proper default title if _newName is null, or updated clinic_notes)
-                // The useEffect above will sync the modalState with the refreshed event
-                await fetchCalendarData(true);
-                
-                // Scroll to 9am in week view after refresh (same as initial load)
-                if (view === Views.WEEK) {
-                  // Wait a bit for the calendar to re-render after refresh
-                  setTimeout(() => {
-                    scrollWeekViewTo9AM();
-                  }, 100);
-                }
+                // Refresh calendar data silently in background (no loading spinner)
+                // The useEffect above will sync the modalState with the refreshed event when it completes
+                // This ensures we get the correct default title if _newName was null/empty
+                await fetchCalendarData(true, true); // forceRefresh=true, silent=true
               } catch (error) {
                 // Revert optimistic update on error
                 if (originalEvent) {
