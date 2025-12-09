@@ -125,18 +125,33 @@ describe('DateTimePicker', () => {
     onHasAvailableSlotsChange: mockOnHasAvailableSlotsChange,
   };
 
-  it('should render collapsed view initially', () => {
+  it('should auto-expand when empty', async () => {
     render(<DateTimePicker {...defaultProps} />);
     
-    expect(screen.getByText('請選擇')).toBeInTheDocument();
-    expect(screen.queryByText('可預約時段')).not.toBeInTheDocument();
+    // Should auto-expand when empty (no date or time selected)
+    // Check for calendar navigation buttons which are always visible when expanded
+    await waitFor(() => {
+      expect(screen.getByLabelText('上個月')).toBeInTheDocument();
+    }, { timeout: 3000 });
+    
+    // Should not show collapsed button
+    expect(screen.queryByText('請選擇')).not.toBeInTheDocument();
   });
 
   it('should expand when clicking collapsed button', async () => {
-    render(<DateTimePicker {...defaultProps} />);
+    // Render with date and time selected so it starts collapsed
+    render(
+      <DateTimePicker
+        {...defaultProps}
+        selectedDate="2024-01-15"
+        selectedTime="09:00"
+      />
+    );
     
-    const button = screen.getByText('請選擇').closest('button');
+    // Should be collapsed initially when both date and time are selected
+    const button = screen.getByText(/2024/).closest('button');
     expect(button).toBeInTheDocument();
+    expect(screen.queryByText('可預約時段')).not.toBeInTheDocument();
     
     fireEvent.click(button!);
     
@@ -175,9 +190,7 @@ describe('DateTimePicker', () => {
       />
     );
     
-    const button = screen.getByText('請選擇').closest('button');
-    fireEvent.click(button!);
-    
+    // Should auto-expand when time is empty
     await waitFor(() => {
       expect(screen.getByText('可預約時段')).toBeInTheDocument();
     });
@@ -202,9 +215,7 @@ describe('DateTimePicker', () => {
       />
     );
     
-    const button = screen.getByText('請選擇').closest('button');
-    fireEvent.click(button!);
-    
+    // Should auto-expand when time is empty
     await waitFor(() => {
       expect(screen.getByText('可預約時段')).toBeInTheDocument();
     });
@@ -312,9 +323,7 @@ describe('DateTimePicker', () => {
       />
     );
     
-    const button = screen.getByText('請選擇').closest('button');
-    fireEvent.click(button!);
-    
+    // Should auto-expand when time is empty
     await waitFor(() => {
       expect(screen.getByText('可預約時段')).toBeInTheDocument();
     });
@@ -353,9 +362,7 @@ describe('DateTimePicker', () => {
       />
     );
     
-    const button = screen.getByText('請選擇').closest('button');
-    fireEvent.click(button!);
-    
+    // Should auto-expand when time is empty
     await waitFor(() => {
       expect(screen.getByText('可預約時段')).toBeInTheDocument();
     });

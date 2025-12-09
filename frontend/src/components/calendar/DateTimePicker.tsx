@@ -79,6 +79,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   const batchInitiatedRef = useRef(false);
   // Track if we've initialized temp state for this expand session
   const hasInitializedRef = useRef(false);
+  // Track if user manually collapsed to prevent immediate re-expansion
+  const userCollapsedRef = useRef(false);
 
   // Temp selection state for UI navigation (only used when expanded)
   const [tempDate, setTempDate] = useState<string | null>(null);
@@ -255,6 +257,24 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     return datesWithSlots.has(dateString);
   };
 
+  // Auto-expand when empty (no date or time selected)
+  // But don't auto-expand if user just manually collapsed
+  useEffect(() => {
+    if ((!selectedDate || !selectedTime) && !userCollapsedRef.current) {
+      setIsExpanded(true);
+    } else if (selectedDate && selectedTime) {
+      // Reset flag when picker becomes non-empty (user has made a selection)
+      userCollapsedRef.current = false;
+    }
+  }, [selectedDate, selectedTime]);
+
+  // Reset user collapse flag when picker becomes expanded (allows future auto-expand)
+  useEffect(() => {
+    if (isExpanded) {
+      userCollapsedRef.current = false;
+    }
+  }, [isExpanded]);
+
   // Initialize temp state when expanding (only when isExpanded changes, not when tempDate changes)
   useEffect(() => {
     if (isExpanded) {
@@ -342,6 +362,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       onDateSelect(null);
       onTimeSelect('');
     }
+    // Mark that user manually collapsed to prevent immediate re-expansion
+    userCollapsedRef.current = true;
     setIsExpanded(false);
   }, [tempDate, tempTime, onDateSelect, onTimeSelect]);
 
@@ -579,12 +601,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
             </div>
           )}
         </div>
-      ) : (
-        <div>
-          <h3 className="font-medium text-gray-900 mb-2">可預約時段</h3>
-          <p className="text-sm text-gray-500">請先選擇日期</p>
-        </div>
-      )}
+      ) : null}
       </div>
       {error && (
         <p className="mt-1 text-sm text-red-600">{error}</p>
