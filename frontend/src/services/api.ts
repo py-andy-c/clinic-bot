@@ -544,6 +544,54 @@ export class ApiService {
     return response.data;
   }
 
+  async checkRecurringConflicts(data: {
+    practitioner_id: number;
+    appointment_type_id: number;
+    occurrences: string[]; // List of ISO datetime strings
+  }): Promise<{
+    occurrences: Array<{
+      start_time: string;
+      has_conflict: boolean;
+      is_duplicate: boolean;
+      duplicate_index: number | null;
+      conflicting_appointment: {
+        appointment_id: number;
+        patient_name: string;
+        start_time: string;
+        end_time: string;
+      } | null;
+      violation_type: string | null;
+    }>;
+  }> {
+    const response = await this.client.post('/clinic/appointments/check-recurring-conflicts', data);
+    return response.data;
+  }
+
+  async createRecurringAppointments(data: {
+    patient_id: number;
+    appointment_type_id: number;
+    practitioner_id: number;
+    clinic_notes?: string;
+    occurrences: Array<{ start_time: string }>;
+  }): Promise<{
+    success: boolean;
+    created_count: number;
+    failed_count: number;
+    created_appointments: Array<{
+      appointment_id: number;
+      start_time: string;
+      end_time: string;
+    }>;
+    failed_occurrences: Array<{
+      start_time: string;
+      error_code: string;
+      error_message: string;
+    }>;
+  }> {
+    const response = await this.client.post('/clinic/appointments/recurring', data);
+    return response.data;
+  }
+
   async previewEditNotification(appointmentId: number, data: {
     new_practitioner_id?: number | null;
     new_start_time?: string | null; // ISO datetime string

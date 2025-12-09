@@ -10,7 +10,7 @@ import logging
 import math
 import secrets
 from datetime import datetime, timedelta, date as date_type, time
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any, Union, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi import status as http_status
@@ -1977,6 +1977,541 @@ async def create_clinic_appointment(
         raise
     except Exception as e:
         logger.exception(f"Failed to create appointment: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="建立預約失敗"
+        )
+
+
+# ===== Recurring Appointments =====
+
+class CheckRecurringConflictsRequest(BaseModel):
+    """Request model for checking conflicts in recurring appointments."""
+    practitioner_id: int
+    appointment_type_id: int
+    occurrences: List[str]  # List of ISO datetime strings
+
+    @field_validator('occurrences')
+    @classmethod
+    def validate_occurrences(cls, v: List[str]) -> List[str]:
+        if not v:
+            raise ValueError('至少需要一個預約時段')
+        if len(v) > 50:
+            raise ValueError('最多只能檢查50個預約時段')
+        return v
+
+
+class OccurrenceConflictStatus(BaseModel):
+    """Conflict status for a single occurrence."""
+    start_time: str  # ISO datetime
+    has_conflict: bool
+    is_duplicate: bool = False
+    duplicate_index: Optional[int] = None
+    conflicting_appointment: Optional[Dict[str, Any]] = None
+    violation_type: Optional[str] = None  # "availability", "booking_restriction", "existing_appointment", "duplicate"
+
+
+class ConflictCheckResult(BaseModel):
+    """Result of conflict checking for recurring appointments."""
+    occurrences: List[OccurrenceConflictStatus]
+
+
+@router.post("/appointments/check-recurring-conflicts", summary="Check conflicts for recurring appointments")
+async def check_recurring_conflicts(
+    request: CheckRecurringConflictsRequest,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Check for conflicts in a list of appointment occurrences.
+    
+    Returns conflict status for each occurrence, including:
+    - Availability conflicts
+    - Existing appointment conflicts
+    - Duplicate occurrences within the list
+    - Booking restriction violations (for patients, not clinic admins)
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Get appointment type for duration
+        appointment_type = AppointmentTypeService.get_appointment_type_by_id(
+            db, request.appointment_type_id, clinic_id=clinic_id
+        )
+        duration_minutes = appointment_type.duration_minutes
+        
+        # Parse occurrences
+        parsed_occurrences: List[datetime] = []
+        for occ_str in request.occurrences:
+            try:
+                from utils.datetime_utils import parse_datetime_to_taiwan as parse_dt
+                dt = parse_dt(occ_str)
+                parsed_occurrences.append(dt)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"無效的日期時間格式: {occ_str}"
+                )
+        
+        # Check for duplicates within the list
+        duplicate_indices: Dict[int, Optional[int]] = {}
+        for i, dt1 in enumerate(parsed_occurrences):
+            for j, dt2 in enumerate(parsed_occurrences):
+                if i != j and dt1 == dt2:
+                    duplicate_indices[i] = j
+                    break
+        
+        # Group occurrences by date for efficient batch checking
+        occurrences_by_date: Dict[date_type, List[Tuple[int, datetime]]] = {}
+        for idx, dt in enumerate(parsed_occurrences):
+            date_key = dt.date()
+            if date_key not in occurrences_by_date:
+                occurrences_by_date[date_key] = []
+            occurrences_by_date[date_key].append((idx, dt))
+        
+        # Batch fetch schedule data for all unique dates (performance optimization)
+        # This avoids fetching the same date's schedule data multiple times
+        schedule_data_cache: Dict[date_type, Dict[int, Dict[str, Any]]] = {}
+        for date_key in occurrences_by_date.keys():
+            schedule_data_cache[date_key] = AvailabilityService.fetch_practitioner_schedule_data(
+                db, [request.practitioner_id], date_key, clinic_id
+            )
+        
+        # Check conflicts for each occurrence using cached schedule data
+        results: List[OccurrenceConflictStatus] = []
+        
+        for idx, dt in enumerate(parsed_occurrences):
+            start_time = dt.time()
+            end_time = (dt + timedelta(minutes=duration_minutes)).time()
+            date_key = dt.date()
+            
+            # Check if duplicate
+            is_duplicate = idx in duplicate_indices
+            duplicate_idx = duplicate_indices.get(idx)
+            
+            # Check availability and conflicts
+            has_conflict = False
+            violation_type: Optional[str] = None
+            conflicting_appointment: Optional[Dict[str, Any]] = None
+            
+            if is_duplicate:
+                has_conflict = True
+                violation_type = "duplicate"
+            else:
+                # Use cached schedule data for this date
+                schedule_data = schedule_data_cache.get(date_key, {})
+                
+                # Check availability using service method
+                data = schedule_data.get(request.practitioner_id, {
+                    'default_intervals': [],
+                    'events': []
+                })
+                
+                # Check if slot is within default intervals
+                if not AvailabilityService.is_slot_within_default_intervals(
+                    data['default_intervals'], start_time, end_time
+                ):
+                    has_conflict = True
+                    violation_type = "availability"
+                # Check if slot has conflicts
+                elif AvailabilityService.has_slot_conflicts(
+                    data['events'], start_time, end_time
+                ):
+                    has_conflict = True
+                    violation_type = "availability"
+                    
+                    # Check if conflict is with existing appointment
+                    for event in data['events']:
+                        if (event.start_time and event.end_time and
+                            event.event_type == 'appointment' and
+                            _check_time_overlap(
+                                start_time, end_time,
+                                event.start_time, event.end_time
+                            )):
+                            # Get appointment details
+                            appointment = db.query(Appointment).filter(
+                                Appointment.calendar_event_id == event.id,
+                                Appointment.status == 'confirmed'
+                            ).first()
+                            
+                            if appointment:
+                                violation_type = "existing_appointment"
+                                conflicting_appointment = {
+                                    "appointment_id": appointment.calendar_event_id,
+                                    "patient_name": appointment.patient.full_name if appointment.patient else "未知",
+                                    "start_time": f"{event.date} {event.start_time}",
+                                    "end_time": f"{event.date} {event.end_time}"
+                                }
+                            break
+            
+            results.append(OccurrenceConflictStatus(
+                start_time=request.occurrences[idx],
+                has_conflict=has_conflict,
+                is_duplicate=is_duplicate,
+                duplicate_index=duplicate_idx,
+                conflicting_appointment=conflicting_appointment,
+                violation_type=violation_type
+            ))
+        
+        return ConflictCheckResult(occurrences=results)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to check recurring conflicts: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="檢查衝突失敗"
+        )
+
+
+class OccurrenceRequest(BaseModel):
+    """Single occurrence in recurring appointment request."""
+    start_time: str  # ISO datetime
+
+
+class RecurringAppointmentCreateRequest(BaseModel):
+    """Request model for creating recurring appointments."""
+    patient_id: int
+    appointment_type_id: int
+    practitioner_id: int
+    clinic_notes: Optional[str] = None
+    occurrences: List[OccurrenceRequest]  # List of specific date/time occurrences (max 50)
+
+    @field_validator('occurrences')
+    @classmethod
+    def validate_occurrences(cls, v: List[OccurrenceRequest]) -> List[OccurrenceRequest]:
+        if not v:
+            raise ValueError('至少需要一個預約時段')
+        if len(v) > 50:
+            raise ValueError('最多只能建立50個預約')
+        return v
+
+    @field_validator('clinic_notes')
+    @classmethod
+    def validate_clinic_notes(cls, v: Optional[str]) -> Optional[str]:
+        """Validate clinic_notes field if provided."""
+        if v is None:
+            return None
+        v = v.strip() if v else ''
+        if len(v) > 1000:
+            raise ValueError('診所備注長度過長（最多1000字元）')
+        return v
+
+
+class FailedOccurrence(BaseModel):
+    """Details of a failed occurrence."""
+    start_time: str  # ISO datetime
+    error_code: str  # "conflict", "booking_restriction", "past_date", "max_window", etc.
+    error_message: str  # Human-readable error message
+
+
+class RecurringAppointmentCreateResponse(BaseModel):
+    """Response model for recurring appointment creation."""
+    success: bool
+    created_count: int
+    failed_count: int
+    created_appointments: List[Dict[str, Any]]
+    failed_occurrences: List[FailedOccurrence]
+
+
+@router.post("/appointments/recurring", summary="Create recurring appointments")
+async def create_recurring_appointments(
+    request: RecurringAppointmentCreateRequest,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Create multiple recurring appointments for a patient.
+    
+    Each occurrence is created in a separate transaction to allow partial success.
+    Clinic notes are replicated to all successfully created appointments.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Check if user is read-only
+        if current_user.has_role('read-only'):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="您沒有權限建立預約"
+            )
+        
+        # Parse occurrences
+        parsed_occurrences: List[datetime] = []
+        for occ in request.occurrences:
+            try:
+                from utils.datetime_utils import parse_datetime_to_taiwan
+                dt = parse_datetime_to_taiwan(occ.start_time)
+                parsed_occurrences.append(dt)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"無效的日期時間格式: {occ.start_time}"
+                )
+        
+        # Create appointments one by one (separate transactions)
+        created_appointments: List[Dict[str, Any]] = []
+        failed_occurrences: List[FailedOccurrence] = []
+        
+        # Determine if we should skip individual notifications
+        # We'll skip notifications during creation and handle them after based on actual count
+        # This prevents duplicate notifications
+        skip_individual_notifications = True  # Always skip during creation, handle after
+        
+        for occ in request.occurrences:
+            try:
+                from utils.datetime_utils import parse_datetime_to_taiwan as parse_dt
+                start_time = parse_dt(occ.start_time)
+                
+                # Create appointment using existing service
+                # Skip notifications if we're creating multiple appointments (will send consolidated)
+                result = AppointmentService.create_appointment(
+                    db=db,
+                    clinic_id=clinic_id,
+                    patient_id=request.patient_id,
+                    appointment_type_id=request.appointment_type_id,
+                    start_time=start_time,
+                    practitioner_id=request.practitioner_id,
+                    notes=None,  # Clinic users cannot set patient notes
+                    clinic_notes=request.clinic_notes,
+                    line_user_id=None,  # No LINE validation for clinic users
+                    skip_notifications=skip_individual_notifications
+                )
+                
+                created_appointments.append({
+                    "appointment_id": result['appointment_id'],
+                    "start_time": result['start_time'].isoformat() if isinstance(result['start_time'], datetime) else str(result['start_time']),
+                    "end_time": result['end_time'].isoformat() if isinstance(result['end_time'], datetime) else str(result['end_time'])
+                })
+                
+            except HTTPException as e:
+                # Extract error code from detail message
+                error_code = "unknown"
+                error_message = e.detail
+                
+                if "時段不可用" in error_message or "衝突" in error_message:
+                    error_code = "conflict"
+                elif "提前" in error_message:
+                    error_code = "booking_restriction"
+                elif "過去" in error_message:
+                    error_code = "past_date"
+                elif "範圍" in error_message or "天內" in error_message:
+                    error_code = "max_window"
+                
+                failed_occurrences.append(FailedOccurrence(
+                    start_time=occ.start_time,
+                    error_code=error_code,
+                    error_message=error_message
+                ))
+            except Exception as e:
+                logger.exception(f"Failed to create occurrence {occ.start_time}: {e}")
+                failed_occurrences.append(FailedOccurrence(
+                    start_time=occ.start_time,
+                    error_code="unknown",
+                    error_message="建立預約失敗"
+                ))
+        
+        # Send notifications based on count
+        # If only 1 appointment created, send normal individual notification
+        # If > 1 appointment created, send consolidated notifications
+        if created_appointments:
+            if len(created_appointments) == 1:
+                # Single appointment - send normal individual notification
+                # Re-fetch the appointment to send notification
+                try:
+                    appointment_id = created_appointments[0]['appointment_id']
+                    appointment = db.query(Appointment).join(
+                        CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+                    ).filter(
+                        Appointment.calendar_event_id == appointment_id,
+                        CalendarEvent.clinic_id == clinic_id
+                    ).first()
+                    
+                    if appointment:
+                        from services.notification_service import NotificationService
+                        from utils.practitioner_helpers import get_practitioner_name_for_notification
+                        from models.user_clinic_association import UserClinicAssociation
+                        
+                        clinic = db.query(Clinic).get(clinic_id)
+                        if not clinic:
+                            logger.warning(f"Clinic {clinic_id} not found, skipping notifications")
+                        else:
+                            practitioner = db.query(User).get(request.practitioner_id)
+                            
+                            # Send practitioner notification
+                            if practitioner:
+                                association = db.query(UserClinicAssociation).filter(
+                                    UserClinicAssociation.user_id == practitioner.id,
+                                    UserClinicAssociation.clinic_id == clinic_id,
+                                    UserClinicAssociation.is_active == True
+                                ).first()
+                                if association:
+                                    NotificationService.send_practitioner_appointment_notification(
+                                        db, association, appointment, clinic
+                                    )
+                            
+                            # Send patient notification
+                            if appointment.patient and appointment.patient.line_user:
+                                practitioner_name = get_practitioner_name_for_notification(
+                                    db=db,
+                                    practitioner_id=request.practitioner_id,
+                                    clinic_id=clinic_id,
+                                    was_auto_assigned=False,
+                                    practitioner=practitioner
+                                )
+                                NotificationService.send_appointment_confirmation(
+                                    db, appointment, practitioner_name, clinic, trigger_source='clinic_triggered'
+                                )
+                except Exception as e:
+                    logger.exception(f"Failed to send individual notification: {e}")
+                    # Don't fail the request if notification fails
+            else:
+                # Multiple appointments - send consolidated notifications
+                try:
+                    # Get patient
+                    patient = db.query(Patient).filter(
+                        Patient.id == request.patient_id,
+                        Patient.clinic_id == clinic_id
+                    ).first()
+                    
+                    clinic = db.query(Clinic).get(clinic_id)
+                    
+                    if clinic and clinic.line_channel_secret and clinic.line_channel_access_token:
+                        from services.line_service import LINEService
+                        from utils.practitioner_helpers import get_practitioner_name_for_notification
+                        from utils.datetime_utils import format_datetime
+                        from models.user_clinic_association import UserClinicAssociation
+                        
+                        practitioner = db.query(User).get(request.practitioner_id)
+                        practitioner_name = get_practitioner_name_for_notification(
+                            db=db,
+                            practitioner_id=request.practitioner_id,
+                            clinic_id=clinic_id,
+                            was_auto_assigned=False,
+                            practitioner=practitioner
+                        )
+                        
+                        # Get appointment type name
+                        appointment_type_obj = AppointmentTypeService.get_appointment_type_by_id(
+                            db, request.appointment_type_id, clinic_id=clinic_id
+                        )
+                        appointment_type_name = appointment_type_obj.name if appointment_type_obj else "預約"
+                        
+                        # Create consolidated notification message for patient
+                        if patient and patient.line_user:
+                            date_range = ""
+                            dates = sorted([appt['start_time'] for appt in created_appointments])
+                            first_date = dates[0][:10]  # Extract date part
+                            last_date = dates[-1][:10]
+                            if first_date != last_date:
+                                date_range = f"預約時間：{first_date} 至 {last_date}\n"
+                            
+                            # Format appointment times
+                            appointment_list = created_appointments[:10]
+                            from utils.datetime_utils import parse_datetime_to_taiwan as parse_dt
+                            appointment_text = "\n".join([
+                                f"• {format_datetime(parse_dt(appt['start_time']))}" 
+                                for appt in appointment_list
+                            ])
+                            
+                            if len(created_appointments) > 10:
+                                appointment_text += f"\n... 還有 {len(created_appointments) - 10} 個"
+                            
+                            message = f"{patient.full_name}，已為您建立 {len(created_appointments)} 個預約：\n\n"
+                            message += date_range
+                            message += appointment_text
+                            message += f"\n\n【{appointment_type_name}】{practitioner_name}治療師"
+                            message += "\n\n期待為您服務！"
+                            
+                            # Send notification using LINE service directly
+                            line_service = LINEService(
+                                channel_secret=clinic.line_channel_secret,
+                                channel_access_token=clinic.line_channel_access_token
+                            )
+                            labels = {
+                                'recipient_type': 'patient',
+                                'event_type': 'appointment_confirmation',
+                                'trigger_source': 'clinic_triggered',
+                                'appointment_context': 'recurring_appointments'
+                            }
+                            line_service.send_text_message(
+                                patient.line_user.line_user_id,
+                                message,
+                                db=db,
+                                clinic_id=clinic_id,
+                                labels=labels
+                            )
+                            
+                            logger.info(
+                                f"Sent consolidated appointment confirmation to patient {patient.id} "
+                                f"for {len(created_appointments)} appointments"
+                            )
+                        
+                        # Send consolidated notification for practitioner
+                        if practitioner:
+                            association = db.query(UserClinicAssociation).filter(
+                                UserClinicAssociation.user_id == practitioner.id,
+                                UserClinicAssociation.clinic_id == clinic_id,
+                                UserClinicAssociation.is_active == True
+                            ).first()
+                            
+                            if association and association.line_user_id:
+                                # Format appointment times for practitioner
+                                appointment_list = created_appointments[:10]
+                                from utils.datetime_utils import parse_datetime_to_taiwan as parse_dt
+                                appointment_text = "\n".join([
+                                    f"• {format_datetime(parse_dt(appt['start_time']))}" 
+                                    for appt in appointment_list
+                                ])
+                                
+                                if len(created_appointments) > 10:
+                                    appointment_text += f"\n... 還有 {len(created_appointments) - 10} 個"
+                                
+                                practitioner_message = f"📅 新預約通知（{len(created_appointments)} 個）\n\n"
+                                practitioner_message += f"病患：{patient.full_name if patient else '未知'}\n"
+                                practitioner_message += f"類型：{appointment_type_name}\n\n"
+                                practitioner_message += appointment_text
+                                
+                                line_service = LINEService(
+                                    channel_secret=clinic.line_channel_secret,
+                                    channel_access_token=clinic.line_channel_access_token
+                                )
+                                labels = {
+                                    'recipient_type': 'practitioner',
+                                    'event_type': 'new_appointment_notification',
+                                    'trigger_source': 'clinic_triggered',
+                                    'appointment_context': 'recurring_appointments'
+                                }
+                                line_service.send_text_message(
+                                    association.line_user_id,
+                                    practitioner_message,
+                                    db=db,
+                                    clinic_id=clinic_id,
+                                    labels=labels
+                                )
+                                
+                                logger.info(
+                                    f"Sent consolidated appointment notification to practitioner {practitioner.id} "
+                                    f"for {len(created_appointments)} appointments"
+                                )
+                except Exception as e:
+                    logger.exception(f"Failed to send consolidated notification: {e}")
+                    # Don't fail the request if notification fails
+        
+        return RecurringAppointmentCreateResponse(
+            success=len(failed_occurrences) == 0,
+            created_count=len(created_appointments),
+            failed_count=len(failed_occurrences),
+            created_appointments=created_appointments,
+            failed_occurrences=failed_occurrences
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to create recurring appointments: {e}")
         db.rollback()
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,

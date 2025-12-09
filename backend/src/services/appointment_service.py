@@ -68,7 +68,8 @@ class AppointmentService:
         practitioner_id: Optional[int] = None,
         notes: Optional[str] = None,
         clinic_notes: Optional[str] = None,
-        line_user_id: Optional[int] = None
+        line_user_id: Optional[int] = None,
+        skip_notifications: bool = False
     ) -> Dict[str, Any]:
         """
         Create a new appointment with automatic practitioner assignment if needed.
@@ -83,6 +84,7 @@ class AppointmentService:
             notes: Optional patient-provided appointment notes
             clinic_notes: Optional clinic internal notes (visible only to clinic users)
             line_user_id: LINE user ID for ownership validation (if provided)
+            skip_notifications: If True, skip sending individual notifications (for consolidated notifications)
 
         Returns:
             Dict with appointment details
@@ -170,41 +172,42 @@ class AppointmentService:
             practitioner = db.query(User).get(assigned_practitioner_id)
             patient = db.query(Patient).get(patient_id)
 
-            # Send LINE notifications
-            from services.notification_service import NotificationService
-            from utils.practitioner_helpers import get_practitioner_name_for_notification
-            from models.user_clinic_association import UserClinicAssociation
-            
-            # Send practitioner notification if NOT auto-assigned (practitioners shouldn't see auto-assigned appointments)
-            if practitioner and not was_auto_assigned:
-                # Get association for this practitioner and clinic
-                association = db.query(UserClinicAssociation).filter(
-                    UserClinicAssociation.user_id == practitioner.id,
-                    UserClinicAssociation.clinic_id == clinic_id,
-                    UserClinicAssociation.is_active == True
-                ).first()
-                if association:
-                    NotificationService.send_practitioner_appointment_notification(
-                        db, association, appointment, clinic
-                    )
-
-            # Send patient confirmation notification (always, regardless of auto-assignment)
-            if patient and patient.line_user:
-                # Get practitioner name for notification with fallback logic
-                practitioner_name_for_notification = get_practitioner_name_for_notification(
-                    db=db,
-                    practitioner_id=assigned_practitioner_id,
-                    clinic_id=clinic_id,
-                    was_auto_assigned=was_auto_assigned,
-                    practitioner=practitioner
-                )
+            # Send LINE notifications (unless skipped for consolidated notifications)
+            if not skip_notifications:
+                from services.notification_service import NotificationService
+                from utils.practitioner_helpers import get_practitioner_name_for_notification
+                from models.user_clinic_association import UserClinicAssociation
                 
-                # Send notification (practitioner_name_for_notification is guaranteed to be str at this point)
-                # Determine trigger_source: if line_user_id is provided, it's patient_triggered, otherwise clinic_triggered
-                trigger_source = 'patient_triggered' if line_user_id is not None else 'clinic_triggered'
-                NotificationService.send_appointment_confirmation(
-                    db, appointment, practitioner_name_for_notification, clinic, trigger_source=trigger_source
-                )
+                # Send practitioner notification if NOT auto-assigned (practitioners shouldn't see auto-assigned appointments)
+                if practitioner and not was_auto_assigned:
+                    # Get association for this practitioner and clinic
+                    association = db.query(UserClinicAssociation).filter(
+                        UserClinicAssociation.user_id == practitioner.id,
+                        UserClinicAssociation.clinic_id == clinic_id,
+                        UserClinicAssociation.is_active == True
+                    ).first()
+                    if association:
+                        NotificationService.send_practitioner_appointment_notification(
+                            db, association, appointment, clinic
+                        )
+
+                # Send patient confirmation notification (always, regardless of auto-assignment)
+                if patient and patient.line_user:
+                    # Get practitioner name for notification with fallback logic
+                    practitioner_name_for_notification = get_practitioner_name_for_notification(
+                        db=db,
+                        practitioner_id=assigned_practitioner_id,
+                        clinic_id=clinic_id,
+                        was_auto_assigned=was_auto_assigned,
+                        practitioner=practitioner
+                    )
+                    
+                    # Send notification (practitioner_name_for_notification is guaranteed to be str at this point)
+                    # Determine trigger_source: if line_user_id is provided, it's patient_triggered, otherwise clinic_triggered
+                    trigger_source = 'patient_triggered' if line_user_id is not None else 'clinic_triggered'
+                    NotificationService.send_appointment_confirmation(
+                        db, appointment, practitioner_name_for_notification, clinic, trigger_source=trigger_source
+                    )
 
             logger.info(f"Created appointment {appointment.calendar_event_id} for patient {patient_id}")
 
