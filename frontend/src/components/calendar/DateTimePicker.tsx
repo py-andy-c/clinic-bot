@@ -5,7 +5,7 @@
  * Features calendar view with month navigation and time slot selection.
  */
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { LoadingSpinner } from '../shared';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
@@ -27,12 +27,8 @@ export interface DateTimePickerProps {
   selectedTime: string;
   selectedPractitionerId: number | null;
   appointmentTypeId: number | null;
-  onDateSelect: (date: string) => void;
+  onDateSelect: (date: string | null) => void;
   onTimeSelect: (time: string) => void;
-  // Optional: include original appointment time even if not available
-  originalTime?: string | null;
-  originalDate?: string | null;
-  originalPractitionerId?: number | null;
   // Optional: exclude this calendar event ID from conflict checking (for appointment editing)
   excludeCalendarEventId?: number | null;
   error?: string | null;
@@ -53,9 +49,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   appointmentTypeId,
   onDateSelect,
   onTimeSelect,
-  originalTime,
-  originalDate,
-  originalPractitionerId,
   excludeCalendarEventId,
   error,
   onHasAvailableSlotsChange,
@@ -81,10 +74,23 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   const [cachedAvailabilityData, setCachedAvailabilityData] = useState<Map<string, { slots: any[] }>>(new Map());
   // Track if batch has been initiated to prevent race condition with date selection
   const batchInitiatedRef = useRef(false);
+  // Track if we've initialized temp state for this expand session
+  const hasInitializedRef = useRef(false);
+
+  // Temp selection state for UI navigation (only used when expanded)
+  const [tempDate, setTempDate] = useState<string | null>(null);
+  const [tempTime, setTempTime] = useState<string>('');
+  // Track last manually selected time (not auto-filled) to preserve when switching dates
+  const [lastManuallySelectedTime, setLastManuallySelectedTime] = useState<string | null>(null);
+
+  // Determine which date/time to use for display and slot loading
+  // Use tempDate/tempTime when expanded (for UI navigation), selectedDate/selectedTime when collapsed
+  const displayDate = isExpanded && tempDate ? tempDate : selectedDate;
+  const displayTime = isExpanded ? tempTime : selectedTime;
 
   // Use custom hook for date/slot selection logic
   const { availableSlots, isLoadingSlots } = useDateSlotSelection({
-    selectedDate,
+    selectedDate: displayDate,
     appointmentTypeId,
     selectedPractitionerId,
     excludeCalendarEventId: excludeCalendarEventId ?? null,
@@ -123,10 +129,16 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     setDatesWithSlots(new Set());
     setCachedAvailabilityData(new Map());
     batchInitiatedRef.current = false;
+    setLastManuallySelectedTime(null); // Clear last manually selected time
     if (onHasAvailableSlotsChange) {
       onHasAvailableSlotsChange(false);
     }
   }, [selectedPractitionerId, practitionerError, onHasAvailableSlotsChange]);
+
+  // Clear lastManuallySelectedTime when appointment type changes
+  useEffect(() => {
+    setLastManuallySelectedTime(null);
+  }, [appointmentTypeId]);
 
   // Load month availability for calendar
   useEffect(() => {
@@ -240,11 +252,32 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     return datesWithSlots.has(dateString);
   };
 
+  // Initialize temp state when expanding (only when isExpanded changes, not when tempDate changes)
+  useEffect(() => {
+    if (isExpanded) {
+      // Only initialize if we haven't initialized yet for this expand session
+      // This prevents resetting tempTime when user navigates between dates
+      if (!hasInitializedRef.current) {
+        setTempDate(selectedDate);
+        setTempTime(selectedTime);
+        hasInitializedRef.current = true;
+      }
+    } else {
+      // Clear temp state when collapsing
+      setTempDate(null);
+      setTempTime('');
+      setLastManuallySelectedTime(null);
+      hasInitializedRef.current = false; // Reset flag for next expand
+    }
+  }, [isExpanded, selectedDate, selectedTime]);
+
   const handleDateSelect = (date: Date) => {
     const dateString = formatDateString(date);
     if (datesWithSlots.has(dateString)) {
-      onDateSelect(dateString);
-      onTimeSelect(''); // Clear time when date changes
+      // Update temp date and clear temp time
+      // Time will be auto-selected by the effect if lastManuallySelectedTime is available
+      setTempDate(dateString);
+      setTempTime('');
     }
   };
 
@@ -256,29 +289,18 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
-  // Build time slots list - include original time only if same practitioner AND same date
+  // Build time slots list - backend already includes original time when excludeCalendarEventId is provided
+  // Use tempDate when expanded, selectedDate when collapsed
   const allTimeSlots = useMemo(() => {
-    // If there's a practitioner error, don't show any slots (including original time)
+    // If there's a practitioner error, don't show any slots
     if (practitionerError) {
       return [];
     }
     
-    const slots = [...availableSlots];
-    
-    // Only include original time if same practitioner AND same date
-    // (The appointment being edited holds that slot, so it won't be in available slots)
-    if (originalTime && originalDate && originalPractitionerId) {
-      const isOriginalDate = selectedDate === originalDate;
-      const isOriginalPractitioner = selectedPractitionerId === originalPractitionerId;
-      
-      if (isOriginalDate && isOriginalPractitioner && !slots.includes(originalTime)) {
-        slots.push(originalTime);
-        slots.sort();
-      }
-    }
-    
-    return slots;
-  }, [availableSlots, originalTime, originalDate, originalPractitionerId, selectedDate, selectedPractitionerId, practitionerError]);
+    // Backend already includes original time in availableSlots when excludeCalendarEventId is provided
+    // No need to manually add it
+    return [...availableSlots];
+  }, [availableSlots, practitionerError]);
 
   // Group time slots
   const { amSlots, pmSlots } = useMemo(() => {
@@ -292,22 +314,26 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     }
   }, [allTimeSlots.length, onHasAvailableSlotsChange]);
 
-  // Auto-select original time whenever it's in the displayed slots
+  // Auto-select last manually selected time when date changes in expanded view
   useEffect(() => {
-    // Auto-select if:
-    // 1. Original time is in the displayed slots
-    // 2. No time is currently selected
-    // 3. No practitioner error exists
-    if (
-      originalTime &&
-      !selectedTime &&
-      !practitionerError &&
-      allTimeSlots.length > 0 &&
-      allTimeSlots.includes(originalTime)
-    ) {
-      onTimeSelect(originalTime);
+    if (isExpanded && tempDate && !tempTime && lastManuallySelectedTime && allTimeSlots.includes(lastManuallySelectedTime)) {
+      setTempTime(lastManuallySelectedTime);
     }
-  }, [originalTime, selectedTime, practitionerError, allTimeSlots, onTimeSelect]);
+  }, [isExpanded, tempDate, tempTime, lastManuallySelectedTime, allTimeSlots]);
+
+  // Handle collapse - save temp state to confirmed or clear both
+  const handleCollapse = useCallback(() => {
+    if (tempDate && tempTime) {
+      // Both valid - save both
+      onDateSelect(tempDate);
+      onTimeSelect(tempTime);
+    } else {
+      // Not both valid - clear both
+      onDateSelect(null);
+      onTimeSelect('');
+    }
+    setIsExpanded(false);
+  }, [tempDate, tempTime, onDateSelect, onTimeSelect]);
 
   // Handle click outside to collapse
   useEffect(() => {
@@ -317,7 +343,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
         // Defer collapse to allow checkbox click events to complete
         setTimeout(() => {
-          setIsExpanded(false);
+          handleCollapse();
         }, 0);
       }
     };
@@ -326,7 +352,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isExpanded]);
+  }, [isExpanded, handleCollapse]);
 
   // Format collapsed display
   const getCollapsedDisplay = (): string => {
@@ -342,7 +368,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   };
 
   const handleTimeSelect = (time: string) => {
-    onTimeSelect(time);
+    // Update temp time and track as manually selected
+    setTempTime(time);
+    setLastManuallySelectedTime(time);
   };
 
   // Collapsed view
@@ -437,7 +465,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
 
               const dateString = formatDateString(date);
               const available = isDateAvailable(date);
-              const selected = selectedDate === dateString;
+              const selected = displayDate === dateString;
               const todayDate = isToday(date);
 
               return (
@@ -469,7 +497,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       </div>
 
       {/* Time Selection */}
-      {selectedDate ? (
+      {displayDate ? (
         <div>
           <h3 className="font-medium text-gray-900 mb-2">可預約時段</h3>
 
@@ -489,7 +517,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                   <div className="grid grid-cols-3 gap-2">
                     {amSlots.map((time) => {
                       const formatted = formatTo12Hour(time);
-                      const isSelected = selectedTime === time;
+                      const isSelected = displayTime === time;
 
                       return (
                         <button
@@ -514,7 +542,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                   <div className="grid grid-cols-3 gap-2">
                     {pmSlots.map((time) => {
                       const formatted = formatTo12Hour(time);
-                      const isSelected = selectedTime === time;
+                      const isSelected = displayTime === time;
 
                       return (
                         <button

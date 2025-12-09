@@ -495,11 +495,13 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             selectedTime={selectedTime}
             selectedPractitionerId={selectedPractitionerId}
             appointmentTypeId={appointmentTypeId}
-            onDateSelect={setSelectedDate}
+            onDateSelect={(date) => {
+              // In edit mode, don't allow clearing the date - keep current date if null is passed
+              if (date !== null) {
+                setSelectedDate(date);
+              }
+            }}
             onTimeSelect={setSelectedTime}
-            originalTime={originalTime}
-            originalDate={originalDate}
-            originalPractitionerId={originalPractitionerId}
             excludeCalendarEventId={event.resource.calendar_event_id}
             error={error && !externalErrorMessage ? error : null}
             onHasAvailableSlotsChange={setHasAvailableSlots}

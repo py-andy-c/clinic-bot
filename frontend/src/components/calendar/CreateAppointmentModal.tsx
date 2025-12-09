@@ -35,7 +35,7 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
   const [selectedTime, setSelectedTime] = useState<string>(initialTime);
   
-  const handleDateSelect = (date: string) => {
+  const handleDateSelect = (date: string | null) => {
     setSelectedDate(date);
     setSelectedTime(''); // Clear time when date changes
   };
@@ -549,7 +549,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     }
   };
 
-  const handleDateSelect = (dateString: string) => {
+  const handleDateSelect = (dateString: string | null) => {
     setSelectedDate(dateString);
     setSelectedTime('');
   };
