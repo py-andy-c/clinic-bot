@@ -829,13 +829,13 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     return (
       <>
         <div className="space-y-4 mb-6">
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-            <p className="text-sm text-blue-800">
-              {hasConflicts 
-                ? '請刪除或重新安排所有衝突的時段後才能繼續'
-                : `每 ${weeksInterval} 週, 共 ${occurrenceCount} 次`}
-            </p>
-          </div>
+          {hasConflicts && (
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+              <p className="text-sm text-blue-800">
+                請刪除或重新安排所有衝突的時段後才能繼續
+              </p>
+            </div>
+          )}
           
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -885,7 +885,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                           }}
                           className="text-blue-600 hover:text-blue-800 text-sm"
                         >
-                          選擇時間
+                          修改
                         </button>
                       </div>
                     </td>
