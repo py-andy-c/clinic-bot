@@ -446,26 +446,26 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       <label className="block text-sm font-medium text-gray-700 mb-1">
         日期與時間 <span className="text-red-500">*</span>
       </label>
-      <div className="space-y-6 mt-2">
+      <div className="space-y-4 mt-2">
         {/* Calendar View */}
         <div>
         {/* Month Navigation Header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-2">
           <button
             onClick={handlePrevMonth}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
             aria-label="上個月"
           >
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h3 className="text-lg font-semibold text-gray-900">
+          <h3 className="text-base font-semibold text-gray-900">
             {formatMonthYear(currentMonth)}
           </h3>
           <button
             onClick={handleNextMonth}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
             aria-label="下個月"
           >
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -475,9 +475,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
         </div>
 
         {/* Days of Week Header */}
-        <div className="grid grid-cols-7 gap-1 mb-2">
+        <div className="grid grid-cols-7 gap-1 mb-1">
           {dayNames.map((day) => (
-            <div key={day} className="text-center text-sm font-medium text-gray-600 py-2">
+            <div key={day} className="text-center text-sm font-medium text-gray-600 py-1">
               {day}
             </div>
           ))}
@@ -485,14 +485,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
 
         {/* Calendar Grid */}
         {loadingAvailability ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center justify-center py-4">
             <LoadingSpinner size="sm" />
           </div>
         ) : (
           <div className="grid grid-cols-7 gap-1">
             {calendarDays.map((date, index) => {
               if (!date) {
-                return <div key={`empty-${index}`} className="aspect-square" />;
+                return <div key={`empty-${index}`} className="h-9" />;
               }
 
               const dateString = formatDateString(date);
@@ -505,7 +505,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                   key={dateString}
                   onClick={() => handleDateSelect(date)}
                   disabled={!available}
-                  className={`aspect-square text-center rounded-lg transition-colors ${
+                  className={`h-9 text-center rounded-lg transition-colors ${
                     selected
                       ? 'bg-teal-500 text-white font-semibold'
                       : available
@@ -531,10 +531,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       {/* Time Selection */}
       {displayDate ? (
         <div>
-          <h3 className="font-medium text-gray-900 mb-2">可預約時段</h3>
-
           {isLoadingSlots ? (
-            <div className="flex items-center justify-center py-8">
+            <div className="flex items-center justify-center py-4">
               <LoadingSpinner size="sm" />
             </div>
           ) : error ? (
@@ -542,11 +540,11 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               <p className="text-sm text-red-600">{error}</p>
             </div>
           ) : allTimeSlots.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {amSlots.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">上午</h4>
-                  <div className="grid grid-cols-3 gap-2">
+                  <h4 className="text-sm font-medium text-gray-700 mb-1.5">上午</h4>
+                  <div className="grid grid-cols-4 gap-2">
                     {amSlots.map((time) => {
                       const formatted = formatTo12Hour(time);
                       const isSelected = displayTime === time;
@@ -555,7 +553,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                         <button
                           key={time}
                           onClick={() => handleTimeSelect(time)}
-                          className={`bg-white border rounded-md py-2 px-2 transition-colors text-sm font-medium ${
+                          className={`bg-white border rounded-md py-1.5 px-2 transition-colors text-sm font-medium ${
                             isSelected
                               ? 'border-primary-500 bg-primary-50 text-primary-700'
                               : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
@@ -570,8 +568,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               )}
               {pmSlots.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">下午</h4>
-                  <div className="grid grid-cols-3 gap-2">
+                  <h4 className="text-sm font-medium text-gray-700 mb-1.5">下午</h4>
+                  <div className="grid grid-cols-4 gap-2">
                     {pmSlots.map((time) => {
                       const formatted = formatTo12Hour(time);
                       const isSelected = displayTime === time;
@@ -580,7 +578,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                         <button
                           key={time}
                           onClick={() => handleTimeSelect(time)}
-                          className={`bg-white border rounded-md py-2 px-2 transition-colors text-sm font-medium ${
+                          className={`bg-white border rounded-md py-1.5 px-2 transition-colors text-sm font-medium ${
                             isSelected
                               ? 'border-primary-500 bg-primary-50 text-primary-700'
                               : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
@@ -595,7 +593,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               )}
             </div>
           ) : (
-            <div className="text-center py-8">
+            <div className="text-center py-4">
               <p className="text-gray-500">此日期沒有可用時段</p>
               <p className="text-sm text-gray-400 mt-2">請選擇其他日期</p>
             </div>

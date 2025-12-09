@@ -151,12 +151,12 @@ describe('DateTimePicker', () => {
     // Should be collapsed initially when both date and time are selected
     const button = screen.getByText(/2024/).closest('button');
     expect(button).toBeInTheDocument();
-    expect(screen.queryByText('可預約時段')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
     
     fireEvent.click(button!);
     
     await waitFor(() => {
-      expect(screen.getByText('可預約時段')).toBeInTheDocument();
+      expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
   });
 
@@ -173,7 +173,12 @@ describe('DateTimePicker', () => {
     fireEvent.click(button!);
     
     await waitFor(() => {
-      expect(screen.getByText('可預約時段')).toBeInTheDocument();
+      expect(screen.getByLabelText('上個月')).toBeInTheDocument();
+    });
+    
+    // Wait for time slots to be available
+    await waitFor(() => {
+      expect(screen.getByText('9:00 AM')).toBeInTheDocument();
     });
     
     // Time should be selected in expanded view
@@ -192,7 +197,12 @@ describe('DateTimePicker', () => {
     
     // Should auto-expand when time is empty
     await waitFor(() => {
-      expect(screen.getByText('可預約時段')).toBeInTheDocument();
+      expect(screen.getByLabelText('上個月')).toBeInTheDocument();
+    });
+    
+    // Wait for time slots to be available
+    await waitFor(() => {
+      expect(screen.getByText('3:00 PM')).toBeInTheDocument();
     });
     
     // Select a time
@@ -217,7 +227,7 @@ describe('DateTimePicker', () => {
     
     // Should auto-expand when time is empty
     await waitFor(() => {
-      expect(screen.getByText('可預約時段')).toBeInTheDocument();
+      expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
     
     // Wait for time slots to be available
@@ -241,7 +251,7 @@ describe('DateTimePicker', () => {
     });
     
     await waitFor(() => {
-      expect(screen.queryByText('可預約時段')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('上個月')).not.toBeInTheDocument();
     }, { timeout: 2000 });
   });
 
@@ -258,7 +268,7 @@ describe('DateTimePicker', () => {
     fireEvent.click(button!);
     
     await waitFor(() => {
-      expect(screen.getByText('可預約時段')).toBeInTheDocument();
+      expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
     
     // Wait for time slots to be available
@@ -299,7 +309,7 @@ describe('DateTimePicker', () => {
     fireEvent.click(button!);
     
     await waitFor(() => {
-      expect(screen.getByText('可預約時段')).toBeInTheDocument();
+      expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
     
     // Clear time by selecting empty (this would require deselecting, which isn't directly possible)
@@ -325,7 +335,7 @@ describe('DateTimePicker', () => {
     
     // Should auto-expand when time is empty
     await waitFor(() => {
-      expect(screen.getByText('可預約時段')).toBeInTheDocument();
+      expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
     
     // Wait for time slots to be available
@@ -364,7 +374,7 @@ describe('DateTimePicker', () => {
     
     // Should auto-expand when time is empty
     await waitFor(() => {
-      expect(screen.getByText('可預約時段')).toBeInTheDocument();
+      expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
     
     // Wait for time slots to be available
@@ -405,7 +415,12 @@ describe('DateTimePicker', () => {
     fireEvent.click(button!);
     
     await waitFor(() => {
-      expect(screen.getByText('可預約時段')).toBeInTheDocument();
+      expect(screen.getByLabelText('上個月')).toBeInTheDocument();
+    });
+    
+    // Wait for time slots to be available
+    await waitFor(() => {
+      expect(screen.getByText('9:00 AM')).toBeInTheDocument();
     });
     
     // Time slots should be displayed (backend handles including original time when excludeCalendarEventId is provided)
