@@ -225,6 +225,15 @@ const PatientDetailPage: React.FC = () => {
               throw new Error(errorMessage);
             }
           }}
+          onRecurringAppointmentsCreated={async () => {
+            // Invalidate appointments cache to refresh the list
+            invalidateCacheByPattern('api_getPatientAppointments');
+            
+            // Trigger refetch of appointments list if available
+            if (appointmentsListRefetchRef.current) {
+              await appointmentsListRefetchRef.current();
+            }
+          }}
         />
       )}
     </div>

@@ -137,6 +137,7 @@ export interface CreateAppointmentModalProps {
     start_time: string;
     clinic_notes?: string;
   }) => Promise<void>;
+  onRecurringAppointmentsCreated?: () => Promise<void>;
 }
 
 export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = React.memo(({
@@ -150,6 +151,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   appointmentTypes,
   onClose,
   onConfirm,
+  onRecurringAppointmentsCreated,
 }) => {
   const [step, setStep] = useState<CreateStep>('form');
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(preSelectedPatientId || null);
@@ -587,8 +589,16 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           const errorMessages = result.failed_occurrences.map(f => `${f.start_time}: ${f.error_message}`).join('\n');
           setError(`已建立 ${result.created_count} 個預約，${result.failed_count} 個失敗：\n${errorMessages}`);
           setStep('conflict-resolution');
+          // Still trigger refresh if some appointments were created
+          if (result.created_count > 0 && onRecurringAppointmentsCreated) {
+            await onRecurringAppointmentsCreated();
+          }
         } else {
-          // Success - close modal without showing alert
+          // Success - trigger refresh callback if provided
+          if (onRecurringAppointmentsCreated) {
+            await onRecurringAppointmentsCreated();
+          }
+          // Close modal without showing alert
           // The success is indicated by closing the modal
           resetState();
           onClose();

@@ -645,6 +645,9 @@ export const PatientAppointmentsList: React.FC<
             setDuplicateData(null);
           }}
           onConfirm={handleCreateAppointmentConfirm}
+          onRecurringAppointmentsCreated={async () => {
+            await refreshAppointmentsList();
+          }}
         />
       )}
     </div>
