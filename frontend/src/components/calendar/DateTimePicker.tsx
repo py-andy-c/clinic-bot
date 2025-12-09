@@ -283,6 +283,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       if (!hasInitializedRef.current) {
         setTempDate(selectedDate);
         setTempTime(selectedTime);
+        // Set lastManuallySelectedTime to original selectedTime so it can be auto-selected when switching dates
+        if (selectedTime) {
+          setLastManuallySelectedTime(selectedTime);
+        }
         hasInitializedRef.current = true;
       }
     } else {
