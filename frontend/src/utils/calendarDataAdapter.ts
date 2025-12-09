@@ -22,7 +22,7 @@ export interface CalendarEvent {
     patient_name?: string;
     practitioner_name?: string;
     appointment_type_name?: string;
-    practitioner_id?: number; // For multi-practitioner calendar view
+    practitioner_id?: number | null; // For multi-practitioner calendar view (null for auto-assigned when user is not admin)
     is_primary?: boolean; // Whether this is the primary practitioner's event
     event_practitioner_name?: string; // Name of practitioner who owns this event (for multi-practitioner view)
     is_auto_assigned?: boolean; // Whether appointment is auto-assigned (shows "不指定" to patient)

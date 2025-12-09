@@ -19,6 +19,7 @@ import {
   formatEventTimeRange,
 } from "../../utils/calendarDataAdapter";
 import { appointmentToCalendarEvent } from "./appointmentUtils";
+import { canEditAppointment, canDuplicateAppointment, getPractitionerIdForDuplicate } from "../../utils/appointmentPermissions";
 import { useModal } from "../../contexts/ModalContext";
 import { useAuth } from "../../hooks/useAuth";
 import { getErrorMessage } from "../../types/api";
@@ -44,7 +45,7 @@ interface Appointment {
   calendar_event_id: number;
   patient_id: number;
   patient_name: string;
-  practitioner_id: number;
+  practitioner_id?: number | null; // Optional - hidden for auto-assigned appointments when user is not admin
   practitioner_name: string;
   appointment_type_id: number;
   appointment_type_name: string;
@@ -56,6 +57,7 @@ interface Appointment {
   clinic_notes?: string | null; // Clinic internal notes
   line_display_name?: string | null;
   originally_auto_assigned?: boolean;
+  is_auto_assigned?: boolean;
 }
 
 export const PatientAppointmentsList: React.FC<
@@ -63,7 +65,7 @@ export const PatientAppointmentsList: React.FC<
 > = ({ patientId, practitioners, appointmentTypes, onRefetchReady }) => {
   const [activeTab, setActiveTab] = useState<TabType>("future");
   const { alert } = useModal();
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
 
   // Event modal state
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
@@ -98,13 +100,24 @@ export const PatientAppointmentsList: React.FC<
 
   // Check if user can edit appointments
   const canEdit = hasRole && (hasRole("admin") || hasRole("practitioner"));
+  const isAdmin = user?.roles?.includes("admin") ?? false;
+  const userId = user?.user_id;
+  
+  // Helper function to check if user can edit an event
+  // Uses shared utility for appointments, handles other event types
   const canEditEvent = useCallback(
     (event: CalendarEvent | null): boolean => {
       if (!event || !canEdit) return false;
-      // In patient detail page, any admin or practitioner can edit any appointment
-      return event.resource.type === "appointment";
+      // Use shared utility for appointments
+      if (event.resource.type === "appointment") {
+        return canEditAppointment(event, userId, isAdmin);
+      }
+      // For other events, check if it's their own event
+      // Use practitioner_id if available, otherwise fallback to userId
+      const eventPractitionerId = event.resource.practitioner_id || userId;
+      return eventPractitionerId === userId;
     },
-    [canEdit],
+    [canEdit, isAdmin, userId],
   );
 
   // Fetch ALL appointments once (no filters) so we can calculate accurate counts for all tabs
@@ -275,7 +288,8 @@ export const PatientAppointmentsList: React.FC<
     
     // Extract data from the original appointment
     const appointmentTypeId = event.resource.appointment_type_id;
-    const practitionerId = event.resource.practitioner_id; // May be undefined for auto-assigned
+    // Use shared utility to get practitioner_id (hides for auto-assigned when not admin)
+    const practitionerId = getPractitionerIdForDuplicate(event, isAdmin);
     const clinicNotes = event.resource.clinic_notes;
     
     // Extract date and time from event.start
@@ -295,7 +309,7 @@ export const PatientAppointmentsList: React.FC<
     setCreateModalKey(prev => prev + 1); // Force remount to reset state
     setIsCreateModalOpen(true);
     setSelectedEvent(null); // Close EventModal
-  }, [selectedEvent]);
+  }, [selectedEvent, isAdmin]);
 
   // Edit appointment handler
   const handleEditConfirm = async (formData: {
@@ -564,7 +578,7 @@ export const PatientAppointmentsList: React.FC<
               : undefined
           }
           onDuplicateAppointment={
-            canEdit && selectedEvent.resource.type === "appointment"
+            canDuplicateAppointment(selectedEvent)
               ? handleDuplicateAppointment
               : undefined
           }

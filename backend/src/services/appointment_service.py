@@ -528,7 +528,8 @@ class AppointmentService:
         patient_id: int,
         clinic_id: int,
         status: Optional[str] = None,
-        upcoming_only: bool = False
+        upcoming_only: bool = False,
+        hide_auto_assigned_practitioner_id: bool = False
     ) -> List[Dict[str, Any]]:
         """
         List appointments for a specific patient.
@@ -539,6 +540,9 @@ class AppointmentService:
             clinic_id: Clinic ID
             status: Optional status filter ('confirmed', 'canceled_by_patient', 'canceled_by_clinic')
             upcoming_only: Filter for upcoming appointments only
+            hide_auto_assigned_practitioner_id: If True, hide practitioner_id for auto-assigned appointments
+                (used when non-admin users view patient appointments to prevent them from seeing 
+                who was auto-assigned, maintaining the "Auto-Assignment Visibility Principle")
 
         Returns:
             List of appointment dictionaries
@@ -627,12 +631,18 @@ class AppointmentService:
                 appointment_type_name = get_appointment_type_name_safe(appointment.appointment_type_id, db)
                 event_name = f"{patient_obj.full_name} - {appointment_type_name or '未設定'}"
 
+            # Hide practitioner_id for auto-assigned appointments if requested
+            # This prevents non-admin practitioners from seeing who was auto-assigned
+            practitioner_id = appointment.calendar_event.user_id
+            if hide_auto_assigned_practitioner_id and appointment.is_auto_assigned:
+                practitioner_id = None
+
             result.append({
                 "id": appointment.calendar_event_id,  # Keep for backward compatibility
                 "calendar_event_id": appointment.calendar_event_id,  # Explicit field
                 "patient_id": appointment.patient_id,
                 "patient_name": patient_obj.full_name,
-                "practitioner_id": appointment.calendar_event.user_id,
+                "practitioner_id": practitioner_id,
                 "practitioner_name": practitioner_name,
                 "appointment_type_id": appointment.appointment_type_id,
                 "appointment_type_name": get_appointment_type_name_safe(appointment.appointment_type_id, db),
@@ -643,7 +653,8 @@ class AppointmentService:
                 "notes": appointment.notes,
                 "clinic_notes": appointment.clinic_notes,  # Include clinic notes for clinic users
                 "line_display_name": line_display_name,
-                "originally_auto_assigned": appointment.originally_auto_assigned
+                "originally_auto_assigned": appointment.originally_auto_assigned,
+                "is_auto_assigned": appointment.is_auto_assigned
             })
 
         return result

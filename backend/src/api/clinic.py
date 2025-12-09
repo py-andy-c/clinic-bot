@@ -1733,12 +1733,18 @@ async def get_patient_appointments(
                 detail="無效的狀態值"
             )
 
+        # Hide practitioner_id for auto-assigned appointments if user is not admin
+        # This prevents non-admin practitioners from seeing who was auto-assigned
+        is_admin = current_user.has_role('admin')
+        hide_auto_assigned_practitioner_id = not is_admin
+
         appointments_data = AppointmentService.list_appointments_for_patient(
             db=db,
             patient_id=patient_id,
             clinic_id=clinic_id,
             status=status,
-            upcoming_only=upcoming_only
+            upcoming_only=upcoming_only,
+            hide_auto_assigned_practitioner_id=hide_auto_assigned_practitioner_id
         )
 
         # Convert dicts to response objects
@@ -1779,25 +1785,38 @@ async def cancel_clinic_appointment(
         # Check permissions before calling service
         # Practitioners can only cancel their own appointments; admins can cancel any in their clinic
         if not current_user.has_role('admin'):
-            # For practitioners, verify they own this appointment
-            calendar_event = db.query(CalendarEvent).filter(
-                CalendarEvent.id == appointment_id,
-                CalendarEvent.user_id == current_user.user_id
+            clinic_id = ensure_clinic_access(current_user)
+            
+            # For practitioners, verify they own this appointment and it's not auto-assigned
+            appointment = db.query(Appointment).join(
+                CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+            ).filter(
+                Appointment.calendar_event_id == appointment_id,
+                CalendarEvent.clinic_id == clinic_id
             ).first()
             
-            if not calendar_event:
-                # Either appointment doesn't exist or practitioner doesn't own it
-                # Check if appointment exists but belongs to someone else
-                existing_event = db.query(CalendarEvent).filter(
-                    CalendarEvent.id == appointment_id
-                ).first()
-                
-                if existing_event:
+            if not appointment:
+                # Appointment doesn't exist - let service handle 404
+                # We don't check permissions here because the service layer will return 404
+                # for non-existent appointments, which is the appropriate response
+                pass
+            else:
+                # Permission checks only apply if the appointment exists
+                # If it doesn't exist, the service layer will handle the 404 response
+                calendar_event = appointment.calendar_event
+                # Check if practitioner owns the appointment
+                if calendar_event.user_id != current_user.user_id:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="您只能取消自己的預約"
                     )
-                # If event doesn't exist, let service handle 404
+                # Non-admin practitioners cannot cancel auto-assigned appointments
+                # (even if they are the assigned practitioner, they shouldn't know about it)
+                if appointment.is_auto_assigned:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="您無法取消系統自動指派的預約"
+                    )
         
         # Cancel appointment using service
         # Note: Permission validation is already done above (practitioners can only cancel their own, admins can cancel any)
@@ -2565,6 +2584,13 @@ async def preview_edit_notification(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="您只能預覽自己的預約"
                 )
+            # Non-admin practitioners cannot preview auto-assigned appointments
+            # (even if they are the assigned practitioner, they shouldn't know about it)
+            if appointment.is_auto_assigned:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="您無法預覽系統自動指派的預約"
+                )
         
         # Check conflicts (after permission check)
         is_valid, _, conflicts = AppointmentService.check_appointment_edit_conflicts(
@@ -2679,6 +2705,13 @@ async def edit_clinic_appointment(
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="您只能編輯自己的預約"
+                )
+            # Non-admin practitioners cannot edit auto-assigned appointments
+            # (even if they are the assigned practitioner, they shouldn't know about it)
+            if appointment.is_auto_assigned:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="您無法編輯系統自動指派的預約"
                 )
         
         # Ensure user_id is available (should always be true with require_practitioner_or_admin)

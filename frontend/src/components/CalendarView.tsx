@@ -16,6 +16,7 @@ import {
   CalendarEvent,
   formatEventTimeRange
 } from '../utils/calendarDataAdapter';
+import { canEditAppointment, canDuplicateAppointment, getPractitionerIdForDuplicate } from '../utils/appointmentPermissions';
 import { getPractitionerColor } from '../utils/practitionerColors';
 import { CustomToolbar, CustomEventComponent, CustomDateHeader, CustomDayHeader, CustomWeekdayHeader, CustomWeekHeader } from './CalendarComponents';
 import {
@@ -187,13 +188,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }, [modalState.type]);
 
   // Helper function to check if user can edit an event
+  // Uses shared utility for appointments, handles other event types
   const canEditEvent = useCallback((event: CalendarEvent | null): boolean => {
     if (!event) return false;
-    // Admins can edit any appointment
-    if (isAdmin && event.resource.type === 'appointment') {
-      return true;
+    // Use shared utility for appointments
+    if (event.resource.type === 'appointment') {
+      return canEditAppointment(event, userId, isAdmin);
     }
-    // For other events or non-admins, check if it's their own event
+    // For other events, check if it's their own event
     const eventPractitionerId = event.resource.practitioner_id || userId;
     return eventPractitionerId === userId;
   }, [userId, isAdmin]);
@@ -1089,7 +1091,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     // Extract data from the original appointment
     const patientId = event.resource.patient_id;
     const appointmentTypeId = event.resource.appointment_type_id;
-    const practitionerId = event.resource.practitioner_id; // May be undefined for auto-assigned
+    // Use shared utility to get practitioner_id (hides for auto-assigned when not admin)
+    const practitionerId = getPractitionerIdForDuplicate(event, isAdmin);
     const clinicNotes = event.resource.clinic_notes;
     
     // Extract date and time from event.start
@@ -1111,7 +1114,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
       } 
     });
-  }, [modalState.data]);
+  }, [modalState.data, isAdmin]);
 
   // Type definition for edit appointment form data
   type EditAppointmentFormData = {
@@ -1354,7 +1357,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 : undefined
             }
             onDuplicateAppointment={
-              isAdmin && modalState.data.resource.type === 'appointment' 
+              canDuplicateAppointment(modalState.data)
                 ? handleDuplicateAppointment 
                 : undefined
             }

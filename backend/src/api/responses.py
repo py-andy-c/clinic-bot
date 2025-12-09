@@ -101,7 +101,7 @@ class AppointmentListItem(BaseModel):
     calendar_event_id: int  # Explicit field for clarity
     patient_id: int
     patient_name: str
-    practitioner_id: int
+    practitioner_id: Optional[int] = None  # None for auto-assigned appointments when user is not admin
     practitioner_name: str
     appointment_type_id: int
     appointment_type_name: str
@@ -113,6 +113,7 @@ class AppointmentListItem(BaseModel):
     clinic_notes: Optional[str] = None
     line_display_name: Optional[str] = None
     originally_auto_assigned: bool = False
+    is_auto_assigned: bool = False
 
 
 class AppointmentListResponse(BaseModel):

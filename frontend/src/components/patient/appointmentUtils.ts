@@ -6,7 +6,7 @@ interface Appointment {
   calendar_event_id?: number; // explicit field (new format)
   patient_id: number;
   patient_name: string;
-  practitioner_id?: number;
+  practitioner_id?: number | null; // Optional - hidden for auto-assigned appointments when user is not admin
   practitioner_name: string;
   appointment_type_id?: number;
   appointment_type_name: string;
@@ -18,6 +18,7 @@ interface Appointment {
   clinic_notes?: string | null; // Clinic internal notes
   line_display_name?: string | null;
   originally_auto_assigned?: boolean;
+  is_auto_assigned?: boolean;
 }
 
 /**
@@ -63,10 +64,12 @@ export function appointmentToCalendarEvent(
     appointment_type_name: appointment.appointment_type_name,
     status: appointment.status,
     originally_auto_assigned: appointment.originally_auto_assigned ?? false,
+    is_auto_assigned: appointment.is_auto_assigned ?? false,
   };
 
   // Only include optional fields if they are defined (for exactOptionalPropertyTypes)
-  if (appointment.practitioner_id !== undefined) {
+  // Note: practitioner_id may be null for auto-assigned appointments when user is not admin
+  if (appointment.practitioner_id !== undefined && appointment.practitioner_id !== null) {
     resource.practitioner_id = appointment.practitioner_id;
   }
   if (appointment.appointment_type_id !== undefined) {
