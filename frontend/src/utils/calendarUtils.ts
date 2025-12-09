@@ -116,24 +116,60 @@ export const formatDateTime = (dateTime: Date | string): string => {
 };
 
 /**
- * Format appointment time with date and weekday
- * Example: "12/25 (三) 9:00 AM - 10:00 AM"
+ * Format appointment date/time for display
+ * Format: "2025/12/8(一) 9:00 AM"
+ * 
+ * Standardized format for clinic admin platform appointment displays.
+ * Uses full year, no leading zeros, weekday in parentheses, 12-hour time.
+ * 
+ * @param dateTime - Date object or ISO string
+ * @returns Formatted datetime string
  */
-export const formatAppointmentTime = (start: Date, end: Date): string => {
+export const formatAppointmentDateTime = (dateTime: Date | string): string => {
+  const taiwanMoment = moment(dateTime).tz(TAIWAN_TIMEZONE);
+  const weekdayNames = getWeekdayNames();
+  const weekday = weekdayNames[taiwanMoment.day()] || '';
+  const dateStr = taiwanMoment.format('YYYY/M/D');
+  const timeStr = formatTo12Hour(taiwanMoment.format('HH:mm')).display;
+  return `${dateStr}(${weekday}) ${timeStr}`;
+};
+
+/**
+ * Format appointment time range with date and weekday
+ * Format: "2025/12/8(一) 9:00 AM - 10:00 AM"
+ * 
+ * Standardized format for appointment time ranges in clinic admin platform.
+ * 
+ * @param start - Start date/time
+ * @param end - End date/time
+ * @returns Formatted time range string
+ */
+export const formatAppointmentTimeRange = (start: Date, end: Date): string => {
   const startMoment = moment(start).tz(TAIWAN_TIMEZONE);
   const endMoment = moment(end).tz(TAIWAN_TIMEZONE);
-  const weekdayAbbr = i18n.t('datetime.weekdayAbbr', { returnObjects: true }) as string[];
-  // Validate weekday abbreviations array
-  if (!Array.isArray(weekdayAbbr) || weekdayAbbr.length !== 7) {
-    logger.warn('Invalid weekday abbreviations, using fallback');
-    const weekday = WEEKDAY_NAMES_ZH_TW[startMoment.day()] || '';
-    const dateStr = `${startMoment.format('MM/DD')}(${weekday})`;
-    return `${dateStr} ${startMoment.format('h:mm A')} - ${endMoment.format('h:mm A')}`;
-  }
-  const weekday = weekdayAbbr[startMoment.day()] || '';
-  const dateStr = `${startMoment.format('MM/DD')}(${weekday})`;
-  return `${dateStr} ${startMoment.format('h:mm A')} - ${endMoment.format('h:mm A')}`;
+  const weekdayNames = getWeekdayNames();
+  const weekday = weekdayNames[startMoment.day()] || '';
+  const dateStr = startMoment.format('YYYY/M/D');
+  const startTimeStr = formatTo12Hour(startMoment.format('HH:mm')).display;
+  const endTimeStr = formatTo12Hour(endMoment.format('HH:mm')).display;
+  return `${dateStr}(${weekday}) ${startTimeStr} - ${endTimeStr}`;
 };
+
+/**
+ * Format date only (no time, no weekday)
+ * Format: "2025/12/8"
+ * 
+ * Used for birthday, created date, and other date-only displays.
+ * No leading zeros for month/day.
+ * 
+ * @param date - Date object or ISO string
+ * @returns Formatted date string
+ */
+export const formatDateOnly = (date: Date | string): string => {
+  const taiwanMoment = moment(date).tz(TAIWAN_TIMEZONE);
+  return taiwanMoment.format('YYYY/M/D');
+};
+
 
 /**
  * Get date range for the current view (Taiwan timezone)

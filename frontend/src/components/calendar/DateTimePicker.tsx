@@ -18,7 +18,9 @@ import {
   formatMonthYear,
   formatDateString,
   buildDatesToCheckForMonth,
+  formatAppointmentDateTime,
 } from '../../utils/calendarUtils';
+import moment from 'moment-timezone';
 
 export interface DateTimePickerProps {
   selectedDate: string | null;
@@ -60,6 +62,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   onPractitionerError,
   practitionerError,
 }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const previousTimeRef = useRef<string>('');
   const [currentMonth, setCurrentMonth] = useState<Date>(() => {
     // Initialize to selected date or today
     if (selectedDate) {
@@ -305,10 +310,97 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     }
   }, [originalTime, selectedTime, practitionerError, allTimeSlots, onTimeSelect]);
 
-  return (
-    <div className="space-y-6">
-      {/* Calendar View */}
+  // Collapse when time is newly selected (only when time value changes, not when it already exists)
+  useEffect(() => {
+    // Only collapse if:
+    // 1. Time was just selected (changed from empty or different value)
+    // 2. Picker is currently expanded
+    // 3. Time is not empty
+    if (selectedTime && isExpanded && selectedTime !== previousTimeRef.current) {
+      setIsExpanded(false);
+    }
+    // Update the ref to track the current time
+    previousTimeRef.current = selectedTime;
+  }, [selectedTime, isExpanded]);
+
+  // Handle click outside to collapse
+  useEffect(() => {
+    if (!isExpanded) return;
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        setIsExpanded(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isExpanded]);
+
+  // Format collapsed display
+  const getCollapsedDisplay = (): string => {
+    if (!selectedDate || !selectedTime) {
+      return '請選擇';
+    }
+    const dateTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
+    return formatAppointmentDateTime(dateTime.toDate());
+  };
+
+  const handleCollapsedClick = () => {
+    setIsExpanded(true);
+  };
+
+  const handleTimeSelect = (time: string) => {
+    onTimeSelect(time);
+    // Will auto-collapse via useEffect
+  };
+
+  // Collapsed view
+  if (!isExpanded) {
+    return (
       <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          日期與時間 <span className="text-red-500">*</span>
+        </label>
+        <button
+          type="button"
+          onClick={handleCollapsedClick}
+          className={`w-full border rounded-md px-3 py-2 text-left transition-colors ${
+            error
+              ? 'border-red-300 bg-red-50'
+              : 'border-gray-300 bg-white hover:border-gray-400'
+          }`}
+        >
+          <span className={selectedDate && selectedTime ? 'text-gray-900' : 'text-gray-500'}>
+            {getCollapsedDisplay()}
+          </span>
+          <svg
+            className="w-5 h-5 float-right text-gray-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {error && (
+          <p className="mt-1 text-sm text-red-600">{error}</p>
+        )}
+      </div>
+    );
+  }
+
+  // Expanded view
+  return (
+    <div ref={pickerRef}>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        日期與時間 <span className="text-red-500">*</span>
+      </label>
+      <div className="space-y-6 mt-2">
+        {/* Calendar View */}
+        <div>
         {/* Month Navigation Header */}
         <div className="flex items-center justify-between mb-4">
           <button
@@ -414,7 +506,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                       return (
                         <button
                           key={time}
-                          onClick={() => onTimeSelect(time)}
+                          onClick={() => handleTimeSelect(time)}
                           className={`bg-white border rounded-md py-2 px-2 transition-colors text-sm font-medium ${
                             isSelected
                               ? 'border-primary-500 bg-primary-50 text-primary-700'
@@ -439,7 +531,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                       return (
                         <button
                           key={time}
-                          onClick={() => onTimeSelect(time)}
+                          onClick={() => handleTimeSelect(time)}
                           className={`bg-white border rounded-md py-2 px-2 transition-colors text-sm font-medium ${
                             isSelected
                               ? 'border-primary-500 bg-primary-50 text-primary-700'
@@ -466,6 +558,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
           <h3 className="font-medium text-gray-900 mb-2">可預約時段</h3>
           <p className="text-sm text-gray-500">請先選擇日期</p>
         </div>
+      )}
+      </div>
+      {error && (
+        <p className="mt-1 text-sm text-red-600">{error}</p>
       )}
     </div>
   );

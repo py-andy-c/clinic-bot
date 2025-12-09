@@ -1,7 +1,6 @@
 import React, { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LoadingSpinner, ErrorMessage, SearchInput, PaginationControls } from '../components/shared';
-import moment from 'moment-timezone';
 import { apiService, sharedFetchFunctions } from '../services/api';
 import { Patient } from '../types';
 import { useAuth } from '../hooks/useAuth';
@@ -16,6 +15,7 @@ import { CreateAppointmentModal } from '../components/calendar/CreateAppointment
 import { useModal } from '../contexts/ModalContext';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
+import { formatDateOnly } from '../utils/calendarUtils';
 
 // Component to handle profile picture with fallback on error
 const ProfilePictureWithFallback: React.FC<{
@@ -408,7 +408,7 @@ const PatientsPage: React.FC = () => {
                         </td>
                         {requireBirthday && (
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {patient.birthday ? moment(patient.birthday).format('YYYY/MM/DD') : '-'}
+                            {patient.birthday ? formatDateOnly(patient.birthday) : '-'}
                           </td>
                         )}
                         <td className="px-6 py-4 whitespace-nowrap">

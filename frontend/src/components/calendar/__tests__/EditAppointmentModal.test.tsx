@@ -245,12 +245,12 @@ describe('EditAppointmentModal', () => {
       expect(apiService.getPractitionerStatus).toHaveBeenCalled();
     });
 
-    // Check that original time is displayed (format: "原預約時間：YYYY-MM-DD HH:mm AM/PM")
+    // Check that original time is displayed (format: "原預約時間：YYYY/M/D(weekday) H:MM AM/PM")
     // The date/time will be converted to Asia/Taipei timezone
     const originalTimeContainer = screen.getByText(/原預約時間：/).closest('div');
     expect(originalTimeContainer).toBeInTheDocument();
-    // Verify the container has the date and time in 12-hour format
-    expect(originalTimeContainer?.textContent).toMatch(/原預約時間：\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}\s+(AM|PM)/i);
+    // Verify the container has the date and time in standardized format: YYYY/M/D(weekday) H:MM AM/PM
+    expect(originalTimeContainer?.textContent).toMatch(/原預約時間：\d{4}\/\d{1,2}\/\d{1,2}\([日一二三四五六]\)\s+\d{1,2}:\d{2}\s+(AM|PM)/i);
   });
 
   describe('Review Step', () => {

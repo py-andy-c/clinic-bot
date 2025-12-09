@@ -4,7 +4,7 @@ import { logger } from '../../utils/logger';
 import moment from 'moment-timezone';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
-import { formatDateTime as formatDateTimeUtil } from '../../utils/calendarUtils';
+import { formatAppointmentDateTime } from '../../utils/calendarUtils';
 import { getErrorMessage } from '../../types/api';
 
 const Step6Confirmation: React.FC = () => {
@@ -83,7 +83,7 @@ const Step6Confirmation: React.FC = () => {
     }
     
     // Use shared formatting utility
-    return formatDateTimeUtil(dateTimeTaiwan.toDate());
+    return formatAppointmentDateTime(dateTimeTaiwan.toDate());
   };
 
   return (

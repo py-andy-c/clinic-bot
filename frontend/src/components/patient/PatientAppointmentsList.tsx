@@ -7,7 +7,7 @@ import {
 import { apiService } from "../../services/api";
 import { LoadingSpinner, ErrorMessage } from "../shared";
 import moment from "moment-timezone";
-import { formatAppointmentTime } from "../../utils/calendarUtils";
+import { formatAppointmentTimeRange } from "../../utils/calendarUtils";
 import { renderStatusBadge } from "../../utils/appointmentStatus";
 import { EditAppointmentModal } from "../calendar/EditAppointmentModal";
 import { CancellationNoteModal } from "../calendar/CancellationNoteModal";
@@ -303,7 +303,7 @@ export const PatientAppointmentsList: React.FC<
       const response = await apiService.generateCancellationPreview({
         appointment_type:
           deletingAppointment.resource.appointment_type_name || "",
-        appointment_time: formatAppointmentTime(
+        appointment_time: formatAppointmentTimeRange(
           deletingAppointment.start,
           deletingAppointment.end,
         ),
@@ -432,7 +432,7 @@ export const PatientAppointmentsList: React.FC<
                     {appointment.event_name}
                   </h3>
                   <p className="text-sm text-gray-600 mt-1">
-                    {formatAppointmentTime(
+                    {formatAppointmentTimeRange(
                       new Date(appointment.start_time),
                       new Date(appointment.end_time),
                     )}
@@ -517,11 +517,7 @@ export const PatientAppointmentsList: React.FC<
             setEditErrorMessage(null);
           }}
           onConfirm={handleEditConfirm}
-          formatAppointmentTime={(start, end) => {
-            const startMoment = moment(start).tz("Asia/Taipei");
-            const endMoment = moment(end).tz("Asia/Taipei");
-            return `${startMoment.format("YYYY-MM-DD HH:mm")} - ${endMoment.format("HH:mm")}`;
-          }}
+          formatAppointmentTime={formatAppointmentTimeRange}
           errorMessage={editErrorMessage}
         />
       )}

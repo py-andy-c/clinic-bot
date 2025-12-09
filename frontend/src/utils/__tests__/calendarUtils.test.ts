@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import moment from 'moment-timezone';
 import {
   getDateString,
-  formatAppointmentTime,
+  formatAppointmentTimeRange,
   getDateRange,
   formatTimeString,
   getScrollToTime,
@@ -40,13 +40,13 @@ describe('calendarUtils', () => {
     });
   });
 
-  describe('formatAppointmentTime', () => {
+  describe('formatAppointmentTimeRange', () => {
     it('should format appointment time with date and weekday', () => {
       const start = new Date('2024-01-15T09:00:00+08:00');
       const end = new Date('2024-01-15T10:00:00+08:00');
-      const result = formatAppointmentTime(start, end);
+      const result = formatAppointmentTimeRange(start, end);
       
-      expect(result).toContain('1/15');
+      expect(result).toContain('2024/1/15');
       expect(result).toContain('9:00');
       expect(result).toContain('10:00');
       expect(result).toMatch(/AM|PM/);
@@ -55,7 +55,7 @@ describe('calendarUtils', () => {
     it('should include weekday in Chinese', () => {
       const start = new Date('2024-01-15T09:00:00+08:00'); // Monday
       const end = new Date('2024-01-15T10:00:00+08:00');
-      const result = formatAppointmentTime(start, end);
+      const result = formatAppointmentTimeRange(start, end);
       
       // Should contain weekday in Chinese (一, 二, 三, etc.)
       expect(result).toMatch(/[一二三四五六日]/);
@@ -64,9 +64,18 @@ describe('calendarUtils', () => {
     it('should format PM times correctly', () => {
       const start = new Date('2024-01-15T14:00:00+08:00');
       const end = new Date('2024-01-15T15:00:00+08:00');
-      const result = formatAppointmentTime(start, end);
+      const result = formatAppointmentTimeRange(start, end);
       
       expect(result).toContain('PM');
+    });
+
+    it('should use standardized format YYYY/M/D(weekday) H:MM AM/PM - H:MM AM/PM', () => {
+      const start = new Date('2024-01-15T09:00:00+08:00');
+      const end = new Date('2024-01-15T10:00:00+08:00');
+      const result = formatAppointmentTimeRange(start, end);
+      
+      // Should match format: 2024/1/15(一) 9:00 AM - 10:00 AM
+      expect(result).toMatch(/^\d{4}\/\d{1,2}\/\d{1,2}\([一二三四五六日]\)\s+\d{1,2}:\d{2}\s+(AM|PM)\s+-\s+\d{1,2}:\d{2}\s+(AM|PM)$/);
     });
   });
 

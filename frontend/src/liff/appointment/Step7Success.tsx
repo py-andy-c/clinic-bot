@@ -5,7 +5,7 @@ import { logger } from '../../utils/logger';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { downloadAppointmentICS, generateGoogleCalendarURL } from '../../utils/icsGenerator';
 import { useModal } from '../../contexts/ModalContext';
-import { formatDateTime as formatDateTimeUtil } from '../../utils/calendarUtils';
+import { formatAppointmentDateTime } from '../../utils/calendarUtils';
 import { liffApiService } from '../../services/liffApi';
 
 const Step7Success: React.FC = () => {
@@ -154,7 +154,7 @@ const Step7Success: React.FC = () => {
     }
 
     // Use shared formatting utility
-    return formatDateTimeUtil(taiwanMoment.toDate());
+    return formatAppointmentDateTime(taiwanMoment.toDate());
   };
 
   const handleClose = () => {

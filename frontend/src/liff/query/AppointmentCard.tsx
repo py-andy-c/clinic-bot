@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatDateTime } from '../../utils/calendarUtils';
+import { formatAppointmentDateTime } from '../../utils/calendarUtils';
 import { getStatusBadgeColor } from '../../utils/appointmentStatus';
 
 interface Appointment {
@@ -43,7 +43,7 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
   };
 
   const formattedDateTime = appointment.start_time 
-    ? formatDateTime(appointment.start_time)
+    ? formatAppointmentDateTime(appointment.start_time)
     : '';
   const canCancel = appointment.status === 'confirmed';
 

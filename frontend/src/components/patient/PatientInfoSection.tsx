@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Patient } from '../../types';
-import moment from 'moment-timezone';
 import { useAuth } from '../../hooks/useAuth';
 import { useApiData } from '../../hooks/useApiData';
 import { apiService } from '../../services/api';
 import { DateInput } from '../shared/DateInput';
 import { formatDateForApi, convertApiDateToDisplay } from '../../utils/dateFormat';
 import { validateClinicPatientForm } from '../../utils/patientFormValidation';
+import { formatDateOnly } from '../../utils/calendarUtils';
 
 interface PatientInfoSectionProps {
   patient: Patient;
@@ -198,7 +198,7 @@ export const PatientInfoSection: React.FC<PatientInfoSectionProps> = ({
             <dt className="text-sm font-medium text-gray-500">生日</dt>
             <dd className="mt-1 text-sm text-gray-900">
               {patient.birthday
-                ? moment(patient.birthday).format('YYYY/MM/DD')
+                ? formatDateOnly(patient.birthday)
                 : '-'}
             </dd>
           </div>
@@ -225,7 +225,7 @@ export const PatientInfoSection: React.FC<PatientInfoSectionProps> = ({
         <div>
           <dt className="text-sm font-medium text-gray-500">建立日期</dt>
           <dd className="mt-1 text-sm text-gray-900">
-            {moment.tz(patient.created_at, 'Asia/Taipei').format('YYYY/MM/DD')}
+            {formatDateOnly(patient.created_at)}
           </dd>
         </div>
       </dl>

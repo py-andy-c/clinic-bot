@@ -12,7 +12,7 @@ import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { apiService } from '../../services/api';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
-import { formatTo12Hour, getPractitionerDisplayName } from '../../utils/calendarUtils';
+import { getPractitionerDisplayName, formatAppointmentDateTime } from '../../utils/calendarUtils';
 import moment from 'moment-timezone';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 
@@ -486,7 +486,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         <div className="mb-4 bg-blue-50 border border-blue-200 rounded-md p-3">
           <p className="text-sm font-medium text-blue-900">
             <span className="font-semibold">原預約時間：</span>
-            {originalDate} {formatTo12Hour(originalTime).display}
+            {originalDate && originalTime ? formatAppointmentDateTime(moment.tz(`${originalDate}T${originalTime}`, 'Asia/Taipei').toDate()) : ''}
           </p>
         </div>
         {appointmentTypeId && selectedPractitionerId && (
@@ -552,10 +552,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const renderReviewStep = () => {
     const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
     const originalStartTime = moment(event.start).tz('Asia/Taipei');
-    const newDateStr = newStartTime.format('YYYY-MM-DD');
-    const newTimeStr = formatTo12Hour(selectedTime).display;
-    const originalDateStr = originalStartTime.format('YYYY-MM-DD');
-    const originalTimeStr = formatTo12Hour(originalTime).display;
+    const newFormattedDateTime = formatAppointmentDateTime(newStartTime.toDate());
+    const originalFormattedDateTime = formatAppointmentDateTime(originalStartTime.toDate());
     const showTimeWarning = changeDetails.timeChanged || changeDetails.dateChanged;
 
     const originalAppointmentType = appointmentTypes.find(at => at.id === originalAppointmentTypeId);
@@ -585,12 +583,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
                 </span>
               </div>
               <div>
-                <span className="text-sm text-gray-600">日期：</span>
-                <span className="text-sm text-gray-900">{originalDateStr}</span>
-              </div>
-              <div>
-                <span className="text-sm text-gray-600">時間：</span>
-                <span className="text-sm text-gray-900">{originalTimeStr}</span>
+                <span className="text-sm text-gray-600">日期時間：</span>
+                <span className="text-sm text-gray-900">{originalFormattedDateTime}</span>
               </div>
             </div>
           </div>
@@ -614,17 +608,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
                 </span>
               </div>
               <div>
-                <span className="text-sm text-gray-600">日期：</span>
+                <span className="text-sm text-gray-600">日期時間：</span>
                 <span className="text-sm text-gray-900">
-                  {newDateStr}
-                  {changeDetails.dateChanged && <span className="ml-2 text-blue-600">✏️</span>}
-                </span>
-              </div>
-              <div>
-                <span className="text-sm text-gray-600">時間：</span>
-                <span className="text-sm text-gray-900">
-                  {newTimeStr}
-                  {changeDetails.timeChanged && <span className="ml-2 text-blue-600">✏️</span>}
+                  {newFormattedDateTime}
+                  {(changeDetails.timeChanged || changeDetails.dateChanged) && <span className="ml-2 text-blue-600">✏️</span>}
                 </span>
               </div>
             </div>

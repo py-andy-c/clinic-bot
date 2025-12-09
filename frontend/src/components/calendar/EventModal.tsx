@@ -10,6 +10,7 @@ import { BaseModal } from './BaseModal';
 import { apiService } from '../../services/api';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 import { logger } from '../../utils/logger';
+import { formatDateOnly } from '../../utils/calendarUtils';
 
 // Maximum length for custom event names
 // Must match backend/src/core/constants.py MAX_EVENT_NAME_LENGTH = 100
@@ -221,7 +222,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 <p><strong>電話:</strong> {event.resource.patient_phone}</p>
               )}
               {!hidePatientInfo && event.resource.patient_birthday && (
-                <p><strong>生日:</strong> {event.resource.patient_birthday}</p>
+                <p><strong>生日:</strong> {formatDateOnly(event.resource.patient_birthday)}</p>
               )}
               {!hidePatientInfo && event.resource.line_display_name && (
                 <p><strong>LINE:</strong> {event.resource.line_display_name}</p>

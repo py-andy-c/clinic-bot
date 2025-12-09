@@ -30,7 +30,7 @@ import {
 } from './calendar';
 import {
   getDateString,
-  formatAppointmentTime,
+  formatAppointmentTimeRange,
   getDateRange,
   formatTimeString,
   getScrollToTime,
@@ -985,7 +985,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     try {
       const response = await apiService.generateCancellationPreview({
         appointment_type: modalState.data.resource.appointment_type_name,
-        appointment_time: formatAppointmentTime(modalState.data.start, modalState.data.end),
+        appointment_time: formatAppointmentTimeRange(modalState.data.start, modalState.data.end),
         therapist_name: modalState.data.resource.practitioner_name,
         patient_name: modalState.data.resource.patient_name,
         ...(cancellationNote.trim() && { note: cancellationNote.trim() }),
@@ -1423,7 +1423,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             setModalState({ type: 'event', data: modalState.data });
           }}
           onConfirm={handleConfirmEditAppointment}
-          formatAppointmentTime={formatAppointmentTime}
+          formatAppointmentTime={formatAppointmentTimeRange}
           errorMessage={editErrorMessage}
         />
       )}

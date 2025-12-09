@@ -9,6 +9,7 @@ import { useApiData } from '../hooks/useApiData';
 import { BaseModal } from '../components/shared/BaseModal';
 import moment from 'moment-timezone';
 import { CalendarEvent } from '../utils/calendarDataAdapter';
+import { formatAppointmentDateTime, formatAppointmentTimeRange } from '../utils/calendarUtils';
 
 interface AutoAssignedAppointment {
   appointment_id: number;
@@ -277,7 +278,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
 
   const formatDateTime = (dateTimeStr: string) => {
     const momentObj = moment.tz(dateTimeStr, 'Asia/Taipei');
-    return momentObj.format('YYYY-MM-DD HH:mm');
+    return formatAppointmentDateTime(momentObj.toDate());
   };
 
   const formatAutoAssignmentTime = (startTimeStr: string) => {
@@ -442,11 +443,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
             setCalendarEvent(null);
           }}
           onConfirm={handleEditConfirm}
-          formatAppointmentTime={(start, end) => {
-            const startMoment = moment(start).tz('Asia/Taipei');
-            const endMoment = moment(end).tz('Asia/Taipei');
-            return `${startMoment.format('YYYY-MM-DD HH:mm')} - ${endMoment.format('HH:mm')}`;
-          }}
+          formatAppointmentTime={formatAppointmentTimeRange}
           formSubmitButtonText="下一步"
           saveButtonText="確認指派"
           allowConfirmWithoutChanges={true}

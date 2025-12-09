@@ -15,7 +15,7 @@ import { logger } from '../../utils/logger';
 import { SearchInput } from '../shared';
 import { Patient } from '../../types';
 import moment from 'moment-timezone';
-import { formatTo12Hour, getWeekdayNames } from '../../utils/calendarUtils';
+import { formatAppointmentDateTime } from '../../utils/calendarUtils';
 import { useApiData } from '../../hooks/useApiData';
 import { useAuth } from '../../hooks/useAuth';
 import { useDebouncedSearch, shouldTriggerSearch } from '../../utils/searchUtils';
@@ -840,10 +840,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           <div className="space-y-2">
             {occurrences.map((occ, idx) => {
               const dateMoment = moment.tz(`${occ.date}T${occ.time}`, 'Asia/Taipei');
-              const weekdayNames = getWeekdayNames();
-              const weekday = weekdayNames[dateMoment.day()];
-              const dateStr = `${dateMoment.format('YYYY/MM/DD')} (${weekday})`;
-              const timeStr = formatTo12Hour(occ.time).display;
+              const formattedDateTime = formatAppointmentDateTime(dateMoment.toDate());
               
               return (
                 <div
@@ -859,29 +856,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                       {idx + 1}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium text-gray-900 whitespace-nowrap">
-                          {dateStr}
-                        </span>
-                        <span className="text-sm text-gray-600 whitespace-nowrap">
-                          {timeStr}
-                        </span>
-                        {occ.hasConflict ? (
-                          <span className="flex items-center gap-1 text-red-600 text-sm whitespace-nowrap">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                            <span className="hidden sm:inline">衝突</span>
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-green-600 text-sm whitespace-nowrap">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                            <span className="hidden sm:inline">可用</span>
-                          </span>
-                        )}
-                      </div>
+                      <span className="text-sm font-medium text-gray-900">
+                        {formattedDateTime}
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -890,27 +867,25 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                         const updated = occurrences.filter(o => o.id !== occ.id);
                         setOccurrences(updated);
                       }}
-                      className="flex items-center gap-1 p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
+                      className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
                       aria-label="刪除"
                       title="刪除"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
-                      <span className="hidden sm:inline text-sm">刪除</span>
                     </button>
                     <button
                       onClick={() => {
                         setEditingOccurrenceId(occ.id);
                       }}
-                      className="flex items-center gap-1 p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
+                      className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
                       aria-label="修改"
                       title="修改"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      <span className="hidden sm:inline text-sm">修改</span>
                     </button>
                   </div>
                 </div>
@@ -935,7 +910,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             </div>
           )}
           
-          {/* DateTimePicker for rescheduling or adding occurrence */}
+          {/* DateTimePicker for rescheduling or adding occurrence - inline after the row */}
           {(editingOccurrenceId || addingOccurrence) && selectedAppointmentTypeId && selectedPractitionerId && (
             <div className="mt-4 border-t border-gray-200 pt-4">
               <div className="mb-2 text-sm font-medium text-gray-700">
@@ -1049,13 +1024,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   // Render confirmation step
   const renderConfirmStep = () => {
     const dateTime = selectedDate && selectedTime 
-      ? moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei')
+      ? moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toDate()
       : null;
-    const weekdayNames = getWeekdayNames();
-    const dateStr = dateTime 
-      ? `${dateTime.format('YYYY/MM/DD')} (${weekdayNames[dateTime.day()]})`
-      : '';
-    const timeStr = selectedTime ? formatTo12Hour(selectedTime).display : '';
+    const formattedDateTime = dateTime ? formatAppointmentDateTime(dateTime) : '';
 
     return (
       <>
@@ -1096,13 +1067,10 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                   <div className="space-y-1">
                     {occurrences.slice(0, 10).map((occ, idx) => {
                       const dateMoment = moment.tz(`${occ.date}T${occ.time}`, 'Asia/Taipei');
-                      const weekdayNames = getWeekdayNames();
-                      const weekday = weekdayNames[dateMoment.day()];
-                      const dateStr = dateMoment.format('YYYY/MM/DD');
-                      const timeStr = formatTo12Hour(occ.time).display;
+                      const formattedDateTime = formatAppointmentDateTime(dateMoment.toDate());
                       return (
                         <div key={occ.id} className="text-sm text-gray-700">
-                          {idx + 1}. {dateStr} ({weekday}) {timeStr}
+                          {idx + 1}. {formattedDateTime}
                         </div>
                       );
                     })}
@@ -1113,16 +1081,10 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                 </div>
               </>
             ) : (
-              <>
-                <div>
-                  <span className="text-sm text-gray-600">日期：</span>
-                  <span className="text-sm text-gray-900 ml-2">{dateStr}</span>
-                </div>
-                <div>
-                  <span className="text-sm text-gray-600">時間：</span>
-                  <span className="text-sm text-gray-900 ml-2">{timeStr}</span>
-                </div>
-              </>
+              <div>
+                <span className="text-sm text-gray-600">日期時間：</span>
+                <span className="text-sm text-gray-900 ml-2">{formattedDateTime}</span>
+              </div>
             )}
             {clinicNotes.trim() && (
               <div>
