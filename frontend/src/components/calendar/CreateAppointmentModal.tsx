@@ -1224,15 +1224,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   // Handle modal close with state reset
   const handleClose = useCallback(() => {
-    if (step === 'confirm') {
-      // Return to form instead of closing
-      setStep('form');
-      setError(null);
-    } else {
-      resetState();
-      onClose();
-    }
-  }, [resetState, onClose, step]);
+    resetState();
+    onClose();
+  }, [resetState, onClose]);
 
   const modalTitle = step === 'form' ? '建立預約' : step === 'conflict-resolution' ? '解決衝突' : '確認預約';
 
