@@ -38,6 +38,8 @@ export interface DateTimePickerProps {
   onPractitionerError?: (errorMessage: string) => void;
   // Optional: force clear cache when practitioner error is detected
   practitionerError?: string | null;
+  // Optional: callback to report temp date/time when picker is expanded (for external confirm buttons)
+  onTempChange?: (tempDate: string | null, tempTime: string) => void;
 }
 
 const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
@@ -54,6 +56,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   onHasAvailableSlotsChange,
   onPractitionerError,
   practitionerError,
+  onTempChange,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -320,6 +323,13 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       setTempTime(lastManuallySelectedTime);
     }
   }, [isExpanded, tempDate, tempTime, lastManuallySelectedTime, allTimeSlots]);
+
+  // Report temp date/time changes to parent when expanded
+  useEffect(() => {
+    if (onTempChange && isExpanded) {
+      onTempChange(tempDate, tempTime);
+    }
+  }, [onTempChange, isExpanded, tempDate, tempTime]);
 
   // Handle collapse - save temp state to confirmed or clear both
   const handleCollapse = useCallback(() => {

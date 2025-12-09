@@ -34,6 +34,12 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
 }> = ({ initialDate, initialTime, selectedPractitionerId, appointmentTypeId, onConfirm, onCancel }) => {
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
   const [selectedTime, setSelectedTime] = useState<string>(initialTime);
+  // Track temp values when picker is expanded
+  // These represent the user's current selection in the expanded picker UI before confirmation.
+  // When picker is expanded, tempDate/tempTime are used for display and confirmation.
+  // When picker is collapsed, selectedDate/selectedTime are the confirmed values.
+  const [tempDate, setTempDate] = useState<string | null>(null);
+  const [tempTime, setTempTime] = useState<string>('');
   
   const handleDateSelect = (date: string | null) => {
     setSelectedDate(date);
@@ -44,14 +50,46 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
     setSelectedTime(time);
   };
   
-  const handleConfirm = async () => {
-    if (selectedDate && selectedTime) {
-      await onConfirm(selectedDate, selectedTime);
+  const handleTempChange = (date: string | null, time: string) => {
+    setTempDate(date);
+    setTempTime(time);
+  };
+  
+  const handleConfirm = async (e: React.MouseEvent) => {
+    // Stop propagation to prevent DateTimePicker's click outside handler from collapsing
+    e.stopPropagation();
+    
+    // Use tempDate/tempTime if available (picker is expanded), otherwise use selectedDate/selectedTime
+    const dateToUse = tempDate ?? selectedDate;
+    const timeToUse = tempTime || selectedTime;
+    
+    if (dateToUse && timeToUse) {
+      await onConfirm(dateToUse, timeToUse);
     }
   };
   
+  const handleCancel = (e: React.MouseEvent) => {
+    // Stop propagation to prevent DateTimePicker's click outside handler from collapsing
+    e.stopPropagation();
+    onCancel();
+  };
+  
+  // Stop mousedown propagation to prevent DateTimePicker's click outside handler from collapsing
+  // This allows the confirm/cancel buttons to work without collapsing the picker.
+  // Note: This only stops mousedown events, not click events, so DateTimePicker's internal
+  // onClick handlers (for date/time selection) continue to work normally.
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+  
+  // Determine if confirm button should be enabled
+  // Use temp values if available (picker expanded), otherwise use selected values
+  const dateToCheck = tempDate ?? selectedDate;
+  const timeToCheck = tempTime || selectedTime;
+  const canConfirm = !!(dateToCheck && timeToCheck);
+  
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" onMouseDown={handleMouseDown}>
       <DateTimePicker
         selectedDate={selectedDate}
         selectedTime={selectedTime}
@@ -59,18 +97,19 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
         appointmentTypeId={appointmentTypeId}
         onDateSelect={handleDateSelect}
         onTimeSelect={handleTimeSelect}
+        onTempChange={handleTempChange}
       />
       <div className="flex gap-2">
         <button
-          onClick={onCancel}
+          onClick={handleCancel}
           className="btn-secondary text-sm py-1 px-3"
         >
           取消
         </button>
         <button
           onClick={handleConfirm}
-          disabled={!selectedDate || !selectedTime}
-          className={`btn-primary text-sm py-1 px-3 ${!selectedDate || !selectedTime ? 'opacity-50 cursor-not-allowed' : ''}`}
+          disabled={!canConfirm}
+          className={`btn-primary text-sm py-1 px-3 ${!canConfirm ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           確認
         </button>
@@ -841,110 +880,140 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             {occurrences.map((occ, idx) => {
               const dateMoment = moment.tz(`${occ.date}T${occ.time}`, 'Asia/Taipei');
               const formattedDateTime = formatAppointmentDateTime(dateMoment.toDate());
+              const isEditing = editingOccurrenceId === occ.id;
               
               return (
-                <div
-                  key={occ.id}
-                  className={`flex items-center justify-between gap-3 p-3 rounded-md ${
-                    occ.hasConflict
-                      ? 'bg-red-50 border-l-4 border-red-500'
-                      : 'bg-white border border-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-700">
-                      {idx + 1}
+                <div key={occ.id} className="space-y-2">
+                  <div
+                    className={`flex items-center justify-between gap-3 p-3 rounded-md ${
+                      occ.hasConflict
+                        ? 'bg-red-50 border-l-4 border-red-500'
+                        : 'bg-white border border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-700">
+                        {idx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium text-gray-900">
+                          {formattedDateTime}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium text-gray-900">
-                        {formattedDateTime}
-                      </span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => {
+                          const updated = occurrences.filter(o => o.id !== occ.id);
+                          setOccurrences(updated);
+                        }}
+                        className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
+                        aria-label="刪除"
+                        title="刪除"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingOccurrenceId(occ.id);
+                        }}
+                        className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
+                        aria-label="修改"
+                        title="修改"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => {
-                        const updated = occurrences.filter(o => o.id !== occ.id);
-                        setOccurrences(updated);
-                      }}
-                      className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
-                      aria-label="刪除"
-                      title="刪除"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingOccurrenceId(occ.id);
-                      }}
-                      className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
-                      aria-label="修改"
-                      title="修改"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                  </div>
+                  
+                  {/* DateTimePicker for editing - appears right below the occurrence */}
+                  {isEditing && selectedAppointmentTypeId && selectedPractitionerId && (
+                    <div className="border-t border-gray-200 pt-3">
+                      <RecurrenceDateTimePickerWrapper
+                        initialDate={occ.date}
+                        initialTime={occ.time}
+                        selectedPractitionerId={selectedPractitionerId}
+                        appointmentTypeId={selectedAppointmentTypeId}
+                        onConfirm={async (date: string, time: string) => {
+                          // Check for duplicates (excluding current)
+                          const isDuplicate = occurrences.some(o => 
+                            o.id !== occ.id && o.date === date && o.time === time
+                          );
+                          if (isDuplicate) {
+                            setError('此時間已在列表中，請選擇其他時間');
+                            return;
+                          }
+                          
+                          // Always check for conflicts when editing, even if time hasn't changed
+                          // This fixes the edge case where user edits but doesn't change time
+                          const occurrenceString = moment.tz(`${date}T${time}`, 'Asia/Taipei').toISOString();
+                          try {
+                            const conflictResult = await apiService.checkRecurringConflicts({
+                              practitioner_id: selectedPractitionerId!,
+                              appointment_type_id: selectedAppointmentTypeId!,
+                              occurrences: [occurrenceString],
+                            });
+                            
+                            const conflictStatus = conflictResult.occurrences[0];
+                            const hasConflict = conflictStatus?.has_conflict || false;
+                            
+                            // Update occurrence with new time and conflict status
+                            const updated = occurrences.map(o => 
+                              o.id === occ.id
+                                ? { ...o, date, time, hasConflict }
+                                : o
+                            );
+                            
+                            if (hasConflict) {
+                              setError('此時間段已有衝突，請選擇其他時間');
+                            } else {
+                              setOccurrences(updated);
+                              setEditingOccurrenceId(null);
+                              setError(null);
+                            }
+                          } catch (err) {
+                            logger.error('Error checking conflict for edited occurrence:', err);
+                            setError('無法檢查衝突，請稍後再試');
+                          }
+                        }}
+                        onCancel={() => {
+                          setEditingOccurrenceId(null);
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               );
             })}
-            <button
-              onClick={() => {
-                setAddingOccurrence(true);
-              }}
-              className="w-full flex items-center justify-center gap-2 p-3 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md border border-dashed border-blue-300 transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span className="text-sm font-medium">新增</span>
-            </button>
-          </div>
-          
-          {occurrences.length === 0 && (
-            <div className="text-center py-4 text-red-600 text-sm">
-              至少需要一個預約時段
-            </div>
-          )}
-          
-          {/* DateTimePicker for rescheduling or adding occurrence - inline after the row */}
-          {(editingOccurrenceId || addingOccurrence) && selectedAppointmentTypeId && selectedPractitionerId && (
-            <div className="mt-4 border-t border-gray-200 pt-4">
-              <div className="mb-2 text-sm font-medium text-gray-700">
-                {addingOccurrence ? '新增預約時段' : '重新選擇時間'}
-              </div>
-              <RecurrenceDateTimePickerWrapper
-                initialDate={editingOccurrenceId 
-                  ? occurrences.find(o => o.id === editingOccurrenceId)?.date || null
-                  : null}
-                initialTime={editingOccurrenceId
-                  ? occurrences.find(o => o.id === editingOccurrenceId)?.time || ''
-                  : ''}
-                selectedPractitionerId={selectedPractitionerId}
-                appointmentTypeId={selectedAppointmentTypeId}
-                onConfirm={async (date: string, time: string) => {
-                  if (editingOccurrenceId) {
-                    // Update existing occurrence
-                    const updated = occurrences.map(o => 
-                      o.id === editingOccurrenceId
-                        ? { ...o, date, time, hasConflict: false }
-                        : o
-                    );
-                    // Check for duplicates (excluding current)
-                    const isDuplicate = updated.some(o => 
-                      o.id !== editingOccurrenceId && o.date === date && o.time === time
-                    );
-                    if (isDuplicate) {
-                      setError('此時間已在列表中，請選擇其他時間');
-                    } else {
-                      setOccurrences(updated);
-                      setEditingOccurrenceId(null);
-                      setError(null);
-                    }
-                  } else if (addingOccurrence) {
+            
+            {/* Add button - hidden when addingOccurrence is true */}
+            {!addingOccurrence && (
+              <button
+                onClick={() => {
+                  setAddingOccurrence(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 p-3 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md border border-dashed border-blue-300 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="text-sm font-medium">新增</span>
+              </button>
+            )}
+            
+            {/* DateTimePicker for adding new occurrence - appears after the add button */}
+            {addingOccurrence && selectedAppointmentTypeId && selectedPractitionerId && (
+              <div className="border-t border-gray-200 pt-3">
+                <RecurrenceDateTimePickerWrapper
+                  initialDate={null}
+                  initialTime={''}
+                  selectedPractitionerId={selectedPractitionerId}
+                  appointmentTypeId={selectedAppointmentTypeId}
+                  onConfirm={async (date: string, time: string) => {
                     // Add new occurrence - check for conflicts first
                     const isDuplicate = occurrences.some(o => o.date === date && o.time === time);
                     if (isDuplicate) {
@@ -972,6 +1041,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                             hasConflict: false,
                           };
                           setOccurrences([...occurrences, newOcc]);
+                          // Close the picker and show the 新增 button again
                           setAddingOccurrence(false);
                           setError(null);
                         }
@@ -980,13 +1050,18 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                         setError('無法檢查衝突，請稍後再試');
                       }
                     }
-                  }
-                }}
-                onCancel={() => {
-                  setEditingOccurrenceId(null);
-                  setAddingOccurrence(false);
-                }}
-              />
+                  }}
+                  onCancel={() => {
+                    setAddingOccurrence(false);
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          
+          {occurrences.length === 0 && (
+            <div className="text-center py-4 text-red-600 text-sm">
+              至少需要一個預約時段
             </div>
           )}
         </div>
