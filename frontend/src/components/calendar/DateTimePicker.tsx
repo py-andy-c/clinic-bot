@@ -64,7 +64,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
-  const previousTimeRef = useRef<string>('');
   const [currentMonth, setCurrentMonth] = useState<Date>(() => {
     // Initialize to selected date or today
     if (selectedDate) {
@@ -310,26 +309,16 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     }
   }, [originalTime, selectedTime, practitionerError, allTimeSlots, onTimeSelect]);
 
-  // Collapse when time is newly selected (only when time value changes, not when it already exists)
-  useEffect(() => {
-    // Only collapse if:
-    // 1. Time was just selected (changed from empty or different value)
-    // 2. Picker is currently expanded
-    // 3. Time is not empty
-    if (selectedTime && isExpanded && selectedTime !== previousTimeRef.current) {
-      setIsExpanded(false);
-    }
-    // Update the ref to track the current time
-    previousTimeRef.current = selectedTime;
-  }, [selectedTime, isExpanded]);
-
   // Handle click outside to collapse
   useEffect(() => {
     if (!isExpanded) return;
     
     const handleClickOutside = (event: MouseEvent) => {
       if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
-        setIsExpanded(false);
+        // Defer collapse to allow checkbox click events to complete
+        setTimeout(() => {
+          setIsExpanded(false);
+        }, 0);
       }
     };
 
@@ -354,7 +343,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
 
   const handleTimeSelect = (time: string) => {
     onTimeSelect(time);
-    // Will auto-collapse via useEffect
   };
 
   // Collapsed view
