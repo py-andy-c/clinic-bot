@@ -362,12 +362,16 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     }
   }, [isExpanded, tempDate, tempTime, lastManuallySelectedTime, allTimeSlots]);
 
-  // Report temp date/time changes to parent when expanded
+  // Always report effective date/time values to parent
+  // When expanded: use tempDate/tempTime (user's current selection)
+  // When collapsed: use selectedDate/selectedTime (confirmed values)
   useEffect(() => {
-    if (onTempChange && isExpanded) {
-      onTempChange(tempDate, tempTime);
+    if (onTempChange) {
+      const effectiveDate = isExpanded ? tempDate : selectedDate;
+      const effectiveTime = isExpanded ? tempTime : selectedTime;
+      onTempChange(effectiveDate, effectiveTime);
     }
-  }, [onTempChange, isExpanded, tempDate, tempTime]);
+  }, [onTempChange, isExpanded, tempDate, tempTime, selectedDate, selectedTime]);
 
   // Handle collapse - save temp state to confirmed or clear both
   const handleCollapse = useCallback(() => {

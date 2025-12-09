@@ -426,5 +426,82 @@ describe('DateTimePicker', () => {
     // Time slots should be displayed (backend handles including original time when excludeCalendarEventId is provided)
     expect(screen.getByText('9:00 AM')).toBeInTheDocument();
   });
+
+  it('should call onTempChange with effective values when expanded', async () => {
+    const mockOnTempChange = vi.fn();
+    
+    render(
+      <DateTimePicker
+        {...defaultProps}
+        selectedDate="2024-01-15"
+        selectedTime="09:00"
+        onTempChange={mockOnTempChange}
+      />
+    );
+    
+    // Should start collapsed, so onTempChange should be called with selected values
+    await waitFor(() => {
+      expect(mockOnTempChange).toHaveBeenCalledWith('2024-01-15', '09:00');
+    });
+    
+    // Expand the picker
+    const button = screen.getByText(/2024/).closest('button');
+    fireEvent.click(button!);
+    
+    await waitFor(() => {
+      expect(screen.getByLabelText('上個月')).toBeInTheDocument();
+    });
+    
+    // When expanded, onTempChange should be called with temp values (same as selected initially)
+    await waitFor(() => {
+      expect(mockOnTempChange).toHaveBeenCalledWith('2024-01-15', '09:00');
+    });
+    
+    // Select a different time
+    await waitFor(() => {
+      expect(screen.getByText('10:00 AM')).toBeInTheDocument();
+    });
+    
+    const timeButton = screen.getByText('10:00 AM');
+    fireEvent.click(timeButton);
+    
+    // onTempChange should be called with new temp time
+    await waitFor(() => {
+      expect(mockOnTempChange).toHaveBeenCalledWith('2024-01-15', '10:00');
+    });
+  });
+
+  it('should call onTempChange with selected values when collapsed', async () => {
+    const mockOnTempChange = vi.fn();
+    
+    const { rerender } = render(
+      <DateTimePicker
+        {...defaultProps}
+        selectedDate="2024-01-15"
+        selectedTime="09:00"
+        onTempChange={mockOnTempChange}
+      />
+    );
+    
+    // When collapsed, onTempChange should be called with selected values
+    await waitFor(() => {
+      expect(mockOnTempChange).toHaveBeenCalledWith('2024-01-15', '09:00');
+    });
+    
+    // Update selected values
+    rerender(
+      <DateTimePicker
+        {...defaultProps}
+        selectedDate="2024-01-16"
+        selectedTime="10:00"
+        onTempChange={mockOnTempChange}
+      />
+    );
+    
+    // onTempChange should be called with new selected values when collapsed
+    await waitFor(() => {
+      expect(mockOnTempChange).toHaveBeenCalledWith('2024-01-16', '10:00');
+    });
+  });
 });
 

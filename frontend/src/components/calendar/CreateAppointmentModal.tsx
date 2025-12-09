@@ -34,12 +34,9 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
 }> = ({ initialDate, initialTime, selectedPractitionerId, appointmentTypeId, onConfirm, onCancel }) => {
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
   const [selectedTime, setSelectedTime] = useState<string>(initialTime);
-  // Track temp values when picker is expanded
-  // These represent the user's current selection in the expanded picker UI before confirmation.
-  // When picker is expanded, tempDate/tempTime are used for display and confirmation.
-  // When picker is collapsed, selectedDate/selectedTime are the confirmed values.
-  const [tempDate, setTempDate] = useState<string | null>(null);
-  const [tempTime, setTempTime] = useState<string>('');
+  // Track effective date/time from DateTimePicker (always current, whether expanded or collapsed)
+  const [effectiveDate, setEffectiveDate] = useState<string | null>(initialDate);
+  const [effectiveTime, setEffectiveTime] = useState<string>(initialTime);
   
   const handleDateSelect = (date: string | null) => {
     setSelectedDate(date);
@@ -50,21 +47,13 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
     setSelectedTime(time);
   };
   
-  const handleTempChange = (date: string | null, time: string) => {
-    setTempDate(date);
-    setTempTime(time);
-  };
-  
   const handleConfirm = async (e: React.MouseEvent) => {
     // Stop propagation to prevent DateTimePicker's click outside handler from collapsing
     e.stopPropagation();
     
-    // Use tempDate/tempTime if available (picker is expanded), otherwise use selectedDate/selectedTime
-    const dateToUse = tempDate ?? selectedDate;
-    const timeToUse = tempTime || selectedTime;
-    
-    if (dateToUse && timeToUse) {
-      await onConfirm(dateToUse, timeToUse);
+    // Use effective values from onTempChange (always current, whether expanded or collapsed)
+    if (effectiveDate && effectiveTime) {
+      await onConfirm(effectiveDate, effectiveTime);
     }
   };
   
@@ -82,11 +71,11 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
     e.stopPropagation();
   };
   
-  // Determine if confirm button should be enabled
-  // Use temp values if available (picker expanded), otherwise use selected values
-  const dateToCheck = tempDate ?? selectedDate;
-  const timeToCheck = tempTime || selectedTime;
-  const canConfirm = !!(dateToCheck && timeToCheck);
+  // Sync effective values when selected values change
+  useEffect(() => {
+    setEffectiveDate(selectedDate);
+    setEffectiveTime(selectedTime);
+  }, [selectedDate, selectedTime]);
   
   return (
     <div className="space-y-4" onMouseDown={handleMouseDown}>
@@ -97,7 +86,10 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
         appointmentTypeId={appointmentTypeId}
         onDateSelect={handleDateSelect}
         onTimeSelect={handleTimeSelect}
-        onTempChange={handleTempChange}
+        onTempChange={(date, time) => {
+          setEffectiveDate(date);
+          setEffectiveTime(time);
+        }}
       />
       <div className="flex gap-2">
         <button
@@ -108,8 +100,8 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
         </button>
         <button
           onClick={handleConfirm}
-          disabled={!canConfirm}
-          className={`btn-primary text-sm py-1 px-3 ${!canConfirm ? 'opacity-50 cursor-not-allowed' : ''}`}
+          disabled={!effectiveDate || !effectiveTime}
+          className={`btn-primary text-sm py-1 px-3 ${!effectiveDate || !effectiveTime ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           確認
         </button>
@@ -184,6 +176,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   );
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate || null);
   const [selectedTime, setSelectedTime] = useState<string>(preSelectedTime || '');
+  // Track effective date/time from DateTimePicker (always current, whether expanded or collapsed)
+  const [effectiveDate, setEffectiveDate] = useState<string | null>(initialDate || null);
+  const [effectiveTime, setEffectiveTime] = useState<string>(preSelectedTime || '');
   const [clinicNotes, setClinicNotes] = useState<string>(preSelectedClinicNotes || '');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -261,6 +256,12 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
     fetchPractitioners();
   }, [selectedAppointmentTypeId, initialPractitioners, selectedPractitionerId]);
+
+  // Sync effective values when selected values change (for initial state)
+  useEffect(() => {
+    setEffectiveDate(selectedDate);
+    setEffectiveTime(selectedTime);
+  }, [selectedDate, selectedTime]);
 
   // Mark initial mount as complete after first render
   useEffect(() => {
@@ -475,9 +476,17 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       setError('請選擇治療師');
       return;
     }
-    if (!selectedDate || !selectedTime) {
+    if (!effectiveDate || !effectiveTime) {
       setError('請選擇日期與時間');
       return;
+    }
+
+    // Update selected values from effective values (in case picker was expanded)
+    if (effectiveDate !== selectedDate) {
+      setSelectedDate(effectiveDate);
+    }
+    if (effectiveTime !== selectedTime) {
+      setSelectedTime(effectiveTime);
     }
 
     // If recurrence is enabled, validate and check conflicts
@@ -787,8 +796,12 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             onDateSelect={handleDateSelect}
             onTimeSelect={handleTimeSelect}
             error={error}
-            />
-          )}
+            onTempChange={(date, time) => {
+              setEffectiveDate(date);
+              setEffectiveTime(time);
+            }}
+          />
+        )}
 
           {/* Recurrence Toggle */}
           <div>
@@ -880,15 +893,22 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         </div>
       </div>
 
-      <div className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200 flex-shrink-0">
+      <div 
+        className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200 flex-shrink-0"
+        onMouseDown={(e) => {
+          // Stop propagation to prevent DateTimePicker's click outside handler from collapsing
+          // This allows the button to work even when picker is expanded
+          e.stopPropagation();
+        }}
+      >
         <button
           onClick={handleFormSubmit}
           disabled={
             !selectedPatientId ||
             !selectedAppointmentTypeId ||
             !selectedPractitionerId ||
-            !selectedDate ||
-            !selectedTime ||
+            !effectiveDate ||
+            !effectiveTime ||
             isCheckingConflicts ||
             (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1))
           }
@@ -896,8 +916,8 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             (!selectedPatientId ||
               !selectedAppointmentTypeId ||
               !selectedPractitionerId ||
-              !selectedDate ||
-              !selectedTime ||
+              !effectiveDate ||
+              !effectiveTime ||
               isCheckingConflicts ||
               (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1)))
               ? 'opacity-50 cursor-not-allowed'
