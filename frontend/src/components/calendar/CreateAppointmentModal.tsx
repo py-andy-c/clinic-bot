@@ -144,28 +144,11 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     date: string;
     time: string;
     hasConflict: boolean;
-    isRescheduled: boolean;
-    isNew: boolean;
   }>>([]);
   const [isCheckingConflicts, setIsCheckingConflicts] = useState<boolean>(false);
   const [editingOccurrenceId, setEditingOccurrenceId] = useState<string | null>(null);
   const [addingOccurrence, setAddingOccurrence] = useState<boolean>(false);
   const [hasVisitedConflictResolution, setHasVisitedConflictResolution] = useState<boolean>(false);
-  const [lastAvailabilityCheck, setLastAvailabilityCheck] = useState<{
-    appointmentTypeId: number | null;
-    practitionerId: number | null;
-    baseDate: string | null;
-    baseTime: string | null;
-    weeksInterval: number | null;
-    occurrenceCount: number | null;
-  }>({
-    appointmentTypeId: null,
-    practitionerId: null,
-    baseDate: null,
-    baseTime: null,
-    weeksInterval: null,
-    occurrenceCount: null,
-  });
   
   const [searchInput, setSearchInput] = useState<string>('');
   const [isComposing, setIsComposing] = useState(false);
@@ -378,14 +361,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     setEditingOccurrenceId(null);
     setAddingOccurrence(false);
     setHasVisitedConflictResolution(false);
-    setLastAvailabilityCheck({
-      appointmentTypeId: null,
-      practitionerId: null,
-      baseDate: null,
-      baseTime: null,
-      weeksInterval: null,
-      occurrenceCount: null,
-    });
   }, [initialDate]);
 
   // Reset state when preSelectedPatientId changes
@@ -441,7 +416,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       
       // Generate occurrences from pattern
       const baseDateTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
-      const generatedOccurrences: Array<{ id: string; date: string; time: string; hasConflict: boolean; isRescheduled: boolean; isNew: boolean }> = [];
+      const generatedOccurrences: Array<{ id: string; date: string; time: string; hasConflict: boolean }> = [];
       
       for (let i = 0; i < occurrenceCount; i++) {
         const occurrenceDate = baseDateTime.clone().add(i * weeksInterval, 'weeks');
@@ -452,8 +427,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             date: occurrenceDate.format('YYYY-MM-DD'),
             time: occurrenceDate.format('HH:mm'),
             hasConflict: false,
-            isRescheduled: false,
-            isNew: false,
           });
         }
       }
@@ -463,23 +436,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         return;
       }
       
-      // Check if we need to recalculate conflicts
-      const needsRecalculation = 
-        lastAvailabilityCheck.appointmentTypeId !== selectedAppointmentTypeId ||
-        lastAvailabilityCheck.practitionerId !== selectedPractitionerId ||
-        lastAvailabilityCheck.baseDate !== selectedDate ||
-        lastAvailabilityCheck.baseTime !== selectedTime ||
-        lastAvailabilityCheck.weeksInterval !== weeksInterval ||
-        lastAvailabilityCheck.occurrenceCount !== occurrenceCount;
-      
-      // If state was preserved and no recalculation needed, go to conflict resolution
-      if (!needsRecalculation && occurrences.length > 0) {
-        setHasVisitedConflictResolution(true);
-        setStep('conflict-resolution');
-        return;
-      }
-      
-      // Check conflicts
+      // Always check conflicts (no state preservation)
       setIsCheckingConflicts(true);
       setError(null);
       
@@ -504,14 +461,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         });
         
         setOccurrences(updatedOccurrences);
-        setLastAvailabilityCheck({
-          appointmentTypeId: selectedAppointmentTypeId,
-          practitionerId: selectedPractitionerId,
-          baseDate: selectedDate,
-          baseTime: selectedTime,
-          weeksInterval,
-          occurrenceCount,
-        });
         
         // Check if there are any conflicts
         const hasConflicts = updatedOccurrences.some(occ => occ.hasConflict);
@@ -520,6 +469,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           setHasVisitedConflictResolution(true);
           setStep('conflict-resolution');
         } else {
+          setHasVisitedConflictResolution(false);
           setStep('confirm');
         }
       } catch (err) {
@@ -760,18 +710,10 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                 onChange={(e) => {
                   setRecurrenceEnabled(e.target.checked);
                   if (!e.target.checked) {
-                    // Reset recurrence state when disabled
+                    // Reset recurrence state when disabled (but preserve occurrenceCount)
                     setOccurrences([]);
-                    setOccurrenceCount(null);
                     setWeeksInterval(1);
-                    setLastAvailabilityCheck({
-                      appointmentTypeId: null,
-                      practitionerId: null,
-                      baseDate: null,
-                      baseTime: null,
-                      weeksInterval: null,
-                      occurrenceCount: null,
-                    });
+                    setHasVisitedConflictResolution(false);
                   }
                 }}
                 className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
@@ -932,11 +874,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                           onClick={() => {
                             const updated = occurrences.filter(o => o.id !== occ.id);
                             setOccurrences(updated);
-                            if (updated.length === 0) {
-                              setOccurrenceCount(null);
-                            } else {
-                              setOccurrenceCount(updated.length);
-                            }
                           }}
                           className="text-red-600 hover:text-red-800 text-sm"
                         >
@@ -999,7 +936,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                     // Update existing occurrence
                     const updated = occurrences.map(o => 
                       o.id === editingOccurrenceId
-                        ? { ...o, date, time, isRescheduled: true, hasConflict: false }
+                        ? { ...o, date, time, hasConflict: false }
                         : o
                     );
                     // Check for duplicates (excluding current)
@@ -1039,11 +976,8 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                             date,
                             time,
                             hasConflict: false,
-                            isRescheduled: false,
-                            isNew: true,
                           };
                           setOccurrences([...occurrences, newOcc]);
-                          setOccurrenceCount(occurrences.length + 1);
                           setAddingOccurrence(false);
                           setError(null);
                         }
@@ -1066,6 +1000,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         <div className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200">
           <button
             onClick={() => {
+              // Clear conflict resolution state when going back
+              setOccurrences([]);
+              setHasVisitedConflictResolution(false);
               setStep('form');
               setError(null);
             }}
@@ -1076,6 +1013,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           <button
             onClick={() => {
               if (canProceed) {
+                setHasVisitedConflictResolution(true);
                 setStep('confirm');
               }
             }}
@@ -1126,9 +1064,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                 <div>
                   <span className="text-sm text-gray-600">重複模式：</span>
                   <span className="text-sm text-gray-900 ml-2">
-                    {hasVisitedConflictResolution || 
-                     occurrences.some(occ => occ.isRescheduled || occ.isNew) || 
-                     occurrences.length !== occurrenceCount
+                    {hasVisitedConflictResolution
                       ? `自定義, 共 ${occurrences.length} 次`
                       : `每 ${weeksInterval} 週, 共 ${occurrenceCount} 次`}
                   </span>
@@ -1181,7 +1117,12 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         <div className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200 flex-shrink-0">
           <button
             onClick={() => {
-              setStep('form');
+              // If conflict resolution was visited, go back there; otherwise go to form
+              if (hasVisitedConflictResolution) {
+                setStep('conflict-resolution');
+              } else {
+                setStep('form');
+              }
               setError(null);
             }}
             className="btn-secondary"
