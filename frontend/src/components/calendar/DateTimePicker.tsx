@@ -81,6 +81,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   const hasInitializedRef = useRef(false);
   // Track if user manually collapsed to prevent immediate re-expansion
   const userCollapsedRef = useRef(false);
+  // Track if a date was just clicked to preserve tempDate during initialization
+  const dateJustClickedRef = useRef(false);
 
   // Temp selection state for UI navigation (only used when expanded)
   const [tempDate, setTempDate] = useState<string | null>(null);
@@ -90,7 +92,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
 
   // Determine which date/time to use for display and slot loading
   // Use tempDate/tempTime when expanded (for UI navigation), selectedDate/selectedTime when collapsed
-  const displayDate = isExpanded && tempDate ? tempDate : selectedDate;
+  // If tempDate is set (user clicked a date), use it even if picker appears collapsed
+  const displayDate = (isExpanded && tempDate) ? tempDate : (tempDate || selectedDate);
   const displayTime = isExpanded ? tempTime : selectedTime;
 
   // Use custom hook for date/slot selection logic
@@ -280,14 +283,19 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     if (isExpanded) {
       // Only initialize if we haven't initialized yet for this expand session
       // This prevents resetting tempTime when user navigates between dates
+      // But if tempDate is already set (from date click), preserve it
       if (!hasInitializedRef.current) {
-        setTempDate(selectedDate);
-        setTempTime(selectedTime);
+        // If we just clicked a date, tempDate is already set, so don't overwrite it
+        if (!dateJustClickedRef.current) {
+          setTempDate(selectedDate);
+          setTempTime(selectedTime);
+        }
         // Set lastManuallySelectedTime to original selectedTime so it can be auto-selected when switching dates
         if (selectedTime) {
           setLastManuallySelectedTime(selectedTime);
         }
         hasInitializedRef.current = true;
+        dateJustClickedRef.current = false; // Reset flag
       }
     } else {
       // Clear temp state when collapsing
@@ -295,17 +303,23 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       setTempTime('');
       setLastManuallySelectedTime(null);
       hasInitializedRef.current = false; // Reset flag for next expand
+      dateJustClickedRef.current = false; // Reset flag
     }
   }, [isExpanded, selectedDate, selectedTime]);
 
   const handleDateSelect = (date: Date) => {
     const dateString = formatDateString(date);
-    if (datesWithSlots.has(dateString)) {
-      // Update temp date and clear temp time
-      // Time will be auto-selected by the effect if lastManuallySelectedTime is available
-      setTempDate(dateString);
-      setTempTime('');
+    // Always set tempDate when a date is selected, regardless of whether it has slots
+    // This ensures the time picker shows up even if the date doesn't have slots yet
+    dateJustClickedRef.current = true; // Mark that we just clicked a date
+    setTempDate(dateString);
+    setTempTime('');
+    // Ensure picker is expanded so time slots are visible
+    if (!isExpanded) {
+      setIsExpanded(true);
     }
+    // Also call parent's onDateSelect to update selectedDate
+    onDateSelect(dateString);
   };
 
   const handlePrevMonth = () => {
@@ -536,7 +550,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
             <div className="flex items-center justify-center py-4">
               <LoadingSpinner size="sm" />
             </div>
-          ) : error ? (
+          ) : error && allTimeSlots.length === 0 ? (
+            // Only show error if there are no time slots available
+            // If there are slots, show them even if there's an error (error might be stale)
             <div className="bg-red-50 border border-red-200 rounded-md p-3">
               <p className="text-sm text-red-600">{error}</p>
             </div>
@@ -602,9 +618,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
         </div>
       ) : null}
       </div>
-      {error && (
-        <p className="mt-1 text-sm text-red-600">{error}</p>
-      )}
+      {/* Error message removed - already shown in time selection area above when error exists */}
     </div>
   );
 });

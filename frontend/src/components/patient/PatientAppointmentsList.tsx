@@ -10,6 +10,7 @@ import moment from "moment-timezone";
 import { formatAppointmentTimeRange } from "../../utils/calendarUtils";
 import { renderStatusBadge } from "../../utils/appointmentStatus";
 import { EditAppointmentModal } from "../calendar/EditAppointmentModal";
+import { CreateAppointmentModal } from "../calendar/CreateAppointmentModal";
 import { CancellationNoteModal } from "../calendar/CancellationNoteModal";
 import { CancellationPreviewModal } from "../calendar/CancellationPreviewModal";
 import { EventModal } from "../calendar/EventModal";
@@ -83,6 +84,17 @@ export const PatientAppointmentsList: React.FC<
   const [cancellationPreviewLoading, setCancellationPreviewLoading] =
     useState(false);
   const [deleteStep, setDeleteStep] = useState<"note" | "preview" | null>(null);
+
+  // Duplicate appointment state
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createModalKey, setCreateModalKey] = useState(0);
+  const [duplicateData, setDuplicateData] = useState<{
+    preSelectedAppointmentTypeId?: number;
+    preSelectedPractitionerId?: number;
+    preSelectedTime?: string;
+    preSelectedClinicNotes?: string;
+    initialDate?: string;
+  } | null>(null);
 
   // Check if user can edit appointments
   const canEdit = hasRole && (hasRole("admin") || hasRole("practitioner"));
@@ -255,6 +267,36 @@ export const PatientAppointmentsList: React.FC<
     setSelectedEvent(null); // Close EventModal
   }, [selectedEvent, canEditEvent]);
 
+  // Handle duplicate appointment from EventModal
+  const handleDuplicateAppointment = useCallback(async () => {
+    if (!selectedEvent) return;
+
+    const event = selectedEvent;
+    
+    // Extract data from the original appointment
+    const appointmentTypeId = event.resource.appointment_type_id;
+    const practitionerId = event.resource.practitioner_id; // May be undefined for auto-assigned
+    const clinicNotes = event.resource.clinic_notes;
+    
+    // Extract date and time from event.start
+    const startMoment = moment(event.start).tz(TAIWAN_TIMEZONE);
+    const initialDate = startMoment.format('YYYY-MM-DD');
+    const initialTime = startMoment.format('HH:mm');
+    
+    // Set up duplicate appointment data - only include fields that have values
+    setDuplicateData({
+      initialDate,
+      // Only include these if they have values (avoid passing undefined)
+      ...(appointmentTypeId !== undefined && { preSelectedAppointmentTypeId: appointmentTypeId }),
+      ...(practitionerId !== undefined && { preSelectedPractitionerId: practitionerId }),
+      ...(initialTime && { preSelectedTime: initialTime }),
+      ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
+    });
+    setCreateModalKey(prev => prev + 1); // Force remount to reset state
+    setIsCreateModalOpen(true);
+    setSelectedEvent(null); // Close EventModal
+  }, [selectedEvent]);
+
   // Edit appointment handler
   const handleEditConfirm = async (formData: {
     practitioner_id: number | null;
@@ -321,6 +363,27 @@ export const PatientAppointmentsList: React.FC<
       // Stay on note step so user can retry
     } finally {
       setCancellationPreviewLoading(false);
+    }
+  };
+
+  // Handle create appointment confirmation (for duplicate)
+  const handleCreateAppointmentConfirm = async (formData: {
+    patient_id: number;
+    appointment_type_id: number;
+    practitioner_id: number;
+    start_time: string;
+    clinic_notes?: string;
+  }) => {
+    try {
+      await apiService.createClinicAppointment(formData);
+      await refreshAppointmentsList();
+      setIsCreateModalOpen(false);
+      setDuplicateData(null);
+      await alert("預約已建立");
+    } catch (error) {
+      logger.error("Error creating appointment:", error);
+      const errorMessage = getErrorMessage(error);
+      throw new Error(errorMessage);
     }
   };
 
@@ -500,6 +563,11 @@ export const PatientAppointmentsList: React.FC<
               ? handleEditAppointment
               : undefined
           }
+          onDuplicateAppointment={
+            canEdit && selectedEvent.resource.type === "appointment"
+              ? handleDuplicateAppointment
+              : undefined
+          }
           formatAppointmentTime={formatEventTimeRange}
           hidePatientInfo={true}
           onEventNameUpdated={handleEventNameUpdated}
@@ -543,6 +611,26 @@ export const PatientAppointmentsList: React.FC<
           previewMessage={cancellationPreviewMessage}
           onBack={() => setDeleteStep("note")}
           onConfirm={handleConfirmDelete}
+        />
+      )}
+
+      {/* Create Appointment Modal (for duplicate) */}
+      {isCreateModalOpen && duplicateData && (
+        <CreateAppointmentModal
+          key={`create-${createModalKey}`}
+          preSelectedPatientId={patientId}
+          initialDate={duplicateData.initialDate || null}
+          {...(duplicateData.preSelectedAppointmentTypeId !== undefined && { preSelectedAppointmentTypeId: duplicateData.preSelectedAppointmentTypeId })}
+          {...(duplicateData.preSelectedPractitionerId !== undefined && { preSelectedPractitionerId: duplicateData.preSelectedPractitionerId })}
+          {...(duplicateData.preSelectedTime !== undefined && { preSelectedTime: duplicateData.preSelectedTime })}
+          {...(duplicateData.preSelectedClinicNotes !== undefined && { preSelectedClinicNotes: duplicateData.preSelectedClinicNotes })}
+          practitioners={practitioners}
+          appointmentTypes={appointmentTypes}
+          onClose={() => {
+            setIsCreateModalOpen(false);
+            setDuplicateData(null);
+          }}
+          onConfirm={handleCreateAppointmentConfirm}
         />
       )}
     </div>

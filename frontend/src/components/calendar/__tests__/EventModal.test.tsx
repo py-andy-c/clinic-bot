@@ -98,7 +98,47 @@ describe('EventModal', () => {
     );
   });
 
-  it('should show delete button for appointments when onDeleteAppointment is provided', () => {
+  it('should show duplicate button for appointments when onDuplicateAppointment is provided', () => {
+    const onClose = vi.fn();
+    const onDuplicateAppointment = vi.fn();
+    
+    render(
+      <EventModal
+        event={mockAppointmentEvent}
+        onClose={onClose}
+        onDuplicateAppointment={onDuplicateAppointment}
+        formatAppointmentTime={mockFormatAppointmentTime}
+      />
+    );
+
+    const duplicateButton = screen.getByText('複製');
+    expect(duplicateButton).toBeInTheDocument();
+    
+    duplicateButton.click();
+    expect(onDuplicateAppointment).toHaveBeenCalledTimes(1);
+  });
+
+  it('should show edit button with updated label "編輯" for appointments when onEditAppointment is provided', () => {
+    const onClose = vi.fn();
+    const onEditAppointment = vi.fn();
+    
+    render(
+      <EventModal
+        event={mockAppointmentEvent}
+        onClose={onClose}
+        onEditAppointment={onEditAppointment}
+        formatAppointmentTime={mockFormatAppointmentTime}
+      />
+    );
+
+    const editButton = screen.getByText('編輯');
+    expect(editButton).toBeInTheDocument();
+    
+    editButton.click();
+    expect(onEditAppointment).toHaveBeenCalledTimes(1);
+  });
+
+  it('should show delete button with updated label "刪除" for appointments when onDeleteAppointment is provided', () => {
     const onClose = vi.fn();
     const onDeleteAppointment = vi.fn();
     
@@ -111,7 +151,7 @@ describe('EventModal', () => {
       />
     );
 
-    const deleteButton = screen.getByText('刪除預約');
+    const deleteButton = screen.getByText('刪除');
     expect(deleteButton).toBeInTheDocument();
     
     deleteButton.click();

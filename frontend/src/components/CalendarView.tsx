@@ -1080,6 +1080,39 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     setModalState({ type: 'edit_appointment', data: modalState.data });
   };
 
+  // Handle duplicate appointment button click
+  const handleDuplicateAppointment = useCallback(() => {
+    if (!modalState.data || !modalState.data.resource.appointment_id) return;
+    
+    const event = modalState.data;
+    
+    // Extract data from the original appointment
+    const patientId = event.resource.patient_id;
+    const appointmentTypeId = event.resource.appointment_type_id;
+    const practitionerId = event.resource.practitioner_id; // May be undefined for auto-assigned
+    const clinicNotes = event.resource.clinic_notes;
+    
+    // Extract date and time from event.start
+    const startMoment = moment(event.start).tz('Asia/Taipei');
+    const initialDate = startMoment.format('YYYY-MM-DD');
+    const initialTime = startMoment.format('HH:mm');
+    
+    // Close event modal and open create appointment modal with pre-filled data
+    setCreateModalKey(prev => prev + 1); // Force remount to reset state
+    setModalState({ 
+      type: 'create_appointment', 
+      data: { 
+        patientId: patientId ?? null,
+        initialDate,
+        // Only include these if they have values (avoid passing undefined)
+        ...(appointmentTypeId !== undefined && { preSelectedAppointmentTypeId: appointmentTypeId }),
+        ...(practitionerId !== undefined && { preSelectedPractitionerId: practitionerId }),
+        ...(initialTime && { preSelectedTime: initialTime }),
+        ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
+      } 
+    });
+  }, [modalState.data]);
+
   // Type definition for edit appointment form data
   type EditAppointmentFormData = {
     appointment_type_id?: number | null;
@@ -1320,6 +1353,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 ? handleEditAppointment 
                 : undefined
             }
+            onDuplicateAppointment={
+              isAdmin && modalState.data.resource.type === 'appointment' 
+                ? handleDuplicateAppointment 
+                : undefined
+            }
             formatAppointmentTime={formatEventTimeRange}
             onEventNameUpdated={async (_newName: string | null) => {
               // Store original state for potential rollback
@@ -1439,6 +1477,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               : modalState.data.patientId ?? preSelectedPatientId
           }
           initialDate={modalState.data.initialDate || null}
+          preSelectedAppointmentTypeId={modalState.data.preSelectedAppointmentTypeId}
+          preSelectedPractitionerId={modalState.data.preSelectedPractitionerId}
+          preSelectedTime={modalState.data.preSelectedTime}
+          preSelectedClinicNotes={modalState.data.preSelectedClinicNotes}
           practitioners={availablePractitioners}
           appointmentTypes={appointmentTypes}
           onClose={() => {

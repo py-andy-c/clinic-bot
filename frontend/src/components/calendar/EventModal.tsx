@@ -22,6 +22,7 @@ export interface EventModalProps {
   onDeleteAppointment?: (() => void | Promise<void>) | undefined;
   onDeleteException?: (() => void | Promise<void>) | undefined;
   onEditAppointment?: (() => void | Promise<void>) | undefined;
+  onDuplicateAppointment?: (() => void | Promise<void>) | undefined;
   formatAppointmentTime: (start: Date, end: Date) => string;
   onEventNameUpdated?: (newName: string | null) => void | Promise<void>;
   hidePatientInfo?: boolean; // Hide 電話、生日、LINE when true (e.g., on patient detail page)
@@ -33,6 +34,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
   onDeleteAppointment,
   onDeleteException,
   onEditAppointment,
+  onDuplicateAppointment,
   formatAppointmentTime,
   onEventNameUpdated,
   hidePatientInfo = false,
@@ -267,12 +269,20 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
           </>
         )}
         <div className="flex justify-end space-x-2 mt-6">
+          {event.resource.type === 'appointment' && onDuplicateAppointment && (
+            <button
+              onClick={onDuplicateAppointment}
+              className="btn-primary bg-green-600 hover:bg-green-700"
+            >
+              複製
+            </button>
+          )}
           {event.resource.type === 'appointment' && onEditAppointment && (
             <button
               onClick={onEditAppointment}
               className="btn-primary bg-blue-600 hover:bg-blue-700"
             >
-              調整預約
+              編輯
             </button>
           )}
           {event.resource.type === 'appointment' && onDeleteAppointment && (
@@ -280,7 +290,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
               onClick={onDeleteAppointment}
               className="btn-primary bg-red-600 hover:bg-red-700"
             >
-              刪除預約
+              刪除
             </button>
           )}
           {event.resource.type === 'availability_exception' && onDeleteException && (

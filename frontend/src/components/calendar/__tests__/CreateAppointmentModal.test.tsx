@@ -132,6 +132,29 @@ describe('CreateAppointmentModal', () => {
     expect(appointmentTypeSelect).toHaveValue('');
   });
 
+  it('should accept duplicate props without crashing', () => {
+    // Test that component accepts all pre-fill props for duplication feature
+    // The actual pre-filling behavior is tested through integration tests
+    render(
+      <CreateAppointmentModal
+        preSelectedPatientId={1}
+        preSelectedAppointmentTypeId={1}
+        preSelectedPractitionerId={1}
+        preSelectedTime="09:00"
+        preSelectedClinicNotes="Test clinic notes"
+        initialDate="2024-01-15"
+        practitioners={mockPractitioners}
+        appointmentTypes={mockAppointmentTypes}
+        onClose={mockOnClose}
+        onConfirm={mockOnConfirm}
+      />
+    );
+
+    // Verify component renders successfully with duplicate props
+    expect(screen.getByText('建立預約')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/診所內部備注/i)).toBeInTheDocument();
+  });
+
   it('should filter practitioners when appointment type is selected', async () => {
     vi.mocked(apiService.getPractitioners).mockResolvedValue([
       { id: 1, full_name: 'Dr. Test' },

@@ -123,6 +123,10 @@ type CreateStep = 'form' | 'conflict-resolution' | 'confirm';
 export interface CreateAppointmentModalProps {
   preSelectedPatientId?: number;
   initialDate?: string | null; // Initial date in YYYY-MM-DD format
+  preSelectedAppointmentTypeId?: number;
+  preSelectedPractitionerId?: number;
+  preSelectedTime?: string; // Initial time in HH:mm format
+  preSelectedClinicNotes?: string; // Initial clinic notes
   practitioners: { id: number; full_name: string }[];
   appointmentTypes: { id: number; name: string; duration_minutes: number }[];
   onClose: () => void;
@@ -138,6 +142,10 @@ export interface CreateAppointmentModalProps {
 export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = React.memo(({
   preSelectedPatientId,
   initialDate,
+  preSelectedAppointmentTypeId,
+  preSelectedPractitionerId,
+  preSelectedTime,
+  preSelectedClinicNotes,
   practitioners: initialPractitioners,
   appointmentTypes,
   onClose,
@@ -166,11 +174,15 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     return null;
   });
   
-  const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<number | null>(null);
-  const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(null);
+  const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<number | null>(
+    preSelectedAppointmentTypeId !== undefined ? preSelectedAppointmentTypeId : null
+  );
+  const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(
+    preSelectedPractitionerId !== undefined ? preSelectedPractitionerId : null
+  );
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate || null);
-  const [selectedTime, setSelectedTime] = useState<string>('');
-  const [clinicNotes, setClinicNotes] = useState<string>('');
+  const [selectedTime, setSelectedTime] = useState<string>(preSelectedTime || '');
+  const [clinicNotes, setClinicNotes] = useState<string>(preSelectedClinicNotes || '');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -206,6 +218,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   // Conditional practitioner fetching
   const [availablePractitioners, setAvailablePractitioners] = useState<{ id: number; full_name: string }[]>(initialPractitioners);
   const [isLoadingPractitioners, setIsLoadingPractitioners] = useState(false);
+  
+  // Track if this is the initial mount to prevent auto-deselection from clearing pre-filled values
+  const isInitialMountRef = useRef(true);
 
   // Fetch practitioners when appointment type is selected
   useEffect(() => {
@@ -245,8 +260,16 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     fetchPractitioners();
   }, [selectedAppointmentTypeId, initialPractitioners, selectedPractitionerId]);
 
+  // Mark initial mount as complete after first render
+  useEffect(() => {
+    isInitialMountRef.current = false;
+  }, []);
+
   // Auto-deselection: When appointment type changes, clear practitioner, date, time
   useEffect(() => {
+    // Skip on initial mount to preserve pre-filled values
+    if (isInitialMountRef.current) return;
+    
     if (selectedAppointmentTypeId === null && (selectedPractitionerId !== null || selectedDate !== null || selectedTime !== '')) {
       // Appointment type was cleared - clear dependent fields
       setSelectedPractitionerId(null);
@@ -257,6 +280,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   // Auto-deselection: When practitioner changes, clear date, time
   useEffect(() => {
+    // Skip on initial mount to preserve pre-filled values
+    if (isInitialMountRef.current) return;
+    
     if (selectedPractitionerId === null && (selectedDate !== null || selectedTime !== '')) {
       // Practitioner was cleared - clear dependent fields
       setSelectedDate(null);
@@ -412,16 +438,26 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       resetState();
     } else {
       setSelectedPatientId(preSelectedPatientId);
-      setSelectedAppointmentTypeId(null);
-      setSelectedPractitionerId(null);
+      // Only clear appointment type/practitioner/time if they weren't pre-filled
+      // This preserves pre-filled values when duplicating
+      if (preSelectedAppointmentTypeId === undefined) {
+        setSelectedAppointmentTypeId(null);
+      }
+      if (preSelectedPractitionerId === undefined) {
+        setSelectedPractitionerId(null);
+      }
+      if (preSelectedTime === undefined) {
+        setSelectedTime('');
+      }
+      if (preSelectedClinicNotes === undefined) {
+        setClinicNotes('');
+      }
       setSelectedDate(initialDate || null);
-      setSelectedTime('');
-      setClinicNotes('');
       setSearchInput('');
       setStep('form');
       setError(null);
     }
-  }, [preSelectedPatientId, resetState, initialDate]);
+  }, [preSelectedPatientId, resetState, initialDate, preSelectedAppointmentTypeId, preSelectedPractitionerId, preSelectedTime, preSelectedClinicNotes]);
 
   const handleFormSubmit = async () => {
     // Validate required fields
@@ -591,6 +627,10 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const handleDateSelect = (dateString: string | null) => {
     setSelectedDate(dateString);
     setSelectedTime('');
+    // Clear error when user selects a new date (error might be stale from previous action)
+    if (error && dateString) {
+      setError(null);
+    }
   };
 
   const handleTimeSelect = (time: string) => {
@@ -1310,7 +1350,14 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         </div>
 
         <div className="px-6 pt-4 pb-6">
-          {error && (
+          {/* Only show error at top if DateTimePicker is not visible (to avoid duplicate error messages) */}
+          {error && step === 'form' && (!selectedAppointmentTypeId || !selectedPractitionerId) && (
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
+              <p className="text-sm text-red-800">{error}</p>
+            </div>
+          )}
+          {/* Show error for other steps (conflict-resolution, confirm) */}
+          {error && step !== 'form' && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
               <p className="text-sm text-red-800">{error}</p>
             </div>
