@@ -183,7 +183,7 @@ describe('DateTimePicker', () => {
     
     // Time should be selected in expanded view
     const timeButton = screen.getByText('9:00 AM');
-    expect(timeButton).toHaveClass('border-primary-500');
+    expect(timeButton).toHaveClass('bg-blue-500');
   });
 
   it('should update tempTime and lastManuallySelectedTime when time is selected', async () => {
@@ -210,7 +210,7 @@ describe('DateTimePicker', () => {
     fireEvent.click(timeButton);
     
     // Time should be selected
-    expect(timeButton).toHaveClass('border-primary-500');
+    expect(timeButton).toHaveClass('bg-blue-500');
     
     // Callback should not be called yet (only on collapse)
     expect(mockOnTimeSelect).not.toHaveBeenCalled();
@@ -240,7 +240,7 @@ describe('DateTimePicker', () => {
     fireEvent.click(timeButton);
     
     // Verify time is selected
-    expect(timeButton).toHaveClass('border-primary-500');
+    expect(timeButton).toHaveClass('bg-blue-500');
     
     // lastManuallySelectedTime should be set (tested indirectly - time is selected)
     // When collapsing, lastManuallySelectedTime is cleared, which is expected behavior
@@ -281,7 +281,7 @@ describe('DateTimePicker', () => {
     fireEvent.click(timeButton);
     
     // Verify time is selected
-    expect(timeButton).toHaveClass('border-primary-500');
+    expect(timeButton).toHaveClass('bg-blue-500');
     
     // Collapse by clicking outside - need to use act for async state updates
     await act(async () => {
@@ -348,7 +348,7 @@ describe('DateTimePicker', () => {
     fireEvent.click(timeButton);
     
     // Verify time is selected
-    expect(timeButton).toHaveClass('border-primary-500');
+    expect(timeButton).toHaveClass('bg-blue-500');
     
     // Change practitioner - this should clear lastManuallySelectedTime
     rerender(
@@ -387,7 +387,7 @@ describe('DateTimePicker', () => {
     fireEvent.click(timeButton);
     
     // Verify time is selected
-    expect(timeButton).toHaveClass('border-primary-500');
+    expect(timeButton).toHaveClass('bg-blue-500');
     
     // Change appointment type - this should clear lastManuallySelectedTime
     rerender(
