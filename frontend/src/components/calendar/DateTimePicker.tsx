@@ -511,19 +511,16 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                   disabled={!available}
                   className={`h-9 text-center rounded-lg transition-colors ${
                     selected
-                      ? 'bg-teal-500 text-white font-semibold'
+                      ? 'bg-blue-500 text-white font-semibold'
                       : available
                       ? 'bg-white text-gray-900 font-semibold hover:bg-gray-50 border border-gray-200'
                       : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-100'
                   }`}
                 >
-                  <div className="flex flex-col items-center justify-center h-full">
-                    <span className={selected ? 'text-white' : available ? 'text-gray-900' : 'text-gray-400'}>
+                  <div className="flex items-center justify-center h-full">
+                    <span className={`${selected ? 'text-white' : available ? 'text-gray-900' : 'text-gray-400'} ${todayDate ? `border-b-2 ${selected ? 'border-white' : 'border-gray-500'}` : ''}`}>
                       {date.getDate()}
                     </span>
-                    {todayDate && (
-                      <div className={`w-4 h-0.5 mt-0.5 ${selected ? 'bg-white' : 'bg-gray-500'}`} />
-                    )}
                   </div>
                 </button>
               );
@@ -557,10 +554,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                         <button
                           key={time}
                           onClick={() => handleTimeSelect(time)}
-                          className={`bg-white border rounded-md py-1.5 px-2 transition-colors text-sm font-medium ${
+                          className={`border rounded-md py-1.5 px-2 transition-colors text-sm font-medium ${
                             isSelected
-                              ? 'border-primary-500 bg-primary-50 text-primary-700'
-                              : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
+                              ? 'bg-blue-500 text-white border-transparent'
+                              : 'bg-white border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
                           }`}
                         >
                           {formatted.time12}
@@ -582,10 +579,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                         <button
                           key={time}
                           onClick={() => handleTimeSelect(time)}
-                          className={`bg-white border rounded-md py-1.5 px-2 transition-colors text-sm font-medium ${
+                          className={`border rounded-md py-1.5 px-2 transition-colors text-sm font-medium ${
                             isSelected
-                              ? 'border-primary-500 bg-primary-50 text-primary-700'
-                              : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
+                              ? 'bg-blue-500 text-white border-transparent'
+                              : 'bg-white border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
                           }`}
                         >
                           {formatted.time12}
