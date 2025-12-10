@@ -812,9 +812,14 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         )}
 
           {/* Recurrence Toggle */}
-          <div>
+          <div className="flex items-center gap-4">
             <button
               type="button"
+              onMouseDown={(e) => {
+                // Stop propagation to prevent DateTimePicker's click outside handler from collapsing
+                // This allows the button to work even when picker is expanded
+                e.stopPropagation();
+              }}
               onClick={() => {
                 const newValue = !recurrenceEnabled;
                 setRecurrenceEnabled(newValue);
@@ -829,18 +834,22 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
               aria-pressed={recurrenceEnabled}
               className={
                 recurrenceEnabled
-                  ? 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500'
-                  : 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500'
+                  ? 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 flex-shrink-0'
+                  : 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500 flex-shrink-0'
               }
             >
               重複
             </button>
-          </div>
 
-          {/* Recurrence Pattern Inputs */}
-          {recurrenceEnabled && (
-            <div className="space-y-3 pl-6 border-l-2 border-blue-200">
-              <div className="flex items-center gap-2">
+            {/* Recurrence Pattern Inputs */}
+            {recurrenceEnabled && (
+              <div 
+                className="flex items-center gap-2 flex-1"
+                onMouseDown={(e) => {
+                  // Stop propagation to prevent DateTimePicker's click outside handler from collapsing
+                  e.stopPropagation();
+                }}
+              >
                 <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
                   每
                 </label>
@@ -884,14 +893,13 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                     }
                   }}
                   className="w-16 border border-gray-300 rounded-md px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="次數"
                 />
                 <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
                   次
                 </label>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Clinic Notes */}
           <div>

@@ -601,8 +601,6 @@ describe('CreateAppointmentModal', () => {
         // When occurrenceCount is null, the input value is empty string (HTML number inputs use '' for empty)
         // Check that the input is empty by verifying it has no numeric value
         expect(newCountInput.value).toBe('');
-        // Also verify placeholder is shown when empty
-        expect(newCountInput).toHaveAttribute('placeholder', '次數');
       });
     });
   });
