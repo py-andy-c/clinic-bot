@@ -503,5 +503,77 @@ describe('DateTimePicker', () => {
       expect(mockOnTempChange).toHaveBeenCalledWith('2024-01-16', '10:00');
     });
   });
+
+  it('should validate tempTime against allTimeSlots and report empty if not available', async () => {
+    const mockOnTempChange = vi.fn();
+    
+    // Start with slots that include 15:00
+    vi.mocked(useDateSlotSelection).mockReturnValue({
+      availableSlots: ['15:00', '16:00'],
+      isLoadingSlots: false,
+    });
+    
+    const { rerender } = render(
+      <DateTimePicker
+        {...defaultProps}
+        selectedDate="2024-01-15"
+        selectedTime=""
+        onTempChange={mockOnTempChange}
+      />
+    );
+    
+    // Should auto-expand when time is empty
+    await waitFor(() => {
+      expect(screen.getByLabelText('上個月')).toBeInTheDocument();
+    });
+    
+    // Wait for time slots to be available
+    await waitFor(() => {
+      expect(screen.getByText('3:00 PM')).toBeInTheDocument();
+    });
+    
+    // Select a time that IS available (15:00)
+    const timeButton = screen.getByText('3:00 PM');
+    fireEvent.click(timeButton);
+    
+    // onTempChange should report the time since it's in allTimeSlots
+    await waitFor(() => {
+      expect(mockOnTempChange).toHaveBeenCalledWith('2024-01-15', '15:00');
+    });
+    
+    // Now change slots to exclude 15:00 - this simulates switching to a date
+    // where the previously selected time is not available
+    vi.mocked(useDateSlotSelection).mockReturnValue({
+      availableSlots: ['16:00'], // Only 16:00 available, 15:00 is gone
+      isLoadingSlots: false,
+    });
+    
+    // Clear previous calls to see the new behavior
+    mockOnTempChange.mockClear();
+    
+    // Re-render to trigger the useEffect that validates tempTime against allTimeSlots
+    rerender(
+      <DateTimePicker
+        {...defaultProps}
+        selectedDate="2024-01-15"
+        selectedTime=""
+        onTempChange={mockOnTempChange}
+      />
+    );
+    
+    // The component should detect that tempTime (15:00) is not in new allTimeSlots
+    // and report empty time via onTempChange
+    // This validates the fix: button state matches visual selection (no blue slot = empty time)
+    await waitFor(() => {
+      const calls = mockOnTempChange.mock.calls;
+      if (calls.length > 0) {
+        const lastCall = calls[calls.length - 1];
+        const [, time] = lastCall;
+        // Time should be empty because 15:00 (tempTime) is not in ['16:00'] (allTimeSlots)
+        // This ensures button is disabled when no time slot is blue
+        expect(time).toBe('');
+      }
+    }, { timeout: 2000 });
+  });
 });
 

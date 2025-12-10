@@ -31,12 +31,17 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
   appointmentTypeId: number;
   onConfirm: (date: string, time: string) => void | Promise<void>;
   onCancel: () => void;
-}> = ({ initialDate, initialTime, selectedPractitionerId, appointmentTypeId, onConfirm, onCancel }) => {
+}> = ({ initialDate, initialTime: _initialTime, selectedPractitionerId, appointmentTypeId, onConfirm, onCancel }) => {
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
-  const [selectedTime, setSelectedTime] = useState<string>(initialTime);
-  // Track effective date/time from DateTimePicker (always current, whether expanded or collapsed)
+  // When editing (initialTime has value), start with empty selectedTime to prevent auto-initialization
+  // This ensures the picker doesn't auto-populate tempTime from old selectedTime, which would
+  // make onTempChange report the old time even when no time is visually selected
+  // Note: initialTime is intentionally not used to prevent auto-initialization issues
+  const [selectedTime, setSelectedTime] = useState<string>('');
+  // Track effective date/time from DateTimePicker - these reflect the visual selection state
+  // (what's actually displayed as selected/blue in the UI)
   const [effectiveDate, setEffectiveDate] = useState<string | null>(initialDate);
-  const [effectiveTime, setEffectiveTime] = useState<string>(initialTime);
+  const [effectiveTime, setEffectiveTime] = useState<string>('');
   
   const handleDateSelect = (date: string | null) => {
     setSelectedDate(date);
@@ -52,6 +57,7 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
     e.stopPropagation();
     
     // Use effective values from onTempChange (always current, whether expanded or collapsed)
+    // These match the visual selection state - if both are set, both are visually selected
     if (effectiveDate && effectiveTime) {
       await onConfirm(effectiveDate, effectiveTime);
     }
@@ -71,11 +77,10 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
     e.stopPropagation();
   };
   
-  // Sync effective values when selected values change
-  useEffect(() => {
-    setEffectiveDate(selectedDate);
-    setEffectiveTime(selectedTime);
-  }, [selectedDate, selectedTime]);
+  // onTempChange reports the visual selection state from DateTimePicker:
+  // - When expanded: reports tempDate/tempTime (what's visually selected/blue)
+  // - When collapsed: reports selectedDate/selectedTime (what's visually selected/blue)
+  // We use these values directly - no filtering needed. The button state matches visual selection.
   
   return (
     <div className="space-y-4" onMouseDown={handleMouseDown}>
@@ -87,6 +92,9 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
         onDateSelect={handleDateSelect}
         onTimeSelect={handleTimeSelect}
         onTempChange={(date, time) => {
+          // Use onTempChange values directly - they reflect the visual selection state
+          // If date/time are visually selected (blue), onTempChange reports them
+          // If not visually selected, onTempChange reports null/empty
           setEffectiveDate(date);
           setEffectiveTime(time);
         }}

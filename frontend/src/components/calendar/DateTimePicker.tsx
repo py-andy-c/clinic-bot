@@ -365,13 +365,24 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   // Always report effective date/time values to parent
   // When expanded: use tempDate/tempTime (user's current selection)
   // When collapsed: use selectedDate/selectedTime (confirmed values)
+  // IMPORTANT: Only report a time if it's actually available in allTimeSlots for the current date
+  // This ensures the button state matches the visual selection (blue slot) state
   useEffect(() => {
     if (onTempChange) {
       const effectiveDate = isExpanded ? tempDate : selectedDate;
-      const effectiveTime = isExpanded ? tempTime : selectedTime;
+      let effectiveTime = isExpanded ? tempTime : selectedTime;
+      
+      // If expanded and we have a tempTime, validate it's actually available in allTimeSlots
+      // If it's not available, clear it (no blue slot = no valid selection)
+      if (isExpanded && effectiveTime && tempDate) {
+        if (!allTimeSlots.includes(effectiveTime)) {
+          effectiveTime = '';
+        }
+      }
+      
       onTempChange(effectiveDate, effectiveTime);
     }
-  }, [onTempChange, isExpanded, tempDate, tempTime, selectedDate, selectedTime]);
+  }, [onTempChange, isExpanded, tempDate, tempTime, selectedDate, selectedTime, allTimeSlots]);
 
   // Handle collapse - save temp state to confirmed or clear both
   const handleCollapse = useCallback(() => {
