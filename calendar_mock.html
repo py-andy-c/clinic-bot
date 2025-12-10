@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>行事曆 - 陳志明 - Clinic Bot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @layer base {
+            html {
+                font-family: 'Inter', system-ui, sans-serif;
+            }
+        }
+        
+        /* Calendar styles */
+        .calendar-container {
+            @apply bg-white rounded-lg shadow-sm border border-gray-200;
+            overflow: hidden;
+        }
+        
+        .time-gutter {
+            @apply bg-gray-50 border-r border-gray-200;
+            width: 60px;
+            min-width: 60px;
+        }
+        
+        .time-slot {
+            @apply text-xs text-gray-500 py-2 pr-2 text-right;
+            height: 60px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .day-column:last-child {
+            @apply border-r-0;
+        }
+        
+        .day-slot {
+            height: 60px;
+            border-bottom: 1px solid #e5e7eb;
+            position: relative;
+            width: 100%;
+        }
+        
+        .event {
+            @apply rounded-md text-xs font-medium text-white px-2 py-1;
+            background-color: #3b82f6;
+            position: absolute;
+            left: 2px;
+            right: 2px;
+            top: 0;
+            cursor: pointer;
+            overflow: hidden;
+            white-space: normal;
+            word-wrap: break-word;
+            line-height: 1.3;
+            height: 60px;
+            box-sizing: border-box;
+        }
+        
+        .event:hover {
+            opacity: 0.9;
+        }
+        
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+        
+        .modal-hidden {
+            display: none;
+        }
+        
+        /* Checkout modal styles */
+        .bg-blue-50 {
+            background-color: #eff6ff;
+        }
+        
+        .week-header {
+            @apply bg-gray-50 border-b border-gray-200;
+            display: flex;
+            width: 100%;
+        }
+        
+        .week-header-gutter {
+            @apply time-gutter;
+            border-right: 1px solid #e5e7eb;
+            flex-shrink: 0;
+            width: 60px;
+            min-width: 60px;
+            box-sizing: border-box;
+        }
+        
+        .week-header-days {
+            display: table;
+            flex: 1;
+            min-width: 0;
+            table-layout: fixed;
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+        }
+        
+        .week-header-day {
+            @apply border-r border-gray-200 text-center py-3;
+            display: table-cell;
+            vertical-align: middle;
+            box-sizing: border-box;
+        }
+        
+        .week-header-day:last-child {
+            @apply border-r-0;
+        }
+        
+        .week-header-day.today {
+            @apply bg-blue-100;
+        }
+        
+        .calendar-content {
+            display: flex;
+            overflow-y: auto;
+            max-height: 600px;
+            width: 100%;
+        }
+        
+        .time-column {
+            @apply time-gutter;
+            flex-shrink: 0;
+            width: 60px;
+            min-width: 60px;
+            box-sizing: border-box;
+        }
+        
+        .days-container {
+            display: table;
+            flex: 1;
+            min-width: 0;
+            table-layout: fixed;
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+        }
+        
+        .day-column {
+            @apply border-r border-gray-200;
+            display: table-cell;
+            vertical-align: top;
+            position: relative;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">行事曆</h1>
+                        <p class="mt-1 text-sm text-gray-500">陳志明</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Calendar Toolbar -->
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex items-center space-x-2">
+                    <button class="p-2 hover:bg-gray-100 rounded-md text-2xl font-bold text-gray-700">
+                        ‹
+                    </button>
+                    <button class="p-2 hover:bg-gray-100 rounded-md text-2xl font-bold text-gray-700">
+                        ›
+                    </button>
+                    <h2 class="text-lg font-semibold text-gray-900 ml-2">2025年1月</h2>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button class="px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md border border-gray-300">
+                        今天
+                    </button>
+                    <div class="flex space-x-0 rounded-md border border-gray-300 bg-gray-50 p-0.5">
+                        <button class="px-3 py-2 text-sm rounded-md font-semibold text-gray-600 hover:text-gray-800 hover:bg-gray-100">
+                            月
+                        </button>
+                        <button class="px-3 py-2 text-sm rounded-md font-semibold bg-blue-600 text-white shadow-md">
+                            週
+                        </button>
+                        <button class="px-3 py-2 text-sm rounded-md font-semibold text-gray-600 hover:text-gray-800 hover:bg-gray-100">
+                            日
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calendar Container -->
+            <div class="calendar-container">
+                <!-- Week Header -->
+                <div class="week-header">
+                    <div class="week-header-gutter"></div>
+                    <div class="week-header-days">
+                        <div class="week-header-day">
+                            <div class="text-xs font-medium text-gray-500 mb-1">一</div>
+                            <div class="text-sm font-semibold text-gray-900">1/13</div>
+                        </div>
+                        <div class="week-header-day">
+                            <div class="text-xs font-medium text-gray-500 mb-1">二</div>
+                            <div class="text-sm font-semibold text-gray-900">1/14</div>
+                        </div>
+                        <div class="week-header-day today">
+                            <div class="text-xs font-medium text-primary-600 font-semibold mb-1">三</div>
+                            <div class="text-sm font-semibold text-primary-700">1/15</div>
+                        </div>
+                        <div class="week-header-day">
+                            <div class="text-xs font-medium text-gray-500 mb-1">四</div>
+                            <div class="text-sm font-semibold text-gray-900">1/16</div>
+                        </div>
+                        <div class="week-header-day">
+                            <div class="text-xs font-medium text-gray-500 mb-1">五</div>
+                            <div class="text-sm font-semibold text-gray-900">1/17</div>
+                        </div>
+                        <div class="week-header-day">
+                            <div class="text-xs font-medium text-gray-500 mb-1">六</div>
+                            <div class="text-sm font-semibold text-gray-900">1/18</div>
+                        </div>
+                        <div class="week-header-day">
+                            <div class="text-xs font-medium text-gray-500 mb-1">日</div>
+                            <div class="text-sm font-semibold text-gray-900">1/19</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Calendar Content -->
+                <div class="calendar-content">
+                    <!-- Time Gutter -->
+                    <div class="time-column">
+                        <div class="time-slot">9 AM</div>
+                        <div class="time-slot">9:30 AM</div>
+                        <div class="time-slot">10 AM</div>
+                        <div class="time-slot">10:30 AM</div>
+                        <div class="time-slot">11 AM</div>
+                        <div class="time-slot">11:30 AM</div>
+                        <div class="time-slot">12 PM</div>
+                        <div class="time-slot">12:30 PM</div>
+                        <div class="time-slot">1 PM</div>
+                        <div class="time-slot">1:30 PM</div>
+                        <div class="time-slot">2 PM</div>
+                        <div class="time-slot">2:30 PM</div>
+                        <div class="time-slot">3 PM</div>
+                        <div class="time-slot">3:30 PM</div>
+                        <div class="time-slot">4 PM</div>
+                        <div class="time-slot">4:30 PM</div>
+                        <div class="time-slot">5 PM</div>
+                        <div class="time-slot">5:30 PM</div>
+                        <div class="time-slot">6 PM</div>
+                        <div class="time-slot">6:30 PM</div>
+                        <div class="time-slot">7 PM</div>
+                        <div class="time-slot">7:30 PM</div>
+                        <div class="time-slot">8 PM</div>
+                    </div>
+
+                    <!-- Day Columns -->
+                    <div class="days-container">
+                        <!-- Monday -->
+                        <div class="day-column">
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot">
+                                <div class="event">
+                                    王小明 - 初診
+                                </div>
+                            </div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot">
+                                <div class="event">
+                                    李美華 - 徒手治療
+                                </div>
+                            </div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot">
+                                <div class="event">
+                                    張志強 - 運動治療
+                                </div>
+                            </div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                        </div>
+
+                        <!-- Tuesday -->
+                        <div class="day-column">
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot">
+                                <div class="event">
+                                    陳雅文 - 初診
+                                </div>
+                            </div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot">
+                                <div class="event">
+                                    林建宏 - 徒手治療
+                                </div>
+                            </div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                        </div>
+
+                        <!-- Wednesday (Today) -->
+                        <div class="day-column">
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot">
+                                <div class="event">
+                                    黃淑芬 - 初診
+                                </div>
+                            </div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot">
+                                <div class="event">
+                                    吳志偉 - 運動治療
+                                </div>
+                            </div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot">
+                                <div class="event">
+                                    周雅玲 - 初診
+                                </div>
+                            </div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot">
+                                <div class="event">
+                                    鄭文雄 - 徒手治療
+                                </div>
+                            </div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                        </div>
+
+                        <!-- Thursday -->
+                        <div class="day-column">
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot">
+                                <div class="event">
+                                    許美玲 - 初診
+                                </div>
+                            </div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot">
+                                <div class="event">
+                                    蔡志明 - 運動治療
+                                </div>
+                            </div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                        </div>
+
+                        <!-- Friday -->
+                        <div class="day-column">
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot">
+                                <div class="event">
+                                    謝文華 - 初診
+                                </div>
+                            </div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot">
+                                <div class="event">
+                                    羅雅芳 - 徒手治療
+                                </div>
+                            </div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot">
+                                <div class="event">
+                                    葉建國 - 運動治療
+                                </div>
+                            </div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                        </div>
+
+                        <!-- Saturday -->
+                        <div class="day-column">
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                        </div>
+
+                        <!-- Sunday -->
+                        <div class="day-column">
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                            <div class="day-slot"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Checkout Modal -->
+        <div id="checkoutModal" class="modal-overlay modal-hidden" onclick="closeCheckoutModalOnOverlay(event)">
+            <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 600px;">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold">結帳</h3>
+                    <button onclick="closeCheckoutModal()" class="p-1 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0" aria-label="關閉">
+                        <svg class="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="mb-4 pb-4 border-b border-gray-200">
+                    <p class="text-sm text-gray-600 mb-1"><strong>病患:</strong> <span id="checkoutPatientName"></span></p>
+                    <p class="text-sm text-gray-600"><strong>時間:</strong> <span id="checkoutAppointmentTime"></span></p>
+                </div>
+                
+                <!-- Receipt Items -->
+                <div class="mb-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-sm font-medium text-gray-700">收據項目：</p>
+                        <button onclick="addReceiptItem()" class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            + 新增項目
+                        </button>
+                    </div>
+                    <div id="receiptItems" class="space-y-3">
+                        <!-- Items will be added here dynamically -->
+                    </div>
+                </div>
+                
+                <!-- Totals -->
+                <div class="mb-4 p-4 bg-gray-50 rounded-md border border-gray-200">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-sm font-semibold text-gray-700">總金額（客戶可見）:</span>
+                        <span id="totalAmount" class="text-lg font-bold text-gray-900">NT$ 0</span>
+                    </div>
+                    <div class="flex justify-between items-center pt-2 border-t border-gray-300">
+                        <span class="text-sm font-semibold text-gray-700">總抽成（內部）:</span>
+                        <span id="totalProfit" class="text-lg font-bold text-gray-900">NT$ 0</span>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-2 mt-6">
+                    <button onclick="closeCheckoutModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                        取消
+                    </button>
+                    <button id="confirmCheckoutBtn" onclick="confirmCheckout()" disabled class="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                        確認結帳
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Receipt View Modal -->
+        <div id="receiptModal" class="modal-overlay modal-hidden" onclick="closeReceiptModalOnOverlay(event)">
+            <div class="modal-content" onclick="event.stopPropagation()" style="max-width: 600px;">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold">收據</h3>
+                    <button onclick="closeReceiptModal()" class="p-1 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0" aria-label="關閉">
+                        <svg class="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="mb-4 pb-4 border-b border-gray-200">
+                    <p class="text-sm text-gray-600 mb-1"><strong>病患:</strong> <span id="receiptPatientName"></span></p>
+                    <p class="text-sm text-gray-600"><strong>時間:</strong> <span id="receiptAppointmentTime"></span></p>
+                    <p class="text-sm text-gray-600 mt-2"><strong>結帳時間:</strong> <span id="receiptCheckoutTime"></span></p>
+                </div>
+                
+                <div class="mb-4">
+                    <div class="space-y-2" id="receiptItemsList">
+                        <!-- Receipt items will be shown here -->
+                    </div>
+                </div>
+                
+                <div class="mb-4 p-4 bg-gray-50 rounded-md border border-gray-200">
+                    <div class="flex justify-between items-center">
+                        <span class="text-lg font-semibold text-gray-900">總計:</span>
+                        <span id="receiptTotalAmount" class="text-xl font-bold text-gray-900">NT$ 0</span>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-2 mt-6">
+                    <button onclick="downloadReceipt()" class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        下載
+                    </button>
+                    <button onclick="closeReceiptModal()" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        關閉
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Appointment Modal -->
+        <div id="appointmentModal" class="modal-overlay modal-hidden" onclick="closeModalOnOverlay(event)">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 id="modalTitle" class="text-lg font-semibold">預約詳情</h3>
+                    <button onclick="closeModal()" class="p-1 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0" aria-label="關閉">
+                        <svg class="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="space-y-2">
+                    <p><strong>治療師:</strong> <span id="modalPractitioner">陳志明</span></p>
+                    <p><strong>時間:</strong> <span id="modalTime">2025年1月15日 (三) 11:00 AM - 12:00 PM</span></p>
+                    <p><strong>電話:</strong> <span id="modalPhone">0912345678</span></p>
+                    <p><strong>生日:</strong> <span id="modalBirthday">1985/05/20</span></p>
+                    <p><strong>LINE:</strong> <span id="modalLine">吳志偉</span></p>
+                    <p><strong>病患備註:</strong> <span id="modalNotes">無</span></p>
+                    <div>
+                        <p class="mb-1"><strong>診所備注:</strong></p>
+                        <textarea id="modalClinicNotes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="輸入診所備注..."></textarea>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-2 mt-6">
+                    <button id="checkoutBtn" onclick="openCheckoutModal()" class="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
+                        結帳
+                    </button>
+                    <button id="viewReceiptBtn" onclick="openReceiptModal()" class="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 hidden">
+                        查看收據
+                    </button>
+                    <button onclick="duplicateAppointment()" class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        複製
+                    </button>
+                    <button onclick="editAppointment()" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        編輯
+                    </button>
+                    <button onclick="deleteAppointment()" class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                        刪除
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Appointment data
+        const appointments = {
+            '王小明 - 初診': {
+                practitioner: '陳志明',
+                time: '2025年1月13日 (一) 10:00 AM - 11:00 AM',
+                phone: '0912345678',
+                birthday: '1980/03/15',
+                line: '王小明',
+                notes: '無',
+                clinicNotes: ''
+            },
+            '陳雅文 - 初診': {
+                practitioner: '陳志明',
+                time: '2025年1月14日 (二) 11:00 AM - 12:00 PM',
+                phone: '0923456789',
+                birthday: '1990/07/22',
+                line: '陳雅文',
+                notes: '無',
+                clinicNotes: ''
+            },
+            '黃淑芬 - 初診': {
+                practitioner: '陳志明',
+                time: '2025年1月15日 (三) 10:00 AM - 11:00 AM',
+                phone: '0934567890',
+                birthday: '1985/11/08',
+                line: '黃淑芬',
+                notes: '無',
+                clinicNotes: ''
+            },
+            '吳志偉 - 運動治療': {
+                practitioner: '陳志明',
+                time: '2025年1月15日 (三) 11:00 AM - 12:00 PM',
+                phone: '0945678901',
+                birthday: '1992/02/14',
+                line: '吳志偉',
+                notes: '無',
+                clinicNotes: ''
+            },
+            '謝文華 - 初診': {
+                practitioner: '陳志明',
+                time: '2025年1月17日 (五) 10:00 AM - 11:00 AM',
+                phone: '0956789012',
+                birthday: '1988/09/30',
+                line: '謝文華',
+                notes: '無',
+                clinicNotes: ''
+            },
+            '李美華 - 徒手治療': {
+                practitioner: '陳志明',
+                time: '2025年1月13日 (一) 2:00 PM - 3:00 PM',
+                phone: '0967890123',
+                birthday: '1983/04/18',
+                line: '李美華',
+                notes: '無',
+                clinicNotes: ''
+            },
+            '張志強 - 運動治療': {
+                practitioner: '陳志明',
+                time: '2025年1月13日 (一) 4:00 PM - 5:00 PM',
+                phone: '0978901234',
+                birthday: '1995/12/25',
+                line: '張志強',
+                notes: '無',
+                clinicNotes: ''
+            },
+            '林建宏 - 徒手治療': {
+                practitioner: '陳志明',
+                time: '2025年1月14日 (二) 1:00 PM - 2:00 PM',
+                phone: '0989012345',
+                birthday: '1987/06/10',
+                line: '林建宏',
+                notes: '無',
+                clinicNotes: ''
+            },
+            '周雅玲 - 初診': {
+                practitioner: '陳志明',
+                time: '2025年1月15日 (三) 2:00 PM - 3:00 PM',
+                phone: '0990123456',
+                birthday: '1991/08/05',
+                line: '周雅玲',
+                notes: '無',
+                clinicNotes: ''
+            },
+            '鄭文雄 - 徒手治療': {
+                practitioner: '陳志明',
+                time: '2025年1月15日 (三) 4:30 PM - 5:30 PM',
+                phone: '0901234567',
+                birthday: '1986/10/12',
+                line: '鄭文雄',
+                notes: '無',
+                clinicNotes: ''
+            },
+            '許美玲 - 初診': {
+                practitioner: '陳志明',
+                time: '2025年1月16日 (四) 1:00 PM - 2:00 PM',
+                phone: '0912345679',
+                birthday: '1989/01/28',
+                line: '許美玲',
+                notes: '無',
+                clinicNotes: ''
+            },
+            '蔡志明 - 運動治療': {
+                practitioner: '陳志明',
+                time: '2025年1月16日 (四) 2:30 PM - 3:30 PM',
+                phone: '0923456780',
+                birthday: '1993/03/17',
+                line: '蔡志明',
+                notes: '無',
+                clinicNotes: ''
+            },
+            '羅雅芳 - 徒手治療': {
+                practitioner: '陳志明',
+                time: '2025年1月17日 (五) 2:00 PM - 3:00 PM',
+                phone: '0934567891',
+                birthday: '1984/07/23',
+                line: '羅雅芳',
+                notes: '無',
+                clinicNotes: ''
+            },
+            '葉建國 - 運動治療': {
+                practitioner: '陳志明',
+                time: '2025年1月17日 (五) 3:30 PM - 4:30 PM',
+                phone: '0945678902',
+                birthday: '1990/11/19',
+                line: '葉建國',
+                notes: '無',
+                clinicNotes: ''
+            }
+        };
+        
+        function openModal(appointmentName) {
+            const appointment = appointments[appointmentName];
+            if (!appointment) return;
+            
+            document.getElementById('modalTitle').textContent = appointmentName;
+            document.getElementById('modalPractitioner').textContent = appointment.practitioner;
+            document.getElementById('modalTime').textContent = appointment.time;
+            document.getElementById('modalPhone').textContent = appointment.phone;
+            document.getElementById('modalBirthday').textContent = appointment.birthday;
+            document.getElementById('modalLine').textContent = appointment.line;
+            document.getElementById('modalNotes').textContent = appointment.notes;
+            document.getElementById('modalClinicNotes').value = appointment.clinicNotes;
+            
+            // Show/hide checkout or view receipt button
+            const isCheckedOut = checkedOutAppointments[appointmentName];
+            document.getElementById('checkoutBtn').classList.toggle('hidden', !!isCheckedOut);
+            document.getElementById('viewReceiptBtn').classList.toggle('hidden', !isCheckedOut);
+            
+            const modal = document.getElementById('appointmentModal');
+            modal.classList.remove('modal-hidden');
+        }
+        
+        function closeModal() {
+            const modal = document.getElementById('appointmentModal');
+            modal.classList.add('modal-hidden');
+        }
+        
+        function closeModalOnOverlay(event) {
+            if (event.target === event.currentTarget) {
+                closeModal();
+            }
+        }
+        
+        function duplicateAppointment() {
+            alert('複製功能（模擬）');
+        }
+        
+        function editAppointment() {
+            alert('編輯功能（模擬）');
+        }
+        
+        function deleteAppointment() {
+            if (confirm('確定要刪除此預約嗎？')) {
+                alert('刪除功能（模擬）');
+                closeModal();
+            }
+        }
+        
+        let currentAppointmentName = '';
+        let receiptItems = [];
+        let checkedOutAppointments = {}; // Track which appointments have been checked out
+        
+        // Billing scenarios for 陳志明
+        const billingScenarios = {
+            '初診': { amount: 2200, profit: 600 },
+            '初診優惠': { amount: 1800, profit: 300 },
+            '複診': { amount: 2000, profit: 500 },
+            '複診優惠': { amount: 1800, profit: 300 }
+        };
+        
+        function openCheckoutModal() {
+            const appointmentName = document.getElementById('modalTitle').textContent;
+            const appointmentTime = document.getElementById('modalTime').textContent;
+            
+            currentAppointmentName = appointmentName;
+            
+            // Set patient name and time in checkout modal
+            document.getElementById('checkoutPatientName').textContent = appointmentName.split(' - ')[0];
+            document.getElementById('checkoutAppointmentTime').textContent = appointmentTime;
+            
+            // Reset receipt items
+            receiptItems = [];
+            document.getElementById('receiptItems').innerHTML = '';
+            
+            // Add first item by default
+            addReceiptItem();
+            
+            // Update totals
+            updateTotals();
+            
+            // Close appointment modal and open checkout modal
+            closeModal();
+            const checkoutModal = document.getElementById('checkoutModal');
+            checkoutModal.classList.remove('modal-hidden');
+        }
+        
+        function closeCheckoutModal() {
+            const checkoutModal = document.getElementById('checkoutModal');
+            checkoutModal.classList.add('modal-hidden');
+        }
+        
+        function closeCheckoutModalOnOverlay(event) {
+            if (event.target === event.currentTarget) {
+                closeCheckoutModal();
+            }
+        }
+        
+        function addReceiptItem() {
+            const itemId = Date.now() + Math.random();
+            receiptItems.push({
+                id: itemId,
+                itemName: '',
+                itemType: 'select', // 'select' or 'custom'
+                scenario: null,
+                customAmount: 0,
+                customProfit: 0
+            });
+            
+            renderReceiptItems();
+        }
+        
+        function removeReceiptItem(itemId) {
+            receiptItems = receiptItems.filter(item => item.id !== itemId);
+            renderReceiptItems();
+            updateTotals();
+        }
+        
+        function renderReceiptItems() {
+            const container = document.getElementById('receiptItems');
+            container.innerHTML = '';
+            
+            receiptItems.forEach((item, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'p-4 border border-gray-300 rounded-md bg-white';
+                itemDiv.innerHTML = `
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm font-medium text-gray-700">項目 ${index + 1}</span>
+                        ${receiptItems.length > 1 ? `<button onclick="removeReceiptItem(${item.id})" class="text-red-600 hover:text-red-800 text-sm">刪除</button>` : ''}
+                    </div>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">項目名稱</label>
+                            <div class="flex gap-2">
+                                <select id="itemType_${item.id}" onchange="updateItemType(${item.id})" class="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="select">選擇類型</option>
+                                    <option value="初診" ${item.itemName === '初診' ? 'selected' : ''}>初診</option>
+                                    <option value="運動治療" ${item.itemName === '運動治療' ? 'selected' : ''}>運動治療</option>
+                                    <option value="徒手治療" ${item.itemName === '徒手治療' ? 'selected' : ''}>徒手治療</option>
+                                    <option value="custom">自訂（輸入文字）</option>
+                                </select>
+                            </div>
+                            <input id="customItemName_${item.id}" type="text" placeholder="輸入項目名稱（例如：器材費）" value="${item.itemType === 'custom' ? item.itemName : ''}" 
+                                class="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${item.itemType === 'custom' ? '' : 'hidden'}"
+                                oninput="updateItemName(${item.id}, this.value)">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">計費情境</label>
+                            <div class="space-y-2">
+                                <label class="flex items-center p-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50">
+                                    <input type="radio" name="scenario_${item.id}" value="初診" onchange="selectItemScenario(${item.id}, '初診', 2200, 600)" ${item.scenario === '初診' ? 'checked' : ''} class="mr-2">
+                                    <div class="flex-1 text-sm">
+                                        <div class="font-medium">初診</div>
+                                        <div class="text-xs text-gray-600">NT$ 2,200 / NT$ 600</div>
+                                    </div>
+                                </label>
+                                <label class="flex items-center p-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50">
+                                    <input type="radio" name="scenario_${item.id}" value="初診優惠" onchange="selectItemScenario(${item.id}, '初診優惠', 1800, 300)" ${item.scenario === '初診優惠' ? 'checked' : ''} class="mr-2">
+                                    <div class="flex-1 text-sm">
+                                        <div class="font-medium">初診優惠</div>
+                                        <div class="text-xs text-gray-600">NT$ 1,800 / NT$ 300</div>
+                                    </div>
+                                </label>
+                                <label class="flex items-center p-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50">
+                                    <input type="radio" name="scenario_${item.id}" value="複診" onchange="selectItemScenario(${item.id}, '複診', 2000, 500)" ${item.scenario === '複診' ? 'checked' : ''} class="mr-2">
+                                    <div class="flex-1 text-sm">
+                                        <div class="font-medium">複診</div>
+                                        <div class="text-xs text-gray-600">NT$ 2,000 / NT$ 500</div>
+                                    </div>
+                                </label>
+                                <label class="flex items-center p-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50">
+                                    <input type="radio" name="scenario_${item.id}" value="複診優惠" onchange="selectItemScenario(${item.id}, '複診優惠', 1800, 300)" ${item.scenario === '複診優惠' ? 'checked' : ''} class="mr-2">
+                                    <div class="flex-1 text-sm">
+                                        <div class="font-medium">複診優惠</div>
+                                        <div class="text-xs text-gray-600">NT$ 1,800 / NT$ 300</div>
+                                    </div>
+                                </label>
+                                <label class="flex items-center p-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50">
+                                    <input type="radio" name="scenario_${item.id}" value="其他" onchange="selectItemOtherScenario(${item.id})" ${item.scenario === '其他' ? 'checked' : ''} class="mr-2">
+                                    <div class="flex-1 text-sm">
+                                        <div class="font-medium">其他</div>
+                                        <div class="text-xs text-gray-600">自訂金額與分潤</div>
+                                    </div>
+                                </label>
+                            </div>
+                            <div id="customScenario_${item.id}" class="mt-2 p-3 bg-gray-50 rounded-md ${item.scenario === '其他' ? '' : 'hidden'}">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">金額</label>
+                                        <input type="number" min="0" step="1" placeholder="輸入金額" value="${item.customAmount || ''}" 
+                                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            oninput="updateCustomItemScenario(${item.id}, 'amount', this.value)">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">分潤</label>
+                                        <input type="number" min="0" step="1" placeholder="輸入分潤" value="${item.customProfit || ''}" 
+                                            class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            oninput="updateCustomItemScenario(${item.id}, 'profit', this.value)">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(itemDiv);
+            });
+        }
+        
+        function updateItemType(itemId) {
+            const item = receiptItems.find(i => i.id === itemId);
+            if (!item) return;
+            
+            const select = document.getElementById(`itemType_${itemId}`);
+            const customInput = document.getElementById(`customItemName_${itemId}`);
+            
+            if (select.value === 'custom') {
+                item.itemType = 'custom';
+                customInput.classList.remove('hidden');
+                customInput.focus();
+            } else {
+                item.itemType = 'select';
+                item.itemName = select.value;
+                customInput.classList.add('hidden');
+                customInput.value = '';
+            }
+        }
+        
+        function updateItemName(itemId, value) {
+            const item = receiptItems.find(i => i.id === itemId);
+            if (item) {
+                item.itemName = value;
+            }
+        }
+        
+        function selectItemScenario(itemId, scenarioName, amount, profit) {
+            const item = receiptItems.find(i => i.id === itemId);
+            if (item) {
+                item.scenario = scenarioName;
+                item.customAmount = 0;
+                item.customProfit = 0;
+                document.getElementById(`customScenario_${itemId}`).classList.add('hidden');
+                updateTotals();
+            }
+        }
+        
+        function selectItemOtherScenario(itemId) {
+            const item = receiptItems.find(i => i.id === itemId);
+            if (item) {
+                item.scenario = '其他';
+                document.getElementById(`customScenario_${itemId}`).classList.remove('hidden');
+                updateTotals();
+            }
+        }
+        
+        function updateCustomItemScenario(itemId, type, value) {
+            const item = receiptItems.find(i => i.id === itemId);
+            if (item) {
+                if (type === 'amount') {
+                    item.customAmount = parseFloat(value) || 0;
+                } else {
+                    item.customProfit = parseFloat(value) || 0;
+                }
+                updateTotals();
+            }
+        }
+        
+        function updateTotals() {
+            let totalAmount = 0;
+            let totalProfit = 0;
+            
+            receiptItems.forEach(item => {
+                if (item.scenario === '其他') {
+                    totalAmount += item.customAmount || 0;
+                    totalProfit += item.customProfit || 0;
+                } else if (item.scenario && billingScenarios[item.scenario]) {
+                    totalAmount += billingScenarios[item.scenario].amount;
+                    totalProfit += billingScenarios[item.scenario].profit;
+                }
+            });
+            
+            document.getElementById('totalAmount').textContent = `NT$ ${totalAmount.toLocaleString()}`;
+            document.getElementById('totalProfit').textContent = `NT$ ${totalProfit.toLocaleString()}`;
+            
+            // Enable confirm button if at least one item has a scenario
+            const hasValidItems = receiptItems.some(item => {
+                if (item.scenario === '其他') {
+                    return item.customAmount > 0 && item.customProfit >= 0;
+                }
+                return item.scenario && billingScenarios[item.scenario];
+            });
+            document.getElementById('confirmCheckoutBtn').disabled = !hasValidItems || totalAmount === 0;
+        }
+        
+        function confirmCheckout() {
+            // Validate all items
+            const invalidItems = receiptItems.filter(item => {
+                if (!item.itemName || item.itemName.trim() === '') return true;
+                if (!item.scenario) return true;
+                if (item.scenario === '其他' && (item.customAmount <= 0 || item.customProfit < 0)) return true;
+                return false;
+            });
+            
+            if (invalidItems.length > 0) {
+                alert('請完成所有項目的設定');
+                return;
+            }
+            
+            // Calculate totals
+            let totalAmount = 0;
+            let totalProfit = 0;
+            const items = receiptItems.map(item => {
+                let amount, profit;
+                if (item.scenario === '其他') {
+                    amount = item.customAmount;
+                    profit = item.customProfit;
+                } else {
+                    amount = billingScenarios[item.scenario].amount;
+                    profit = billingScenarios[item.scenario].profit;
+                }
+                totalAmount += amount;
+                totalProfit += profit;
+                return {
+                    name: item.itemName,
+                    scenario: item.scenario,
+                    amount,
+                    profit
+                };
+            });
+            
+            // Save receipt data
+            checkedOutAppointments[currentAppointmentName] = {
+                items: items,
+                totalAmount: totalAmount,
+                totalProfit: totalProfit,
+                checkoutTime: new Date().toLocaleString('zh-TW')
+            };
+            
+            // Show confirmation
+            alert(`結帳成功！\n\n總金額: NT$ ${totalAmount.toLocaleString()}\n總抽成: NT$ ${totalProfit.toLocaleString()}`);
+            
+            // Close modal
+            closeCheckoutModal();
+        }
+        
+        function openReceiptModal() {
+            const appointmentName = document.getElementById('modalTitle').textContent;
+            const appointmentTime = document.getElementById('modalTime').textContent;
+            const receipt = checkedOutAppointments[appointmentName];
+            
+            if (!receipt) return;
+            
+            document.getElementById('receiptPatientName').textContent = appointmentName.split(' - ')[0];
+            document.getElementById('receiptAppointmentTime').textContent = appointmentTime;
+            document.getElementById('receiptCheckoutTime').textContent = receipt.checkoutTime;
+            
+            const itemsList = document.getElementById('receiptItemsList');
+            itemsList.innerHTML = '';
+            
+            receipt.items.forEach((item, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'flex justify-between items-center py-2 border-b border-gray-200';
+                itemDiv.innerHTML = `
+                    <div class="flex-1">
+                        <div class="font-medium text-gray-900">${item.name}</div>
+                        <div class="text-xs text-gray-500">${item.scenario === '其他' ? '其他' : item.scenario}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-medium text-gray-900">NT$ ${item.amount.toLocaleString()}</div>
+                        <div class="text-xs text-gray-500">抽成: NT$ ${item.profit.toLocaleString()}</div>
+                    </div>
+                `;
+                itemsList.appendChild(itemDiv);
+            });
+            
+            document.getElementById('receiptTotalAmount').textContent = `NT$ ${receipt.totalAmount.toLocaleString()}`;
+            
+            closeModal();
+            const receiptModal = document.getElementById('receiptModal');
+            receiptModal.classList.remove('modal-hidden');
+        }
+        
+        function closeReceiptModal() {
+            const receiptModal = document.getElementById('receiptModal');
+            receiptModal.classList.add('modal-hidden');
+        }
+        
+        function closeReceiptModalOnOverlay(event) {
+            if (event.target === event.currentTarget) {
+                closeReceiptModal();
+            }
+        }
+        
+        function downloadReceipt() {
+            const appointmentName = document.getElementById('receiptPatientName').textContent;
+            const appointmentTime = document.getElementById('receiptAppointmentTime').textContent;
+            const checkoutTime = document.getElementById('receiptCheckoutTime').textContent;
+            const receipt = checkedOutAppointments[document.getElementById('modalTitle').textContent];
+            
+            if (!receipt) return;
+            
+            // Create receipt content
+            let receiptContent = `收據\n`;
+            receiptContent += `==================\n\n`;
+            receiptContent += `病患: ${appointmentName}\n`;
+            receiptContent += `預約時間: ${appointmentTime}\n`;
+            receiptContent += `結帳時間: ${checkoutTime}\n\n`;
+            receiptContent += `項目明細:\n`;
+            receiptContent += `------------------\n`;
+            
+            receipt.items.forEach((item, index) => {
+                receiptContent += `${index + 1}. ${item.name}\n`;
+                receiptContent += `   計費情境: ${item.scenario === '其他' ? '其他' : item.scenario}\n`;
+                receiptContent += `   金額: NT$ ${item.amount.toLocaleString()}\n`;
+            });
+            
+            receiptContent += `------------------\n`;
+            receiptContent += `總計: NT$ ${receipt.totalAmount.toLocaleString()}\n`;
+            receiptContent += `\n感謝您的惠顧！\n`;
+            
+            // Create and download file
+            const blob = new Blob([receiptContent], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `收據_${appointmentName}_${new Date().toISOString().split('T')[0]}.txt`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            
+            alert('收據已下載');
+        }
+        
+        // Add click handlers to all events
+        document.addEventListener('DOMContentLoaded', function() {
+            const events = document.querySelectorAll('.event');
+            events.forEach(event => {
+                event.addEventListener('click', function() {
+                    const appointmentName = this.textContent.trim();
+                    openModal(appointmentName);
+                });
+            });
+            
+            // Handle Escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    const checkoutModal = document.getElementById('checkoutModal');
+                    const receiptModal = document.getElementById('receiptModal');
+                    if (!checkoutModal.classList.contains('modal-hidden')) {
+                        closeCheckoutModal();
+                    } else if (!receiptModal.classList.contains('modal-hidden')) {
+                        closeReceiptModal();
+                    } else {
+                        closeModal();
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
