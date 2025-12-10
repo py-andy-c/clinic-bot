@@ -813,23 +813,28 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
           {/* Recurrence Toggle */}
           <div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={recurrenceEnabled}
-                onChange={(e) => {
-                  setRecurrenceEnabled(e.target.checked);
-                  if (!e.target.checked) {
-                    // Reset recurrence state when disabled (but preserve occurrenceCount)
-                    setOccurrences([]);
-                    setWeeksInterval(1);
-                    setHasVisitedConflictResolution(false);
-                  }
-                }}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-gray-700">重複</span>
-            </label>
+            <button
+              type="button"
+              onClick={() => {
+                const newValue = !recurrenceEnabled;
+                setRecurrenceEnabled(newValue);
+                if (!newValue) {
+                  // Reset recurrence state when disabled
+                  setOccurrences([]);
+                  setWeeksInterval(1);
+                  setOccurrenceCount(null);
+                  setHasVisitedConflictResolution(false);
+                }
+              }}
+              aria-pressed={recurrenceEnabled}
+              className={
+                recurrenceEnabled
+                  ? 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500'
+                  : 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500'
+              }
+            >
+              重複
+            </button>
           </div>
 
           {/* Recurrence Pattern Inputs */}

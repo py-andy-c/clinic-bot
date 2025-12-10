@@ -457,5 +457,154 @@ describe('CreateAppointmentModal', () => {
       expect(clearedSelects[1]).toHaveValue('');
     }, { timeout: 2000 });
   });
+
+  describe('Recurrence Toggle', () => {
+    it('should toggle recurrence when button is clicked', async () => {
+      render(
+        <CreateAppointmentModal
+          practitioners={mockPractitioners}
+          appointmentTypes={mockAppointmentTypes}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />
+      );
+
+      // Find the recurrence toggle button
+      const recurrenceButton = screen.getByRole('button', { name: '重複' });
+      expect(recurrenceButton).toBeInTheDocument();
+      expect(recurrenceButton).toHaveAttribute('aria-pressed', 'false');
+
+      // Click to enable
+      fireEvent.click(recurrenceButton);
+
+      // Verify button is now pressed
+      await waitFor(() => {
+        expect(recurrenceButton).toHaveAttribute('aria-pressed', 'true');
+      });
+
+      // Click again to disable
+      fireEvent.click(recurrenceButton);
+
+      // Verify button is no longer pressed
+      await waitFor(() => {
+        expect(recurrenceButton).toHaveAttribute('aria-pressed', 'false');
+      });
+    });
+
+    it('should show recurrence inputs when enabled', async () => {
+      render(
+        <CreateAppointmentModal
+          practitioners={mockPractitioners}
+          appointmentTypes={mockAppointmentTypes}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />
+      );
+
+      const recurrenceButton = screen.getByRole('button', { name: '重複' });
+      
+      // Initially, recurrence inputs should not be visible
+      const numberInputs = screen.queryAllByRole('spinbutton');
+      expect(numberInputs.length).toBe(0);
+
+      // Enable recurrence
+      fireEvent.click(recurrenceButton);
+
+      // Verify recurrence inputs appear
+      await waitFor(() => {
+        const inputs = screen.getAllByRole('spinbutton');
+        expect(inputs.length).toBeGreaterThanOrEqual(2);
+        // Check that the labels are visible
+        expect(screen.getByText('每')).toBeInTheDocument();
+        expect(screen.getByText('共')).toBeInTheDocument();
+      });
+    });
+
+    it('should hide recurrence inputs when disabled', async () => {
+      render(
+        <CreateAppointmentModal
+          practitioners={mockPractitioners}
+          appointmentTypes={mockAppointmentTypes}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />
+      );
+
+      const recurrenceButton = screen.getByRole('button', { name: '重複' });
+      
+      // Enable recurrence
+      fireEvent.click(recurrenceButton);
+      
+      await waitFor(() => {
+        expect(screen.getByText('每')).toBeInTheDocument();
+      });
+
+      // Disable recurrence
+      fireEvent.click(recurrenceButton);
+
+      // Verify recurrence inputs are hidden
+      await waitFor(() => {
+        expect(screen.queryByText('每')).not.toBeInTheDocument();
+        expect(screen.queryByText('共')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should reset recurrence state when disabled', async () => {
+      render(
+        <CreateAppointmentModal
+          practitioners={mockPractitioners}
+          appointmentTypes={mockAppointmentTypes}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />
+      );
+
+      const recurrenceButton = screen.getByRole('button', { name: '重複' });
+      
+      // Enable recurrence
+      fireEvent.click(recurrenceButton);
+      
+      await waitFor(() => {
+        expect(screen.getByText('每')).toBeInTheDocument();
+      });
+
+      // Get the number inputs
+      const numberInputs = screen.getAllByRole('spinbutton');
+      const weeksInput = numberInputs[0]; // First input is weeks interval
+      const countInput = numberInputs[1]; // Second input is occurrence count
+      
+      // Set some values
+      fireEvent.change(weeksInput, { target: { value: '2' } });
+      fireEvent.change(countInput, { target: { value: '5' } });
+
+      // Verify values are set
+      expect(weeksInput).toHaveValue(2);
+      expect(countInput).toHaveValue(5);
+
+      // Disable recurrence
+      fireEvent.click(recurrenceButton);
+
+      // Verify inputs are hidden (state reset)
+      await waitFor(() => {
+        expect(screen.queryByText('每')).not.toBeInTheDocument();
+      });
+
+      // Re-enable to verify state was reset
+      fireEvent.click(recurrenceButton);
+
+      await waitFor(() => {
+        const newInputs = screen.getAllByRole('spinbutton');
+        const newWeeksInput = newInputs[0];
+        const newCountInput = newInputs[1];
+        // Values should be reset to defaults
+        expect(newWeeksInput).toHaveValue(1);
+        // When occurrenceCount is null, the input value is empty string (HTML number inputs use '' for empty)
+        // Check that the input is empty by verifying it has no numeric value
+        expect(newCountInput.value).toBe('');
+        // Also verify placeholder is shown when empty
+        expect(newCountInput).toHaveAttribute('placeholder', '次數');
+      });
+    });
+  });
 });
 

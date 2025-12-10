@@ -406,10 +406,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     
     const handleClickOutside = (event: MouseEvent) => {
       if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
-        // Defer collapse to allow checkbox click events to complete
-        setTimeout(() => {
-          handleCollapse();
-        }, 0);
+        handleCollapse();
       }
     };
 
