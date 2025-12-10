@@ -321,6 +321,11 @@ async def serve_frontend(path: str):
     if not frontend_dist_path.exists():
         raise HTTPException(status_code=404, detail="Frontend not built")
 
+    # Check if the requested path is a static file (e.g., PDF.js worker)
+    requested_file = frontend_dist_path / path
+    if requested_file.exists() and requested_file.is_file():
+        return FileResponse(str(requested_file))
+
     # Serve index.html for frontend routes (React Router will handle client-side routing)
     index_path = frontend_dist_path / "index.html"
     if index_path.exists():

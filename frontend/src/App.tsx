@@ -28,6 +28,7 @@ const MemberSignupPage = lazy(() => import('./pages/MemberSignupPage'));
 const NameConfirmationPage = lazy(() => import('./pages/NameConfirmationPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const LiffApp = lazy(() => import('./liff/LiffApp'));
+const DrawingDemoPage = lazy(() => import('./pages/DrawingDemoPage'));
 
 const AppRoutes: React.FC = () => {
   const { isLoading } = useAuth();
@@ -43,6 +44,9 @@ const AppRoutes: React.FC = () => {
         <Route path="/" element={<LandingPage />} />
         <Route path="/free-trial" element={<FreeTrialPage />} />
         <Route path="/contact" element={<ContactPage />} />
+        
+        {/* Demo pages (no auth required) */}
+        <Route path="/demo/drawing" element={<DrawingDemoPage />} />
 
         {/* LIFF routes */}
         <Route path="/liff/*" element={<ModalProvider><LiffApp /></ModalProvider>} />
