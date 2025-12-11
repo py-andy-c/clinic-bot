@@ -358,14 +358,39 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   // Checks when: slots load, date changes, practitioner changes, appointment type changes
   useEffect(() => {
     // Skip check while slots are loading to avoid clearing time prematurely
-    if (isLoadingSlots || !selectedTime) {
+    // Also check loadingAvailability since isLoadingSlots might be false while batch is loading
+    if (isLoadingSlots || loadingAvailability || !selectedTime || !selectedDate || !selectedPractitionerId) {
+      return;
+    }
+
+    // Only check availability if batch has been initiated (meaning we've attempted to load slots)
+    // This prevents clearing time before slots have been loaded
+    if (!batchInitiatedRef.current) {
+      return;
+    }
+
+    // Check if cache has data for this date - if not, slots haven't loaded yet
+    // We need to wait for the cache to be populated before we can determine if time is unavailable
+    const cacheKey = `${selectedPractitionerId}-${selectedDate}`;
+    const hasCacheData = cachedAvailabilityData.has(cacheKey);
+
+    // If cache doesn't have data for this date yet, don't clear - slots are still loading
+    if (!hasCacheData) {
+      return;
+    }
+
+    // In edit mode (excludeCalendarEventId is set), the backend should include the current
+    // appointment's time in available slots. If allTimeSlots is empty, it might be a loading
+    // issue or the backend hasn't included it yet. Don't clear in this case.
+    if (excludeCalendarEventId && allTimeSlots.length === 0) {
       return;
     }
 
     // Check if selectedTime is unavailable:
-    // - No slots available for the date, OR
+    // - No slots available for the date (only if not in edit mode), OR
     // - Slots are available but selectedTime is not in them
-    const isUnavailable = allTimeSlots.length === 0 || !allTimeSlots.includes(selectedTime);
+    const isUnavailable = (!excludeCalendarEventId && allTimeSlots.length === 0) || 
+                          (allTimeSlots.length > 0 && !allTimeSlots.includes(selectedTime));
     
     if (isUnavailable) {
       onTimeSelect('');
@@ -373,7 +398,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       setTempTime('');
       userCollapsedRef.current = false;
     }
-  }, [selectedTime, allTimeSlots, isLoadingSlots, onTimeSelect]);
+  }, [selectedTime, allTimeSlots, isLoadingSlots, loadingAvailability, selectedDate, selectedPractitionerId, appointmentTypeId, cachedAvailabilityData, excludeCalendarEventId, onTimeSelect]);
 
   // Auto-select last manually selected time when date changes in expanded view
   useEffect(() => {
