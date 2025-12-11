@@ -38,8 +38,6 @@ export interface DateTimePickerProps {
   onPractitionerError?: (errorMessage: string) => void;
   // Optional: force clear cache when practitioner error is detected
   practitionerError?: string | null;
-  // Optional: callback to report temp date/time when picker is expanded (for external confirm buttons)
-  onTempChange?: (tempDate: string | null, tempTime: string) => void;
 }
 
 const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
@@ -56,7 +54,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   onHasAvailableSlotsChange,
   onPractitionerError,
   practitionerError,
-  onTempChange,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -362,43 +359,12 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     }
   }, [isExpanded, tempDate, tempTime, lastManuallySelectedTime, allTimeSlots]);
 
-  // Always report effective date/time values to parent
-  // When expanded: use tempDate/tempTime (user's current selection)
-  // When collapsed: use selectedDate/selectedTime (confirmed values)
-  // IMPORTANT: Only report a time if it's actually available in allTimeSlots for the current date
-  // This ensures the button state matches the visual selection (blue slot) state
-  useEffect(() => {
-    if (onTempChange) {
-      const effectiveDate = isExpanded ? tempDate : selectedDate;
-      let effectiveTime = isExpanded ? tempTime : selectedTime;
-      
-      // If expanded and we have a tempTime, validate it's actually available in allTimeSlots
-      // If it's not available, clear it (no blue slot = no valid selection)
-      if (isExpanded && effectiveTime && tempDate) {
-        if (!allTimeSlots.includes(effectiveTime)) {
-          effectiveTime = '';
-        }
-      }
-      
-      onTempChange(effectiveDate, effectiveTime);
-    }
-  }, [onTempChange, isExpanded, tempDate, tempTime, selectedDate, selectedTime, allTimeSlots]);
-
-  // Handle collapse - save temp state to confirmed or clear both
+  // Handle collapse - just collapse, state is already synced to parent
   const handleCollapse = useCallback(() => {
-    if (tempDate && tempTime) {
-      // Both valid - save both
-      onDateSelect(tempDate);
-      onTimeSelect(tempTime);
-    } else {
-      // Not both valid - clear both
-      onDateSelect(null);
-      onTimeSelect('');
-    }
     // Mark that user manually collapsed to prevent immediate re-expansion
     userCollapsedRef.current = true;
     setIsExpanded(false);
-  }, [tempDate, tempTime, onDateSelect, onTimeSelect]);
+  }, []);
 
   // Handle click outside to collapse
   useEffect(() => {
@@ -430,9 +396,11 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   };
 
   const handleTimeSelect = (time: string) => {
-    // Update temp time and track as manually selected
+    // Update temp time for UI display
     setTempTime(time);
     setLastManuallySelectedTime(time);
+    // Immediately update parent state - no need to wait for collapse
+    onTimeSelect(time);
   };
 
   // Collapsed view

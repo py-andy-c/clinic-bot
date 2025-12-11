@@ -212,8 +212,8 @@ describe('DateTimePicker', () => {
     // Time should be selected
     expect(timeButton).toHaveClass('bg-blue-500');
     
-    // Callback should not be called yet (only on collapse)
-    expect(mockOnTimeSelect).not.toHaveBeenCalled();
+    // onTimeSelect should be called immediately (not waiting for collapse)
+    expect(mockOnTimeSelect).toHaveBeenCalledWith('15:00');
   });
 
   it('should preserve lastManuallySelectedTime when switching dates', async () => {
@@ -283,6 +283,12 @@ describe('DateTimePicker', () => {
     // Verify time is selected
     expect(timeButton).toHaveClass('bg-blue-500');
     
+    // onTimeSelect should be called immediately when time is selected
+    expect(mockOnTimeSelect).toHaveBeenCalledWith('15:00');
+    
+    // Clear the mock to verify collapse doesn't call it again
+    mockOnTimeSelect.mockClear();
+    
     // Collapse by clicking outside - need to use act for async state updates
     await act(async () => {
       fireEvent.mouseDown(document.body);
@@ -290,10 +296,11 @@ describe('DateTimePicker', () => {
       await new Promise(resolve => setTimeout(resolve, 10));
     });
     
-    await waitFor(() => {
-      expect(mockOnTimeSelect).toHaveBeenCalledWith('15:00');
-      expect(mockOnDateSelect).toHaveBeenCalledWith('2024-01-15');
-    }, { timeout: 2000 });
+    // onTimeSelect should NOT be called again on collapse (already called immediately)
+    expect(mockOnTimeSelect).not.toHaveBeenCalled();
+    
+    // Date should still be selected (no change)
+    expect(mockOnDateSelect).not.toHaveBeenCalled();
   });
 
   it('should clear both date and time on collapse if time is not selected', async () => {
@@ -427,22 +434,14 @@ describe('DateTimePicker', () => {
     expect(screen.getByText('9:00 AM')).toBeInTheDocument();
   });
 
-  it('should call onTempChange with effective values when expanded', async () => {
-    const mockOnTempChange = vi.fn();
-    
+  it('should call onTimeSelect immediately when time is selected', async () => {
     render(
       <DateTimePicker
         {...defaultProps}
         selectedDate="2024-01-15"
         selectedTime="09:00"
-        onTempChange={mockOnTempChange}
       />
     );
-    
-    // Should start collapsed, so onTempChange should be called with selected values
-    await waitFor(() => {
-      expect(mockOnTempChange).toHaveBeenCalledWith('2024-01-15', '09:00');
-    });
     
     // Expand the picker
     const button = screen.getByText(/2024/).closest('button');
@@ -452,128 +451,18 @@ describe('DateTimePicker', () => {
       expect(screen.getByLabelText('上個月')).toBeInTheDocument();
     });
     
-    // When expanded, onTempChange should be called with temp values (same as selected initially)
-    await waitFor(() => {
-      expect(mockOnTempChange).toHaveBeenCalledWith('2024-01-15', '09:00');
-    });
-    
-    // Select a different time
+    // Wait for time slots to be available
     await waitFor(() => {
       expect(screen.getByText('10:00 AM')).toBeInTheDocument();
     });
     
+    // Select a different time
     const timeButton = screen.getByText('10:00 AM');
     fireEvent.click(timeButton);
     
-    // onTempChange should be called with new temp time
-    await waitFor(() => {
-      expect(mockOnTempChange).toHaveBeenCalledWith('2024-01-15', '10:00');
-    });
+    // onTimeSelect should be called immediately (not waiting for collapse)
+    expect(mockOnTimeSelect).toHaveBeenCalledWith('10:00');
   });
 
-  it('should call onTempChange with selected values when collapsed', async () => {
-    const mockOnTempChange = vi.fn();
-    
-    const { rerender } = render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime="09:00"
-        onTempChange={mockOnTempChange}
-      />
-    );
-    
-    // When collapsed, onTempChange should be called with selected values
-    await waitFor(() => {
-      expect(mockOnTempChange).toHaveBeenCalledWith('2024-01-15', '09:00');
-    });
-    
-    // Update selected values
-    rerender(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-16"
-        selectedTime="10:00"
-        onTempChange={mockOnTempChange}
-      />
-    );
-    
-    // onTempChange should be called with new selected values when collapsed
-    await waitFor(() => {
-      expect(mockOnTempChange).toHaveBeenCalledWith('2024-01-16', '10:00');
-    });
-  });
-
-  it('should validate tempTime against allTimeSlots and report empty if not available', async () => {
-    const mockOnTempChange = vi.fn();
-    
-    // Start with slots that include 15:00
-    vi.mocked(useDateSlotSelection).mockReturnValue({
-      availableSlots: ['15:00', '16:00'],
-      isLoadingSlots: false,
-    });
-    
-    const { rerender } = render(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime=""
-        onTempChange={mockOnTempChange}
-      />
-    );
-    
-    // Should auto-expand when time is empty
-    await waitFor(() => {
-      expect(screen.getByLabelText('上個月')).toBeInTheDocument();
-    });
-    
-    // Wait for time slots to be available
-    await waitFor(() => {
-      expect(screen.getByText('3:00 PM')).toBeInTheDocument();
-    });
-    
-    // Select a time that IS available (15:00)
-    const timeButton = screen.getByText('3:00 PM');
-    fireEvent.click(timeButton);
-    
-    // onTempChange should report the time since it's in allTimeSlots
-    await waitFor(() => {
-      expect(mockOnTempChange).toHaveBeenCalledWith('2024-01-15', '15:00');
-    });
-    
-    // Now change slots to exclude 15:00 - this simulates switching to a date
-    // where the previously selected time is not available
-    vi.mocked(useDateSlotSelection).mockReturnValue({
-      availableSlots: ['16:00'], // Only 16:00 available, 15:00 is gone
-      isLoadingSlots: false,
-    });
-    
-    // Clear previous calls to see the new behavior
-    mockOnTempChange.mockClear();
-    
-    // Re-render to trigger the useEffect that validates tempTime against allTimeSlots
-    rerender(
-      <DateTimePicker
-        {...defaultProps}
-        selectedDate="2024-01-15"
-        selectedTime=""
-        onTempChange={mockOnTempChange}
-      />
-    );
-    
-    // The component should detect that tempTime (15:00) is not in new allTimeSlots
-    // and report empty time via onTempChange
-    // This validates the fix: button state matches visual selection (no blue slot = empty time)
-    await waitFor(() => {
-      const calls = mockOnTempChange.mock.calls;
-      if (calls.length > 0) {
-        const lastCall = calls[calls.length - 1];
-        const [, time] = lastCall;
-        // Time should be empty because 15:00 (tempTime) is not in ['16:00'] (allTimeSlots)
-        // This ensures button is disabled when no time slot is blue
-        expect(time).toBe('');
-      }
-    }, { timeout: 2000 });
-  });
 });
 
