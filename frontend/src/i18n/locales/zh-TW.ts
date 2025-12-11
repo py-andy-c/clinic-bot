@@ -219,6 +219,7 @@ export default {
     calendarErrorGenericTitle: '行事曆錯誤',
     clinicName: '診所',
     practitionerPending: '待安排',
+    viewAppointments: '管理預約',
   },
   calendar: {
     eventTitle: '{{appointmentType}} - {{practitioner}}',

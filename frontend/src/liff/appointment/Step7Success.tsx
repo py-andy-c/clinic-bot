@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import moment from 'moment-timezone';
 import { logger } from '../../utils/logger';
 import { useAppointmentStore } from '../../stores/appointmentStore';
@@ -7,9 +8,11 @@ import { downloadAppointmentICS, generateGoogleCalendarURL } from '../../utils/i
 import { useModal } from '../../contexts/ModalContext';
 import { formatAppointmentDateTime } from '../../utils/calendarUtils';
 import { liffApiService } from '../../services/liffApi';
+import { preserveQueryParams } from '../../utils/urlUtils';
 
 const Step7Success: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const {
     appointmentType,
     practitioner,
@@ -17,7 +20,6 @@ const Step7Success: React.FC = () => {
     createdAppointment,
     patient,
     notes,
-    reset,
     clinicId,
     clinicDisplayName,
     clinicAddress,
@@ -157,14 +159,9 @@ const Step7Success: React.FC = () => {
     return formatAppointmentDateTime(taiwanMoment.toDate());
   };
 
-  const handleClose = () => {
-    reset();
-    // In LIFF, user can close the browser window
-    // For web version, we might want to redirect or show a message
-    if (window.liff) {
-      // LIFF close
-      window.liff.closeWindow();
-    }
+  const handleViewAppointments = () => {
+    const newUrl = preserveQueryParams('/liff', { mode: 'query' });
+    navigate(newUrl);
   };
 
   return (
@@ -212,6 +209,16 @@ const Step7Success: React.FC = () => {
 
       <div className="space-y-3">
         <button
+          onClick={handleViewAppointments}
+          className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700 flex items-center justify-center"
+        >
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          {t('success.viewAppointments')}
+        </button>
+
+        <button
           onClick={handleAddToCalendar}
           className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700 flex items-center justify-center"
         >
@@ -219,13 +226,6 @@ const Step7Success: React.FC = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
           {t('success.addToCalendar')}
-        </button>
-
-        <button
-          onClick={handleClose}
-          className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-md hover:bg-gray-200"
-        >
-          {t('success.done')}
         </button>
       </div>
     </div>

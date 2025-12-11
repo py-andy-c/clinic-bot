@@ -219,6 +219,7 @@ export default {
     calendarErrorGenericTitle: 'Calendar Error',
     clinicName: 'Clinic',
     practitionerPending: 'To be assigned',
+    viewAppointments: 'Manage Appointment',
   },
   calendar: {
     eventTitle: '{{appointmentType}} - {{practitioner}}',
