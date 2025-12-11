@@ -227,6 +227,61 @@ class LINEService:
             logger.warning(f"Failed to get user profile for {line_user_id[:10]}...: {e}")
             return None
 
+    def _track_push_message(
+        self,
+        line_user_id: str,
+        message_id: Optional[str],
+        reply_token: Optional[str],
+        db: Optional["Session"],
+        clinic_id: Optional[int],
+        labels: Optional[dict[str, str]]
+    ) -> None:
+        """
+        Track push message in database if conditions are met.
+        
+        This is a helper method to avoid code duplication between send_text_message
+        and send_template_message_with_button.
+        
+        Args:
+            line_user_id: LINE user ID
+            message_id: LINE message ID from API response
+            reply_token: Reply token if this is a reply message (None for push messages)
+            db: Database session
+            clinic_id: Clinic ID
+            labels: Labels dictionary for tracking
+        """
+        # Track push message only if:
+        # 1. This is a push message (reply_token is None)
+        # 2. Labels are provided (indicating we should track this message)
+        # 3. Database session and clinic_id are provided
+        if reply_token is None and labels and db is not None and clinic_id is not None:
+            try:
+                from models.line_push_message import LinePushMessage
+                
+                push_message = LinePushMessage(
+                    line_user_id=line_user_id,
+                    clinic_id=clinic_id,
+                    line_message_id=message_id,
+                    recipient_type=labels.get('recipient_type', ''),
+                    event_type=labels.get('event_type', ''),
+                    trigger_source=labels.get('trigger_source', ''),
+                    labels=labels  # Store all labels including flexible ones
+                )
+                db.add(push_message)
+                db.commit()
+                logger.debug(
+                    f"Tracked push message: line_user_id={line_user_id[:10]}..., "
+                    f"event_type={labels.get('event_type')}, clinic_id={clinic_id}"
+                )
+            except Exception as e:
+                # Log but don't fail - tracking is best effort
+                # If tracking fails, the message was still sent successfully
+                db.rollback()
+                logger.warning(
+                    f"Failed to track push message for {line_user_id[:10]}...: {e}. "
+                    f"Message was sent successfully but not tracked."
+                )
+
     def send_text_message(
         self, 
         line_user_id: str, 
@@ -304,38 +359,15 @@ class LINEService:
                 logger.debug(f"Could not extract message ID from LINE API response: {e}")
                 message_id = None
             
-            # Track push message only if:
-            # 1. This is a push message (reply_token is None)
-            # 2. LINE API call succeeded (we got here without exception)
-            # 3. Labels are provided (indicating we should track this message)
-            # 4. Database session and clinic_id are provided
-            if reply_token is None and labels and db is not None and clinic_id is not None:
-                try:
-                    from models.line_push_message import LinePushMessage
-                    
-                    push_message = LinePushMessage(
-                        line_user_id=line_user_id,
-                        clinic_id=clinic_id,
-                        line_message_id=message_id,
-                        recipient_type=labels.get('recipient_type', ''),
-                        event_type=labels.get('event_type', ''),
-                        trigger_source=labels.get('trigger_source', ''),
-                        labels=labels  # Store all labels including flexible ones
-                    )
-                    db.add(push_message)
-                    db.commit()
-                    logger.debug(
-                        f"Tracked push message: line_user_id={line_user_id[:10]}..., "
-                        f"event_type={labels.get('event_type')}, clinic_id={clinic_id}"
-                    )
-                except Exception as e:
-                    # Log but don't fail - tracking is best effort
-                    # If tracking fails, the message was still sent successfully
-                    db.rollback()
-                    logger.warning(
-                        f"Failed to track push message for {line_user_id[:10]}...: {e}. "
-                        f"Message was sent successfully but not tracked."
-                    )
+            # Track push message if conditions are met
+            self._track_push_message(
+                line_user_id=line_user_id,
+                message_id=message_id,
+                reply_token=reply_token,
+                db=db,
+                clinic_id=clinic_id,
+                labels=labels
+            )
             
             return message_id
         except Exception as e:
@@ -349,7 +381,10 @@ class LINEService:
         text: str,
         button_label: str,
         button_uri: str,
-        reply_token: Optional[str] = None
+        reply_token: Optional[str] = None,
+        db: Optional["Session"] = None,
+        clinic_id: Optional[int] = None,
+        labels: Optional[dict[str, str]] = None
     ) -> Optional[str]:
         """
         Send template message with a button action to LINE user.
@@ -363,6 +398,13 @@ class LINEService:
             button_uri: URI to open when button is clicked
             reply_token: Optional reply token from webhook event. If provided, uses reply_message.
                         If None, uses push_message as fallback.
+            db: Optional database session for tracking push messages. Required if labels provided.
+            clinic_id: Optional clinic ID for tracking push messages. Required if labels provided.
+            labels: Optional labels dictionary for tracking push messages. Should contain:
+                    - 'recipient_type': 'patient', 'practitioner', or 'admin'
+                    - 'event_type': Event type code (e.g., 'availability_notification')
+                    - 'trigger_source': 'clinic_triggered', 'patient_triggered', or 'system_triggered'
+                    - Additional flexible labels can be included
         
         Returns:
             LINE message ID if successful, None otherwise.
@@ -425,6 +467,16 @@ class LINEService:
             except (AttributeError, IndexError, TypeError) as e:
                 logger.debug(f"Could not extract message ID from LINE API response: {e}")
                 message_id = None
+            
+            # Track push message if conditions are met
+            self._track_push_message(
+                line_user_id=line_user_id,
+                message_id=message_id,
+                reply_token=reply_token,
+                db=db,
+                clinic_id=clinic_id,
+                labels=labels
+            )
             
             return message_id
         except Exception as e:

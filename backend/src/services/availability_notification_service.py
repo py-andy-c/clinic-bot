@@ -530,6 +530,14 @@ class AvailabilityNotificationService:
                 channel_access_token=clinic.line_channel_access_token
             )
             
+            # Labels for tracking push messages
+            labels = {
+                'recipient_type': 'patient',
+                'event_type': 'availability_notification',
+                'trigger_source': 'system_triggered',
+                'notification_context': 'new_slots_available'
+            }
+            
             # Check if message fits in template (160 char limit)
             if len(full_message_text) <= 160:
                 # Single template message with button and full text
@@ -537,17 +545,14 @@ class AvailabilityNotificationService:
                     line_user_id=line_user.line_user_id,
                     text=full_message_text,
                     button_label="立即預約",
-                    button_uri=liff_url
+                    button_uri=liff_url,
+                    db=db,
+                    clinic_id=clinic.id,
+                    labels=labels
                 )
             else:
                 # Message too long: send text message first, then template with button only
                 # Send full details as text message with labels for tracking
-                labels = {
-                    'recipient_type': 'patient',
-                    'event_type': 'availability_notification',
-                    'trigger_source': 'system_triggered',
-                    'notification_context': 'new_slots_available'
-                }
                 line_service.send_text_message(
                     line_user_id=line_user.line_user_id,
                     text=full_message_text,
@@ -558,6 +563,7 @@ class AvailabilityNotificationService:
                 
                 # Send template message with button only (minimal text - LINE requires non-empty text)
                 # Using a single space as minimal text since full details are already in the text message
+                # No need to track this one since the text message above is already tracked
                 line_service.send_template_message_with_button(
                     line_user_id=line_user.line_user_id,
                     text=" ",  # Minimal text (LINE requires non-empty text)

@@ -204,6 +204,8 @@ class TestReminderServiceDuplicatePrevention:
 
         # Mock LINE service
         mock_line_service = Mock()
+        # Configure mock to return a message_id (as send_text_message does)
+        mock_line_service.send_text_message.return_value = "msg_123456"
         mock_line_service_class.return_value = mock_line_service
 
         # Create reminder service
@@ -718,7 +720,8 @@ class TestReminderServiceWindowBoundaries:
         # Mock LINE service and send reminder
         with patch('services.reminder_service.LINEService') as mock_line_service_class:
             mock_line_service = Mock()
-            mock_line_service.send_text_message.return_value = None
+            # Configure mock to return a message_id (as send_text_message does)
+            mock_line_service.send_text_message.return_value = "msg_123456"
             mock_line_service_class.return_value = mock_line_service
 
             # Create association lookup for the test
@@ -843,7 +846,8 @@ class TestReminderServiceCatchUp:
         with patch('services.reminder_service.LINEService') as mock_line_service_class, \
              patch('services.reminder_service.get_db_context') as mock_get_db_context:
             mock_line_service = Mock()
-            mock_line_service.send_text_message.return_value = None
+            # Configure mock to return a message_id (as send_text_message does)
+            mock_line_service.send_text_message.return_value = "msg_123456"
             mock_line_service_class.return_value = mock_line_service
             
             # Mock get_db_context to return the test session
@@ -937,7 +941,8 @@ class TestReminderServiceCatchUp:
         with patch('services.reminder_service.LINEService') as mock_line_service_class, \
              patch('services.reminder_service.get_db_context') as mock_get_db_context:
             mock_line_service = Mock()
-            mock_line_service.send_text_message.return_value = None
+            # Configure mock to return a message_id (as send_text_message does)
+            mock_line_service.send_text_message.return_value = "msg_123456"
             mock_line_service_class.return_value = mock_line_service
             
             # Mock get_db_context to return the test session
@@ -1044,7 +1049,8 @@ class TestReminderServiceCatchUp:
         with patch('services.reminder_service.LINEService') as mock_line_service_class, \
              patch('services.reminder_service.get_db_context') as mock_get_db_context:
             mock_line_service = Mock()
-            mock_line_service.send_text_message.return_value = None
+            # Configure mock to return a message_id (as send_text_message does)
+            mock_line_service.send_text_message.return_value = "msg_123456"
             mock_line_service_class.return_value = mock_line_service
             
             # Mock get_db_context to return the test session
@@ -1393,6 +1399,8 @@ class TestReminderServiceRescheduling:
 
         # Mock LINE service
         mock_line_service = Mock()
+        # Configure mock to return a message_id (as send_text_message does)
+        mock_line_service.send_text_message.return_value = "msg_123456"
         mock_line_service_class.return_value = mock_line_service
 
         # Create reminder service
@@ -1495,6 +1503,8 @@ class TestReminderServiceRescheduling:
 
         # Mock LINE service
         mock_line_service = Mock()
+        # Configure mock to return a message_id (as send_text_message does)
+        mock_line_service.send_text_message.return_value = "msg_123456"
         mock_line_service_class.return_value = mock_line_service
 
         # Create reminder service
