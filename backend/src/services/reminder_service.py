@@ -307,6 +307,32 @@ class ReminderService:
                 logger.warning(f"No LINE user found for patient {appointment.patient_id}")
                 return False
 
+            # Skip reminder if appointment was created within the reminder window
+            # (patient just created it, they don't need a reminder so soon)
+            appointment_created_at = appointment.created_at
+            if appointment_created_at:
+                # Ensure timezone-aware for comparison
+                if appointment_created_at.tzinfo is None:
+                    appointment_created_at = appointment_created_at.replace(tzinfo=TAIWAN_TZ)
+                else:
+                    appointment_created_at = appointment_created_at.astimezone(TAIWAN_TZ)
+                
+                current_time = taiwan_now()
+                reminder_hours = clinic.reminder_hours_before
+                time_since_creation = current_time - appointment_created_at
+                hours_since_creation = time_since_creation.total_seconds() / 3600
+                
+                # If appointment was created less than reminder_hours_before ago, skip reminder
+                if hours_since_creation < reminder_hours:
+                    logger.info(
+                        f"Skipping reminder for appointment {appointment.calendar_event_id}: "
+                        f"created {hours_since_creation:.1f} hours ago (less than {reminder_hours} hour reminder window)"
+                    )
+                    # Mark as sent to prevent retry (even though we didn't send it)
+                    appointment.reminder_sent_at = taiwan_now()
+                    db.commit()
+                    return False
+
             # Format reminder message - get practitioner name from pre-loaded association lookup
             # Show "不指定" if appointment is auto-assigned
             if appointment.is_auto_assigned:

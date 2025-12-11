@@ -191,8 +191,16 @@ class AppointmentService:
                             db, association, appointment, clinic
                         )
 
-                # Send patient confirmation notification (always, regardless of auto-assignment)
-                if patient and patient.line_user:
+                # Send patient confirmation notification
+                # Skip if: (1) patient triggered the creation (they already see confirmation in UI), OR (2) auto-assigned (will get reminder anyway)
+                should_send_confirmation = (
+                    patient and 
+                    patient.line_user and 
+                    line_user_id is None and  # Only send if clinic triggered (not patient)
+                    not was_auto_assigned  # Skip for auto-assigned appointments
+                )
+                
+                if should_send_confirmation:
                     # Get practitioner name for notification with fallback logic
                     practitioner_name_for_notification = get_practitioner_name_for_notification(
                         db=db,
@@ -203,10 +211,9 @@ class AppointmentService:
                     )
                     
                     # Send notification (practitioner_name_for_notification is guaranteed to be str at this point)
-                    # Determine trigger_source: if line_user_id is provided, it's patient_triggered, otherwise clinic_triggered
-                    trigger_source = 'patient_triggered' if line_user_id is not None else 'clinic_triggered'
+                    # Clinic-triggered (line_user_id is None means clinic admin created it)
                     NotificationService.send_appointment_confirmation(
-                        db, appointment, practitioner_name_for_notification, clinic, trigger_source=trigger_source
+                        db, appointment, practitioner_name_for_notification, clinic, trigger_source='clinic_triggered'
                     )
 
             logger.info(f"Created appointment {appointment.calendar_event_id} for patient {patient_id}")
@@ -799,10 +806,12 @@ class AppointmentService:
                     )
                 
                 # Send patient cancellation notification
-                cancellation_source = CancellationSource.PATIENT if cancelled_by == 'patient' else CancellationSource.CLINIC
-                NotificationService.send_appointment_cancellation(
-                    db, appointment, practitioner, cancellation_source, note=note
-                )
+                # Skip if patient cancelled themselves (they already know they cancelled)
+                if cancelled_by == 'clinic':
+                    cancellation_source = CancellationSource.CLINIC
+                    NotificationService.send_appointment_cancellation(
+                        db, appointment, practitioner, cancellation_source, note=note
+                    )
             except Exception as e:
                 # Log but don't fail - notification failure shouldn't block cancellation
                 logger.warning(f"Failed to send cancellation notifications: {e}")
@@ -1184,10 +1193,10 @@ class AppointmentService:
                     )
 
             # Send patient edit notification if requested
-            if should_send_notification:
+            # Skip if patient triggered the edit (they already see confirmation in UI)
+            if should_send_notification and reassigned_by_user_id is not None:
                 from services.notification_service import NotificationService
-                # Determine trigger_source: if reassigned_by_user_id is provided, it's clinic_triggered, otherwise patient_triggered
-                trigger_source = 'clinic_triggered' if reassigned_by_user_id is not None else 'patient_triggered'
+                # Only send if clinic triggered (reassigned_by_user_id is not None)
                 NotificationService.send_appointment_edit_notification(
                     db=db,
                     appointment=appointment,
@@ -1196,7 +1205,7 @@ class AppointmentService:
                     old_start_time=old_start_time,
                     new_start_time=new_start_time if new_start_time is not None else old_start_time,
                     note=notification_note,
-                    trigger_source=trigger_source
+                    trigger_source='clinic_triggered'
                 )
 
             # Send practitioner notifications

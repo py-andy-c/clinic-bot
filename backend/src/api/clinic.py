@@ -675,12 +675,13 @@ async def get_settings(
         # 'reschedule' is excluded as it requires appointmentId parameter and is not a standalone entry point
         # Tokens should be generated via explicit endpoints or during clinic creation
         from utils.liff_token import generate_liff_url
-        liff_urls = {}
+        from typing import Dict, Optional
+        liff_urls: Optional[Dict[str, str]] = {}
         modes = ['book', 'query', 'settings', 'notifications']  # All modes except 'home' and 'reschedule'
         try:
             for mode in modes:
                 try:
-                    liff_urls[mode] = generate_liff_url(clinic, mode=mode)
+                    liff_urls[mode] = generate_liff_url(clinic, mode=mode)  # type: ignore[assignment]
                 except ValueError:
                     # Skip this mode if URL generation fails
                     pass

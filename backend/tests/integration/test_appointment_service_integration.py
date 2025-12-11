@@ -443,12 +443,8 @@ class TestAppointmentServiceIntegration:
             assert call_args[0][3] == clinic  # Fourth arg is clinic
             assert call_args[0][4] == 'patient'  # Fifth arg is cancelled_by
 
-            # Verify patient notification was sent
-            mock_patient_notify.assert_called_once()
-            call_args = mock_patient_notify.call_args
-            assert call_args[0][1] == appointment  # Second arg is appointment
-            assert call_args[0][2] == practitioner  # Third arg is practitioner
-            assert call_args[0][3] == CancellationSource.PATIENT  # Fourth arg is CancellationSource
+            # Verify patient notification was NOT sent (patient cancelled themselves, they already know)
+            mock_patient_notify.assert_not_called()
 
     def test_appointment_booking_constraint_prevents_double_booking(
         self, db_session: Session

@@ -209,10 +209,10 @@ class TestAutoAssignmentVisibilityPrinciple:
 class TestPatientNotificationsOnCreation:
     """Test that patients receive notifications when appointments are created."""
 
-    def test_patient_receives_notification_when_practitioner_specified(
+    def test_patient_does_not_receive_notification_when_patient_creates_appointment(
         self, db_session: Session
     ):
-        """Test that patient receives notification when appointment is created with specific practitioner."""
+        """Test that patient does NOT receive notification when they create appointment themselves (they see UI confirmation)."""
         clinic, practitioner1, practitioner2, appointment_type, patient = self._setup_clinic_with_practitioners(
             db_session
         )
@@ -229,6 +229,7 @@ class TestPatientNotificationsOnCreation:
         db_session.commit()
 
         # Create appointment with specific practitioner (more than 24 hours ahead)
+        # Patient creates it themselves (line_user_id provided)
         start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=2)
         
         with patch.object(NotificationService, 'send_appointment_confirmation') as mock_patient_notify, \
@@ -240,17 +241,18 @@ class TestPatientNotificationsOnCreation:
                 appointment_type_id=appointment_type.id,
                 start_time=start_time,
                 practitioner_id=practitioner1.id,
-                line_user_id=line_user.id
+                line_user_id=line_user.id  # Patient triggered
             )
 
-            # Verify both patient and practitioner receive notifications
-            mock_patient_notify.assert_called_once()
+            # Verify patient does NOT receive notification (they see UI confirmation)
+            # But practitioner still receives notification
+            mock_patient_notify.assert_not_called()
             mock_practitioner_notify.assert_called_once()
 
-    def test_patient_receives_notification_when_auto_assigned(
+    def test_patient_does_not_receive_notification_when_auto_assigned(
         self, db_session: Session
     ):
-        """Test that patient receives notification when appointment is auto-assigned."""
+        """Test that patient does NOT receive notification when appointment is auto-assigned (will get reminder later)."""
         clinic, practitioner1, practitioner2, appointment_type, patient = self._setup_clinic_with_practitioners(
             db_session
         )
@@ -280,11 +282,8 @@ class TestPatientNotificationsOnCreation:
                 line_user_id=line_user.id
             )
 
-            # Verify patient receives notification (with auto-assigned display name)
-            mock_patient_notify.assert_called_once()
-            # Check that notification was called with auto-assigned display name
-            call_args = mock_patient_notify.call_args
-            assert call_args[0][2] == AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME  # practitioner_name parameter
+            # Verify patient does NOT receive notification (auto-assigned, will get reminder later)
+            mock_patient_notify.assert_not_called()
 
     def test_clinic_admin_creation_sends_patient_notification(
         self, db_session: Session
@@ -982,7 +981,7 @@ class TestAdditionalScenarios:
     def test_patient_edits_auto_assigned_time_change_notification(
         self, db_session: Session
     ):
-        """Test that patient receives notification when editing auto-assigned appointment time."""
+        """Test that patient receives notification when clinic edits auto-assigned appointment time."""
         clinic, practitioner1, practitioner2, appointment_type, patient = self._setup_clinic_with_practitioners(
             db_session
         )
@@ -1000,7 +999,7 @@ class TestAdditionalScenarios:
         )
         appointment_id = result['appointment_id']
 
-        # Patient edits time but keeps auto-assigned
+        # Clinic edits time but keeps auto-assigned (reassigned_by_user_id provided = clinic triggered)
         new_start_time = start_time + timedelta(hours=2)
         with patch.object(NotificationService, 'send_appointment_edit_notification') as mock_patient_notify:
             AppointmentService.update_appointment(
@@ -1008,11 +1007,12 @@ class TestAdditionalScenarios:
                 appointment_id=appointment_id,
                 new_practitioner_id=-1,  # Keep auto-assigned
                 new_start_time=new_start_time,
-                apply_booking_constraints=True,
-                allow_auto_assignment=True
+                apply_booking_constraints=False,  # Clinic bypasses constraints
+                allow_auto_assignment=True,
+                reassigned_by_user_id=practitioner1.id  # Clinic triggered
             )
 
-            # Patient should receive notification about time change
+            # Patient should receive notification about time change (clinic triggered)
             mock_patient_notify.assert_called_once()
 
         # Verify appointment is still auto-assigned
@@ -1020,6 +1020,54 @@ class TestAdditionalScenarios:
             Appointment.calendar_event_id == appointment_id
         ).first()
         assert appointment.is_auto_assigned is True
+
+    def test_patient_does_not_receive_notification_when_patient_edits_appointment(
+        self, db_session: Session
+    ):
+        """Test that patient does NOT receive notification when they edit appointment themselves (they see UI confirmation)."""
+        clinic, practitioner1, practitioner2, appointment_type, patient = self._setup_clinic_with_practitioners(
+            db_session
+        )
+
+        # Create LINE user for patient
+        line_user = LineUser(
+            line_user_id="U_test_patient",
+            clinic_id=clinic.id,
+            display_name="Test Patient"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        patient.line_user_id = line_user.id
+        db_session.commit()
+
+        # Create appointment (more than 24 hours ahead)
+        start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=2)
+        result = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            start_time=start_time,
+            practitioner_id=practitioner1.id,
+            line_user_id=line_user.id  # Patient created it
+        )
+        appointment_id = result['appointment_id']
+
+        # Patient edits time (reassigned_by_user_id=None = patient triggered)
+        new_start_time = start_time + timedelta(hours=2)
+        with patch.object(NotificationService, 'send_appointment_edit_notification') as mock_patient_notify:
+            AppointmentService.update_appointment(
+                db=db_session,
+                appointment_id=appointment_id,
+                new_practitioner_id=None,  # Keep same practitioner
+                new_start_time=new_start_time,
+                apply_booking_constraints=True,  # Patient must follow constraints
+                allow_auto_assignment=False,
+                reassigned_by_user_id=None  # Patient triggered
+            )
+
+            # Patient should NOT receive notification (they see UI confirmation)
+            mock_patient_notify.assert_not_called()
 
     def test_max_future_appointments_limit_enforcement(
         self, db_session: Session

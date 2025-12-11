@@ -1310,3 +1310,207 @@ class TestReminderServiceRescheduling:
         db_session.refresh(appointment)
         assert appointment.reminder_sent_at is None, "reminder_sent_at should be reset when appointment start_time changes"
 
+    @patch('services.reminder_service.LINEService')
+    @pytest.mark.asyncio
+    async def test_reminder_skipped_if_appointment_created_within_reminder_window(
+        self, mock_line_service_class, db_session
+    ):
+        """Test that reminder is skipped if appointment was created within reminder window."""
+        # Create test data
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            subscription_status="trial"
+        )
+        clinic.settings = {"notification_settings": {"reminder_hours_before": 24}}
+        db_session.add(clinic)
+        db_session.flush()
+
+        user, association = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test Therapist",
+            email="therapist@test.com",
+            google_subject_id="therapist_subject_123",
+            roles=["practitioner"],
+            is_active=True
+        )
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        from models.line_user import LineUser
+        line_user = LineUser(
+            line_user_id="test_line_user_id",
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.flush()
+        patient.line_user_id = line_user.id
+        db_session.flush()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create appointment that was created recently (within reminder window)
+        current_time = taiwan_now()
+        # Appointment is 25 hours away (within reminder window of 24 hours)
+        appointment_time = current_time + timedelta(hours=25)
+        
+        # Create calendar event with recent created_at (2 hours ago, within 24h reminder window)
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
+            event_type="appointment",
+            event_date=appointment_time.date(),
+            start_time=appointment_time.time(),
+            end_time=(appointment_time + timedelta(minutes=60)).time()
+        )
+        # Set created_at to 2 hours ago (within reminder window)
+        calendar_event.created_at = current_time - timedelta(hours=2)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed",
+            reminder_sent_at=None  # No reminder sent yet
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Mock LINE service
+        mock_line_service = Mock()
+        mock_line_service_class.return_value = mock_line_service
+
+        # Create reminder service
+        reminder_service = ReminderService()
+
+        # Create association lookup for the test
+        association_lookup = {user.id: association}
+
+        # Try to send reminder (should be skipped)
+        result = await reminder_service._send_reminder_for_appointment(db_session, appointment, association_lookup)
+
+        # Verify reminder was NOT sent (skipped because created within reminder window)
+        assert result is False
+        mock_line_service.send_text_message.assert_not_called()
+
+        # Verify reminder_sent_at was still updated (to prevent retry)
+        db_session.refresh(appointment)
+        assert appointment.reminder_sent_at is not None, "reminder_sent_at should be set to prevent retry even when skipped"
+
+    @patch('services.reminder_service.LINEService')
+    @pytest.mark.asyncio
+    async def test_reminder_sent_if_appointment_created_before_reminder_window(
+        self, mock_line_service_class, db_session
+    ):
+        """Test that reminder is sent if appointment was created before reminder window."""
+        # Create test data
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            subscription_status="trial"
+        )
+        clinic.settings = {"notification_settings": {"reminder_hours_before": 24}}
+        db_session.add(clinic)
+        db_session.flush()
+
+        user, association = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test Therapist",
+            email="therapist@test.com",
+            google_subject_id="therapist_subject_123",
+            roles=["practitioner"],
+            is_active=True
+        )
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        from models.line_user import LineUser
+        line_user = LineUser(
+            line_user_id="test_line_user_id",
+            clinic_id=clinic.id,
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.flush()
+        patient.line_user_id = line_user.id
+        db_session.flush()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=60
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create appointment that was created before reminder window
+        current_time = taiwan_now()
+        # Appointment is 25 hours away (within reminder window of 24 hours)
+        appointment_time = current_time + timedelta(hours=25)
+        
+        # Create calendar event with old created_at (30 hours ago, before 24h reminder window)
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
+            event_type="appointment",
+            event_date=appointment_time.date(),
+            start_time=appointment_time.time(),
+            end_time=(appointment_time + timedelta(minutes=60)).time()
+        )
+        # Set created_at to 30 hours ago (before reminder window)
+        calendar_event.created_at = current_time - timedelta(hours=30)
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed",
+            reminder_sent_at=None  # No reminder sent yet
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Mock LINE service
+        mock_line_service = Mock()
+        mock_line_service_class.return_value = mock_line_service
+
+        # Create reminder service
+        reminder_service = ReminderService()
+
+        # Create association lookup for the test
+        association_lookup = {user.id: association}
+
+        # Try to send reminder (should be sent)
+        result = await reminder_service._send_reminder_for_appointment(db_session, appointment, association_lookup)
+
+        # Verify reminder was sent (created before reminder window)
+        assert result is True
+        mock_line_service.send_text_message.assert_called_once()
+
+        # Verify reminder_sent_at was updated
+        db_session.refresh(appointment)
+        assert appointment.reminder_sent_at is not None
+
