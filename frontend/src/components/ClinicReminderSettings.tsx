@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
+import { preventScrollWheelChange } from '../utils/inputUtils';
 
 interface ClinicReminderSettingsProps {
   reminderHoursBefore: string | number;
@@ -53,6 +54,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
           type="number"
           value={reminderHoursBefore}
           onChange={(e) => onReminderHoursChange(e.target.value)}
+          onWheel={preventScrollWheelChange}
           className="input"
           min="1"
           max="168"

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AppointmentType } from '../types';
 import { BookingRestrictionSettings } from '../schemas/api';
 import { BaseModal } from './shared/BaseModal';
+import { preventScrollWheelChange } from '../utils/inputUtils';
 
 interface ClinicAppointmentSettingsProps {
   appointmentTypes: AppointmentType[];
@@ -172,6 +173,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
                       const value = e.target.value;
                       onUpdateType(index, 'duration_minutes', value);
                     }}
+                    onWheel={preventScrollWheelChange}
                     className="input"
                     min="15"
                     max="480"
@@ -272,6 +274,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
                           type="number"
                           value={bookingRestrictionSettings.minimum_booking_hours_ahead}
                           onChange={(e) => handleMinimumHoursChange(e.target.value)}
+                          onWheel={preventScrollWheelChange}
                           className="input"
                           min="1"
                           max="168"
@@ -346,6 +349,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
                 type="number"
                 value={bookingRestrictionSettings.max_booking_window_days ?? 90}
                 onChange={(e) => handleMaxBookingWindowDaysChange(e.target.value)}
+                onWheel={preventScrollWheelChange}
                 className="input"
                 min="1"
                 max="365"
@@ -366,6 +370,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
                 type="number"
                 value={bookingRestrictionSettings.max_future_appointments ?? 3}
                 onChange={(e) => handleMaxFutureAppointmentsChange(e.target.value)}
+                onWheel={preventScrollWheelChange}
                 className="input"
                 min="1"
                 max="100"
@@ -434,6 +439,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
                 type="number"
                 value={bookingRestrictionSettings.step_size_minutes ?? 30}
                 onChange={(e) => handleStepSizeChange(e.target.value)}
+                onWheel={preventScrollWheelChange}
                 className="input"
                 min="5"
                 max="60"
@@ -480,6 +486,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
                 type="number"
                 value={bookingRestrictionSettings.minimum_cancellation_hours_before ?? 24}
                 onChange={(e) => handleMinimumCancellationHoursChange(e.target.value)}
+                onWheel={preventScrollWheelChange}
                 className="input"
                 min="1"
                 max="168"

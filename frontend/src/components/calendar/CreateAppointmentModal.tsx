@@ -22,6 +22,7 @@ import { useDebouncedSearch, shouldTriggerSearch } from '../../utils/searchUtils
 import { PatientCreationModal } from '../PatientCreationModal';
 import { PatientCreationSuccessModal } from '../PatientCreationSuccessModal';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
+import { preventScrollWheelChange } from '../../utils/inputUtils';
 
 // Wrapper component for DateTimePicker in conflict resolution
 const RecurrenceDateTimePickerWrapper: React.FC<{
@@ -861,11 +862,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                     const value = parseInt(e.target.value) || 1;
                     setWeeksInterval(Math.max(1, value));
                   }}
-                  onWheel={(e) => {
-                    if (document.activeElement === e.currentTarget) {
-                      e.currentTarget.blur();
-                    }
-                  }}
+                  onWheel={preventScrollWheelChange}
                   className="w-16 border border-gray-300 rounded-md px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
@@ -887,11 +884,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                       setOccurrenceCount(null);
                     }
                   }}
-                  onWheel={(e) => {
-                    if (document.activeElement === e.currentTarget) {
-                      e.currentTarget.blur();
-                    }
-                  }}
+                  onWheel={preventScrollWheelChange}
                   className="w-16 border border-gray-300 rounded-md px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
