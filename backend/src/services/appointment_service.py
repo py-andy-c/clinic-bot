@@ -1751,9 +1751,10 @@ class AppointmentService:
             old_start_time=current_start_time,
             old_is_auto_assigned=old_is_auto_assigned,
             is_auto_assign=is_auto_assign_requested,
-            # Pass reassigned_by_user_id if practitioner changed OR if appointment is auto-assigned
-            # (allows admin to confirm auto-assigned appointment even without changes)
-            reassigned_by_user_id=reassigned_by_user_id if (practitioner_actually_changed or old_is_auto_assigned) else None,
+            # Preserve reassigned_by_user_id as-is to determine if this is clinic-triggered
+            # The notification logic will check reassigned_by_user_id and apply the exception rule
+            # (clinic confirms/changes auto-assignment without time change = no notification)
+            reassigned_by_user_id=reassigned_by_user_id,  # Preserve as-is (None for patient, user_id for clinic)
             send_patient_notification=should_send_patient_notification,
             notification_note=notification_note if should_send_patient_notification else None,
             time_actually_changed=time_actually_changed,  # Pass pre-calculated value to avoid recalculation

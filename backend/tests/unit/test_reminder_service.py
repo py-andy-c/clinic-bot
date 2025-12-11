@@ -192,6 +192,11 @@ class TestReminderServiceDuplicatePrevention:
         )
         db_session.flush()
 
+        # Set calendar_event.created_at to be older than reminder_hours_before (default 24 hours)
+        # to ensure the reminder is not skipped
+        calendar_event.created_at = current_time - timedelta(hours=25)
+        db_session.flush()
+
         appointment = Appointment(
             calendar_event_id=calendar_event.id,
             patient_id=patient.id,
@@ -291,6 +296,11 @@ class TestReminderServiceDuplicatePrevention:
         )
         db_session.flush()
 
+        # Set calendar_event.created_at to be older than reminder_hours_before (default 24 hours)
+        # to ensure the reminder is not skipped
+        calendar_event.created_at = current_time - timedelta(hours=25)
+        db_session.flush()
+
         appointment = Appointment(
             calendar_event_id=calendar_event.id,
             patient_id=patient.id,
@@ -388,6 +398,11 @@ class TestReminderServiceDuplicatePrevention:
         )
         db_session.flush()
 
+        # Set calendar_event.created_at to be older than reminder_hours_before (default 24 hours)
+        # to ensure the reminder is not skipped
+        calendar_event.created_at = current_time - timedelta(hours=25)
+        db_session.flush()
+
         appointment = Appointment(
             calendar_event_id=calendar_event.id,
             patient_id=patient.id,
@@ -400,7 +415,8 @@ class TestReminderServiceDuplicatePrevention:
 
         # Mock LINE service to succeed
         mock_line_service = Mock()
-        mock_line_service.send_text_message.return_value = None
+        # Configure mock to return a message_id (as send_text_message does)
+        mock_line_service.send_text_message.return_value = "msg_123456"
         mock_line_service_class.return_value = mock_line_service
 
         # Mock db.commit() to raise an exception (simulating commit failure)
@@ -692,6 +708,11 @@ class TestReminderServiceWindowBoundaries:
         )
         db_session.flush()
 
+        # Set calendar_event.created_at to be older than reminder_hours_before (24 hours)
+        # to ensure the reminder is not skipped
+        calendar_event.created_at = current_time - timedelta(hours=25)
+        db_session.flush()
+
         appointment = Appointment(
             calendar_event_id=calendar_event.id,
             patient_id=patient.id,
@@ -829,6 +850,11 @@ class TestReminderServiceCatchUp:
         )
         db_session.flush()
 
+        # Set calendar_event.created_at to be older than reminder_hours_before (24 hours)
+        # to ensure the reminder is not skipped
+        calendar_event.created_at = current_time - timedelta(hours=25)
+        db_session.flush()
+
         appointment = Appointment(
             calendar_event_id=calendar_event.id,
             patient_id=patient.id,
@@ -922,6 +948,11 @@ class TestReminderServiceCatchUp:
             start_time=appointment_time.time(),
             end_time=(appointment_time + timedelta(minutes=60)).time()
         )
+        db_session.flush()
+
+        # Set calendar_event.created_at to be older than reminder_hours_before (24 hours)
+        # to ensure the reminder is not skipped
+        calendar_event.created_at = current_time - timedelta(hours=25)
         db_session.flush()
 
         appointment = Appointment(
@@ -1030,6 +1061,11 @@ class TestReminderServiceCatchUp:
             start_time=appointment_time.time(),
             end_time=(appointment_time + timedelta(minutes=60)).time()
         )
+        db_session.flush()
+
+        # Set calendar_event.created_at to be older than reminder_hours_before (48 hours for this test)
+        # to ensure the reminder is not skipped
+        calendar_event.created_at = current_time - timedelta(hours=49)
         db_session.flush()
 
         appointment = Appointment(

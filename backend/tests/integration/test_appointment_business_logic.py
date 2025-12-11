@@ -63,13 +63,13 @@ class TestAutoAssignmentVisibilityPrinciple:
                 appointment_type_id=appointment_type.id,
                 start_time=start_time,
                 practitioner_id=None,  # Auto-assign
-                line_user_id=line_user.id
+                line_user_id=line_user.id  # Patient-triggered
             )
 
-            # Verify no notification was sent to practitioner
+            # Verify no notification was sent to practitioner (auto-assigned)
             mock_practitioner_notify.assert_not_called()
-            # Verify patient receives notification
-            mock_patient_notify.assert_called_once()
+            # Verify patient does NOT receive notification (patient-triggered creation)
+            mock_patient_notify.assert_not_called()
 
         # Verify appointment is auto-assigned
         appointment = db_session.query(Appointment).filter(
@@ -964,11 +964,12 @@ class TestAdditionalScenarios:
                 new_start_time=new_start_time,
                 apply_booking_constraints=True,
                 allow_auto_assignment=False
+                # reassigned_by_user_id=None (patient-triggered)
             )
 
-            # Both patient and practitioner should be notified about time change
-            mock_patient_notify.assert_called_once()
-            # Practitioner should receive reassignment notification (even though same practitioner)
+            # Patient should NOT be notified (patient-triggered edit)
+            mock_patient_notify.assert_not_called()
+            # Practitioner should receive notification about time change
             mock_practitioner_notify.assert_called_once()
 
         # Verify appointment time changed
@@ -1961,7 +1962,7 @@ class TestPatientCancellationNotifications:
             AppointmentService.cancel_appointment(
                 db=db_session,
                 appointment_id=appointment_id,
-                cancelled_by='patient'
+                cancelled_by='patient'  # Patient-triggered cancellation
             )
 
             # Verify practitioner notification was sent
@@ -1977,15 +1978,8 @@ class TestPatientCancellationNotifications:
             assert call_args[0][3] == clinic  # Fourth arg is clinic
             assert call_args[0][4] == 'patient'  # Fifth arg is cancelled_by
 
-            # Verify patient notification was sent with correct source
-            mock_patient_notify.assert_called_once()
-            call_args = mock_patient_notify.call_args
-            appointment = db_session.query(Appointment).filter(
-                Appointment.calendar_event_id == appointment_id
-            ).first()
-            assert call_args[0][1] == appointment  # Second arg is appointment
-            assert call_args[0][2] == practitioner  # Third arg is practitioner
-            assert call_args[0][3] == CancellationSource.PATIENT  # Fourth arg is CancellationSource
+            # Verify patient notification was NOT sent (patient-triggered cancellation)
+            mock_patient_notify.assert_not_called()
 
     def test_patient_receives_notification_on_clinic_cancellation(
         self, db_session: Session

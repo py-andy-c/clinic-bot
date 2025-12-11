@@ -25,6 +25,15 @@ This document describes when LINE messages are sent to users and the business lo
 
 ### Patient Notifications
 
+#### General Rule
+**Patient-triggered changes**: NO notification to patient (they already see confirmation in UI)  
+**Clinic-triggered changes**: YES notification to patient
+
+#### Exception
+**If clinic admin confirms auto-assignment OR changes from auto-assigned to another practitioner AND time did not change**: NO notification to patient
+
+**Rationale**: When clinic confirms/changes auto-assignment without time change, patient still sees "不指定" (no specific practitioner), so no notification needed.
+
 #### Appointment Creation
 - ✅ **Send notification** if:
   - Clinic admin creates appointment (`line_user_id=None`)
@@ -46,10 +55,13 @@ This document describes when LINE messages are sent to users and the business lo
 #### Appointment Edit/Reschedule
 - ✅ **Send notification** if:
   - Clinic edits appointment (`reassigned_by_user_id` is not None)
+  - AND (time changed OR not originally auto-assigned OR practitioner didn't change from auto-assigned)
 - ❌ **Skip notification** if:
   - Patient edits appointment themselves (`reassigned_by_user_id=None`)
+  - Clinic confirms auto-assignment AND time didn't change
+  - Clinic changes from auto-assigned to another practitioner AND time didn't change
 
-**Rationale**: Patients see confirmation in UI when they edit appointments.
+**Rationale**: Patients see confirmation in UI when they edit appointments. For originally auto-assigned appointments, patients only need to know about time changes (they still see "不指定" for practitioner).
 
 #### Appointment Reminders
 - ✅ **Send reminder** if:
