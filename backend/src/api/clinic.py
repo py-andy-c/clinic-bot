@@ -181,7 +181,7 @@ class SettingsResponse(BaseModel):
     booking_restriction_settings: BookingRestrictionSettings
     clinic_info_settings: ClinicInfoSettings
     chat_settings: ChatSettings
-    liff_url: Optional[str] = None
+    liff_urls: Optional[Dict[str, str]] = None  # Dictionary of mode -> URL (excluding 'home')
 
 
 class PractitionerAvailabilityRequest(BaseModel):
@@ -670,15 +670,26 @@ async def get_settings(
         # includes them in the API response without manual updates
         validated_settings = clinic.get_validated_settings()
         
-        # Generate LIFF URL (read-only operation - no auto-generation)
+        # Generate LIFF URLs for all modes except 'home' and 'reschedule' (read-only operation - no auto-generation)
+        # 'home' is excluded as it's not shown in the UI (but URL still works if accessed directly)
+        # 'reschedule' is excluded as it requires appointmentId parameter and is not a standalone entry point
         # Tokens should be generated via explicit endpoints or during clinic creation
         from utils.liff_token import generate_liff_url
+        liff_urls = {}
+        modes = ['book', 'query', 'settings', 'notifications']  # All modes except 'home' and 'reschedule'
         try:
-            liff_url = generate_liff_url(clinic, mode="home")
-        except ValueError:
-            # Clinic doesn't have liff_access_token yet - return None
-            # Frontend should handle this gracefully (e.g., show "Generate LIFF URL" button)
-            liff_url = None
+            for mode in modes:
+                try:
+                    liff_urls[mode] = generate_liff_url(clinic, mode=mode)
+                except ValueError:
+                    # Skip this mode if URL generation fails
+                    pass
+            # If no URLs were generated, set to None
+            if not liff_urls:
+                liff_urls = None
+        except Exception:
+            # If there's any error, set to None
+            liff_urls = None
         
         # Convert validated settings to API response models (they have the same structure)
         # This ensures type compatibility while maintaining automatic field inclusion
@@ -692,7 +703,7 @@ async def get_settings(
             booking_restriction_settings=BookingRestrictionSettings.model_validate(validated_settings.booking_restriction_settings.model_dump()),
             clinic_info_settings=ClinicInfoSettings.model_validate(validated_settings.clinic_info_settings.model_dump()),
             chat_settings=ChatSettings.model_validate(validated_settings.chat_settings.model_dump()),
-            liff_url=liff_url
+            liff_urls=liff_urls
         )
 
     except Exception as e:

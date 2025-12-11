@@ -2421,8 +2421,8 @@ export interface components {
       booking_restriction_settings: components["schemas"]["BookingRestrictionSettings"];
       clinic_info_settings: components["schemas"]["ClinicInfoSettings"];
       chat_settings: components["schemas"]["api__clinic__ChatSettings"];
-      /** Liff Url */
-      liff_url?: string | null;
+      /** Liff Urls - Dictionary of mode -> URL (excluding 'home') */
+      liff_urls?: Record<string, string> | null;
     };
     /**
      * SignupLinkResponse
