@@ -1,4 +1,66 @@
-import { ClinicSettings } from '../schemas/api';
+import { ClinicSettings, BookingRestrictionSettings } from '../schemas/api';
+
+/**
+ * Normalizes booking restriction settings for comparison.
+ * Handles type mismatches (string vs number) and optional fields with defaults.
+ * 
+ * @param settings - The booking restriction settings to normalize
+ * @returns Normalized settings object
+ */
+function normalizeBookingRestrictionSettings(
+  settings: BookingRestrictionSettings
+): BookingRestrictionSettings {
+  // Normalize numeric fields (handle string vs number)
+  const normalizeNumber = (value: string | number | undefined | null, defaultValue: number): number => {
+    if (value === undefined || value === null || value === '') {
+      return defaultValue;
+    }
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    return isNaN(num) ? defaultValue : num;
+  };
+
+  // Normalize string fields
+  const normalizeString = (value: string | undefined | null, defaultValue: string = ''): string => {
+    return value ?? defaultValue;
+  };
+
+  // Normalize boolean fields
+  const normalizeBoolean = (value: boolean | undefined | null, defaultValue: boolean): boolean => {
+    return value ?? defaultValue;
+  };
+
+  return {
+    booking_restriction_type: normalizeString(settings.booking_restriction_type, 'minimum_hours_required'),
+    minimum_booking_hours_ahead: normalizeNumber(settings.minimum_booking_hours_ahead, 24),
+    deadline_time_day_before: normalizeString(settings.deadline_time_day_before, '08:00'),
+    deadline_on_same_day: normalizeBoolean(settings.deadline_on_same_day, false),
+    step_size_minutes: normalizeNumber(settings.step_size_minutes, 30),
+    max_future_appointments: normalizeNumber(settings.max_future_appointments, 3),
+    max_booking_window_days: normalizeNumber(settings.max_booking_window_days, 90),
+    minimum_cancellation_hours_before: normalizeNumber(settings.minimum_cancellation_hours_before, 24),
+    allow_patient_deletion: normalizeBoolean(settings.allow_patient_deletion, true),
+  };
+}
+
+/**
+ * Compares two booking restriction settings objects to detect if any field has changed.
+ * 
+ * Uses normalization to handle type mismatches and optional fields, then
+ * uses JSON.stringify for efficient deep comparison.
+ * 
+ * @param current - Current booking restriction settings
+ * @param original - Original booking restriction settings
+ * @returns true if settings have changed, false otherwise
+ */
+function hasBookingRestrictionSettingsChanged(
+  current: BookingRestrictionSettings,
+  original: BookingRestrictionSettings
+): boolean {
+  const normalizedCurrent = normalizeBookingRestrictionSettings(current);
+  const normalizedOriginal = normalizeBookingRestrictionSettings(original);
+  
+  return JSON.stringify(normalizedCurrent) !== JSON.stringify(normalizedOriginal);
+}
 
 // Validate clinic settings data
 export const validateClinicSettings = (settings: ClinicSettings): string | null => {
@@ -71,17 +133,15 @@ export const validateClinicSettings = (settings: ClinicSettings): string | null 
 export const getClinicSectionChanges = (current: ClinicSettings, original: ClinicSettings): Record<string, boolean> => {
   // Check if appointment settings section has changes
   // This includes: appointment types, appointment type instructions, booking restrictions, and require_birthday
+  // 
+  // Use the helper function for booking restriction settings to ensure all fields are compared,
+  // including deadline_time_day_before and deadline_on_same_day which were previously missing.
+  // This approach is more maintainable and prevents similar issues when new fields are added.
   const appointmentSettingsChanged =
     JSON.stringify(current.appointment_types) !== JSON.stringify(original.appointment_types) ||
     current.clinic_info_settings.appointment_type_instructions !== original.clinic_info_settings.appointment_type_instructions ||
     current.clinic_info_settings.appointment_notes_instructions !== original.clinic_info_settings.appointment_notes_instructions ||
-    current.booking_restriction_settings.booking_restriction_type !== original.booking_restriction_settings.booking_restriction_type ||
-    current.booking_restriction_settings.minimum_booking_hours_ahead !== original.booking_restriction_settings.minimum_booking_hours_ahead ||
-    (current.booking_restriction_settings.step_size_minutes ?? 30) !== (original.booking_restriction_settings.step_size_minutes ?? 30) ||
-    (current.booking_restriction_settings.max_future_appointments ?? 3) !== (original.booking_restriction_settings.max_future_appointments ?? 3) ||
-    (current.booking_restriction_settings.max_booking_window_days ?? 90) !== (original.booking_restriction_settings.max_booking_window_days ?? 90) ||
-    (current.booking_restriction_settings.minimum_cancellation_hours_before ?? 24) !== (original.booking_restriction_settings.minimum_cancellation_hours_before ?? 24) ||
-    (current.booking_restriction_settings.allow_patient_deletion ?? true) !== (original.booking_restriction_settings.allow_patient_deletion ?? true) ||
+    hasBookingRestrictionSettingsChanged(current.booking_restriction_settings, original.booking_restriction_settings) ||
     (current.clinic_info_settings.require_birthday || false) !== (original.clinic_info_settings.require_birthday || false);
 
   return {
