@@ -70,8 +70,8 @@ class Receipt(Base):
     created_by_user_id: int (FK to users)
     updated_at: datetime
     
-    # PDF storage
-    pdf_url: str? (path to generated PDF)
+    # PDF storage (optional - see PDF Generation Strategy below)
+    pdf_url: str? (path to generated PDF, if storing PDFs)
     pdf_generated_at: datetime?
 ```
 
@@ -104,8 +104,8 @@ class ReceiptItem(BaseModel):
      - Items from appointment (appointment type, quantity, price)
      - Payment method (default: "cash" for now)
      - Payment date = current timestamp
-   - Generate PDF receipt
-   - Store PDF URL
+   - Generate PDF receipt (see PDF Generation Strategy)
+   - Store PDF URL (if storing PDFs) or mark as ready for on-demand generation
 
 3. **Receipt Numbering**
    - Sequential per clinic per year
@@ -142,7 +142,7 @@ class ReceiptItem(BaseModel):
    - `original_receipt_id: <original_receipt.id>`
    - Same financial information as original
    - Receipt number: `R-{YYYY}-{NNNN}-補`
-4. Generate PDF with "補發" watermark/notation
+4. Generate PDF with "補發" watermark/notation (see PDF Generation Strategy)
 5. Both receipts remain in database for audit
 
 **Display**:
@@ -208,6 +208,66 @@ GET /api/liff/receipts/{receipt_id}/pdf
 POST /api/liff/receipts/{receipt_id}/reissue-request
   - Request reissue (creates pending request)
 ```
+
+## PDF Generation Strategy
+
+### Option 1: Store PDFs (Recommended)
+
+**Approach**: Generate PDF when receipt is created and store it (e.g., S3, local filesystem, or database as blob).
+
+**Pros**:
+- **Audit compliance**: Preserves exact document issued at time of creation (immutable)
+- **Performance**: Fast retrieval, no generation delay
+- **Data integrity**: If receipt data changes later (e.g., patient name correction), original PDF remains unchanged
+- **Consistency**: Same PDF every time, even if template changes
+- **Offline access**: PDFs can be backed up separately
+
+**Cons**:
+- Storage costs (minimal for PDFs, ~50-200KB each)
+- Storage management complexity
+- Need to handle storage failures
+
+**Recommendation**: **Use this approach** for compliance and audit requirements.
+
+### Option 2: Generate On-Demand
+
+**Approach**: Generate PDF from receipt data when user requests it.
+
+**Pros**:
+- No storage costs
+- Simpler architecture (no storage layer)
+- Always reflects current receipt data
+
+**Cons**:
+- **Audit risk**: If receipt data changes, PDF changes (violates immutability principle)
+- Performance: Generation delay on each request (100-500ms)
+- CPU usage: More server load for frequent access
+- Template changes: Old receipts would render with new template
+
+**Recommendation**: Only use if storage is a major constraint and you can guarantee receipt data immutability.
+
+### Hybrid Approach
+
+Generate and cache PDF on first access, then serve cached version:
+- Generate on first download request
+- Store in cache (Redis, filesystem, or object storage)
+- Serve cached version for subsequent requests
+- Still maintains immutability if receipt data is locked after creation
+
+### Implementation Recommendation
+
+**For Phase 1**: Start with on-demand generation for simplicity, but design receipt data model to be immutable after creation.
+
+**For Production**: Migrate to stored PDFs for audit compliance:
+- Generate PDF immediately after receipt creation
+- Store in object storage (S3, GCS) or filesystem
+- Store URL/path in `pdf_url` field
+- If PDF generation fails, receipt creation still succeeds (PDF can be generated later)
+
+**Data Immutability**: Regardless of approach, receipt data should be immutable after creation:
+- Lock receipt fields after creation (no updates to amount, items, patient_id)
+- Only allow status changes (voided, reissued)
+- This ensures on-demand generation produces consistent results
 
 ## Receipt PDF Format
 
@@ -282,7 +342,8 @@ Store in separate `receipt_audit_log` table or append-only log.
 - PDFs should include tamper-evident features
 - Receipt invalidation requires audit logging
 - Patients can only access their own receipts
-- Rate limiting on PDF generation
+- Rate limiting on PDF generation (if on-demand)
+- Receipt data immutability after creation (lock financial fields)
 - Receipt data encryption at rest (if storing sensitive info)
 
 ## Future Enhancements
