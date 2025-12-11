@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import { useAppointmentBackButton } from '../../hooks/useAppointmentBackButton';
+import { LanguageSelector } from '../components/LanguageSelector';
 
 // Import step components (we'll create these next)
 import Step1SelectType from './Step1SelectType';
@@ -58,9 +59,14 @@ const AppointmentFlow: React.FC = () => {
       {/* Header with progress */}
       <div className="bg-white shadow-sm">
         <div className="max-w-md mx-auto px-4 py-4">
-          <div className="mb-2">
-            <h1 className="text-lg font-semibold text-gray-900">{t('appointment.title')}</h1>
+          {/* Title with language selector inline */}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex-1">
+              <h1 className="text-lg font-semibold text-gray-900">{t('appointment.title')}</h1>
+            </div>
+            <LanguageSelector />
           </div>
+          <p className="text-sm text-gray-500 mb-2">{t('home.newAppointmentDesc')}</p>
 
           {/* Progress bar */}
           <div className="w-full bg-gray-200 rounded-full h-2">

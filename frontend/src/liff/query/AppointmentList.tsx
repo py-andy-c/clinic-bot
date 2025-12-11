@@ -8,6 +8,7 @@ import { liffApiService } from '../../services/liffApi';
 import AppointmentCard from './AppointmentCard';
 import { useModal } from '../../contexts/ModalContext';
 import { useLiffBackButton } from '../../hooks/useLiffBackButton';
+import { LanguageSelector } from '../components/LanguageSelector';
 
 interface Appointment {
   id: number;
@@ -131,6 +132,17 @@ const AppointmentList: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 py-8 px-4">
         <div className="max-w-md mx-auto">
+          {/* Title with language selector inline */}
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-2xl font-bold text-gray-900">
+              {t('query.title')}
+            </h1>
+            <LanguageSelector />
+          </div>
+          <p className="text-sm text-gray-500 mb-6">
+            {t('home.manageAppointmentsDesc')}
+          </p>
+          
           <div className="flex items-center justify-center py-12">
             <LoadingSpinner />
           </div>
@@ -143,6 +155,17 @@ const AppointmentList: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 py-8 px-4">
         <div className="max-w-md mx-auto">
+          {/* Title with language selector inline */}
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-2xl font-bold text-gray-900">
+              {t('query.title')}
+            </h1>
+            <LanguageSelector />
+          </div>
+          <p className="text-sm text-gray-500 mb-6">
+            {t('home.manageAppointmentsDesc')}
+          </p>
+          
           <div className="my-8">
             <ErrorMessage message={error} onRetry={loadAppointments} />
           </div>
@@ -154,11 +177,16 @@ const AppointmentList: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-md mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+        {/* Title with language selector inline */}
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-2xl font-bold text-gray-900">
             {t('query.title')}
           </h1>
+          <LanguageSelector />
         </div>
+        <p className="text-sm text-gray-500 mb-6">
+          {t('home.manageAppointmentsDesc')}
+        </p>
 
         {appointments.length === 0 ? (
           <div className="text-center py-12">

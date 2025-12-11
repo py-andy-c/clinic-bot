@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { useLiffBackButton } from '../../hooks/useLiffBackButton';
+import { LanguageSelector } from '../components/LanguageSelector';
 import AddNotification from './AddNotification';
 import ManageNotifications from './ManageNotifications';
 
@@ -23,7 +24,12 @@ const NotificationsFlow: React.FC = () => {
         {/* Header */}
         <div className="bg-white shadow-sm">
           <div className="px-4 py-3">
-            <h1 className="text-lg font-semibold text-gray-900">{t('notifications.title')}</h1>
+            {/* Title with language selector inline */}
+            <div className="flex items-center justify-between mb-2">
+              <h1 className="text-lg font-semibold text-gray-900">{t('notifications.title')}</h1>
+              <LanguageSelector />
+            </div>
+            <p className="text-sm text-gray-500">{t('home.notificationsDesc')}</p>
           </div>
         </div>
         {subMode === 'add' ? <AddNotification /> : <ManageNotifications />}
