@@ -434,6 +434,31 @@ describe('DateTimePicker', () => {
     expect(screen.getByText('9:00 AM')).toBeInTheDocument();
   });
 
+  it('should clear time and expand when selectedTime is not in available slots', async () => {
+    // Render with a time that's not in available slots
+    vi.mocked(useDateSlotSelection).mockReturnValue({
+      availableSlots: ['10:00', '11:00', '15:00'], // 09:00 is not available
+      isLoadingSlots: false,
+    });
+    
+    render(
+      <DateTimePicker
+        {...defaultProps}
+        selectedDate="2024-01-15"
+        selectedTime="09:00" // This time is not in available slots
+      />
+    );
+    
+    // Should clear the time and expand the picker
+    await waitFor(() => {
+      expect(mockOnTimeSelect).toHaveBeenCalledWith('');
+    }, { timeout: 2000 });
+    
+    await waitFor(() => {
+      expect(screen.getByLabelText('上個月')).toBeInTheDocument();
+    });
+  });
+
   it('should call onTimeSelect immediately when time is selected', async () => {
     render(
       <DateTimePicker

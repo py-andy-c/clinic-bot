@@ -258,6 +258,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   };
 
   // Auto-expand when empty (no date or time selected)
+  // The unavailable time check above handles expanding when time becomes unavailable
   // But don't auto-expand if user just manually collapsed
   useEffect(() => {
     if ((!selectedDate || !selectedTime) && !userCollapsedRef.current) {
@@ -351,6 +352,28 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       onHasAvailableSlotsChange(allTimeSlots.length > 0);
     }
   }, [allTimeSlots.length, onHasAvailableSlotsChange]);
+
+  // Auto-deselect and expand if selectedTime becomes unavailable
+  // This ensures the picker is never collapsed with an unavailable time selected
+  // Checks when: slots load, date changes, practitioner changes, appointment type changes
+  useEffect(() => {
+    // Skip check while slots are loading to avoid clearing time prematurely
+    if (isLoadingSlots || !selectedTime) {
+      return;
+    }
+
+    // Check if selectedTime is unavailable:
+    // - No slots available for the date, OR
+    // - Slots are available but selectedTime is not in them
+    const isUnavailable = allTimeSlots.length === 0 || !allTimeSlots.includes(selectedTime);
+    
+    if (isUnavailable) {
+      onTimeSelect('');
+      setIsExpanded(true);
+      setTempTime('');
+      userCollapsedRef.current = false;
+    }
+  }, [selectedTime, allTimeSlots, isLoadingSlots, onTimeSelect]);
 
   // Auto-select last manually selected time when date changes in expanded view
   useEffect(() => {
