@@ -42,10 +42,51 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
     onAppointmentNotesInstructionsChange(value || null);
   };
 
+  const handleBookingRestrictionTypeChange = (type: string) => {
+    onBookingRestrictionSettingsChange({
+      ...bookingRestrictionSettings,
+      booking_restriction_type: type,
+    });
+  };
+
   const handleMinimumHoursChange = (hours: string) => {
     onBookingRestrictionSettingsChange({
       ...bookingRestrictionSettings,
       minimum_booking_hours_ahead: hours,
+    });
+  };
+
+  // Get current deadline value for dropdown (format: "前一天_08:00" or "當天_08:00")
+  const getDeadlineValue = (): string => {
+    const deadlineTime = bookingRestrictionSettings.deadline_time_day_before || '08:00';
+    const onSameDay = bookingRestrictionSettings.deadline_on_same_day || false;
+    
+    // Extract hour from time string
+    const parts = deadlineTime.split(':');
+    if (parts.length === 2 && parts[0]) {
+      const hour = parseInt(parts[0], 10);
+      if (!isNaN(hour) && hour >= 0 && hour <= 23) {
+        const timeStr = `${String(hour).padStart(2, '0')}:00`;
+        return onSameDay ? `當天_${timeStr}` : `前一天_${timeStr}`;
+      }
+    }
+    return '前一天_08:00';
+  };
+
+  const handleDeadlineCombinedChange = (value: string) => {
+    // Parse value like "前一天_08:00" or "當天_08:00"
+    const [dayType, timeStr] = value.split('_');
+    if (!dayType || !timeStr) {
+      return;
+    }
+    
+    const onSameDay = dayType === '當天';
+    const time = timeStr; // Already in HH:00 format
+    
+    onBookingRestrictionSettingsChange({
+      ...bookingRestrictionSettings,
+      deadline_time_day_before: time,
+      deadline_on_same_day: onSameDay,
     });
   };
 
@@ -207,24 +248,90 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
         <div>
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                預約前至少需幾小時
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                預約限制模式
               </label>
-              <div className="max-w-xs">
-                <input
-                  type="number"
-                  value={bookingRestrictionSettings.minimum_booking_hours_ahead}
-                  onChange={(e) => handleMinimumHoursChange(e.target.value)}
-                  className="input"
-                  min="1"
-                  max="168"
-                  disabled={!isClinicAdmin}
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  小時數（例如：4 表示至少提前 4 小時）
-                </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="booking_restriction_type"
+                      value="minimum_hours_required"
+                      checked={bookingRestrictionSettings.booking_restriction_type === 'minimum_hours_required'}
+                      onChange={(e) => handleBookingRestrictionTypeChange(e.target.value)}
+                      disabled={!isClinicAdmin}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">至少提前 X 小時預約</span>
+                  </label>
+                  {bookingRestrictionSettings.booking_restriction_type === 'minimum_hours_required' && (
+                    <div className="ml-6 mt-2">
+                      <div className="max-w-xs">
+                        <input
+                          type="number"
+                          value={bookingRestrictionSettings.minimum_booking_hours_ahead}
+                          onChange={(e) => handleMinimumHoursChange(e.target.value)}
+                          className="input"
+                          min="1"
+                          max="168"
+                          disabled={!isClinicAdmin}
+                        />
+                        <p className="text-sm text-gray-500 mt-1">
+                          例如：4 表示至少提前 4 小時
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="booking_restriction_type"
+                      value="deadline_time_day_before"
+                      checked={bookingRestrictionSettings.booking_restriction_type === 'deadline_time_day_before'}
+                      onChange={(e) => handleBookingRestrictionTypeChange(e.target.value)}
+                      disabled={!isClinicAdmin}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">特定時間前預約</span>
+                  </label>
+                  {bookingRestrictionSettings.booking_restriction_type === 'deadline_time_day_before' && (
+                    <div className="ml-6 mt-2">
+                      <div className="max-w-xs">
+                        <select
+                          value={getDeadlineValue()}
+                          onChange={(e) => handleDeadlineCombinedChange(e.target.value)}
+                          className="input w-48"
+                          disabled={!isClinicAdmin}
+                        >
+                          {/* 前一天 options: 5:00 to 23:00 */}
+                          {Array.from({ length: 19 }, (_, i) => i + 5).map((h) => {
+                            const timeStr = `${String(h).padStart(2, '0')}:00`;
+                            return (
+                              <option key={`前一天_${timeStr}`} value={`前一天_${timeStr}`}>
+                                前一天 {timeStr}
+                              </option>
+                            );
+                          })}
+                          {/* 當天 options: 0:00 to 10:00 */}
+                          {Array.from({ length: 11 }, (_, i) => i).map((h) => {
+                            const timeStr = `${String(h).padStart(2, '0')}:00`;
+                            return (
+                              <option key={`當天_${timeStr}`} value={`當天_${timeStr}`}>
+                                當天 {timeStr}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+
           </div>
         </div>
 

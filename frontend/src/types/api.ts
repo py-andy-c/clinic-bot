@@ -1447,6 +1447,18 @@ export interface components {
        */
       minimum_booking_hours_ahead?: number;
       /**
+       * Deadline Time Day Before (24-hour format HH:MM, e.g., "08:00" for 8:00 AM)
+       * Used when booking_restriction_type is 'deadline_time_day_before'
+       * @default 08:00
+       */
+      deadline_time_day_before?: string;
+      /**
+       * If True, deadline is on the same day as appointment (date X).
+       * If False, deadline is on the day before (date X-1).
+       * @default false
+       */
+      deadline_on_same_day?: boolean;
+      /**
        * Step Size Minutes
        * @default 30
        */

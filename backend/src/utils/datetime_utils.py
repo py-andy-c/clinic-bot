@@ -6,7 +6,7 @@ datetimes consistently. All times are in Taiwan timezone (UTC+8) for business lo
 """
 
 import logging
-from datetime import datetime, timezone, timedelta, date
+from datetime import datetime, timezone, timedelta, date, time
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -111,6 +111,12 @@ def parse_datetime_string_to_taiwan(dt_str: str) -> datetime:
     - ISO format with Z (UTC) (e.g., "2024-01-01T01:00:00Z")
     - ISO format without timezone (assumes Taiwan time)
     
+    IMPORTANT: If the input datetime string has no timezone information (naive),
+    it is assumed to already represent Taiwan time. This is the expected behavior
+    for frontend inputs, which should always send timezone-aware strings using
+    moment.tz() with 'Asia/Taipei'. If a naive datetime is received, it may
+    indicate a bug in the frontend or integration code.
+    
     Args:
         dt_str: ISO format datetime string
         
@@ -128,6 +134,13 @@ def parse_datetime_string_to_taiwan(dt_str: str) -> datetime:
             return dt.astimezone(TAIWAN_TZ)
         else:
             # No timezone, assume Taiwan time
+            # NOTE: Frontend should always send timezone-aware strings. If we receive
+            # a naive datetime, log a warning for debugging (but don't fail, as this
+            # may be intentional for some edge cases)
+            logger.debug(
+                f"Received naive datetime string (no timezone): {dt_str}. "
+                f"Assuming Taiwan time. Frontend should send timezone-aware strings."
+            )
             return dt.replace(tzinfo=TAIWAN_TZ)
     except ValueError:
         # Fallback: try to parse without timezone handling
@@ -212,6 +225,174 @@ def parse_date_string(date_str: str) -> date:
         return datetime.strptime(normalized, '%Y-%m-%d').date()
     except ValueError as e:
         raise ValueError(f"Invalid date format (expected YYYY-MM-DD or YYYY/MM/DD): {date_str}") from e
+
+
+def parse_time_12h_to_24h(time_12h: str) -> str:
+    """
+    Parse 12-hour format time string to 24-hour format (HH:MM).
+    
+    Accepts formats like:
+    - "9:00 PM" or "9:00PM" (with or without space)
+    - "09:00 PM" or "09:00PM"
+    - "9:00 AM" or "9:00AM"
+    - "12:00 AM" (midnight) -> "00:00"
+    - "12:00 PM" (noon) -> "12:00"
+    
+    This function stores time internally as 24-hour format (HH:MM) for easy
+    migration to 24-hour format in the future. The UI can display 12-hour format
+    by converting back using format_time_24h_to_12h.
+    
+    Args:
+        time_12h: Time string in 12-hour format (e.g., "9:00 PM")
+        
+    Returns:
+        Time string in 24-hour format (e.g., "21:00")
+        
+    Raises:
+        ValueError: If time string cannot be parsed
+    """
+    import re
+    
+    if not time_12h or not time_12h.strip():
+        raise ValueError("Time string cannot be empty")
+    
+    time_12h = time_12h.strip().upper()
+    
+    # Pattern to match: hour:minute AM/PM (with or without space)
+    # Examples: "9:00 PM", "9:00PM", "09:00 AM", "12:00 PM"
+    pattern = r'^(\d{1,2}):(\d{2})\s*(AM|PM)$'
+    match = re.match(pattern, time_12h)
+    
+    if not match:
+        raise ValueError(f"Invalid 12-hour time format (expected H:MM AM/PM): {time_12h}")
+    
+    hour = int(match.group(1))
+    minute = int(match.group(2))
+    period = match.group(3)
+    
+    # Validate hour and minute ranges
+    if hour < 1 or hour > 12:
+        raise ValueError(f"Invalid hour (must be 1-12): {hour}")
+    if minute < 0 or minute > 59:
+        raise ValueError(f"Invalid minute (must be 0-59): {minute}")
+    
+    # Convert to 24-hour format
+    if period == 'AM':
+        if hour == 12:
+            hour_24 = 0  # 12:00 AM = 00:00
+        else:
+            hour_24 = hour
+    else:  # PM
+        if hour == 12:
+            hour_24 = 12  # 12:00 PM = 12:00
+        else:
+            hour_24 = hour + 12
+    
+    # Return as HH:MM string
+    return f"{hour_24:02d}:{minute:02d}"
+
+
+def format_time_24h_to_12h(time_24h: str) -> str:
+    """
+    Format 24-hour format time string (HH:MM) to 12-hour format (H:MM AM/PM).
+    
+    Converts time strings like:
+    - "21:00" -> "9:00 PM"
+    - "09:00" -> "9:00 AM"
+    - "00:00" -> "12:00 AM"
+    - "12:00" -> "12:00 PM"
+    
+    Args:
+        time_24h: Time string in 24-hour format (e.g., "21:00")
+        
+    Returns:
+        Time string in 12-hour format (e.g., "9:00 PM")
+        
+    Raises:
+        ValueError: If time string cannot be parsed
+    """
+    
+    if not time_24h or not time_24h.strip():
+        raise ValueError("Time string cannot be empty")
+    
+    time_24h = time_24h.strip()
+    
+    # Parse HH:MM format
+    try:
+        hour, minute = map(int, time_24h.split(':'))
+    except ValueError:
+        raise ValueError(f"Invalid 24-hour time format (expected HH:MM): {time_24h}")
+    
+    # Validate ranges
+    if hour < 0 or hour > 23:
+        raise ValueError(f"Invalid hour (must be 0-23): {hour}")
+    if minute < 0 or minute > 59:
+        raise ValueError(f"Invalid minute (must be 0-59): {minute}")
+    
+    # Convert to 12-hour format
+    if hour == 0:
+        hour_12 = 12
+        period = 'AM'
+    elif hour < 12:
+        hour_12 = hour
+        period = 'AM'
+    elif hour == 12:
+        hour_12 = 12
+        period = 'PM'
+    else:
+        hour_12 = hour - 12
+        period = 'PM'
+    
+    # Return as H:MM AM/PM (no leading zero on hour for display)
+    return f"{hour_12}:{minute:02d} {period}"
+
+
+def parse_time_12h_to_time_object(time_12h: str):
+    """
+    Parse 12-hour format time string to Python time object.
+    
+    Convenience function that combines parse_time_12h_to_24h and time parsing.
+    
+    Args:
+        time_12h: Time string in 12-hour format (e.g., "9:00 PM")
+        
+    Returns:
+        time object
+        
+    Raises:
+        ValueError: If time string cannot be parsed
+    """
+    from datetime import time as time_type
+    
+    time_24h = parse_time_12h_to_24h(time_12h)
+    hour, minute = map(int, time_24h.split(':'))
+    return time_type(hour, minute)
+
+
+def parse_deadline_time_string(time_str: str, default_hour: int = 8, default_minute: int = 0) -> time:
+    """
+    Parse deadline time string (24-hour format HH:MM) to time object.
+    
+    Utility function to reduce code duplication for deadline time parsing.
+    
+    Args:
+        time_str: Time string in 24-hour format (e.g., "08:00")
+        default_hour: Default hour if parsing fails (default: 8)
+        default_minute: Default minute if parsing fails (default: 0)
+        
+    Returns:
+        time object
+    """
+    if not time_str:
+        return time(default_hour, default_minute)
+    
+    try:
+        hour, minute = map(int, time_str.split(':'))
+        if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+            return time(default_hour, default_minute)
+        return time(hour, minute)
+    except (ValueError, AttributeError):
+        return time(default_hour, default_minute)
 
 
 def datetime_validator(field_name: str = 'start_time'):

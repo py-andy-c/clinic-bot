@@ -899,7 +899,42 @@ class AvailabilityService:
             # Apply booking restrictions
             # Note: same_day_disallowed is deprecated, all clinics now use minimum_hours_required
             # Use booking_settings for consistency (already extracted above)
-            if booking_settings.booking_restriction_type == 'minimum_hours_required':
+            if booking_settings.booking_restriction_type == 'deadline_time_day_before':
+                # Deadline time mode: appointment on day X must be booked by deadline
+                # deadline_on_same_day=False: deadline on day X-1
+                # deadline_on_same_day=True: deadline on day X (same day)
+                deadline_time_str = booking_settings.deadline_time_day_before or "08:00"
+                deadline_on_same_day = booking_settings.deadline_on_same_day
+                
+                from utils.datetime_utils import parse_deadline_time_string
+                deadline_time_obj = parse_deadline_time_string(deadline_time_str, default_hour=8, default_minute=0)
+                
+                # Get slot date (day X)
+                slot_date = slot_datetime.date()
+                
+                # Determine deadline date based on deadline_on_same_day setting
+                if deadline_on_same_day:
+                    # Deadline is on the same day as appointment (date X)
+                    deadline_date = slot_date
+                else:
+                    # Deadline is on the day before (date X-1)
+                    deadline_date = slot_date - timedelta(days=1)
+                
+                deadline_datetime = datetime.combine(deadline_date, deadline_time_obj).replace(tzinfo=now.tzinfo)
+                
+                # Check if current time is after deadline
+                if now >= deadline_datetime:
+                    # After deadline, so skip slots on this date
+                    if deadline_on_same_day:
+                        # Deadline on same day: skip slots on day X if past deadline on day X
+                        if slot_datetime.date() == slot_date:
+                            continue  # Skip this slot
+                    else:
+                        # Deadline on X-1: skip slots on day X if past deadline on day X-1
+                        if slot_datetime.date() <= slot_date:
+                            continue  # Skip this slot
+                # If before deadline, slots are allowed (no filtering needed)
+            elif booking_settings.booking_restriction_type == 'minimum_hours_required':
                 # Must be at least X hours from now
                 time_diff: timedelta = slot_datetime - now
                 if time_diff.total_seconds() < (booking_settings.minimum_booking_hours_ahead * 3600):

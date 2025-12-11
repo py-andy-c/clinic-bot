@@ -15,6 +15,8 @@ export const NotificationSettingsSchema = z.object({
 export const BookingRestrictionSettingsSchema = z.object({
   booking_restriction_type: z.string(),
   minimum_booking_hours_ahead: z.union([z.number(), z.string()]),
+  deadline_time_day_before: z.string().optional(),
+  deadline_on_same_day: z.boolean().optional(),
   step_size_minutes: z.union([z.number(), z.string()]).optional(),
   max_future_appointments: z.union([z.number(), z.string()]).optional(),
   max_booking_window_days: z.union([z.number(), z.string()]).optional(),

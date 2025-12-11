@@ -247,6 +247,102 @@ export const formatTo12Hour = (time24: string): { time12: string; period: 'AM' |
 };
 
 /**
+ * Parse 12-hour format time string to 24-hour format (HH:MM).
+ * Accepts formats like "9:00 PM", "9:00PM", "09:00 PM", etc.
+ * Returns 24-hour format string like "21:00".
+ */
+export const parseTime12hTo24h = (time12h: string): string => {
+  if (!time12h || !time12h.trim()) {
+    throw new Error('Time string cannot be empty');
+  }
+  
+  const trimmed = time12h.trim().toUpperCase();
+  // Pattern to match: hour:minute AM/PM (with or without space)
+  const pattern = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/;
+  const match = trimmed.match(pattern);
+  
+  if (!match || !match[1] || !match[2] || !match[3]) {
+    throw new Error(`Invalid 12-hour time format (expected H:MM AM/PM): ${time12h}`);
+  }
+  
+  let hour = parseInt(match[1], 10);
+  const minute = parseInt(match[2], 10);
+  const period = match[3];
+  
+  // Validate ranges
+  if (hour < 1 || hour > 12) {
+    throw new Error(`Invalid hour (must be 1-12): ${hour}`);
+  }
+  if (minute < 0 || minute > 59) {
+    throw new Error(`Invalid minute (must be 0-59): ${minute}`);
+  }
+  
+  // Convert to 24-hour format
+  if (period === 'AM') {
+    if (hour === 12) {
+      hour = 0; // 12:00 AM = 00:00
+    }
+  } else { // PM
+    if (hour !== 12) {
+      hour = hour + 12;
+    }
+    // 12:00 PM = 12:00 (no change)
+  }
+  
+  // Return as HH:MM string
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+};
+
+/**
+ * Format 24-hour format time string (HH:MM) to 12-hour format (H:MM AM/PM).
+ * Converts time strings like "21:00" -> "9:00 PM".
+ */
+export const formatTime24hTo12h = (time24h: string): string => {
+  if (!time24h || !time24h.trim()) {
+    throw new Error('Time string cannot be empty');
+  }
+  
+  const trimmed = time24h.trim();
+  const parts = trimmed.split(':');
+  
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    throw new Error(`Invalid 24-hour time format (expected HH:MM): ${time24h}`);
+  }
+  
+  const hour = parseInt(parts[0], 10);
+  const minute = parseInt(parts[1], 10);
+  
+  // Validate ranges
+  if (hour < 0 || hour > 23) {
+    throw new Error(`Invalid hour (must be 0-23): ${hour}`);
+  }
+  if (minute < 0 || minute > 59) {
+    throw new Error(`Invalid minute (must be 0-59): ${minute}`);
+  }
+  
+  // Convert to 12-hour format
+  let hour12: number;
+  let period: 'AM' | 'PM';
+  
+  if (hour === 0) {
+    hour12 = 12;
+    period = 'AM';
+  } else if (hour < 12) {
+    hour12 = hour;
+    period = 'AM';
+  } else if (hour === 12) {
+    hour12 = 12;
+    period = 'PM';
+  } else {
+    hour12 = hour - 12;
+    period = 'PM';
+  }
+  
+  // Return as H:MM AM/PM (no leading zero on hour for display)
+  return `${hour12}:${String(minute).padStart(2, '0')} ${period}`;
+};
+
+/**
  * Group time slots into AM and PM arrays
  */
 export const groupTimeSlots = (slots: string[]): { amSlots: string[]; pmSlots: string[] } => {

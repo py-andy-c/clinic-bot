@@ -7,7 +7,7 @@ to practitioners when the booking recency limit is reached.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore
 from apscheduler.triggers.cron import CronTrigger  # type: ignore
@@ -100,43 +100,96 @@ class AutoAssignmentService:
 
                 for clinic in clinics:
                     try:
-                        # Get minimum_booking_hours_ahead setting
+                        # Get booking restriction settings
                         settings = clinic.get_validated_settings()
-                        minimum_hours = settings.booking_restriction_settings.minimum_booking_hours_ahead
+                        booking_settings = settings.booking_restriction_settings
+                        booking_restriction_type = booking_settings.booking_restriction_type
                         
-                        # Calculate cutoff datetime (not just date)
                         # All datetime operations use Taiwan timezone
                         now = taiwan_now()
-                        cutoff_datetime = now + timedelta(hours=minimum_hours)
                         
-                        # Convert to timezone-naive for PostgreSQL comparison
-                        # CalendarEvent stores date and time as separate fields (timezone-naive)
-                        # We need to compare timezone-naive timestamps
-                        cutoff_datetime_naive = cutoff_datetime.replace(tzinfo=None)
-                        
-                        # Find appointments that need to be made visible
-                        # Use proper datetime comparison instead of just date
-                        # PostgreSQL: combine date and time by casting to timestamp
-                        # Note: CalendarEvent.date and start_time are stored as timezone-naive
-                        # (they represent Taiwan local time without timezone info)
-                        appointments = db.query(Appointment).join(
-                            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
-                        ).filter(
-                            Appointment.is_auto_assigned == True,
-                            Appointment.status == 'confirmed',
-                            CalendarEvent.clinic_id == clinic.id,
-                            # Combine date and time for proper datetime comparison
-                            # PostgreSQL: cast concatenated date+time string to timestamp (timezone-naive)
-                            # Compare with timezone-naive cutoff_datetime
-                            cast(
-                                func.concat(
-                                    cast(CalendarEvent.date, String),
-                                    ' ',
-                                    cast(CalendarEvent.start_time, String)
-                                ),
-                                sqltypes.TIMESTAMP
-                            ) <= cutoff_datetime_naive
-                        ).all()
+                        # Calculate cutoff based on restriction type
+                        if booking_restriction_type == "deadline_time_day_before":
+                            # For deadline mode, we need to check each appointment individually
+                            # because the deadline is relative to each appointment's date
+                            # Get all auto-assigned appointments first, then filter by deadline logic
+                            appointments_query = db.query(Appointment).join(
+                                CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+                            ).filter(
+                                Appointment.is_auto_assigned == True,
+                                Appointment.status == 'confirmed',
+                                CalendarEvent.clinic_id == clinic.id,
+                                CalendarEvent.start_time.isnot(None)
+                            )
+                            appointments = appointments_query.all()
+                            
+                            # Filter appointments based on deadline logic
+                            deadline_time_str = booking_settings.deadline_time_day_before or "08:00"
+                            deadline_on_same_day = booking_settings.deadline_on_same_day
+                            
+                            from utils.datetime_utils import parse_deadline_time_string
+                            deadline_time_obj = parse_deadline_time_string(deadline_time_str, default_hour=8, default_minute=0)
+                            
+                            filtered_appointments: List[Appointment] = []
+                            for appointment in appointments:
+                                appointment_datetime = datetime.combine(
+                                    appointment.calendar_event.date,
+                                    appointment.calendar_event.start_time
+                                ).replace(tzinfo=TAIWAN_TZ)
+                                
+                                # Get appointment date (day X)
+                                appointment_date = appointment_datetime.date()
+                                
+                                # Determine deadline date based on deadline_on_same_day setting
+                                if deadline_on_same_day:
+                                    # Deadline is on the same day as appointment (date X)
+                                    deadline_date = appointment_date
+                                else:
+                                    # Deadline is on the day before (date X-1)
+                                    deadline_date = appointment_date - timedelta(days=1)
+                                
+                                deadline_datetime = datetime.combine(deadline_date, deadline_time_obj).replace(tzinfo=TAIWAN_TZ)
+                                
+                                # Make visible when current time >= deadline
+                                if now >= deadline_datetime:
+                                    filtered_appointments.append(appointment)
+                            
+                            appointments = filtered_appointments
+                        else:
+                            # Default: minimum_hours_required mode
+                            minimum_hours = booking_settings.minimum_booking_hours_ahead
+                            
+                            # Calculate cutoff datetime (not just date)
+                            cutoff_datetime = now + timedelta(hours=minimum_hours)
+                            
+                            # Convert to timezone-naive for PostgreSQL comparison
+                            # CalendarEvent stores date and time as separate fields (timezone-naive)
+                            # We need to compare timezone-naive timestamps
+                            cutoff_datetime_naive = cutoff_datetime.replace(tzinfo=None)
+                            
+                            # Find appointments that need to be made visible
+                            # Use proper datetime comparison instead of just date
+                            # PostgreSQL: combine date and time by casting to timestamp
+                            # Note: CalendarEvent.date and start_time are stored as timezone-naive
+                            # (they represent Taiwan local time without timezone info)
+                            appointments = db.query(Appointment).join(
+                                CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+                            ).filter(
+                                Appointment.is_auto_assigned == True,
+                                Appointment.status == 'confirmed',
+                                CalendarEvent.clinic_id == clinic.id,
+                                # Combine date and time for proper datetime comparison
+                                # PostgreSQL: cast concatenated date+time string to timestamp (timezone-naive)
+                                # Compare with timezone-naive cutoff_datetime
+                                cast(
+                                    func.concat(
+                                        cast(CalendarEvent.date, String),
+                                        ' ',
+                                        cast(CalendarEvent.start_time, String)
+                                    ),
+                                    sqltypes.TIMESTAMP
+                                ) <= cutoff_datetime_naive
+                            ).all()
                         
                         # Batch fetch all practitioners to avoid N+1 queries
                         practitioner_ids = [
@@ -161,10 +214,17 @@ class AutoAssignmentService:
                                     appointment.calendar_event.start_time
                                 ).replace(tzinfo=TAIWAN_TZ)
                                 
-                                hours_until = (appointment_datetime - now).total_seconds() / 3600
+                                # For minimum_hours_required mode, verify hours_until
+                                if booking_restriction_type != "deadline_time_day_before":
+                                    hours_until = (appointment_datetime - now).total_seconds() / 3600
+                                    minimum_hours = booking_settings.minimum_booking_hours_ahead
+                                    
+                                    # Make visible when appointment is within or past the recency limit
+                                    if hours_until > minimum_hours:
+                                        continue  # Skip if not yet within limit
+                                # For deadline_time_day_before mode, timing already verified above
                                 
-                                # Make visible when appointment is within or past the recency limit
-                                if hours_until <= minimum_hours:
+                                # Make appointment visible
                                     # Get practitioner from batch-fetched dict
                                     practitioner = practitioners_dict.get(
                                         appointment.calendar_event.user_id

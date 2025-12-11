@@ -28,6 +28,8 @@ class BookingRestrictionSettings(BaseModel):
     """Schema for booking restriction settings."""
     booking_restriction_type: str = Field(default="minimum_hours_required")
     minimum_booking_hours_ahead: int = Field(default=24, ge=1, le=168)
+    deadline_time_day_before: Optional[str] = Field(default="08:00", description="Deadline time (24-hour format HH:MM) for booking appointments. Used when booking_restriction_type is 'deadline_time_day_before'. Default is 08:00 (8:00 AM).")
+    deadline_on_same_day: bool = Field(default=False, description="If True, deadline is on the same day as appointment (date X). If False, deadline is on the day before (date X-1).")
     step_size_minutes: int = Field(default=30, ge=5, le=60, description="Time interval in minutes for appointment slot granularity. Patients can only book appointments at these intervals. For example, 30 means patients can select 09:00, 09:30, 10:00, etc. A smaller value provides more time options (e.g., 15 minutes = 09:00, 09:15, 09:30, 09:45), while a larger value provides fewer options.")
     max_future_appointments: int = Field(default=3, ge=1, le=100, description="Maximum number of active future appointments a patient can have")
     max_booking_window_days: int = Field(default=90, ge=1, le=365, description="Maximum number of days in advance that patients can book appointments")
@@ -54,6 +56,31 @@ class BookingRestrictionSettings(BaseModel):
                     data['minimum_booking_hours_ahead'] = 24
                 # Update booking_restriction_type
                 data['booking_restriction_type'] = 'minimum_hours_required'
+        return data  # type: ignore[reportUnknownVariableType]
+
+    @model_validator(mode='after')
+    @classmethod
+    def normalize_deadline_time(cls, data: Any) -> Any:
+        """
+        Normalize deadline_time_day_before to 24-hour format (HH:MM).
+        
+        Validates and formats the time string to ensure it's in HH:MM format.
+        Minutes are always set to 00 for simplicity.
+        """
+        if isinstance(data, dict):
+            deadline_time: Any = data.get('deadline_time_day_before')  # type: ignore[reportUnknownVariableType]
+            if deadline_time and isinstance(deadline_time, str):
+                # Validate 24-hour format (HH:MM)
+                if ':' in deadline_time and ('AM' not in deadline_time.upper() and 'PM' not in deadline_time.upper()):
+                    try:
+                        hour, minute = map(int, deadline_time.split(':'))
+                        if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+                            raise ValueError(f"Invalid 24-hour time: {deadline_time}")
+                        # Always set minutes to 00 for simplicity
+                        data['deadline_time_day_before'] = f"{hour:02d}:00"
+                    except ValueError:
+                        # If parsing fails, keep original (Pydantic will validate)
+                        pass
         return data  # type: ignore[reportUnknownVariableType]
 
 

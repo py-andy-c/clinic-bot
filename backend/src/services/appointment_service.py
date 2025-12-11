@@ -1095,12 +1095,47 @@ class AppointmentService:
         if appointment.is_auto_assigned and new_start_time is not None:
             # Get clinic settings for recency limit
             settings = clinic.get_validated_settings()
-            minimum_hours = settings.booking_restriction_settings.minimum_booking_hours_ahead
+            booking_settings = settings.booking_restriction_settings
+            booking_restriction_type = booking_settings.booking_restriction_type
             now = taiwan_now()
-            hours_until = (new_start_time - now).total_seconds() / 3600
             
-            # If new time is within or past recency limit, make appointment visible
-            if hours_until <= minimum_hours:
+            should_make_visible = False
+            
+            if booking_restriction_type == "deadline_time_day_before":
+                # Deadline time mode: check if deadline has passed
+                # deadline_on_same_day=False: deadline on day X-1
+                # deadline_on_same_day=True: deadline on day X (same day)
+                deadline_time_str = booking_settings.deadline_time_day_before or "08:00"
+                deadline_on_same_day = booking_settings.deadline_on_same_day
+                
+                from utils.datetime_utils import parse_deadline_time_string
+                deadline_time_obj = parse_deadline_time_string(deadline_time_str, default_hour=8, default_minute=0)
+                
+                appointment_date = new_start_time.date()
+                
+                # Determine deadline date based on deadline_on_same_day setting
+                if deadline_on_same_day:
+                    # Deadline is on the same day as appointment (date X)
+                    deadline_date = appointment_date
+                else:
+                    # Deadline is on the day before (date X-1)
+                    deadline_date = appointment_date - timedelta(days=1)
+                
+                deadline_datetime = datetime.combine(deadline_date, deadline_time_obj).replace(tzinfo=now.tzinfo)
+                
+                # Make visible when current time >= deadline
+                if now >= deadline_datetime:
+                    should_make_visible = True
+            else:
+                # Default: minimum_hours_required mode
+                minimum_hours = booking_settings.minimum_booking_hours_ahead
+                hours_until = (new_start_time - now).total_seconds() / 3600
+                
+                # If new time is within or past recency limit, make appointment visible
+                if hours_until <= minimum_hours:
+                    should_make_visible = True
+            
+            if should_make_visible:
                 appointment.is_auto_assigned = False
                 # Notification will be sent below if practitioner changed or time changed
 
@@ -1379,17 +1414,66 @@ class AppointmentService:
                 detail=f"最多只能預約 {max_booking_window_days} 天內的時段"
             )
 
-        # Check minimum_booking_hours_ahead for NEW appointment time
-        minimum_booking_hours_ahead = booking_settings.minimum_booking_hours_ahead
-        if minimum_booking_hours_ahead and minimum_booking_hours_ahead > 0:
-            time_until_new_appointment = new_start_time - now
-            hours_until_new = time_until_new_appointment.total_seconds() / 3600
+        # Check booking restriction based on mode
+        booking_restriction_type = booking_settings.booking_restriction_type
+        
+        if booking_restriction_type == "deadline_time_day_before":
+            # Deadline time mode: appointment on day X must be booked by deadline
+            # deadline_on_same_day=False: deadline on day X-1
+            # deadline_on_same_day=True: deadline on day X (same day)
+            from utils.datetime_utils import parse_deadline_time_string
+            
+            deadline_time_str = booking_settings.deadline_time_day_before or "08:00"
+            deadline_on_same_day = booking_settings.deadline_on_same_day
+            
+            # Parse deadline time (stored as 24-hour format HH:MM)
+            deadline_time = parse_deadline_time_string(deadline_time_str, default_hour=8, default_minute=0)
+            
+            # Get appointment date (day X)
+            appointment_date = new_start_time.date()
+            
+            # Determine deadline date based on deadline_on_same_day setting
+            if deadline_on_same_day:
+                # Deadline is on the same day as appointment (date X)
+                deadline_date = appointment_date
+            else:
+                # Deadline is on the day before (date X-1)
+                deadline_date = appointment_date - timedelta(days=1)
+            
+            deadline_datetime = datetime.combine(deadline_date, deadline_time).replace(tzinfo=now.tzinfo)
+            
+            # Check if current time is before or after deadline
+            if now >= deadline_datetime:
+                # After deadline, so cannot book for this appointment date
+                if deadline_on_same_day:
+                    # Deadline on same day: cannot book for day X if past deadline on day X
+                    if new_start_time.date() == appointment_date:
+                        next_available_date = appointment_date + timedelta(days=1)
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"已超過 {deadline_date.strftime('%Y/%m/%d')} {deadline_time_str} 的預約期限，最早可預約 {next_available_date.strftime('%Y/%m/%d')} 的時段"
+                        )
+                else:
+                    # Deadline on X-1: cannot book for day X if past deadline on day X-1
+                    if new_start_time.date() <= appointment_date:
+                        next_available_date = appointment_date + timedelta(days=1)
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"已超過 {deadline_date.strftime('%Y/%m/%d')} {deadline_time_str} 的預約期限，最早可預約 {next_available_date.strftime('%Y/%m/%d')} 的時段"
+                        )
+            # If before deadline, appointment is allowed (no check needed)
+        else:
+            # Default: minimum_hours_required mode
+            minimum_booking_hours_ahead = booking_settings.minimum_booking_hours_ahead
+            if minimum_booking_hours_ahead and minimum_booking_hours_ahead > 0:
+                time_until_new_appointment = new_start_time - now
+                hours_until_new = time_until_new_appointment.total_seconds() / 3600
 
-            if hours_until_new < minimum_booking_hours_ahead:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"預約必須至少提前 {minimum_booking_hours_ahead} 小時預約"
-                )
+                if hours_until_new < minimum_booking_hours_ahead:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"預約必須至少提前 {minimum_booking_hours_ahead} 小時預約"
+                    )
 
         # Check max_future_appointments limit (creation only)
         if check_max_future_appointments:

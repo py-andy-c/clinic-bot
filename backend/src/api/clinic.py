@@ -86,6 +86,8 @@ class BookingRestrictionSettings(BaseModel):
     """Booking restriction settings for clinic."""
     booking_restriction_type: str = "minimum_hours_required"
     minimum_booking_hours_ahead: int = 24
+    deadline_time_day_before: Optional[str] = "08:00"
+    deadline_on_same_day: bool = False
     step_size_minutes: int = 30
     max_future_appointments: int = 3
     max_booking_window_days: int = 90
@@ -114,6 +116,31 @@ class BookingRestrictionSettings(BaseModel):
                     data['minimum_booking_hours_ahead'] = 24
                 # Update booking_restriction_type
                 data['booking_restriction_type'] = 'minimum_hours_required'
+        return data  # type: ignore[reportUnknownVariableType]
+
+    @model_validator(mode='after')
+    @classmethod
+    def normalize_deadline_time(cls, data: Any) -> Any:
+        """
+        Normalize deadline_time_day_before to 24-hour format (HH:MM).
+        
+        Validates and formats the time string to ensure it's in HH:MM format.
+        Minutes are always set to 00 for simplicity.
+        """
+        if isinstance(data, dict):
+            deadline_time: Any = data.get('deadline_time_day_before')  # type: ignore[reportUnknownVariableType]
+            if deadline_time and isinstance(deadline_time, str):
+                # Validate 24-hour format (HH:MM)
+                if ':' in deadline_time and ('AM' not in deadline_time.upper() and 'PM' not in deadline_time.upper()):
+                    try:
+                        hour, minute = map(int, deadline_time.split(':'))
+                        if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+                            raise ValueError(f"Invalid 24-hour time: {deadline_time}")
+                        # Always set minutes to 00 for simplicity
+                        data['deadline_time_day_before'] = f"{hour:02d}:00"
+                    except ValueError:
+                        # If parsing fails, keep original (Pydantic will validate)
+                        pass
         return data  # type: ignore[reportUnknownVariableType]
 
 

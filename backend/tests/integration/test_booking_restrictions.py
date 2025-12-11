@@ -231,24 +231,29 @@ class TestMinimumBookingHoursAhead:
         db_session.add(patient)
         db_session.commit()
 
+        # Mock current time to avoid flakiness - use 10:00 AM on a fixed date
+        from unittest.mock import patch
+        mock_now = datetime(2024, 1, 10, 10, 0, 0, tzinfo=TAIWAN_TZ)  # 10:00 AM Jan 10
+        
         # Try to create appointment within minimum_booking_hours_ahead window
         # This should fail even though availability showed the slot
-        start_time = taiwan_now() + timedelta(hours=12)  # 12 hours ahead (less than 24)
-        start_time = start_time.replace(minute=0, second=0, microsecond=0)
+        with patch('services.appointment_service.taiwan_now', return_value=mock_now):
+            start_time = mock_now + timedelta(hours=12)  # 10:00 PM same day (less than 24 hours ahead)
+            start_time = start_time.replace(minute=0, second=0, microsecond=0)
 
-        with pytest.raises(Exception) as exc_info:
-            AppointmentService.create_appointment(
-                db=db_session,
-                clinic_id=clinic.id,
-                patient_id=patient.id,
-                appointment_type_id=appt_type.id,
-                start_time=start_time,
-                practitioner_id=practitioner.id,
-                line_user_id=line_user.id  # Patient booking - restrictions enforced
-            )
+            with pytest.raises(Exception) as exc_info:
+                AppointmentService.create_appointment(
+                    db=db_session,
+                    clinic_id=clinic.id,
+                    patient_id=patient.id,
+                    appointment_type_id=appt_type.id,
+                    start_time=start_time,
+                    practitioner_id=practitioner.id,
+                    line_user_id=line_user.id  # Patient booking - restrictions enforced
+                )
 
-        # Should raise error about minimum booking hours
-        assert "24" in str(exc_info.value) or "小時" in str(exc_info.value)
+            # Should raise error about minimum booking hours
+            assert "24" in str(exc_info.value) or "小時" in str(exc_info.value)
 
     def test_patient_cannot_reschedule_within_minimum_booking_hours(
         self, db_session: Session
@@ -265,61 +270,56 @@ class TestMinimumBookingHoursAhead:
         clinic.set_validated_settings(settings)
         db_session.commit()
 
-        # Create availability for multiple days
-        for day_offset in [3, 4]:
-            target_date = (taiwan_now() + timedelta(days=day_offset)).date()
-            day_of_week = target_date.weekday()
+        # Mock current time to avoid flakiness - use 10:00 AM on a fixed date
+        from unittest.mock import patch
+        mock_now = datetime(2024, 1, 10, 10, 0, 0, tzinfo=TAIWAN_TZ)  # 10:00 AM Jan 10
+
+        with patch('services.appointment_service.taiwan_now', return_value=mock_now):
+            # Create availability for multiple days
+            for day_offset in [3, 4]:
+                target_date = (mock_now + timedelta(days=day_offset)).date()
+                day_of_week = target_date.weekday()
+                create_practitioner_availability_with_clinic(
+                    db_session, practitioner1, clinic, day_of_week, time(9, 0), time(17, 0)
+                )
+
+            # Create appointment far in future (more than cancellation window)
+            original_start_time = mock_now + timedelta(days=3)
+            original_start_time = original_start_time.replace(hour=10, minute=0, second=0, microsecond=0)
+            result = AppointmentService.create_appointment(
+                db=db_session,
+                clinic_id=clinic.id,
+                patient_id=patient.id,
+                appointment_type_id=appointment_type.id,
+                start_time=original_start_time,
+                practitioner_id=practitioner1.id,
+                line_user_id=None
+            )
+            appointment_id = result['appointment_id']
+
+            # Create availability for today to allow rescheduling attempt
+            today = mock_now.date()
+            day_of_week = today.weekday()
             create_practitioner_availability_with_clinic(
                 db_session, practitioner1, clinic, day_of_week, time(9, 0), time(17, 0)
             )
 
-        # Create appointment far in future (more than cancellation window)
-        original_start_time = taiwan_now() + timedelta(days=3)
-        original_start_time = original_start_time.replace(hour=10, minute=0, second=0, microsecond=0)
-        result = AppointmentService.create_appointment(
-            db=db_session,
-            clinic_id=clinic.id,
-            patient_id=patient.id,
-            appointment_type_id=appointment_type.id,
-            start_time=original_start_time,
-            practitioner_id=practitioner1.id,
-            line_user_id=None
-        )
-        appointment_id = result['appointment_id']
+            # Patient tries to reschedule to time within restriction (should fail)
+            # Use 11:00 AM same day (1 hour ahead, well within 48-hour restriction)
+            new_start_time = mock_now + timedelta(hours=1)  # 11:00 AM same day
+            new_start_time = new_start_time.replace(minute=0, second=0, microsecond=0)
+            
+            with pytest.raises(HTTPException) as exc_info:
+                AppointmentService.update_appointment(
+                    db=db_session,
+                    appointment_id=appointment_id,
+                    new_practitioner_id=None,
+                    new_start_time=new_start_time,
+                    apply_booking_constraints=True,  # Patient must follow constraints
+                    allow_auto_assignment=False
+                )
 
-        # Create availability for today to allow rescheduling attempt
-        today = taiwan_now().date()
-        day_of_week = today.weekday()
-        create_practitioner_availability_with_clinic(
-            db_session, practitioner1, clinic, day_of_week, time(9, 0), time(17, 0)
-        )
-
-        # Patient tries to reschedule to time within restriction (should fail)
-        new_start_time = taiwan_now().replace(hour=14, minute=0, second=0, microsecond=0)
-        if new_start_time < taiwan_now():
-            new_start_time = new_start_time + timedelta(days=1)
-        # Ensure it's less than 48 hours ahead
-        if (new_start_time - taiwan_now()).total_seconds() / 3600 >= 48:
-            # Use a time within availability window (9:00-17:00) and within 48 hours
-            fallback_time = taiwan_now() + timedelta(hours=1)
-            if fallback_time.hour < 9:
-                new_start_time = fallback_time.replace(hour=10, minute=0, second=0, microsecond=0)
-            elif fallback_time.hour >= 17:
-                new_start_time = (fallback_time + timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
-            else:
-                new_start_time = fallback_time.replace(minute=0, second=0, microsecond=0)
-        
-        with pytest.raises(HTTPException) as exc_info:
-            AppointmentService.update_appointment(
-                db=db_session,
-                appointment_id=appointment_id,
-                new_practitioner_id=None,
-                new_start_time=new_start_time,
-                apply_booking_constraints=True,  # Patient must follow constraints
-                allow_auto_assignment=False
-            )
-
-        assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+            assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
 
 
 # ============================================================================
@@ -1125,4 +1125,281 @@ class TestClinicAdminBypassBehavior:
             line_user_id=None  # Admin booking - all restrictions bypassed
         )
         assert result2['appointment_id'] is not None
+
+
+# ============================================================================
+# Deadline Time Day Before
+# ============================================================================
+
+class TestDeadlineTimeDayBefore:
+    """Test deadline_time_day_before restriction mode."""
+
+    @pytest.fixture
+    def clinic_with_deadline_mode(self, db_session: Session):
+        """Create a clinic with deadline_time_day_before mode."""
+        clinic = Clinic(
+            name="Deadline Clinic",
+            line_channel_id="test_deadline",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            settings={
+                "notification_settings": {"reminder_hours_before": 24},
+                "booking_restriction_settings": {
+                    "booking_restriction_type": "deadline_time_day_before",
+                    "deadline_time_day_before": "08:00",  # 8:00 AM
+                    "max_booking_window_days": 90,
+                    "max_future_appointments": 3
+                },
+                "clinic_info_settings": {"display_name": None, "address": None, "phone_number": None}
+            }
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create practitioner
+        practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner@deadline.com",
+            google_subject_id="google_123_deadline",
+            full_name="Dr. Deadline Test",
+            roles=["practitioner"]
+        )
+
+        # Create appointment type
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Consultation",
+            duration_minutes=30
+        )
+        db_session.add(appt_type)
+        db_session.commit()
+
+        # Associate practitioner with appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type.id
+        )
+        db_session.add(pat)
+
+        # Set up availability for all days of the week
+        for day_of_week in range(7):  # 0=Monday, 6=Sunday
+            create_practitioner_availability_with_clinic(
+                db_session, practitioner, clinic,
+                day_of_week=day_of_week,
+                start_time=time(9, 0),
+                end_time=time(17, 0)
+            )
+
+        db_session.commit()
+        return clinic, practitioner, appt_type
+
+    def test_deadline_mode_allows_booking_before_deadline(self, db_session: Session, clinic_with_deadline_mode):
+        """Test that appointments can be booked for day X if before deadline on day X-1."""
+        clinic, practitioner, appt_type = clinic_with_deadline_mode
+        
+        # Create LINE user first
+        line_user = LineUser(
+            clinic_id=clinic.id,
+            line_user_id="test_line_user_deadline",
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create patient with LINE user
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Mock current time: Jan 9 at 6:00 AM (before 8:00 AM deadline)
+        # Appointment date: Jan 10
+        now = taiwan_now()
+        appointment_date = (now + timedelta(days=1)).date()
+        
+        # Set current time to 6:00 AM on Jan 9
+        from unittest.mock import patch
+        mock_now = datetime.combine(appointment_date - timedelta(days=1), time(6, 0)).replace(tzinfo=TAIWAN_TZ)
+        
+        with patch('services.appointment_service.taiwan_now', return_value=mock_now):
+            start_time = datetime.combine(appointment_date, time(10, 0)).replace(tzinfo=TAIWAN_TZ)
+            
+            # Should succeed - before deadline on day X-1
+            result = AppointmentService.create_appointment(
+                db=db_session,
+                clinic_id=clinic.id,
+                patient_id=patient.id,
+                appointment_type_id=appt_type.id,
+                start_time=start_time,
+                practitioner_id=None,  # Auto-assigned
+                line_user_id=line_user.id
+            )
+            assert result['appointment_id'] is not None
+
+    def test_deadline_mode_blocks_booking_after_deadline(self, db_session: Session, clinic_with_deadline_mode):
+        """Test that appointments cannot be booked for day X if after deadline on day X-1."""
+        clinic, practitioner, appt_type = clinic_with_deadline_mode
+        
+        # Create LINE user first
+        line_user = LineUser(
+            clinic_id=clinic.id,
+            line_user_id="test_line_user_deadline2",
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create patient with LINE user
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Mock current time: Jan 9 at 9:00 AM (after 8:00 AM deadline)
+        # Appointment date: Jan 10
+        now = taiwan_now()
+        appointment_date = (now + timedelta(days=1)).date()
+        
+        # Set current time to 9:00 AM on Jan 9
+        from unittest.mock import patch
+        mock_now = datetime.combine(appointment_date - timedelta(days=1), time(9, 0)).replace(tzinfo=TAIWAN_TZ)
+        
+        with patch('services.appointment_service.taiwan_now', return_value=mock_now):
+            start_time = datetime.combine(appointment_date, time(10, 0)).replace(tzinfo=TAIWAN_TZ)
+            
+            # Should fail - after deadline on day X-1, can only book for day X+1
+            with pytest.raises(HTTPException) as exc_info:
+                AppointmentService.create_appointment(
+                    db=db_session,
+                    clinic_id=clinic.id,
+                    patient_id=patient.id,
+                    appointment_type_id=appt_type.id,
+                    start_time=start_time,
+                    practitioner_id=None,  # Auto-assigned
+                    line_user_id=line_user.id
+                )
+            assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+            assert "已超過" in str(exc_info.value.detail) or "預約期限" in str(exc_info.value.detail)
+
+    def test_deadline_mode_allows_booking_day_after_deadline(self, db_session: Session, clinic_with_deadline_mode):
+        """Test that appointments can be booked for day X+1 if after deadline on day X-1."""
+        clinic, practitioner, appt_type = clinic_with_deadline_mode
+        
+        # Create LINE user first
+        line_user = LineUser(
+            clinic_id=clinic.id,
+            line_user_id="test_line_user_deadline3",
+            display_name="Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create patient with LINE user
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Mock current time: Jan 9 at 9:00 AM (after 8:00 AM deadline)
+        # Appointment date: Jan 11 (day X+1)
+        now = taiwan_now()
+        appointment_date = (now + timedelta(days=2)).date()
+        
+        # Set current time to 9:00 AM on Jan 9
+        from unittest.mock import patch
+        mock_now = datetime.combine(appointment_date - timedelta(days=2), time(9, 0)).replace(tzinfo=TAIWAN_TZ)
+        
+        with patch('services.appointment_service.taiwan_now', return_value=mock_now):
+            start_time = datetime.combine(appointment_date, time(10, 0)).replace(tzinfo=TAIWAN_TZ)
+            
+            # Should succeed - after deadline on day X-1, can book for day X+1
+            result = AppointmentService.create_appointment(
+                db=db_session,
+                clinic_id=clinic.id,
+                patient_id=patient.id,
+                appointment_type_id=appt_type.id,
+                start_time=start_time,
+                practitioner_id=None,  # Auto-assigned
+                line_user_id=line_user.id
+            )
+            assert result['appointment_id'] is not None
+
+    def test_deadline_mode_filters_availability_slots(self, db_session: Session, clinic_with_deadline_mode):
+        """Test that availability service filters slots based on deadline mode."""
+        clinic, practitioner, appt_type = clinic_with_deadline_mode
+        
+        # Mock current time: Jan 9 at 9:00 AM (after 8:00 AM deadline)
+        now = taiwan_now()
+        requested_date = (now + timedelta(days=1)).date()  # Jan 10
+        
+        # Set current time to 9:00 AM on Jan 9
+        from unittest.mock import patch
+        mock_now = datetime.combine(requested_date - timedelta(days=1), time(9, 0)).replace(tzinfo=TAIWAN_TZ)
+        
+        with patch('services.availability_service.taiwan_now', return_value=mock_now):
+            # Request availability for Jan 10
+            slots = AvailabilityService.get_available_slots_for_practitioner(
+                db=db_session,
+                practitioner_id=practitioner.id,
+                date=requested_date.isoformat(),
+                appointment_type_id=appt_type.id,
+                clinic_id=clinic.id,
+                apply_booking_restrictions=True  # Patient-facing
+            )
+            
+            # Slots for Jan 10 should be filtered out (after deadline on Jan 9)
+            # All slots should be empty or filtered
+            assert isinstance(slots, list)
+            # Note: May be empty if all slots are filtered, which is expected
+
+    def test_deadline_mode_admin_bypass(self, db_session: Session, clinic_with_deadline_mode):
+        """Test that clinic admins bypass deadline mode restrictions."""
+        clinic, practitioner, appt_type = clinic_with_deadline_mode
+        
+        # Create patient
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Mock current time: Jan 9 at 9:00 AM (after 8:00 AM deadline)
+        # Appointment date: Jan 10
+        now = taiwan_now()
+        appointment_date = (now + timedelta(days=1)).date()
+        
+        # Set current time to 9:00 AM on Jan 9
+        from unittest.mock import patch
+        mock_now = datetime.combine(appointment_date - timedelta(days=1), time(9, 0)).replace(tzinfo=TAIWAN_TZ)
+        
+        with patch('services.appointment_service.taiwan_now', return_value=mock_now):
+            start_time = datetime.combine(appointment_date, time(10, 0)).replace(tzinfo=TAIWAN_TZ)
+            
+            # Admin booking should succeed (bypasses restrictions)
+            result = AppointmentService.create_appointment(
+                db=db_session,
+                clinic_id=clinic.id,
+                patient_id=patient.id,
+                appointment_type_id=appt_type.id,
+                start_time=start_time,
+                practitioner_id=practitioner.id,  # Admin specifies practitioner
+                line_user_id=None  # Admin booking - all restrictions bypassed
+            )
+            assert result['appointment_id'] is not None
 

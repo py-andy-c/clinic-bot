@@ -36,6 +36,9 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
   const [calendarEvent, setCalendarEvent] = useState<CalendarEvent | null>(null);
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [minimumBookingHoursAhead, setMinimumBookingHoursAhead] = useState<number | null>(null);
+  const [bookingRestrictionType, setBookingRestrictionType] = useState<string | null>(null);
+  const [deadlineTimeDayBefore, setDeadlineTimeDayBefore] = useState<string | null>(null);
+  const [deadlineOnSameDay, setDeadlineOnSameDay] = useState<boolean>(false);
   const [isLoadingSettings, setIsLoadingSettings] = useState(false);
 
   // Scroll to top when component mounts
@@ -132,30 +135,48 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
 
   // Fetch clinic settings helper function
   const fetchClinicSettings = React.useCallback(async () => {
-    if (isLoadingSettings || minimumBookingHoursAhead !== null) {
+    if (isLoadingSettings || (minimumBookingHoursAhead !== null && bookingRestrictionType !== null)) {
       return;
     }
     
     setIsLoadingSettings(true);
     try {
       const settings = await apiService.getClinicSettings();
-      const hoursValue = settings.booking_restriction_settings.minimum_booking_hours_ahead;
-      // Convert to number if it's a string, or use default
-      const hours = typeof hoursValue === 'string' 
-        ? parseInt(hoursValue, 10) 
-        : (typeof hoursValue === 'number' ? hoursValue : 24);
+      const bookingSettings = settings.booking_restriction_settings;
       
-      // Ensure we have a valid number
-      const finalHours = (!isNaN(hours) && hours > 0) ? hours : 24;
-      setMinimumBookingHoursAhead(finalHours);
+      // Get booking restriction type
+      const restrictionType = bookingSettings.booking_restriction_type || 'minimum_hours_required';
+      setBookingRestrictionType(restrictionType);
+      
+      if (restrictionType === 'minimum_hours_required') {
+        const hoursValue = bookingSettings.minimum_booking_hours_ahead;
+        // Convert to number if it's a string, or use default
+        const hours = typeof hoursValue === 'string' 
+          ? parseInt(hoursValue, 10) 
+          : (typeof hoursValue === 'number' ? hoursValue : 24);
+        
+        // Ensure we have a valid number
+        const finalHours = (!isNaN(hours) && hours > 0) ? hours : 24;
+        setMinimumBookingHoursAhead(finalHours);
+        setDeadlineTimeDayBefore(null);
+      } else if (restrictionType === 'deadline_time_day_before') {
+        const deadlineTime = bookingSettings.deadline_time_day_before || '08:00';
+        const onSameDay = bookingSettings.deadline_on_same_day || false;
+        setDeadlineTimeDayBefore(deadlineTime);
+        setDeadlineOnSameDay(onSameDay);
+        setMinimumBookingHoursAhead(null);
+      }
     } catch (err) {
       logger.error('Failed to fetch clinic settings:', err);
-      // Set default on error
+      // Set defaults on error
+      setBookingRestrictionType('minimum_hours_required');
       setMinimumBookingHoursAhead(24);
+      setDeadlineTimeDayBefore(null);
+      setDeadlineOnSameDay(false);
     } finally {
       setIsLoadingSettings(false);
     }
-  }, [minimumBookingHoursAhead, isLoadingSettings]);
+  }, [minimumBookingHoursAhead, bookingRestrictionType, isLoadingSettings]);
 
   // Fetch clinic settings when appointments data is loaded
   React.useEffect(() => {
@@ -282,13 +303,54 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
   };
 
   const formatAutoAssignmentTime = (startTimeStr: string) => {
-    if (minimumBookingHoursAhead === null || minimumBookingHoursAhead <= 0) {
+    if (bookingRestrictionType === null) {
       return null;
     }
     
     const appointmentTime = moment.tz(startTimeStr, 'Asia/Taipei');
-    const autoAssignmentTime = appointmentTime.clone().subtract(minimumBookingHoursAhead, 'hours');
     const now = moment.tz('Asia/Taipei');
+    let autoAssignmentTime: moment.Moment;
+    
+    if (bookingRestrictionType === 'deadline_time_day_before') {
+      // Deadline time mode: appointment becomes visible at deadline
+      // deadlineOnSameDay=false: deadline on day X-1
+      // deadlineOnSameDay=true: deadline on day X (same day)
+      if (!deadlineTimeDayBefore) {
+        return null;
+      }
+      
+      // Parse deadline time (stored as 24-hour format HH:MM)
+      const parts = deadlineTimeDayBefore.split(':');
+      if (parts.length !== 2 || !parts[0] || !parts[1]) {
+        return null;
+      }
+      const hour = parseInt(parts[0], 10);
+      const minute = parseInt(parts[1], 10);
+      if (isNaN(hour) || isNaN(minute)) {
+        return null;
+      }
+      
+      // Get appointment date (day X)
+      const appointmentDate = appointmentTime.clone().startOf('day');
+      
+      // Determine deadline date based on deadlineOnSameDay setting
+      let deadlineDate;
+      if (deadlineOnSameDay) {
+        // Deadline is on the same day as appointment (date X)
+        deadlineDate = appointmentDate.clone();
+      } else {
+        // Deadline is on the day before (date X-1)
+        deadlineDate = appointmentDate.clone().subtract(1, 'day');
+      }
+      
+      autoAssignmentTime = deadlineDate.clone().hour(hour).minute(minute).second(0).millisecond(0);
+    } else {
+      // Default: minimum_hours_required mode
+      if (minimumBookingHoursAhead === null || minimumBookingHoursAhead <= 0) {
+        return null;
+      }
+      autoAssignmentTime = appointmentTime.clone().subtract(minimumBookingHoursAhead, 'hours');
+    }
     
     if (autoAssignmentTime.isBefore(now) || autoAssignmentTime.isSame(now)) {
       return '即將自動指派';

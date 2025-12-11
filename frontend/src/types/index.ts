@@ -34,6 +34,8 @@ export interface Clinic {
     booking_restriction_settings?: {
       booking_restriction_type?: string;
       minimum_booking_hours_ahead?: number;
+      deadline_time_day_before?: string;
+      deadline_on_same_day?: boolean;
       step_size_minutes?: number;
       max_future_appointments?: number;
       max_booking_window_days?: number;
