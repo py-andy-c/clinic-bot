@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ReceiptSettings as ReceiptSettingsType } from '../schemas/api';
+import { InfoButton, InfoModal } from './shared';
 
 interface ReceiptSettingsProps {
   receiptSettings: ReceiptSettingsType;
@@ -12,6 +13,9 @@ const ReceiptSettings: React.FC<ReceiptSettingsProps> = ({
   onReceiptSettingsChange,
   isClinicAdmin,
 }) => {
+  const [showCustomNotesModal, setShowCustomNotesModal] = useState(false);
+  const [showStampModal, setShowStampModal] = useState(false);
+
   if (!isClinicAdmin) {
     return null; // Admin-only section
   }
@@ -34,9 +38,12 @@ const ReceiptSettings: React.FC<ReceiptSettingsProps> = ({
     <div className="space-y-6">
       {/* Custom Notes */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          收據備註
-        </label>
+        <div className="flex items-center gap-2 mb-2">
+          <label className="block text-sm font-medium text-gray-700">
+            收據備註
+          </label>
+          <InfoButton onClick={() => setShowCustomNotesModal(true)} />
+        </div>
         <textarea
           value={receiptSettings.custom_notes || ''}
           onChange={(e) => handleCustomNotesChange(e.target.value)}
@@ -57,11 +64,31 @@ const ReceiptSettings: React.FC<ReceiptSettingsProps> = ({
             className="mr-2"
           />
           <span className="text-sm font-medium text-gray-700">顯示收訖章</span>
+          <InfoButton onClick={() => setShowStampModal(true)} />
         </label>
         <p className="text-sm text-gray-500 mt-1 ml-6">
           在收據上顯示收訖章，包含診所名稱及結帳日期
         </p>
       </div>
+
+      {/* Info Modals */}
+      <InfoModal
+        isOpen={showCustomNotesModal}
+        onClose={() => setShowCustomNotesModal(false)}
+        title="收據備註"
+        ariaLabel="收據備註說明"
+      >
+        <p>此內容會顯示在每張收據的底部。常用於顯示診所地址、電話、統一編號等資訊。</p>
+      </InfoModal>
+
+      <InfoModal
+        isOpen={showStampModal}
+        onClose={() => setShowStampModal(false)}
+        title="顯示收訖章"
+        ariaLabel="顯示收訖章說明"
+      >
+        <p>啟用後，收據上會顯示收訖章，包含診所名稱和結帳日期。</p>
+      </InfoModal>
     </div>
   );
 };

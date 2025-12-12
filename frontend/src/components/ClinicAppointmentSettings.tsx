@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BookingRestrictionSettings } from '../schemas/api';
 import { BaseModal } from './shared/BaseModal';
+import { InfoButton, InfoModal } from './shared';
 import { preventScrollWheelChange } from '../utils/inputUtils';
 
 interface ClinicAppointmentSettingsProps {
@@ -118,6 +119,11 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
   };
 
   const [showStepSizePopup, setShowStepSizePopup] = useState(false);
+  const [showRestrictionModeModal, setShowRestrictionModeModal] = useState(false);
+  const [showMaxFutureAppointmentsModal, setShowMaxFutureAppointmentsModal] = useState(false);
+  const [showAllowPatientDeletionModal, setShowAllowPatientDeletionModal] = useState(false);
+  const [showCancellationLimitModal, setShowCancellationLimitModal] = useState(false);
+  const [showRequireBirthdayModal, setShowRequireBirthdayModal] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -173,9 +179,12 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
         <div>
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                預約限制模式
-              </label>
+              <div className="flex items-center gap-2 mb-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  預約限制模式
+                </label>
+                <InfoButton onClick={() => setShowRestrictionModeModal(true)} />
+              </div>
               <div className="space-y-4">
                 <div>
                   <label className="flex items-center">
@@ -284,9 +293,12 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
 
         {/* 患者未來預約上限 */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            患者未來預約上限（次）
-          </label>
+          <div className="flex items-center gap-2 mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              患者未來預約上限（次）
+            </label>
+            <InfoButton onClick={() => setShowMaxFutureAppointmentsModal(true)} />
+          </div>
           <div className="space-y-4 max-w-xs">
             <div>
               <input
@@ -374,9 +386,12 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
 
         {/* 允許病患自行取消預約 */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            允許病患自行取消預約
-          </label>
+          <div className="flex items-center gap-2 mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              允許病患自行取消預約
+            </label>
+            <InfoButton onClick={() => setShowAllowPatientDeletionModal(true)} />
+          </div>
           <div className="flex items-center justify-between max-w-2xl">
             <div>
               <p className="text-sm text-gray-500">
@@ -398,11 +413,14 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
 
         {/* 預約取消/修改限制 */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            {bookingRestrictionSettings.allow_patient_deletion !== false
-              ? "預約取消/修改限制"
-              : "預約修改限制"}
-          </label>
+          <div className="flex items-center gap-2 mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {bookingRestrictionSettings.allow_patient_deletion !== false
+                ? "預約取消/修改限制"
+                : "預約修改限制"}
+            </label>
+            <InfoButton onClick={() => setShowCancellationLimitModal(true)} />
+          </div>
           <div className="space-y-4 max-w-xs">
             <div>
               <input
@@ -426,9 +444,12 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
 
         {/* 要求填寫生日 */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            要求填寫生日
-          </label>
+          <div className="flex items-center gap-2 mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              要求填寫生日
+            </label>
+            <InfoButton onClick={() => setShowRequireBirthdayModal(true)} />
+          </div>
           <div className="flex items-center justify-between max-w-2xl">
             <div>
               <p className="text-sm text-gray-500">
@@ -447,6 +468,62 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
             </label>
           </div>
         </div>
+
+        {/* Info Modals */}
+        <InfoModal
+          isOpen={showRestrictionModeModal}
+          onClose={() => setShowRestrictionModeModal(false)}
+          title="預約限制模式"
+          ariaLabel="預約限制模式說明"
+        >
+          <div className="space-y-3">
+            <div>
+              <p className="font-medium">至少提前 X 小時預約：</p>
+              <p>病患必須在預約時間前至少 X 小時完成預約。例如設定 4 小時，則病患最晚可在當天下午 2 點預約晚上 6 點的時段。</p>
+            </div>
+            <div>
+              <p className="font-medium">特定時間前預約：</p>
+              <p>病患必須在指定時間（前一天或當天）之前完成預約。例如「前一天 08:00」，則病患最晚可在前一天早上 8 點前預約隔天的時段。</p>
+            </div>
+          </div>
+        </InfoModal>
+
+        <InfoModal
+          isOpen={showMaxFutureAppointmentsModal}
+          onClose={() => setShowMaxFutureAppointmentsModal(false)}
+          title="患者未來預約上限（次）"
+          ariaLabel="患者未來預約上限說明"
+        >
+          <p>此設定限制每位病患同時擁有的未來預約數量。例如設定 3 次，當病患已有 3 個未來預約時，必須先取消或完成其中一個預約，才能建立新的預約。</p>
+        </InfoModal>
+
+        <InfoModal
+          isOpen={showAllowPatientDeletionModal}
+          onClose={() => setShowAllowPatientDeletionModal(false)}
+          title="允許病患自行取消預約"
+          ariaLabel="允許病患自行取消預約說明"
+        >
+          <p>啟用後，病患可透過 LINE 預約系統自行取消預約。停用後，病患只能修改預約時間，無法取消，必須聯繫診所才能取消預約。</p>
+        </InfoModal>
+
+        <InfoModal
+          isOpen={showCancellationLimitModal}
+          onClose={() => setShowCancellationLimitModal(false)}
+          title="預約取消/修改限制"
+          ariaLabel="預約取消/修改限制說明"
+        >
+          <p>此設定要求病患必須在預約時間前至少 X 小時才能取消或修改預約。例如設定 24 小時，病患最晚必須在預約前一天相同時間前完成取消或修改。</p>
+          <p className="text-xs text-gray-600 mt-2">此限制不適用於診所管理員的操作，管理員可隨時取消或修改任何預約。</p>
+        </InfoModal>
+
+        <InfoModal
+          isOpen={showRequireBirthdayModal}
+          onClose={() => setShowRequireBirthdayModal(false)}
+          title="要求填寫生日"
+          ariaLabel="要求填寫生日說明"
+        >
+          <p>啟用後，病患在註冊或新增就診人時必須填寫生日。未填寫生日將無法完成註冊或新增就診人。</p>
+        </InfoModal>
     </div>
   );
 };

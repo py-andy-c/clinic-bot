@@ -8,3 +8,5 @@ export { Button } from './Button';
 export type { ButtonProps } from './Button';
 export { SearchInput } from './SearchInput';
 export { PaginationControls } from './PaginationControls';
+export { InfoButton } from './InfoButton';
+export { InfoModal } from './InfoModal';

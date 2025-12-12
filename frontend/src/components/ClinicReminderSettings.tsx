@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { preventScrollWheelChange } from '../utils/inputUtils';
+import { InfoButton, InfoModal } from './shared';
 
 interface ClinicReminderSettingsProps {
   reminderHoursBefore: string | number;
@@ -19,6 +20,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
   const [previewMessage, setPreviewMessage] = useState<string>('');
   const [previewLoading, setPreviewLoading] = useState<boolean>(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [showReminderHoursModal, setShowReminderHoursModal] = useState(false);
 
   // Generate preview when settings are saved (refreshTrigger changes)
   useEffect(() => {
@@ -47,9 +49,12 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
   }, [refreshTrigger]);
   return (
     <div className="max-w-md">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          預約前幾小時發送提醒
-        </label>
+        <div className="flex items-center gap-2 mb-2">
+          <label className="block text-sm font-medium text-gray-700">
+            預約前幾小時發送提醒
+          </label>
+          <InfoButton onClick={() => setShowReminderHoursModal(true)} />
+        </div>
         <input
           type="number"
           value={reminderHoursBefore}
@@ -80,6 +85,16 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
             * 預約類型、時間及治療師姓名為範例資料，實際訊息將使用真實預約資訊
           </div>
         </div>
+
+        {/* Info Modal */}
+        <InfoModal
+          isOpen={showReminderHoursModal}
+          onClose={() => setShowReminderHoursModal(false)}
+          title="預約前幾小時發送提醒"
+          ariaLabel="預約前幾小時發送提醒說明"
+        >
+          <p>系統會在預約時間前 X 小時自動發送 LINE 提醒訊息給病患。例如設定 24 小時，病患會在預約前一天相同時間收到提醒。此提醒包含預約時間、服務項目和治療師資訊。</p>
+        </InfoModal>
     </div>
   );
 };

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ClinicInfoSettings as ClinicInfoSettingsType } from '../schemas/api';
+import { InfoButton, InfoModal } from './shared';
 
 interface ClinicInfoSettingsProps {
   clinicInfoSettings: ClinicInfoSettingsType;
@@ -14,6 +15,8 @@ const ClinicInfoSettings: React.FC<ClinicInfoSettingsProps> = ({
   onClinicInfoSettingsChange,
   isClinicAdmin = false,
 }) => {
+  const [showDisplayNameModal, setShowDisplayNameModal] = useState(false);
+
   const handleFieldChange = (field: keyof ClinicInfoSettingsType, value: string) => {
     onClinicInfoSettingsChange({
       ...clinicInfoSettings,
@@ -24,9 +27,12 @@ const ClinicInfoSettings: React.FC<ClinicInfoSettingsProps> = ({
   return (
     <div className="space-y-6 max-w-2xl">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            顯示名稱
-          </label>
+          <div className="flex items-center gap-2 mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              顯示名稱
+            </label>
+            <InfoButton onClick={() => setShowDisplayNameModal(true)} />
+          </div>
           <input
             type="text"
             value={clinicInfoSettings.display_name || ''}
@@ -86,6 +92,16 @@ const ClinicInfoSettings: React.FC<ClinicInfoSettingsProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Info Modal */}
+        <InfoModal
+          isOpen={showDisplayNameModal}
+          onClose={() => setShowDisplayNameModal(false)}
+          title="顯示名稱"
+          ariaLabel="顯示名稱說明"
+        >
+          <p>此名稱會顯示在病患的 LINE 訊息、預約提醒和通知中。若未設定，系統將使用診所名稱。此設定不影響診所內部系統顯示的名稱。</p>
+        </InfoModal>
     </div>
   );
 };

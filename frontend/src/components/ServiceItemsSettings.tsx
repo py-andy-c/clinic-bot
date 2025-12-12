@@ -5,6 +5,7 @@ import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { preventScrollWheelChange } from '../utils/inputUtils';
 import { BaseModal } from './shared/BaseModal';
+import { InfoButton, InfoModal } from './shared';
 
 interface BillingScenario {
   id: number;
@@ -49,6 +50,10 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
     revenue_share: '',
     is_default: false,
   });
+  const [showDurationModal, setShowDurationModal] = useState(false);
+  const [showBufferModal, setShowBufferModal] = useState(false);
+  const [showAllowBookingModal, setShowAllowBookingModal] = useState(false);
+  const [showReceiptNameModal, setShowReceiptNameModal] = useState(false);
 
   // Load members (practitioners)
   useEffect(() => {
@@ -240,9 +245,12 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
 
                     {/* Receipt Name */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        收據項目名稱
-                      </label>
+                      <div className="flex items-center gap-2 mb-1">
+                        <label className="block text-sm font-medium text-gray-700">
+                          收據項目名稱
+                        </label>
+                        <InfoButton onClick={() => setShowReceiptNameModal(true)} />
+                      </div>
                       <input
                         type="text"
                         value={type.receipt_name || ''}
@@ -259,9 +267,12 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                     {/* Duration and Buffer */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          服務時長 (分鐘)
-                        </label>
+                        <div className="flex items-center gap-2 mb-1">
+                          <label className="block text-sm font-medium text-gray-700">
+                            服務時長 (分鐘)
+                          </label>
+                          <InfoButton onClick={() => setShowDurationModal(true)} />
+                        </div>
                         <input
                           type="number"
                           value={type.duration_minutes}
@@ -277,9 +288,12 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          排程緩衝時間 (分鐘)
-                        </label>
+                        <div className="flex items-center gap-2 mb-1">
+                          <label className="block text-sm font-medium text-gray-700">
+                            排程緩衝時間 (分鐘)
+                          </label>
+                          <InfoButton onClick={() => setShowBufferModal(true)} />
+                        </div>
                         <input
                           type="number"
                           value={type.scheduling_buffer_minutes || 0}
@@ -307,6 +321,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                           disabled={!isClinicAdmin}
                         />
                         <span className="text-sm font-medium text-gray-700">開放病患自行預約</span>
+                        <InfoButton onClick={() => setShowAllowBookingModal(true)} />
                       </label>
                     </div>
 
@@ -504,6 +519,46 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
           })}
         </div>
       </div>
+
+      {/* Info Modals */}
+      <InfoModal
+        isOpen={showDurationModal}
+        onClose={() => setShowDurationModal(false)}
+        title="服務時長 (分鐘)"
+        ariaLabel="服務時長說明"
+      >
+        <p>此為實際服務時間長度。病患預約時會看到對應的時段（例如：50分鐘顯示為 09:00-09:50）。此時間會顯示在診所行事曆和病患的預約確認中。</p>
+      </InfoModal>
+
+      <InfoModal
+        isOpen={showBufferModal}
+        onClose={() => setShowBufferModal(false)}
+        title="排程緩衝時間 (分鐘)"
+        ariaLabel="排程緩衝時間說明"
+      >
+        <p>此為排程時額外保留的時間，用於避免預約之間過於緊湊。系統會將「服務時長 + 緩衝時間」作為總佔用時間來計算可用時段。</p>
+        <p className="font-medium mt-2">範例：</p>
+        <p>服務時長 50 分鐘 + 緩衝 10 分鐘 = 總共佔用 60 分鐘。若設定 10 分鐘緩衝，則 09:00 的預約會佔用到 10:00，下一個可用時段最早為 10:00。</p>
+        <p className="text-xs text-gray-600 mt-2">緩衝時間不會顯示給病患，僅用於內部排程邏輯。</p>
+      </InfoModal>
+
+      <InfoModal
+        isOpen={showAllowBookingModal}
+        onClose={() => setShowAllowBookingModal(false)}
+        title="開放病患自行預約"
+        ariaLabel="開放病患自行預約說明"
+      >
+        <p>啟用後，病患可透過 LINE 預約系統選擇此服務項目。停用後，此服務項目不會出現在病患的預約選單中，僅能由診所管理員手動建立預約。</p>
+      </InfoModal>
+
+      <InfoModal
+        isOpen={showReceiptNameModal}
+        onClose={() => setShowReceiptNameModal(false)}
+        title="收據項目名稱"
+        ariaLabel="收據項目名稱說明"
+      >
+        <p>此名稱會顯示在收據上，取代服務項目名稱。若未填寫，收據將使用「項目名稱」。此設定不影響病患預約時看到的服務名稱。</p>
+      </InfoModal>
 
       {/* Billing Scenario Edit Modal */}
       {editingScenario && (
