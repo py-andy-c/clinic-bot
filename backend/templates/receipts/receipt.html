@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ receipt_data.clinic.display_name }} - 收據</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'NotoSansTC', 'Microsoft JhengHei', Arial, sans-serif;
+            background-color: white;
+            padding: 20px;
+            font-size: 12pt;
+            line-height: 1.6;
+            color: #333;
+        }
+        
+        @font-face {
+            font-family: 'NotoSansTC';
+            src: url('../fonts/NotoSansTC-Regular.otf') format('opentype');
+        }
+        
+        .receipt {
+            background-color: white;
+            max-width: 100%;
+            padding: 20px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+        }
+        
+        .logo {
+            max-width: 150px;
+            height: auto;
+            margin-bottom: 15px;
+            display: block;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+        
+        .clinic-name {
+            font-size: 20pt;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .transaction-title {
+            font-size: 16pt;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        
+        .transaction-info {
+            font-size: 11pt;
+            line-height: 1.8;
+            margin-bottom: 15px;
+            border-bottom: 1px dashed #ccc;
+            padding-bottom: 10px;
+        }
+        
+        .transaction-info div {
+            margin-bottom: 5px;
+        }
+        
+        .patient-info {
+            font-size: 11pt;
+            margin-bottom: 15px;
+            padding: 10px;
+            border-bottom: 1px dashed #ccc;
+            padding-bottom: 15px;
+        }
+        
+        .patient-info div {
+            margin-bottom: 5px;
+        }
+        
+        .icon {
+            display: inline-block;
+            width: 16px;
+            text-align: center;
+        }
+        
+        .service-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            font-size: 11pt;
+        }
+        
+        .service-table thead {
+            display: table-header-group;
+        }
+        
+        .service-table th {
+            text-align: left;
+            padding: 10px 8px;
+            border-bottom: 2px solid #333;
+            font-weight: bold;
+            background-color: #f9f9f9;
+        }
+        
+        .service-table th.amount {
+            text-align: right;
+        }
+        
+        .service-table td {
+            padding: 10px 8px;
+            border-bottom: 1px dashed #ccc;
+        }
+        
+        .service-table td.amount {
+            text-align: right;
+            font-weight: 500;
+        }
+        
+        .service-table .service-name {
+            line-height: 1.4;
+        }
+        
+        .service-table .therapist {
+            color: #666;
+            font-size: 10pt;
+            display: block;
+            margin-top: 4px;
+        }
+        
+        .payment-summary {
+            font-size: 11pt;
+            margin-bottom: 15px;
+            border-top: 2px solid #333;
+            padding-top: 10px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+        
+        .payment-summary > div {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .payment-summary .total {
+            font-weight: bold;
+            font-size: 14pt;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #ddd;
+        }
+        
+        .payment-summary .total span:last-child {
+            font-size: 16pt;
+        }
+        
+        /* Wrapper to ensure page-break protection works */
+        .stamp-wrapper {
+            page-break-inside: avoid;
+            break-inside: avoid;
+            page-break-before: avoid;
+            break-before: avoid;
+            page-break-after: avoid;
+            break-after: avoid;
+        }
+        
+        .stamp-container {
+            position: relative;
+            margin: 30px 0;
+            min-height: 100px;
+            /* WITH comprehensive page-break protection */
+            page-break-inside: avoid;
+            break-inside: avoid;
+            page-break-before: avoid;
+            break-before: avoid;
+            page-break-after: avoid;
+            break-after: avoid;
+        }
+        
+        .stamp {
+            position: absolute;
+            right: 0;
+            width: 120px;
+            height: 120px;
+            border: 3px solid red;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            font-size: 10pt;
+            color: red;
+            font-weight: bold;
+            background-color: rgba(255, 0, 0, 0.05);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            /* Also protect the absolutely positioned stamp itself */
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+        
+        .stamp .stamp-text {
+            line-height: 1.4;
+            padding: 8px;
+        }
+        
+        .clinic-info {
+            font-size: 10pt;
+            line-height: 1.8;
+            margin-bottom: 15px;
+            border-top: 1px dashed #ccc;
+            padding-top: 15px;
+            color: #555;
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+        
+        .clinic-info div {
+            margin-bottom: 5px;
+        }
+        
+        .clinic-info strong {
+            color: #333;
+            font-weight: bold;
+        }
+        
+        /* Print-specific styles */
+        @media print {
+            body {
+                background-color: white;
+                padding: 0;
+            }
+            .receipt {
+                border: none;
+                box-shadow: none;
+            }
+        }
+        
+        /* Screen-specific styles for HTML viewing */
+        @media screen {
+            body {
+                background-color: #f5f5f5;
+            }
+            .receipt {
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            }
+        }
+        
+        .voided-watermark {
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            pointer-events: none;
+            z-index: 1000;
+            overflow: visible;
+        }
+        
+        .voided-watermark-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 120pt;
+            color: rgba(255, 0, 0, 0.2);
+            font-weight: bold;
+            white-space: nowrap;
+            overflow: visible;
+        }
+    </style>
+</head>
+<body>
+    {% if receipt_data.void_info and receipt_data.void_info.voided %}
+    <div class="voided-watermark">
+        <div class="voided-watermark-text">已作廢</div>
+    </div>
+    {% endif %}
+    
+    <div class="receipt">
+        <div class="header">
+            <div class="clinic-name">{{ receipt_data.clinic.display_name }}</div>
+            <div class="transaction-title">收據</div>
+        </div>
+        
+        <div class="transaction-info">
+            <div>收據編號: {{ receipt_data.receipt_number }}</div>
+            <div>結帳時間: {{ receipt_data.issue_date|format_datetime_full }}</div>
+            <div>看診日期: {{ receipt_data.visit_date|format_date_only }}</div>
+        </div>
+        
+        <div class="patient-info">
+            <div>
+                姓名：{{ receipt_data.patient.name }}
+            </div>
+        </div>
+        
+        <table class="service-table">
+            <thead>
+                <tr>
+                    <th>項目</th>
+                    <th>數量</th>
+                    <th class="amount">金額</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in receipt_data['items'] %}
+                <tr>
+                    <td class="service-name">
+                        {% if item.item_type == 'service_item' %}
+                            {{ item.service_item.receipt_name }}
+                        {% else %}
+                            {{ item.item_name }}
+                        {% endif %}
+                        {% if item.practitioner %}
+                        <span class="therapist">→{{ item.practitioner.name }}</span>
+                        {% endif %}
+                    </td>
+                    <td>1</td>
+                    <td class="amount">${{ item.amount|format_currency }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div class="payment-summary">
+            <div>
+                <span>小計</span>
+                <span>${{ receipt_data.totals.total_amount|format_currency }}</span>
+            </div>
+            <div class="total">
+                <span>總計</span>
+                <span>${{ receipt_data.totals.total_amount|format_currency }}</span>
+            </div>
+            <div>
+                <span>
+                    {% if receipt_data.payment_method == 'cash' %}
+                        現金
+                    {% elif receipt_data.payment_method == 'card' %}
+                        信用卡
+                    {% elif receipt_data.payment_method == 'transfer' %}
+                        轉帳
+                    {% else %}
+                        {{ receipt_data.payment_method }}
+                    {% endif %}
+                </span>
+                <span>${{ receipt_data.totals.total_amount|format_currency }}</span>
+            </div>
+            <div>
+                <span>找零</span>
+                <span>$0</span>
+            </div>
+        </div>
+        
+        {% if receipt_data.stamp and receipt_data.stamp.enabled %}
+        <div class="stamp-wrapper">
+            <div class="stamp-container">
+                <div class="stamp">
+                    <div class="stamp-text">
+                        {{ receipt_data.clinic.display_name }}<br>
+                        收訖章<br>
+                        {{ receipt_data.issue_date[:10] }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if receipt_data.custom_notes %}
+        <div class="clinic-info">
+            {% for line in receipt_data.custom_notes.split('\n') %}
+            <div>{{ line }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
+

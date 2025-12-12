@@ -8,12 +8,13 @@
 # Railway will auto-detect dependencies from requirements.txt
 builder = "RAILPACK"
 
-# Specify Python version via nixpacksPlan (Railpack respects this)
+# Specify Python version and system dependencies via nixpacksPlan (Railpack respects this)
 # This replaces runtime.txt for Python version specification
+# WeasyPrint requires Cairo, Pango, and GDK-PixBuf system libraries
 [build.nixpacksPlan]
 [build.nixpacksPlan.phases]
 [build.nixpacksPlan.phases.setup]
-nixPkgs = ["python312"]
+nixPkgs = ["python312", "cairo", "pango", "gdk-pixbuf"]
 
 [deploy]
 # Start command - runs migrations and starts the app via start.sh

@@ -11,7 +11,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi import status as http_status
-from fastapi.responses import Response
+from fastapi.responses import Response, HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from datetime import date
@@ -778,120 +778,25 @@ async def download_receipt_pdf(
                 detail="Receipt does not belong to your clinic"
             )
         
-        # Extract data from receipt_data snapshot
+        # Extract data from receipt_data snapshot (immutable)
         receipt_data = receipt.receipt_data
         
-        # Generate PDF (placeholder implementation)
-        # TODO: Implement full PDF generation with proper formatting
-        # For now, return a simple text response indicating PDF generation is in progress
-        # In Phase 2, we'll implement full PDF generation with reportlab or weasyprint
+        # Generate PDF using WeasyPrint
+        from services.pdf_service import PDFService
         
-        # Basic PDF generation using reportlab (if available) or return placeholder
-        try:
-            from reportlab.lib.pagesizes import A4
-            from reportlab.pdfgen import canvas
-            from io import BytesIO
-            
-            buffer = BytesIO()
-            p = canvas.Canvas(buffer, pagesize=A4)
-            _width, height = A4
-            
-            # Title
-            p.setFont("Helvetica-Bold", 16)
-            p.drawString(50, height - 50, "收據 (Receipt)")
-            
-            # Receipt number
-            p.setFont("Helvetica", 12)
-            y = height - 80
-            p.drawString(50, y, f"收據編號: {receipt_data['receipt_number']}")
-            
-            # Issue date and visit date
-            y -= 20
-            p.drawString(50, y, f"開立日期: {receipt_data['issue_date']}")
-            y -= 20
-            p.drawString(50, y, f"看診日期: {receipt_data['visit_date']}")
-            
-            # Clinic info
-            y -= 30
-            p.setFont("Helvetica-Bold", 12)
-            p.drawString(50, y, receipt_data['clinic']['display_name'])
-            
-            # Patient info
-            y -= 30
-            p.setFont("Helvetica", 12)
-            p.drawString(50, y, f"病患姓名: {receipt_data['patient']['name']}")
-            
-            # Items
-            y -= 30
-            p.setFont("Helvetica-Bold", 12)
-            p.drawString(50, y, "項目明細:")
-            y -= 20
-            
-            p.setFont("Helvetica", 10)
-            for item in receipt_data.get('items', []):
-                if item['item_type'] == 'service_item':
-                    item_name = item.get('service_item', {}).get('receipt_name', '')
-                else:
-                    item_name = item.get('item_name', '')
-                amount = item.get('amount', 0)
-                p.drawString(50, y, f"{item_name}: ${amount:.2f}")
-                y -= 15
-                if y < 100:  # New page if needed
-                    p.showPage()
-                    y = height - 50
-            
-            # Total
-            y -= 20
-            p.setFont("Helvetica-Bold", 12)
-            p.drawString(50, y, f"總計: ${receipt_data['totals']['total_amount']:.2f}")
-            
-            # Payment method
-            y -= 20
-            p.setFont("Helvetica", 10)
-            p.drawString(50, y, f"付款方式: {receipt_data['payment_method']}")
-            
-            # Void status
-            if receipt.is_voided:
-                y -= 30
-                p.setFont("Helvetica-Bold", 16)
-                p.setFillColorRGB(1, 0, 0)  # Red
-                p.drawString(50, y, "已作廢 (VOIDED)")
-                if receipt.voided_at:
-                    y -= 20
-                    p.setFont("Helvetica", 10)
-                    p.setFillColorRGB(0, 0, 0)  # Black
-                    p.drawString(50, y, f"作廢日期: {receipt.voided_at.isoformat()}")
-            
-            # Custom notes
-            if receipt_data.get('custom_notes'):
-                y -= 30
-                p.setFont("Helvetica", 10)
-                notes = receipt_data['custom_notes']
-                # Simple text wrapping (basic implementation)
-                for line in notes.split('\n'):
-                    p.drawString(50, y, line)
-                    y -= 15
-                    if y < 100:
-                        p.showPage()
-                        y = height - 50
-            
-            p.save()
-            buffer.seek(0)
-            
-            return Response(
-                content=buffer.getvalue(),
-                media_type="application/pdf",
-                headers={
-                    "Content-Disposition": f'attachment; filename="receipt_{receipt.receipt_number}.pdf"'
-                }
-            )
-            
-        except ImportError:
-            # If reportlab is not available, return a placeholder response
-            raise HTTPException(
-                status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail="PDF generation not yet implemented. Please install reportlab: pip install reportlab"
-            )
+        pdf_service = PDFService()
+        pdf_bytes = pdf_service.generate_receipt_pdf(
+            receipt_data=receipt_data,
+            is_voided=receipt.is_voided
+        )
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="receipt_{receipt.receipt_number}.pdf"'
+            }
+        )
         
     except HTTPException:
         raise
@@ -900,6 +805,60 @@ async def download_receipt_pdf(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="生成PDF失敗"
+        )
+
+
+@router.get("/receipts/{receipt_id}/html", response_class=HTMLResponse)
+async def get_receipt_html(
+    receipt_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserContext = Depends(require_admin_role)
+):
+    """
+    Get receipt as HTML for LIFF display.
+    
+    Admin-only. Returns HTML page with receipt information.
+    Same template as PDF to ensure consistency.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Get receipt
+        receipt = ReceiptService.get_receipt_by_id(db, receipt_id)
+        
+        if not receipt:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Receipt not found"
+            )
+        
+        if receipt.clinic_id != clinic_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Receipt does not belong to your clinic"
+            )
+        
+        # Extract data from receipt_data snapshot (immutable)
+        receipt_data = receipt.receipt_data
+        
+        # Generate HTML using same template as PDF
+        from services.pdf_service import PDFService
+        
+        pdf_service = PDFService()
+        html_content = pdf_service.generate_receipt_html(
+            receipt_data=receipt_data,
+            is_voided=receipt.is_voided
+        )
+        
+        return HTMLResponse(content=html_content)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error generating HTML for receipt {receipt_id}: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="生成HTML失敗"
         )
 
 
