@@ -1,0 +1,309 @@
+import React, { useState } from 'react';
+import { useSettings } from '../../contexts/SettingsContext';
+import { useAuth } from '../../hooks/useAuth';
+import { useModal } from '../../contexts/ModalContext';
+import { logger } from '../../utils/logger';
+import { LoadingSpinner, BaseModal } from '../../components/shared';
+import ClinicAppointmentSettings from '../../components/ClinicAppointmentSettings';
+import SettingsBackButton from '../../components/SettingsBackButton';
+import PageHeader from '../../components/PageHeader';
+import { LINE_THEME } from '../../constants/lineTheme';
+
+const SettingsAppointmentsPage: React.FC = () => {
+  const { settings, uiState, sectionChanges, saveData, updateData } = useSettings();
+  const { isClinicAdmin } = useAuth();
+  const { alert } = useModal();
+  const [showLiffInfoModal, setShowLiffInfoModal] = useState(false);
+
+  // Scroll to top when component mounts
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  if (uiState.loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (!settings) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-600">無法載入設定</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <SettingsBackButton />
+      <div className="flex justify-between items-center mb-6">
+        <PageHeader title="預約設定" />
+        {sectionChanges.appointmentSettings && (
+          <button
+            type="button"
+            onClick={saveData}
+            disabled={uiState.saving}
+            className="btn-primary text-sm px-4 py-2"
+          >
+            {uiState.saving ? '儲存中...' : '儲存更變'}
+          </button>
+        )}
+      </div>
+      <form onSubmit={(e) => { e.preventDefault(); saveData(); }} className="space-y-4">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <ClinicAppointmentSettings
+            appointmentTypeInstructions={settings.clinic_info_settings.appointment_type_instructions ?? null}
+            appointmentNotesInstructions={settings.clinic_info_settings.appointment_notes_instructions ?? null}
+            bookingRestrictionSettings={settings.booking_restriction_settings}
+            requireBirthday={settings.clinic_info_settings.require_birthday || false}
+            onAppointmentTypeInstructionsChange={(instructions) => {
+              updateData((prev) => ({
+                clinic_info_settings: {
+                  ...prev.clinic_info_settings,
+                  appointment_type_instructions: instructions
+                }
+              }));
+            }}
+            onAppointmentNotesInstructionsChange={(instructions) => {
+              updateData((prev) => ({
+                clinic_info_settings: {
+                  ...prev.clinic_info_settings,
+                  appointment_notes_instructions: instructions
+                }
+              }));
+            }}
+            onBookingRestrictionSettingsChange={(bookingSettings) => {
+              updateData({
+                booking_restriction_settings: bookingSettings
+              });
+            }}
+            onRequireBirthdayChange={(value) => {
+              updateData((prev) => ({
+                clinic_info_settings: {
+                  ...prev.clinic_info_settings,
+                  require_birthday: value
+                }
+              }));
+            }}
+            isClinicAdmin={isClinicAdmin}
+          />
+
+          {/* 預約系統連結 Section */}
+          {settings.liff_urls && Object.keys(settings.liff_urls).length > 0 && (
+            <div className="mt-8 pt-8 border-t border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">預約系統連結</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowLiffInfoModal(true)}
+                  className="inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+                  aria-label="查看設定說明"
+                >
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 mb-4">
+                請將以下連結加入您的 LINE 官方帳號圖文選單，讓病患可以透過選單使用各項功能：
+              </p>
+              <div className="space-y-2">
+                {Object.entries(settings.liff_urls).map(([mode, url]) => {
+                  const modeInfo = {
+                    book: { name: '預約', description: '病患可預約新的就診時間' },
+                    query: { name: '預約管理', description: '病患可查詢、取消預約' },
+                    settings: { name: '就診人管理', description: '病患可新增、刪除、修改就診人資訊' },
+                    notifications: { name: '空位提醒', description: '病患可設定提醒，當有符合條件的空位時會收到通知' },
+                  }[mode] || { name: mode, description: '' };
+
+                  return (
+                    <div key={mode} className="bg-gray-50 rounded-lg p-2.5 border border-gray-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex-1">
+                          <h4 className="text-sm font-semibold text-gray-900 inline">{modeInfo.name}</h4>
+                          <span className="text-xs text-gray-600 ml-2">{modeInfo.description}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={url}
+                          onFocus={(e) => e.target.select()}
+                          className="flex-1 block w-full rounded-md border border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm font-mono text-xs bg-white px-2 py-1.5"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(url);
+                              await alert(`${modeInfo.name}連結已複製到剪貼簿！`, '成功');
+                            } catch (err) {
+                              logger.error('Failed to copy to clipboard:', err);
+                              await alert('複製失敗', '錯誤');
+                            }
+                          }}
+                          className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 whitespace-nowrap"
+                        >
+                          <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          複製
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Info Modal for 預約系統連結 setup steps */}
+          {showLiffInfoModal && (
+            <BaseModal
+              onClose={() => setShowLiffInfoModal(false)}
+              aria-label="預約系統連結設定說明"
+            >
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3 flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">預約系統連結設定步驟</h3>
+                  <div className="text-sm text-gray-700 space-y-2">
+                    <p className="mb-3">請將上述連結加入您的 LINE 官方帳號圖文選單，讓病患可以透過選單使用各項功能：</p>
+                    <ol className="list-decimal list-inside space-y-2 text-gray-700">
+                      <li>
+                        前往{' '}
+                        <a
+                          href="https://manager.line.biz/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 underline font-medium"
+                        >
+                          LINE 官方帳號管理頁面
+                        </a>
+                      </li>
+                      <li>點選診所的 LINE 官方帳號</li>
+                      <li>在目錄中，選擇「聊天室相關」底下的「圖文選單」</li>
+                      <li>為每個功能新增選單項目，並將對應的連結設為動作類型</li>
+                      <li>儲存並發布選單</li>
+                    </ol>
+                  </div>
+                  
+                  {/* LINE Official Account UI Mockup */}
+                  {settings.liff_urls && Object.keys(settings.liff_urls).length > 0 && (
+                    <div className="mt-6">
+                      <div className="text-xs text-gray-500 mb-2 text-center">LINE 官方帳號預覽</div>
+                      <div className="bg-white rounded-lg border-2 border-gray-300 shadow-xl overflow-hidden max-w-[280px] mx-auto">
+                        {/* Header */}
+                        <div className="bg-[#06C755] px-4 py-3 flex items-center gap-3">
+                          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                            <span className="text-[#06C755] text-lg font-bold">
+                              {settings.clinic_name?.[0] || '診'}
+                            </span>
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-white font-semibold text-sm">
+                              {settings.clinic_name || '診所名稱'}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Chat Interface */}
+                        <div 
+                          className="p-4 min-h-[250px] flex flex-col justify-start gap-3 pt-6"
+                          style={{ backgroundColor: LINE_THEME.chatBackground }}
+                        >
+                          {/* Clinic greeting message */}
+                          <div className="flex items-start gap-2">
+                            <div className="w-6 h-6 bg-[#06C755] rounded-full flex items-center justify-center flex-shrink-0">
+                              <span className="text-white text-xs font-bold">
+                                {settings.clinic_name?.[0] || '診'}
+                              </span>
+                            </div>
+                            <div className="bg-white rounded-lg px-3 py-2 shadow-sm max-w-[75%]">
+                              <p className="text-sm text-gray-800">
+                                歡迎加入好友！請點擊下方選單進行預約
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Rich Menu */}
+                        <div className="bg-white border-t-2 border-gray-200 p-2">
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {Object.entries(settings.liff_urls).map(([mode]) => {
+                              const modeInfo = {
+                                book: { name: '預約', icon: '📅' },
+                                query: { name: '預約管理', icon: '🔍' },
+                                settings: { name: '就診人管理', icon: '👤' },
+                                notifications: { name: '空位提醒', icon: '🔔' },
+                              }[mode] || { name: mode, icon: '📌' };
+
+                              return (
+                                <button
+                                  key={mode}
+                                  type="button"
+                                  className="bg-gray-50 border border-gray-200 rounded-lg p-1.5 text-center hover:bg-gray-100 transition-colors active:bg-gray-200 aspect-square flex flex-col items-center justify-center"
+                                >
+                                  <div className="text-base mb-0.5">{modeInfo.icon}</div>
+                                  <div className="text-[9px] font-medium text-gray-700 leading-tight">
+                                    {modeInfo.name}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowLiffInfoModal(false)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                    >
+                      關閉
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </BaseModal>
+          )}
+        </div>
+
+        {/* Error Display */}
+        {uiState.error && (
+          <div className="bg-white rounded-lg border border-red-200 shadow-sm p-6">
+            <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">錯誤</h3>
+                  <div className="mt-2 text-sm text-red-700 whitespace-pre-line">
+                    {uiState.error}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </form>
+    </div>
+  );
+};
+
+export default SettingsAppointmentsPage;
+

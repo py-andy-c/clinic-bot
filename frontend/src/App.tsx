@@ -4,6 +4,7 @@ import { I18nextProvider } from 'react-i18next';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { UnsavedChangesProvider } from './contexts/UnsavedChangesContext';
 import { ModalProvider } from './contexts/ModalContext';
+import { SettingsProvider } from './contexts/SettingsContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LoadingSpinner } from './components/shared';
 import i18n from './i18n';
@@ -20,7 +21,14 @@ const PatientsPage = lazy(() => import('./pages/PatientsPage'));
 const PatientDetailPage = lazy(() => import('./pages/PatientDetailPage'));
 const LineUsersPage = lazy(() => import('./pages/LineUsersPage'));
 const AutoAssignedAppointmentsPage = lazy(() => import('./pages/AutoAssignedAppointmentsPage'));
-const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const SettingsLayout = lazy(() => import('./components/SettingsLayout'));
+const SettingsIndexPage = lazy(() => import('./pages/settings/SettingsIndexPage'));
+const SettingsServiceItemsPage = lazy(() => import('./pages/settings/SettingsServiceItemsPage'));
+const SettingsAppointmentsPage = lazy(() => import('./pages/settings/SettingsAppointmentsPage'));
+const SettingsClinicInfoPage = lazy(() => import('./pages/settings/SettingsClinicInfoPage'));
+const SettingsRemindersPage = lazy(() => import('./pages/settings/SettingsRemindersPage'));
+const SettingsChatPage = lazy(() => import('./pages/settings/SettingsChatPage'));
+const SettingsReceiptsPage = lazy(() => import('./pages/settings/SettingsReceiptsPage'));
 const AvailabilityPage = lazy(() => import('./pages/AvailabilityPage'));
 const ClinicDashboardPage = lazy(() => import('./pages/ClinicDashboardPage'));
 const AccountingDashboardPage = lazy(() => import('./pages/AccountingDashboardPage'));
@@ -103,7 +111,19 @@ const AdminRoutes: React.FC = () => {
           <Route path="clinic/patients/:id" element={<PatientDetailPage />} />
           <Route path="clinic/line-users" element={<LineUsersPage />} />
           <Route path="clinic/pending-review-appointments" element={<AutoAssignedAppointmentsPage />} />
-          <Route path="clinic/settings" element={<SettingsPage />} />
+          <Route path="clinic/settings" element={
+            <SettingsProvider>
+              <SettingsLayout />
+            </SettingsProvider>
+          }>
+            <Route index element={<SettingsIndexPage />} />
+            <Route path="service-items" element={<SettingsServiceItemsPage />} />
+            <Route path="appointments" element={<SettingsAppointmentsPage />} />
+            <Route path="clinic-info" element={<SettingsClinicInfoPage />} />
+            <Route path="reminders" element={<SettingsRemindersPage />} />
+            <Route path="chat" element={<SettingsChatPage />} />
+            <Route path="receipts" element={<SettingsReceiptsPage />} />
+          </Route>
           <Route path="clinic/dashboard" element={<ClinicDashboardPage />} />
           <Route path="clinic/accounting" element={<AccountingDashboardPage />} />
           <Route path="calendar" element={<AvailabilityPage />} />

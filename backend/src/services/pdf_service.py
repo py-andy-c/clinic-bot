@@ -8,7 +8,6 @@ ensuring immutability and consistency between HTML display and PDF download.
 import logging
 from pathlib import Path
 from typing import Dict, Any
-from datetime import datetime
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from weasyprint import HTML  # type: ignore

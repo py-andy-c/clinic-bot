@@ -185,10 +185,10 @@ const GlobalWarnings: React.FC = () => {
     const currentPathname = location.pathname;
 
     // Settings pages that might affect warnings
-    const settingsPages = ['/admin/clinic/settings', '/admin/profile'];
+    const isSettingsPage = (path: string) => path.startsWith('/admin/clinic/settings') || path === '/admin/profile';
 
     // Only refresh if navigating away from settings pages
-    if (previousPathname && settingsPages.includes(previousPathname) && !settingsPages.includes(currentPathname)) {
+    if (previousPathname && isSettingsPage(previousPathname) && !isSettingsPage(currentPathname)) {
       // Invalidate cache to ensure fresh data after settings changes
       invalidateCacheForFunction(sharedFetchFunctions.getClinicSettings);
       invalidateCacheForFunction(sharedFetchFunctions.getMembers);
@@ -303,7 +303,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
   };
 
   const handleNavigation = useCallback(async (href: string) => {
-    if (hasUnsavedChanges && (location.pathname === '/admin/profile' || location.pathname === '/admin/clinic/settings')) {
+    if (hasUnsavedChanges && (location.pathname === '/admin/profile' || location.pathname.startsWith('/admin/clinic/settings'))) {
       const confirmed = await confirm('您有未儲存的變更，確定要離開嗎？', '確認離開');
       if (!confirmed) {
         return;

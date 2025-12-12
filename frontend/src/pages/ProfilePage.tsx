@@ -284,10 +284,13 @@ const ProfilePage: React.FC = () => {
     onSaveError: async (error: string) => {
       await alert(error, '儲存失敗');
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       // Invalidate practitioner status cache so warnings update after profile changes
       invalidateCacheByPattern('api_getPractitionerStatus_');
       invalidateCacheByPattern('api_getBatchPractitionerStatus_');
+      
+      // Show success message using modal
+      await alert('設定已更新', '成功');
     },
   }, { isLoading });
 

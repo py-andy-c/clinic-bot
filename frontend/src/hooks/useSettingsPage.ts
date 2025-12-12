@@ -127,9 +127,12 @@ export const useSettingsPage = <T extends Record<string, any>>(
 
       // Call onSuccess callback if provided
       if (config.onSuccess) {
-        config.onSuccess(data);
+        await config.onSuccess(data);
+        // Don't show default alert if onSuccess is provided (caller handles success messaging)
+        return;
       }
 
+      // Default success message if no onSuccess callback provided
       alert('設定已更新');
     } catch (err: any) {
       logger.error('Save settings error:', err);
