@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
+import { Z_INDEX } from '../../constants/app';
 import moment from 'moment-timezone';
 
 interface ReceiptViewModalProps {
@@ -61,11 +62,16 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
   };
 
   const handleDownloadPDF = async () => {
-    if (!receipt?.id) return;
+    const receiptId = receipt?.receipt_id;
+    
+    if (!receiptId) {
+      alert('無法下載：缺少收據ID');
+      return;
+    }
     
     setIsDownloading(true);
     try {
-      const blob = await apiService.downloadReceiptPDF(receipt.id);
+      const blob = await apiService.downloadReceiptPDF(receiptId);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -74,20 +80,25 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-    } catch (err) {
+    } catch (err: any) {
       logger.error('Error downloading PDF:', err);
-      alert('下載失敗，請重試');
+      alert(`下載失敗，請重試: ${err?.response?.data?.detail || err?.message || '未知錯誤'}`);
     } finally {
       setIsDownloading(false);
     }
   };
 
   const handleVoidReceipt = async () => {
-    if (!receipt?.id) return;
+    const receiptId = receipt?.receipt_id;
+    
+    if (!receiptId) {
+      alert('無法作廢：缺少收據ID');
+      return;
+    }
     
     setIsVoiding(true);
     try {
-      await apiService.voidReceipt(receipt.id, voidReason || undefined);
+      await apiService.voidReceipt(receiptId, voidReason || undefined);
       setShowVoidConfirm(false);
       setVoidReason('');
       if (onReceiptVoided) {
@@ -130,7 +141,11 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
   }
 
   const receiptData = receipt.receipt_data || {};
-  const isVoided = receipt.is_voided || false;
+  // Use standardized void_info structure (both endpoints now return ReceiptResponse)
+  const isVoided = receipt.void_info?.voided || false;
+  const voidedAt = receipt.void_info?.voided_at;
+  const voidedByName = receipt.void_info?.voided_by?.name;
+  const receiptVoidReason = receipt.void_info?.reason;
 
   // Format payment method for display
   const formatPaymentMethod = (method: string): string => {
@@ -154,19 +169,19 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
             <div className="flex items-center space-x-2 mb-2">
               <span className="text-xl font-bold text-red-600">已作廢</span>
             </div>
-            {receipt.voided_at && (
+            {voidedAt && (
               <p className="text-sm text-gray-700">
-                作廢日期: {moment(receipt.voided_at).tz('Asia/Taipei').format('YYYY-MM-DD HH:mm')}
+                作廢日期: {moment(voidedAt).tz('Asia/Taipei').format('YYYY-MM-DD HH:mm')}
               </p>
             )}
-            {receipt.voided_by_user_name && (
+            {voidedByName && (
               <p className="text-sm text-gray-700">
-                作廢者: {receipt.voided_by_user_name}
+                作廢者: {voidedByName}
               </p>
             )}
-            {receipt.void_reason && (
+            {receiptVoidReason && (
               <p className="text-sm text-gray-700">
-                作廢原因: {receipt.void_reason}
+                作廢原因: {receiptVoidReason}
               </p>
             )}
           </div>
@@ -268,8 +283,20 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
 
         {/* Void Confirmation Dialog */}
         {showVoidConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+            style={{ zIndex: Z_INDEX.MODAL + 1 }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowVoidConfirm(false);
+                setVoidReason('');
+              }
+            }}
+          >
+            <div 
+              className="bg-white rounded-lg p-6 max-w-md w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
               <h4 className="text-lg font-semibold mb-4">確認作廢收據</h4>
               <p className="text-sm text-gray-700 mb-4">
                 確定要作廢此收據嗎？此操作無法復原。作廢後可以重新開立新收據。

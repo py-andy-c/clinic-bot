@@ -205,7 +205,7 @@ class TestCheckoutEndpoint:
         
         # Try to create second receipt (should fail)
         from services.receipt_service import ConcurrentCheckoutError
-        with pytest.raises(ConcurrentCheckoutError, match="Another user is currently processing checkout"):
+        with pytest.raises(ConcurrentCheckoutError, match="此預約已有收據，無法重複結帳"):
             ReceiptService.create_receipt(
                 db=db_session,
                 appointment_id=appointment.calendar_event_id,

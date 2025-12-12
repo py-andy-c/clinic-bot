@@ -1009,7 +1009,7 @@ async def get_receipt_number_status(
         )
 
 
-@router.get("/receipts/{receipt_id}", response_model=None)
+@router.get("/receipts/{receipt_id}", response_model=ReceiptResponse)
 async def get_receipt_by_id(
     receipt_id: int,
     db: Session = Depends(get_db),
@@ -1030,7 +1030,7 @@ async def get_receipt_by_id(
                 detail="收據不存在"
             )
         
-        # Build response similar to get_appointment_receipt
+        # Build response using same logic as get_appointment_receipt for consistency
         receipt_data = receipt.receipt_data
         
         # Get voided by user info
@@ -1048,27 +1048,50 @@ async def get_receipt_by_id(
             ).first()
             voided_by_user_name = association.full_name if association else voided_by_user.email
         
-        # Merge void info into receipt_data for response
-        response_data = receipt_data.copy()
-        if receipt.is_voided:
-            response_data['is_voided'] = True
-            response_data['voided_at'] = receipt.voided_at.isoformat() if receipt.voided_at else None
-            response_data['voided_by_user_name'] = voided_by_user_name
-            # void_reason is not stored in Receipt model
-            response_data['void_reason'] = None
+        # Convert items (same approach as get_appointment_receipt)
+        items: List[ReceiptItemResponse] = []
+        for item_data in receipt_data.get("items", []):
+            items.append(ReceiptItemResponse(**item_data))
         
-        return {
-            'receipt_id': receipt.id,
-            'receipt_number': receipt.receipt_number,
-            'appointment_id': receipt.appointment_id,
-            'issue_date': receipt.issue_date.isoformat(),
-            'is_voided': receipt.is_voided,
-            'voided_at': receipt.voided_at.isoformat() if receipt.voided_at else None,
-            'voided_by_user_id': receipt.voided_by_user_id,
-            'voided_by_user_name': voided_by_user_name,
-            'void_reason': None,  # Not stored in Receipt model
-            'receipt_data': response_data
-        }
+        # Merge void info from database columns
+        void_info = receipt_data.get("void_info", {})
+        if receipt.is_voided:
+            void_info["voided"] = True
+            void_info["voided_at"] = receipt.voided_at.isoformat() if receipt.voided_at else None
+            if voided_by_user:
+                void_info["voided_by"] = {
+                    "id": voided_by_user.id,
+                    "name": voided_by_user_name,
+                    "email": voided_by_user.email
+                }
+            else:
+                void_info["voided_by"] = None
+            # void_reason is not stored in Receipt model, so keep from receipt_data if exists
+            void_info["reason"] = receipt_data.get("void_info", {}).get("reason")
+        else:
+            void_info["voided"] = False
+            void_info["voided_at"] = None
+            void_info["voided_by"] = None
+            void_info["reason"] = None
+        
+        return ReceiptResponse(
+            receipt_id=receipt.id,
+            receipt_number=receipt.receipt_number,
+            appointment_id=receipt.appointment_id,
+            issue_date=receipt.issue_date,
+            visit_date=datetime.fromisoformat(receipt_data["visit_date"].replace('Z', '+00:00')),
+            total_amount=receipt.total_amount,
+            total_revenue_share=receipt.total_revenue_share,
+            created_at=receipt.created_at,
+            checked_out_by=receipt_data["checked_out_by"],
+            clinic=receipt_data["clinic"],
+            patient=receipt_data["patient"],
+            items=items,
+            payment_method=receipt_data["payment_method"],
+            custom_notes=receipt_data.get("custom_notes"),
+            stamp=receipt_data.get("stamp", {"enabled": False}),
+            void_info=void_info
+        )
     except HTTPException:
         raise
     except Exception as e:

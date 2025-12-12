@@ -4,7 +4,7 @@
  * Modal for processing checkout for an appointment (admin-only).
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BaseModal } from './BaseModal';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
@@ -41,10 +41,37 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [availableServiceItems, setAvailableServiceItems] = useState<Array<{ id: number; name: string; receipt_name?: string | null }>>([]);
   const [billingScenarios, setBillingScenarios] = useState<Record<string, any[]>>({});
 
+  const loadBillingScenarios = useCallback(async (serviceItemId: number, practitionerId: number): Promise<void> => {
+    const key = `${serviceItemId}-${practitionerId}`;
+    if (billingScenarios[key]) return Promise.resolve();
+    
+    try {
+      const data = await apiService.getBillingScenarios(serviceItemId, practitionerId);
+      setBillingScenarios(prev => ({
+        ...prev,
+        [key]: data.billing_scenarios,
+      }));
+      return Promise.resolve();
+    } catch (err) {
+      logger.error('Error loading billing scenarios:', err);
+      return Promise.resolve();
+    }
+  }, [billingScenarios]);
+
   // Initialize with default item from appointment
   useEffect(() => {
+    // Only initialize if appointmentTypes are loaded
+    if (appointmentTypes.length === 0) {
+      // If no appointment types yet, set empty items and wait for them to load
+      setAvailableServiceItems([]);
+      return;
+    }
+    
     const appointmentType = appointmentTypes.find(at => at.id === event.resource.appointment_type_id);
     const practitionerId = event.resource.practitioner_id;
+    
+    // Load all service items first
+    setAvailableServiceItems(appointmentTypes);
     
     if (appointmentType && practitionerId) {
       // Load billing scenarios for default item
@@ -66,28 +93,23 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           return prev; // Return unchanged state
         });
       });
+    } else if (appointmentType) {
+      // If we have appointment type but no practitioner, still set the service item
+      setItems([{
+        service_item_id: appointmentType.id,
+        practitioner_id: null,
+        billing_scenario_id: null,
+        amount: 0,
+        revenue_share: 0,
+      }]);
+    } else {
+      // No appointment type, start with empty item
+      setItems([{
+        amount: 0,
+        revenue_share: 0,
+      }]);
     }
-    
-    // Load all service items
-    setAvailableServiceItems(appointmentTypes);
-  }, [event, appointmentTypes]);
-
-  const loadBillingScenarios = async (serviceItemId: number, practitionerId: number): Promise<void> => {
-    const key = `${serviceItemId}-${practitionerId}`;
-    if (billingScenarios[key]) return Promise.resolve();
-    
-    try {
-      const data = await apiService.getBillingScenarios(serviceItemId, practitionerId);
-      setBillingScenarios(prev => ({
-        ...prev,
-        [key]: data.billing_scenarios,
-      }));
-      return Promise.resolve();
-    } catch (err) {
-      logger.error('Error loading billing scenarios:', err);
-      return Promise.resolve();
-    }
-  };
+  }, [event, appointmentTypes, loadBillingScenarios]);
 
   const handleAddItem = () => {
     setItems([...items, {
@@ -322,7 +344,27 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       </label>
                       <select
                         value={item.practitioner_id || ''}
-                        onChange={(e) => handleItemChange(index, 'practitioner_id', e.target.value ? parseInt(e.target.value) : null)}
+                        onChange={async (e) => {
+                          const practitionerId = e.target.value ? parseInt(e.target.value) : null;
+                          handleItemChange(index, 'practitioner_id', practitionerId);
+                          
+                          // Load billing scenarios when practitioner is selected
+                          if (item.service_item_id && practitionerId) {
+                            await loadBillingScenarios(item.service_item_id, practitionerId);
+                            // Auto-select default scenario
+                            const key = `${item.service_item_id}-${practitionerId}`;
+                            setBillingScenarios(prev => {
+                              const scenarios = prev[key] || [];
+                              const defaultScenario = scenarios.find((s: any) => s.is_default);
+                              if (defaultScenario) {
+                                handleItemChange(index, 'billing_scenario_id', defaultScenario.id);
+                                handleItemChange(index, 'amount', defaultScenario.amount);
+                                handleItemChange(index, 'revenue_share', defaultScenario.revenue_share);
+                              }
+                              return prev;
+                            });
+                          }
+                        }}
                         className="input"
                       >
                         <option value="">不指定</option>

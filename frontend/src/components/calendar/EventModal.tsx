@@ -313,17 +313,19 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 </button>
               )}
               
+              {/* Duplicate Button - Always show (creates new appointment, doesn't modify existing) */}
+              {onDuplicateAppointment && (
+                <button
+                  onClick={onDuplicateAppointment}
+                  className="btn-primary bg-green-600 hover:bg-green-700"
+                >
+                  複製
+                </button>
+              )}
+              
               {/* Edit/Delete Buttons - Hide when receipt exists */}
               {!event.resource.has_receipt && (
                 <>
-                  {onDuplicateAppointment && (
-            <button
-              onClick={onDuplicateAppointment}
-              className="btn-primary bg-green-600 hover:bg-green-700"
-            >
-              複製
-            </button>
-          )}
                   {onEditAppointment && (
             <button
               onClick={onEditAppointment}

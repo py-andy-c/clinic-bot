@@ -121,7 +121,7 @@ class ReceiptService:
         ).first()
         
         if existing_receipt:
-            raise ConcurrentCheckoutError("Another user is currently processing checkout for this appointment")
+            raise ConcurrentCheckoutError("此預約已有收據，無法重複結帳")
         
         # Get clinic
         clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
@@ -343,6 +343,70 @@ class ReceiptService:
         ).order_by(Receipt.voided_at.desc()).first()
         
         return receipt
+
+    @staticmethod
+    def get_receipts_for_appointments(
+        db: Session,
+        appointment_ids: List[int]
+    ) -> Dict[int, Optional[Receipt]]:
+        """
+        Get receipts for multiple appointments in a single query (optimized for bulk loading).
+        Returns a mapping from appointment_id to receipt (or None if no receipt exists).
+        
+        For each appointment:
+        - Returns active (non-voided) receipt if exists
+        - Otherwise returns most recent voided receipt if exists
+        - Otherwise returns None
+        
+        Args:
+            db: Database session
+            appointment_ids: List of appointment IDs
+            
+        Returns:
+            Dict mapping appointment_id to Receipt or None
+        """
+        if not appointment_ids:
+            return {}
+        
+        # Get all active receipts for these appointments
+        active_receipts = db.query(Receipt).filter(
+            Receipt.appointment_id.in_(appointment_ids),
+            Receipt.is_voided == False
+        ).all()
+        
+        # Create mapping of appointment_id -> active receipt
+        receipt_map: Dict[int, Optional[Receipt]] = {}
+        for receipt in active_receipts:
+            receipt_map[receipt.appointment_id] = receipt
+        
+        # Find appointments that don't have active receipts
+        appointments_without_active = [
+            appt_id for appt_id in appointment_ids 
+            if appt_id not in receipt_map
+        ]
+        
+        if appointments_without_active:
+            # Get all voided receipts for appointments without active receipts
+            voided_receipts = db.query(Receipt).filter(
+                Receipt.appointment_id.in_(appointments_without_active),
+                Receipt.is_voided == True
+            ).order_by(Receipt.appointment_id, Receipt.voided_at.desc()).all()
+            
+            # Group by appointment_id and take the first (most recent) for each
+            voided_receipts_by_appointment: Dict[int, Receipt] = {}
+            for receipt in voided_receipts:
+                if receipt.appointment_id not in voided_receipts_by_appointment:
+                    voided_receipts_by_appointment[receipt.appointment_id] = receipt
+            
+            # Add to receipt_map
+            receipt_map.update(voided_receipts_by_appointment)
+        
+        # Ensure all appointment_ids are in the map (with None for those without receipts)
+        result: Dict[int, Optional[Receipt]] = {}
+        for appt_id in appointment_ids:
+            result[appt_id] = receipt_map.get(appt_id)
+        
+        return result
 
     @staticmethod
     def get_receipt_by_id(

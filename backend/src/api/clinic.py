@@ -33,6 +33,7 @@ from models.clinic import ClinicSettings, ChatSettings as ChatSettingsModel
 from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService, ReminderService
 from services.availability_service import AvailabilityService
 from services.notification_service import NotificationService
+from services.receipt_service import ReceiptService
 from services.clinic_agent import ClinicAgentService
 from services.line_user_ai_disabled_service import (
     disable_ai_for_line_user,
@@ -3291,6 +3292,9 @@ class CalendarEventResponse(BaseModel):
     practitioner_name: Optional[str] = None  # Practitioner full name for cancellation preview
     appointment_type_name: Optional[str] = None  # Appointment type name for cancellation preview
     is_auto_assigned: Optional[bool] = None  # Whether appointment is auto-assigned by system
+    has_receipt: bool = False  # Whether appointment has an active receipt
+    receipt_id: Optional[int] = None  # ID of active receipt if exists
+    is_receipt_voided: Optional[bool] = None  # Whether receipt is voided (if receipt exists)
 
 
 class CalendarDayDetailResponse(BaseModel):
@@ -3721,6 +3725,19 @@ async def get_calendar_data(
             ).first()
             practitioner_name = practitioner_association.full_name if practitioner_association else user.email
             
+            # Collect appointment IDs for bulk receipt query (optimize N+1 query)
+            appointment_ids = [
+                event.appointment.calendar_event_id
+                for event in events
+                if event.event_type == 'appointment' 
+                and event.appointment 
+                and event.appointment.status == 'confirmed' 
+                and not event.appointment.is_auto_assigned
+            ]
+            
+            # Bulk load receipts for all appointments
+            receipts_map = ReceiptService.get_receipts_for_appointments(db, appointment_ids)
+            
             event_responses: List[CalendarEventResponse] = []
             for event in events:
                 if event.event_type == 'appointment':
@@ -3743,6 +3760,12 @@ async def get_calendar_data(
                         if appointment.patient and appointment.patient.birthday:
                             patient_birthday_str = appointment.patient.birthday.strftime('%Y-%m-%d')
                         
+                        # Get receipt status from bulk-loaded map
+                        receipt = receipts_map.get(appointment.calendar_event_id)
+                        has_receipt = receipt is not None
+                        receipt_id = receipt.id if receipt else None
+                        is_receipt_voided = receipt.is_voided if receipt else None
+                        
                         event_responses.append(CalendarEventResponse(
                             calendar_event_id=event.id,
                             type='appointment',
@@ -3761,7 +3784,10 @@ async def get_calendar_data(
                             patient_name=appointment.patient.full_name,
                             practitioner_name=practitioner_name,
                             appointment_type_name=appointment_type_name,
-                            is_auto_assigned=appointment.is_auto_assigned
+                            is_auto_assigned=appointment.is_auto_assigned,
+                            has_receipt=has_receipt,
+                            receipt_id=receipt_id,
+                            is_receipt_voided=is_receipt_voided
                         ))
                 elif event.event_type == 'availability_exception':
                     # Exception is already loaded via eager loading, no additional query needed
@@ -3942,6 +3968,19 @@ async def get_batch_calendar(
                 events_by_practitioner_date[key] = []
             events_by_practitioner_date[key].append(event)
         
+        # Collect all appointment IDs for bulk receipt query (optimize N+1 query)
+        appointment_ids = [
+            event.appointment.calendar_event_id
+            for event in events
+            if event.event_type == 'appointment'
+            and event.appointment
+            and event.appointment.status == 'confirmed'
+            and not event.appointment.is_auto_assigned
+        ]
+        
+        # Bulk load receipts for all appointments
+        receipts_map = ReceiptService.get_receipts_for_appointments(db, appointment_ids)
+        
         # Build response for each practitioner and date
         results: List[BatchCalendarDayResponse] = []
         current_date = start_date
@@ -3977,6 +4016,12 @@ async def get_batch_calendar(
                             if appointment.patient and appointment.patient.birthday:
                                 patient_birthday_str = appointment.patient.birthday.strftime('%Y-%m-%d')
                             
+                            # Get receipt status from bulk-loaded map
+                            receipt = receipts_map.get(appointment.calendar_event_id)
+                            has_receipt = receipt is not None
+                            receipt_id = receipt.id if receipt else None
+                            is_receipt_voided = receipt.is_voided if receipt else None
+                            
                             event_responses.append(CalendarEventResponse(
                                 calendar_event_id=event.id,
                                 type='appointment',
@@ -3995,7 +4040,10 @@ async def get_batch_calendar(
                                 patient_name=appointment.patient.full_name,
                                 practitioner_name=practitioner_name,
                                 appointment_type_name=appointment_type_name,
-                                is_auto_assigned=appointment.is_auto_assigned
+                                is_auto_assigned=appointment.is_auto_assigned,
+                                has_receipt=has_receipt,
+                                receipt_id=receipt_id,
+                                is_receipt_voided=is_receipt_voided
                             ))
                     elif event.event_type == 'availability_exception':
                         exception = event.availability_exception

@@ -182,7 +182,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Trigger settings fetch when modals that need it are opened
   useEffect(() => {
-    if (modalState.type === 'create_appointment' || modalState.type === 'edit_appointment') {
+    if (modalState.type === 'create_appointment' || modalState.type === 'edit_appointment' || modalState.type === 'event') {
       setShouldFetchSettings(true);
     }
   }, [modalState.type]);
