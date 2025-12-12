@@ -111,12 +111,19 @@ class ChatSettings(BaseModel):
     ai_guidance: Optional[str] = Field(default=None, max_length=10000, description="AI guidance instructions for the chatbot")
 
 
+class ReceiptSettings(BaseModel):
+    """Schema for receipt settings."""
+    custom_notes: Optional[str] = Field(default=None, max_length=2000, description="Custom notes to append at the end of receipts")
+    show_stamp: bool = Field(default=False, description="Whether to display a stamp with clinic name and checkout date on receipts")
+
+
 class ClinicSettings(BaseModel):
     """Schema for all clinic settings."""
     notification_settings: NotificationSettings = Field(default_factory=NotificationSettings)
     booking_restriction_settings: BookingRestrictionSettings = Field(default_factory=BookingRestrictionSettings)
     clinic_info_settings: ClinicInfoSettings = Field(default_factory=ClinicInfoSettings)
     chat_settings: ChatSettings = Field(default_factory=ChatSettings)
+    receipt_settings: ReceiptSettings = Field(default_factory=ReceiptSettings)
 
 
 class Clinic(Base):

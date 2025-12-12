@@ -8,7 +8,7 @@ Each type has a specific duration and belongs to a particular clinic.
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, ForeignKey, TIMESTAMP
+from sqlalchemy import String, ForeignKey, TIMESTAMP, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -36,6 +36,18 @@ class AppointmentType(Base):
 
     duration_minutes: Mapped[int] = mapped_column()
     """Expected duration of appointments of this type in minutes (e.g., 30, 60, 90)."""
+
+    receipt_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    """Name to display on receipt (can differ from name). Defaults to name if not set."""
+
+    allow_patient_booking: Mapped[bool] = mapped_column(default=True)
+    """Whether patients can book this service via LIFF. Default: true."""
+
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    """Service description shown on LIFF."""
+
+    scheduling_buffer_minutes: Mapped[int] = mapped_column(default=0)
+    """Additional minutes added to duration for scheduling. Default: 0."""
 
     is_deleted: Mapped[bool] = mapped_column(default=False)
     """Soft delete flag. True if this appointment type has been deleted."""

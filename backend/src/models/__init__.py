@@ -18,6 +18,8 @@ from .line_push_message import LinePushMessage
 from .line_ai_reply import LineAiReply
 from .availability_notification import AvailabilityNotification
 from .practitioner_link_code import PractitionerLinkCode
+from .billing_scenario import BillingScenario
+from .receipt import Receipt
 
 __all__ = [
     "Clinic",
@@ -38,4 +40,6 @@ __all__ = [
     "LineAiReply",
     "AvailabilityNotification",
     "PractitionerLinkCode",
+    "BillingScenario",
+    "Receipt",
 ]

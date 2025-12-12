@@ -108,6 +108,9 @@ class Appointment(Base):
     appointment_type = relationship("AppointmentType", back_populates="appointments")
     """Relationship to the AppointmentType entity defining this appointment's service type."""
 
+    receipt = relationship("Receipt", back_populates="appointment", uselist=False)
+    """Relationship to the Receipt entity (one-to-one, if receipt exists)."""
+
     # Convenience properties for backward compatibility
     @property
     def user_id(self) -> int:

@@ -12,6 +12,10 @@ from models.appointment_type import AppointmentType
 from models.appointment import Appointment
 from models.calendar_event import CalendarEvent
 from models.line_push_message import LinePushMessage
+from models.practitioner_appointment_types import PractitionerAppointmentTypes
+from models.billing_scenario import BillingScenario
+from models.receipt import Receipt
+from decimal import Decimal
 
 
 class TestClinicModel:
@@ -576,3 +580,405 @@ class TestLinePushMessageModel:
             LinePushMessage.id == push_message_id
         ).first()
         assert deleted_message is None
+
+
+class TestAppointmentTypeBillingFields:
+    """Test cases for AppointmentType billing-related fields."""
+
+    def test_appointment_type_with_billing_fields(self, db_session):
+        """Test appointment type with new billing fields."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        apt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="初診評估",
+            duration_minutes=60,
+            receipt_name="初診評估收據",
+            allow_patient_booking=True,
+            description="Initial consultation service",
+            scheduling_buffer_minutes=10
+        )
+        db_session.add(apt_type)
+        db_session.commit()
+
+        assert apt_type.receipt_name == "初診評估收據"
+        assert apt_type.allow_patient_booking is True
+        assert apt_type.description == "Initial consultation service"
+        assert apt_type.scheduling_buffer_minutes == 10
+
+    def test_appointment_type_defaults(self, db_session):
+        """Test appointment type billing field defaults."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        apt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="一般複診",
+            duration_minutes=30
+        )
+        db_session.add(apt_type)
+        db_session.commit()
+
+        # Defaults should be set
+        assert apt_type.allow_patient_booking is True
+        assert apt_type.scheduling_buffer_minutes == 0
+        assert apt_type.receipt_name is None  # Can be null
+        assert apt_type.description is None  # Can be null
+
+
+class TestBillingScenarioModel:
+    """Test cases for BillingScenario model."""
+
+    def test_billing_scenario_creation(self, db_session):
+        """Test billing scenario model creation."""
+        from models.user_clinic_association import UserClinicAssociation
+        
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        user = User(
+            email="practitioner@test.com",
+            google_subject_id="google_practitioner_123"
+        )
+        db_session.add(user)
+        db_session.flush()
+        
+        # Create clinic association
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            full_name="Test Practitioner",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.add(association)
+        db_session.commit()
+
+        apt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="初診評估",
+            duration_minutes=60
+        )
+        db_session.add(apt_type)
+        db_session.commit()
+
+        pat = PractitionerAppointmentTypes(
+            user_id=user.id,
+            appointment_type_id=apt_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        scenario = BillingScenario(
+            practitioner_appointment_type_id=pat.id,
+            name="原價",
+            amount=Decimal("1000.00"),
+            revenue_share=Decimal("300.00"),
+            is_default=True
+        )
+        db_session.add(scenario)
+        db_session.commit()
+
+        assert scenario.name == "原價"
+        assert scenario.amount == Decimal("1000.00")
+        assert scenario.revenue_share == Decimal("300.00")
+        assert scenario.is_default is True
+        assert scenario.is_deleted is False
+
+    def test_billing_scenario_revenue_share_validation(self, db_session):
+        """Test that revenue_share <= amount constraint is enforced."""
+        from models.user_clinic_association import UserClinicAssociation
+        
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        user = User(
+            email="practitioner@test.com",
+            google_subject_id="google_practitioner_456"
+        )
+        db_session.add(user)
+        db_session.flush()
+        
+        # Create clinic association
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            full_name="Test Practitioner",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.add(association)
+        db_session.commit()
+
+        apt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="初診評估",
+            duration_minutes=60
+        )
+        db_session.add(apt_type)
+        db_session.commit()
+
+        pat = PractitionerAppointmentTypes(
+            user_id=user.id,
+            appointment_type_id=apt_type.id,
+            clinic_id=clinic.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        # This should work: revenue_share <= amount
+        scenario = BillingScenario(
+            practitioner_appointment_type_id=pat.id,
+            name="原價",
+            amount=Decimal("1000.00"),
+            revenue_share=Decimal("1000.00"),  # Equal to amount
+            is_default=True
+        )
+        db_session.add(scenario)
+        db_session.commit()
+        assert scenario.revenue_share == Decimal("1000.00")
+
+        # This should fail: revenue_share > amount (database constraint)
+        invalid_scenario = BillingScenario(
+            practitioner_appointment_type_id=pat.id,
+            name="無效方案",
+            amount=Decimal("1000.00"),
+            revenue_share=Decimal("1500.00"),  # Greater than amount - should fail
+            is_default=False
+        )
+        db_session.add(invalid_scenario)
+        with pytest.raises(Exception):  # Should raise database constraint error
+            db_session.commit()
+        db_session.rollback()
+
+
+class TestReceiptModel:
+    """Test cases for Receipt model."""
+
+    def test_receipt_creation(self, db_session):
+        """Test receipt model creation."""
+        from models.user_clinic_association import UserClinicAssociation
+        
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        user = User(
+            email="admin@test.com",
+            google_subject_id="google_admin_123"
+        )
+        db_session.add(user)
+        db_session.flush()
+        
+        # Create clinic association
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            full_name="Admin User",
+            roles=["admin"],
+            is_active=True
+        )
+        db_session.add(association)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        apt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="初診評估",
+            duration_minutes=60
+        )
+        db_session.add(apt_type)
+        db_session.commit()
+
+        from datetime import date, time, timezone as tz
+        calendar_event = CalendarEvent(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            event_type='appointment',
+            date=date.today(),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=apt_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        receipt_data = {
+            "receipt_number": "2024-00001",
+            "issue_date": "2024-01-15T10:30:00+08:00",
+            "visit_date": "2024-01-15T09:00:00+08:00",
+            "clinic": {"id": clinic.id, "display_name": "Test Clinic"},
+            "patient": {"id": patient.id, "name": "Test Patient"},
+            "checked_out_by": {"id": user.id, "name": "Admin User"},
+            "items": [],
+            "totals": {"total_amount": 1000.00, "total_revenue_share": 300.00},
+            "payment_method": "cash",
+            "void_info": {"voided": False, "voided_at": None, "voided_by": None, "reason": None}
+        }
+
+        receipt = Receipt(
+            appointment_id=appointment.calendar_event_id,
+            clinic_id=clinic.id,
+            receipt_number="2024-00001",
+            issue_date=datetime.now(timezone.utc),
+            total_amount=Decimal("1000.00"),
+            total_revenue_share=Decimal("300.00"),
+            receipt_data=receipt_data
+        )
+        db_session.add(receipt)
+        db_session.commit()
+
+        assert receipt.receipt_number == "2024-00001"
+        assert receipt.total_amount == Decimal("1000.00")
+        assert receipt.total_revenue_share == Decimal("300.00")
+        assert receipt.is_voided is False
+        assert receipt.voided_at is None
+
+    def test_receipt_voiding(self, db_session):
+        """Test receipt voiding functionality."""
+        from models.user_clinic_association import UserClinicAssociation
+        
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        user = User(
+            email="admin@test.com",
+            google_subject_id="google_admin_456"
+        )
+        db_session.add(user)
+        db_session.flush()
+        
+        # Create clinic association
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            full_name="Admin User",
+            roles=["admin"],
+            is_active=True
+        )
+        db_session.add(association)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        apt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="初診評估",
+            duration_minutes=60
+        )
+        db_session.add(apt_type)
+        db_session.commit()
+
+        from datetime import date, time, timezone
+        calendar_event = CalendarEvent(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            event_type='appointment',
+            date=date.today(),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=apt_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        receipt_data = {
+            "receipt_number": "2024-00001",
+            "issue_date": "2024-01-15T10:30:00+08:00",
+            "visit_date": "2024-01-15T09:00:00+08:00",
+            "clinic": {"id": clinic.id, "display_name": "Test Clinic"},
+            "patient": {"id": patient.id, "name": "Test Patient"},
+            "checked_out_by": {"id": user.id, "name": "Admin User"},
+            "items": [],
+            "totals": {"total_amount": 1000.00, "total_revenue_share": 300.00},
+            "payment_method": "cash",
+            "void_info": {"voided": False, "voided_at": None, "voided_by": None, "reason": None}
+        }
+
+        receipt = Receipt(
+            appointment_id=appointment.calendar_event_id,
+            clinic_id=clinic.id,
+            receipt_number="2024-00001",
+            issue_date=datetime.now(timezone.utc),
+            total_amount=Decimal("1000.00"),
+            total_revenue_share=Decimal("300.00"),
+            receipt_data=receipt_data
+        )
+        db_session.add(receipt)
+        db_session.commit()
+
+        # Void the receipt
+        receipt.is_voided = True
+        receipt.voided_at = datetime.now(timezone.utc)
+        receipt.voided_by_user_id = user.id
+        db_session.commit()
+
+        assert receipt.is_voided is True
+        assert receipt.voided_at is not None
+        assert receipt.voided_by_user_id == user.id

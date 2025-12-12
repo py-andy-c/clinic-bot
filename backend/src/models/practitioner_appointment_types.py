@@ -46,6 +46,9 @@ class PractitionerAppointmentTypes(Base):
     appointment_type = relationship("AppointmentType", back_populates="practitioner_appointment_types")
     """Relationship to the AppointmentType entity."""
 
+    billing_scenarios = relationship("BillingScenario", back_populates="practitioner_appointment_type", cascade="all, delete-orphan")
+    """Relationship to billing scenarios for this practitioner-service combination."""
+
     __table_args__ = (
         # Composite unique constraint prevents duplicate mappings per clinic
         # Note: clinic_id is included to allow same practitioner to have same appointment type in different clinics

@@ -39,6 +39,9 @@ from models.practitioner_availability import PractitionerAvailability
 from models.calendar_event import CalendarEvent
 from models.availability_notification import AvailabilityNotification
 from models.practitioner_link_code import PractitionerLinkCode
+from models.practitioner_appointment_types import PractitionerAppointmentTypes
+from models.billing_scenario import BillingScenario
+from models.receipt import Receipt
 
 
 # Test database URL
