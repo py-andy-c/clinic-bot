@@ -49,6 +49,11 @@ export const ChatSettingsSchema = z.object({
   ai_guidance: z.string().nullable().optional(),
 });
 
+export const ReceiptSettingsSchema = z.object({
+  custom_notes: z.string().nullable().optional(),
+  show_stamp: z.boolean().optional(),
+});
+
 export const BusinessHoursSchema = z.record(z.string(), z.object({
   start: z.string(),
   end: z.string(),
@@ -60,6 +65,10 @@ export const AppointmentTypeSchema = z.object({
   clinic_id: z.number(),
   name: z.string(),
   duration_minutes: z.number(),
+  receipt_name: z.string().nullable().optional(),
+  allow_patient_booking: z.boolean().optional(),
+  description: z.string().nullable().optional(),
+  scheduling_buffer_minutes: z.number().optional(),
 });
 
 export const ClinicSettingsSchema = z.object({
@@ -71,6 +80,7 @@ export const ClinicSettingsSchema = z.object({
   booking_restriction_settings: BookingRestrictionSettingsSchema,
   clinic_info_settings: ClinicInfoSettingsSchema,
   chat_settings: ChatSettingsSchema,
+  receipt_settings: ReceiptSettingsSchema.optional(),
   liff_urls: z.record(z.string(), z.string()).optional(), // Dictionary of mode -> URL (excluding 'home')
 });
 
@@ -114,6 +124,7 @@ export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
 export type BookingRestrictionSettings = z.infer<typeof BookingRestrictionSettingsSchema>;
 export type ClinicInfoSettings = z.infer<typeof ClinicInfoSettingsSchema>;
 export type ChatSettings = z.infer<typeof ChatSettingsSchema>;
+export type ReceiptSettings = z.infer<typeof ReceiptSettingsSchema>;
 export type User = z.infer<typeof UserSchema>;
 export type AuthUser = z.infer<typeof AuthUserSchema>;
 export type SignupResponse = z.infer<typeof SignupResponseSchema>;

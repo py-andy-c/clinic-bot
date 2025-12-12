@@ -6,13 +6,11 @@ import { useAuth } from '../hooks/useAuth';
 import { useSettingsPage } from '../hooks/useSettingsPage';
 import { useModal } from '../contexts/ModalContext';
 import { validateProfileSettings, getProfileSectionChanges } from '../utils/profileSettings';
-import { apiService, sharedFetchFunctions } from '../services/api';
-import { useApiData, invalidateCacheByPattern } from '../hooks/useApiData';
-import { ClinicSettings } from '../schemas/api';
+import { apiService } from '../services/api';
+import { invalidateCacheByPattern } from '../hooks/useApiData';
 import ProfileForm from '../components/ProfileForm';
 import { getErrorMessage } from '../types/api';
 import AvailabilitySettings from '../components/AvailabilitySettings';
-import PractitionerAppointmentTypes from '../components/PractitionerAppointmentTypes';
 import CompactScheduleSettings from '../components/CompactScheduleSettings';
 import PractitionerNotificationTimeSettings from '../components/PractitionerNotificationTimeSettings';
 import AdminAutoAssignedNotificationTimeSettings from '../components/AdminAutoAssignedNotificationTimeSettings';
@@ -161,7 +159,6 @@ interface PractitionerSettings {
 interface ProfileData {
   fullName: string;
   schedule: any;
-  selectedAppointmentTypeIds: number[];
   settings?: PractitionerSettings;
 }
 
@@ -178,16 +175,6 @@ const ProfilePage: React.FC = () => {
   // Profile state for display (set from useSettingsPage fetchData)
   const [profile, setProfile] = React.useState<any>(null);
 
-  // Fetch clinic settings with caching (shares cache with GlobalWarnings)
-  const { data: clinicSettings } = useApiData<ClinicSettings>(
-    sharedFetchFunctions.getClinicSettings,
-    {
-      enabled: !isLoading && !!user,
-      dependencies: [isLoading, user, activeClinicId],
-      cacheTTL: 5 * 60 * 1000, // 5 minutes cache
-    }
-  );
-
   const {
     data: profileData,
     uiState,
@@ -200,7 +187,6 @@ const ProfilePage: React.FC = () => {
       const result: ProfileData = {
         fullName: '',
         schedule: {},
-        selectedAppointmentTypeIds: [],
         settings: {
           compact_schedule_enabled: false,
         },
@@ -245,13 +231,6 @@ const ProfilePage: React.FC = () => {
           logger.warn('Could not fetch availability schedule:', err);
         }
 
-        // Fetch practitioner's appointment types
-        try {
-          const practitionerData = await apiService.getPractitionerAppointmentTypes(user.user_id);
-          result.selectedAppointmentTypeIds = practitionerData.appointment_types.map((at: any) => at.id);
-        } catch (err) {
-          logger.warn('Could not fetch practitioner appointment types:', err);
-        }
       }
 
       return result;
@@ -291,28 +270,10 @@ const ProfilePage: React.FC = () => {
         setProfile(updatedProfile);
       }
 
-      // Save schedule and appointment types changes (only for practitioners)
+      // Save schedule changes (only for practitioners)
       if (user?.roles?.includes('practitioner') && user.user_id) {
         // Always save schedule for practitioners
         await apiService.updatePractitionerDefaultSchedule(user.user_id, data.schedule);
-
-        // Filter appointment type IDs to only include valid ones for current clinic
-        // This prevents errors when switching clinics (old clinic's appointment type IDs might still be in state)
-        try {
-          const clinicSettings = await apiService.getClinicSettings();
-          const validAppointmentTypeIds = new Set(
-            clinicSettings.appointment_types.map((at: { id: number }) => at.id)
-          );
-          const filteredAppointmentTypeIds = data.selectedAppointmentTypeIds.filter(
-            (id: number) => validAppointmentTypeIds.has(id)
-          );
-
-          await apiService.updatePractitionerAppointmentTypes(user.user_id, filteredAppointmentTypeIds);
-        } catch (err) {
-          logger.error('Error filtering appointment types before save:', err);
-          // If we can't get clinic settings, try to save anyway (backend will validate)
-          await apiService.updatePractitionerAppointmentTypes(user.user_id, data.selectedAppointmentTypeIds);
-        }
       }
     },
     validateData: validateProfileSettings,
@@ -438,20 +399,6 @@ const ProfilePage: React.FC = () => {
                   onSave={saveData}
                   saving={uiState.saving}
                 />
-              )}
-
-              {/* Practitioner Appointment Types (Only for practitioners) */}
-              {profile?.roles?.includes('practitioner') && (
-                <div className="pt-6">
-                  <PractitionerAppointmentTypes
-                    selectedAppointmentTypeIds={profileData?.selectedAppointmentTypeIds || []}
-                    {...(clinicSettings?.appointment_types ? { availableTypes: clinicSettings.appointment_types } : {})}
-                    onAppointmentTypeChange={(selectedTypeIds) => updateData({ selectedAppointmentTypeIds: selectedTypeIds })}
-                    showSaveButton={sectionChanges.appointmentTypes || false}
-                    onSave={saveData}
-                    saving={uiState.saving}
-                  />
-                </div>
               )}
 
               {/* Compact Schedule Settings (Only for practitioners) */}

@@ -584,6 +584,12 @@ export const PatientAppointmentsList: React.FC<
           }
           formatAppointmentTime={formatEventTimeRange}
           hidePatientInfo={true}
+          appointmentTypes={appointmentTypes}
+          practitioners={practitioners}
+          onReceiptCreated={async () => {
+            // Refresh appointments after receipt creation
+            await refetch();
+          }}
           onEventNameUpdated={handleEventNameUpdated}
         />
       )}

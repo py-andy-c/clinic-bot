@@ -118,3 +118,5 @@ class Receipt(Base):
             postgresql_using='gin'
         ),
     )
+
+

@@ -9,7 +9,6 @@ interface PractitionerSettings {
 interface ProfileSettingsData {
   fullName: string;
   schedule: DefaultScheduleResponse;
-  selectedAppointmentTypeIds: number[];
   settings?: PractitionerSettings;
 }
 
@@ -74,7 +73,6 @@ export const getProfileSectionChanges = (current: ProfileSettingsData, original:
     profile: current.fullName !== original.fullName,
     schedule: original.schedule ?
       JSON.stringify(current.schedule) !== JSON.stringify(original.schedule) : false,
-    appointmentTypes: JSON.stringify(current.selectedAppointmentTypeIds) !== JSON.stringify(original.selectedAppointmentTypeIds),
     settings: settingsChanged,
   };
 };

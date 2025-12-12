@@ -11,6 +11,9 @@ import { apiService } from '../../services/api';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 import { logger } from '../../utils/logger';
 import { formatDateOnly } from '../../utils/calendarUtils';
+import { useAuth } from '../../hooks/useAuth';
+import { CheckoutModal } from './CheckoutModal';
+import { ReceiptViewModal } from './ReceiptViewModal';
 
 // Maximum length for custom event names
 // Must match backend/src/core/constants.py MAX_EVENT_NAME_LENGTH = 100
@@ -26,6 +29,9 @@ export interface EventModalProps {
   formatAppointmentTime: (start: Date, end: Date) => string;
   onEventNameUpdated?: (newName: string | null) => void | Promise<void>;
   hidePatientInfo?: boolean; // Hide 電話、生日、LINE when true (e.g., on patient detail page)
+  appointmentTypes?: Array<{ id: number; name: string; receipt_name?: string | null }>;
+  practitioners?: Array<{ id: number; full_name: string }>;
+  onReceiptCreated?: () => void | Promise<void>;
 }
 
 export const EventModal: React.FC<EventModalProps> = React.memo(({
@@ -38,7 +44,13 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
   formatAppointmentTime,
   onEventNameUpdated,
   hidePatientInfo = false,
+  appointmentTypes = [],
+  practitioners = [],
+  onReceiptCreated,
 }) => {
+  const { isClinicAdmin } = useAuth();
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editingName, setEditingName] = useState(event.title);
   const [isSaving, setIsSaving] = useState(false);
@@ -269,29 +281,68 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
           </>
         )}
         <div className="flex justify-end space-x-2 mt-6">
-          {event.resource.type === 'appointment' && onDuplicateAppointment && (
-            <button
-              onClick={onDuplicateAppointment}
-              className="btn-primary bg-green-600 hover:bg-green-700"
-            >
-              複製
-            </button>
-          )}
-          {event.resource.type === 'appointment' && onEditAppointment && (
-            <button
-              onClick={onEditAppointment}
-              className="btn-primary bg-blue-600 hover:bg-blue-700"
-            >
-              編輯
-            </button>
-          )}
-          {event.resource.type === 'appointment' && onDeleteAppointment && (
-            <button
-              onClick={onDeleteAppointment}
-              className="btn-primary bg-red-600 hover:bg-red-700"
-            >
-              刪除
-            </button>
+          {event.resource.type === 'appointment' && (
+            <>
+              {/* Receipt View Button - Show when receipt exists */}
+              {event.resource.has_receipt && event.resource.receipt_id && (
+                <button
+                  onClick={() => setShowReceiptModal(true)}
+                  className="btn-primary bg-purple-600 hover:bg-purple-700"
+                >
+                  檢視收據
+                </button>
+              )}
+              
+              {/* Re-issue Receipt Button - Show when receipt is voided (admin only) */}
+              {event.resource.has_receipt && event.resource.is_receipt_voided && isClinicAdmin && (
+                <button
+                  onClick={() => setShowCheckoutModal(true)}
+                  className="btn-primary bg-orange-600 hover:bg-orange-700"
+                >
+                  重新開立收據
+                </button>
+              )}
+              
+              {/* Checkout Button - Show when no receipt (admin only) */}
+              {!event.resource.has_receipt && isClinicAdmin && (
+                <button
+                  onClick={() => setShowCheckoutModal(true)}
+                  className="btn-primary bg-green-600 hover:bg-green-700"
+                >
+                  結帳
+                </button>
+              )}
+              
+              {/* Edit/Delete Buttons - Hide when receipt exists */}
+              {!event.resource.has_receipt && (
+                <>
+                  {onDuplicateAppointment && (
+                    <button
+                      onClick={onDuplicateAppointment}
+                      className="btn-primary bg-green-600 hover:bg-green-700"
+                    >
+                      複製
+                    </button>
+                  )}
+                  {onEditAppointment && (
+                    <button
+                      onClick={onEditAppointment}
+                      className="btn-primary bg-blue-600 hover:bg-blue-700"
+                    >
+                      編輯
+                    </button>
+                  )}
+                  {onDeleteAppointment && (
+                    <button
+                      onClick={onDeleteAppointment}
+                      className="btn-primary bg-red-600 hover:bg-red-700"
+                    >
+                      刪除
+                    </button>
+                  )}
+                </>
+              )}
+            </>
           )}
           {event.resource.type === 'availability_exception' && onDeleteException && (
             <button
@@ -302,6 +353,38 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
             </button>
           )}
         </div>
+        
+        {/* Checkout Modal */}
+        {showCheckoutModal && event.resource.appointment_id && (
+          <CheckoutModal
+            event={event}
+            appointmentTypes={appointmentTypes}
+            practitioners={practitioners}
+            onClose={() => setShowCheckoutModal(false)}
+            onSuccess={async () => {
+              if (onReceiptCreated) {
+                await onReceiptCreated();
+              }
+              if (onEventNameUpdated) {
+                await onEventNameUpdated(null);
+              }
+            }}
+          />
+        )}
+        
+        {/* Receipt View Modal */}
+        {showReceiptModal && event.resource.appointment_id && (
+          <ReceiptViewModal
+            appointmentId={event.resource.appointment_id}
+            onClose={() => setShowReceiptModal(false)}
+            onReceiptVoided={async () => {
+              if (onEventNameUpdated) {
+                await onEventNameUpdated(null);
+              }
+            }}
+            isAdmin={isClinicAdmin}
+          />
+        )}
     </BaseModal>
   );
 });

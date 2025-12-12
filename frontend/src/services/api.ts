@@ -438,6 +438,128 @@ export class ApiService {
     return response.data;
   }
 
+  // Billing scenario endpoints (admin-only)
+  async getBillingScenarios(serviceItemId: number, practitionerId: number): Promise<{ billing_scenarios: any[] }> {
+    const response = await this.client.get(
+      `/clinic/service-items/${serviceItemId}/practitioners/${practitionerId}/billing-scenarios`
+    );
+    return response.data;
+  }
+
+  async createBillingScenario(
+    serviceItemId: number,
+    practitionerId: number,
+    scenario: { name: string; amount: number; revenue_share: number; is_default: boolean }
+  ): Promise<any> {
+    const response = await this.client.post(
+      `/clinic/service-items/${serviceItemId}/practitioners/${practitionerId}/billing-scenarios`,
+      scenario
+    );
+    return response.data;
+  }
+
+  async updateBillingScenario(
+    serviceItemId: number,
+    practitionerId: number,
+    scenarioId: number,
+    scenario: { name?: string; amount?: number; revenue_share?: number; is_default?: boolean }
+  ): Promise<any> {
+    const response = await this.client.put(
+      `/clinic/service-items/${serviceItemId}/practitioners/${practitionerId}/billing-scenarios/${scenarioId}`,
+      scenario
+    );
+    return response.data;
+  }
+
+  async deleteBillingScenario(serviceItemId: number, practitionerId: number, scenarioId: number): Promise<void> {
+    await this.client.delete(
+      `/clinic/service-items/${serviceItemId}/practitioners/${practitionerId}/billing-scenarios/${scenarioId}`
+    );
+  }
+
+  // Receipt/Checkout endpoints (admin-only)
+  async checkoutAppointment(
+    appointmentId: number,
+    items: Array<{
+      service_item_id?: number;
+      practitioner_id?: number | null;
+      billing_scenario_id?: number | null;
+      custom_name?: string;
+      amount: number;
+      revenue_share: number;
+    }>,
+    payment_method: string
+  ): Promise<any> {
+    const response = await this.client.post(`/appointments/${appointmentId}/checkout`, {
+      items,
+      payment_method,
+    });
+    return response.data;
+  }
+
+  async getReceiptForAppointment(appointmentId: number): Promise<any> {
+    const response = await this.client.get(`/appointments/${appointmentId}/receipt`);
+    return response.data;
+  }
+
+  async getReceiptById(receiptId: number): Promise<any> {
+    const response = await this.client.get(`/receipts/${receiptId}`);
+    return response.data;
+  }
+
+  async voidReceipt(receiptId: number, reason?: string): Promise<any> {
+    const response = await this.client.post(`/receipts/${receiptId}/void`, {
+      reason: reason || null,
+    });
+    return response.data;
+  }
+
+  async downloadReceiptPDF(receiptId: number): Promise<Blob> {
+    const response = await this.client.get(`/receipts/${receiptId}/download`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  }
+
+  // Accounting endpoints (admin-only)
+  async getAccountingSummary(
+    startDate: string,
+    endDate: string,
+    practitionerId?: number
+  ): Promise<any> {
+    const params: any = { start_date: startDate, end_date: endDate };
+    if (practitionerId) {
+      params.practitioner_id = practitionerId;
+    }
+    const response = await this.client.get('/accounting/summary', { params });
+    return response.data;
+  }
+
+  async getPractitionerAccountingDetails(
+    practitionerId: number,
+    startDate: string,
+    endDate: string
+  ): Promise<any> {
+    const response = await this.client.get(
+      `/accounting/practitioners/${practitionerId}/details`,
+      { params: { start_date: startDate, end_date: endDate } }
+    );
+    return response.data;
+  }
+
+  async getVoidedReceipts(startDate?: string, endDate?: string): Promise<{ voided_receipts: any[] }> {
+    const params: any = {};
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    const response = await this.client.get('/accounting/voided-receipts', { params });
+    return response.data;
+  }
+
+  async getReceiptNumberStatus(): Promise<any> {
+    const response = await this.client.get('/accounting/receipt-number-status');
+    return response.data;
+  }
+
   // Practitioner Availability APIs (Updated for new schema)
   async getPractitionerDefaultSchedule(userId: number): Promise<DefaultScheduleResponse> {
     const response = await this.client.get(`/clinic/practitioners/${userId}/availability/default`);

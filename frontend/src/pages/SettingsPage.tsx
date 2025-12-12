@@ -14,6 +14,8 @@ import ClinicAppointmentSettings from '../components/ClinicAppointmentSettings';
 import ClinicReminderSettings from '../components/ClinicReminderSettings';
 import ClinicInfoSettings from '../components/ClinicInfoSettings';
 import ChatSettings from '../components/ChatSettings';
+import ServiceItemsSettings from '../components/ServiceItemsSettings';
+import ReceiptSettings from '../components/ReceiptSettings';
 import SettingsSection from '../components/SettingsSection';
 import PageHeader from '../components/PageHeader';
 import { LINE_THEME } from '../constants/lineTheme';
@@ -157,6 +159,10 @@ const SettingsPage: React.FC = () => {
       clinic_id: settings.clinic_id || 0, // Use clinic_id from settings or default
       name: '',
       duration_minutes: 30,
+      receipt_name: undefined,
+      allow_patient_booking: true,
+      description: undefined,
+      scheduling_buffer_minutes: 0,
     };
 
     updateData({
@@ -164,7 +170,7 @@ const SettingsPage: React.FC = () => {
     });
   };
 
-  const updateAppointmentType = (index: number, field: keyof AppointmentType, value: string | number) => {
+  const updateAppointmentType = (index: number, field: keyof AppointmentType, value: string | number | boolean | null) => {
     if (!settings) return;
 
     const updatedTypes = [...settings.appointment_types];
@@ -278,7 +284,23 @@ const SettingsPage: React.FC = () => {
       <PageHeader title="診所設定" />
 
       <form onSubmit={(e) => { e.preventDefault(); saveData(); }} className="space-y-4">
-        {/* Appointment Settings - Combined section at the top */}
+        {/* Service Items Settings - New section for service items with billing */}
+        <SettingsSection
+          title="服務項目設定"
+          showSaveButton={sectionChanges.appointmentSettings || false}
+          onSave={saveData}
+          saving={uiState.saving}
+        >
+          <ServiceItemsSettings
+            appointmentTypes={settings.appointment_types}
+            onAddType={addAppointmentType}
+            onUpdateType={updateAppointmentType}
+            onRemoveType={removeAppointmentType}
+            isClinicAdmin={isClinicAdmin}
+          />
+        </SettingsSection>
+
+        {/* Appointment Settings - Booking restrictions and instructions */}
         <SettingsSection
           title="預約設定"
           showSaveButton={sectionChanges.appointmentSettings || false}
@@ -602,6 +624,27 @@ const SettingsPage: React.FC = () => {
             isClinicAdmin={isClinicAdmin}
           />
         </SettingsSection>
+
+        {/* Receipt Settings - Admin only */}
+        {isClinicAdmin && (
+          <SettingsSection
+            title="收據設定"
+            showSaveButton={sectionChanges.receiptSettings || false}
+            onSave={saveData}
+            saving={uiState.saving}
+          >
+            <ReceiptSettings
+              receiptSettings={settings.receipt_settings || { custom_notes: null, show_stamp: false }}
+              onReceiptSettingsChange={(receiptSettings) => {
+                updateData((prev) => ({
+                  ...prev,
+                  receipt_settings: receiptSettings
+                }));
+              }}
+              isClinicAdmin={isClinicAdmin}
+            />
+          </SettingsSection>
+        )}
 
         {/* Error Display */}
         {uiState.error && (

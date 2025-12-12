@@ -312,3 +312,5 @@ def downgrade() -> None:
     op.drop_column('appointment_types', 'description')
     op.drop_column('appointment_types', 'allow_patient_booking')
     op.drop_column('appointment_types', 'receipt_name')
+
+

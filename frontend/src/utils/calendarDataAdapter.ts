@@ -27,6 +27,9 @@ export interface CalendarEvent {
     event_practitioner_name?: string; // Name of practitioner who owns this event (for multi-practitioner view)
     is_auto_assigned?: boolean; // Whether appointment is auto-assigned (shows "不指定" to patient)
     originally_auto_assigned?: boolean; // Whether appointment was originally auto-assigned (for tracking)
+    has_receipt?: boolean; // Whether appointment has an active receipt
+    receipt_id?: number | null; // ID of active receipt if exists
+    is_receipt_voided?: boolean | null; // Whether receipt is voided (if receipt exists)
   };
 }
 
@@ -70,7 +73,10 @@ export const transformToCalendarEvents = (apiEvents: (ApiCalendarEvent | any)[])
         practitioner_id: (event as any).practitioner_id, // Preserve practitioner ID for color-coding
         is_primary: (event as any).is_primary, // Preserve primary flag
         event_practitioner_name: (event as any).practitioner_name || (event as any).event_practitioner_name, // Preserve event practitioner name
-        is_auto_assigned: (event as any).is_auto_assigned // Preserve auto-assignment flag
+        is_auto_assigned: (event as any).is_auto_assigned, // Preserve auto-assignment flag
+        has_receipt: (event as any).has_receipt || false, // Receipt status
+        receipt_id: (event as any).receipt_id || null, // Receipt ID
+        is_receipt_voided: (event as any).is_receipt_voided || null // Receipt voided status
       }
     };
   });

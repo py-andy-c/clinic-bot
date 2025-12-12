@@ -1181,39 +1181,39 @@ WHERE receipt_name IS NULL;
 6. ✅ Implement receipt PDF generation endpoint
    - ✅ Include both visit_date and issue_date in PDF
 
-### Phase 3: Frontend Settings
-1. Restructure settings page
-2. Add service item fields
-3. Move practitioner assignment to service items
-4. Add billing scenario management
-5. Add receipt settings section (custom notes)
+### Phase 3: Frontend Settings ✅ DONE
+1. ✅ Restructure settings page
+2. ✅ Add service item fields
+3. ✅ Move practitioner assignment to service items
+4. ✅ Add billing scenario management
+5. ✅ Add receipt settings section (custom notes)
 
-### Phase 4: Checkout Flow
-1. Add checkout button to appointment modal
-2. Create checkout modal UI
-3. Implement checkout API integration
-4. Add receipt view modal
-5. Add PDF download functionality to receipt view
-6. Add receipt voiding functionality (void button, confirmation dialog)
-7. Add re-issue receipt functionality (重新開立收據 button)
-8. Update appointment modal state logic (handle voided receipts)
+### Phase 4: Checkout Flow ✅ DONE
+1. ✅ Add checkout button to appointment modal
+2. ✅ Create checkout modal UI
+3. ✅ Implement checkout API integration
+4. ✅ Add receipt view modal
+5. ✅ Add PDF download functionality to receipt view
+6. ✅ Add receipt voiding functionality (void button, confirmation dialog)
+7. ✅ Add re-issue receipt functionality (重新開立收據 button)
+8. ✅ Update appointment modal state logic (handle voided receipts)
 
-### Phase 5: LIFF Updates
-1. Filter service items by `allow_patient_booking`
-2. Update duration display
-3. Use buffer for scheduling
+### Phase 5: LIFF Updates ✅ DONE
+1. ✅ Filter service items by `allow_patient_booking`
+2. ✅ Update duration display
+3. ✅ Use buffer for scheduling
 
-### Phase 6: Profile Page Cleanup
-1. Remove practitioner appointment types from profile
-2. Update permissions (admin-only for service item management)
+### Phase 6: Profile Page Cleanup ✅ DONE
+1. ✅ Remove practitioner appointment types from profile
+2. ✅ Update permissions (admin-only for service item management)
 
-### Phase 7: Accounting Dashboard
-1. Create accounting API endpoints
-2. Implement JSONB aggregation queries
-3. Build accounting dashboard frontend
-4. Add voided receipts section to dashboard (separate from revenue calculations)
-5. Add receipt voiding functionality
-6. Add monitoring for receipt number sequence limits
+### Phase 7: Accounting Dashboard ✅ DONE
+1. ✅ Create accounting API endpoints
+2. ✅ Implement JSONB aggregation queries
+3. ✅ Build accounting dashboard frontend
+4. ✅ Add voided receipts section to dashboard (separate from revenue calculations)
+5. ✅ Add receipt voiding functionality
+6. ✅ Add monitoring for receipt number sequence limits
 
 ## Access Control Summary
 
@@ -1367,4 +1367,6 @@ SELECT EXTRACT(YEAR FROM NOW()) || '-' ||
 13. **Receipt Voiding Time Limits**: Configurable time limit for voiding (e.g., 30 days) with admin override
 14. **Partial Payments**: Support for multiple receipts per appointment (installments)
 15. **Refunds**: Support for refund receipts or negative amounts
+
+
 

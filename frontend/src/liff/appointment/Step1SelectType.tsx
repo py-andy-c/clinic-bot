@@ -44,8 +44,10 @@ const Step1SelectType: React.FC = () => {
     setAppointmentType(type.id, type);
   };
 
-  // Backend already filters out deleted appointment types
-  const activeAppointmentTypes = appointmentTypes;
+  // Filter by allow_patient_booking (default to true if not set)
+  const activeAppointmentTypes = appointmentTypes.filter(
+    type => type.allow_patient_booking !== false
+  );
 
   if (isLoading) {
     return (
@@ -100,8 +102,11 @@ const Step1SelectType: React.FC = () => {
               <div>
                 <h3 className="font-medium text-gray-900">{type.name}</h3>
                 <p className="text-sm text-gray-500">
-                  {t('appointment.selectType.duration', { minutes: type.duration_minutes })}
+                  {t('appointment.selectType.duration', { minutes: type.duration_minutes || 0 })}
                 </p>
+                {type.description && (
+                  <p className="text-sm text-gray-600 mt-1">{type.description}</p>
+                )}
               </div>
               <div className="text-primary-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

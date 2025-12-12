@@ -736,3 +736,5 @@ class TestBillingScenarioEndpoints:
                 revenue_share=Decimal("1500.00"),  # Invalid
                 is_default=False
             )
+
+

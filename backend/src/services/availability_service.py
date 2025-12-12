@@ -285,8 +285,10 @@ class AvailabilityService:
             )
             
             # Calculate available slots for this practitioner (reusing schedule_data)
+            # Include scheduling buffer in duration calculation to prevent conflicts
+            total_duration = appointment_type.duration_minutes + (appointment_type.scheduling_buffer_minutes or 0)
             slots = AvailabilityService._calculate_available_slots(
-                db, requested_date, [practitioner], appointment_type.duration_minutes, 
+                db, requested_date, [practitioner], total_duration, 
                 clinic, clinic_id, exclude_calendar_event_id, schedule_data=schedule_data,
                 apply_booking_restrictions=apply_booking_restrictions
             )
@@ -404,8 +406,10 @@ class AvailabilityService:
                 )
 
             # Calculate available slots for all practitioners
+            # Include scheduling buffer in duration calculation to prevent conflicts
+            total_duration = appointment_type.duration_minutes + (appointment_type.scheduling_buffer_minutes or 0)
             all_slots = AvailabilityService._calculate_available_slots(
-                db, requested_date, practitioners, appointment_type.duration_minutes, clinic, clinic_id,
+                db, requested_date, practitioners, total_duration, clinic, clinic_id,
                 exclude_calendar_event_id=exclude_calendar_event_id,
                 apply_booking_restrictions=apply_booking_restrictions
             )

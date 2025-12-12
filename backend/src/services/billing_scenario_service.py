@@ -196,3 +196,5 @@ class BillingScenarioService:
         from datetime import datetime, timezone
         scenario.deleted_at = datetime.now(timezone.utc)
         db.flush()
+
+

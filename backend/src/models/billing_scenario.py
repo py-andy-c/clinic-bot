@@ -79,3 +79,5 @@ class BillingScenario(Base):
         CheckConstraint('amount > 0', name='chk_amount_positive'),
         CheckConstraint('revenue_share >= 0', name='chk_revenue_share_non_negative'),
     )
+
+

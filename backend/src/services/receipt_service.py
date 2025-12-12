@@ -401,3 +401,5 @@ class ReceiptService:
         
         db.flush()
         return receipt
+
+

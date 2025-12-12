@@ -144,6 +144,10 @@ export const getClinicSectionChanges = (current: ClinicSettings, original: Clini
     hasBookingRestrictionSettingsChanged(current.booking_restriction_settings, original.booking_restriction_settings) ||
     (current.clinic_info_settings.require_birthday || false) !== (original.clinic_info_settings.require_birthday || false);
 
+  const receiptSettingsChanged = 
+    JSON.stringify(current.receipt_settings || { custom_notes: null, show_stamp: false }) !== 
+    JSON.stringify(original.receipt_settings || { custom_notes: null, show_stamp: false });
+
   return {
     appointmentSettings: appointmentSettingsChanged,
     clinicInfoSettings:
@@ -152,5 +156,6 @@ export const getClinicSectionChanges = (current: ClinicSettings, original: Clini
       current.clinic_info_settings.phone_number !== original.clinic_info_settings.phone_number,
     reminderSettings: current.notification_settings.reminder_hours_before !== original.notification_settings.reminder_hours_before,
     chatSettings: JSON.stringify(current.chat_settings) !== JSON.stringify(original.chat_settings),
+    receiptSettings: receiptSettingsChanged,
   };
 };

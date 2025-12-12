@@ -162,6 +162,10 @@ export interface AppointmentType {
   clinic_id: number;
   name: string;
   duration_minutes: number;
+  receipt_name?: string | null | undefined;
+  allow_patient_booking?: boolean | undefined;
+  description?: string | null | undefined;
+  scheduling_buffer_minutes?: number | undefined;
   is_deleted?: boolean;
 }
 

@@ -1362,6 +1362,20 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                 : undefined
             }
             formatAppointmentTime={formatEventTimeRange}
+            appointmentTypes={appointmentTypes.map(at => ({
+              id: at.id,
+              name: at.name,
+              receipt_name: at.receipt_name ?? null,
+            }))}
+            practitioners={availablePractitioners}
+            onReceiptCreated={async () => {
+              // Refresh calendar data after receipt creation
+              try {
+                await fetchCalendarData(true);
+              } catch (error) {
+                logger.error('Failed to refresh calendar after receipt creation:', error);
+              }
+            }}
             onEventNameUpdated={async (_newName: string | null) => {
               // Store original state for potential rollback
               const originalEvent = modalState.data;

@@ -16,6 +16,13 @@ vi.mock('react-dom', async () => {
   };
 });
 
+// Mock useAuth
+vi.mock('../../../hooks/useAuth', () => ({
+  useAuth: () => ({
+    isClinicAdmin: false,
+  }),
+}));
+
 const mockFormatAppointmentTime = vi.fn((start: Date, end: Date) => 
   `${start.toLocaleDateString()} ${start.toLocaleTimeString()} - ${end.toLocaleTimeString()}`
 );
@@ -58,6 +65,8 @@ describe('EventModal', () => {
         event={mockAppointmentEvent}
         onClose={onClose}
         formatAppointmentTime={mockFormatAppointmentTime}
+        appointmentTypes={[]}
+        practitioners={[]}
       />
     );
 
@@ -75,6 +84,8 @@ describe('EventModal', () => {
         event={mockExceptionEvent}
         onClose={onClose}
         formatAppointmentTime={mockFormatAppointmentTime}
+        appointmentTypes={[]}
+        practitioners={[]}
       />
     );
 
@@ -89,6 +100,8 @@ describe('EventModal', () => {
         event={mockAppointmentEvent}
         onClose={onClose}
         formatAppointmentTime={mockFormatAppointmentTime}
+        appointmentTypes={[]}
+        practitioners={[]}
       />
     );
 
@@ -185,6 +198,8 @@ describe('EventModal', () => {
         event={mockAppointmentEvent}
         onClose={onClose}
         formatAppointmentTime={mockFormatAppointmentTime}
+        appointmentTypes={[]}
+        practitioners={[]}
       />
     );
 
@@ -210,6 +225,8 @@ describe('EventModal', () => {
         event={eventWithoutOptional}
         onClose={onClose}
         formatAppointmentTime={mockFormatAppointmentTime}
+        appointmentTypes={[]}
+        practitioners={[]}
       />
     );
 
