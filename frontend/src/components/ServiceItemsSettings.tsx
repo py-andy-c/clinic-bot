@@ -51,13 +51,13 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
     }
   }, [isClinicAdmin]);
 
-  const loadPractitionerAssignments = async () => {
-    if (members.length === 0) return;
+  const loadPractitionerAssignments = async (practitionersList: Member[]) => {
+    if (practitionersList.length === 0) return;
     
     // Load which practitioners are assigned to which service items
     const assignments: Record<number, number[]> = {};
     
-    for (const member of members) {
+    for (const member of practitionersList) {
       if (member.roles.includes('practitioner')) {
         try {
           const data = await apiService.getPractitionerAppointmentTypes(member.id);
@@ -91,8 +91,9 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
       setMembers(practitioners);
       
       // After loading members, load their assignments
+      // Pass practitioners directly instead of relying on state
       if (practitioners.length > 0) {
-        await loadPractitionerAssignments();
+        await loadPractitionerAssignments(practitioners);
       }
     } catch (err) {
       logger.error('Error loading members:', err);
@@ -257,9 +258,6 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
         <div className="space-y-4">
           {appointmentTypes.map((type, index) => {
             const isExpanded = expandedServiceItems.has(type.id);
-            const durationDisplay = type.scheduling_buffer_minutes && type.scheduling_buffer_minutes > 0
-              ? `${type.duration_minutes}分 (+${type.scheduling_buffer_minutes}分)`
-              : `${type.duration_minutes}分`;
 
             return (
               <div key={type.id} className="border border-gray-200 rounded-lg p-4">
@@ -336,11 +334,6 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                           max="60"
                           disabled={!isClinicAdmin}
                         />
-                        {type.scheduling_buffer_minutes && type.scheduling_buffer_minutes > 0 && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            顯示為：{durationDisplay}
-                          </p>
-                        )}
                       </div>
                     </div>
 
@@ -410,111 +403,99 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                       
                       return (
                         <div className="mt-2 space-y-4">
+                          {/* All Practitioners with Checkboxes */}
                           <div className="space-y-3">
-                              {/* Add Practitioner Button */}
-                              <div className="flex items-center space-x-2">
-                                <select
-                                  className="input flex-1"
-                                  value=""
-                                  onChange={async (e) => {
-                                    const practitionerId = parseInt(e.target.value);
-                                    if (practitionerId && !assignedPractitionerIds.includes(practitionerId)) {
-                                      // Add practitioner to this service item
-                                      try {
-                                        const currentTypes = await apiService.getPractitionerAppointmentTypes(practitionerId);
-                                        const currentTypeIds = currentTypes.appointment_types.map((at: any) => at.id);
-                                        if (!currentTypeIds.includes(type.id)) {
-                                          await apiService.updatePractitionerAppointmentTypes(practitionerId, [...currentTypeIds, type.id]);
-                                          setPractitionerAssignments(prev => ({
-                                            ...prev,
-                                            [type.id]: [...(prev[type.id] || []), practitionerId],
-                                          }));
-                                        }
-                                      } catch (err) {
-                                        logger.error('Error assigning practitioner:', err);
-                                        alert('指派失敗，請重試');
-                                      }
-                                    }
-                                    e.target.value = '';
-                                  }}
-                                >
-                                  <option value="">選擇治療師...</option>
-                                  {members
-                                    .filter(m => !assignedPractitionerIds.includes(m.id))
-                                    .map(member => (
-                                      <option key={member.id} value={member.id}>
-                                        {member.full_name}
-                                      </option>
-                                    ))}
-                                </select>
-                              </div>
+                            {members.map(practitioner => {
+                              const isAssigned = assignedPractitionerIds.includes(practitioner.id);
+                              const key = `${type.id}-${practitioner.id}`;
+                              const scenarios = billingScenarios[key] || [];
+                              const isLoading = loadingScenarios.has(key);
+                              
+                              // Load scenarios when service item is expanded and practitioner is assigned
+                              if (isExpanded && isAssigned && !billingScenarios[key] && !loadingScenarios.has(key)) {
+                                // Use setTimeout to avoid calling during render
+                                setTimeout(() => loadBillingScenarios(type.id, practitioner.id), 0);
+                              }
 
-                              {/* Assigned Practitioners */}
-                              {assignedPractitionerIds.length > 0 && assignedPractitionerIds.map(practitionerId => {
-                                const practitioner = members.find(m => m.id === practitionerId);
-                                if (!practitioner) return null;
-
-                                const key = `${type.id}-${practitionerId}`;
-                                const scenarios = billingScenarios[key] || [];
-                                const isLoading = loadingScenarios.has(key);
-                                
-                                // Load scenarios when service item is expanded
-                                if (isExpanded && !billingScenarios[key] && !loadingScenarios.has(key)) {
-                                  // Use setTimeout to avoid calling during render
-                                  setTimeout(() => loadBillingScenarios(type.id, practitionerId), 0);
-                                }
-
-                                return (
-                                  <div key={practitionerId} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                    <div className="flex items-center justify-between mb-3">
-                                      <div className="flex items-center space-x-2">
-                                        <span className="font-medium text-gray-900">{practitioner.full_name}</span>
-                                        <button
-                                          type="button"
-                                          onClick={async () => {
-                                            try {
-                                              const currentTypes = await apiService.getPractitionerAppointmentTypes(practitionerId);
-                                              const currentTypeIds = currentTypes.appointment_types.map((at: any) => at.id);
+                              return (
+                                <div key={practitioner.id} className="space-y-2">
+                                  <div className="flex items-center space-x-3">
+                                    <input
+                                      type="checkbox"
+                                      checked={isAssigned}
+                                      onChange={async (e) => {
+                                        const shouldAssign = e.target.checked;
+                                        try {
+                                          const currentTypes = await apiService.getPractitionerAppointmentTypes(practitioner.id);
+                                          const currentTypeIds = currentTypes.appointment_types.map((at: any) => at.id);
+                                          
+                                          if (shouldAssign) {
+                                            // Add practitioner to this service item
+                                            if (!currentTypeIds.includes(type.id)) {
                                               await apiService.updatePractitionerAppointmentTypes(
-                                                practitionerId,
-                                                currentTypeIds.filter((id: number) => id !== type.id)
+                                                practitioner.id,
+                                                [...currentTypeIds, type.id]
                                               );
                                               setPractitionerAssignments(prev => ({
                                                 ...prev,
-                                                [type.id]: (prev[type.id] || []).filter(id => id !== practitionerId),
+                                                [type.id]: [...(prev[type.id] || []), practitioner.id],
                                               }));
-                                              // Clear billing scenarios for this practitioner-service
-                                              setBillingScenarios(prev => {
-                                                const newPrev = { ...prev };
-                                                delete newPrev[key];
-                                                return newPrev;
-                                              });
-                                            } catch (err) {
-                                              logger.error('Error removing practitioner:', err);
-                                              alert('移除失敗，請重試');
                                             }
-                                          }}
-                                          className="text-red-600 hover:text-red-800 text-sm"
-                                        >
-                                          移除
-                                        </button>
-                                      </div>
-                                    </div>
-
-                                    {/* Billing Scenarios Section */}
-                                    <div className="mt-3 pt-3 border-t border-gray-300">
+                                          } else {
+                                            // Remove practitioner from this service item
+                                            await apiService.updatePractitionerAppointmentTypes(
+                                              practitioner.id,
+                                              currentTypeIds.filter((id: number) => id !== type.id)
+                                            );
+                                            setPractitionerAssignments(prev => ({
+                                              ...prev,
+                                              [type.id]: (prev[type.id] || []).filter(id => id !== practitioner.id),
+                                            }));
+                                            // Clear billing scenarios for this practitioner-service
+                                            setBillingScenarios(prev => {
+                                              const newPrev = { ...prev };
+                                              delete newPrev[key];
+                                              return newPrev;
+                                            });
+                                          }
+                                        } catch (err) {
+                                          logger.error('Error updating practitioner assignment:', err);
+                                          alert('更新失敗，請重試');
+                                          // Revert checkbox on error
+                                          e.target.checked = !shouldAssign;
+                                        }
+                                      }}
+                                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                    />
+                                    <label 
+                                      className="text-sm font-medium text-gray-900 cursor-pointer flex-1"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        const checkbox = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                        if (checkbox) {
+                                          checkbox.click();
+                                        }
+                                      }}
+                                    >
+                                      {practitioner.full_name}
+                                    </label>
+                                  </div>
+                                  
+                                  {/* Billing Scenarios (shown only when assigned) */}
+                                  {isAssigned && (
+                                    <div className="ml-7 mt-2 pt-2 border-t border-gray-200">
                                       <div className="flex justify-between items-center mb-2">
-                                        <label className="text-sm font-medium text-gray-700">計費方案</label>
+                                        <label className="text-xs font-medium text-gray-700">計費方案</label>
                                         <button
                                           type="button"
                                           onClick={() => {
                                             // Load scenarios if not loaded
                                             if (!billingScenarios[key] && !loadingScenarios.has(key)) {
-                                              loadBillingScenarios(type.id, practitionerId);
+                                              loadBillingScenarios(type.id, practitioner.id);
                                             }
-                                            handleAddScenario(type.id, practitionerId);
+                                            handleAddScenario(type.id, practitioner.id);
                                           }}
-                                          className="text-sm text-blue-600 hover:text-blue-800"
+                                          className="text-xs text-blue-600 hover:text-blue-800"
                                         >
                                           + 新增方案
                                         </button>
@@ -522,21 +503,21 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                                       
 
                                       {isLoading ? (
-                                        <p className="text-sm text-gray-500">載入中...</p>
+                                        <p className="text-xs text-gray-500">載入中...</p>
                                       ) : scenarios.length === 0 ? (
-                                        <p className="text-sm text-gray-500">尚無計費方案</p>
+                                        <p className="text-xs text-gray-500">尚無計費方案</p>
                                       ) : (
                                         <div className="space-y-2">
                                           {scenarios.map(scenario => (
                                             <div key={scenario.id} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
                                               <div className="flex-1">
                                                 <div className="flex items-center space-x-2">
-                                                  <span className="font-medium text-gray-900">{scenario.name}</span>
+                                                  <span className="text-sm font-medium text-gray-900">{scenario.name}</span>
                                                   {scenario.is_default && (
                                                     <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">預設</span>
                                                   )}
                                                 </div>
-                                                <div className="text-sm text-gray-600 mt-1">
+                                                <div className="text-xs text-gray-600 mt-1">
                                                   金額: ${scenario.amount.toFixed(2)} | 分潤: ${scenario.revenue_share.toFixed(2)}
                                                 </div>
                                               </div>
@@ -545,18 +526,18 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                                                   type="button"
                                                   onClick={() => {
                                                     if (!billingScenarios[key]) {
-                                                      loadBillingScenarios(type.id, practitionerId);
+                                                      loadBillingScenarios(type.id, practitioner.id);
                                                     }
-                                                    handleEditScenario(type.id, practitionerId, scenario);
+                                                    handleEditScenario(type.id, practitioner.id, scenario);
                                                   }}
-                                                  className="text-blue-600 hover:text-blue-800 text-sm"
+                                                  className="text-xs text-blue-600 hover:text-blue-800"
                                                 >
                                                   編輯
                                                 </button>
                                                 <button
                                                   type="button"
-                                                  onClick={() => handleDeleteScenario(type.id, practitionerId, scenario.id)}
-                                                  className="text-red-600 hover:text-red-800 text-sm"
+                                                  onClick={() => handleDeleteScenario(type.id, practitioner.id, scenario.id)}
+                                                  className="text-xs text-red-600 hover:text-red-800"
                                                 >
                                                   刪除
                                                 </button>
@@ -566,13 +547,14 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                                         </div>
                                       )}
                                     </div>
-                                  </div>
-                                );
-                              })}
+                                  )}
+                                </div>
+                              );
+                            })}
 
-                            {assignedPractitionerIds.length === 0 && (
+                            {members.length === 0 && (
                               <p className="text-sm text-gray-500 text-center py-4">
-                                尚未指派治療師
+                                尚無治療師
                               </p>
                             )}
                           </div>

@@ -308,7 +308,6 @@ const SettingsPage: React.FC = () => {
           saving={uiState.saving}
         >
           <ClinicAppointmentSettings
-            appointmentTypes={settings.appointment_types}
             appointmentTypeInstructions={settings.clinic_info_settings.appointment_type_instructions ?? null}
             appointmentNotesInstructions={settings.clinic_info_settings.appointment_notes_instructions ?? null}
             bookingRestrictionSettings={settings.booking_restriction_settings}
@@ -342,9 +341,6 @@ const SettingsPage: React.FC = () => {
                 }
               }));
             }}
-            onAddType={addAppointmentType}
-            onUpdateType={updateAppointmentType}
-            onRemoveType={removeAppointmentType}
             isClinicAdmin={isClinicAdmin}
           />
 

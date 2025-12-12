@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
-import { AppointmentType } from '../types';
 import { BookingRestrictionSettings } from '../schemas/api';
 import { BaseModal } from './shared/BaseModal';
 import { preventScrollWheelChange } from '../utils/inputUtils';
 
 interface ClinicAppointmentSettingsProps {
-  appointmentTypes: AppointmentType[];
   appointmentTypeInstructions: string | null;
   appointmentNotesInstructions: string | null;
   bookingRestrictionSettings: BookingRestrictionSettings;
@@ -14,14 +12,10 @@ interface ClinicAppointmentSettingsProps {
   onAppointmentNotesInstructionsChange: (instructions: string | null) => void;
   onBookingRestrictionSettingsChange: (settings: BookingRestrictionSettings) => void;
   onRequireBirthdayChange: (value: boolean) => void;
-  onAddType: () => void;
-  onUpdateType: (index: number, field: keyof AppointmentType, value: string | number) => void;
-  onRemoveType: (index: number) => Promise<void> | void;
   isClinicAdmin?: boolean;
 }
 
 const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
-  appointmentTypes,
   appointmentTypeInstructions,
   appointmentNotesInstructions,
   bookingRestrictionSettings,
@@ -30,9 +24,6 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
   onAppointmentNotesInstructionsChange,
   onBookingRestrictionSettingsChange,
   onRequireBirthdayChange,
-  onAddType,
-  onUpdateType,
-  onRemoveType,
   isClinicAdmin = false,
 }) => {
   const handleInstructionsChange = (value: string) => {
@@ -130,74 +121,6 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
 
   return (
     <div className="space-y-6">
-        {/* 預約類型 */}
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <label className="block text-sm font-medium text-gray-700">預約類型</label>
-            {isClinicAdmin && (
-              <button
-                type="button"
-                onClick={onAddType}
-                className="btn-secondary text-sm"
-              >
-                新增類型
-              </button>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            {appointmentTypes.map((type, index) => (
-              <div key={type.id} className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg">
-                <div className="flex-[2]">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    類型名稱
-                  </label>
-                  <input
-                    type="text"
-                    value={type.name}
-                    onChange={(e) => onUpdateType(index, 'name', e.target.value)}
-                    className="input"
-                    placeholder="例如：初診評估"
-                    disabled={!isClinicAdmin}
-                  />
-                </div>
-
-                <div className="w-24">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    時長 (分鐘)
-                  </label>
-                  <input
-                    type="number"
-                    value={type.duration_minutes}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      onUpdateType(index, 'duration_minutes', value);
-                    }}
-                    onWheel={preventScrollWheelChange}
-                    className="input"
-                    min="15"
-                    max="480"
-                    disabled={!isClinicAdmin}
-                  />
-                </div>
-
-                {isClinicAdmin && (
-                  <div className="flex items-end">
-                    <button
-                      type="button"
-                      onClick={() => onRemoveType(index)}
-                      className="text-red-600 hover:text-red-800 p-2"
-                      title="刪除"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* 預約類型選擇指引 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">

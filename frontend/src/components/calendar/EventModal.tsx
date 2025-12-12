@@ -317,28 +317,28 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
               {!event.resource.has_receipt && (
                 <>
                   {onDuplicateAppointment && (
-                    <button
-                      onClick={onDuplicateAppointment}
-                      className="btn-primary bg-green-600 hover:bg-green-700"
-                    >
-                      複製
-                    </button>
-                  )}
+            <button
+              onClick={onDuplicateAppointment}
+              className="btn-primary bg-green-600 hover:bg-green-700"
+            >
+              複製
+            </button>
+          )}
                   {onEditAppointment && (
-                    <button
-                      onClick={onEditAppointment}
-                      className="btn-primary bg-blue-600 hover:bg-blue-700"
-                    >
-                      編輯
-                    </button>
-                  )}
+            <button
+              onClick={onEditAppointment}
+              className="btn-primary bg-blue-600 hover:bg-blue-700"
+            >
+              編輯
+            </button>
+          )}
                   {onDeleteAppointment && (
-                    <button
-                      onClick={onDeleteAppointment}
-                      className="btn-primary bg-red-600 hover:bg-red-700"
-                    >
-                      刪除
-                    </button>
+            <button
+              onClick={onDeleteAppointment}
+              className="btn-primary bg-red-600 hover:bg-red-700"
+            >
+              刪除
+            </button>
                   )}
                 </>
               )}

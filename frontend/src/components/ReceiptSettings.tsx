@@ -41,21 +41,10 @@ const ReceiptSettings: React.FC<ReceiptSettingsProps> = ({
           value={receiptSettings.custom_notes || ''}
           onChange={(e) => handleCustomNotesChange(e.target.value)}
           className="input min-h-[120px] resize-vertical"
-          placeholder="例如：&#10;地址：123 Main St, Taipei&#10;電話：02-1234-5678&#10;統一編號：12345678"
+          placeholder="例如：&#10;地址：台北市信義區信義路五段7號&#10;電話：02-1234-5678&#10;統一編號：12345678"
           maxLength={2000}
           rows={6}
         />
-        <p className="text-sm text-gray-500 mt-1">
-          此備註將顯示在所有收據的底部。建議包含地址、電話、統一編號等資訊。
-        </p>
-        <div className="mt-2 text-sm text-blue-600 bg-blue-50 border border-blue-200 rounded-md p-3">
-          <p className="font-medium mb-1">建議包含以下資訊：</p>
-          <ul className="list-disc list-inside space-y-1 text-gray-700">
-            <li>地址（地址）</li>
-            <li>電話（電話）</li>
-            <li>統一編號（統一編號）- 如適用</li>
-          </ul>
-        </div>
       </div>
 
       {/* Show Stamp Toggle */}
@@ -67,10 +56,10 @@ const ReceiptSettings: React.FC<ReceiptSettingsProps> = ({
             onChange={(e) => handleShowStampChange(e.target.checked)}
             className="mr-2"
           />
-          <span className="text-sm font-medium text-gray-700">顯示印章</span>
+          <span className="text-sm font-medium text-gray-700">顯示收訖章</span>
         </label>
         <p className="text-sm text-gray-500 mt-1 ml-6">
-          在收據上顯示印章，包含診所名稱及結帳日期
+          在收據上顯示收訖章，包含診所名稱及結帳日期
         </p>
       </div>
     </div>
