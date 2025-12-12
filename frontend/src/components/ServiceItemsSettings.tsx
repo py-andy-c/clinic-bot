@@ -21,6 +21,10 @@ interface ServiceItemsSettingsProps {
   onUpdateType: (index: number, field: keyof AppointmentType, value: string | number | boolean | null) => void;
   onRemoveType: (index: number) => Promise<void> | void;
   isClinicAdmin: boolean;
+  practitionerAssignments: Record<number, number[]>; // service_item_id -> practitioner_ids[]
+  billingScenarios: Record<string, BillingScenario[]>; // key: "service_item_id-practitioner_id"
+  onPractitionerAssignmentsChange: (serviceItemId: number, practitionerIds: number[]) => void;
+  onBillingScenariosChange: (key: string, scenarios: BillingScenario[]) => void;
 }
 
 const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
@@ -29,12 +33,14 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
   onUpdateType,
   onRemoveType,
   isClinicAdmin,
+  practitionerAssignments,
+  billingScenarios,
+  onPractitionerAssignmentsChange,
+  onBillingScenariosChange,
 }) => {
   const [members, setMembers] = useState<Member[]>([]);
   const [, setLoadingMembers] = useState(false);
   const [expandedServiceItems, setExpandedServiceItems] = useState<Set<number>>(new Set());
-  const [practitionerAssignments, setPractitionerAssignments] = useState<Record<number, number[]>>({});
-  const [billingScenarios, setBillingScenarios] = useState<Record<string, BillingScenario[]>>({});
   const [loadingScenarios, setLoadingScenarios] = useState<Set<string>>(new Set());
   const [editingScenario, setEditingScenario] = useState<{ serviceItemId: number; practitionerId: number; scenarioId?: number } | null>(null);
   const [scenarioForm, setScenarioForm] = useState<{ name: string; amount: string; revenue_share: string; is_default: boolean }>({
@@ -51,36 +57,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
     }
   }, [isClinicAdmin]);
 
-  const loadPractitionerAssignments = async (practitionersList: Member[]) => {
-    if (practitionersList.length === 0) return;
-    
-    // Load which practitioners are assigned to which service items
-    const assignments: Record<number, number[]> = {};
-    
-    for (const member of practitionersList) {
-      if (member.roles.includes('practitioner')) {
-        try {
-          const data = await apiService.getPractitionerAppointmentTypes(member.id);
-          const appointmentTypes = data?.appointment_types;
-          if (appointmentTypes && Array.isArray(appointmentTypes)) {
-            for (const at of appointmentTypes) {
-              if (at?.id) {
-                const typeId = at.id;
-                if (!assignments[typeId]) {
-                  assignments[typeId] = [];
-                }
-                assignments[typeId].push(member.id);
-              }
-            }
-          }
-        } catch (err) {
-          logger.error(`Error loading assignments for practitioner ${member.id}:`, err);
-        }
-      }
-    }
-    
-    setPractitionerAssignments(assignments);
-  };
+  // Practitioner assignments are now managed by context, no need to load here
 
   const loadMembers = async () => {
     try {
@@ -90,11 +67,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
       const practitioners = membersData.filter(m => m.roles.includes('practitioner'));
       setMembers(practitioners);
       
-      // After loading members, load their assignments
-      // Pass practitioners directly instead of relying on state
-      if (practitioners.length > 0) {
-        await loadPractitionerAssignments(practitioners);
-      }
+      // Practitioner assignments are managed by context
     } catch (err) {
       logger.error('Error loading members:', err);
     } finally {
@@ -123,10 +96,11 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
     try {
       setLoadingScenarios(prev => new Set(prev).add(key));
       const data = await apiService.getBillingScenarios(serviceItemId, practitionerId);
-      setBillingScenarios(prev => ({
-        ...prev,
-        [key]: data.billing_scenarios,
-      }));
+      // Update both current and original state when first loading
+      // (This ensures original state is set for comparison)
+      onBillingScenariosChange(key, data.billing_scenarios);
+      // Note: Original state should also be updated, but that's handled by the context
+      // when it detects this is the first load (original is empty)
     } catch (err) {
       logger.error('Error loading billing scenarios:', err);
     } finally {
@@ -153,7 +127,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
     });
   };
 
-  const handleSaveScenario = async () => {
+  const handleSaveScenario = () => {
     if (!editingScenario) return;
 
     const { serviceItemId, practitionerId, scenarioId } = editingScenario;
@@ -181,61 +155,46 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
       return;
     }
 
-    try {
-      if (scenarioId) {
-        // Update existing
-        await apiService.updateBillingScenario(serviceItemId, practitionerId, scenarioId, {
-          name: scenarioForm.name,
-          amount,
-          revenue_share,
-          is_default: scenarioForm.is_default,
-        });
-      } else {
-        // Create new
-        await apiService.createBillingScenario(serviceItemId, practitionerId, {
-          name: scenarioForm.name,
-          amount,
-          revenue_share,
-          is_default: scenarioForm.is_default,
-        });
-      }
-
-      // Reload scenarios
-      const key = `${serviceItemId}-${practitionerId}`;
-      setBillingScenarios(prev => {
-        const newPrev = { ...prev };
-        delete newPrev[key];
-        return newPrev;
-      });
-      await loadBillingScenarios(serviceItemId, practitionerId);
-
-      setEditingScenario(null);
-    } catch (err) {
-      logger.error('Error saving billing scenario:', err);
-      alert('儲存失敗，請重試');
+    const key = `${serviceItemId}-${practitionerId}`;
+    const currentScenarios = billingScenarios[key] || [];
+    
+    if (scenarioId) {
+      // Update existing
+      const updatedScenarios = currentScenarios.map(s => 
+        s.id === scenarioId 
+          ? { ...s, name: scenarioForm.name, amount, revenue_share, is_default: scenarioForm.is_default }
+          : scenarioForm.is_default ? { ...s, is_default: false } : s
+      );
+      onBillingScenariosChange(key, updatedScenarios);
+    } else {
+      // Create new (with temporary negative ID, will be replaced by real ID from backend on save)
+      const newScenario: BillingScenario = {
+        id: -Date.now(), // Temporary negative ID (will never conflict with real positive IDs)
+        practitioner_appointment_type_id: 0, // Will be set by backend
+        name: scenarioForm.name,
+        amount,
+        revenue_share,
+        is_default: scenarioForm.is_default,
+      };
+      // If this is default, unset others
+      const updatedScenarios = scenarioForm.is_default
+        ? [...currentScenarios.map(s => ({ ...s, is_default: false })), newScenario]
+        : [...currentScenarios, newScenario];
+      onBillingScenariosChange(key, updatedScenarios);
     }
+
+    setEditingScenario(null);
   };
 
-  const handleDeleteScenario = async (serviceItemId: number, practitionerId: number, scenarioId: number) => {
+  const handleDeleteScenario = (serviceItemId: number, practitionerId: number, scenarioId: number) => {
     if (!confirm('確定要刪除此計費方案嗎？')) {
       return;
     }
 
-    try {
-      await apiService.deleteBillingScenario(serviceItemId, practitionerId, scenarioId);
-      
-      // Reload scenarios
-      const key = `${serviceItemId}-${practitionerId}`;
-      setBillingScenarios(prev => {
-        const newPrev = { ...prev };
-        delete newPrev[key];
-        return newPrev;
-      });
-      await loadBillingScenarios(serviceItemId, practitionerId);
-    } catch (err) {
-      logger.error('Error deleting billing scenario:', err);
-      alert('刪除失敗，請重試');
-    }
+    const key = `${serviceItemId}-${practitionerId}`;
+    const currentScenarios = billingScenarios[key] || [];
+    const updatedScenarios = currentScenarios.filter(s => s.id !== scenarioId);
+    onBillingScenariosChange(key, updatedScenarios);
   };
 
   return (
@@ -423,46 +382,23 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                                     <input
                                       type="checkbox"
                                       checked={isAssigned}
-                                      onChange={async (e) => {
+                                      onChange={(e) => {
                                         const shouldAssign = e.target.checked;
-                                        try {
-                                          const currentTypes = await apiService.getPractitionerAppointmentTypes(practitioner.id);
-                                          const currentTypeIds = currentTypes.appointment_types.map((at: any) => at.id);
-                                          
-                                          if (shouldAssign) {
-                                            // Add practitioner to this service item
-                                            if (!currentTypeIds.includes(type.id)) {
-                                              await apiService.updatePractitionerAppointmentTypes(
-                                                practitioner.id,
-                                                [...currentTypeIds, type.id]
-                                              );
-                                              setPractitionerAssignments(prev => ({
-                                                ...prev,
-                                                [type.id]: [...(prev[type.id] || []), practitioner.id],
-                                              }));
-                                            }
-                                          } else {
-                                            // Remove practitioner from this service item
-                                            await apiService.updatePractitionerAppointmentTypes(
-                                              practitioner.id,
-                                              currentTypeIds.filter((id: number) => id !== type.id)
-                                            );
-                                            setPractitionerAssignments(prev => ({
-                                              ...prev,
-                                              [type.id]: (prev[type.id] || []).filter(id => id !== practitioner.id),
-                                            }));
-                                            // Clear billing scenarios for this practitioner-service
-                                            setBillingScenarios(prev => {
-                                              const newPrev = { ...prev };
-                                              delete newPrev[key];
-                                              return newPrev;
-                                            });
+                                        const currentPractitionerIds = practitionerAssignments[type.id] || [];
+                                        
+                                        if (shouldAssign) {
+                                          // Add practitioner to this service item
+                                          if (!currentPractitionerIds.includes(practitioner.id)) {
+                                            onPractitionerAssignmentsChange(type.id, [...currentPractitionerIds, practitioner.id]);
                                           }
-                                        } catch (err) {
-                                          logger.error('Error updating practitioner assignment:', err);
-                                          alert('更新失敗，請重試');
-                                          // Revert checkbox on error
-                                          e.target.checked = !shouldAssign;
+                                        } else {
+                                          // Remove practitioner from this service item
+                                          onPractitionerAssignmentsChange(
+                                            type.id,
+                                            currentPractitionerIds.filter(id => id !== practitioner.id)
+                                          );
+                                          // Clear billing scenarios for this practitioner-service
+                                          onBillingScenariosChange(key, []);
                                         }
                                       }}
                                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"

@@ -12,7 +12,17 @@ import SettingsBackButton from '../../components/SettingsBackButton';
 import PageHeader from '../../components/PageHeader';
 
 const SettingsServiceItemsPage: React.FC = () => {
-  const { settings, uiState, sectionChanges, saveData, updateData } = useSettings();
+  const { 
+    settings, 
+    uiState, 
+    sectionChanges, 
+    saveData, 
+    updateData,
+    practitionerAssignments,
+    billingScenarios,
+    updatePractitionerAssignments,
+    updateBillingScenarios,
+  } = useSettings();
   const { isClinicAdmin } = useAuth();
   const { alert } = useModal();
 
@@ -118,7 +128,7 @@ const SettingsServiceItemsPage: React.FC = () => {
       <SettingsBackButton />
       <div className="flex justify-between items-center mb-6">
         <PageHeader title="服務項目設定" />
-        {sectionChanges.appointmentSettings && (
+        {sectionChanges.serviceItemsSettings && (
           <button
             type="button"
             onClick={saveData}
@@ -137,6 +147,10 @@ const SettingsServiceItemsPage: React.FC = () => {
             onUpdateType={updateAppointmentType}
             onRemoveType={removeAppointmentType}
             isClinicAdmin={isClinicAdmin}
+            practitionerAssignments={practitionerAssignments}
+            billingScenarios={billingScenarios}
+            onPractitionerAssignmentsChange={updatePractitionerAssignments}
+            onBillingScenariosChange={updateBillingScenarios}
           />
         </div>
 
