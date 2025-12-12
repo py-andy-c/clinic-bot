@@ -105,11 +105,21 @@ def upgrade() -> None:
             postgresql_where=sa.text('is_deleted = FALSE')
         )
         
-        # Add check constraint for revenue_share validation
+        # Add check constraints for validation
         op.create_check_constraint(
             'chk_revenue_share_le_amount',
             'billing_scenarios',
             'revenue_share <= amount'
+        )
+        op.create_check_constraint(
+            'chk_amount_positive',
+            'billing_scenarios',
+            'amount > 0'
+        )
+        op.create_check_constraint(
+            'chk_revenue_share_non_negative',
+            'billing_scenarios',
+            'revenue_share >= 0'
         )
     else:
         # Table exists, but check if indexes and constraints exist
@@ -121,6 +131,33 @@ def upgrade() -> None:
                 ['practitioner_appointment_type_id', 'name'],
                 unique=True,
                 postgresql_where=sa.text('is_deleted = FALSE')
+            )
+        
+        # Check if constraints exist
+        result = conn.execute(sa.text("""
+            SELECT conname FROM pg_constraint
+            WHERE conrelid = 'billing_scenarios'::regclass
+            AND conname IN ('chk_revenue_share_le_amount', 'chk_amount_positive', 'chk_revenue_share_non_negative')
+        """))
+        existing_constraints = {row[0] for row in result}
+        
+        if 'chk_revenue_share_le_amount' not in existing_constraints:
+            op.create_check_constraint(
+                'chk_revenue_share_le_amount',
+                'billing_scenarios',
+                'revenue_share <= amount'
+            )
+        if 'chk_amount_positive' not in existing_constraints:
+            op.create_check_constraint(
+                'chk_amount_positive',
+                'billing_scenarios',
+                'amount > 0'
+            )
+        if 'chk_revenue_share_non_negative' not in existing_constraints:
+            op.create_check_constraint(
+                'chk_revenue_share_non_negative',
+                'billing_scenarios',
+                'revenue_share >= 0'
             )
     
     # Step 3: Create receipts table
@@ -192,7 +229,7 @@ def upgrade() -> None:
     
     # Step 4: Create database trigger to enforce receipt_data immutability
     # Only create if receipts table exists (was created in this migration or by baseline)
-    if 'receipts' in tables or 'receipts' in [t for t in inspector.get_table_names()]:
+    if 'receipts' in tables:
         # Check if function already exists
         result = conn.execute(sa.text("""
             SELECT EXISTS (
@@ -234,6 +271,17 @@ def upgrade() -> None:
                     FOR EACH ROW
                     EXECUTE FUNCTION prevent_receipt_data_modification();
             """)
+    
+    # Step 5: Initialize receipt_settings for existing clinics
+    op.execute("""
+        UPDATE clinics
+        SET settings = jsonb_set(
+            COALESCE(settings, '{}'::jsonb),
+            '{receipt_settings}',
+            '{"custom_notes": null, "show_stamp": false}'::jsonb
+        )
+        WHERE settings->'receipt_settings' IS NULL;
+    """)
 
 
 def downgrade() -> None:

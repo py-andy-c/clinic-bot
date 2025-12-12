@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from api import auth, signup, system, clinic, profile, liff, line_webhook
+from api import auth, signup, system, clinic, profile, liff, line_webhook, receipt_endpoints
 from core.constants import CORS_ORIGINS
 from services.reminder_service import start_reminder_scheduler, stop_reminder_scheduler
 from services.test_session_cleanup import start_test_session_cleanup, stop_test_session_cleanup
@@ -237,7 +237,12 @@ app.include_router(
 app.include_router(
     liff.router,
     prefix="/api/liff",
-    tags=["liff"],
+    tags=["liff"]
+)
+app.include_router(
+    receipt_endpoints.router,
+    prefix="/api",
+    tags=["receipts"],
     responses={
         401: {"description": "Unauthorized"},
         403: {"description": "Forbidden"},

@@ -508,6 +508,13 @@ class AppointmentService:
                 appointment_type_name = get_appointment_type_name_safe(appointment.appointment_type_id, db)
                 event_name = f"{patient.full_name} - {appointment_type_name or '未設定'}"
 
+            # Get receipt status
+            from services.receipt_service import ReceiptService
+            receipt = ReceiptService.get_receipt_for_appointment(db, appointment.calendar_event_id)
+            has_receipt = receipt is not None
+            receipt_id = receipt.id if receipt else None
+            is_receipt_voided = receipt.is_voided if receipt else None
+
             result.append({
                 "id": appointment.calendar_event_id,  # Keep for backward compatibility
                 "calendar_event_id": appointment.calendar_event_id,  # Explicit field
@@ -524,7 +531,10 @@ class AppointmentService:
                 "notes": appointment.notes,
                 "clinic_notes": None,  # Not exposed to LINE users
                 "line_display_name": line_display_name,
-                "originally_auto_assigned": appointment.originally_auto_assigned
+                "originally_auto_assigned": appointment.originally_auto_assigned,
+                "has_receipt": has_receipt,
+                "receipt_id": receipt_id,
+                "is_receipt_voided": is_receipt_voided
             })
 
         return result
@@ -644,6 +654,13 @@ class AppointmentService:
             if hide_auto_assigned_practitioner_id and appointment.is_auto_assigned:
                 practitioner_id = None
 
+            # Get receipt status
+            from services.receipt_service import ReceiptService
+            receipt = ReceiptService.get_receipt_for_appointment(db, appointment.calendar_event_id)
+            has_receipt = receipt is not None
+            receipt_id = receipt.id if receipt else None
+            is_receipt_voided = receipt.is_voided if receipt else None
+
             result.append({
                 "id": appointment.calendar_event_id,  # Keep for backward compatibility
                 "calendar_event_id": appointment.calendar_event_id,  # Explicit field
@@ -661,7 +678,10 @@ class AppointmentService:
                 "clinic_notes": appointment.clinic_notes,  # Include clinic notes for clinic users
                 "line_display_name": line_display_name,
                 "originally_auto_assigned": appointment.originally_auto_assigned,
-                "is_auto_assigned": appointment.is_auto_assigned
+                "is_auto_assigned": appointment.is_auto_assigned,
+                "has_receipt": has_receipt,
+                "receipt_id": receipt_id,
+                "is_receipt_voided": is_receipt_voided
             })
 
         return result

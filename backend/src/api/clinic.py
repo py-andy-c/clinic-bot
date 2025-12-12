@@ -171,6 +171,12 @@ class ChatSettings(BaseModel):
     ai_guidance: Optional[str] = None
 
 
+class ReceiptSettings(BaseModel):
+    """Receipt settings for clinic."""
+    custom_notes: Optional[str] = None
+    show_stamp: bool = False
+
+
 class SettingsResponse(BaseModel):
     """Response model for clinic settings."""
     clinic_id: int
@@ -181,6 +187,7 @@ class SettingsResponse(BaseModel):
     booking_restriction_settings: BookingRestrictionSettings
     clinic_info_settings: ClinicInfoSettings
     chat_settings: ChatSettings
+    receipt_settings: ReceiptSettings
     liff_urls: Optional[Dict[str, str]] = None  # Dictionary of mode -> URL (excluding 'home')
 
 
@@ -649,7 +656,11 @@ async def get_settings(
                 id=at.id,
                 clinic_id=at.clinic_id,
                 name=at.name,
-                duration_minutes=at.duration_minutes
+                duration_minutes=at.duration_minutes,
+                receipt_name=at.receipt_name,
+                allow_patient_booking=at.allow_patient_booking,
+                description=at.description,
+                scheduling_buffer_minutes=at.scheduling_buffer_minutes
             )
             for at in appointment_types
         ]
@@ -704,6 +715,7 @@ async def get_settings(
             booking_restriction_settings=BookingRestrictionSettings.model_validate(validated_settings.booking_restriction_settings.model_dump()),
             clinic_info_settings=ClinicInfoSettings.model_validate(validated_settings.clinic_info_settings.model_dump()),
             chat_settings=ChatSettings.model_validate(validated_settings.chat_settings.model_dump()),
+            receipt_settings=ReceiptSettings.model_validate(validated_settings.receipt_settings.model_dump() if hasattr(validated_settings, 'receipt_settings') else {"custom_notes": None, "show_stamp": False}),
             liff_urls=liff_urls
         )
 
@@ -949,19 +961,38 @@ async def update_settings(
         # First, update existing types that are matched by ID
         for existing_type in existing_appointment_types:
             if existing_type.id in types_being_updated:
-                # Update the existing type with new name/duration
+                # Update the existing type with new name/duration and billing fields
                 incoming_data = types_being_updated[existing_type.id]
                 new_name = incoming_data.get("name")
                 new_duration = incoming_data.get("duration_minutes")
                 if new_name is not None and new_duration is not None:
                     existing_type.name = new_name
                     existing_type.duration_minutes = new_duration
+                # Update billing fields if provided
+                if "receipt_name" in incoming_data:
+                    existing_type.receipt_name = incoming_data.get("receipt_name")
+                if "allow_patient_booking" in incoming_data:
+                    existing_type.allow_patient_booking = incoming_data.get("allow_patient_booking", True)
+                if "description" in incoming_data:
+                    existing_type.description = incoming_data.get("description")
+                if "scheduling_buffer_minutes" in incoming_data:
+                    existing_type.scheduling_buffer_minutes = incoming_data.get("scheduling_buffer_minutes", 0)
                 if existing_type.is_deleted:
                     existing_type.is_deleted = False
                     existing_type.deleted_at = None
                 processed_combinations.add((existing_type.name, existing_type.duration_minutes))
             elif existing_type.id in incoming_by_id:
-                # Type is being kept as-is (matched by ID, no changes)
+                # Type is being kept, but may have billing field updates
+                incoming_data = incoming_by_id[existing_type.id]
+                # Update billing fields if provided
+                if "receipt_name" in incoming_data:
+                    existing_type.receipt_name = incoming_data.get("receipt_name")
+                if "allow_patient_booking" in incoming_data:
+                    existing_type.allow_patient_booking = incoming_data.get("allow_patient_booking", True)
+                if "description" in incoming_data:
+                    existing_type.description = incoming_data.get("description")
+                if "scheduling_buffer_minutes" in incoming_data:
+                    existing_type.scheduling_buffer_minutes = incoming_data.get("scheduling_buffer_minutes", 0)
                 if existing_type.is_deleted:
                     existing_type.is_deleted = False
                     existing_type.deleted_at = None
@@ -1000,16 +1031,29 @@ async def update_settings(
             ).first()
 
             if existing:
-                # Reactivate if it was soft deleted
+                # Reactivate if it was soft deleted and update billing fields
                 if existing.is_deleted:
                     existing.is_deleted = False
                     existing.deleted_at = None
+                # Update billing fields if provided
+                if "receipt_name" in at_data:
+                    existing.receipt_name = at_data.get("receipt_name")
+                if "allow_patient_booking" in at_data:
+                    existing.allow_patient_booking = at_data.get("allow_patient_booking", True)
+                if "description" in at_data:
+                    existing.description = at_data.get("description")
+                if "scheduling_buffer_minutes" in at_data:
+                    existing.scheduling_buffer_minutes = at_data.get("scheduling_buffer_minutes", 0)
             else:
                 # Create new
                 appointment_type = AppointmentType(
                     clinic_id=clinic_id,
                     name=name,
-                    duration_minutes=duration
+                    duration_minutes=duration,
+                    receipt_name=at_data.get("receipt_name"),
+                    allow_patient_booking=at_data.get("allow_patient_booking", True),
+                    description=at_data.get("description"),
+                    scheduling_buffer_minutes=at_data.get("scheduling_buffer_minutes", 0)
                 )
                 db.add(appointment_type)
 
@@ -2906,7 +2950,11 @@ async def get_practitioner_appointment_types(
                     id=at.id,
                     clinic_id=at.clinic_id,
                     name=at.name,
-                    duration_minutes=at.duration_minutes
+                    duration_minutes=at.duration_minutes,
+                    receipt_name=at.receipt_name,
+                    allow_patient_booking=at.allow_patient_booking,
+                    description=at.description,
+                    scheduling_buffer_minutes=at.scheduling_buffer_minutes
                 ) for at in appointment_types
             ]
         )

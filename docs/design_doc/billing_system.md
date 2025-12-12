@@ -1170,16 +1170,16 @@ WHERE receipt_name IS NULL;
 3. ✅ Update SQLAlchemy models
 4. ✅ Update Pydantic schemas
 
-### Phase 2: Backend API
-1. Update service item endpoints
-2. Create billing scenario endpoints
-3. Create checkout/receipt endpoints
-   - Add concurrent checkout protection (row-level locking)
-   - Include visit_date in receipt snapshot
-4. Update appointment queries to include receipt status
-5. Add receipt settings to clinic settings API
-6. Implement receipt PDF generation endpoint
-   - Include both visit_date and issue_date in PDF
+### Phase 2: Backend API ✅ DONE
+1. ✅ Update service item endpoints
+2. ✅ Create billing scenario endpoints
+3. ✅ Create checkout/receipt endpoints
+   - ✅ Add concurrent checkout protection (row-level locking)
+   - ✅ Include visit_date in receipt snapshot
+4. ✅ Update appointment queries to include receipt status
+5. ✅ Add receipt settings to clinic settings API
+6. ✅ Implement receipt PDF generation endpoint
+   - ✅ Include both visit_date and issue_date in PDF
 
 ### Phase 3: Frontend Settings
 1. Restructure settings page

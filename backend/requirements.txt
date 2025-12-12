@@ -41,3 +41,6 @@ PyJWT>=2.8.0
 
 # YAML parsing for evaluation suite
 PyYAML>=6.0.0
+
+# PDF generation for receipts
+reportlab>=4.0.0

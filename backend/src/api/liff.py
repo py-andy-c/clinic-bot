@@ -670,7 +670,11 @@ async def list_appointment_types(
                     id=at.id,
                     clinic_id=at.clinic_id,
                     name=at.name,
-                    duration_minutes=at.duration_minutes
+                    duration_minutes=at.duration_minutes,
+                    receipt_name=at.receipt_name,
+                    allow_patient_booking=at.allow_patient_booking,
+                    description=at.description,
+                    scheduling_buffer_minutes=at.scheduling_buffer_minutes
                 ) for at in appointment_types
             ],
             appointment_type_instructions=clinic.appointment_type_instructions

@@ -74,6 +74,8 @@ class BillingScenario(Base):
         # Indexes for performance
         Index('idx_billing_scenarios_practitioner_type', 'practitioner_appointment_type_id'),
         Index('idx_billing_scenarios_deleted', 'is_deleted'),
-        # Check constraint: revenue_share <= amount (enforced at database level)
+        # Check constraints (enforced at database level)
         CheckConstraint('revenue_share <= amount', name='chk_revenue_share_le_amount'),
+        CheckConstraint('amount > 0', name='chk_amount_positive'),
+        CheckConstraint('revenue_share >= 0', name='chk_revenue_share_non_negative'),
     )

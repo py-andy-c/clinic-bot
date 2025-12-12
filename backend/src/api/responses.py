@@ -44,6 +44,10 @@ class AppointmentTypeResponse(BaseModel):
     clinic_id: int
     name: str
     duration_minutes: int
+    receipt_name: Optional[str] = None
+    allow_patient_booking: bool = True
+    description: Optional[str] = None
+    scheduling_buffer_minutes: int = 0
 
 
 class AppointmentTypeListResponse(BaseModel):
@@ -114,6 +118,9 @@ class AppointmentListItem(BaseModel):
     line_display_name: Optional[str] = None
     originally_auto_assigned: bool = False
     is_auto_assigned: bool = False
+    has_receipt: bool = False  # Whether appointment has an active receipt
+    receipt_id: Optional[int] = None  # ID of active receipt if exists
+    is_receipt_voided: Optional[bool] = None  # Whether receipt is voided (if receipt exists)
 
 
 class AppointmentListResponse(BaseModel):
