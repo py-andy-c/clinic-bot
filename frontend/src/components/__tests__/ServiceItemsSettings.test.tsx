@@ -371,16 +371,21 @@ describe('ServiceItemsSettings', () => {
       />
     );
 
-    // Wait for members to load
+    // Wait for members to load first (they load automatically when isClinicAdmin is true)
     await waitFor(() => {
-      expect(screen.getByText('Dr. Test')).toBeInTheDocument();
+      expect(apiService.getMembers).toHaveBeenCalled();
     });
 
-    // Expand the service item - this should trigger useEffect to load scenarios
+    // Expand the service item first - members are only shown when expanded
     const expandButton = screen.getByText('初診評估').closest('button');
     if (expandButton) {
       fireEvent.click(expandButton);
     }
+
+    // Wait for members to be rendered (they appear after expansion)
+    await waitFor(() => {
+      expect(screen.getByText('Dr. Test')).toBeInTheDocument();
+    }, { timeout: 2000 });
 
     // Wait for scenarios to be loaded via useEffect (not during render)
     await waitFor(() => {
