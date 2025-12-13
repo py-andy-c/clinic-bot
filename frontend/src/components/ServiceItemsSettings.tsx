@@ -43,6 +43,8 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
   const [, setLoadingMembers] = useState(false);
   const [expandedServiceItems, setExpandedServiceItems] = useState<Set<number>>(new Set());
   const [loadingScenarios, setLoadingScenarios] = useState<Set<string>>(new Set());
+  // Track failed requests to prevent infinite retries (especially 404s)
+  const [failedScenarios, setFailedScenarios] = useState<Set<string>>(new Set());
   const [editingScenario, setEditingScenario] = useState<{ serviceItemId: number; practitionerId: number; scenarioId?: number } | null>(null);
   const [scenarioForm, setScenarioForm] = useState<{ name: string; amount: string; revenue_share: string; is_default: boolean }>({
     name: '',
@@ -61,6 +63,37 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
       loadMembers();
     }
   }, [isClinicAdmin]);
+
+  // Load billing scenarios when service items are expanded and practitioners are assigned
+  // This replaces the render-time loading that was causing infinite loops
+  useEffect(() => {
+    if (!isClinicAdmin || members.length === 0) {
+      return;
+    }
+
+    // For each expanded service item, load scenarios for assigned practitioners
+    appointmentTypes.forEach(type => {
+      if (!expandedServiceItems.has(type.id)) {
+        return;
+      }
+
+      const assignedPractitionerIds = practitionerAssignments[type.id] || [];
+      assignedPractitionerIds.forEach(practitionerId => {
+        const key = `${type.id}-${practitionerId}`;
+        // Only load if not already loaded, not currently loading, and not previously failed
+        // We check these values inside the effect to avoid unnecessary re-runs
+        const isLoaded = !!billingScenarios[key];
+        const isLoading = loadingScenarios.has(key);
+        const hasFailed = failedScenarios.has(key);
+        
+        if (!isLoaded && !isLoading && !hasFailed) {
+          loadBillingScenarios(type.id, practitionerId);
+        }
+      });
+    });
+    // Only depend on the triggers that should cause loading, not the loading state itself
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedServiceItems, practitionerAssignments, members.length, isClinicAdmin, appointmentTypes.length]);
 
   // Practitioner assignments are now managed by context, no need to load here
 
@@ -94,8 +127,9 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
 
   const loadBillingScenarios = async (serviceItemId: number, practitionerId: number) => {
     const key = `${serviceItemId}-${practitionerId}`;
-    if (loadingScenarios.has(key) || billingScenarios[key]) {
-      return; // Already loading or loaded
+    // Don't load if already loading, already loaded, or previously failed
+    if (loadingScenarios.has(key) || billingScenarios[key] || failedScenarios.has(key)) {
+      return;
     }
 
     try {
@@ -106,8 +140,23 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
       onBillingScenariosChange(key, data.billing_scenarios);
       // Note: Original state should also be updated, but that's handled by the context
       // when it detects this is the first load (original is empty)
-    } catch (err) {
+      // Remove from failed set if it was there (in case of retry after error)
+      setFailedScenarios(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(key);
+        return newSet;
+      });
+    } catch (err: any) {
       logger.error('Error loading billing scenarios:', err);
+      // Handle 404 gracefully - treat as "no scenarios exist yet"
+      // For other errors, also mark as failed to prevent infinite retries
+      if (err?.response?.status === 404 || err?.code === 'ERR_BAD_REQUEST') {
+        // 404 means no scenarios exist - set empty array and mark as "loaded" (not failed)
+        onBillingScenariosChange(key, []);
+      } else {
+        // For other errors, mark as failed to prevent infinite retries
+        setFailedScenarios(prev => new Set(prev).add(key));
+      }
     } finally {
       setLoadingScenarios(prev => {
         const newSet = new Set(prev);
@@ -442,12 +491,6 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                                   const key = `${type.id}-${practitioner.id}`;
                                   const scenarios = billingScenarios[key] || [];
                                   const isLoading = loadingScenarios.has(key);
-                                  
-                                  // Load scenarios when service item is expanded and practitioner is assigned
-                                  if (isExpanded && isAssigned && !billingScenarios[key] && !loadingScenarios.has(key)) {
-                                    // Use setTimeout to avoid calling during render
-                                    setTimeout(() => loadBillingScenarios(type.id, practitioner.id), 0);
-                                  }
 
                                   return (
                                     <div key={practitioner.id} className="space-y-2">
@@ -472,6 +515,12 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                                               );
                                               // Clear billing scenarios for this practitioner-service
                                               onBillingScenariosChange(key, []);
+                                              // Also clear from failed set to allow retry if needed
+                                              setFailedScenarios(prev => {
+                                                const newSet = new Set(prev);
+                                                newSet.delete(key);
+                                                return newSet;
+                                              });
                                             }
                                           }}
                                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
@@ -498,8 +547,8 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                                             <button
                                               type="button"
                                               onClick={() => {
-                                                // Load scenarios if not loaded
-                                                if (!billingScenarios[key] && !loadingScenarios.has(key)) {
+                                                // Load scenarios if not loaded and not failed
+                                                if (!billingScenarios[key] && !loadingScenarios.has(key) && !failedScenarios.has(key)) {
                                                   loadBillingScenarios(type.id, practitioner.id);
                                                 }
                                                 handleAddScenario(type.id, practitioner.id);
@@ -534,7 +583,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                                                     <button
                                                       type="button"
                                                       onClick={() => {
-                                                        if (!billingScenarios[key]) {
+                                                        if (!billingScenarios[key] && !loadingScenarios.has(key) && !failedScenarios.has(key)) {
                                                           loadBillingScenarios(type.id, practitioner.id);
                                                         }
                                                         handleEditScenario(type.id, practitioner.id, scenario);

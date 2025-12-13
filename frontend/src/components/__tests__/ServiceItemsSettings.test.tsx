@@ -251,5 +251,149 @@ describe('ServiceItemsSettings', () => {
     
     expect(screen.queryByText('+ 新增服務項目')).not.toBeInTheDocument();
   });
+
+  it('should handle 404 errors gracefully and not retry infinitely', async () => {
+    // Mock a 404 error
+    const axiosError = {
+      response: { status: 404 },
+      code: 'ERR_BAD_REQUEST',
+      message: 'Request failed with status code 404',
+    };
+    vi.mocked(apiService.getBillingScenarios).mockRejectedValue(axiosError);
+
+    render(
+      <ServiceItemsSettings
+        {...defaultProps}
+        practitionerAssignments={{ 1: [1] }}
+      />
+    );
+
+    // Expand the service item
+    const expandButton = screen.getByText('初診評估').closest('button');
+    if (expandButton) {
+      fireEvent.click(expandButton);
+    }
+
+    // Wait for members to load
+    await waitFor(() => {
+      expect(screen.getByText('Dr. Test')).toBeInTheDocument();
+    });
+
+    // Wait for the API call to be made
+    await waitFor(() => {
+      expect(apiService.getBillingScenarios).toHaveBeenCalledWith(1, 1);
+    });
+
+    // Verify that onBillingScenariosChange was called with empty array (404 handled gracefully)
+    await waitFor(() => {
+      expect(mockOnBillingScenariosChange).toHaveBeenCalledWith('1-1', []);
+    });
+
+    // Wait a bit and verify the API was only called once (no infinite retries)
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(apiService.getBillingScenarios).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not make API calls during render', () => {
+    // This test ensures we're not calling async functions during render
+    // which was the root cause of the infinite loop bug
+    vi.mocked(apiService.getBillingScenarios).mockResolvedValue({ billing_scenarios: [] });
+
+    render(
+      <ServiceItemsSettings
+        {...defaultProps}
+        practitionerAssignments={{ 1: [1] }}
+      />
+    );
+
+    // Immediately after render, API should not have been called yet
+    // (it should only be called in useEffect, not during render)
+    expect(apiService.getBillingScenarios).not.toHaveBeenCalled();
+  });
+
+  it('should track failed requests and not retry them', async () => {
+    // Mock a non-404 error (e.g., 500)
+    const serverError = {
+      response: { status: 500 },
+      code: 'ERR_BAD_RESPONSE',
+      message: 'Internal server error',
+    };
+    vi.mocked(apiService.getBillingScenarios).mockRejectedValue(serverError);
+
+    render(
+      <ServiceItemsSettings
+        {...defaultProps}
+        practitionerAssignments={{ 1: [1] }}
+      />
+    );
+
+    // Expand the service item
+    const expandButton = screen.getByText('初診評估').closest('button');
+    if (expandButton) {
+      fireEvent.click(expandButton);
+    }
+
+    // Wait for members to load
+    await waitFor(() => {
+      expect(screen.getByText('Dr. Test')).toBeInTheDocument();
+    });
+
+    // Wait for the API call to be made
+    await waitFor(() => {
+      expect(apiService.getBillingScenarios).toHaveBeenCalledWith(1, 1);
+    });
+
+    // Wait a bit and verify the API was only called once (failed requests are tracked)
+    await new Promise(resolve => setTimeout(resolve, 200));
+    expect(apiService.getBillingScenarios).toHaveBeenCalledTimes(1);
+  });
+
+  it('should load scenarios via useEffect when service item is expanded', async () => {
+    const mockBillingScenarios = {
+      billing_scenarios: [
+        {
+          id: 1,
+          practitioner_appointment_type_id: 1,
+          name: '原價',
+          amount: '100.00',
+          revenue_share: '80.00',
+          is_default: true,
+        },
+      ],
+    };
+
+    vi.mocked(apiService.getBillingScenarios).mockResolvedValue(mockBillingScenarios);
+
+    render(
+      <ServiceItemsSettings
+        {...defaultProps}
+        practitionerAssignments={{ 1: [1] }}
+      />
+    );
+
+    // Wait for members to load
+    await waitFor(() => {
+      expect(screen.getByText('Dr. Test')).toBeInTheDocument();
+    });
+
+    // Expand the service item - this should trigger useEffect to load scenarios
+    const expandButton = screen.getByText('初診評估').closest('button');
+    if (expandButton) {
+      fireEvent.click(expandButton);
+    }
+
+    // Wait for scenarios to be loaded via useEffect (not during render)
+    await waitFor(() => {
+      expect(apiService.getBillingScenarios).toHaveBeenCalledWith(1, 1);
+    }, { timeout: 2000 });
+
+    // Verify scenarios were loaded
+    await waitFor(() => {
+      expect(mockOnBillingScenariosChange).toHaveBeenCalledWith(
+        '1-1',
+        mockBillingScenarios.billing_scenarios
+      );
+    });
+  });
 });
 
