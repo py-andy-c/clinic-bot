@@ -338,7 +338,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
                 </button>
                 <button
                   onClick={handleVoidReceipt}
-                  className="btn-primary bg-red-600 hover:bg-red-700"
+                  className="btn-primary bg-red-600 hover:bg-red-700 disabled:hover:bg-red-600"
                   disabled={isVoiding || !voidReason.trim()}
                 >
                   {isVoiding ? '處理中...' : '確認作廢'}
