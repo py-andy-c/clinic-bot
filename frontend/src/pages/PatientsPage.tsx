@@ -325,7 +325,7 @@ const PatientsPage: React.FC = () => {
 
       <div className="space-y-8">
         {/* Patients List */}
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="md:bg-white md:rounded-lg md:shadow-md p-0 md:p-6">
         <div className="space-y-4">
           {/* Search Bar */}
           <SearchInput
@@ -355,21 +355,21 @@ const PatientsPage: React.FC = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50">
+                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50">
                         病患姓名
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         手機號碼
                       </th>
                       {requireBirthday && (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           生日
                         </th>
                       )}
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         LINE 使用者
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         操作
                       </th>
                     </tr>
@@ -384,7 +384,7 @@ const PatientsPage: React.FC = () => {
                           highlightedPatientId === patient.id.toString() ? 'bg-blue-50' : ''
                         }`}
                       >
-                        <td className={`px-6 py-4 whitespace-nowrap sticky left-0 z-10 transition-colors ${
+                        <td className={`px-2 py-2 md:px-6 md:py-4 whitespace-nowrap sticky left-0 z-10 transition-colors ${
                           highlightedPatientId === patient.id.toString()
                             ? 'bg-blue-50 group-hover:bg-blue-50'
                             : 'bg-white group-hover:bg-gray-50'
@@ -403,15 +403,15 @@ const PatientsPage: React.FC = () => {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-gray-500">
                           {patient.phone_number || '-'}
                         </td>
                         {requireBirthday && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-gray-500">
                             {patient.birthday ? formatDateOnly(patient.birthday) : '-'}
                           </td>
                         )}
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap">
                           {patient.line_user_id ? (
                             <button
                               onClick={(e) => {
@@ -434,7 +434,7 @@ const PatientsPage: React.FC = () => {
                             <span className="text-sm text-gray-500">-</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -453,7 +453,7 @@ const PatientsPage: React.FC = () => {
                 </table>
               </div>
               {totalPages > 1 && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="mt-2 pt-2 md:mt-4 md:pt-4 border-t border-gray-200">
                   <PaginationControls
                     currentPage={validatedPage}
                     totalPages={totalPages}

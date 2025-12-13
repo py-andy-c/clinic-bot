@@ -350,9 +350,9 @@ const LineUsersPage: React.FC = () => {
 
       <div className="space-y-8">
         {/* Line Users List */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="md:bg-white md:rounded-lg md:shadow-md overflow-hidden">
           {/* Search Bar */}
-          <div className="p-4 border-b border-gray-200">
+          <div className="p-2 md:p-4 border-b border-gray-200">
             <SearchInput
               ref={searchInputRef}
               value={searchInput}
@@ -387,13 +387,13 @@ const LineUsersPage: React.FC = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50 whitespace-nowrap">
+                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50 whitespace-nowrap">
                         LINE 使用者
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         病患
                       </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                      <th className="px-2 py-2 md:px-6 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                         <div className="flex items-center justify-center gap-2">
                           <span>AI 狀態</span>
                           <button
@@ -457,7 +457,7 @@ const LineUsersPage: React.FC = () => {
                             }`}
                             onClick={() => toggleExpand(lineUser.line_user_id)}
                           >
-                            <td className={`px-6 py-4 whitespace-nowrap sticky left-0 z-10 transition-colors ${
+                            <td className={`px-2 py-2 md:px-6 md:py-4 whitespace-nowrap sticky left-0 z-10 transition-colors ${
                               highlightedLineUserId === lineUser.line_user_id
                                 ? 'bg-blue-50 group-hover:bg-blue-50'
                                 : 'bg-white group-hover:bg-gray-50'
@@ -533,7 +533,7 @@ const LineUsersPage: React.FC = () => {
                                 </div>
                               )}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap">
                               <div className="flex items-center">
                                 <div className="flex-1">
                                   <div className="text-sm text-gray-900">
@@ -586,7 +586,7 @@ const LineUsersPage: React.FC = () => {
                                 )}
                               </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                            <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-center">
                               <label className="relative inline-flex items-center cursor-pointer">
                                 <span className="sr-only">
                                   {lineUser.ai_disabled ? '啟用' : '停用'} {lineUser.display_name || '此使用者'} 的AI自動回覆
@@ -619,7 +619,7 @@ const LineUsersPage: React.FC = () => {
                 </table>
               </div>
               {totalPages > 1 && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="mt-2 pt-2 md:mt-4 md:pt-4 border-t border-gray-200">
                   <PaginationControls
                     currentPage={validatedPage}
                     totalPages={totalPages}

@@ -48,7 +48,7 @@ const SettingsClinicInfoPage: React.FC = () => {
         )}
       </div>
       <form onSubmit={(e) => { e.preventDefault(); saveData(); }} className="space-y-4">
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+        <div className="md:bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
           <ClinicInfoSettings
             clinicInfoSettings={settings.clinic_info_settings}
             clinicName={settings.clinic_name}
@@ -66,7 +66,7 @@ const SettingsClinicInfoPage: React.FC = () => {
 
         {/* Error Display */}
         {uiState.error && (
-          <div className="bg-white rounded-lg border border-red-200 shadow-sm p-6">
+          <div className="bg-white rounded-lg border border-red-200 shadow-sm p-4 md:p-6">
             <div className="p-4 bg-red-50 border border-red-200 rounded-md">
               <div className="flex">
                 <div className="flex-shrink-0">
