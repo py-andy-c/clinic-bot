@@ -413,13 +413,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           if (scenario) {
             newItems[index] = {
               ...item,
+              billing_scenario_id: value,
               amount: normalizeScenarioValue(scenario.amount),
               revenue_share: normalizeScenarioValue(scenario.revenue_share),
             };
           }
         } else {
-          // "其他" (Other) was selected - keep current amount/revenue_share values
-          // They will be editable
+          // "其他" (Other) was selected - set billing_scenario_id to null and keep current amount/revenue_share values
+          newItems[index] = {
+            ...item,
+            billing_scenario_id: null,
+          };
         }
       }
     }
