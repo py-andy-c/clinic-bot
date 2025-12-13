@@ -93,7 +93,7 @@ class ReceiptResponse(BaseModel):
 
 class VoidReceiptRequest(BaseModel):
     """Request model for voiding a receipt."""
-    reason: Optional[str] = Field(None, max_length=500)
+    reason: str = Field(..., min_length=1, max_length=500, description="作廢原因（必填）")
 
 
 class VoidReceiptResponse(BaseModel):

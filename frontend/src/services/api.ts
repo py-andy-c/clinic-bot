@@ -511,9 +511,9 @@ export class ApiService {
     return response.data;
   }
 
-  async voidReceipt(receiptId: number, reason?: string): Promise<any> {
+  async voidReceipt(receiptId: number, reason: string): Promise<any> {
     const response = await this.client.post(`/receipts/${receiptId}/void`, {
-      reason: reason || null,
+      reason: reason,
     });
     return response.data;
   }

@@ -97,9 +97,15 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
       return;
     }
     
+    // Validate void reason is required
+    if (!voidReason.trim()) {
+      alert('請輸入作廢原因');
+      return;
+    }
+    
     setIsVoiding(true);
     try {
-      await apiService.voidReceipt(receiptId, voidReason || undefined);
+      await apiService.voidReceipt(receiptId, voidReason.trim());
       setShowVoidConfirm(false);
       setVoidReason('');
       if (onReceiptVoided) {
@@ -308,7 +314,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
               </p>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  作廢原因 (選填)
+                  作廢原因 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -316,6 +322,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
                   onChange={(e) => setVoidReason(e.target.value)}
                   className="input"
                   placeholder="例如：輸入錯誤"
+                  required
                 />
               </div>
               <div className="flex justify-end space-x-2">
@@ -332,7 +339,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
                 <button
                   onClick={handleVoidReceipt}
                   className="btn-primary bg-red-600 hover:bg-red-700"
-                  disabled={isVoiding}
+                  disabled={isVoiding || !voidReason.trim()}
                 >
                   {isVoiding ? '處理中...' : '確認作廢'}
                 </button>
