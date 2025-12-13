@@ -86,6 +86,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   
   // Use ref to track which appointment we've initialized for to prevent re-initialization
   const initializedForAppointmentId = React.useRef<number | null>(null);
+  
+  // Local state to track input values as strings (allows empty during typing)
+  const [amountInputs, setAmountInputs] = useState<Record<number, string>>({});
+  const [revenueShareInputs, setRevenueShareInputs] = useState<Record<number, string>>({});
 
   const loadPractitionersForServiceItem = useCallback(async (serviceItemId: number): Promise<Array<{ id: number; full_name: string }>> => {
     if (practitionersByServiceItem[serviceItemId]) {
@@ -307,6 +311,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     amount: normalizeScenarioValue(selectedScenario?.amount),
                     revenue_share: normalizeScenarioValue(selectedScenario?.revenue_share),
                   };
+                  // Clear local input state when amount/revenue_share are updated from scenario
+                  setAmountInputs(prev => {
+                    const next = { ...prev };
+                    delete next[index];
+                    return next;
+                  });
+                  setRevenueShareInputs(prev => {
+                    const next = { ...prev };
+                    delete next[index];
+                    return next;
+                  });
                 }
                 
                 return updatedItems;
@@ -418,6 +433,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               amount: normalizeScenarioValue(scenario.amount),
               revenue_share: normalizeScenarioValue(scenario.revenue_share),
             };
+            // Clear local input state when amount/revenue_share are updated from scenario
+            setAmountInputs(prev => {
+              const next = { ...prev };
+              delete next[index];
+              return next;
+            });
+            setRevenueShareInputs(prev => {
+              const next = { ...prev };
+              delete next[index];
+              return next;
+            });
           }
         } else {
           // "其他" (Other) was selected - set billing_scenario_id to null and keep current amount/revenue_share values
@@ -749,10 +775,32 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         </label>
                         <input
                           type="number"
-                          value={Math.round(item.amount || 0)}
+                          value={amountInputs[index] !== undefined 
+                            ? amountInputs[index] 
+                            : (item.amount !== undefined && item.amount !== null ? Math.round(item.amount).toString() : '')}
                           onChange={(e) => {
-                            const value = parseFloat(e.target.value) || 0;
-                            handleItemChange(index, 'amount', Math.round(value));
+                            const value = e.target.value;
+                            // Update local input state to allow empty string
+                            setAmountInputs(prev => ({ ...prev, [index]: value }));
+                            // Only update item state if we have a valid number
+                            if (value !== '') {
+                              const numValue = parseFloat(value);
+                              if (!isNaN(numValue)) {
+                                handleItemChange(index, 'amount', Math.round(numValue));
+                              }
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const value = e.target.value;
+                            // Normalize to 0 if empty on blur
+                            const numValue = value === '' || isNaN(parseFloat(value)) ? 0 : Math.round(parseFloat(value));
+                            handleItemChange(index, 'amount', numValue);
+                            // Clear local input state to sync with item state
+                            setAmountInputs(prev => {
+                              const next = { ...prev };
+                              delete next[index];
+                              return next;
+                            });
                           }}
                           className="input"
                           min="0"
@@ -767,10 +815,32 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         </label>
                         <input
                           type="number"
-                          value={Math.round(item.revenue_share || 0)}
+                          value={revenueShareInputs[index] !== undefined 
+                            ? revenueShareInputs[index] 
+                            : (item.revenue_share !== undefined && item.revenue_share !== null ? Math.round(item.revenue_share).toString() : '')}
                           onChange={(e) => {
-                            const value = parseFloat(e.target.value) || 0;
-                            handleItemChange(index, 'revenue_share', Math.round(value));
+                            const value = e.target.value;
+                            // Update local input state to allow empty string
+                            setRevenueShareInputs(prev => ({ ...prev, [index]: value }));
+                            // Only update item state if we have a valid number
+                            if (value !== '') {
+                              const numValue = parseFloat(value);
+                              if (!isNaN(numValue)) {
+                                handleItemChange(index, 'revenue_share', Math.round(numValue));
+                              }
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const value = e.target.value;
+                            // Normalize to 0 if empty on blur
+                            const numValue = value === '' || isNaN(parseFloat(value)) ? 0 : Math.round(parseFloat(value));
+                            handleItemChange(index, 'revenue_share', numValue);
+                            // Clear local input state to sync with item state
+                            setRevenueShareInputs(prev => {
+                              const next = { ...prev };
+                              delete next[index];
+                              return next;
+                            });
                           }}
                           className="input"
                           min="0"
