@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { checkCancellationConstraint } from '../../utils/appointmentConstraints';
 import { logger } from '../../utils/logger';
+import { formatCurrency } from '../../utils/currencyUtils';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { liffApiService } from '../../services/liffApi';
 import AppointmentCard from './AppointmentCard';
@@ -229,13 +230,7 @@ const AppointmentList: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('zh-TW', {
-      style: 'currency',
-      currency: 'TWD',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  // Use the shared currency utility for consistent formatting
 
   const formatPaymentMethod = (method: string): string => {
     const mapping: Record<string, string> = {

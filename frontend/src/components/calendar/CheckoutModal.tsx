@@ -30,6 +30,28 @@ interface CheckoutModalProps {
   onSuccess: () => void;
 }
 
+// Helper function to normalize scenario values (handles string/number types from API)
+const normalizeScenarioValue = (value: string | number | null | undefined): number => {
+  if (value === null || value === undefined) return 0;
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  return isNaN(num) ? 0 : Math.round(num);
+};
+
+// Helper function to determine if custom amount fields should be shown
+const shouldShowCustomFields = (item: CheckoutItem, scenarios: any[]): boolean => {
+  const hasServiceAndPractitioner = item.service_item_id && item.practitioner_id;
+  const noScenarios = scenarios.length === 0;
+  const isOtherSelected = item.billing_scenario_id === null;
+  const noScenarioSelected = item.billing_scenario_id === undefined;
+  
+  return (hasServiceAndPractitioner && noScenarios) || isOtherSelected || noScenarioSelected;
+};
+
+// Helper function to determine if read-only fields should be shown
+const shouldShowReadOnlyFields = (item: CheckoutItem, scenarios: any[]): boolean => {
+  return !!(item.service_item_id && item.practitioner_id && scenarios.length > 0 && item.billing_scenario_id != null);
+};
+
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   event,
   appointmentTypes,
@@ -85,13 +107,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           const key = `${appointmentType.id}-${practitionerId}`;
           const scenarios = prev[key] || [];
           const defaultScenario = scenarios.find((s: any) => s.is_default);
+          // If no default, use first scenario; if no scenarios, use null (custom)
+          const selectedScenario = defaultScenario || scenarios[0] || null;
           
           setItems([{
             service_item_id: appointmentType.id,
             practitioner_id: practitionerId,
-            billing_scenario_id: defaultScenario?.id || null,
-            amount: defaultScenario?.amount || 0,
-            revenue_share: defaultScenario?.revenue_share || 0,
+            billing_scenario_id: selectedScenario?.id || null,
+            amount: normalizeScenarioValue(selectedScenario?.amount),
+            revenue_share: normalizeScenarioValue(selectedScenario?.revenue_share),
             quantity: 1,
           }]);
           
@@ -159,18 +183,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             const key = `${item.service_item_id}-${item.practitioner_id}`;
             const scenarios = prev[key] || [];
             const defaultScenario = scenarios.find((s: any) => s.is_default);
-            if (defaultScenario && !newItems[index]?.billing_scenario_id) {
+            // If no default, use first scenario; if no scenarios, use null (custom)
+            const selectedScenario = defaultScenario || scenarios[0] || null;
+            if (selectedScenario && !newItems[index]?.billing_scenario_id) {
               const updatedItems = [...newItems];
               const currentItem = updatedItems[index];
               if (currentItem) {
-                // Normalize amount and revenue_share to handle both string and number types from API
-                const normalizedAmount = typeof defaultScenario.amount === 'string' ? parseFloat(defaultScenario.amount) : defaultScenario.amount;
-                const normalizedRevenueShare = typeof defaultScenario.revenue_share === 'string' ? parseFloat(defaultScenario.revenue_share) : defaultScenario.revenue_share;
                 updatedItems[index] = {
                   ...currentItem,
-                  billing_scenario_id: defaultScenario.id,
-                  amount: isNaN(normalizedAmount) ? 0 : normalizedAmount,
-                  revenue_share: isNaN(normalizedRevenueShare) ? 0 : normalizedRevenueShare,
+                  billing_scenario_id: selectedScenario.id,
+                  amount: normalizeScenarioValue(selectedScenario.amount),
+                  revenue_share: normalizeScenarioValue(selectedScenario.revenue_share),
                 };
                 setItems(updatedItems);
               }
@@ -182,21 +205,24 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
     
     // Auto-fill amount and revenue_share when billing scenario is selected
-    if (field === 'billing_scenario_id' && value) {
+    if (field === 'billing_scenario_id') {
       const item = newItems[index];
       if (item && item.service_item_id && item.practitioner_id) {
-        const key = `${item.service_item_id}-${item.practitioner_id}`;
-        const scenarios = billingScenarios[key] || [];
-        const scenario = scenarios.find((s: any) => s.id === value);
-        if (scenario) {
-          // Normalize amount and revenue_share to handle both string and number types from API
-          const normalizedAmount = typeof scenario.amount === 'string' ? parseFloat(scenario.amount) : scenario.amount;
-          const normalizedRevenueShare = typeof scenario.revenue_share === 'string' ? parseFloat(scenario.revenue_share) : scenario.revenue_share;
-          newItems[index] = {
-            ...item,
-            amount: isNaN(normalizedAmount) ? 0 : normalizedAmount,
-            revenue_share: isNaN(normalizedRevenueShare) ? 0 : normalizedRevenueShare,
-          };
+        if (value) {
+          // A scenario was selected
+          const key = `${item.service_item_id}-${item.practitioner_id}`;
+          const scenarios = billingScenarios[key] || [];
+          const scenario = scenarios.find((s: any) => s.id === value);
+          if (scenario) {
+            newItems[index] = {
+              ...item,
+              amount: normalizeScenarioValue(scenario.amount),
+              revenue_share: normalizeScenarioValue(scenario.revenue_share),
+            };
+          }
+        } else {
+          // "其他" (Other) was selected - keep current amount/revenue_share values
+          // They will be editable
         }
       }
     }
@@ -447,15 +473,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                           // Load billing scenarios when practitioner is selected
                           if (item.service_item_id && practitionerId) {
                             await loadBillingScenarios(item.service_item_id, practitionerId);
-                            // Auto-select default scenario
+                            // Auto-select default scenario, or first scenario if no default, or null if no scenarios
                             const key = `${item.service_item_id}-${practitionerId}`;
                             setBillingScenarios(prev => {
                               const scenarios = prev[key] || [];
                               const defaultScenario = scenarios.find((s: any) => s.is_default);
-                              if (defaultScenario) {
-                                handleItemChange(index, 'billing_scenario_id', defaultScenario.id);
-                                handleItemChange(index, 'amount', defaultScenario.amount);
-                                handleItemChange(index, 'revenue_share', defaultScenario.revenue_share);
+                              const selectedScenario = defaultScenario || scenarios[0] || null;
+                              if (selectedScenario) {
+                                handleItemChange(index, 'billing_scenario_id', selectedScenario.id);
+                                handleItemChange(index, 'amount', normalizeScenarioValue(selectedScenario.amount));
+                                handleItemChange(index, 'revenue_share', normalizeScenarioValue(selectedScenario.revenue_share));
+                              } else {
+                                // No scenarios, set to null (custom)
+                                handleItemChange(index, 'billing_scenario_id', null);
                               }
                               return prev;
                             });
@@ -480,56 +510,90 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         計費方案
                       </label>
                       <select
-                        value={item.billing_scenario_id || defaultScenario?.id || ''}
-                        onChange={(e) => handleItemChange(index, 'billing_scenario_id', e.target.value ? parseInt(e.target.value) : null)}
+                        value={item.billing_scenario_id != null ? item.billing_scenario_id : ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          handleItemChange(index, 'billing_scenario_id', value ? parseInt(value) : null);
+                        }}
                         className="input"
                       >
-                        <option value="">選擇方案...</option>
                         {scenarios.map((s: any) => {
                           const amount = typeof s.amount === 'string' ? parseFloat(s.amount) : s.amount;
+                          const revenueShare = typeof s.revenue_share === 'string' ? parseFloat(s.revenue_share) : s.revenue_share;
                           return (
                             <option key={s.id} value={s.id}>
-                              {s.name} ({formatCurrency(isNaN(amount) ? 0 : amount)})
+                              {s.name} ({formatCurrency(isNaN(amount) ? 0 : amount)} / {formatCurrency(isNaN(revenueShare) ? 0 : revenueShare)})
                             </option>
                           );
                         })}
+                        <option value="">其他</option>
                       </select>
                     </div>
                   )}
                   
                   {/* Custom Amount/Revenue Share */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        金額
-                      </label>
-                      <input
-                        type="number"
-                        value={item.amount || ''}
-                        onChange={(e) => handleItemChange(index, 'amount', parseFloat(e.target.value) || 0)}
-                        className="input"
-                        min="0"
-                        step="1"
-                        placeholder="0"
-                        onWheel={preventScrollWheelChange}
-                      />
+                  {shouldShowCustomFields(item, scenarios) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          金額
+                        </label>
+                        <input
+                          type="number"
+                          value={Math.round(item.amount || 0)}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0;
+                            handleItemChange(index, 'amount', Math.round(value));
+                          }}
+                          className="input"
+                          min="0"
+                          step="1"
+                          placeholder="0"
+                          onWheel={preventScrollWheelChange}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          診所分潤
+                        </label>
+                        <input
+                          type="number"
+                          value={Math.round(item.revenue_share || 0)}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value) || 0;
+                            handleItemChange(index, 'revenue_share', Math.round(value));
+                          }}
+                          className="input"
+                          min="0"
+                          step="1"
+                          placeholder="0"
+                          onWheel={preventScrollWheelChange}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        診所分潤
-                      </label>
-                      <input
-                        type="number"
-                        value={item.revenue_share || ''}
-                        onChange={(e) => handleItemChange(index, 'revenue_share', parseFloat(e.target.value) || 0)}
-                        className="input"
-                        min="0"
-                        step="1"
-                        placeholder="0"
-                        onWheel={preventScrollWheelChange}
-                      />
+                  )}
+                  
+                  {/* Read-only amount/revenue_share when a scenario is selected */}
+                  {shouldShowReadOnlyFields(item, scenarios) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          金額
+                        </label>
+                        <div className="input bg-gray-50 cursor-not-allowed flex items-center">
+                          {formatCurrency(Math.round(item.amount || 0))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          診所分潤
+                        </label>
+                        <div className="input bg-gray-50 cursor-not-allowed flex items-center">
+                          {formatCurrency(Math.round(item.revenue_share || 0))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             );

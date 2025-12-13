@@ -24,11 +24,14 @@ export function formatCurrency(amount: number | string | null | undefined): stri
   // Round to nearest integer (no decimals for TWD)
   const roundedAmount = Math.round(numAmount);
   
-  // Format with thousand separators using zh-TW locale (no decimals)
-  return `$${roundedAmount.toLocaleString('zh-TW', { 
-    minimumFractionDigits: 0, 
-    maximumFractionDigits: 0 
-  })}`;
+  // Format with comma separators using en-US locale to ensure $2,500 format
+  const formatter = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+    useGrouping: true
+  });
+  
+  return `$${formatter.format(roundedAmount)}`;
 }
 
 /**
@@ -51,10 +54,13 @@ export function formatCurrencyWithoutSymbol(amount: number | string | null | und
   // Round to nearest integer (no decimals for TWD)
   const roundedAmount = Math.round(numAmount);
   
-  // Format with thousand separators using zh-TW locale (no decimals)
-  return roundedAmount.toLocaleString('zh-TW', { 
-    minimumFractionDigits: 0, 
-    maximumFractionDigits: 0 
+  // Format with comma separators using en-US locale to ensure 2,500 format
+  const formatter = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+    useGrouping: true
   });
+  
+  return formatter.format(roundedAmount);
 }
 

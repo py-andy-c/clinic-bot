@@ -36,8 +36,10 @@ class PDFService:
         
         # Add custom filter for currency formatting
         def format_currency(value: float) -> str:
-            """Format float as currency string."""
-            return f"{value:.0f}"
+            """Format float as currency string with comma separators (e.g., 2500 -> '2,500')."""
+            rounded = round(value)
+            # Format with comma separators
+            return f"{rounded:,}"
         
         def format_date_only(dt_str: str) -> str:
             """Format ISO datetime string as date only (YYYY-MM-DD) in Taiwan timezone."""

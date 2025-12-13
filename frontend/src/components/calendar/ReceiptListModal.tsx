@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
+import { formatCurrency as formatCurrencyUtil } from '../../utils/currencyUtils';
 import moment from 'moment-timezone';
 
 interface ReceiptListModalProps {
@@ -81,13 +82,8 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
     }
   };
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('zh-TW', {
-      style: 'currency',
-      currency: 'TWD',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  // Use the shared currency utility for consistent formatting
+  const formatCurrency = formatCurrencyUtil;
 
   if (isLoading) {
     return (
