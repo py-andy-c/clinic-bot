@@ -295,6 +295,10 @@ export class ApiService {
       notes?: string | null;
       line_display_name?: string | null;
       originally_auto_assigned?: boolean;
+      has_active_receipt?: boolean;
+      has_any_receipt?: boolean;
+      receipt_id?: number | null;
+      receipt_ids?: number[];
     }>;
   }> {
     const params: Record<string, string> = {};

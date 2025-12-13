@@ -720,6 +720,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Event styling based on document requirements and practitioner
   const eventStyleGetter = useCallback((event: CalendarEvent) => {
+    // Style checked-out appointments differently (with opacity or border)
+    const isCheckedOut = event.resource.has_active_receipt === true;
     const practitionerId = event.resource.practitioner_id || userId;
     const isPrimary = practitionerId === userId;
     
@@ -766,6 +768,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         style = {
           ...style,
           border: '2px dashed rgba(255, 255, 255, 0.8)'
+        };
+      }
+      
+      // Style checked-out appointments with reduced opacity and border
+      if (isCheckedOut) {
+        style = {
+          ...style,
+          opacity: style.opacity ? style.opacity * 0.7 : 0.7,
+          border: style.border || '2px solid rgba(255, 255, 255, 0.5)',
+          boxShadow: 'inset 0 0 0 1px rgba(255, 255, 255, 0.3)'
         };
       }
     } else if (event.resource.type === 'availability_exception') {

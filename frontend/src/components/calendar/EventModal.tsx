@@ -14,6 +14,7 @@ import { formatDateOnly } from '../../utils/calendarUtils';
 import { useAuth } from '../../hooks/useAuth';
 import { CheckoutModal } from './CheckoutModal';
 import { ReceiptViewModal } from './ReceiptViewModal';
+import { ReceiptListModal } from './ReceiptListModal';
 
 // Maximum length for custom event names
 // Must match backend/src/core/constants.py MAX_EVENT_NAME_LENGTH = 100
@@ -51,6 +52,8 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
   const { isClinicAdmin } = useAuth();
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showReceiptListModal, setShowReceiptListModal] = useState(false);
+  const [selectedReceiptId, setSelectedReceiptId] = useState<number | undefined>(undefined);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editingName, setEditingName] = useState(event.title);
   const [isSaving, setIsSaving] = useState(false);
@@ -283,10 +286,20 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
         <div className="flex justify-end space-x-2 mt-6">
           {event.resource.type === 'appointment' && (
             <>
-              {/* Receipt View Button - Show when receipt exists */}
-              {event.resource.has_receipt && event.resource.receipt_id && (
+              {/* Receipt View Button - Show when any receipt exists (active or voided) */}
+              {event.resource.has_any_receipt && event.resource.receipt_ids && event.resource.receipt_ids.length > 0 && (
                 <button
-                  onClick={() => setShowReceiptModal(true)}
+                  onClick={() => {
+                    // Show list modal if multiple receipts, otherwise show single receipt modal
+                    const receiptIds = event.resource.receipt_ids || [];
+                    if (receiptIds.length > 1) {
+                      setShowReceiptListModal(true);
+                    } else {
+                      // Single receipt: show directly
+                      setSelectedReceiptId(receiptIds[0]);
+                      setShowReceiptModal(true);
+                    }
+                  }}
                   className="btn-primary bg-purple-600 hover:bg-purple-700"
                 >
                   檢視收據
@@ -294,7 +307,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
               )}
               
               {/* Re-issue Receipt Button - Show when receipt is voided (admin only) */}
-              {event.resource.has_receipt && event.resource.is_receipt_voided && isClinicAdmin && (
+              {event.resource.has_any_receipt && !event.resource.has_active_receipt && isClinicAdmin && (
                 <button
                   onClick={() => setShowCheckoutModal(true)}
                   className="btn-primary bg-orange-600 hover:bg-orange-700"
@@ -303,8 +316,8 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 </button>
               )}
               
-              {/* Checkout Button - Show when no receipt (admin only) */}
-              {!event.resource.has_receipt && isClinicAdmin && (
+              {/* Checkout Button - Show when no active receipt (admin only) */}
+              {!event.resource.has_active_receipt && isClinicAdmin && (
                 <button
                   onClick={() => setShowCheckoutModal(true)}
                   className="btn-primary bg-green-600 hover:bg-green-700"
@@ -323,8 +336,8 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 </button>
               )}
               
-              {/* Edit/Delete Buttons - Hide when receipt exists */}
-              {!event.resource.has_receipt && (
+              {/* Edit/Delete Buttons - Hide when any receipt exists (Constraint 1) */}
+              {!event.resource.has_any_receipt && (
                 <>
                   {onEditAppointment && (
             <button
@@ -343,6 +356,12 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
             </button>
                   )}
                 </>
+              )}
+              {/* Show message when buttons are hidden due to receipt constraint */}
+              {event.resource.has_any_receipt && (
+                <p className="text-sm text-gray-500 italic mt-2">
+                  此預約已有收據，無法修改
+                </p>
               )}
             </>
           )}
@@ -374,11 +393,30 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
           />
         )}
         
+        {/* Receipt List Modal (when multiple receipts) */}
+        {showReceiptListModal && event.resource.appointment_id && event.resource.receipt_ids && event.resource.receipt_ids.length > 1 && (
+          <ReceiptListModal
+            appointmentId={event.resource.appointment_id}
+            receiptIds={event.resource.receipt_ids}
+            onClose={() => setShowReceiptListModal(false)}
+            onSelectReceipt={(receiptId) => {
+              setSelectedReceiptId(receiptId);
+              setShowReceiptModal(true);
+            }}
+          />
+        )}
+
         {/* Receipt View Modal */}
         {showReceiptModal && event.resource.appointment_id && (
           <ReceiptViewModal
-            appointmentId={event.resource.appointment_id}
-            onClose={() => setShowReceiptModal(false)}
+            {...(selectedReceiptId 
+              ? { receiptId: selectedReceiptId }
+              : { appointmentId: event.resource.appointment_id }
+            )}
+            onClose={() => {
+              setShowReceiptModal(false);
+              setSelectedReceiptId(undefined);
+            }}
             onReceiptVoided={async () => {
               if (onEventNameUpdated) {
                 await onEventNameUpdated(null);

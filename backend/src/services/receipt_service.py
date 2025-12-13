@@ -416,6 +416,74 @@ class ReceiptService:
         return result
 
     @staticmethod
+    def get_all_receipts_for_appointments(
+        db: Session,
+        appointment_ids: List[int]
+    ) -> Dict[int, List[Receipt]]:
+        """
+        Get all receipts (active and voided) for multiple appointments.
+        Returns a mapping from appointment_id to list of all receipts.
+        
+        Args:
+            db: Database session
+            appointment_ids: List of appointment IDs
+            
+        Returns:
+            Dict mapping appointment_id to list of Receipts (empty list if none)
+        """
+        if not appointment_ids:
+            return {}
+        
+        # Get all receipts for these appointments
+        # Order by issue_date DESC (newest first) - more meaningful to users than creation date
+        all_receipts = db.query(Receipt).filter(
+            Receipt.appointment_id.in_(appointment_ids)
+        ).order_by(Receipt.issue_date.desc()).all()
+        
+        # Group by appointment_id
+        result: Dict[int, List[Receipt]] = {}
+        for appt_id in appointment_ids:
+            result[appt_id] = []
+        
+        for receipt in all_receipts:
+            if receipt.appointment_id in result:
+                result[receipt.appointment_id].append(receipt)
+        
+        return result
+
+    @staticmethod
+    def compute_receipt_fields(
+        receipts: List[Receipt]
+    ) -> Dict[str, Any]:
+        """
+        Compute receipt status fields from a list of receipts.
+        
+        This helper function centralizes the logic for determining receipt status:
+        - has_active_receipt: True if appointment has at least one non-voided receipt
+        - has_any_receipt: True if appointment has any receipt (active or voided)
+        - receipt_id: ID of the active receipt (null if no active receipt)
+        - receipt_ids: List of all receipt IDs (always included, empty if none)
+        
+        Args:
+            receipts: List of receipts for an appointment (can be empty)
+            
+        Returns:
+            Dict with has_active_receipt, has_any_receipt, receipt_id, receipt_ids
+        """
+        has_any_receipt = len(receipts) > 0
+        active_receipt = next((r for r in receipts if not r.is_voided), None)
+        has_active_receipt = active_receipt is not None
+        receipt_id = active_receipt.id if active_receipt else None
+        receipt_ids = [r.id for r in receipts]
+        
+        return {
+            "has_active_receipt": has_active_receipt,
+            "has_any_receipt": has_any_receipt,
+            "receipt_id": receipt_id,
+            "receipt_ids": receipt_ids
+        }
+
+    @staticmethod
     def get_receipt_by_id(
         db: Session,
         receipt_id: int

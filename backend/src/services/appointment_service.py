@@ -508,12 +508,14 @@ class AppointmentService:
                 appointment_type_name = get_appointment_type_name_safe(appointment.appointment_type_id, db)
                 event_name = f"{patient.full_name} - {appointment_type_name or '未設定'}"
 
-            # Get receipt status
+            # Get receipt status (optimized single query)
             from services.receipt_service import ReceiptService
-            receipt = ReceiptService.get_receipt_for_appointment(db, appointment.calendar_event_id)
-            has_receipt = receipt is not None
-            receipt_id = receipt.id if receipt else None
-            is_receipt_voided = receipt.is_voided if receipt else None
+            from models.receipt import Receipt
+            receipts = db.query(Receipt).filter(
+                Receipt.appointment_id == appointment.calendar_event_id
+            ).all()
+            
+            receipt_fields = ReceiptService.compute_receipt_fields(receipts)
 
             result.append({
                 "id": appointment.calendar_event_id,  # Keep for backward compatibility
@@ -532,9 +534,10 @@ class AppointmentService:
                 "clinic_notes": None,  # Not exposed to LINE users
                 "line_display_name": line_display_name,
                 "originally_auto_assigned": appointment.originally_auto_assigned,
-                "has_receipt": has_receipt,
-                "receipt_id": receipt_id,
-                "is_receipt_voided": is_receipt_voided
+                "has_active_receipt": receipt_fields["has_active_receipt"],
+                "has_any_receipt": receipt_fields["has_any_receipt"],
+                "receipt_id": receipt_fields["receipt_id"],
+                "receipt_ids": receipt_fields["receipt_ids"]
             })
 
         return result
@@ -654,12 +657,14 @@ class AppointmentService:
             if hide_auto_assigned_practitioner_id and appointment.is_auto_assigned:
                 practitioner_id = None
 
-            # Get receipt status
+            # Get receipt status (optimized single query)
             from services.receipt_service import ReceiptService
-            receipt = ReceiptService.get_receipt_for_appointment(db, appointment.calendar_event_id)
-            has_receipt = receipt is not None
-            receipt_id = receipt.id if receipt else None
-            is_receipt_voided = receipt.is_voided if receipt else None
+            from models.receipt import Receipt
+            receipts = db.query(Receipt).filter(
+                Receipt.appointment_id == appointment.calendar_event_id
+            ).all()
+            
+            receipt_fields = ReceiptService.compute_receipt_fields(receipts)
 
             result.append({
                 "id": appointment.calendar_event_id,  # Keep for backward compatibility
@@ -679,9 +684,10 @@ class AppointmentService:
                 "line_display_name": line_display_name,
                 "originally_auto_assigned": appointment.originally_auto_assigned,
                 "is_auto_assigned": appointment.is_auto_assigned,
-                "has_receipt": has_receipt,
-                "receipt_id": receipt_id,
-                "is_receipt_voided": is_receipt_voided
+                "has_active_receipt": receipt_fields["has_active_receipt"],
+                "has_any_receipt": receipt_fields["has_any_receipt"],
+                "receipt_id": receipt_fields["receipt_id"],
+                "receipt_ids": receipt_fields["receipt_ids"]
             })
 
         return result
@@ -718,15 +724,37 @@ class AppointmentService:
             it returns success without making changes.
             This method sends notifications to both practitioner and patient.
         """
-        # Find appointment
-        appointment = db.query(Appointment).filter(
-            Appointment.calendar_event_id == appointment_id
-        ).first()
+        # Find appointment with lock to prevent race conditions
+        from sqlalchemy.exc import OperationalError
+        try:
+            appointment = db.query(Appointment).filter(
+                Appointment.calendar_event_id == appointment_id
+            ).with_for_update(nowait=True).first()
+        except OperationalError as e:
+            # Handle lock timeout - another transaction is modifying
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="此預約正在被其他操作修改，請稍後再試"
+            )
 
         if not appointment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="預約不存在"
+            )
+        
+        # Constraint 1: Check if appointment has any receipt (active or voided)
+        # Check if appointment has any receipt (within same transaction)
+        from models.receipt import Receipt
+        receipts = db.query(Receipt).filter(
+            Receipt.appointment_id == appointment_id
+        ).all()
+        
+        if len(receipts) > 0:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="此預約已有收據，無法取消"
             )
 
         # Validate cancellation restriction for patients only (clinic cancellations are not restricted)
@@ -1649,6 +1677,37 @@ class AppointmentService:
         appointment, calendar_event = AppointmentService._get_and_validate_appointment_for_update(
             db, appointment_id, appointment=appointment
         )
+        
+        # Constraint 1: Check if appointment has any receipt (active or voided)
+        # Lock appointment row to prevent race conditions
+        from sqlalchemy.exc import OperationalError
+        try:
+            # Re-query with lock (appointment may have been pre-fetched without lock)
+            locked_appointment = db.query(Appointment).filter(
+                Appointment.calendar_event_id == appointment_id
+            ).with_for_update(nowait=True).first()
+        except OperationalError:
+            # Handle lock timeout - another transaction is modifying
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="此預約正在被其他操作修改，請稍後再試"
+            )
+        
+        if not locked_appointment:
+            raise HTTPException(status_code=404, detail="預約不存在")
+        
+        # Check if appointment has any receipt (within same transaction)
+        from models.receipt import Receipt
+        receipts = db.query(Receipt).filter(
+            Receipt.appointment_id == appointment_id
+        ).all()
+        
+        if len(receipts) > 0:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="此預約已有收據，無法修改"
+            )
 
         # Get clinic from appointment
         clinic_id = appointment.patient.clinic_id

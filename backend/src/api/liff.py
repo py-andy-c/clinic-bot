@@ -1075,6 +1075,113 @@ async def cancel_appointment(
         raise
 
 
+@router.get("/appointments/{appointment_id}/receipt", response_model=Dict[str, Any])
+async def get_appointment_receipt(
+    appointment_id: int,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """
+    Get active receipt for an appointment (patient view).
+    
+    Patients can only see active (non-voided) receipts.
+    Returns 404 if no active receipt exists (security best practice).
+    Clinic isolation is enforced through LIFF token context.
+    """
+    line_user, clinic = line_user_clinic
+    
+    try:
+        # Get appointment with relationships
+        appointment = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).options(
+            joinedload(Appointment.patient)
+        ).filter(
+            Appointment.calendar_event_id == appointment_id
+        ).first()
+        
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約不存在"
+            )
+        
+        # Validate appointment belongs to patient (via line_user_id)
+        if appointment.patient.line_user_id != line_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,  # 404 for security (don't reveal existence)
+                detail="預約不存在"
+            )
+        
+        # Validate appointment belongs to clinic
+        if appointment.patient.clinic_id != clinic.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,  # 404 for security
+                detail="預約不存在"
+            )
+        
+        # Get active receipt only (patients cannot see voided receipts)
+        from models.receipt import Receipt
+        active_receipt = db.query(Receipt).filter(
+            Receipt.appointment_id == appointment_id,
+            Receipt.is_voided == False
+        ).first()
+        
+        if not active_receipt:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="收據不存在"
+            )
+        
+        # Verify receipt belongs to clinic
+        if active_receipt.clinic_id != clinic.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,  # 404 for security
+                detail="收據不存在"
+            )
+        
+        # Extract data from receipt_data snapshot
+        receipt_data = active_receipt.receipt_data
+        
+        # Convert items
+        items: List[Dict[str, Any]] = []
+        for item_data in receipt_data.get("items", []):
+            items.append(item_data)
+        
+        return {
+            "receipt_id": active_receipt.id,
+            "receipt_number": active_receipt.receipt_number,
+            "appointment_id": active_receipt.appointment_id,
+            "issue_date": active_receipt.issue_date.isoformat(),
+            "visit_date": receipt_data["visit_date"],
+            "total_amount": float(active_receipt.total_amount),
+            "total_revenue_share": float(active_receipt.total_revenue_share),
+            "created_at": active_receipt.created_at.isoformat(),
+            "checked_out_by": receipt_data["checked_out_by"],
+            "clinic": receipt_data["clinic"],
+            "patient": receipt_data["patient"],
+            "items": items,
+            "payment_method": receipt_data["payment_method"],
+            "custom_notes": receipt_data.get("custom_notes"),
+            "stamp": receipt_data.get("stamp", {"enabled": False}),
+            "void_info": {
+                "voided": False,
+                "voided_at": None,
+                "voided_by": None,
+                "reason": None
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting receipt for appointment {appointment_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得收據"
+        )
+
+
 class RescheduleAppointmentRequest(BaseModel):
     """Request model for rescheduling an appointment."""
     new_practitioner_id: Optional[int] = None  # None = keep current, -1 = auto-assign (不指定)

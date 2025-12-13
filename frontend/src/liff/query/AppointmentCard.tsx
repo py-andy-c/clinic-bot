@@ -13,6 +13,10 @@ interface Appointment {
   end_time: string;
   status: 'confirmed' | 'canceled_by_patient' | 'canceled_by_clinic';
   notes?: string;
+  has_active_receipt?: boolean; // Whether appointment has an active (non-voided) receipt
+  has_any_receipt?: boolean; // Whether appointment has any receipt (active or voided)
+  receipt_id?: number | null; // ID of active receipt (null if no active receipt)
+  receipt_ids?: number[]; // List of all receipt IDs (always included, empty if none)
 }
 
 interface AppointmentCardProps {
@@ -20,9 +24,10 @@ interface AppointmentCardProps {
   onCancel: () => void;
   onReschedule?: () => void;
   allowPatientDeletion?: boolean;
+  onViewReceipt?: (() => void) | undefined; // Callback to view receipt
 }
 
-const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel, onReschedule, allowPatientDeletion = true }) => {
+const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel, onReschedule, allowPatientDeletion = true, onViewReceipt }) => {
   const { t } = useTranslation();
 
   const getStatusColor = (status: string): string | null => {
@@ -46,6 +51,8 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
     ? formatAppointmentDateTime(appointment.start_time)
     : '';
   const canCancel = appointment.status === 'confirmed';
+  const canModify = !appointment.has_any_receipt; // Constraint 1: Cannot modify if has any receipt
+  const showReceiptButton = appointment.has_active_receipt && onViewReceipt;
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
@@ -84,7 +91,16 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
         )}
       </div>
 
-      {canCancel && (
+      {showReceiptButton && (
+        <button
+          onClick={onViewReceipt}
+          className="w-full bg-green-50 text-green-600 border border-green-200 rounded-md py-2 px-4 hover:bg-green-100 transition-colors text-sm font-medium mb-2"
+        >
+          {t('appointmentCard.viewReceiptButton', '查看收據')}
+        </button>
+      )}
+      
+      {canCancel && canModify && (
         <div className="flex space-x-2">
           {onReschedule && (
             <button
@@ -102,6 +118,12 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
               {t('appointmentCard.cancelButton')}
             </button>
           )}
+        </div>
+      )}
+      
+      {canCancel && !canModify && (
+        <div className="text-sm text-gray-500 italic">
+          {t('appointmentCard.cannotModifyMessage', '此預約已有收據，無法修改')}
         </div>
       )}
     </div>

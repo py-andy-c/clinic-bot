@@ -245,6 +245,14 @@ async def checkout_appointment(
         raise
     except Exception as e:
         db.rollback()
+        # Check if error is from database trigger (Constraint 2: cannot checkout cancelled appointments)
+        error_message = str(e)
+        if "Cannot create receipt for cancelled appointment" in error_message or "cannot create receipt" in error_message.lower():
+            logger.warning(f"Database trigger prevented checkout for cancelled appointment {appointment_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="已取消的預約無法結帳"
+            )
         logger.exception(f"Error checking out appointment {appointment_id}: {e}")
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,

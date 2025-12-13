@@ -118,9 +118,10 @@ class AppointmentListItem(BaseModel):
     line_display_name: Optional[str] = None
     originally_auto_assigned: bool = False
     is_auto_assigned: bool = False
-    has_receipt: bool = False  # Whether appointment has an active receipt
-    receipt_id: Optional[int] = None  # ID of active receipt if exists
-    is_receipt_voided: Optional[bool] = None  # Whether receipt is voided (if receipt exists)
+    has_active_receipt: bool = False  # Whether appointment has an active (non-voided) receipt
+    has_any_receipt: bool = False  # Whether appointment has any receipt (active or voided)
+    receipt_id: Optional[int] = None  # ID of active receipt (null if no active receipt)
+    receipt_ids: List[int] = []  # List of all receipt IDs (always included, empty if none)
 
 
 class AppointmentListResponse(BaseModel):

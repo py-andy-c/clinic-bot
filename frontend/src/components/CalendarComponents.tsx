@@ -193,6 +193,7 @@ export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
   const practitionerName = event.resource.event_practitioner_name || event.resource.practitioner_name;
   const showPractitionerName = practitionerName && !event.resource.is_primary;
   const isAutoAssigned = event.resource.is_auto_assigned === true;
+  const isCheckedOut = event.resource.has_active_receipt === true;
   
   // Build tooltip with practitioner name if available
   // Order: Patient - Appointment Type, then Time
@@ -213,6 +214,9 @@ export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
           <span className="ml-1">{timeStr}</span>
           {isAutoAssigned && (
             <span className="ml-1 text-white/80" title="系統自動指派">*</span>
+          )}
+          {isCheckedOut && (
+            <span className="ml-1 text-white/80" title="已結帳">✓</span>
           )}
         </div>
       </div>
