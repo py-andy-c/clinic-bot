@@ -145,9 +145,15 @@ class ReceiptService:
         ).first()
         checked_out_by_name = association.full_name if association else checked_out_by_user.email
         
-        # Calculate totals
-        total_amount = sum(Decimal(str(item["amount"])) for item in items)
-        total_revenue_share = sum(Decimal(str(item.get("revenue_share", 0))) for item in items)
+        # Calculate totals (accounting for quantity)
+        total_amount = sum(
+            Decimal(str(item["amount"])) * Decimal(str(item.get("quantity", 1)))
+            for item in items
+        )
+        total_revenue_share = sum(
+            Decimal(str(item.get("revenue_share", 0))) * Decimal(str(item.get("quantity", 1)))
+            for item in items
+        )
         
         # Validate totals
         if total_amount <= 0:
@@ -167,7 +173,8 @@ class ReceiptService:
                 "item_type": item["item_type"],
                 "amount": float(item["amount"]),
                 "revenue_share": float(item.get("revenue_share", 0)),
-                "display_order": item.get("display_order", 0)
+                "display_order": item.get("display_order", 0),
+                "quantity": item.get("quantity", 1)  # Default to 1 for backward compatibility
             }
             
             if item["item_type"] == "service_item":

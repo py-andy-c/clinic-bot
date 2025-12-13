@@ -328,8 +328,8 @@
                         <span class="therapist">→{{ item.practitioner.name }}</span>
                         {% endif %}
                     </td>
-                    <td>1</td>
-                    <td class="amount">${{ item.amount|format_currency }}</td>
+                    <td>{{ item.quantity|default(1) }}</td>
+                    <td class="amount">${{ (item.amount * item.quantity|default(1))|format_currency }}</td>
                 </tr>
                 {% endfor %}
             </tbody>

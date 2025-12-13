@@ -216,13 +216,17 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
                   ? (item.service_item?.receipt_name || item.service_item?.name || '')
                   : (item.item_name || '');
                 
+                const quantity = item.quantity || 1;
+                const totalAmount = item.amount * quantity;
+                
                 return (
                   <div key={index} className="flex justify-between text-sm">
                     <span>
                       {itemName}
+                      {quantity > 1 && ` (x${quantity})`}
                       {item.practitioner?.name && ` (${item.practitioner.name})`}
                     </span>
-                    <span>{formatCurrency(item.amount)}</span>
+                    <span>{formatCurrency(totalAmount)}</span>
                   </div>
                 );
               })}

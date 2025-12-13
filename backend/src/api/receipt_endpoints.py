@@ -40,6 +40,7 @@ class CheckoutItemRequest(BaseModel):
     amount: Decimal = Field(..., gt=0)
     revenue_share: Decimal = Field(..., ge=0)
     display_order: int = Field(0)
+    quantity: int = Field(1, ge=1, description="Quantity of items (default: 1)")
 
 
 class CheckoutRequest(BaseModel):
@@ -67,6 +68,7 @@ class ReceiptItemResponse(BaseModel):
     amount: Decimal
     revenue_share: Decimal
     display_order: int
+    quantity: int = Field(1, ge=1)
 
 
 class ReceiptResponse(BaseModel):
@@ -155,7 +157,8 @@ async def checkout_appointment(
                 "item_type": item.item_type,
                 "amount": float(item.amount),
                 "revenue_share": float(item.revenue_share),
-                "display_order": item.display_order
+                "display_order": item.display_order,
+                "quantity": item.quantity
             }
             
             if item.item_type == "service_item":

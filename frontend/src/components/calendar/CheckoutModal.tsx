@@ -19,6 +19,7 @@ interface CheckoutItem {
   custom_name?: string | undefined;
   amount: number;
   revenue_share: number;
+  quantity?: number;
 }
 
 interface CheckoutModalProps {
@@ -42,6 +43,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [availableServiceItems, setAvailableServiceItems] = useState<Array<{ id: number; name: string; receipt_name?: string | null }>>([]);
   const [billingScenarios, setBillingScenarios] = useState<Record<string, any[]>>({});
+  const [expandedQuantityItems, setExpandedQuantityItems] = useState<Set<number>>(new Set());
 
   const loadBillingScenarios = useCallback(async (serviceItemId: number, practitionerId: number): Promise<void> => {
     const key = `${serviceItemId}-${practitionerId}`;
@@ -90,6 +92,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             billing_scenario_id: defaultScenario?.id || null,
             amount: defaultScenario?.amount || 0,
             revenue_share: defaultScenario?.revenue_share || 0,
+            quantity: 1,
           }]);
           
           return prev; // Return unchanged state
@@ -103,12 +106,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         billing_scenario_id: null,
         amount: 0,
         revenue_share: 0,
+        quantity: 1,
       }]);
     } else {
       // No appointment type, start with empty item
       setItems([{
         amount: 0,
         revenue_share: 0,
+        quantity: 1,
       }]);
     }
   }, [event, appointmentTypes, loadBillingScenarios]);
@@ -117,11 +122,24 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setItems([...items, {
       amount: 0,
       revenue_share: 0,
+      quantity: 1,
     }]);
   };
 
   const handleRemoveItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
+    // Remove from expanded set and adjust indices
+    setExpandedQuantityItems(prev => {
+      const newSet = new Set<number>();
+      prev.forEach(i => {
+        if (i < index) {
+          newSet.add(i);
+        } else if (i > index) {
+          newSet.add(i - 1);
+        }
+      });
+      return newSet;
+    });
   };
 
   const handleItemChange = (index: number, field: keyof CheckoutItem, value: any) => {
@@ -210,6 +228,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       if (item.revenue_share > item.amount) {
         return `項目 ${i + 1}: 診所分潤必須 <= 金額`;
       }
+      
+      const quantity = item.quantity || 1;
+      if (quantity < 1 || !Number.isInteger(quantity)) {
+        return `項目 ${i + 1}: 數量必須為大於 0 的整數`;
+      }
     }
     
     return null;
@@ -247,6 +270,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           // For "other" type items, use item_name instead of custom_name
           apiItem.item_name = item.custom_name;
         }
+        // Include quantity (default to 1 if not specified)
+        apiItem.quantity = item.quantity || 1;
         return apiItem;
       });
       
@@ -266,8 +291,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   };
 
-  const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
-  const totalRevenueShare = items.reduce((sum, item) => sum + item.revenue_share, 0);
+  const totalAmount = items.reduce((sum, item) => sum + (item.amount * (item.quantity || 1)), 0);
+  const totalRevenueShare = items.reduce((sum, item) => sum + (item.revenue_share * (item.quantity || 1)), 0);
 
   return (
     <BaseModal
@@ -294,19 +319,82 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             const scenarios = billingScenarios[key] || [];
             const defaultScenario = scenarios.find((s: any) => s.is_default);
             
+            const quantity = item.quantity || 1;
+            const isExpanded = expandedQuantityItems.has(index) || quantity > 1;
+            
             return (
               <div key={index} className="border border-gray-200 rounded-lg p-4">
                 <div className="flex justify-between items-center mb-3">
                   <span className="font-medium">項目 {index + 1}</span>
-                  {items.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveItem(index)}
-                      className="text-red-600 hover:text-red-800 text-sm"
-                    >
-                      移除
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {isExpanded ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newQty = Math.max(1, quantity - 1);
+                            handleItemChange(index, 'quantity', newQty);
+                            if (!expandedQuantityItems.has(index)) {
+                              setExpandedQuantityItems(prev => new Set(prev).add(index));
+                            }
+                          }}
+                          className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm font-medium text-gray-700 transition-colors"
+                          aria-label="減少數量"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          value={quantity}
+                          onChange={(e) => {
+                            const qty = parseInt(e.target.value) || 1;
+                            handleItemChange(index, 'quantity', qty < 1 ? 1 : qty);
+                            if (!expandedQuantityItems.has(index)) {
+                              setExpandedQuantityItems(prev => new Set(prev).add(index));
+                            }
+                          }}
+                          className="w-12 px-2 py-1 text-sm border border-gray-300 rounded text-center focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          min="1"
+                          step="1"
+                          onWheel={preventScrollWheelChange}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleItemChange(index, 'quantity', quantity + 1);
+                            if (!expandedQuantityItems.has(index)) {
+                              setExpandedQuantityItems(prev => new Set(prev).add(index));
+                            }
+                          }}
+                          className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm font-medium text-gray-700 transition-colors"
+                          aria-label="增加數量"
+                        >
+                          +
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleItemChange(index, 'quantity', 2);
+                          setExpandedQuantityItems(prev => new Set(prev).add(index));
+                        }}
+                        className="w-6 h-6 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-sm font-medium text-gray-700 transition-colors"
+                        aria-label="增加數量"
+                      >
+                        +
+                      </button>
+                    )}
+                    {items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(index)}
+                        className="text-red-600 hover:text-red-800 text-sm ml-2"
+                      >
+                        移除
+                      </button>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="space-y-3">

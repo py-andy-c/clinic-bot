@@ -88,9 +88,14 @@ class AccountingService:
             for item in items:
                 amount = Decimal(str(item.get('amount', 0)))  # type: ignore
                 revenue_share = Decimal(str(item.get('revenue_share', 0)))  # type: ignore
+                quantity = Decimal(str(item.get('quantity', 1)))  # type: ignore
                 
-                total_revenue += amount
-                total_revenue_share += revenue_share
+                # Calculate totals accounting for quantity
+                item_total_amount = amount * quantity
+                item_total_revenue_share = revenue_share * quantity
+                
+                total_revenue += item_total_amount
+                total_revenue_share += item_total_revenue_share
                 
                 # Aggregate by practitioner
                 practitioner: Optional[Dict[str, Any]] = type_cast(Optional[Dict[str, Any]], item.get('practitioner'))  # type: ignore
@@ -104,8 +109,8 @@ class AccountingService:
                             'total_revenue_share': Decimal('0'),
                             'receipt_count': 0
                         }
-                    practitioner_stats[prac_id]['total_revenue'] += amount
-                    practitioner_stats[prac_id]['total_revenue_share'] += revenue_share
+                    practitioner_stats[prac_id]['total_revenue'] += item_total_amount
+                    practitioner_stats[prac_id]['total_revenue_share'] += item_total_revenue_share
                 
                 # Aggregate by service item
                 service_item: Optional[Dict[str, Any]] = type_cast(Optional[Dict[str, Any]], item.get('service_item'))  # type: ignore
@@ -120,9 +125,9 @@ class AccountingService:
                             'total_revenue_share': Decimal('0'),
                             'item_count': 0
                         }
-                    service_item_stats[si_id]['total_revenue'] += amount
-                    service_item_stats[si_id]['total_revenue_share'] += revenue_share
-                    service_item_stats[si_id]['item_count'] += 1
+                    service_item_stats[si_id]['total_revenue'] += item_total_amount
+                    service_item_stats[si_id]['total_revenue_share'] += item_total_revenue_share
+                    service_item_stats[si_id]['item_count'] += int(quantity)
         
         # Count unique receipts per practitioner
         for receipt in receipts:
@@ -232,9 +237,14 @@ class AccountingService:
                 
                 amount = Decimal(str(item.get('amount', 0)))  # type: ignore
                 revenue_share = Decimal(str(item.get('revenue_share', 0)))  # type: ignore
+                quantity = Decimal(str(item.get('quantity', 1)))  # type: ignore
                 
-                total_revenue += amount
-                total_revenue_share += revenue_share
+                # Calculate totals accounting for quantity
+                item_total_amount = amount * quantity
+                item_total_revenue_share = revenue_share * quantity
+                
+                total_revenue += item_total_amount
+                total_revenue_share += item_total_revenue_share
                 
                 # Build item detail
                 patient_data: Dict[str, Any] = type_cast(Dict[str, Any], receipt_data.get('patient', {}))  # type: ignore
@@ -243,8 +253,9 @@ class AccountingService:
                     'receipt_number': receipt.receipt_number,
                     'issue_date': receipt.issue_date.isoformat(),
                     'patient_name': type_cast(str, patient_data.get('name', '')),  # type: ignore
-                    'amount': float(amount),
-                    'revenue_share': float(revenue_share)
+                    'amount': float(item_total_amount),
+                    'revenue_share': float(item_total_revenue_share),
+                    'quantity': int(quantity)
                 }
                 
                 # Add service item info
@@ -268,9 +279,9 @@ class AccountingService:
                                 'total_revenue_share': Decimal('0'),
                                 'item_count': 0
                             }
-                        service_item_stats[si_id]['total_revenue'] += amount
-                        service_item_stats[si_id]['total_revenue_share'] += revenue_share
-                        service_item_stats[si_id]['item_count'] += 1
+                        service_item_stats[si_id]['total_revenue'] += item_total_amount
+                        service_item_stats[si_id]['total_revenue_share'] += item_total_revenue_share
+                        service_item_stats[si_id]['item_count'] += int(quantity)
                 
                 # Add billing scenario info
                 billing_scenario: Optional[Dict[str, Any]] = type_cast(Optional[Dict[str, Any]], item.get('billing_scenario'))  # type: ignore
