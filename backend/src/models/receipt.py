@@ -64,15 +64,82 @@ class Receipt(Base):
     """
     Complete immutable snapshot of all receipt information.
     
-    Contains all data as it existed at creation time:
-    - Receipt number, issue date, visit date
-    - Clinic information (display name)
-    - Patient information (name)
-    - Items list with amounts and revenue shares
-    - Payment method
-    - Custom notes
-    - Stamp configuration
-    - Void information (if voided)
+    Contains all data as it existed at creation time. Schema:
+    
+    {
+        "receipt_number": str,              # Receipt number (e.g., "2024-00001")
+        "issue_date": str,                   # ISO format datetime string (when receipt was created)
+        "visit_date": str,                   # ISO format datetime string (appointment date)
+        "clinic": {
+            "id": int,                       # Clinic ID
+            "display_name": str              # Clinic display name
+        },
+        "patient": {
+            "id": int,                       # Patient ID
+            "name": str                      # Patient full name
+        },
+        "checked_out_by": {
+            "id": int,                       # User ID who created the receipt
+            "name": str,                     # User's full name (from UserClinicAssociation)
+            "email": str                     # User's email
+        },
+        "items": [                           # List of receipt items
+            {
+                "item_type": str,            # "service_item" or "other"
+                "amount": float,             # Unit amount (per item, not total)
+                "revenue_share": float,       # Unit revenue share (per item, not total)
+                "display_order": int,         # Display order (0-based)
+                "quantity": int,              # Quantity of items (default: 1, min: 1)
+                
+                # For service_item type:
+                "service_item": {            # Present if item_type == "service_item"
+                    "id": int,               # AppointmentType ID
+                    "name": str,              # Service item name
+                    "receipt_name": str       # Receipt display name (or name if not set)
+                },
+                "practitioner": {            # Present if practitioner assigned, else null
+                    "id": int,               # User ID of practitioner
+                    "name": str              # Practitioner's full name
+                } | None,
+                "billing_scenario": {        # Present if billing scenario assigned
+                    "id": int,               # BillingScenario ID
+                    "name": str              # Billing scenario name
+                } | None,
+                
+                # For other type:
+                "item_name": str             # Present if item_type == "other"
+                # practitioner and billing_scenario fields same as above
+                # billing_scenario for "other" type always: {"id": None, "name": "其他"}
+            }
+        ],
+        "totals": {
+            "total_amount": float,            # Total amount (sum of amount * quantity for all items)
+            "total_revenue_share": float      # Total revenue share (sum of revenue_share * quantity)
+        },
+        "payment_method": str,               # "cash", "card", "transfer", or "other"
+        "custom_notes": str | None,          # Optional custom notes (can be null)
+        "stamp": {
+            "enabled": bool                  # Whether to show receipt stamp
+        },
+        "void_info": {                       # Void information (updated when voided)
+            "voided": bool,                  # Whether receipt is voided (initially False)
+            "voided_at": str | None,         # ISO format datetime string when voided (initially None)
+            "voided_by": {                   # User who voided (initially None)
+                "id": int,
+                "name": str,
+                "email": str
+            } | None,
+            "reason": str | None             # Reason for voiding (initially None)
+        }
+    }
+    
+    Notes:
+    - All amounts are stored as unit prices (per item), not totals
+    - Total amount = sum(item.amount * item.quantity) for all items
+    - Total revenue_share = sum(item.revenue_share * item.quantity) for all items
+    - Quantity defaults to 1 for backward compatibility with old receipts
+    - This structure is immutable after creation (enforced by database trigger)
+    - When voided, void_info fields are updated but receipt_data JSONB itself is not modified
     """
 
     is_voided: Mapped[bool] = mapped_column(Boolean, default=False)
