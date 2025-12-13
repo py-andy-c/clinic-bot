@@ -217,7 +217,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
             const assignedCount = assignedPractitionerIds.length;
 
             return (
-              <div key={type.id} className="border border-gray-200 rounded-lg">
+              <div key={type.id} className="border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                 {/* Compact Header (when collapsed) */}
                 {!isExpanded && (
                   <div className="p-4">
@@ -227,7 +227,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                           <button
                             type="button"
                             onClick={() => toggleServiceItem(type.id)}
-                            className="text-left flex-1 flex items-center gap-2 hover:bg-gray-50 p-2 rounded transition-colors"
+                            className="text-left flex-1 flex items-center gap-2 p-2 rounded"
                           >
                             <svg
                               className="w-5 h-5 text-gray-400 transition-transform"
