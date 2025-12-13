@@ -206,318 +206,388 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
     <div className="space-y-6">
       {/* Service Items List */}
       <div>
-        <div className="flex justify-between items-center mb-2">
+        <div className="mb-2">
           <label className="block text-sm font-medium text-gray-700">服務項目</label>
-          {isClinicAdmin && (
-            <button
-              type="button"
-              onClick={onAddType}
-              className="btn-secondary text-sm"
-            >
-              新增服務項目
-            </button>
-          )}
         </div>
 
         <div className="space-y-4">
           {appointmentTypes.map((type, index) => {
             const isExpanded = expandedServiceItems.has(type.id);
+            const assignedPractitionerIds = practitionerAssignments[type.id] || [];
+            const assignedCount = assignedPractitionerIds.length;
 
             return (
-              <div key={type.id} className="border border-gray-200 rounded-lg p-4">
-                {/* Service Item Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1 space-y-3">
-                    {/* Name */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        項目名稱
-                      </label>
-                      <input
-                        type="text"
-                        value={type.name}
-                        onChange={(e) => onUpdateType(index, 'name', e.target.value)}
-                        className="input"
-                        placeholder="例如：初診評估"
-                        disabled={!isClinicAdmin}
-                      />
-                    </div>
-
-                    {/* Receipt Name */}
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <label className="block text-sm font-medium text-gray-700">
-                          收據項目名稱
-                        </label>
-                        <InfoButton onClick={() => setShowReceiptNameModal(true)} />
-                      </div>
-                      <input
-                        type="text"
-                        value={type.receipt_name || ''}
-                        onChange={(e) => onUpdateType(index, 'receipt_name', e.target.value || null)}
-                        className="input"
-                        placeholder={type.name || '例如：初診評估'}
-                        disabled={!isClinicAdmin}
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        如未填寫，將使用項目名稱
-                      </p>
-                    </div>
-
-                    {/* Duration and Buffer */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <label className="block text-sm font-medium text-gray-700">
-                            服務時長 (分鐘)
-                          </label>
-                          <InfoButton onClick={() => setShowDurationModal(true)} />
+              <div key={type.id} className="border border-gray-200 rounded-lg">
+                {/* Compact Header (when collapsed) */}
+                {!isExpanded && (
+                  <div className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleServiceItem(type.id)}
+                            className="text-left flex-1 flex items-center gap-2 hover:bg-gray-50 p-2 rounded transition-colors"
+                          >
+                            <svg
+                              className="w-5 h-5 text-gray-400 transition-transform"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-gray-900">
+                                  {type.name || <span className="text-gray-400 italic">未命名服務項目</span>}
+                                </span>
+                                {type.allow_patient_booking === false && (
+                                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">不開放預約</span>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-500 mt-1">
+                                時長: {type.duration_minutes} 分鐘
+                                {(type.scheduling_buffer_minutes ?? 0) > 0 && ` • 緩衝: ${type.scheduling_buffer_minutes ?? 0} 分鐘`}
+                                {isClinicAdmin && ` • ${assignedCount} 位治療師`}
+                              </div>
+                            </div>
+                          </button>
                         </div>
-                        <input
-                          type="number"
-                          value={type.duration_minutes}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            onUpdateType(index, 'duration_minutes', value);
-                          }}
-                          onWheel={preventScrollWheelChange}
-                          className="input"
-                          min="15"
-                          max="480"
-                          disabled={!isClinicAdmin}
-                        />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <label className="block text-sm font-medium text-gray-700">
-                            排程緩衝時間 (分鐘)
-                          </label>
-                          <InfoButton onClick={() => setShowBufferModal(true)} />
+                      {isClinicAdmin && (
+                        <div className="flex items-center gap-2 ml-4">
+                          <button
+                            type="button"
+                            onClick={() => onRemoveType(index)}
+                            className="text-red-600 hover:text-red-800 p-2"
+                            title="刪除"
+                          >
+                            🗑️
+                          </button>
                         </div>
-                        <input
-                          type="number"
-                          value={type.scheduling_buffer_minutes || 0}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            onUpdateType(index, 'scheduling_buffer_minutes', parseInt(value) || 0);
-                          }}
-                          onWheel={preventScrollWheelChange}
-                          className="input"
-                          min="0"
-                          max="60"
-                          disabled={!isClinicAdmin}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Allow Patient Booking */}
-                    <div>
-                      <label className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={type.allow_patient_booking !== false}
-                          onChange={(e) => onUpdateType(index, 'allow_patient_booking', e.target.checked)}
-                          className="mr-2"
-                          disabled={!isClinicAdmin}
-                        />
-                        <span className="text-sm font-medium text-gray-700">開放病患自行預約</span>
-                        <InfoButton onClick={() => setShowAllowBookingModal(true)} />
-                      </label>
-                    </div>
-
-                    {/* Description */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        說明
-                      </label>
-                      <textarea
-                        value={type.description || ''}
-                        onChange={(e) => onUpdateType(index, 'description', e.target.value || null)}
-                        className="input min-h-[80px] resize-vertical"
-                        placeholder="服務說明（顯示在 LINE 預約系統）"
-                        disabled={!isClinicAdmin}
-                        rows={3}
-                      />
+                      )}
                     </div>
                   </div>
+                )}
 
-                  {isClinicAdmin && (
-                    <div className="flex items-start ml-4">
-                      <button
-                        type="button"
-                        onClick={() => onRemoveType(index)}
-                        className="text-red-600 hover:text-red-800 p-2"
-                        title="刪除"
-                      >
-                        🗑️
-                      </button>
+                {/* Expanded Content */}
+                {isExpanded && (
+                  <div className="p-4">
+                    {/* Service Item Header */}
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1 space-y-3">
+                        {/* Expand/Collapse Button and Delete Button */}
+                        <div className="flex items-center justify-between mb-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleServiceItem(type.id)}
+                            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+                          >
+                            <svg
+                              className="w-4 h-4 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                            <span>收起</span>
+                          </button>
+                          {isClinicAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => onRemoveType(index)}
+                              className="text-red-600 hover:text-red-800 p-1.5 hover:bg-red-50 rounded transition-colors"
+                              title="刪除"
+                            >
+                              🗑️
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Name */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            項目名稱
+                          </label>
+                          <input
+                            type="text"
+                            value={type.name}
+                            onChange={(e) => onUpdateType(index, 'name', e.target.value)}
+                            className="input"
+                            placeholder="例如：初診評估"
+                            disabled={!isClinicAdmin}
+                          />
+                        </div>
+
+                        {/* Receipt Name */}
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <label className="block text-sm font-medium text-gray-700">
+                              收據項目名稱
+                            </label>
+                            <InfoButton onClick={() => setShowReceiptNameModal(true)} />
+                          </div>
+                          <input
+                            type="text"
+                            value={type.receipt_name || ''}
+                            onChange={(e) => onUpdateType(index, 'receipt_name', e.target.value || null)}
+                            className="input"
+                            placeholder={type.name || '例如：初診評估'}
+                            disabled={!isClinicAdmin}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            如未填寫，將使用項目名稱
+                          </p>
+                        </div>
+
+                        {/* Duration and Buffer */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <label className="block text-sm font-medium text-gray-700">
+                                服務時長 (分鐘)
+                              </label>
+                              <InfoButton onClick={() => setShowDurationModal(true)} />
+                            </div>
+                            <input
+                              type="number"
+                              value={type.duration_minutes}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                onUpdateType(index, 'duration_minutes', value);
+                              }}
+                              onWheel={preventScrollWheelChange}
+                              className="input"
+                              min="15"
+                              max="480"
+                              disabled={!isClinicAdmin}
+                            />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <label className="block text-sm font-medium text-gray-700">
+                                排程緩衝時間 (分鐘)
+                              </label>
+                              <InfoButton onClick={() => setShowBufferModal(true)} />
+                            </div>
+                            <input
+                              type="number"
+                              value={type.scheduling_buffer_minutes || 0}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                onUpdateType(index, 'scheduling_buffer_minutes', parseInt(value) || 0);
+                              }}
+                              onWheel={preventScrollWheelChange}
+                              className="input"
+                              min="0"
+                              max="60"
+                              disabled={!isClinicAdmin}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Allow Patient Booking */}
+                        <div>
+                          <label className="flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={type.allow_patient_booking !== false}
+                              onChange={(e) => onUpdateType(index, 'allow_patient_booking', e.target.checked)}
+                              className="mr-2"
+                              disabled={!isClinicAdmin}
+                            />
+                            <span className="text-sm font-medium text-gray-700">開放病患自行預約</span>
+                            <InfoButton onClick={() => setShowAllowBookingModal(true)} />
+                          </label>
+                        </div>
+
+                        {/* Description */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            說明
+                          </label>
+                          <textarea
+                            value={type.description || ''}
+                            onChange={(e) => onUpdateType(index, 'description', e.target.value || null)}
+                            className="input min-h-[80px] resize-vertical"
+                            placeholder="服務說明（顯示在 LINE 預約系統）"
+                            disabled={!isClinicAdmin}
+                            rows={3}
+                          />
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
 
-                {/* Practitioner Assignment (Admin Only) */}
-                {isClinicAdmin && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        提供此服務的治療師
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => toggleServiceItem(type.id)}
-                        className="text-sm text-blue-600 hover:text-blue-800"
-                      >
-                        {isExpanded ? '收起' : '展開'}
-                      </button>
-                    </div>
+                    {/* Practitioner Assignment (Admin Only) - Always shown when service item is expanded */}
+                    {isClinicAdmin && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="mb-2">
+                          <label className="block text-sm font-medium text-gray-700">
+                            提供此服務的治療師
+                          </label>
+                        </div>
 
-                    {isExpanded && (() => {
-                      // Get practitioners assigned to this service item
-                      const assignedPractitionerIds = practitionerAssignments[type.id] || [];
-                      
-                      return (
-                        <div className="mt-2 space-y-4">
-                          {/* All Practitioners with Checkboxes */}
-                          <div className="space-y-3">
-                            {members.map(practitioner => {
-                              const isAssigned = assignedPractitionerIds.includes(practitioner.id);
-                              const key = `${type.id}-${practitioner.id}`;
-                              const scenarios = billingScenarios[key] || [];
-                              const isLoading = loadingScenarios.has(key);
-                              
-                              // Load scenarios when service item is expanded and practitioner is assigned
-                              if (isExpanded && isAssigned && !billingScenarios[key] && !loadingScenarios.has(key)) {
-                                // Use setTimeout to avoid calling during render
-                                setTimeout(() => loadBillingScenarios(type.id, practitioner.id), 0);
-                              }
-
-                              return (
-                                <div key={practitioner.id} className="space-y-2">
-                                  <div className="flex items-center space-x-3">
-                                    <input
-                                      type="checkbox"
-                                      checked={isAssigned}
-                                      onChange={(e) => {
-                                        const shouldAssign = e.target.checked;
-                                        const currentPractitionerIds = practitionerAssignments[type.id] || [];
-                                        
-                                        if (shouldAssign) {
-                                          // Add practitioner to this service item
-                                          if (!currentPractitionerIds.includes(practitioner.id)) {
-                                            onPractitionerAssignmentsChange(type.id, [...currentPractitionerIds, practitioner.id]);
-                                          }
-                                        } else {
-                                          // Remove practitioner from this service item
-                                          onPractitionerAssignmentsChange(
-                                            type.id,
-                                            currentPractitionerIds.filter(id => id !== practitioner.id)
-                                          );
-                                          // Clear billing scenarios for this practitioner-service
-                                          onBillingScenariosChange(key, []);
-                                        }
-                                      }}
-                                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                    />
-                                    <label 
-                                      className="text-sm font-medium text-gray-900 cursor-pointer flex-1"
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        const checkbox = e.currentTarget.previousElementSibling as HTMLInputElement;
-                                        if (checkbox) {
-                                          checkbox.click();
-                                        }
-                                      }}
-                                    >
-                                      {practitioner.full_name}
-                                    </label>
-                                  </div>
+                        {(() => {
+                          return (
+                            <div className="mt-2 space-y-4">
+                              {/* All Practitioners with Checkboxes */}
+                              <div className="space-y-3">
+                                {members.map(practitioner => {
+                                  const isAssigned = assignedPractitionerIds.includes(practitioner.id);
+                                  const key = `${type.id}-${practitioner.id}`;
+                                  const scenarios = billingScenarios[key] || [];
+                                  const isLoading = loadingScenarios.has(key);
                                   
-                                  {/* Billing Scenarios (shown only when assigned) */}
-                                  {isAssigned && (
-                                    <div className="ml-7 mt-2 pt-2 border-t border-gray-200">
-                                      <div className="flex justify-between items-center mb-2">
-                                        <label className="text-xs font-medium text-gray-700">計費方案</label>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            // Load scenarios if not loaded
-                                            if (!billingScenarios[key] && !loadingScenarios.has(key)) {
-                                              loadBillingScenarios(type.id, practitioner.id);
+                                  // Load scenarios when service item is expanded and practitioner is assigned
+                                  if (isExpanded && isAssigned && !billingScenarios[key] && !loadingScenarios.has(key)) {
+                                    // Use setTimeout to avoid calling during render
+                                    setTimeout(() => loadBillingScenarios(type.id, practitioner.id), 0);
+                                  }
+
+                                  return (
+                                    <div key={practitioner.id} className="space-y-2">
+                                      <div className="flex items-center space-x-3">
+                                        <input
+                                          type="checkbox"
+                                          checked={isAssigned}
+                                          onChange={(e) => {
+                                            const shouldAssign = e.target.checked;
+                                            const currentPractitionerIds = practitionerAssignments[type.id] || [];
+                                            
+                                            if (shouldAssign) {
+                                              // Add practitioner to this service item
+                                              if (!currentPractitionerIds.includes(practitioner.id)) {
+                                                onPractitionerAssignmentsChange(type.id, [...currentPractitionerIds, practitioner.id]);
+                                              }
+                                            } else {
+                                              // Remove practitioner from this service item
+                                              onPractitionerAssignmentsChange(
+                                                type.id,
+                                                currentPractitionerIds.filter(id => id !== practitioner.id)
+                                              );
+                                              // Clear billing scenarios for this practitioner-service
+                                              onBillingScenariosChange(key, []);
                                             }
-                                            handleAddScenario(type.id, practitioner.id);
                                           }}
-                                          className="text-xs text-blue-600 hover:text-blue-800"
+                                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                        />
+                                        <label 
+                                          className="text-sm font-medium text-gray-900 cursor-pointer flex-1"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            const checkbox = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                            if (checkbox) {
+                                              checkbox.click();
+                                            }
+                                          }}
                                         >
-                                          + 新增方案
-                                        </button>
+                                          {practitioner.full_name}
+                                        </label>
                                       </div>
                                       
+                                      {/* Billing Scenarios (shown only when assigned) */}
+                                      {isAssigned && (
+                                        <div className="ml-7 mt-2 pt-2 border-t border-gray-200">
+                                          <div className="flex justify-between items-center mb-2">
+                                            <label className="text-xs font-medium text-gray-700">計費方案</label>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                // Load scenarios if not loaded
+                                                if (!billingScenarios[key] && !loadingScenarios.has(key)) {
+                                                  loadBillingScenarios(type.id, practitioner.id);
+                                                }
+                                                handleAddScenario(type.id, practitioner.id);
+                                              }}
+                                              className="text-xs text-blue-600 hover:text-blue-800"
+                                            >
+                                              + 新增方案
+                                            </button>
+                                          </div>
+                                          
 
-                                      {isLoading ? (
-                                        <p className="text-xs text-gray-500">載入中...</p>
-                                      ) : scenarios.length === 0 ? (
-                                        <p className="text-xs text-gray-500">尚無計費方案</p>
-                                      ) : (
-                                        <div className="space-y-2">
-                                          {scenarios.map(scenario => (
-                                            <div key={scenario.id} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
-                                              <div className="flex-1">
-                                                <div className="flex items-center space-x-2">
-                                                  <span className="text-sm font-medium text-gray-900">{scenario.name}</span>
-                                                  {scenario.is_default && (
-                                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">預設</span>
-                                                  )}
+                                          {isLoading ? (
+                                            <p className="text-xs text-gray-500">載入中...</p>
+                                          ) : scenarios.length === 0 ? (
+                                            <p className="text-xs text-gray-500">尚無計費方案</p>
+                                          ) : (
+                                            <div className="space-y-2">
+                                              {scenarios.map(scenario => (
+                                                <div key={scenario.id} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
+                                                  <div className="flex-1">
+                                                    <div className="flex items-center space-x-2">
+                                                      <span className="text-sm font-medium text-gray-900">{scenario.name}</span>
+                                                      {scenario.is_default && (
+                                                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">預設</span>
+                                                      )}
+                                                    </div>
+                                                    <div className="text-xs text-gray-600 mt-1">
+                                                      金額: ${scenario.amount.toFixed(2)} | 分潤: ${scenario.revenue_share.toFixed(2)}
+                                                    </div>
+                                                  </div>
+                                                  <div className="flex items-center space-x-2">
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        if (!billingScenarios[key]) {
+                                                          loadBillingScenarios(type.id, practitioner.id);
+                                                        }
+                                                        handleEditScenario(type.id, practitioner.id, scenario);
+                                                      }}
+                                                      className="text-xs text-blue-600 hover:text-blue-800"
+                                                    >
+                                                      編輯
+                                                    </button>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => handleDeleteScenario(type.id, practitioner.id, scenario.id)}
+                                                      className="text-xs text-red-600 hover:text-red-800"
+                                                    >
+                                                      刪除
+                                                    </button>
+                                                  </div>
                                                 </div>
-                                                <div className="text-xs text-gray-600 mt-1">
-                                                  金額: ${scenario.amount.toFixed(2)} | 分潤: ${scenario.revenue_share.toFixed(2)}
-                                                </div>
-                                              </div>
-                                              <div className="flex items-center space-x-2">
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    if (!billingScenarios[key]) {
-                                                      loadBillingScenarios(type.id, practitioner.id);
-                                                    }
-                                                    handleEditScenario(type.id, practitioner.id, scenario);
-                                                  }}
-                                                  className="text-xs text-blue-600 hover:text-blue-800"
-                                                >
-                                                  編輯
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => handleDeleteScenario(type.id, practitioner.id, scenario.id)}
-                                                  className="text-xs text-red-600 hover:text-red-800"
-                                                >
-                                                  刪除
-                                                </button>
-                                              </div>
+                                              ))}
                                             </div>
-                                          ))}
+                                          )}
                                         </div>
                                       )}
                                     </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                                  );
+                                })}
 
-                            {members.length === 0 && (
-                              <p className="text-sm text-gray-500 text-center py-4">
-                                尚無治療師
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })()}
+                                {members.length === 0 && (
+                                  <p className="text-sm text-gray-500 text-center py-4">
+                                    尚無治療師
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             );
           })}
         </div>
+
+        {/* Add Service Item Button */}
+        {isClinicAdmin && (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={onAddType}
+              className="btn-secondary text-sm w-full"
+            >
+              + 新增服務項目
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Info Modals */}
