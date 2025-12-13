@@ -202,11 +202,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       }
       
       if (item.revenue_share < 0) {
-        return `項目 ${i + 1}: 分潤必須 >= 0`;
+        return `項目 ${i + 1}: 診所分潤必須 >= 0`;
       }
       
       if (item.revenue_share > item.amount) {
-        return `項目 ${i + 1}: 分潤必須 <= 金額`;
+        return `項目 ${i + 1}: 診所分潤必須 <= 金額`;
       }
     }
     
@@ -424,7 +424,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        分潤
+                        診所分潤
                       </label>
                       <input
                         type="number"
@@ -457,7 +457,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <span className="font-semibold">${totalAmount.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-gray-600">
-            <span>分潤 (內部):</span>
+            <span>診所分潤 (內部):</span>
             <span>${totalRevenueShare.toFixed(2)}</span>
           </div>
         </div>

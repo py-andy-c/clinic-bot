@@ -203,12 +203,12 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
     }
 
     if (revenue_share < 0) {
-      alert('分潤必須 >= 0');
+      alert('診所分潤必須 >= 0');
       return;
     }
 
     if (revenue_share > amount) {
-      alert('分潤必須 <= 金額');
+      alert('診所分潤必須 <= 金額');
       return;
     }
 
@@ -576,7 +576,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                                                       )}
                                                     </div>
                                                     <div className="text-xs text-gray-600 mt-1">
-                                                      金額: ${(typeof scenario.amount === 'string' ? parseFloat(scenario.amount) : scenario.amount).toFixed(2)} | 分潤: ${(typeof scenario.revenue_share === 'string' ? parseFloat(scenario.revenue_share) : scenario.revenue_share).toFixed(2)}
+                                                      金額: ${(typeof scenario.amount === 'string' ? parseFloat(scenario.amount) : scenario.amount).toFixed(2)} | 診所分潤: ${(typeof scenario.revenue_share === 'string' ? parseFloat(scenario.revenue_share) : scenario.revenue_share).toFixed(2)}
                                                     </div>
                                                   </div>
                                                   <div className="flex items-center space-x-2">
@@ -724,7 +724,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  分潤
+                  診所分潤
                 </label>
                 <input
                   type="number"
@@ -736,7 +736,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                   placeholder="0.00"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  分潤必須 &lt;= 金額
+                  診所分潤必須 &lt;= 金額
                 </p>
               </div>
 

@@ -237,7 +237,7 @@ const AccountingDashboardPage: React.FC = () => {
               </p>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6">
-              <p className="text-sm text-gray-600 mb-1">總分潤</p>
+              <p className="text-sm text-gray-600 mb-1">總診所分潤</p>
               <p className="text-2xl font-semibold text-blue-600">
                 ${summary.summary.total_revenue_share.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
@@ -351,7 +351,7 @@ const AccountingDashboardPage: React.FC = () => {
                             <tr>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">治療師</th>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總收入</th>
-                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總分潤</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總診所分潤</th>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">收據數</th>
                             </tr>
                           </thead>
@@ -391,7 +391,7 @@ const AccountingDashboardPage: React.FC = () => {
                             <tr>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">服務項目</th>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總收入</th>
-                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總分潤</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總診所分潤</th>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">項目數</th>
                             </tr>
                           </thead>
@@ -470,7 +470,7 @@ const AccountingDashboardPage: React.FC = () => {
                       </p>
                     </div>
                     <div className="bg-blue-50 rounded-lg p-4">
-                      <p className="text-sm text-gray-600 mb-1">總分潤</p>
+                      <p className="text-sm text-gray-600 mb-1">總診所分潤</p>
                       <p className="text-xl font-semibold text-blue-600">
                         ${practitionerDetails.summary.total_revenue_share.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
@@ -497,7 +497,7 @@ const AccountingDashboardPage: React.FC = () => {
                               <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">服務項目</th>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">計費方案</th>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">金額</th>
-                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">分潤</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">診所分潤</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
@@ -538,7 +538,7 @@ const AccountingDashboardPage: React.FC = () => {
                             <tr>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">服務項目</th>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總收入</th>
-                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總分潤</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總診所分潤</th>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">項目數</th>
                             </tr>
                           </thead>
