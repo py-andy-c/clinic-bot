@@ -121,11 +121,6 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
         </div>
       )}
       
-      {canCancel && !canModify && (
-        <div className="text-sm text-gray-500 italic">
-          {t('appointmentCard.cannotModifyMessage', '此預約已有收據，無法修改')}
-        </div>
-      )}
     </div>
   );
 };

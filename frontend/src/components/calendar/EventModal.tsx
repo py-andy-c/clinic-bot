@@ -357,12 +357,6 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                   )}
                 </>
               )}
-              {/* Show message when buttons are hidden due to receipt constraint */}
-              {event.resource.has_any_receipt && (
-                <p className="text-sm text-gray-500 italic mt-2">
-                  此預約已有收據，無法修改
-                </p>
-              )}
             </>
           )}
           {event.resource.type === 'availability_exception' && onDeleteException && (
