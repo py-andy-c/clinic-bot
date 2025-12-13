@@ -47,7 +47,7 @@ export const PatientStatsSection: React.FC<PatientStatsSectionProps> = ({
   const maxNewPatients = Math.max(...newPatientsData.map((d) => d.value), 0);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-8">
+    <div className="bg-white md:rounded-lg md:shadow-sm md:border md:border-gray-200 p-0 md:p-6 mb-8">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">病患統計</h2>
 
       {/* Active Patients Bar Chart */}

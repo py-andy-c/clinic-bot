@@ -56,7 +56,7 @@ const SettingsReceiptsPage: React.FC = () => {
         )}
       </div>
       <form onSubmit={(e) => { e.preventDefault(); saveData(); }} className="space-y-4">
-        <div className="md:bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
+        <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
           <ReceiptSettings
             receiptSettings={settings.receipt_settings || { custom_notes: null, show_stamp: false }}
             onReceiptSettingsChange={(receiptSettings) => {

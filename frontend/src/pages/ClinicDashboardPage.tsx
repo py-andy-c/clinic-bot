@@ -6,6 +6,7 @@ import { AppointmentStatsSection } from '../components/dashboard/AppointmentStat
 import { MessageStatsSection } from '../components/dashboard/MessageStatsSection';
 import { LoadingSpinner, ErrorMessage } from '../components/shared';
 import { useAuth } from '../hooks/useAuth';
+import PageHeader from '../components/PageHeader';
 
 const ClinicDashboardPage: React.FC = () => {
   const { isLoading: authLoading, isAuthenticated, user } = useAuth();
@@ -21,21 +22,13 @@ const ClinicDashboardPage: React.FC = () => {
 
   if (loading && !data) {
     return (
-      <div className="min-h-screen pb-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <LoadingSpinner size="xl" />
-        </div>
-      </div>
+      <LoadingSpinner size="xl" />
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen pb-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <ErrorMessage message={error} />
-        </div>
-      </div>
+      <ErrorMessage message={error} />
     );
   }
 
@@ -44,12 +37,9 @@ const ClinicDashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen pb-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Page Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">儀表板</h1>
-        </div>
+    <>
+      {/* Page Header */}
+      <PageHeader title="儀表板" />
 
         {/* Patient Statistics Section */}
         <PatientStatsSection
@@ -58,20 +48,23 @@ const ClinicDashboardPage: React.FC = () => {
         />
 
         {/* Appointment Statistics Section */}
-        <AppointmentStatsSection
-          appointments={data.appointments_by_month}
-          cancellations={data.cancellation_rate_by_month}
-          appointmentTypes={data.appointment_type_stats_by_month}
-          practitioners={data.practitioner_stats_by_month}
-        />
+        <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
+          <AppointmentStatsSection
+            appointments={data.appointments_by_month}
+            cancellations={data.cancellation_rate_by_month}
+            appointmentTypes={data.appointment_type_stats_by_month}
+            practitioners={data.practitioner_stats_by_month}
+          />
+        </div>
 
         {/* Message Statistics Section */}
-        <MessageStatsSection
-          paidMessages={data.paid_messages_by_month}
-          aiReplies={data.ai_reply_messages_by_month}
-        />
-      </div>
-    </div>
+        <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
+          <MessageStatsSection
+            paidMessages={data.paid_messages_by_month}
+            aiReplies={data.ai_reply_messages_by_month}
+          />
+        </div>
+    </>
   );
 };
 

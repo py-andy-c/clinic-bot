@@ -179,7 +179,7 @@ export const AppointmentStatsSection: React.FC<AppointmentStatsSectionProps> = (
   const months = cancellations.map((c) => c.month);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-8">
+    <div className="bg-white md:rounded-lg md:shadow-sm md:border md:border-gray-200 p-0 md:p-6 mb-8">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">預約統計</h2>
 
       {/* Appointments Bar Chart */}

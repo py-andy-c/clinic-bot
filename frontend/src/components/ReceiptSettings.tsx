@@ -55,7 +55,7 @@ const ReceiptSettings: React.FC<ReceiptSettingsProps> = ({
       </div>
 
       {/* Show Stamp Toggle */}
-      <div>
+      <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
         <label className="flex items-center">
           <input
             type="checkbox"

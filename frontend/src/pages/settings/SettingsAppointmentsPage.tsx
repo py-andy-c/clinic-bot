@@ -53,7 +53,7 @@ const SettingsAppointmentsPage: React.FC = () => {
         )}
       </div>
       <form onSubmit={(e) => { e.preventDefault(); saveData(); }} className="space-y-4">
-        <div className="md:bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
+        <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
           <ClinicAppointmentSettings
             appointmentTypeInstructions={settings.clinic_info_settings.appointment_type_instructions ?? null}
             appointmentNotesInstructions={settings.clinic_info_settings.appointment_notes_instructions ?? null}

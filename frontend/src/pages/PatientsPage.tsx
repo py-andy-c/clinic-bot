@@ -325,7 +325,7 @@ const PatientsPage: React.FC = () => {
 
       <div className="space-y-8">
         {/* Patients List */}
-        <div className="md:bg-white md:rounded-lg md:shadow-md p-0 md:p-6">
+        <div className="bg-white md:rounded-lg md:shadow-md p-0 md:p-6">
         <div className="space-y-4">
           {/* Search Bar */}
           <SearchInput

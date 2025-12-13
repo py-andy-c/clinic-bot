@@ -19,7 +19,7 @@ const CompactScheduleSettings: React.FC<CompactScheduleSettingsProps> = ({
   const [showInfoModal, setShowInfoModal] = useState(false);
 
   return (
-    <div className="pt-6 border-t border-gray-200">
+    <div className="pt-0 border-t-0 md:pt-6 md:border-t md:border-gray-200">
       <div className="flex justify-between items-start mb-4">
         <div className="flex-1">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">進階排程設定</h2>

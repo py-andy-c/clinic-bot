@@ -350,7 +350,7 @@ const LineUsersPage: React.FC = () => {
 
       <div className="space-y-8">
         {/* Line Users List */}
-        <div className="md:bg-white md:rounded-lg md:shadow-md overflow-hidden">
+        <div className="bg-white md:rounded-lg md:shadow-md overflow-hidden">
           {/* Search Bar */}
           <div className="p-2 md:p-4 border-b border-gray-200">
             <SearchInput

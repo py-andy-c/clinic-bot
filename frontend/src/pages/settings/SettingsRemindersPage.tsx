@@ -48,7 +48,7 @@ const SettingsRemindersPage: React.FC = () => {
         )}
       </div>
       <form onSubmit={(e) => { e.preventDefault(); saveData(); }} className="space-y-4">
-        <div className="md:bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
+        <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
           <ClinicReminderSettings
             reminderHoursBefore={settings.notification_settings.reminder_hours_before}
             onReminderHoursChange={(value) => {

@@ -66,7 +66,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
           disabled={!isClinicAdmin}
         />
 
-        <div className="mt-6">
+        <div className="mt-6 pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             訊息預覽
           </label>

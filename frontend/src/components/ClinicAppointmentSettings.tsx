@@ -151,7 +151,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
         </div>
 
         {/* 備註填寫指引 */}
-        <div>
+        <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             備註填寫指引
           </label>
@@ -176,7 +176,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
         </div>
 
         {/* 預約限制 */}
-        <div>
+        <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
           <div className="space-y-6">
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -319,7 +319,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
         </div>
 
         {/* 可用時段生成間隔 */}
-        <div className="relative">
+        <div className="relative pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
           <div className="flex items-center gap-2 mb-2">
             <label className="block text-sm font-medium text-gray-700">
               預約起始時間間隔（分鐘）

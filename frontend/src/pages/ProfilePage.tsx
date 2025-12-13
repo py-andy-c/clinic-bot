@@ -379,7 +379,7 @@ const ProfilePage: React.FC = () => {
 
       <div className="space-y-8">
         {/* Single Form */}
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white md:rounded-lg md:shadow-md p-0 md:p-6">
           <form onSubmit={(e) => { e.preventDefault(); saveData(); }}>
               {/* Profile Form */}
               <ProfileForm
@@ -393,35 +393,39 @@ const ProfilePage: React.FC = () => {
 
               {/* Availability Settings (Only for practitioners) */}
               {profile?.roles?.includes('practitioner') && (
-                <AvailabilitySettings
-                  schedule={profileData?.schedule || {}}
-                  onAddInterval={handleAddInterval}
-                  onUpdateInterval={handleUpdateInterval}
-                  onRemoveInterval={handleRemoveInterval}
-                  showSaveButton={sectionChanges.schedule || false}
-                  onSave={saveData}
-                  saving={uiState.saving}
-                />
+                <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
+                  <AvailabilitySettings
+                    schedule={profileData?.schedule || {}}
+                    onAddInterval={handleAddInterval}
+                    onUpdateInterval={handleUpdateInterval}
+                    onRemoveInterval={handleRemoveInterval}
+                    showSaveButton={sectionChanges.schedule || false}
+                    onSave={saveData}
+                    saving={uiState.saving}
+                  />
+                </div>
               )}
 
               {/* Compact Schedule Settings (Only for practitioners) */}
               {profile?.roles?.includes('practitioner') && (
-                <CompactScheduleSettings
-                  compactScheduleEnabled={profileData?.settings?.compact_schedule_enabled || false}
-                  onToggle={(enabled) => updateData({
-                    settings: {
-                      ...profileData?.settings,
-                      compact_schedule_enabled: enabled
-                    }
-                  })}
-                  showSaveButton={sectionChanges.settings || false}
-                  onSave={saveData}
-                  saving={uiState.saving}
-                />
+                <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
+                  <CompactScheduleSettings
+                    compactScheduleEnabled={profileData?.settings?.compact_schedule_enabled || false}
+                    onToggle={(enabled) => updateData({
+                      settings: {
+                        ...profileData?.settings,
+                        compact_schedule_enabled: enabled
+                      }
+                    })}
+                    showSaveButton={sectionChanges.settings || false}
+                    onSave={saveData}
+                    saving={uiState.saving}
+                  />
+                </div>
               )}
 
               {/* LINE Notification Settings */}
-              <div className="pt-6">
+              <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
                 <div className="flex justify-between items-start mb-4">
                   <h3 className="text-lg font-medium text-gray-900">LINE 通知設定</h3>
                   {sectionChanges.settings && (
@@ -484,7 +488,7 @@ const ProfilePage: React.FC = () => {
 
         {/* System Admin Notice */}
         {profile.user_type === 'system_admin' && (
-          <div className="bg-blue-50 rounded-lg p-6">
+          <div className="bg-blue-50 rounded-lg p-4 md:p-6">
             <div className="flex">
               <div className="flex-shrink-0">
                 <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">

@@ -46,7 +46,7 @@ const ClinicInfoSettings: React.FC<ClinicInfoSettingsProps> = ({
           </p>
         </div>
 
-        <div>
+        <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             地址
           </label>
@@ -60,7 +60,7 @@ const ClinicInfoSettings: React.FC<ClinicInfoSettingsProps> = ({
           />
         </div>
 
-        <div>
+        <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             電話
           </label>

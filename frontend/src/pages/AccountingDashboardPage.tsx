@@ -133,7 +133,7 @@ const AccountingDashboardPage: React.FC = () => {
 
       {/* Receipt Number Status Warning */}
       {receiptNumberStatus && (receiptNumberStatus.is_warning || receiptNumberStatus.is_critical) && (
-        <div className={`border rounded-lg p-4 ${
+        <div className={`border rounded-lg p-4 md:p-6 ${
           receiptNumberStatus.is_critical 
             ? 'bg-red-50 border-red-300' 
             : 'bg-yellow-50 border-yellow-300'
@@ -160,7 +160,7 @@ const AccountingDashboardPage: React.FC = () => {
       )}
 
       {/* Filters */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+      <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm p-2 md:p-4 mb-6 pb-6 border-b border-gray-200 md:mb-0 md:pb-0 md:border-b-0">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -229,26 +229,26 @@ const AccountingDashboardPage: React.FC = () => {
       ) : summary && (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 pb-6 border-b border-gray-200 md:mb-0 md:pb-0 md:border-b-0">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6">
               <p className="text-sm text-gray-600 mb-1">總收入</p>
               <p className="text-2xl font-semibold text-gray-900">
                 ${summary.summary.total_revenue.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6">
               <p className="text-sm text-gray-600 mb-1">總分潤</p>
               <p className="text-2xl font-semibold text-blue-600">
                 ${summary.summary.total_revenue_share.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6">
               <p className="text-sm text-gray-600 mb-1">收據數量</p>
               <p className="text-2xl font-semibold text-gray-900">
                 {summary.summary.receipt_count}
               </p>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6">
               <p className="text-sm text-gray-600 mb-1">作廢收據</p>
               <p className="text-2xl font-semibold text-red-600">
                 {summary.summary.voided_receipt_count}
@@ -257,12 +257,12 @@ const AccountingDashboardPage: React.FC = () => {
           </div>
 
           {/* Tabs */}
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+          <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm">
             <div className="border-b border-gray-200">
               <nav className="flex -mb-px">
                 <button
                   onClick={() => setShowVoidedOnly(false)}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 ${
+                  className={`px-3 py-2 md:px-6 md:py-3 text-sm font-medium border-b-2 ${
                     !showVoidedOnly
                       ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -272,7 +272,7 @@ const AccountingDashboardPage: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setShowVoidedOnly(true)}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 ${
+                  className={`px-3 py-2 md:px-6 md:py-3 text-sm font-medium border-b-2 ${
                     showVoidedOnly
                       ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -283,7 +283,7 @@ const AccountingDashboardPage: React.FC = () => {
               </nav>
             </div>
 
-            <div className="p-6">
+            <div className="p-0 md:p-6">
               {showVoidedOnly ? (
                 /* Voided Receipts Tab */
                 <div className="space-y-4">
@@ -294,31 +294,31 @@ const AccountingDashboardPage: React.FC = () => {
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">收據編號</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">開立日期</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">作廢日期</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">病患姓名</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">金額</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">作廢者</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                            <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">收據編號</th>
+                            <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">開立日期</th>
+                            <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">作廢日期</th>
+                            <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">病患姓名</th>
+                            <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">金額</th>
+                            <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">作廢者</th>
+                            <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                           {voidedReceipts.map((receipt) => (
                             <tr key={receipt.receipt_id}>
-                              <td className="px-4 py-3 text-sm text-gray-900">{receipt.receipt_number}</td>
-                              <td className="px-4 py-3 text-sm text-gray-500">
+                              <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900">{receipt.receipt_number}</td>
+                              <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-500">
                                 {moment(receipt.issue_date).tz('Asia/Taipei').format('YYYY-MM-DD')}
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-500">
+                              <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-500">
                                 {receipt.voided_at ? moment(receipt.voided_at).tz('Asia/Taipei').format('YYYY-MM-DD HH:mm') : '-'}
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-900">{receipt.patient_name}</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">
+                              <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900">{receipt.patient_name}</td>
+                              <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900">
                                 ${receipt.total_amount.toFixed(2)}
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-500">{receipt.voided_by_user_name || '-'}</td>
-                              <td className="px-4 py-3 text-sm">
+                              <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-500">{receipt.voided_by_user_name || '-'}</td>
+                              <td className="px-2 py-2 md:px-4 md:py-3 text-sm">
                                 <button
                                   onClick={() => {
                                     // Find appointment_id from receipt
@@ -349,16 +349,16 @@ const AccountingDashboardPage: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">治療師</th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">總收入</th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">總分潤</th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">收據數</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">治療師</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總收入</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總分潤</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">收據數</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
                             {summary.by_practitioner.map((stat: any) => (
                               <tr key={stat.practitioner_id}>
-                                <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm font-medium text-gray-900">
                                   <button
                                     onClick={() => loadPractitionerDetails(stat.practitioner_id)}
                                     className="text-blue-600 hover:text-blue-800 hover:underline"
@@ -366,13 +366,13 @@ const AccountingDashboardPage: React.FC = () => {
                                     {stat.practitioner_name}
                                   </button>
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900 text-right">
                                   ${stat.total_revenue.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-blue-600 text-right">
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-blue-600 text-right">
                                   ${stat.total_revenue_share.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-500 text-right">{stat.receipt_count}</td>
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-500 text-right">{stat.receipt_count}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -389,25 +389,25 @@ const AccountingDashboardPage: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">服務項目</th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">總收入</th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">總分潤</th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">項目數</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">服務項目</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總收入</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總分潤</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">項目數</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
                             {summary.by_service_item.map((stat: any) => (
                               <tr key={stat.service_item_id}>
-                                <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm font-medium text-gray-900">
                                   {stat.receipt_name || stat.service_item_name}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900 text-right">
                                   ${stat.total_revenue.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-blue-600 text-right">
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-blue-600 text-right">
                                   ${stat.total_revenue_share.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-500 text-right">{stat.item_count}</td>
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-500 text-right">{stat.item_count}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -491,33 +491,33 @@ const AccountingDashboardPage: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">收據編號</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">日期</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">病患</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">服務項目</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">計費方案</th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">金額</th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">分潤</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">收據編號</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">日期</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">病患</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">服務項目</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">計費方案</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">金額</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">分潤</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
                             {practitionerDetails.items.map((item: any, idx: number) => (
                               <tr key={idx}>
-                                <td className="px-4 py-3 text-sm text-gray-900">{item.receipt_number}</td>
-                                <td className="px-4 py-3 text-sm text-gray-500">
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900">{item.receipt_number}</td>
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-500">
                                   {moment(item.issue_date).tz('Asia/Taipei').format('YYYY-MM-DD')}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-900">{item.patient_name}</td>
-                                <td className="px-4 py-3 text-sm text-gray-900">
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900">{item.patient_name}</td>
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900">
                                   {item.service_item?.receipt_name || item.service_item?.name || '-'}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-500">
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-500">
                                   {item.billing_scenario?.name || '-'}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900 text-right">
                                   ${item.amount.toFixed(2)}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-blue-600 text-right">
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-blue-600 text-right">
                                   ${item.revenue_share.toFixed(2)}
                                 </td>
                               </tr>
@@ -536,25 +536,25 @@ const AccountingDashboardPage: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">服務項目</th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">總收入</th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">總分潤</th>
-                              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">項目數</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">服務項目</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總收入</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">總分潤</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">項目數</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
                             {practitionerDetails.by_service_item.map((stat: any) => (
                               <tr key={stat.service_item_id}>
-                                <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm font-medium text-gray-900">
                                   {stat.receipt_name || stat.service_item_name}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900 text-right">
                                   ${stat.total_revenue.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-blue-600 text-right">
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-blue-600 text-right">
                                   ${stat.total_revenue_share.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-500 text-right">{stat.item_count}</td>
+                                <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-500 text-right">{stat.item_count}</td>
                               </tr>
                             ))}
                           </tbody>

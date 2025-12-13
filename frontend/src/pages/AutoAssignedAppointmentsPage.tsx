@@ -434,17 +434,17 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
       </div>
 
       {appointments.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
+        <div className="bg-white md:rounded-lg md:shadow p-0 md:p-8 text-center">
           <p className="text-gray-500">目前沒有自動指派的預約</p>
         </div>
       ) : (
-        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+        <div className="bg-white md:shadow md:overflow-hidden md:rounded-md">
           <ul className="divide-y divide-gray-200">
             {appointments.map((appointment) => (
               <li
                 key={appointment.appointment_id}
                 onClick={() => handleAppointmentClick(appointment)}
-                className="px-6 py-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                className="px-2 py-2 md:px-6 md:py-4 hover:bg-gray-50 cursor-pointer transition-colors"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1">

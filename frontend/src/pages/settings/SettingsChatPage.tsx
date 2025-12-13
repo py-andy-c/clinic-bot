@@ -111,7 +111,7 @@ const SettingsChatPage: React.FC = () => {
         </div>
       </div>
       <form onSubmit={(e) => { e.preventDefault(); handleChatSettingsSave(); }} className="space-y-4">
-        <div className="md:bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
+        <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
           <ChatSettings
             chatSettings={settings.chat_settings}
             onChatSettingsChange={(chatSettings) => {
