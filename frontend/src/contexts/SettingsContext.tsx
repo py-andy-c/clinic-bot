@@ -409,10 +409,13 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
           if (!isTemporaryId && originalIds.has(scenario.id)) {
             // Update existing (real ID from backend)
             try {
+              // Normalize amount and revenue_share to numbers (handle string types from API)
+              const normalizedAmount = typeof scenario.amount === 'string' ? parseFloat(scenario.amount) : scenario.amount;
+              const normalizedRevenueShare = typeof scenario.revenue_share === 'string' ? parseFloat(scenario.revenue_share) : scenario.revenue_share;
               await apiService.updateBillingScenario(serviceItemId, practitionerId, scenario.id, {
                 name: scenario.name,
-                amount: scenario.amount,
-                revenue_share: scenario.revenue_share,
+                amount: normalizedAmount,
+                revenue_share: normalizedRevenueShare,
                 is_default: scenario.is_default,
               });
             } catch (err) {
@@ -423,10 +426,13 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
           } else {
             // Create new (either temporary ID or not in original)
             try {
+              // Normalize amount and revenue_share to numbers (handle string types from API)
+              const normalizedAmount = typeof scenario.amount === 'string' ? parseFloat(scenario.amount) : scenario.amount;
+              const normalizedRevenueShare = typeof scenario.revenue_share === 'string' ? parseFloat(scenario.revenue_share) : scenario.revenue_share;
               const response = await apiService.createBillingScenario(serviceItemId, practitionerId, {
                 name: scenario.name,
-                amount: scenario.amount,
-                revenue_share: scenario.revenue_share,
+                amount: normalizedAmount,
+                revenue_share: normalizedRevenueShare,
                 is_default: scenario.is_default,
               });
               // Track created scenarios to update state after all operations

@@ -143,11 +143,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               const updatedItems = [...newItems];
               const currentItem = updatedItems[index];
               if (currentItem) {
+                // Normalize amount and revenue_share to handle both string and number types from API
+                const normalizedAmount = typeof defaultScenario.amount === 'string' ? parseFloat(defaultScenario.amount) : defaultScenario.amount;
+                const normalizedRevenueShare = typeof defaultScenario.revenue_share === 'string' ? parseFloat(defaultScenario.revenue_share) : defaultScenario.revenue_share;
                 updatedItems[index] = {
                   ...currentItem,
                   billing_scenario_id: defaultScenario.id,
-                  amount: defaultScenario.amount,
-                  revenue_share: defaultScenario.revenue_share,
+                  amount: isNaN(normalizedAmount) ? 0 : normalizedAmount,
+                  revenue_share: isNaN(normalizedRevenueShare) ? 0 : normalizedRevenueShare,
                 };
                 setItems(updatedItems);
               }
@@ -166,10 +169,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         const scenarios = billingScenarios[key] || [];
         const scenario = scenarios.find((s: any) => s.id === value);
         if (scenario) {
+          // Normalize amount and revenue_share to handle both string and number types from API
+          const normalizedAmount = typeof scenario.amount === 'string' ? parseFloat(scenario.amount) : scenario.amount;
+          const normalizedRevenueShare = typeof scenario.revenue_share === 'string' ? parseFloat(scenario.revenue_share) : scenario.revenue_share;
           newItems[index] = {
             ...item,
-            amount: scenario.amount,
-            revenue_share: scenario.revenue_share,
+            amount: isNaN(normalizedAmount) ? 0 : normalizedAmount,
+            revenue_share: isNaN(normalizedRevenueShare) ? 0 : normalizedRevenueShare,
           };
         }
       }
@@ -389,11 +395,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         className="input"
                       >
                         <option value="">選擇方案...</option>
-                        {scenarios.map((s: any) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name} (${s.amount.toFixed(2)})
-                          </option>
-                        ))}
+                        {scenarios.map((s: any) => {
+                          const amount = typeof s.amount === 'string' ? parseFloat(s.amount) : s.amount;
+                          return (
+                            <option key={s.id} value={s.id}>
+                              {s.name} (${isNaN(amount) ? '0.00' : amount.toFixed(2)})
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
                   )}

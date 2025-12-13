@@ -124,10 +124,13 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
 
   const handleEditScenario = (serviceItemId: number, practitionerId: number, scenario: BillingScenario) => {
     setEditingScenario({ serviceItemId, practitionerId, scenarioId: scenario.id });
+    // Normalize amount and revenue_share to handle both string and number types from API
+    const normalizedAmount = typeof scenario.amount === 'string' ? parseFloat(scenario.amount) : scenario.amount;
+    const normalizedRevenueShare = typeof scenario.revenue_share === 'string' ? parseFloat(scenario.revenue_share) : scenario.revenue_share;
     setScenarioForm({
       name: scenario.name,
-      amount: scenario.amount.toString(),
-      revenue_share: scenario.revenue_share.toString(),
+      amount: isNaN(normalizedAmount) ? '' : normalizedAmount.toString(),
+      revenue_share: isNaN(normalizedRevenueShare) ? '' : normalizedRevenueShare.toString(),
       is_default: scenario.is_default,
     });
   };
@@ -524,7 +527,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                                                       )}
                                                     </div>
                                                     <div className="text-xs text-gray-600 mt-1">
-                                                      金額: ${scenario.amount.toFixed(2)} | 分潤: ${scenario.revenue_share.toFixed(2)}
+                                                      金額: ${(typeof scenario.amount === 'string' ? parseFloat(scenario.amount) : scenario.amount).toFixed(2)} | 分潤: ${(typeof scenario.revenue_share === 'string' ? parseFloat(scenario.revenue_share) : scenario.revenue_share).toFixed(2)}
                                                     </div>
                                                   </div>
                                                   <div className="flex items-center space-x-2">
