@@ -220,7 +220,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
             const assignedCount = assignedPractitionerIds.length;
 
             return (
-              <div key={type.id} className="border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <div key={type.id} className={`border border-gray-200 rounded-lg ${!isExpanded ? 'hover:bg-gray-50 transition-colors' : ''}`}>
                 {/* Compact Header (when collapsed) */}
                 {!isExpanded && (
                   <div className="p-4">
