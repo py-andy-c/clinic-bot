@@ -388,15 +388,6 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
                 <p>LINE 推播訊息由 LINE 平台收費，診所需自行負擔相關費用。</p>
                 <p>若 LINE 訊息配額用盡，系統將無法發送推播訊息，但預約系統仍可正常運作。</p>
               </div>
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowPaidMessagesModal(false)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                >
-                  關閉
-                </button>
-              </div>
             </div>
           </div>
         </BaseModal>
@@ -419,15 +410,6 @@ export const MessageStatsSection: React.FC<MessageStatsSectionProps> = ({
               <h3 className="text-lg font-semibold text-gray-900 mb-3">AI 回覆訊息</h3>
               <div className="text-sm text-gray-700 space-y-2">
                 <p>AI 回覆訊息不會消耗 LINE 訊息配額。</p>
-              </div>
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowAiRepliesModal(false)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                >
-                  關閉
-                </button>
               </div>
             </div>
           </div>

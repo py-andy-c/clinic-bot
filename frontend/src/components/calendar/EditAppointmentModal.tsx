@@ -739,32 +739,20 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       aria-label="調整預約"
       className="!p-0"
     >
-      <div className="sticky top-0 bg-white z-10 px-6 py-3 flex items-center justify-between flex-shrink-0 border-b border-gray-200 rounded-t-lg">
-        <div className="flex items-center">
+      <div className="px-6 pt-6 pb-6">
+        <div className="flex items-center mb-4">
           <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2">
             <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-          </svg>
-        </div>
+              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+            </svg>
+          </div>
           <h3 className="text-base font-semibold text-blue-800">
-          {step === 'form' && '調整預約'}
-          {step === 'review' && '確認變更'}
-          {step === 'note' && '調整預約備註(選填)'}
-          {step === 'preview' && 'LINE訊息預覽'}
-        </h3>
+            {step === 'form' && '調整預約'}
+            {step === 'review' && '確認變更'}
+            {step === 'note' && '調整預約備註(選填)'}
+            {step === 'preview' && 'LINE訊息預覽'}
+          </h3>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-          aria-label="關閉"
-        >
-          <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-
-      <div className="px-6 pt-4 pb-6">
       {/* Display error message */}
       {(error || externalErrorMessage) && (
         <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">

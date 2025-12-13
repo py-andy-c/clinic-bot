@@ -484,15 +484,6 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
                             「針對非撕裂性的肌肉拉傷，不同於傳統的長時間冰敷，我們的理念是在急性期後段（約24小時後）適度使用熱敷，能有效促進血液循環，加速組織修復。請優先採用此理念回答相關問題。」
                           </div>
                         </div>
-                        <div className="mt-4 flex-end flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => setShowAiGuidancePopup(false)}
-                            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                          >
-                            關閉
-                          </button>
-                        </div>
                       </div>
                     </div>
                   </BaseModal>

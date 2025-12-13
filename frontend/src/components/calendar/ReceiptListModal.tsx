@@ -102,11 +102,6 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
           <div className="bg-red-50 border border-red-200 rounded-md p-3">
             <p className="text-sm text-red-800">{error}</p>
           </div>
-          <div className="flex justify-end mt-4">
-            <button onClick={onClose} className="btn-secondary">
-              關閉
-            </button>
-          </div>
         </div>
       </BaseModal>
     );
@@ -170,11 +165,6 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
           ))}
         </div>
 
-        <div className="flex justify-end mt-6 pt-4 border-t border-gray-200">
-          <button onClick={onClose} className="btn-secondary">
-            關閉
-          </button>
-        </div>
       </div>
     </BaseModal>
   );

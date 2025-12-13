@@ -120,15 +120,6 @@ const CompactScheduleSettings: React.FC<CompactScheduleSettingsProps> = ({
                               </p>
                             </div>
                           </div>
-                          <div className="mt-4 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => setShowInfoModal(false)}
-                              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                            >
-                              關閉
-                            </button>
-                          </div>
                         </div>
                       </div>
                     </BaseModal>

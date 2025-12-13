@@ -54,15 +54,6 @@ const PractitionerNotificationTimeSettings: React.FC<PractitionerNotificationTim
               <div className="text-sm text-gray-700 space-y-2">
                 <p>系統將在您設定的時間發送隔天的所有預約資訊，幫助您提前準備。</p>
               </div>
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsInfoModalOpen(false)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                >
-                  關閉
-                </button>
-              </div>
             </div>
           </div>
         </BaseModal>

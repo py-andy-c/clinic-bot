@@ -152,15 +152,6 @@ export const PatientStatsSection: React.FC<PatientStatsSectionProps> = ({
               <div className="text-sm text-gray-700 space-y-2">
                 <p>該月有預約的病患（不含已取消的預約）</p>
               </div>
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowActivePatientsModal(false)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                >
-                  關閉
-                </button>
-              </div>
             </div>
           </div>
         </BaseModal>

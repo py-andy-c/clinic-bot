@@ -354,15 +354,6 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
                         <li><strong>設定為 15 分鐘：</strong>病患可選擇 09:00-10:00、09:15-10:15、09:30-10:30 等更細的時段</li>
                       </ul>
                     </div>
-                    <div className="mt-4 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setShowStepSizePopup(false)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                      >
-                        關閉
-                      </button>
-                    </div>
                   </div>
                 </div>
               </BaseModal>

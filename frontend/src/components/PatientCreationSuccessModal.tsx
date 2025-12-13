@@ -61,18 +61,6 @@ export const PatientCreationSuccessModal: React.FC<PatientCreationSuccessModalPr
 
   return (
     <BaseModal onClose={onClose} aria-label="病患已成功建立" className="max-w-md">
-      <div className="flex justify-end items-center mb-6">
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 transition-colors"
-          aria-label="關閉"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-
       <div className="text-center space-y-6 py-4">
         {/* Success Icon */}
         <div className="flex justify-center">

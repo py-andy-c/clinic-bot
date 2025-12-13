@@ -137,11 +137,6 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
           <div className="bg-red-50 border border-red-200 rounded-md p-3">
             <p className="text-sm text-red-800">{error || '無法載入收據'}</p>
           </div>
-          <div className="flex justify-end mt-4">
-            <button onClick={onClose} className="btn-secondary">
-              關閉
-            </button>
-          </div>
         </div>
       </BaseModal>
     );

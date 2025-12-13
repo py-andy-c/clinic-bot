@@ -198,27 +198,6 @@ export const ChatTestModal: React.FC<ChatTestModalProps> = ({
               使用當前設定（含未儲存變更）測試 • 測試模式，不影響實際病患對話 • 需點擊「儲存更變」才會套用
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-              aria-label="關閉"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
         </div>
 
         {/* Messages Area */}

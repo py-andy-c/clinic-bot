@@ -1335,8 +1335,8 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   return (
     <>
       <BaseModal onClose={handleClose} aria-label={modalTitle} className="!p-0">
-        <div className="sticky top-0 bg-white z-10 px-6 py-3 flex items-center justify-between flex-shrink-0 border-b border-gray-200 rounded-t-lg">
-          <div className="flex items-center">
+        <div className="px-6 pt-6 pb-6">
+          <div className="flex items-center mb-4">
             <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2">
               <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
@@ -1344,18 +1344,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             </div>
             <h3 className="text-base font-semibold text-blue-800">{modalTitle}</h3>
           </div>
-          <button
-            onClick={handleClose}
-            className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-            aria-label="關閉"
-          >
-            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="px-6 pt-4 pb-6">
           {/* Only show error at top if DateTimePicker is not visible (to avoid duplicate error messages) */}
           {error && step === 'form' && (!selectedAppointmentTypeId || !selectedPractitionerId) && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">

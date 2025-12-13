@@ -18,6 +18,8 @@ export interface BaseModalProps {
   'aria-labelledby'?: string;
   zIndex?: number;
   fullScreen?: boolean;
+  showCloseButton?: boolean; // Show X button in top-right corner (default: true)
+  closeOnOverlayClick?: boolean; // Close when clicking outside modal (default: false)
 }
 
 export const BaseModal: React.FC<BaseModalProps> = React.memo(({
@@ -28,10 +30,12 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
   'aria-labelledby': ariaLabelledBy,
   zIndex = Z_INDEX.MODAL,
   fullScreen = false,
+  showCloseButton = true,
+  closeOnOverlayClick = false,
 }) => {
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Only close if clicking the overlay itself, not the modal content
-    if (e.target === e.currentTarget && onClose) {
+    // Only close if clicking the overlay itself, not the modal content, and if enabled
+    if (closeOnOverlayClick && e.target === e.currentTarget && onClose) {
       onClose();
     }
   };
@@ -100,12 +104,36 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
     >
       <div
         className={fullScreen
-          ? `w-screen h-[100dvh] min-h-[100dvh] overflow-hidden ${className}`
-          : `bg-white rounded-lg p-6 max-w-md w-full mx-4 mb-4 max-h-[90vh] overflow-y-auto ${className}`
+          ? `w-screen h-[100dvh] min-h-[100dvh] overflow-hidden relative ${className}`
+          : `bg-white rounded-lg p-6 max-w-md w-full mx-4 mb-4 max-h-[90vh] overflow-y-auto relative ${className}`
         }
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
       >
+        {/* Close button (X) in top-right corner */}
+        {showCloseButton && onClose && (
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 z-20 bg-white rounded-full p-1.5 shadow-md text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            aria-label="關閉"
+            type="button"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        )}
         {children}
       </div>
     </div>,

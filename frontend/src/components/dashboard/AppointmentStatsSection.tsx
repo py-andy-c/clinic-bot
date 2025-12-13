@@ -410,15 +410,6 @@ export const AppointmentStatsSection: React.FC<AppointmentStatsSectionProps> = (
                 </ul>
                 <p className="mt-2">其中，總預約數包含所有狀態的預約（已確認、已取消等）。</p>
               </div>
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowCancellationRateModal(false)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                >
-                  關閉
-                </button>
-              </div>
             </div>
           </div>
         </BaseModal>

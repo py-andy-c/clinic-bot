@@ -62,14 +62,6 @@ export const ConflictModal: React.FC<ConflictModalProps> = React.memo(({
             </div>
           ))}
         </div>
-        <div className="flex justify-end space-x-2">
-          <button 
-            onClick={onClose}
-            className="btn-primary"
-          >
-            關閉
-          </button>
-        </div>
     </BaseModal>
   );
 });
