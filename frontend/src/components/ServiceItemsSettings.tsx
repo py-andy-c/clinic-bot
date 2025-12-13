@@ -492,7 +492,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                                       
                                       {/* Billing Scenarios (shown only when assigned) */}
                                       {isAssigned && (
-                                        <div className="ml-7 mt-2 pt-2 border-t border-gray-200">
+                                        <div className="mt-2 pt-2 border-t border-gray-200">
                                           <div className="flex justify-between items-center mb-2">
                                             <label className="text-xs font-medium text-gray-700">計費方案</label>
                                             <button
