@@ -525,6 +525,13 @@ export class ApiService {
     return response.data;
   }
 
+  async getReceiptHtml(receiptId: number): Promise<string> {
+    const response = await this.client.get(`/receipts/${receiptId}/html`, {
+      responseType: 'text',
+    });
+    return response.data;
+  }
+
   // Accounting endpoints (admin-only)
   async getAccountingSummary(
     startDate: string,
