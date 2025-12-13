@@ -45,7 +45,7 @@ describe('BaseModal', () => {
   it('should call onClose when overlay is clicked', () => {
     const onClose = vi.fn();
     render(
-      <BaseModal onClose={onClose}>
+      <BaseModal onClose={onClose} closeOnOverlayClick={true}>
         <div>Content</div>
       </BaseModal>
     );

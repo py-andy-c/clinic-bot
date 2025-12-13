@@ -121,7 +121,7 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
     }
 
     // Handle popstate event (browser back button)
-    const handlePopState = (event: PopStateEvent) => {
+    const handlePopState = (_event: PopStateEvent) => {
       // Prevent race conditions
       if (isHandlingBackRef.current) {
         return;

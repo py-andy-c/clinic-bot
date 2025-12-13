@@ -56,7 +56,7 @@ const shouldShowReadOnlyFields = (item: CheckoutItem, scenarios: any[]): boolean
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   event,
   appointmentTypes,
-  practitioners,
+  practitioners: _practitioners,
   onClose,
   onSuccess,
 }) => {
@@ -409,7 +409,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               ? `${item.service_item_id}-${item.practitioner_id}` 
               : '';
             const scenarios = billingScenarios[key] || [];
-            const defaultScenario = scenarios.find((s: any) => s.is_default);
             
             const quantity = item.quantity || 1;
             const isExpanded = expandedQuantityItems.has(index) || quantity > 1;
