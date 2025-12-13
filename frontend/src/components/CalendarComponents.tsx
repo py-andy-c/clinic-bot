@@ -55,7 +55,7 @@ export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
 
   return (
     <div className={`flex justify-between items-center ${isMobile ? 'mb-2' : 'mb-4'}`}>
-      <div className="flex items-center space-x-2 pl-4">
+      <div className="flex items-center space-x-2 pl-4 md:pl-0">
         {/* Hide navigation arrows on mobile */}
         {!isMobile && (
           <button
@@ -78,7 +78,7 @@ export const CustomToolbar = React.memo((toolbar: ToolbarProps) => {
           {dateMonthDisplay}
         </h2>
       </div>
-      <div className="flex items-center space-x-3 pr-4">
+      <div className="flex items-center space-x-3 pr-4 md:pr-0">
         <button
           onClick={handleToday}
           className={`${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-2 text-sm'} font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-md border border-gray-300`}
