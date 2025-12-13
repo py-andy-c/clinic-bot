@@ -147,14 +147,14 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
         return newSet;
       });
     } catch (err: any) {
-      logger.error('Error loading billing scenarios:', err);
-      // Handle 404 gracefully - treat as "no scenarios exist yet"
-      // For other errors, also mark as failed to prevent infinite retries
+      // Handle 404 gracefully - treat as "no scenarios exist yet" (expected for new practitioners)
+      // Don't log 404s as errors since this is a normal, expected state
       if (err?.response?.status === 404 || err?.code === 'ERR_BAD_REQUEST') {
         // 404 means no scenarios exist - set empty array and mark as "loaded" (not failed)
         onBillingScenariosChange(key, []);
       } else {
-        // For other errors, mark as failed to prevent infinite retries
+        // For actual errors (network issues, 500s, etc.), log and mark as failed
+        logger.error('Error loading billing scenarios:', err);
         setFailedScenarios(prev => new Set(prev).add(key));
       }
     } finally {
