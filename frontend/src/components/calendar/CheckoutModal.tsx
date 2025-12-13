@@ -683,7 +683,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         }}
                         className="input"
                       >
-                        <option value="">不指定</option>
+                        <option value="">無</option>
                         {(() => {
                           // Show all practitioners if "其他" is selected, otherwise filter by service item
                           if (isOtherServiceItem(item.service_item_id)) {
