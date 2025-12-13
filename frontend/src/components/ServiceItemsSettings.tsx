@@ -56,6 +56,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
   const [showBufferModal, setShowBufferModal] = useState(false);
   const [showAllowBookingModal, setShowAllowBookingModal] = useState(false);
   const [showReceiptNameModal, setShowReceiptNameModal] = useState(false);
+  const [showBillingScenarioModal, setShowBillingScenarioModal] = useState(false);
 
   // Load members (practitioners)
   useEffect(() => {
@@ -543,7 +544,10 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                                       {isAssigned && (
                                         <div className="mt-2 pt-2 border-t border-gray-200">
                                           <div className="flex justify-between items-center mb-2">
-                                            <label className="text-xs font-medium text-gray-700">計費方案</label>
+                                            <div className="flex items-center gap-2">
+                                              <label className="text-xs font-medium text-gray-700">計費方案</label>
+                                              <InfoButton onClick={() => setShowBillingScenarioModal(true)} />
+                                            </div>
                                             <button
                                               type="button"
                                               onClick={() => {
@@ -680,6 +684,22 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
         ariaLabel="收據項目名稱說明"
       >
         <p>此名稱會顯示在收據上，取代服務項目名稱。若未填寫，收據將使用「項目名稱」。此設定不影響病患預約時看到的服務名稱。</p>
+      </InfoModal>
+
+      <InfoModal
+        isOpen={showBillingScenarioModal}
+        onClose={() => setShowBillingScenarioModal(false)}
+        title="計費方案說明"
+        ariaLabel="計費方案說明"
+      >
+        <p>計費方案讓您為每位治療師的每項服務設定多種定價選項（例如：原價、折扣價、會員價等）。</p>
+        <p className="font-medium mt-3">每個計費方案包含：</p>
+        <ul className="list-disc list-inside space-y-1 mt-2">
+          <li><strong>金額</strong>：向病患收取的費用（會顯示在收據上）</li>
+          <li><strong>診所分潤</strong>：診所的收入分成（僅供內部使用，不會顯示在收據上）</li>
+        </ul>
+        <p className="mt-3">您可以為每個治療師-服務組合建立多個計費方案，結帳時可選擇適用的方案。</p>
+        <p className="text-gray-600 mt-2">預設方案會在結帳時自動選取，但可以手動更改。</p>
       </InfoModal>
 
       {/* Billing Scenario Edit Modal */}
