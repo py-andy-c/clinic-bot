@@ -352,24 +352,24 @@ const PatientsPage: React.FC = () => {
           ) : (
             <>
               <div className="overflow-x-auto relative">
-                <table className="min-w-full divide-y divide-gray-200">
+                <table className="w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50">
+                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50" style={{ minWidth: '80px' }}>
                         病患姓名
                       </th>
-                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '90px' }}>
                         手機號碼
                       </th>
                       {requireBirthday && (
-                        <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '85px' }}>
                           生日
                         </th>
                       )}
-                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
                         LINE 使用者
                       </th>
-                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap" style={{ minWidth: '75px' }}>
                         操作
                       </th>
                     </tr>
@@ -384,18 +384,18 @@ const PatientsPage: React.FC = () => {
                           highlightedPatientId === patient.id.toString() ? 'bg-blue-50' : ''
                         }`}
                       >
-                        <td className={`px-2 py-2 md:px-6 md:py-4 whitespace-nowrap sticky left-0 z-10 transition-colors ${
+                        <td className={`px-2 py-2 md:px-6 md:py-4 sticky left-0 z-10 transition-colors ${
                           highlightedPatientId === patient.id.toString()
                             ? 'bg-blue-50 group-hover:bg-blue-50'
                             : 'bg-white group-hover:bg-gray-50'
-                        }`}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-blue-600 hover:text-blue-800">
+                        }`} style={{ minWidth: '80px' }}>
+                          <div className="flex items-center gap-1 md:gap-2">
+                            <span className="text-sm font-medium text-blue-600 hover:text-blue-800 truncate max-w-[60px] md:max-w-none">
                               {patient.full_name}
                             </span>
                             {patient.is_deleted && (
                               <span
-                                className="text-amber-500"
+                                className="text-amber-500 flex-shrink-0"
                                 title="此病患已自行刪除帳號。病患無法自行預約，但診所仍可查看、編輯此病患資料，並為其安排預約。"
                               >
                                 ⚠️
@@ -403,15 +403,15 @@ const PatientsPage: React.FC = () => {
                             )}
                           </div>
                         </td>
-                        <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-gray-500" style={{ minWidth: '90px' }}>
                           {patient.phone_number || '-'}
                         </td>
                         {requireBirthday && (
-                          <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-gray-500" style={{ minWidth: '85px' }}>
                             {patient.birthday ? formatDateOnly(patient.birthday) : '-'}
                           </td>
                         )}
-                        <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap">
+                        <td className="px-2 py-2 md:px-6 md:py-4 text-sm" style={{ minWidth: '100px' }}>
                           {patient.line_user_id ? (
                             <button
                               onClick={(e) => {
@@ -421,20 +421,20 @@ const PatientsPage: React.FC = () => {
                                   navigate(`/admin/clinic/line-users?lineUserId=${encodeURIComponent(lineUserId)}`);
                                 }
                               }}
-                              className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                              className="flex items-center gap-1 md:gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium w-full"
                             >
                               <ProfilePictureWithFallback
                                 src={patient.line_user_picture_url}
                                 alt={patient.line_user_display_name || 'LINE user'}
                                 size="small"
                               />
-                              {patient.line_user_display_name || '未設定名稱'}
+                              <span className="truncate max-w-[60px] md:max-w-none">{patient.line_user_display_name || '未設定名稱'}</span>
                             </button>
                           ) : (
                             <span className="text-sm text-gray-500">-</span>
                           )}
                         </td>
-                        <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm">
+                        <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm" style={{ minWidth: '75px' }}>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
