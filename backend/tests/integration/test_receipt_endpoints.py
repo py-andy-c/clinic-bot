@@ -980,10 +980,10 @@ class TestReceiptQuantityAccounting:
         )
 
         # Verify totals: (1000*2) + (500*3) = 2000 + 1500 = 3500
-        assert summary["total_revenue"] == Decimal("3500.00")
+        assert summary["summary"]["total_revenue"] == 3500.00
         # Verify revenue_share: (300*2) + (150*3) = 600 + 450 = 1050
-        assert summary["total_revenue_share"] == Decimal("1050.00")
-        assert summary["receipt_count"] == 2
+        assert summary["summary"]["total_revenue_share"] == 1050.00
+        assert summary["summary"]["receipt_count"] == 2
 
         # Verify service item stats
         service_item_stats = summary["by_service_item"]
@@ -1089,9 +1089,9 @@ class TestReceiptQuantityAccounting:
         )
 
         # Should treat as quantity = 1
-        assert summary["total_revenue"] == Decimal("1000.00")
-        assert summary["total_revenue_share"] == Decimal("300.00")
-        assert summary["receipt_count"] == 1
+        assert summary["summary"]["total_revenue"] == 1000.00
+        assert summary["summary"]["total_revenue_share"] == 300.00
+        assert summary["summary"]["receipt_count"] == 1
 
 
 class TestBillingScenarioEndpoints:
