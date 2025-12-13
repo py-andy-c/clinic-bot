@@ -37,7 +37,7 @@ class CheckoutItemRequest(BaseModel):
     practitioner_id: Optional[int] = Field(None, description="Practitioner ID (can be null)")
     billing_scenario_id: Optional[int] = Field(None, description="Required if item_type is 'service_item'")
     item_name: Optional[str] = Field(None, description="Required if item_type is 'other'")
-    amount: Decimal = Field(..., gt=0)
+    amount: Decimal = Field(..., ge=0, description="Amount (>= 0, allows free services)")
     revenue_share: Decimal = Field(..., ge=0)
     display_order: int = Field(0)
     quantity: int = Field(1, ge=1, description="Quantity of items (default: 1)")
@@ -132,11 +132,11 @@ async def checkout_appointment(
         # Convert items to dict format for service
         items: List[Dict[str, Any]] = []
         for idx, item in enumerate(request.items):
-            # Validate amount > 0
-            if item.amount <= 0:
+            # Validate amount >= 0 (allow zero for free services)
+            if item.amount < 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Item {idx}: amount must be greater than 0"
+                    detail=f"Item {idx}: amount must be >= 0"
                 )
             
             # Validate revenue_share <= amount

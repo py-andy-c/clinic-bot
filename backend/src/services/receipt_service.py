@@ -155,9 +155,9 @@ class ReceiptService:
             for item in items
         )
         
-        # Validate totals
-        if total_amount <= 0:
-            raise ValueError("Total amount must be greater than 0")
+        # Validate totals (allow zero for free services)
+        if total_amount < 0:
+            raise ValueError("Total amount must be >= 0")
         
         # Validate revenue_share <= amount for each item
         for item in items:

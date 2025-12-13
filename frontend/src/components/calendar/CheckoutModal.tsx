@@ -11,6 +11,7 @@ import { logger } from '../../utils/logger';
 import { formatCurrency } from '../../utils/currencyUtils';
 import { preventScrollWheelChange } from '../../utils/inputUtils';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
+import { getErrorMessage } from '../../types/api';
 
 interface CheckoutItem {
   service_item_id?: number | 'other' | undefined; // 'other' represents "其他"
@@ -452,8 +453,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         return `項目 ${i + 1}: 請選擇服務項目`;
       }
       
-      if (item.amount <= 0) {
-        return `項目 ${i + 1}: 金額必須大於 0`;
+      if (item.amount < 0) {
+        return `項目 ${i + 1}: 金額必須 >= 0`;
       }
       
       if (item.revenue_share < 0) {
@@ -521,7 +522,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       onClose();
     } catch (err: any) {
       logger.error('Error during checkout:', err);
-      setError(err.response?.data?.detail || '結帳失敗，請重試');
+      const errorMessage = getErrorMessage(err);
+      setError(errorMessage || '結帳失敗，請重試');
     } finally {
       setIsLoading(false);
     }
