@@ -306,7 +306,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 </button>
               )}
               
-              {/* Re-issue Receipt Button - Show when receipt is voided (admin only) */}
+              {/* Re-issue Receipt Button - Show when receipt is voided (previously checked out, admin only) */}
               {event.resource.has_any_receipt && !event.resource.has_active_receipt && isClinicAdmin && (
                 <button
                   onClick={() => setShowCheckoutModal(true)}
@@ -316,8 +316,8 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 </button>
               )}
               
-              {/* Checkout Button - Show when no active receipt (admin only) */}
-              {!event.resource.has_active_receipt && isClinicAdmin && (
+              {/* Checkout Button - Show when no receipts at all (never checked out, admin only) */}
+              {!event.resource.has_any_receipt && isClinicAdmin && (
                 <button
                   onClick={() => setShowCheckoutModal(true)}
                   className="btn-primary bg-green-600 hover:bg-green-700"
