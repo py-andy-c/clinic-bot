@@ -8,6 +8,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { BaseModal } from './BaseModal';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
+import { formatCurrency } from '../../utils/currencyUtils';
+import { preventScrollWheelChange } from '../../utils/inputUtils';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 
 interface CheckoutItem {
@@ -399,7 +401,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                           const amount = typeof s.amount === 'string' ? parseFloat(s.amount) : s.amount;
                           return (
                             <option key={s.id} value={s.id}>
-                              {s.name} (${isNaN(amount) ? '0.00' : amount.toFixed(2)})
+                              {s.name} ({formatCurrency(isNaN(amount) ? 0 : amount)})
                             </option>
                           );
                         })}
@@ -419,7 +421,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         onChange={(e) => handleItemChange(index, 'amount', parseFloat(e.target.value) || 0)}
                         className="input"
                         min="0"
-                        step="0.01"
+                        step="1"
+                        placeholder="0"
+                        onWheel={preventScrollWheelChange}
                       />
                     </div>
                     <div>
@@ -432,7 +436,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         onChange={(e) => handleItemChange(index, 'revenue_share', parseFloat(e.target.value) || 0)}
                         className="input"
                         min="0"
-                        step="0.01"
+                        step="1"
+                        placeholder="0"
+                        onWheel={preventScrollWheelChange}
                       />
                     </div>
                   </div>
@@ -454,11 +460,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         <div className="border-t border-gray-200 pt-4 space-y-2">
           <div className="flex justify-between">
             <span className="font-medium">收據金額:</span>
-            <span className="font-semibold">${totalAmount.toFixed(2)}</span>
+            <span className="font-semibold">{formatCurrency(totalAmount)}</span>
           </div>
           <div className="flex justify-between text-gray-600">
             <span>診所分潤 (內部):</span>
-            <span>${totalRevenueShare.toFixed(2)}</span>
+            <span>{formatCurrency(totalRevenueShare)}</span>
           </div>
         </div>
 

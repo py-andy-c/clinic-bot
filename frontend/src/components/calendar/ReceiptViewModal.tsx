@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
+import { formatCurrency } from '../../utils/currencyUtils';
 import { Z_INDEX } from '../../constants/app';
 import moment from 'moment-timezone';
 
@@ -221,7 +222,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
                       {itemName}
                       {item.practitioner?.name && ` (${item.practitioner.name})`}
                     </span>
-                    <span>${item.amount?.toFixed(2) || '0.00'}</span>
+                    <span>{formatCurrency(item.amount)}</span>
                   </div>
                 );
               })}
@@ -233,7 +234,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
         <div className="border-t border-gray-200 pt-2 space-y-1">
           <div className="flex justify-between font-semibold">
             <span>總費用:</span>
-            <span>${receiptData.total_amount?.toFixed(2) || '0.00'}</span>
+            <span>{formatCurrency(receiptData.total_amount)}</span>
           </div>
         </div>
 

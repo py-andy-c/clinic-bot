@@ -4,6 +4,7 @@ import { Member } from '../types';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { preventScrollWheelChange } from '../utils/inputUtils';
+import { formatCurrency } from '../utils/currencyUtils';
 import { BaseModal } from './shared/BaseModal';
 import { InfoButton, InfoModal } from './shared';
 
@@ -580,7 +581,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                                                       )}
                                                     </div>
                                                     <div className="text-xs text-gray-600 mt-1">
-                                                      金額: ${(typeof scenario.amount === 'string' ? parseFloat(scenario.amount) : scenario.amount).toFixed(2)} | 診所分潤: ${(typeof scenario.revenue_share === 'string' ? parseFloat(scenario.revenue_share) : scenario.revenue_share).toFixed(2)}
+                                                      金額: {formatCurrency(typeof scenario.amount === 'string' ? parseFloat(scenario.amount) : scenario.amount)} | 診所分潤: {formatCurrency(typeof scenario.revenue_share === 'string' ? parseFloat(scenario.revenue_share) : scenario.revenue_share)}
                                                     </div>
                                                   </div>
                                                   <div className="flex items-center space-x-2">
@@ -737,8 +738,9 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                   onChange={(e) => setScenarioForm(prev => ({ ...prev, amount: e.target.value }))}
                   className="input"
                   min="0"
-                  step="0.01"
-                  placeholder="0.00"
+                  step="1"
+                  placeholder="0"
+                  onWheel={preventScrollWheelChange}
                 />
               </div>
 
@@ -752,8 +754,9 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                   onChange={(e) => setScenarioForm(prev => ({ ...prev, revenue_share: e.target.value }))}
                   className="input"
                   min="0"
-                  step="0.01"
-                  placeholder="0.00"
+                  step="1"
+                  placeholder="0"
+                  onWheel={preventScrollWheelChange}
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   診所分潤必須 &lt;= 金額

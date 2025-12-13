@@ -11,6 +11,7 @@ import { logger } from '../utils/logger';
 import { LoadingSpinner } from '../components/shared';
 import PageHeader from '../components/PageHeader';
 import { ReceiptViewModal } from '../components/calendar/ReceiptViewModal';
+import { formatCurrency } from '../utils/currencyUtils';
 import moment from 'moment-timezone';
 
 const AccountingDashboardPage: React.FC = () => {
@@ -233,13 +234,13 @@ const AccountingDashboardPage: React.FC = () => {
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6">
               <p className="text-sm text-gray-600 mb-1">總收入</p>
               <p className="text-2xl font-semibold text-gray-900">
-                ${summary.summary.total_revenue.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(summary.summary.total_revenue)}
               </p>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6">
               <p className="text-sm text-gray-600 mb-1">總診所分潤</p>
               <p className="text-2xl font-semibold text-blue-600">
-                ${summary.summary.total_revenue_share.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(summary.summary.total_revenue_share)}
               </p>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 md:p-6">
@@ -315,7 +316,7 @@ const AccountingDashboardPage: React.FC = () => {
                               </td>
                               <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900">{receipt.patient_name}</td>
                               <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900">
-                                ${receipt.total_amount.toFixed(2)}
+                                {formatCurrency(receipt.total_amount)}
                               </td>
                               <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-500">{receipt.voided_by_user_name || '-'}</td>
                               <td className="px-2 py-2 md:px-4 md:py-3 text-sm">
@@ -367,10 +368,10 @@ const AccountingDashboardPage: React.FC = () => {
                                   </button>
                                 </td>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900 text-right">
-                                  ${stat.total_revenue.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {formatCurrency(stat.total_revenue)}
                                 </td>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-blue-600 text-right">
-                                  ${stat.total_revenue_share.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {formatCurrency(stat.total_revenue_share)}
                                 </td>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-500 text-right">{stat.receipt_count}</td>
                               </tr>
@@ -402,10 +403,10 @@ const AccountingDashboardPage: React.FC = () => {
                                   {stat.receipt_name || stat.service_item_name}
                                 </td>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900 text-right">
-                                  ${stat.total_revenue.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {formatCurrency(stat.total_revenue)}
                                 </td>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-blue-600 text-right">
-                                  ${stat.total_revenue_share.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {formatCurrency(stat.total_revenue_share)}
                                 </td>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-500 text-right">{stat.item_count}</td>
                               </tr>
@@ -466,13 +467,13 @@ const AccountingDashboardPage: React.FC = () => {
                     <div className="bg-gray-50 rounded-lg p-4">
                       <p className="text-sm text-gray-600 mb-1">總收入</p>
                       <p className="text-xl font-semibold">
-                        ${practitionerDetails.summary.total_revenue.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatCurrency(practitionerDetails.summary.total_revenue)}
                       </p>
                     </div>
                     <div className="bg-blue-50 rounded-lg p-4">
                       <p className="text-sm text-gray-600 mb-1">總診所分潤</p>
                       <p className="text-xl font-semibold text-blue-600">
-                        ${practitionerDetails.summary.total_revenue_share.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatCurrency(practitionerDetails.summary.total_revenue_share)}
                       </p>
                     </div>
                     <div className="bg-gray-50 rounded-lg p-4">
@@ -515,10 +516,10 @@ const AccountingDashboardPage: React.FC = () => {
                                   {item.billing_scenario?.name || '-'}
                                 </td>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900 text-right">
-                                  ${item.amount.toFixed(2)}
+                                  {formatCurrency(item.amount)}
                                 </td>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-blue-600 text-right">
-                                  ${item.revenue_share.toFixed(2)}
+                                  {formatCurrency(item.revenue_share)}
                                 </td>
                               </tr>
                             ))}
@@ -549,10 +550,10 @@ const AccountingDashboardPage: React.FC = () => {
                                   {stat.receipt_name || stat.service_item_name}
                                 </td>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900 text-right">
-                                  ${stat.total_revenue.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {formatCurrency(stat.total_revenue)}
                                 </td>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-blue-600 text-right">
-                                  ${stat.total_revenue_share.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {formatCurrency(stat.total_revenue_share)}
                                 </td>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-500 text-right">{stat.item_count}</td>
                               </tr>
