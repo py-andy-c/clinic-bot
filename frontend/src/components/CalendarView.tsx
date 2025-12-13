@@ -242,7 +242,24 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     if (current.title !== updated.title) return true;
     const currentNotes = current.resource.clinic_notes || '';
     const updatedNotes = updated.resource?.clinic_notes || '';
-    return currentNotes !== updatedNotes;
+    if (currentNotes !== updatedNotes) return true;
+    
+    // Check receipt-related fields
+    const currentHasActiveReceipt = current.resource.has_active_receipt || false;
+    const updatedHasActiveReceipt = updated.resource?.has_active_receipt || false;
+    if (currentHasActiveReceipt !== updatedHasActiveReceipt) return true;
+    
+    const currentHasAnyReceipt = current.resource.has_any_receipt || false;
+    const updatedHasAnyReceipt = updated.resource?.has_any_receipt || false;
+    if (currentHasAnyReceipt !== updatedHasAnyReceipt) return true;
+    
+    // Check receipt_ids array
+    const currentReceiptIds = current.resource.receipt_ids || [];
+    const updatedReceiptIds = updated.resource?.receipt_ids || [];
+    if (currentReceiptIds.length !== updatedReceiptIds.length) return true;
+    if (currentReceiptIds.some((id, idx) => id !== updatedReceiptIds[idx])) return true;
+    
+    return false;
   }, []);
 
   // Sync modalState with updated calendar events after refresh
@@ -1384,6 +1401,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
               // Refresh calendar data after receipt creation
               try {
                 await fetchCalendarData(true);
+                // The useEffect hook will automatically sync modalState with updated event
+                // after calendarEvents updates, so no manual update needed here
               } catch (error) {
                 logger.error('Failed to refresh calendar after receipt creation:', error);
               }
