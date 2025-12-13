@@ -61,7 +61,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
   // Only admins can access this page
   if (!isClinicAdmin) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <>
         <div className="mb-2 md:mb-8">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 inline-flex items-center gap-2">
             待審核預約
@@ -91,7 +91,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -372,7 +372,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <>
         <div className="mb-2 md:mb-8">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 inline-flex items-center gap-2">
             待審核預約
@@ -390,13 +390,13 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
         <div className="flex justify-center items-center py-12">
           <LoadingSpinner size="lg" />
         </div>
-      </div>
+      </>
     );
   }
 
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <>
         <div className="mb-2 md:mb-8">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 inline-flex items-center gap-2">
             待審核預約
@@ -412,12 +412,12 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
           </h1>
         </div>
         <ErrorMessage message={error} />
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <>
       <div className="mb-2 md:mb-8">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900 inline-flex items-center gap-2">
           待審核預約
@@ -551,7 +551,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
           </div>
         </BaseModal>
       )}
-    </div>
+    </>
   );
 };
 

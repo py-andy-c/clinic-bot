@@ -373,7 +373,7 @@ const ProfilePage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <>
       {/* Header */}
       <PageHeader title="個人設定" />
 
@@ -505,7 +505,7 @@ const ProfilePage: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 };
 

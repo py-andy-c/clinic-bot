@@ -124,7 +124,7 @@ const SettingsServiceItemsPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <>
       <SettingsBackButton />
       <div className="flex justify-between items-center mb-6">
         <PageHeader title="服務項目設定" />
@@ -175,7 +175,7 @@ const SettingsServiceItemsPage: React.FC = () => {
           </div>
         )}
       </form>
-    </div>
+    </>
   );
 };
 

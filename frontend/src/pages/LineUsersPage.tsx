@@ -336,15 +336,15 @@ const LineUsersPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <>
         {pageHeader}
         <ErrorMessage message={error} onRetry={refetch} />
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <>
       {/* Header */}
       {pageHeader}
 
@@ -633,7 +633,7 @@ const LineUsersPage: React.FC = () => {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

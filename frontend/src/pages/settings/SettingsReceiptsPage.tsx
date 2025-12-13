@@ -40,7 +40,7 @@ const SettingsReceiptsPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <>
       <SettingsBackButton />
       <div className="flex justify-between items-center mb-6">
         <PageHeader title="收據設定" />
@@ -90,7 +90,7 @@ const SettingsReceiptsPage: React.FC = () => {
           </div>
         )}
       </form>
-    </div>
+    </>
   );
 };
 

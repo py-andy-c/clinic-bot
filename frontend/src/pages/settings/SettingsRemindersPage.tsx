@@ -32,7 +32,7 @@ const SettingsRemindersPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <>
       <SettingsBackButton />
       <div className="flex justify-between items-center mb-6">
         <PageHeader title="LINE提醒設定" />
@@ -85,7 +85,7 @@ const SettingsRemindersPage: React.FC = () => {
           </div>
         )}
       </form>
-    </div>
+    </>
   );
 };
 

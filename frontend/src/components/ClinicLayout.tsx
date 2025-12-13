@@ -647,7 +647,7 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto py-2 md:py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-2 md:py-6 sm:px-0">
+        <div className="px-4 py-2 md:py-6 sm:px-0 md:max-w-4xl md:mx-auto">
           {children}
         </div>
       </main>

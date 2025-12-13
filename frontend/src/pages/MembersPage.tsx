@@ -173,15 +173,15 @@ const MembersPage: React.FC = () => {
 
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <>
         <PageHeader title="成員管理" />
         <ErrorMessage message={error} onRetry={refetch} />
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <>
       {/* Header */}
       <PageHeader
         title="成員管理"
@@ -333,7 +333,7 @@ const MembersPage: React.FC = () => {
           updating={updatingRoles}
         />
       )}
-    </div>
+    </>
   );
 };
 
