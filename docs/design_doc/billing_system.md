@@ -502,7 +502,7 @@ The `receipt_data` JSONB column stores a complete snapshot of all receipt inform
   - Sets `is_voided = true`
   - Sets `voided_at` to current timestamp
   - Sets `voided_by_user_id` to current user
-  - Stores `reason` in receipt_data JSONB (if provided)
+  - Stores `reason` in the `void_reason` database column (not in `receipt_data` JSONB) to maintain immutability
   - Appointment becomes available for re-checkout (new receipt can be created)
 
 **GET `/api/appointments/{appointment_id}/receipt` Response:**
@@ -1082,9 +1082,10 @@ WHERE clinic_id = :clinic_id
 ### 4. Billing Scenario Validation
 
 - **Business Rule**: `revenue_share <= amount` (revenue share cannot exceed amount charged)
-- Amount must be >= 0 (allows free services/zero amount scenarios)
+- Amount must be > 0 (database constraint: `chk_amount_positive` - billing scenarios cannot have zero amount)
 - Revenue share must be >= 0
 - Scenario name is required and must be unique per practitioner-service combination (excluding deleted)
+- **Note**: While billing scenarios require `amount > 0`, checkout allows `amount >= 0` via custom items (item_type: "other"). This design allows free services to be entered as custom items rather than predefined billing scenarios.
 
 ### 5. Receipt Voiding and Re-issuing
 
@@ -1169,11 +1170,11 @@ WHERE receipt_name IS NULL;
 - Keep existing `practitioner_appointment_types` records
 - Create default billing scenario for each:
   - Name: "原價" (or "Default")
-  - Amount: 0 (to be set by admin - zero amount checkout is allowed)
-  - Revenue share: 0 (to be set by admin - zero amount checkout is allowed)
+  - Amount: 1 (minimum allowed - must be > 0 per database constraint)
+  - Revenue share: 0 (to be set by admin)
   - Mark as default (`is_default = true`)
-- **Rationale**: Ensures all practitioner-service combinations have at least one billing scenario. Zero amount checkout is allowed (e.g., for free services, promotional visits, or administrative purposes)
-- **Validation**: Checkout allows amount = 0 (zero amount checkout is a valid business requirement)
+- **Rationale**: Ensures all practitioner-service combinations have at least one billing scenario. Note: Billing scenarios require `amount > 0` (database constraint), but checkout allows `amount >= 0` via custom items for free services/promotions.
+- **Validation**: Checkout allows amount = 0 via custom items (item_type: "other"), but billing scenarios must have amount > 0
 
 ### 3. Receipt Settings
 
@@ -1390,7 +1391,7 @@ SELECT EXTRACT(YEAR FROM NOW()) || '-' ||
 
 1. **Receipt Modification**: ✅ Resolved - Receipts are immutable. If correction needed, void the receipt and create a new one (re-issue). This maintains audit trail while allowing corrections.
 2. **Receipt Deletion**: ✅ Resolved - Receipts are never deleted (immutability + 7+ year retention requirement). Use voiding instead. Consider archival for old receipts.
-3. **Default Billing Scenarios**: ✅ Resolved - Create default scenarios with amount=0 and revenue_share=0 during migration. Zero amount checkout is allowed (e.g., for free services, promotional visits, or administrative purposes). Checkout validation allows amount >= 0.
+3. **Default Billing Scenarios**: ✅ Resolved - Create default scenarios with amount=1 (minimum) and revenue_share=0 during migration. Note: Billing scenarios require `amount > 0` (database constraint), but checkout allows `amount >= 0` via custom items (item_type: "other") for free services/promotions. Checkout validation allows amount >= 0.
 4. **Receipt Export**: ✅ Implemented - PDF download functionality (see Receipt View Modal section)
 5. **Receipt Voiding**: ✅ Resolved - Use separate `is_voided` boolean field for efficient querying
 6. **Appointment Deletion with Receipts**: ✅ Resolved - Use `ON DELETE RESTRICT` to prevent deletion. Consider soft-delete for appointments.
