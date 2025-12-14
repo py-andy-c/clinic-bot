@@ -4,7 +4,7 @@
  * Modal for processing checkout for an appointment (admin-only).
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BaseModal } from './BaseModal';
 import { apiService } from '../../services/api';
 import { getErrorMessage } from '../../types/api';
@@ -38,14 +38,29 @@ const normalizeScenarioValue = (value: string | number | null | undefined): numb
   return isNaN(num) ? 0 : Math.round(num);
 };
 
-// Helper function to determine if custom amount fields should be shown
+// Helper function to determine if custom amount fields should be shown (editable)
 const shouldShowCustomFields = (item: CheckoutItem, scenarios: any[]): boolean => {
-  const hasServiceAndPractitioner = item.service_item_id && item.practitioner_id;
-  const noScenarios = scenarios.length === 0;
-  const isOtherSelected = item.billing_scenario_id === null;
-  const noScenarioSelected = item.billing_scenario_id === undefined;
+  // Service item is "其他" (undefined)
+  if (!item.service_item_id) {
+    return true;
+  }
   
-  return (hasServiceAndPractitioner && noScenarios) || isOtherSelected || noScenarioSelected;
+  // Practitioner is "無" (null)
+  if (item.practitioner_id === null) {
+    return true;
+  }
+  
+  // Billing scenario is "其他" (null)
+  if (item.billing_scenario_id === null) {
+    return true;
+  }
+  
+  // No billing scenarios available
+  if (scenarios.length === 0) {
+    return true;
+  }
+  
+  return false;
 };
 
 // Helper function to determine if read-only fields should be shown
@@ -56,7 +71,7 @@ const shouldShowReadOnlyFields = (item: CheckoutItem, scenarios: any[]): boolean
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   event,
   appointmentTypes,
-  practitioners: _practitioners,
+  practitioners,
   onClose,
   onSuccess,
 }) => {
@@ -68,6 +83,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [billingScenarios, setBillingScenarios] = useState<Record<string, any[]>>({});
   const [practitionersByServiceItem, setPractitionersByServiceItem] = useState<Record<number, Array<{ id: number; full_name: string }>>>({});
   const [expandedQuantityItems, setExpandedQuantityItems] = useState<Set<number>>(new Set());
+  const isInitializedRef = useRef(false);
 
   const loadPractitionersForServiceItem = useCallback(async (serviceItemId: number): Promise<Array<{ id: number; full_name: string }>> => {
     if (practitionersByServiceItem[serviceItemId]) {
@@ -104,37 +120,104 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   }, [billingScenarios]);
 
+  // Helper function to apply billing scenario to an item
+  const applyBillingScenarioToItem = useCallback(async (
+    index: number,
+    serviceItemId: number,
+    practitionerId: number,
+    preserveServiceItemId: boolean = false
+  ): Promise<void> => {
+    try {
+      await loadBillingScenarios(serviceItemId, practitionerId);
+      
+      // Read scenarios from state using setBillingScenarios callback to get latest state
+      setBillingScenarios(prev => {
+        const key = `${serviceItemId}-${practitionerId}`;
+        const scenarios = prev[key] || [];
+        const defaultScenario = scenarios.find((s: any) => s.is_default);
+        const selectedScenario = defaultScenario || scenarios[0] || null;
+        
+        setItems(prevItems => {
+          const updatedItems = [...prevItems];
+          const item = updatedItems[index];
+          if (!item) return prevItems;
+          
+          if (selectedScenario) {
+            // Scenario exists - set values from scenario
+            updatedItems[index] = {
+              ...item,
+              ...(preserveServiceItemId && { service_item_id: serviceItemId }),
+              billing_scenario_id: selectedScenario.id,
+              amount: normalizeScenarioValue(selectedScenario.amount),
+              revenue_share: normalizeScenarioValue(selectedScenario.revenue_share),
+            };
+          } else {
+            // No scenarios available - reset to 0 and clear billing scenario
+            updatedItems[index] = {
+              ...item,
+              ...(preserveServiceItemId && { service_item_id: serviceItemId }),
+              billing_scenario_id: null,
+              amount: 0,
+              revenue_share: 0,
+            };
+          }
+          return updatedItems;
+        });
+        
+        return prev;
+      });
+    } catch (err) {
+      logger.error('Error applying billing scenario to item:', err);
+      // On error, reset to 0
+      setItems(prevItems => {
+        const updatedItems = [...prevItems];
+        const item = updatedItems[index];
+        if (item) {
+          updatedItems[index] = {
+            ...item,
+            ...(preserveServiceItemId && { service_item_id: serviceItemId }),
+            billing_scenario_id: null,
+            amount: 0,
+            revenue_share: 0,
+          };
+        }
+        return updatedItems;
+      });
+    }
+  }, [loadBillingScenarios]);
+
   // Initialize with default item from appointment
   useEffect(() => {
-    // Only initialize if appointmentTypes are loaded
-    if (appointmentTypes.length === 0) {
-      // If no appointment types yet, set empty items and wait for them to load
-      setAvailableServiceItems([]);
+    // Only initialize once, and only if appointmentTypes are loaded
+    if (isInitializedRef.current || appointmentTypes.length === 0) {
+      if (appointmentTypes.length > 0) {
+        setAvailableServiceItems(appointmentTypes);
+      }
       return;
     }
     
-    const appointmentType = appointmentTypes.find(at => at.id === event.resource.appointment_type_id);
+    const appointmentTypeId = event.resource.appointment_type_id;
     const practitionerId = event.resource.practitioner_id;
     
-    // Load all service items first
+    // Load all service items
     setAvailableServiceItems(appointmentTypes);
     
-    if (appointmentType && practitionerId) {
-      // Load practitioners and billing scenarios for default item
+    // Initialize first item from appointment context
+    if (appointmentTypeId && practitionerId) {
+      // Load practitioners and billing scenarios
       Promise.all([
-        loadPractitionersForServiceItem(appointmentType.id),
-        loadBillingScenarios(appointmentType.id, practitionerId)
+        loadPractitionersForServiceItem(appointmentTypeId),
+        loadBillingScenarios(appointmentTypeId, practitionerId)
       ]).then(() => {
-        // Use a callback to access updated state
+        // Use state setter callback to access updated billing scenarios
         setBillingScenarios(prev => {
-          const key = `${appointmentType.id}-${practitionerId}`;
+          const key = `${appointmentTypeId}-${practitionerId}`;
           const scenarios = prev[key] || [];
           const defaultScenario = scenarios.find((s: any) => s.is_default);
-          // If no default, use first scenario; if no scenarios, use null (custom)
           const selectedScenario = defaultScenario || scenarios[0] || null;
           
           setItems([{
-            service_item_id: appointmentType.id,
+            service_item_id: appointmentTypeId,
             practitioner_id: practitionerId,
             billing_scenario_id: selectedScenario?.id || null,
             amount: normalizeScenarioValue(selectedScenario?.amount),
@@ -142,37 +225,85 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             quantity: 1,
           }]);
           
-          return prev; // Return unchanged state
+          isInitializedRef.current = true;
+          return prev;
         });
       });
-    } else if (appointmentType) {
-      // If we have appointment type but no practitioner, load practitioners and set the service item
-      loadPractitionersForServiceItem(appointmentType.id).then(() => {
+    } else if (appointmentTypeId) {
+      // Only appointment type, no practitioner
+      loadPractitionersForServiceItem(appointmentTypeId).then(() => {
         setItems([{
-          service_item_id: appointmentType.id,
+          service_item_id: appointmentTypeId,
           practitioner_id: null,
           billing_scenario_id: null,
           amount: 0,
           revenue_share: 0,
           quantity: 1,
         }]);
+        isInitializedRef.current = true;
       });
     } else {
-      // No appointment type, start with empty item
+      // No appointment context
       setItems([{
         amount: 0,
         revenue_share: 0,
         quantity: 1,
       }]);
+      isInitializedRef.current = true;
     }
-  }, [event, appointmentTypes, loadBillingScenarios, loadPractitionersForServiceItem, practitionersByServiceItem]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Note: Using appointmentTypes.length instead of appointmentTypes array to prevent
+    // re-initialization when the array reference changes but contents are the same.
+    // We only need to re-initialize when the length changes (items added/removed).
+    // isInitializedRef guards against duplicate initialization.
+  }, [event.resource.appointment_type_id, event.resource.practitioner_id, appointmentTypes.length]);
 
-  const handleAddItem = () => {
-    setItems([...items, {
-      amount: 0,
-      revenue_share: 0,
-      quantity: 1,
-    }]);
+  const handleAddItem = async () => {
+    const appointmentTypeId = event.resource.appointment_type_id;
+    const practitionerId = event.resource.practitioner_id;
+    
+    if (appointmentTypeId && practitionerId) {
+      // Load practitioners and billing scenarios
+      await Promise.all([
+        loadPractitionersForServiceItem(appointmentTypeId),
+        loadBillingScenarios(appointmentTypeId, practitionerId)
+      ]);
+      
+      setBillingScenarios(prev => {
+        const key = `${appointmentTypeId}-${practitionerId}`;
+        const scenarios = prev[key] || [];
+        const defaultScenario = scenarios.find((s: any) => s.is_default);
+        const selectedScenario = defaultScenario || scenarios[0] || null;
+        
+        const newItem: CheckoutItem = {
+          service_item_id: appointmentTypeId,
+          practitioner_id: practitionerId,
+          billing_scenario_id: selectedScenario?.id || null,
+          amount: normalizeScenarioValue(selectedScenario?.amount),
+          revenue_share: normalizeScenarioValue(selectedScenario?.revenue_share),
+          quantity: 1,
+        };
+        
+        setItems([...items, newItem]);
+        return prev;
+      });
+    } else if (appointmentTypeId) {
+      await loadPractitionersForServiceItem(appointmentTypeId);
+      setItems([...items, {
+        service_item_id: appointmentTypeId,
+        practitioner_id: null,
+        billing_scenario_id: null,
+        amount: 0,
+        revenue_share: 0,
+        quantity: 1,
+      }]);
+    } else {
+      setItems([...items, {
+        amount: 0,
+        revenue_share: 0,
+        quantity: 1,
+      }]);
+    }
   };
 
   const handleRemoveItem = (index: number) => {
@@ -196,101 +327,146 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     const currentItem = newItems[index];
     if (!currentItem) return;
     
-    newItems[index] = { ...currentItem, [field]: value };
-    
-    // Auto-load practitioners when service item changes
+    // Handle service item change
     if (field === 'service_item_id') {
-      const item = newItems[index];
-      if (item && item.service_item_id) {
-        // Load practitioners for the selected service item
-        loadPractitionersForServiceItem(item.service_item_id).then((loadedPractitioners) => {
-          // Clear practitioner and billing scenario if current practitioner is not available for new service
-          const currentPractitionerId = item.practitioner_id;
-          const isPractitionerValid = !currentPractitionerId || loadedPractitioners.some(p => p.id === currentPractitionerId);
+      const newServiceItemId = value;
+      const wasOther = !currentItem.service_item_id;
+      
+      if (newServiceItemId) {
+        // Regular service item selected - update immediately using functional update
+        setItems(prevItems => {
+          const updatedItems = [...prevItems];
+          const item = updatedItems[index];
+          if (!item) return prevItems;
           
-          if (!isPractitionerValid && currentPractitionerId) {
-            // Current practitioner is not available for this service, clear it
-            setItems(prevItems => {
-              const updatedItems = [...prevItems];
-              const currentItem = updatedItems[index];
-              if (currentItem) {
-                updatedItems[index] = {
-                  ...currentItem,
-                  practitioner_id: null,
-                  billing_scenario_id: null,
-                };
-              }
-              return updatedItems;
-            });
-          }
+          updatedItems[index] = {
+            ...item,
+            service_item_id: newServiceItemId,
+            custom_name: undefined, // Clear custom name
+            billing_scenario_id: null, // Clear billing scenario (will be reloaded)
+            amount: 0,
+            revenue_share: 0,
+          };
+          
+          return updatedItems;
+        });
+        
+        // Load practitioners for the service item
+        loadPractitionersForServiceItem(newServiceItemId).then((loadedPractitioners) => {
+          setItems(prevItems => {
+            const updatedItems = [...prevItems];
+            const item = updatedItems[index];
+            if (!item) return prevItems;
+            
+            // Ensure service_item_id is preserved (it should already be set, but double-check)
+            if (item.service_item_id !== newServiceItemId) {
+              // Preserve the new service item ID
+              updatedItems[index] = {
+                ...item,
+                service_item_id: newServiceItemId,
+              };
+            }
+            
+            // Check if current practitioner offers this service
+            const currentPractitionerId = item.practitioner_id;
+            const isPractitionerValid = !currentPractitionerId || loadedPractitioners.some(p => p.id === currentPractitionerId);
+            
+            if (!isPractitionerValid && currentPractitionerId) {
+              // Current practitioner doesn't offer this service, set to "無"
+              updatedItems[index] = {
+                ...item,
+                service_item_id: newServiceItemId, // Preserve service item ID
+                practitioner_id: null,
+                billing_scenario_id: null,
+                amount: 0,
+                revenue_share: 0,
+              };
+            }
+            
+            // Load billing scenarios if practitioner is selected and valid
+            if (isPractitionerValid && currentPractitionerId) {
+              applyBillingScenarioToItem(index, newServiceItemId, currentPractitionerId, true);
+            }
+            
+            return updatedItems;
+          });
         });
       } else {
-        // Service item cleared, clear practitioner and billing scenario
+        // "其他" selected
         newItems[index] = {
           ...currentItem,
+          service_item_id: undefined,
           practitioner_id: null,
           billing_scenario_id: null,
+          amount: wasOther ? currentItem.amount : 0,
+          revenue_share: wasOther ? currentItem.revenue_share : 0,
+          custom_name: currentItem.custom_name, // Keep custom name if it exists
+        };
+        setItems(newItems);
+      }
+    }
+    
+    // Handle practitioner change
+    else if (field === 'practitioner_id') {
+      const newPractitionerId = value;
+      const serviceItemId = currentItem.service_item_id;
+      
+      newItems[index] = {
+        ...currentItem,
+        practitioner_id: newPractitionerId,
+        billing_scenario_id: null,
+        amount: 0,
+        revenue_share: 0,
+      };
+      
+      if (serviceItemId && newPractitionerId) {
+        // Load billing scenarios and auto-select default
+        applyBillingScenarioToItem(index, serviceItemId, newPractitionerId);
+      }
+    }
+    
+    // Handle billing scenario change
+    else if (field === 'billing_scenario_id') {
+      const serviceItemId = currentItem.service_item_id;
+      const practitionerId = currentItem.practitioner_id;
+      
+      if (value && serviceItemId && practitionerId) {
+        // A scenario was selected - set amount and revenue_share from scenario values
+        const key = `${serviceItemId}-${practitionerId}`;
+        const scenarios = billingScenarios[key] || [];
+        const scenario = scenarios.find((s: any) => s.id === value);
+        
+        if (scenario) {
+          newItems[index] = {
+            ...currentItem,
+            billing_scenario_id: value,
+            amount: normalizeScenarioValue(scenario.amount),
+            revenue_share: normalizeScenarioValue(scenario.revenue_share),
+          };
+        } else {
+          // Scenario not found, reset to 0
+          newItems[index] = {
+            ...currentItem,
+            billing_scenario_id: value,
+            amount: 0,
+            revenue_share: 0,
+          };
+        }
+      } else {
+        // "其他" (null) was selected - reset to 0 if was read-only
+        const wasReadOnly = shouldShowReadOnlyFields(currentItem, billingScenarios[`${serviceItemId}-${practitionerId}`] || []);
+        newItems[index] = {
+          ...currentItem,
+          billing_scenario_id: null,
+          amount: wasReadOnly ? 0 : currentItem.amount,
+          revenue_share: wasReadOnly ? 0 : currentItem.revenue_share,
         };
       }
     }
     
-    // Auto-load billing scenarios when service item or practitioner changes
-    if (field === 'service_item_id' || field === 'practitioner_id') {
-      const item = newItems[index];
-      if (item && item.service_item_id && item.practitioner_id) {
-        loadBillingScenarios(item.service_item_id, item.practitioner_id).then(() => {
-          // Auto-select default scenario after loading using state setter callback
-          setBillingScenarios(prev => {
-            const key = `${item.service_item_id}-${item.practitioner_id}`;
-            const scenarios = prev[key] || [];
-            const defaultScenario = scenarios.find((s: any) => s.is_default);
-            // If no default, use first scenario; if no scenarios, use null (custom)
-            const selectedScenario = defaultScenario || scenarios[0] || null;
-            if (selectedScenario && !newItems[index]?.billing_scenario_id) {
-              const updatedItems = [...newItems];
-              const currentItem = updatedItems[index];
-              if (currentItem) {
-                updatedItems[index] = {
-                  ...currentItem,
-                  billing_scenario_id: selectedScenario.id,
-                  amount: normalizeScenarioValue(selectedScenario.amount),
-                  revenue_share: normalizeScenarioValue(selectedScenario.revenue_share),
-                };
-                setItems(updatedItems);
-              }
-            }
-            return prev;
-          });
-        });
-      }
-    }
-    
-    // Auto-fill amount and revenue_share when billing scenario is selected
-    if (field === 'billing_scenario_id') {
-      const item = newItems[index];
-      if (item && item.service_item_id && item.practitioner_id) {
-        if (value) {
-          // A scenario was selected
-          const key = `${item.service_item_id}-${item.practitioner_id}`;
-          const scenarios = billingScenarios[key] || [];
-          const scenario = scenarios.find((s: any) => s.id === value);
-          if (scenario) {
-            newItems[index] = {
-              ...item,
-              billing_scenario_id: value,
-              amount: normalizeScenarioValue(scenario.amount),
-              revenue_share: normalizeScenarioValue(scenario.revenue_share),
-            };
-          }
-        } else {
-          // "其他" (Other) was selected - keep current amount/revenue_share values
-          // They will be editable
-          newItems[index] = {
-            ...item,
-            billing_scenario_id: null,
-          };
-        }
-      }
+    // Handle other fields (custom_name, amount, revenue_share, quantity)
+    else {
+      newItems[index] = { ...currentItem, [field]: value };
     }
     
     setItems(newItems);
@@ -305,14 +481,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       const item = items[i];
       if (!item) continue;
       
-      if (!item.custom_name && !item.service_item_id) {
+      // Service item or custom name required
+      if (!item.service_item_id && !item.custom_name) {
         return `項目 ${i + 1}: 請選擇服務項目或輸入自訂項目名稱`;
       }
       
+      // Amount validation
       if (item.amount < 0) {
         return `項目 ${i + 1}: 金額不能為負數`;
       }
       
+      // Revenue share validation
       if (item.revenue_share < 0) {
         return `項目 ${i + 1}: 診所分潤必須 >= 0`;
       }
@@ -321,6 +500,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         return `項目 ${i + 1}: 診所分潤必須 <= 金額`;
       }
       
+      // Quantity validation
       const quantity = item.quantity || 1;
       if (quantity < 1 || !Number.isInteger(quantity)) {
         return `項目 ${i + 1}: 數量必須為大於 0 的整數`;
@@ -341,29 +521,34 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setError(null);
     
     try {
-      // Transform items to API format (only include defined fields)
+      // Transform items to API format
       const apiItems = items.map((item, index) => {
+        const isServiceItem = !!item.service_item_id;
         const apiItem: any = {
-          item_type: item.service_item_id ? 'service_item' : 'other',
+          item_type: isServiceItem ? 'service_item' : 'other',
           amount: item.amount,
           revenue_share: item.revenue_share,
           display_order: index,
+          quantity: item.quantity || 1,
         };
-        if (item.service_item_id !== undefined) {
+        
+        if (isServiceItem) {
           apiItem.service_item_id = item.service_item_id;
-        }
-        if (item.practitioner_id !== undefined && item.practitioner_id !== null) {
-          apiItem.practitioner_id = item.practitioner_id;
-        }
-        if (item.billing_scenario_id !== undefined && item.billing_scenario_id !== null) {
-          apiItem.billing_scenario_id = item.billing_scenario_id;
-        }
-        if (item.custom_name !== undefined && !item.service_item_id) {
-          // For "other" type items, use item_name instead of custom_name
+          // Only include billing_scenario_id if it's set (not null/undefined)
+          if (item.billing_scenario_id != null) {
+            apiItem.billing_scenario_id = item.billing_scenario_id;
+          }
+        } else {
+          // For "other" type, item_name is required
           apiItem.item_name = item.custom_name;
         }
-        // Include quantity (default to 1 if not specified)
-        apiItem.quantity = item.quantity || 1;
+        
+        // Include practitioner_id only if it's set (not undefined/null)
+        // Backend only includes it if not None, so we match that behavior
+        if (item.practitioner_id != null) {
+          apiItem.practitioner_id = item.practitioner_id;
+        }
+        
         return apiItem;
       });
       
@@ -412,6 +597,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             
             const quantity = item.quantity || 1;
             const isExpanded = expandedQuantityItems.has(index) || quantity > 1;
+            // service_item_id is undefined when "其他" is selected
+            // Check if item has been initialized (has amount/revenue_share/custom_name/quantity set) to distinguish from "not selected yet"
+            const isServiceOther = item.service_item_id === undefined && (item.amount !== undefined || item.custom_name !== undefined || item.quantity !== undefined);
+            // Show practitioner dropdown if: regular service selected (service_item_id is number) OR "其他" explicitly selected
+            const hasServiceSelection = item.service_item_id !== undefined || isServiceOther;
+            const showCustomFields = shouldShowCustomFields(item, scenarios);
+            const showReadOnlyFields = shouldShowReadOnlyFields(item, scenarios);
             
             return (
               <div key={index} className="border border-gray-200 rounded-lg p-4">
@@ -489,31 +681,45 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
                 
                 <div className="space-y-3">
-                  {/* Service Item or Custom Name */}
-                  {index === 0 ? (
+                  {/* Service Item Dropdown - Always shown */}
+                  <div>
+                    <label htmlFor={`service-item-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
+                      服務項目
+                    </label>
+                    <select
+                      id={`service-item-${index}`}
+                      value={item.service_item_id ? item.service_item_id.toString() : (item.service_item_id === undefined ? 'other' : '')}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === 'other') {
+                          handleItemChange(index, 'service_item_id', undefined);
+                        } else if (value === '') {
+                          // Placeholder selected - don't change anything
+                          return;
+                        } else {
+                          handleItemChange(index, 'service_item_id', parseInt(value));
+                        }
+                      }}
+                      className="input"
+                    >
+                      <option value="">選擇服務項目...</option>
+                      {availableServiceItems.map(si => (
+                        <option key={si.id} value={si.id}>
+                          {si.receipt_name || si.name}
+                        </option>
+                      ))}
+                      <option value="other">其他</option>
+                    </select>
+                  </div>
+                  
+                  {/* Custom Item Name - Only shown when service item is "其他" */}
+                  {isServiceOther && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        服務項目
-                      </label>
-                      <select
-                        value={item.service_item_id || ''}
-                        onChange={(e) => handleItemChange(index, 'service_item_id', e.target.value ? parseInt(e.target.value) : undefined)}
-                        className="input"
-                      >
-                        <option value="">選擇服務項目...</option>
-                        {availableServiceItems.map(si => (
-                          <option key={si.id} value={si.id}>
-                            {si.receipt_name || si.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor={`custom-name-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
                         自訂項目名稱
                       </label>
                       <input
+                        id={`custom-name-${index}`}
                         type="text"
                         value={item.custom_name || ''}
                         onChange={(e) => handleItemChange(index, 'custom_name', e.target.value || undefined)}
@@ -523,65 +729,50 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     </div>
                   )}
                   
-                  {/* Practitioner */}
-                  {item.service_item_id && (
+                  {/* Practitioner Dropdown - Shown when service item is selected (regular or "其他") */}
+                  {hasServiceSelection && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor={`practitioner-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
                         治療師
                       </label>
                       <select
+                        id={`practitioner-${index}`}
                         value={item.practitioner_id || ''}
-                        onChange={async (e) => {
+                        onChange={(e) => {
                           const practitionerId = e.target.value ? parseInt(e.target.value) : null;
+                          // handleItemChange will update practitioner_id and load billing scenarios
                           handleItemChange(index, 'practitioner_id', practitionerId);
-                          
-                          // Load billing scenarios when practitioner is selected
-                          if (item.service_item_id && practitionerId) {
-                            await loadBillingScenarios(item.service_item_id, practitionerId);
-                            // Auto-select default scenario, or first scenario if no default, or null if no scenarios
-                            const key = `${item.service_item_id}-${practitionerId}`;
-                            setBillingScenarios(prev => {
-                              const scenarios = prev[key] || [];
-                              const defaultScenario = scenarios.find((s: any) => s.is_default);
-                              const selectedScenario = defaultScenario || scenarios[0] || null;
-                              if (selectedScenario) {
-                                handleItemChange(index, 'billing_scenario_id', selectedScenario.id);
-                                handleItemChange(index, 'amount', normalizeScenarioValue(selectedScenario.amount));
-                                handleItemChange(index, 'revenue_share', normalizeScenarioValue(selectedScenario.revenue_share));
-                              } else {
-                                // No scenarios, set to null (custom)
-                                handleItemChange(index, 'billing_scenario_id', null);
-                              }
-                              return prev;
-                            });
-                          }
                         }}
                         className="input"
                       >
                         <option value="">無</option>
-                        {(() => {
-                          // Show practitioners filtered by service item
-                          if (item.service_item_id) {
-                            const availablePractitioners = practitionersByServiceItem[item.service_item_id] || [];
-                            return availablePractitioners.map(p => (
-                              <option key={p.id} value={p.id}>
-                                {p.full_name}
-                              </option>
-                            ));
-                          }
-                          return null;
-                        })()}
+                        {isServiceOther ? (
+                          // Show all practitioners when service item is "其他"
+                          practitioners.map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.full_name}
+                            </option>
+                          ))
+                        ) : (
+                          // Show filtered practitioners when service item is regular
+                          (practitionersByServiceItem[item.service_item_id!] || []).map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.full_name}
+                            </option>
+                          ))
+                        )}
                       </select>
                     </div>
                   )}
                   
-                  {/* Billing Scenario */}
+                  {/* Billing Scenario Dropdown - Only shown when service item is regular AND practitioner is selected */}
                   {item.service_item_id && item.practitioner_id && scenarios.length > 0 && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label htmlFor={`billing-scenario-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
                         計費方案
                       </label>
                       <select
+                        id={`billing-scenario-${index}`}
                         value={item.billing_scenario_id != null ? item.billing_scenario_id : ''}
                         onChange={(e) => {
                           const value = e.target.value;
@@ -603,14 +794,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     </div>
                   )}
                   
-                  {/* Custom Amount/Revenue Share */}
-                  {shouldShowCustomFields(item, scenarios) && (
+                  {/* Editable Amount/Revenue Share */}
+                  {showCustomFields && (
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label htmlFor={`amount-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
                           金額
                         </label>
                         <input
+                          id={`amount-${index}`}
                           type="number"
                           value={Math.round(item.amount || 0)}
                           onChange={(e) => {
@@ -625,10 +817,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label htmlFor={`revenue-share-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
                           診所分潤
                         </label>
                         <input
+                          id={`revenue-share-${index}`}
                           type="number"
                           value={Math.round(item.revenue_share || 0)}
                           onChange={(e) => {
@@ -645,14 +838,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     </div>
                   )}
                   
-                  {/* Read-only amount/revenue_share when a scenario is selected */}
-                  {shouldShowReadOnlyFields(item, scenarios) && (
+                  {/* Read-only Amount/Revenue Share */}
+                  {showReadOnlyFields && (
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           金額
                         </label>
-                        <div className="input bg-gray-50 cursor-not-allowed flex items-center">
+                        <div className="input bg-gray-50 cursor-not-allowed flex items-center" aria-label="金額">
                           {formatCurrency(Math.round(item.amount || 0))}
                         </div>
                       </div>
@@ -660,7 +853,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           診所分潤
                         </label>
-                        <div className="input bg-gray-50 cursor-not-allowed flex items-center">
+                        <div className="input bg-gray-50 cursor-not-allowed flex items-center" aria-label="診所分潤">
                           {formatCurrency(Math.round(item.revenue_share || 0))}
                         </div>
                       </div>
@@ -732,5 +925,3 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     </BaseModal>
   );
 };
-
-

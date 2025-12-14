@@ -485,12 +485,15 @@ export class ApiService {
   async checkoutAppointment(
     appointmentId: number,
     items: Array<{
+      item_type: 'service_item' | 'other';
       service_item_id?: number;
-      practitioner_id?: number | null;
-      billing_scenario_id?: number | null;
-      custom_name?: string;
+      practitioner_id?: number;
+      billing_scenario_id?: number;
+      item_name?: string;
       amount: number;
       revenue_share: number;
+      display_order: number;
+      quantity: number;
     }>,
     payment_method: string
   ): Promise<any> {
