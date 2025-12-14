@@ -10,6 +10,9 @@ import AppointmentCard from './AppointmentCard';
 import { useModal } from '../../contexts/ModalContext';
 import { useLiffBackButton } from '../../hooks/useLiffBackButton';
 import { LanguageSelector } from '../components/LanguageSelector';
+import moment from 'moment-timezone';
+
+const TAIWAN_TIMEZONE = "Asia/Taipei";
 
 interface Appointment {
   id: number;
@@ -82,20 +85,47 @@ const AppointmentList: React.FC = () => {
   };
 
   // Filter appointments by tab
-  const now = new Date();
-  const futureAppointments = allAppointments.filter((apt) => {
-    const startTime = new Date(apt.start_time);
-    return startTime >= now && apt.status === "confirmed";
-  });
-  const pastAppointments = allAppointments.filter((apt) => {
-    const startTime = new Date(apt.start_time);
-    return startTime < now && apt.status === "confirmed";
-  });
-  const cancelledAppointments = allAppointments.filter(
-    (apt) =>
-      apt.status === "canceled_by_patient" ||
-      apt.status === "canceled_by_clinic",
-  );
+  // Get current time in Taiwan timezone for comparisons
+  const nowInTaiwan = moment.tz(TAIWAN_TIMEZONE);
+  
+  // Calculate counts and filter appointments for all tabs
+  // All times are interpreted as Taiwan time
+  const futureAppointments = allAppointments
+    .filter((apt) => {
+      const startTime = moment.tz(apt.start_time, TAIWAN_TIMEZONE);
+      // Use isSameOrAfter to include appointments happening exactly "now"
+      return startTime.isSameOrAfter(nowInTaiwan) && apt.status === "confirmed";
+    })
+    .sort((a, b) => {
+      // Sort from sooner to further (ascending by start_time)
+      const timeA = moment.tz(a.start_time, TAIWAN_TIMEZONE);
+      const timeB = moment.tz(b.start_time, TAIWAN_TIMEZONE);
+      return timeA.valueOf() - timeB.valueOf();
+    });
+  const pastAppointments = allAppointments
+    .filter((apt) => {
+      const startTime = moment.tz(apt.start_time, TAIWAN_TIMEZONE);
+      // Use isBefore to exclude appointments happening exactly "now" (they appear in future)
+      return startTime.isBefore(nowInTaiwan) && apt.status === "confirmed";
+    })
+    .sort((a, b) => {
+      // Sort from newest to oldest (descending by start_time) to match patient detail page
+      const timeA = moment.tz(a.start_time, TAIWAN_TIMEZONE);
+      const timeB = moment.tz(b.start_time, TAIWAN_TIMEZONE);
+      return timeB.valueOf() - timeA.valueOf();
+    });
+  const cancelledAppointments = allAppointments
+    .filter(
+      (apt) =>
+        apt.status === "canceled_by_patient" ||
+        apt.status === "canceled_by_clinic",
+    )
+    .sort((a, b) => {
+      // Sort from newest to oldest (descending by start_time) to match patient detail page
+      const timeA = moment.tz(a.start_time, TAIWAN_TIMEZONE);
+      const timeB = moment.tz(b.start_time, TAIWAN_TIMEZONE);
+      return timeB.valueOf() - timeA.valueOf();
+    });
 
   const displayAppointments =
     activeTab === "future"
