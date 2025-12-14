@@ -252,6 +252,13 @@ class LiffApiService {
     return response.data;
   }
 
+  async getAppointmentReceiptHtml(appointmentId: number): Promise<string> {
+    const response = await this.client.get(`/liff/appointments/${appointmentId}/receipt/html`, {
+      responseType: 'text',
+    });
+    return response.data;
+  }
+
   async cancelAppointment(appointmentId: number): Promise<{ success: boolean; message: string }> {
     const response = await this.client.delete(`/liff/appointments/${appointmentId}`);
     return response.data;

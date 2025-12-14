@@ -263,6 +263,21 @@
             }
         }
         
+        /* Mobile-specific styles for space efficiency */
+        @media screen and (max-width: 768px) {
+            body {
+                background-color: #f5f5f5;
+                padding: 2mm; /* Reduced outer margin for mobile */
+            }
+            .receipt {
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                max-width: 100%; /* Use full available width */
+                width: 100%;
+                margin: 0;
+                padding: 5mm; /* Reduced inner padding for mobile */
+            }
+        }
+        
         .voided-watermark {
             position: fixed;
             top: -50%;

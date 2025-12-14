@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone, date
 from typing import Optional, Dict, Any, List, Literal, Union
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy.orm import Session, joinedload
 
@@ -28,6 +29,7 @@ from core.constants import (
 from models import (
     LineUser, Clinic, Patient, AvailabilityNotification, AppointmentType, User, Appointment, CalendarEvent
 )
+from models.receipt import Receipt
 from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
 from utils.datetime_utils import TAIWAN_TZ, taiwan_now, parse_datetime_to_taiwan, parse_date_string
@@ -46,6 +48,75 @@ from auth.dependencies import get_current_line_user_with_clinic
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _validate_appointment_receipt_access(
+    appointment_id: int,
+    line_user: LineUser,
+    clinic: Clinic,
+    db: Session
+) -> tuple[Appointment, Receipt]:
+    """
+    Validate and return appointment and active receipt for patient access.
+    
+    Validates:
+    - Appointment exists
+    - Appointment belongs to patient (via line_user_id)
+    - Appointment belongs to clinic
+    - Active (non-voided) receipt exists
+    - Receipt belongs to clinic
+    
+    Raises HTTPException with 404 if any validation fails (security best practice).
+    """
+    # Get appointment with relationships
+    appointment = db.query(Appointment).join(
+        CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+    ).options(
+        joinedload(Appointment.patient)
+    ).filter(
+        Appointment.calendar_event_id == appointment_id
+    ).first()
+    
+    if not appointment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="預約不存在"
+        )
+    
+    # Validate appointment belongs to patient (via line_user_id)
+    if appointment.patient.line_user_id != line_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,  # 404 for security (don't reveal existence)
+            detail="預約不存在"
+        )
+    
+    # Validate appointment belongs to clinic
+    if appointment.patient.clinic_id != clinic.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,  # 404 for security
+            detail="預約不存在"
+        )
+    
+    # Get active receipt only (patients cannot see voided receipts)
+    active_receipt = db.query(Receipt).filter(
+        Receipt.appointment_id == appointment_id,
+        Receipt.is_voided == False
+    ).first()
+    
+    if not active_receipt:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="收據不存在"
+        )
+    
+    # Verify receipt belongs to clinic
+    if active_receipt.clinic_id != clinic.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,  # 404 for security
+            detail="收據不存在"
+        )
+    
+    return appointment, active_receipt
 
 
 # ===== Helper Functions =====
@@ -1091,54 +1162,10 @@ async def get_appointment_receipt(
     line_user, clinic = line_user_clinic
     
     try:
-        # Get appointment with relationships
-        appointment = db.query(Appointment).join(
-            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
-        ).options(
-            joinedload(Appointment.patient)
-        ).filter(
-            Appointment.calendar_event_id == appointment_id
-        ).first()
-        
-        if not appointment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="預約不存在"
-            )
-        
-        # Validate appointment belongs to patient (via line_user_id)
-        if appointment.patient.line_user_id != line_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,  # 404 for security (don't reveal existence)
-                detail="預約不存在"
-            )
-        
-        # Validate appointment belongs to clinic
-        if appointment.patient.clinic_id != clinic.id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,  # 404 for security
-                detail="預約不存在"
-            )
-        
-        # Get active receipt only (patients cannot see voided receipts)
-        from models.receipt import Receipt
-        active_receipt = db.query(Receipt).filter(
-            Receipt.appointment_id == appointment_id,
-            Receipt.is_voided == False
-        ).first()
-        
-        if not active_receipt:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="收據不存在"
-            )
-        
-        # Verify receipt belongs to clinic
-        if active_receipt.clinic_id != clinic.id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,  # 404 for security
-                detail="收據不存在"
-            )
+        # Validate and get appointment and receipt
+        appointment, active_receipt = _validate_appointment_receipt_access(
+            appointment_id, line_user, clinic, db
+        )
         
         # Extract data from receipt_data snapshot
         receipt_data = active_receipt.receipt_data
@@ -1179,6 +1206,52 @@ async def get_appointment_receipt(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得收據"
+        )
+
+
+@router.get("/appointments/{appointment_id}/receipt/html", response_class=HTMLResponse)
+async def get_appointment_receipt_html(
+    appointment_id: int,
+    line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
+    db: Session = Depends(get_db)
+):
+    """
+    Get active receipt as HTML for an appointment (patient view).
+    
+    Patients can only see active (non-voided) receipts.
+    Returns 404 if no active receipt exists (security best practice).
+    Clinic isolation is enforced through LIFF token context.
+    Uses the same HTML template as the admin receipt view for consistency.
+    """
+    line_user, clinic = line_user_clinic
+    
+    try:
+        # Validate and get appointment and receipt
+        appointment, active_receipt = _validate_appointment_receipt_access(
+            appointment_id, line_user, clinic, db
+        )
+        
+        # Extract data from receipt_data snapshot (immutable)
+        receipt_data = active_receipt.receipt_data
+        
+        # Generate HTML using same template as PDF
+        from services.pdf_service import PDFService
+        
+        pdf_service = PDFService()
+        html_content = pdf_service.generate_receipt_html(
+            receipt_data=receipt_data,
+            is_voided=active_receipt.is_voided
+        )
+        
+        return HTMLResponse(content=html_content)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error generating HTML for receipt for appointment {appointment_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法生成收據HTML"
         )
 
 

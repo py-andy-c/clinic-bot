@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { checkCancellationConstraint } from '../../utils/appointmentConstraints';
 import { logger } from '../../utils/logger';
-import { formatCurrency } from '../../utils/currencyUtils';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { liffApiService } from '../../services/liffApi';
 import AppointmentCard from './AppointmentCard';
@@ -43,12 +42,44 @@ const AppointmentList: React.FC = () => {
   const [minimumCancellationHours, setMinimumCancellationHours] = useState<number | null>(null);
   const [allowPatientDeletion, setAllowPatientDeletion] = useState<boolean>(true);
   const [viewingReceipt, setViewingReceipt] = useState<{ appointmentId: number; receiptId: number } | null>(null);
-  const [receiptData, setReceiptData] = useState<any>(null);
+  const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
   const [isLoadingReceipt, setIsLoadingReceipt] = useState(false);
   const [receiptError, setReceiptError] = useState<string | null>(null);
+  const scrollYRef = useRef<number>(0);
 
   // Enable back button navigation - always goes back to home
   useLiffBackButton('query');
+
+  // Prevent body scroll when receipt modal is open (prevents background scrolling)
+  useEffect(() => {
+    if (!viewingReceipt) {
+      return;
+    }
+
+    // Save current scroll position
+    scrollYRef.current = window.scrollY;
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    const originalTop = document.body.style.top;
+    const originalWidth = document.body.style.width;
+
+    // Fix body position to prevent scrolling (iOS Safari solution)
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollYRef.current}px`;
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      // Restore original styles
+      document.body.style.position = originalPosition;
+      document.body.style.top = originalTop;
+      document.body.style.width = originalWidth;
+      document.body.style.overflow = originalOverflow;
+
+      // Restore scroll position
+      window.scrollTo(0, scrollYRef.current);
+    };
+  }, [viewingReceipt]);
 
   useEffect(() => {
     loadAppointments();
@@ -198,9 +229,13 @@ const AppointmentList: React.FC = () => {
     setIsLoadingReceipt(true);
     setReceiptError(null);
     try {
+      // Get receipt ID first to set viewing state
       const receipt = await liffApiService.getAppointmentReceipt(appointmentId);
-      setReceiptData(receipt);
       setViewingReceipt({ appointmentId, receiptId: receipt.receipt_id });
+      
+      // Fetch HTML for display
+      const html = await liffApiService.getAppointmentReceiptHtml(appointmentId);
+      setReceiptHtml(html);
     } catch (err) {
       logger.error('Failed to load receipt:', err);
       setReceiptError(t('receipt.errors.loadFailed', '無法載入收據'));
@@ -208,21 +243,10 @@ const AppointmentList: React.FC = () => {
         t('receipt.errors.loadFailed', '無法載入收據'),
         t('receipt.errors.title', '錯誤')
       );
+      setViewingReceipt(null);
     } finally {
       setIsLoadingReceipt(false);
     }
-  };
-
-  // Use the shared currency utility for consistent formatting
-
-  const formatPaymentMethod = (method: string): string => {
-    const mapping: Record<string, string> = {
-      'cash': '現金',
-      'card': '刷卡',
-      'transfer': '轉帳',
-      'other': '其他'
-    };
-    return mapping[method] || method;
   };
 
   if (isLoading) {
@@ -346,97 +370,45 @@ const AppointmentList: React.FC = () => {
 
         {/* Receipt View Modal */}
         {viewingReceipt && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
-                <h2 className="text-xl font-bold">{t('receipt.title', '收據')}</h2>
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-0">
+            <div className="bg-white w-full h-full flex flex-col">
+              {/* Header */}
+              <div className="sticky top-0 bg-white border-b px-4 py-3 flex justify-between items-center z-10">
+                <h2 className="text-lg font-bold">{t('receipt.title', '收據')}</h2>
                 <button
                   onClick={() => {
                     setViewingReceipt(null);
-                    setReceiptData(null);
+                    setReceiptHtml(null);
                     setReceiptError(null);
                   }}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                  aria-label="關閉"
                 >
                   ✕
                 </button>
               </div>
-              <div className="p-6">
+              
+              {/* Content */}
+              <div className="flex-1 overflow-hidden">
                 {isLoadingReceipt ? (
-                  <p className="text-gray-600">{t('receipt.loading', '載入中...')}</p>
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <p className="text-gray-600">{t('receipt.loading', '載入中...')}</p>
+                    </div>
+                  </div>
                 ) : receiptError ? (
-                  <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                    <p className="text-sm text-red-800">{receiptError}</p>
-                  </div>
-                ) : receiptData ? (
-                  <div className="space-y-4">
-                    {/* Receipt Details */}
-                    <div className="space-y-2">
-                      <p><strong>收據編號:</strong> {receiptData.receipt_number}</p>
-                      {receiptData.visit_date && (
-                        <p><strong>看診日期:</strong> {new Date(receiptData.visit_date).toLocaleString('zh-TW')}</p>
-                      )}
-                      {receiptData.issue_date && (
-                        <p><strong>開立日期:</strong> {new Date(receiptData.issue_date).toLocaleString('zh-TW')}</p>
-                      )}
-                      {receiptData.clinic?.display_name && (
-                        <p><strong>診所名稱:</strong> {receiptData.clinic.display_name}</p>
-                      )}
-                      {receiptData.patient?.name && (
-                        <p><strong>病患姓名:</strong> {receiptData.patient.name}</p>
-                      )}
+                  <div className="flex items-center justify-center h-full p-4">
+                    <div className="bg-red-50 border border-red-200 rounded-md p-4 max-w-md">
+                      <p className="text-sm text-red-800">{receiptError}</p>
                     </div>
-
-                    {/* Items */}
-                    {receiptData.items && receiptData.items.length > 0 && (
-                      <div>
-                        <strong>項目:</strong>
-                        <div className="mt-2 space-y-1">
-                          {receiptData.items.map((item: any, index: number) => {
-                            const itemName = item.item_type === 'service_item' 
-                              ? (item.service_item?.receipt_name || item.service_item?.name || '')
-                              : (item.item_name || '');
-                            const quantity = item.quantity || 1;
-                            const totalAmount = item.amount * quantity;
-                            
-                            return (
-                              <div key={index} className="flex justify-between text-sm">
-                                <span>
-                                  {itemName}
-                                  {quantity > 1 && ` (x${quantity})`}
-                                  {item.practitioner?.name && ` (${item.practitioner.name})`}
-                                </span>
-                                <span>{formatCurrency(totalAmount)}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Totals */}
-                    <div className="border-t border-gray-200 pt-2 space-y-1">
-                      <div className="flex justify-between font-semibold">
-                        <span>總費用:</span>
-                        <span>{formatCurrency(receiptData.total_amount)}</span>
-                      </div>
-                    </div>
-
-                    {/* Payment Method */}
-                    {receiptData.payment_method && (
-                      <p><strong>付款方式:</strong> {formatPaymentMethod(receiptData.payment_method)}</p>
-                    )}
-
-                    {/* Custom Notes */}
-                    {receiptData.custom_notes && (
-                      <div>
-                        <strong>收據備註:</strong>
-                        <p className="text-sm text-gray-700 whitespace-pre-line mt-1">
-                          {receiptData.custom_notes}
-                        </p>
-                      </div>
-                    )}
                   </div>
+                ) : receiptHtml ? (
+                  <iframe
+                    srcDoc={receiptHtml}
+                    className="w-full h-full border-0"
+                    title={t('receipt.title', '收據')}
+                    sandbox="allow-same-origin"
+                  />
                 ) : null}
               </div>
             </div>
