@@ -46,7 +46,6 @@ const AppointmentList: React.FC = () => {
   const [receiptData, setReceiptData] = useState<any>(null);
   const [isLoadingReceipt, setIsLoadingReceipt] = useState(false);
   const [receiptError, setReceiptError] = useState<string | null>(null);
-  const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
 
   // Enable back button navigation - always goes back to home
   useLiffBackButton('query');
@@ -211,52 +210,6 @@ const AppointmentList: React.FC = () => {
       );
     } finally {
       setIsLoadingReceipt(false);
-    }
-  };
-
-  const handleDownloadPDF = async () => {
-    if (!receiptData?.receipt_id) {
-      await showAlert('無法下載：缺少收據ID', '錯誤');
-      return;
-    }
-
-    setIsDownloadingPDF(true);
-    try {
-      // Use direct fetch with LIFF JWT token from localStorage
-      const token = localStorage.getItem('liff_jwt_token');
-      if (!token) {
-        throw new Error('No authentication token');
-      }
-
-      const apiBaseUrl = process.env.REACT_APP_API_URL || '';
-      const response = await fetch(
-        `${apiBaseUrl}/receipts/${receiptData.receipt_id}/download`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to download PDF');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `receipt_${receiptData.receipt_number}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      logger.error('Error downloading PDF:', err);
-      await showAlert('下載失敗，請重試', '錯誤');
-    } finally {
-      setIsDownloadingPDF(false);
     }
   };
 
@@ -483,17 +436,6 @@ const AppointmentList: React.FC = () => {
                         </p>
                       </div>
                     )}
-
-                    {/* Actions */}
-                    <div className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200">
-                      <button
-                        onClick={handleDownloadPDF}
-                        disabled={isDownloadingPDF}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        {isDownloadingPDF ? '下載中...' : '下載收據 PDF'}
-                      </button>
-                    </div>
                   </div>
                 ) : null}
               </div>
