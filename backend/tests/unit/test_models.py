@@ -858,8 +858,7 @@ class TestReceiptModel:
             "checked_out_by": {"id": user.id, "name": "Admin User"},
             "items": [],
             "totals": {"total_amount": 1000.00, "total_revenue_share": 300.00},
-            "payment_method": "cash",
-            "void_info": {"voided": False, "voided_at": None, "voided_by": None, "reason": None}
+            "payment_method": "cash"
         }
 
         receipt = Receipt(
@@ -957,8 +956,7 @@ class TestReceiptModel:
             "checked_out_by": {"id": user.id, "name": "Admin User"},
             "items": [],
             "totals": {"total_amount": 1000.00, "total_revenue_share": 300.00},
-            "payment_method": "cash",
-            "void_info": {"voided": False, "voided_at": None, "voided_by": None, "reason": None}
+            "payment_method": "cash"
         }
 
         receipt = Receipt(
@@ -973,12 +971,17 @@ class TestReceiptModel:
         db_session.add(receipt)
         db_session.commit()
 
-        # Void the receipt
-        receipt.is_voided = True
-        receipt.voided_at = datetime.now(timezone.utc)
-        receipt.voided_by_user_id = user.id
+        # Void the receipt using the service method (proper way)
+        from services.receipt_service import ReceiptService
+        voided_receipt = ReceiptService.void_receipt(
+            db=db_session,
+            receipt_id=receipt.id,
+            voided_by_user_id=user.id,
+            reason="Test void reason"
+        )
         db_session.commit()
 
-        assert receipt.is_voided is True
-        assert receipt.voided_at is not None
-        assert receipt.voided_by_user_id == user.id
+        assert voided_receipt.is_voided is True
+        assert voided_receipt.voided_at is not None
+        assert voided_receipt.voided_by_user_id == user.id
+        assert voided_receipt.void_reason == "Test void reason"

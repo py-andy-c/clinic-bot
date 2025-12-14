@@ -120,16 +120,6 @@ class Receipt(Base):
         "custom_notes": str | None,          # Optional custom notes (can be null)
         "stamp": {
             "enabled": bool                  # Whether to show receipt stamp
-        },
-        "void_info": {                       # Void information (updated when voided)
-            "voided": bool,                  # Whether receipt is voided (initially False)
-            "voided_at": str | None,         # ISO format datetime string when voided (initially None)
-            "voided_by": {                   # User who voided (initially None)
-                "id": int,
-                "name": str,
-                "email": str
-            } | None,
-            "reason": str | None             # Reason for voiding (initially None)
         }
     }
     
@@ -139,7 +129,8 @@ class Receipt(Base):
     - Total revenue_share = sum(item.revenue_share * item.quantity) for all items
     - Quantity defaults to 1 for backward compatibility with old receipts
     - This structure is immutable after creation (enforced by database trigger)
-    - When voided, void_info fields are updated but receipt_data JSONB itself is not modified
+    - Void information is NOT stored in receipt_data JSONB - it's stored in separate database columns
+    - When returning receipt data via API/PDF, void info from database columns is merged into void_info field in the response
     """
 
     is_voided: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -153,6 +144,9 @@ class Receipt(Base):
         nullable=True
     )
     """Reference to the admin user who voided the receipt (if applicable)."""
+
+    void_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    """Reason for voiding the receipt (if applicable). Max length: 500 characters."""
 
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     """Timestamp when the receipt was created."""

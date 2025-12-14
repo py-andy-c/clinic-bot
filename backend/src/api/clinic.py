@@ -1396,13 +1396,15 @@ async def generate_receipt_preview(
             "custom_notes": request.custom_notes,
             "stamp": {
                 "enabled": request.show_stamp
-            },
-            "void_info": {
-                "voided": False,
-                "voided_at": None,
-                "voided_by": None,
-                "reason": None
             }
+        }
+        
+        # Build void_info (preview receipts are never voided)
+        void_info: Dict[str, Any] = {
+            "voided": False,
+            "voided_at": None,
+            "voided_by": None,
+            "reason": None
         }
         
         # Generate HTML using same template as actual receipts
@@ -1411,7 +1413,7 @@ async def generate_receipt_preview(
         pdf_service = PDFService()
         html_content = pdf_service.generate_receipt_html(
             receipt_data=dummy_receipt_data,
-            is_voided=False
+            void_info=void_info
         )
         
         # Add preview watermark (範例) to the HTML

@@ -7,7 +7,7 @@ ensuring immutability and consistency between HTML display and PDF download.
 
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from weasyprint import HTML  # type: ignore
@@ -69,14 +69,14 @@ class PDFService:
     def generate_receipt_pdf(
         self,
         receipt_data: Dict[str, Any],
-        is_voided: bool = False
+        void_info: Optional[Dict[str, Any]] = None
     ) -> bytes:
         """
         Generate PDF receipt from receipt_data.
         
         Args:
             receipt_data: Receipt data from JSONB field (immutable snapshot)
-            is_voided: Whether receipt is voided (for watermark)
+            void_info: Void information from database columns (merged into receipt_data for template)
             
         Returns:
             PDF file content as bytes
@@ -85,12 +85,11 @@ class PDFService:
             Exception: If PDF generation fails
         """
         try:
-            # Update void_info in receipt_data if voided
-            if is_voided:
-                receipt_data = receipt_data.copy()
-                if 'void_info' not in receipt_data:
-                    receipt_data['void_info'] = {}
-                receipt_data['void_info']['voided'] = True
+            # Merge void_info into receipt_data for template (void_info is not stored in JSONB)
+            receipt_data = receipt_data.copy()
+            if void_info is None:
+                void_info = {"voided": False, "voided_at": None, "voided_by": None, "reason": None}
+            receipt_data['void_info'] = void_info
             
             # Load template
             template = self.env.get_template('receipts/receipt.html')
@@ -146,7 +145,7 @@ class PDFService:
     def generate_receipt_html(
         self,
         receipt_data: Dict[str, Any],
-        is_voided: bool = False
+        void_info: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Generate HTML receipt for LIFF display.
@@ -155,18 +154,17 @@ class PDFService:
         
         Args:
             receipt_data: Receipt data from JSONB field (immutable snapshot)
-            is_voided: Whether receipt is voided (for watermark)
+            void_info: Void information from database columns (merged into receipt_data for template)
             
         Returns:
             HTML content as string
         """
         try:
-            # Update void_info in receipt_data if voided
-            if is_voided:
-                receipt_data = receipt_data.copy()
-                if 'void_info' not in receipt_data:
-                    receipt_data['void_info'] = {}
-                receipt_data['void_info']['voided'] = True
+            # Merge void_info into receipt_data for template (void_info is not stored in JSONB)
+            receipt_data = receipt_data.copy()
+            if void_info is None:
+                void_info = {"voided": False, "voided_at": None, "voided_by": None, "reason": None}
+            receipt_data['void_info'] = void_info
             
             # Load template
             template = self.env.get_template('receipts/receipt.html')

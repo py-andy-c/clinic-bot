@@ -722,17 +722,19 @@ class TestReceiptVoiding:
         db_session.commit()
 
         # Void receipt
+        void_reason = "Test voiding reason"
         voided_receipt = ReceiptService.void_receipt(
             db=db_session,
             receipt_id=receipt.id,
             voided_by_user_id=admin_user.id,
-            reason="Test voiding"
+            reason=void_reason
         )
         db_session.commit()
 
         assert voided_receipt.is_voided is True
         assert voided_receipt.voided_at is not None
         assert voided_receipt.voided_by_user_id == admin_user.id
+        assert voided_receipt.void_reason == void_reason  # Verify void reason is stored
 
     def test_void_receipt_already_voided(self, db_session: Session):
         """Test that voiding an already voided receipt fails."""

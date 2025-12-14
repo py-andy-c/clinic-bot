@@ -293,12 +293,6 @@ class ReceiptService:
             "custom_notes": custom_notes,
             "stamp": {
                 "enabled": show_stamp
-            },
-            "void_info": {
-                "voided": False,
-                "voided_at": None,
-                "voided_by": None,
-                "reason": None
             }
         }
         
@@ -533,10 +527,11 @@ class ReceiptService:
         receipt.is_voided = True
         receipt.voided_at = taiwan_now()
         receipt.voided_by_user_id = voided_by_user_id
+        receipt.void_reason = reason  # Store void reason in column
         
         # Note: receipt_data is immutable (enforced by database trigger)
-        # Void information is tracked in database columns (is_voided, voided_at, voided_by_user_id)
-        # When returning receipt data, void_info from columns will be merged into the response
+        # Void information is tracked in database columns (is_voided, voided_at, voided_by_user_id, void_reason)
+        # Void information is NOT stored in receipt_data JSONB - it's merged from columns when generating responses
         
         db.flush()
         return receipt

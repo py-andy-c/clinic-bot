@@ -304,11 +304,12 @@ async def get_appointment_receipt(
         # Extract data from receipt_data snapshot
         receipt_data = receipt.receipt_data
         
-        # Merge void info from database columns
-        void_info = receipt_data.get("void_info", {})
+        # Build void info from database columns (void_info is not stored in JSONB)
+        void_info: Dict[str, Any] = {}
         if receipt.is_voided:
             void_info["voided"] = True
             void_info["voided_at"] = receipt.voided_at.isoformat() if receipt.voided_at else None
+            void_info["reason"] = receipt.void_reason  # Read from column
             if receipt.voided_by_user_id:
                 voided_by_user = db.query(User).filter(User.id == receipt.voided_by_user_id).first()
                 if voided_by_user:
@@ -322,6 +323,11 @@ async def get_appointment_receipt(
                         "name": association.full_name if association else voided_by_user.email,
                         "email": voided_by_user.email
                     }
+        else:
+            void_info["voided"] = False
+            void_info["voided_at"] = None
+            void_info["voided_by"] = None
+            void_info["reason"] = None
         
         # Convert items
         items: List[ReceiptItemResponse] = []
@@ -433,7 +439,7 @@ async def void_receipt(
             voided=True,
             voided_at=receipt.voided_at,
             voided_by=voided_by_info,
-            reason=request.reason
+            reason=receipt.void_reason  # Read from column
         )
         
     except ValueError as e:
@@ -792,13 +798,42 @@ async def download_receipt_pdf(
         # Extract data from receipt_data snapshot (immutable)
         receipt_data = receipt.receipt_data
         
+        # Build void_info from database columns (void_info is not stored in JSONB)
+        void_info: Dict[str, Any] = {}
+        if receipt.is_voided:
+            void_info["voided"] = True
+            void_info["voided_at"] = receipt.voided_at.isoformat() if receipt.voided_at else None
+            void_info["reason"] = receipt.void_reason
+            if receipt.voided_by_user_id:
+                voided_by_user = db.query(User).filter(User.id == receipt.voided_by_user_id).first()
+                if voided_by_user:
+                    from models import UserClinicAssociation
+                    association = db.query(UserClinicAssociation).filter(
+                        UserClinicAssociation.user_id == receipt.voided_by_user_id,
+                        UserClinicAssociation.clinic_id == clinic_id
+                    ).first()
+                    void_info["voided_by"] = {
+                        "id": voided_by_user.id,
+                        "name": association.full_name if association else voided_by_user.email,
+                        "email": voided_by_user.email
+                    }
+                else:
+                    void_info["voided_by"] = None
+            else:
+                void_info["voided_by"] = None
+        else:
+            void_info["voided"] = False
+            void_info["voided_at"] = None
+            void_info["voided_by"] = None
+            void_info["reason"] = None
+        
         # Generate PDF using WeasyPrint
         from services.pdf_service import PDFService
         
         pdf_service = PDFService()
         pdf_bytes = pdf_service.generate_receipt_pdf(
             receipt_data=receipt_data,
-            is_voided=receipt.is_voided
+            void_info=void_info
         )
         
         return Response(
@@ -852,13 +887,42 @@ async def get_receipt_html(
         # Extract data from receipt_data snapshot (immutable)
         receipt_data = receipt.receipt_data
         
+        # Build void_info from database columns (void_info is not stored in JSONB)
+        void_info: Dict[str, Any] = {}
+        if receipt.is_voided:
+            void_info["voided"] = True
+            void_info["voided_at"] = receipt.voided_at.isoformat() if receipt.voided_at else None
+            void_info["reason"] = receipt.void_reason
+            if receipt.voided_by_user_id:
+                voided_by_user = db.query(User).filter(User.id == receipt.voided_by_user_id).first()
+                if voided_by_user:
+                    from models import UserClinicAssociation
+                    association = db.query(UserClinicAssociation).filter(
+                        UserClinicAssociation.user_id == receipt.voided_by_user_id,
+                        UserClinicAssociation.clinic_id == clinic_id
+                    ).first()
+                    void_info["voided_by"] = {
+                        "id": voided_by_user.id,
+                        "name": association.full_name if association else voided_by_user.email,
+                        "email": voided_by_user.email
+                    }
+                else:
+                    void_info["voided_by"] = None
+            else:
+                void_info["voided_by"] = None
+        else:
+            void_info["voided"] = False
+            void_info["voided_at"] = None
+            void_info["voided_by"] = None
+            void_info["reason"] = None
+        
         # Generate HTML using same template as PDF
         from services.pdf_service import PDFService
         
         pdf_service = PDFService()
         html_content = pdf_service.generate_receipt_html(
             receipt_data=receipt_data,
-            is_voided=receipt.is_voided
+            void_info=void_info
         )
         
         return HTMLResponse(content=html_content)
@@ -1023,11 +1087,12 @@ async def get_receipt_by_id(
         for item_data in receipt_data.get("items", []):
             items.append(ReceiptItemResponse(**item_data))
         
-        # Merge void info from database columns
-        void_info = receipt_data.get("void_info", {})
+        # Build void info from database columns (void_info is not stored in JSONB)
+        void_info: Dict[str, Any] = {}
         if receipt.is_voided:
             void_info["voided"] = True
             void_info["voided_at"] = receipt.voided_at.isoformat() if receipt.voided_at else None
+            void_info["reason"] = receipt.void_reason  # Read from column
             if voided_by_user:
                 void_info["voided_by"] = {
                     "id": voided_by_user.id,
@@ -1036,8 +1101,6 @@ async def get_receipt_by_id(
                 }
             else:
                 void_info["voided_by"] = None
-            # void_reason is not stored in Receipt model, so keep from receipt_data if exists
-            void_info["reason"] = receipt_data.get("void_info", {}).get("reason")
         else:
             void_info["voided"] = False
             void_info["voided_at"] = None

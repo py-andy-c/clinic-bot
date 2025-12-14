@@ -136,10 +136,11 @@ CREATE TABLE receipts (
     -- Complete immutable snapshot (stores all data as it existed at creation time)
     receipt_data JSONB NOT NULL,
     
-    -- Voiding support (for accounting dashboard and audit trail)
-    is_voided BOOLEAN DEFAULT FALSE,  -- Whether receipt has been voided
-    voided_at TIMESTAMP WITH TIME ZONE,  -- Timestamp when receipt was voided
-    voided_by_user_id INTEGER REFERENCES users(id),  -- Admin user who voided the receipt
+    -- Voiding support (stored in columns for immutability and performance)
+    is_voided BOOLEAN NOT NULL DEFAULT FALSE,  -- Whether receipt has been voided
+    voided_at TIMESTAMP WITH TIME ZONE,  -- Timestamp when receipt was voided (null if not voided)
+    voided_by_user_id INTEGER REFERENCES users(id),  -- Admin user who voided the receipt (null if not voided)
+    void_reason TEXT,  -- Reason for voiding (null if not voided, max 500 characters, CHECK constraint)
     
     -- Metadata
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -161,17 +162,38 @@ CREATE INDEX idx_receipts_voided_at ON receipts(voided_at);
 CREATE INDEX idx_receipts_data_gin ON receipts USING GIN (receipt_data);
 
 -- Database trigger to enforce receipt_data immutability
--- Only allow updates to voiding-related fields, prevent receipt_data modifications
+-- Block ALL receipt_data updates (truly immutable)
 CREATE OR REPLACE FUNCTION prevent_receipt_data_modification()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Allow updates only to voiding fields
+  -- Block ALL receipt_data updates (truly immutable)
   IF OLD.receipt_data IS DISTINCT FROM NEW.receipt_data THEN
     RAISE EXCEPTION 'receipt_data is immutable and cannot be modified after creation';
   END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Database trigger to enforce void_info immutability after voiding
+CREATE OR REPLACE FUNCTION prevent_void_info_modification()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- If void_info was already set, prevent further changes
+  IF OLD.is_voided = TRUE AND (
+      OLD.voided_at IS DISTINCT FROM NEW.voided_at OR
+      OLD.voided_by_user_id IS DISTINCT FROM NEW.voided_by_user_id OR
+      OLD.void_reason IS DISTINCT FROM NEW.void_reason
+  ) THEN
+    RAISE EXCEPTION 'Void information cannot be modified after voiding';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER prevent_void_info_modification_trigger
+  BEFORE UPDATE ON receipts
+  FOR EACH ROW
+  EXECUTE FUNCTION prevent_void_info_modification();
 
 CREATE TRIGGER receipt_data_immutability_trigger
   BEFORE UPDATE ON receipts
@@ -183,17 +205,19 @@ CREATE TRIGGER receipt_data_immutability_trigger
 - `is_voided`: Whether receipt has been voided (default: false)
 - `voided_at`: Timestamp when receipt was voided (null if not voided)
 - `voided_by_user_id`: Admin user who voided the receipt (null if not voided)
-- `reason`: Optional reason for voiding (stored in `receipt_data` JSONB under `void_info.reason`)
+- `void_reason`: Optional reason for voiding (stored in database column, max 500 characters)
 - **Important**: Voided receipts **keep their original receipt number** (gapless sequencing for audit compliance)
 - Voided receipts remain in database for audit trail
 - Voided receipts are excluded from accounting calculations
 - Voiding is irreversible (maintains audit integrity)
+- **Void info immutability**: Once voided, void info columns (`is_voided`, `voided_at`, `voided_by_user_id`, `void_reason`) cannot be modified (enforced by database trigger)
 - **Re-issuing**: After voiding, a new receipt can be created for the same appointment (gets new sequential receipt number)
 
 **Database Constraints:**
 - `UNIQUE(appointment_id) WHERE is_voided = FALSE`: Ensures only one active receipt per appointment
 - Multiple voided receipts allowed per appointment (for audit trail of corrections)
 - `ON DELETE RESTRICT` on `appointment_id`: Prevents appointment deletion if receipts exist (maintains audit trail)
+- `CHECK (void_reason IS NULL OR LENGTH(void_reason) <= 500)`: Ensures void reason length constraint
 
 **Receipt Data JSONB Structure:**
 
@@ -254,15 +278,15 @@ The `receipt_data` JSONB column stores a complete snapshot of all receipt inform
   "custom_notes": "地址：123 Main St, Taipei\n電話：02-1234-5678\n統一編號：12345678",
   "stamp": {
     "enabled": true
-  },
-  "void_info": {
-    "voided": false,
-    "voided_at": null,
-    "voided_by": null,
-    "reason": null
   }
 }
 ```
+
+**Note on Void Information:**
+- Void information is **NOT stored in `receipt_data` JSONB** - it's stored in separate database columns (`is_voided`, `voided_at`, `voided_by_user_id`, `void_reason`)
+- The `receipt_data` JSONB is **truly immutable** - it contains only the data that existed at creation time
+- When returning receipt data via API/PDF, void info from database columns is merged into a `void_info` field in the response
+- This design ensures true immutability of `receipt_data` while allowing void information to be stored and retrieved
 
 **Mandatory Fields (Taiwan Legal Requirements):**
 - ✅ Receipt number (收據編號) - sequential, unique per clinic
@@ -290,6 +314,10 @@ The `receipt_data` JSONB column stores a complete snapshot of all receipt inform
 - Receipts are **never modified** after creation
 - All data stored as snapshot at creation time
 - No dependency on foreign keys that can change
+- `receipt_data` JSONB is **truly immutable** - cannot be modified after creation (enforced by database trigger)
+- Void information is stored in separate database columns (`is_voided`, `voided_at`, `voided_by_user_id`, `void_reason`) for immutability
+- Void information is **NOT stored in `receipt_data` JSONB** - it's only in database columns
+- When returning receipt data via API/PDF, void info from columns is merged into a `void_info` field in the response
 - If correction needed: create new receipt and void old one (future enhancement)
 
 **Retention Period:**
@@ -446,7 +474,8 @@ The `receipt_data` JSONB column stores a complete snapshot of all receipt inform
 
 **POST `/api/receipts/{receipt_id}/void`**
 - Void a receipt (admin-only)
-- **Request Body**: `{ "reason": "Optional reason for voiding" }`
+- **Request Body**: `{ "reason": "Required reason for voiding (1-500 characters, min_length=1, max_length=500)" }`
+- **Note**: The `reason` is stored in the `void_reason` database column (not in `receipt_data` JSONB) to maintain immutability
 - **Response**: 
   ```json
   {
@@ -520,17 +549,11 @@ The `receipt_data` JSONB column stores a complete snapshot of all receipt inform
   "custom_notes": "地址：123 Main St, Taipei\n電話：02-1234-5678\n統一編號：12345678",
   "stamp": {
     "enabled": true
-  },
-  "void_info": {
-    "voided": false,
-    "voided_at": null,
-    "voided_by": null,
-    "reason": null
   }
 }
 ```
 
-**Note:** Response includes complete snapshot data from `receipt_data` JSONB column.
+**Note:** Response includes complete snapshot data from `receipt_data` JSONB column. Void information is not included in JSONB - it's merged from database columns when generating responses.
 
 ### 3. Receipt PDF Download
 
@@ -1060,7 +1083,9 @@ WHERE clinic_id = :clinic_id
 
 **Voiding Rules:**
 - Only admins can void receipts
+- Voiding requires a reason (1-500 characters) - stored in `void_reason` database column
 - Voiding is irreversible (maintains audit integrity)
+- Void info columns (`is_voided`, `voided_at`, `voided_by_user_id`, `void_reason`) are immutable after voiding (enforced by database trigger)
 - Voided receipts keep their original receipt number (gapless sequencing)
 - Voided receipts are excluded from all accounting calculations
 - Voided receipts remain visible for audit purposes (shown in separate section in accounting dashboard)
@@ -1098,9 +1123,12 @@ WHERE clinic_id = :clinic_id
 - All referenced data (patient name, clinic name, service names, etc.) stored as snapshots
 - No dependency on foreign keys that can change
 - **Database Enforcement**: PostgreSQL trigger prevents modifications to `receipt_data` after creation
-  - Only voiding-related fields (`is_voided`, `voided_at`, `voided_by_user_id`) can be updated
+  - `receipt_data` JSONB is truly immutable - all updates are blocked (enforced by database trigger)
+  - Void information is stored in separate database columns (`is_voided`, `voided_at`, `voided_by_user_id`, `void_reason`)
+  - Void info columns are immutable after voiding (enforced by separate database trigger)
   - Attempts to modify `receipt_data` will raise database exception
-- **Voiding**: If correction needed, receipt can be voided (sets `is_voided = true`, preserves all data for audit)
+- **Voiding**: If correction needed, receipt can be voided (sets `is_voided = true`, `voided_at`, `voided_by_user_id`, `void_reason` in database columns, preserves all data for audit)
+- Void information is stored in database columns (not in `receipt_data` JSONB) to maintain true immutability of the JSONB snapshot
 - Voided receipts remain in database but are excluded from accounting calculations
 - Receipt deletion should be restricted (admin-only, with audit trail)
 - **Retention**: Minimum 10 years (Physical Therapists Act Article 25 for physical therapy clinics), consider archival system for receipts >10 years old

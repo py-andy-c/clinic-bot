@@ -1163,12 +1163,21 @@ async def get_appointment_receipt(
     
     try:
         # Validate and get appointment and receipt
-        appointment, active_receipt = _validate_appointment_receipt_access(
+        _appointment, active_receipt = _validate_appointment_receipt_access(
             appointment_id, line_user, clinic, db
         )
         
         # Extract data from receipt_data snapshot
         receipt_data = active_receipt.receipt_data
+        
+        # Build void_info from database columns (void_info is not stored in JSONB)
+        # Note: Patients can only see active receipts, so void_info should always be false/null
+        void_info: Dict[str, Any] = {
+            "voided": False,
+            "voided_at": None,
+            "voided_by": None,
+            "reason": None
+        }
         
         # Convert items
         items: List[Dict[str, Any]] = []
@@ -1191,12 +1200,7 @@ async def get_appointment_receipt(
             "payment_method": receipt_data["payment_method"],
             "custom_notes": receipt_data.get("custom_notes"),
             "stamp": receipt_data.get("stamp", {"enabled": False}),
-            "void_info": {
-                "voided": False,
-                "voided_at": None,
-                "voided_by": None,
-                "reason": None
-            }
+            "void_info": void_info
         }
         
     except HTTPException:
@@ -1227,12 +1231,21 @@ async def get_appointment_receipt_html(
     
     try:
         # Validate and get appointment and receipt
-        appointment, active_receipt = _validate_appointment_receipt_access(
+        _appointment, active_receipt = _validate_appointment_receipt_access(
             appointment_id, line_user, clinic, db
         )
         
         # Extract data from receipt_data snapshot (immutable)
         receipt_data = active_receipt.receipt_data
+        
+        # Build void_info from database columns (void_info is not stored in JSONB)
+        # Note: Patients can only see active receipts, so void_info should always be false/null
+        void_info: Dict[str, Any] = {
+            "voided": False,
+            "voided_at": None,
+            "voided_by": None,
+            "reason": None
+        }
         
         # Generate HTML using same template as PDF
         from services.pdf_service import PDFService
@@ -1240,7 +1253,7 @@ async def get_appointment_receipt_html(
         pdf_service = PDFService()
         html_content = pdf_service.generate_receipt_html(
             receipt_data=receipt_data,
-            is_voided=active_receipt.is_voided
+            void_info=void_info
         )
         
         return HTMLResponse(content=html_content)

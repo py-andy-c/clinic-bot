@@ -383,8 +383,6 @@ class AccountingService:
                 ).first()
                 voided_by_user_name = association.full_name if association else voided_by_user.email
             
-            # void_reason is not stored in Receipt model - it's only in the void request
-            # We'll set it to None or get it from receipt_data if stored there
             patient_data: Dict[str, Any] = receipt_data.get('patient', {})  # type: ignore
             
             result.append({
@@ -393,7 +391,7 @@ class AccountingService:
                 'issue_date': receipt.issue_date.isoformat(),
                 'voided_at': receipt.voided_at.isoformat() if receipt.voided_at else None,
                 'voided_by_user_name': voided_by_user_name,
-                'void_reason': None,  # Not stored in Receipt model
+                'void_reason': receipt.void_reason,  # Read from column
                 'patient_name': type_cast(str, patient_data.get('name', '')),  # type: ignore
                 'total_amount': float(receipt.total_amount)
             })
