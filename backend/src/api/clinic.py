@@ -5065,7 +5065,7 @@ async def list_auto_assigned_appointments(
 
 @router.get("/dashboard/metrics", summary="Get clinic dashboard metrics")
 async def get_dashboard_metrics(
-    current_user: UserContext = Depends(require_authenticated),
+    current_user: UserContext = Depends(require_admin_role),
     db: Session = Depends(get_db)
 ) -> ClinicDashboardMetricsResponse:
     """
@@ -5076,7 +5076,7 @@ async def get_dashboard_metrics(
     - Appointment statistics (counts, cancellation rates, types, practitioners)
     - Message statistics (paid messages, AI replies)
     
-    Available to all clinic members (including read-only users).
+    Admin-only endpoint.
     """
     try:
         from services.dashboard_service import DashboardService

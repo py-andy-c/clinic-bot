@@ -1,4 +1,5 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApiData } from '../hooks/useApiData';
 import { apiService } from '../services/api';
 import { PatientStatsSection } from '../components/dashboard/PatientStatsSection';
@@ -9,16 +10,29 @@ import { useAuth } from '../hooks/useAuth';
 import PageHeader from '../components/PageHeader';
 
 const ClinicDashboardPage: React.FC = () => {
-  const { isLoading: authLoading, isAuthenticated, user } = useAuth();
+  const { isLoading: authLoading, isAuthenticated, user, isClinicAdmin } = useAuth();
+  const navigate = useNavigate();
+
+  // Redirect non-admin users
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && !isClinicAdmin) {
+      navigate('/admin/clinic/members', { replace: true });
+    }
+  }, [authLoading, isAuthenticated, isClinicAdmin, navigate]);
 
   const fetchDashboardMetrics = useCallback(() => apiService.getDashboardMetrics(), []);
 
   const { data, loading, error } = useApiData(fetchDashboardMetrics, {
-    enabled: !authLoading && isAuthenticated,
-    dependencies: [authLoading, isAuthenticated, user?.active_clinic_id],
+    enabled: !authLoading && isAuthenticated && isClinicAdmin,
+    dependencies: [authLoading, isAuthenticated, isClinicAdmin, user?.active_clinic_id],
     defaultErrorMessage: '無法載入儀表板數據',
     cacheTTL: 2 * 60 * 1000, // 2 minutes cache
   });
+
+  // Don't render anything if not admin (will redirect)
+  if (!authLoading && isAuthenticated && !isClinicAdmin) {
+    return null;
+  }
 
   if (loading && !data) {
     return (
