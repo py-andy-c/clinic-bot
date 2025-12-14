@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LINE 訊息統計 - 儀表板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="max-w-7xl mx-auto px-0 md:px-6 md:py-6">
+        <!-- Page Header -->
+        <div class="px-3 md:px-0 mb-4 md:mb-6">
+            <div class="flex items-center gap-2">
+                <h1 class="text-xl md:text-2xl font-semibold text-gray-900">LINE 訊息統計</h1>
+                <button 
+                    type="button"
+                    class="inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+                    aria-label="查看說明"
+                    onclick="document.getElementById('pageInfoModal').classList.remove('hidden')"
+                >
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+            <p class="text-xs md:text-sm text-gray-600 mt-1">注意：當月數據可能仍會變動</p>
+        </div>
+
+        <!-- LINE Push Messages Section -->
+        <div class="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-6 md:py-6 pt-6 border-t border-gray-200 md:pt-6 md:border-t-0 mb-4 md:mb-6">
+            <div class="flex items-center gap-2 mb-3 md:mb-4">
+                <h2 class="text-base md:text-lg font-semibold text-gray-900">LINE 推播訊息</h2>
+                <button 
+                    type="button"
+                    class="inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+                    aria-label="查看說明"
+                    onclick="document.getElementById('paidMessagesModal').classList.remove('hidden')"
+                >
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="sticky left-0 bg-gray-50 px-2 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap z-10">
+                                    訊息類型
+                                </th>
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                                    2023年10月
+                                </th>
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                                    2023年11月
+                                </th>
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                                    2023年12月
+                                </th>
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap bg-blue-50">
+                                    2024年1月
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <!-- 發送給病患 Group Header -->
+                            <tr class="bg-gray-100">
+                                <td class="sticky left-0 bg-gray-100 px-2 md:px-4 py-2 md:py-3 text-sm font-medium text-gray-900 whitespace-nowrap z-10">
+                                    發送給病患
+                                </td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium">210(79%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium">236(78%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium">239(78%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium bg-blue-100">171(78%)</td>
+                            </tr>
+                            <!-- Events under 發送給病患 -->
+                            <tr>
+                                <td class="sticky left-0 bg-white px-2 md:px-4 py-2 md:py-3 pl-8 text-sm text-gray-900 whitespace-nowrap z-10">
+                                    預約確認
+                                </td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">45(17%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">52(17%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">48(16%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap bg-blue-50">38(17%)</td>
+                            </tr>
+                            <tr>
+                                <td class="sticky left-0 bg-white px-2 md:px-4 py-2 md:py-3 pl-8 text-sm text-gray-900 whitespace-nowrap z-10">
+                                    預約取消
+                                </td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">12(4%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">15(5%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">18(6%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap bg-blue-50">10(5%)</td>
+                            </tr>
+                            <tr>
+                                <td class="sticky left-0 bg-white px-2 md:px-4 py-2 md:py-3 pl-8 text-sm text-gray-900 whitespace-nowrap z-10">
+                                    預約調整
+                                </td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">8(3%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">6(2%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">9(3%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap bg-blue-50">7(3%)</td>
+                            </tr>
+                            <tr>
+                                <td class="sticky left-0 bg-white px-2 md:px-4 py-2 md:py-3 pl-8 text-sm text-gray-900 whitespace-nowrap z-10">
+                                    預約提醒
+                                </td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">120(45%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">135(45%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">142(47%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap bg-blue-50">98(45%)</td>
+                            </tr>
+                            <tr>
+                                <td class="sticky left-0 bg-white px-2 md:px-4 py-2 md:py-3 pl-8 text-sm text-gray-900 whitespace-nowrap z-10">
+                                    空檔通知
+                                </td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">25(9%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">28(9%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">22(7%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap bg-blue-50">18(8%)</td>
+                            </tr>
+                            <!-- 發送給病患 Subtotal -->
+                            <tr class="bg-gray-50">
+                                <td class="sticky left-0 bg-gray-50 px-2 md:px-4 py-2 md:py-3 text-sm font-medium text-gray-900 whitespace-nowrap z-10">
+                                    發送給病患 小計
+                                </td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium">210(79%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium">236(78%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium">239(78%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium bg-blue-100">171(78%)</td>
+                            </tr>
+                            <!-- 發送給治療師 Group Header -->
+                            <tr class="bg-gray-100">
+                                <td class="sticky left-0 bg-gray-100 px-2 md:px-4 py-2 md:py-3 text-sm font-medium text-gray-900 whitespace-nowrap z-10">
+                                    發送給治療師
+                                </td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium">57(21%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium">67(22%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium">66(22%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium bg-blue-100">48(22%)</td>
+                            </tr>
+                            <!-- Events under 發送給治療師 -->
+                            <tr>
+                                <td class="sticky left-0 bg-white px-2 md:px-4 py-2 md:py-3 pl-8 text-sm text-gray-900 whitespace-nowrap z-10">
+                                    新預約通知
+                                </td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">45(17%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">52(17%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">48(16%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap bg-blue-50">38(17%)</td>
+                            </tr>
+                            <tr>
+                                <td class="sticky left-0 bg-white px-2 md:px-4 py-2 md:py-3 pl-8 text-sm text-gray-900 whitespace-nowrap z-10">
+                                    預約取消通知
+                                </td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">12(4%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">15(5%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">18(6%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap bg-blue-50">10(5%)</td>
+                            </tr>
+                            <!-- 發送給治療師 Subtotal -->
+                            <tr class="bg-gray-50">
+                                <td class="sticky left-0 bg-gray-50 px-2 md:px-4 py-2 md:py-3 text-sm font-medium text-gray-900 whitespace-nowrap z-10">
+                                    發送給治療師 小計
+                                </td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium">57(21%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium">67(22%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium">66(22%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-medium bg-blue-100">48(22%)</td>
+                            </tr>
+                            <!-- Grand Total -->
+                            <tr class="bg-blue-50">
+                                <td class="sticky left-0 bg-blue-50 px-2 md:px-4 py-2 md:py-3 text-sm font-bold text-gray-900 whitespace-nowrap z-10">
+                                    總計
+                                </td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-bold">267(100%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-bold">303(100%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-bold">305(100%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap font-bold bg-blue-100">219(100%)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+        </div>
+
+        <!-- AI Reply Messages Section -->
+        <div class="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-6 md:py-6 pt-6 border-t border-gray-200 md:pt-6 md:border-t-0 mb-4 md:mb-6">
+            <div class="flex items-center gap-2 mb-3 md:mb-4">
+                <h2 class="text-base md:text-lg font-semibold text-gray-900">AI 回覆訊息</h2>
+                <button 
+                    type="button"
+                    class="inline-flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
+                    aria-label="查看說明"
+                    onclick="document.getElementById('aiRepliesModal').classList.remove('hidden')"
+                >
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="sticky left-0 bg-gray-50 px-2 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap z-10">
+                                    訊息類型
+                                </th>
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                                    2023年10月
+                                </th>
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                                    2023年11月
+                                </th>
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                                    2023年12月
+                                </th>
+                                <th class="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap bg-blue-50">
+                                    2024年1月
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr>
+                                <td class="sticky left-0 bg-white px-2 md:px-4 py-2 md:py-3 text-sm text-gray-900 whitespace-nowrap z-10">
+                                    AI 回覆訊息
+                                </td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">813(75%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">925(75%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap">866(74%)</td>
+                                <td class="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-center whitespace-nowrap bg-blue-50">761(78%)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+        </div>
+    </div>
+
+    <!-- Page Info Modal -->
+    <div id="pageInfoModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-2 md:mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="px-3 py-2 md:px-6 md:py-6">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3 flex-1">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-lg font-semibold text-gray-900">LINE 訊息統計說明</h3>
+                            <button onclick="document.getElementById('pageInfoModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="text-sm text-gray-700 space-y-2">
+                            <p>此頁面顯示 LINE 訊息使用統計，包括推播訊息和 AI 回覆訊息的使用情況。</p>
+                            <p><strong>數據期間：</strong>顯示過去 3 個月及當月的數據。當月數據可能仍會變動。</p>
+                            <p><strong>格式：</strong>數據以「數量(百分比%)」格式顯示，百分比為四捨五入後的整數。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Paid Messages Info Modal -->
+    <div id="paidMessagesModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-2 md:mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="px-3 py-2 md:px-6 md:py-6">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3 flex-1">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-lg font-semibold text-gray-900">LINE 推播訊息</h3>
+                            <button onclick="document.getElementById('paidMessagesModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="text-sm text-gray-700 space-y-2">
+                            <p>LINE 推播訊息由 LINE 平台收費，診所需自行負擔相關費用。</p>
+                            <p>若 LINE 訊息配額用盡，系統將無法發送推播訊息，但預約系統仍可正常運作。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Replies Info Modal -->
+    <div id="aiRepliesModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-2 md:mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="px-3 py-2 md:px-6 md:py-6">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3 flex-1">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-lg font-semibold text-gray-900">AI 回覆訊息</h3>
+                            <button onclick="document.getElementById('aiRepliesModal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600">
+                                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="text-sm text-gray-700 space-y-2">
+                            <p>AI 回覆訊息不會消耗 LINE 訊息配額。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
