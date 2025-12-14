@@ -7,6 +7,7 @@ import { preventScrollWheelChange } from '../utils/inputUtils';
 import { formatCurrency } from '../utils/currencyUtils';
 import { BaseModal } from './shared/BaseModal';
 import { InfoButton, InfoModal } from './shared';
+import { NumberInput } from './shared/NumberInput';
 
 interface BillingScenario {
   id: number;
@@ -426,17 +427,13 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                               </label>
                               <InfoButton onClick={() => setShowBufferModal(true)} />
                             </div>
-                            <input
-                              type="number"
+                            <NumberInput
                               value={type.scheduling_buffer_minutes || 0}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                onUpdateType(index, 'scheduling_buffer_minutes', parseInt(value) || 0);
-                              }}
-                              onWheel={preventScrollWheelChange}
-                              className="input"
-                              min="0"
-                              max="60"
+                              onChange={(value) => onUpdateType(index, 'scheduling_buffer_minutes', value)}
+                              fallback={0}
+                              parseFn="parseInt"
+                              min={0}
+                              max={60}
                               disabled={!isClinicAdmin}
                             />
                           </div>

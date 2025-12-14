@@ -11,6 +11,7 @@ import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
 import { formatCurrency } from '../../utils/currencyUtils';
 import { preventScrollWheelChange } from '../../utils/inputUtils';
+import { NumberInput } from '../shared/NumberInput';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 
 interface CheckoutItem {
@@ -626,20 +627,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         >
                           −
                         </button>
-                        <input
-                          type="number"
+                        <NumberInput
                           value={quantity}
-                          onChange={(e) => {
-                            const qty = parseInt(e.target.value) || 1;
-                            handleItemChange(index, 'quantity', qty < 1 ? 1 : qty);
+                          onChange={(qty) => {
+                            handleItemChange(index, 'quantity', qty);
                             if (!expandedQuantityItems.has(index)) {
                               setExpandedQuantityItems(prev => new Set(prev).add(index));
                             }
                           }}
+                          fallback={1}
+                          parseFn="parseInt"
+                          min={1}
                           className="w-12 px-2 py-1 text-sm border border-gray-300 rounded text-center focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          min="1"
-                          step="1"
-                          onWheel={preventScrollWheelChange}
                         />
                         <button
                           type="button"
@@ -801,38 +800,30 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         <label htmlFor={`amount-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
                           金額
                         </label>
-                        <input
+                        <NumberInput
                           id={`amount-${index}`}
-                          type="number"
                           value={Math.round(item.amount || 0)}
-                          onChange={(e) => {
-                            const value = parseFloat(e.target.value) || 0;
-                            handleItemChange(index, 'amount', Math.round(value));
-                          }}
-                          className="input"
-                          min="0"
-                          step="1"
+                          onChange={(value) => handleItemChange(index, 'amount', value)}
+                          fallback={0}
+                          parseFn="parseFloat"
+                          min={0}
+                          round={true}
                           placeholder="0"
-                          onWheel={preventScrollWheelChange}
                         />
                       </div>
                       <div>
                         <label htmlFor={`revenue-share-${index}`} className="block text-sm font-medium text-gray-700 mb-1">
                           診所分潤
                         </label>
-                        <input
+                        <NumberInput
                           id={`revenue-share-${index}`}
-                          type="number"
                           value={Math.round(item.revenue_share || 0)}
-                          onChange={(e) => {
-                            const value = parseFloat(e.target.value) || 0;
-                            handleItemChange(index, 'revenue_share', Math.round(value));
-                          }}
-                          className="input"
-                          min="0"
-                          step="1"
+                          onChange={(value) => handleItemChange(index, 'revenue_share', value)}
+                          fallback={0}
+                          parseFn="parseFloat"
+                          min={0}
+                          round={true}
                           placeholder="0"
-                          onWheel={preventScrollWheelChange}
                         />
                       </div>
                     </div>

@@ -23,6 +23,7 @@ import { PatientCreationModal } from '../PatientCreationModal';
 import { PatientCreationSuccessModal } from '../PatientCreationSuccessModal';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 import { preventScrollWheelChange } from '../../utils/inputUtils';
+import { NumberInput } from '../shared/NumberInput';
 
 // Wrapper component for DateTimePicker in conflict resolution
 const RecurrenceDateTimePickerWrapper: React.FC<{
@@ -816,15 +817,12 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                 <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
                   每
                 </label>
-                <input
-                  type="number"
-                  min="1"
+                <NumberInput
                   value={weeksInterval}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value) || 1;
-                    setWeeksInterval(Math.max(1, value));
-                  }}
-                  onWheel={preventScrollWheelChange}
+                  onChange={(value) => setWeeksInterval(value)}
+                  fallback={1}
+                  parseFn="parseInt"
+                  min={1}
                   className="w-16 border border-gray-300 rounded-md px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
