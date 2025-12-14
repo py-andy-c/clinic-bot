@@ -25,6 +25,7 @@ interface ReceiptSummary {
   issue_date: string;
   is_voided: boolean;
   voided_at?: string;
+  void_reason?: string;
   total_amount: number;
 }
 
@@ -64,6 +65,7 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
           issue_date: r.issue_date,
           is_voided: r.void_info?.voided || false,
           voided_at: r.void_info?.voided_at,
+          void_reason: r.void_info?.reason,
           total_amount: r.total_amount || 0,
         }))
         // Sort by issue_date DESC (newest first)
@@ -152,6 +154,11 @@ export const ReceiptListModal: React.FC<ReceiptListModalProps> = ({
                   {receipt.voided_at && (
                     <p className="text-sm text-gray-500">
                       作廢日期: {moment(receipt.voided_at).tz('Asia/Taipei').format('YYYY-MM-DD HH:mm')}
+                    </p>
+                  )}
+                  {receipt.void_reason && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      <span className="font-medium">作廢原因:</span> {receipt.void_reason}
                     </p>
                   )}
                 </div>

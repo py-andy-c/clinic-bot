@@ -166,9 +166,48 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
     );
   }
 
+  const voidInfo = receiptInfo?.void_info;
+  const voidedReason = voidInfo?.reason;
+  const voidedAt = voidInfo?.voided_at;
+  const voidedBy = voidInfo?.voided_by;
+
   return (
     <>
       <BaseModal onClose={onClose} aria-label="檢視收據" fullScreen className="p-0">
+        {/* Void information banner */}
+        {isVoided && (
+          <div 
+            className="bg-red-50 border-b border-red-200 px-4 py-3"
+            style={{ zIndex: Z_INDEX.MODAL + 5 }}
+          >
+            <div className="flex items-start space-x-2">
+              <svg className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-2 mb-1">
+                  <span className="font-semibold text-red-800">此收據已作廢</span>
+                </div>
+                {voidedAt && (
+                  <p className="text-sm text-red-700">
+                    作廢日期: {new Date(voidedAt).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                )}
+                {voidedBy && (
+                  <p className="text-sm text-red-700">
+                    作廢者: {voidedBy.name || voidedBy.email}
+                  </p>
+                )}
+                {voidedReason && (
+                  <p className="text-sm text-red-700 mt-1">
+                    <span className="font-medium">作廢原因:</span> {voidedReason}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Receipt HTML in iframe */}
         <iframe
           srcDoc={receiptHtml || ''}
