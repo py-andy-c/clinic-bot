@@ -7,7 +7,7 @@ Implements immutable snapshot pattern for legal compliance.
 
 from typing import Dict, Any, Optional, List
 from decimal import Decimal
-from datetime import datetime, timezone
+from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -37,6 +37,7 @@ class ReceiptService:
         
         Format: {YYYY}-{NNNNN} (5 digits for serial number)
         Uses PostgreSQL sequence for thread-safe atomic generation.
+        Year is determined using Taiwan timezone to ensure correct year at year boundaries.
         
         Args:
             db: Database session
@@ -44,9 +45,13 @@ class ReceiptService:
             
         Returns:
             Receipt number in format "2024-00001"
+            
+        Raises:
+            ValueError: If receipt number sequence is exhausted (>= 99,999 receipts for the year)
         """
-        # Get current year
-        current_year = datetime.now(timezone.utc).year
+        # Get current year in Taiwan timezone (not UTC)
+        # This ensures receipt numbers use the correct year even at year boundaries
+        current_year = taiwan_now().year
         
         # Sequence name: receipt_number_seq_clinic_{clinic_id}_{year}
         sequence_name = f"receipt_number_seq_clinic_{clinic_id}_{current_year}"
@@ -62,6 +67,20 @@ class ReceiptService:
             END $$;
         """))
         db.flush()
+        
+        # Check sequence value before generating (proactive exhaustion check)
+        # This prevents generating a receipt number that would exceed the 5-digit limit (99,999)
+        # last_value is the last value returned by nextval(), so if it's >= 99999, the next
+        # nextval() would return 100000 (6 digits), which we need to prevent
+        current_value_result = db.execute(text(f"SELECT last_value FROM {sequence_name}"))
+        current_value = current_value_result.scalar()
+        
+        # Check if sequence is exhausted (current_value could be None for new sequences, which is fine)
+        if current_value is not None and current_value >= 99999:
+            raise ValueError(
+                f"Receipt number sequence exhausted for clinic {clinic_id} in year {current_year}. "
+                f"Maximum of 99,999 receipts per year reached. Please contact administrator."
+            )
         
         # Get next value from sequence
         result = db.execute(text(f"SELECT nextval('{sequence_name}')"))
@@ -178,13 +197,15 @@ class ReceiptService:
             }
             
             if item["item_type"] == "service_item":
-                # Fetch service item
+                # Fetch service item (exclude soft-deleted items)
+                # This prevents checkout with deleted service items, maintaining data integrity
                 service_item = db.query(AppointmentType).filter(
                     AppointmentType.id == item["service_item_id"],
-                    AppointmentType.clinic_id == clinic_id
+                    AppointmentType.clinic_id == clinic_id,
+                    AppointmentType.is_deleted == False
                 ).first()
                 if not service_item:
-                    raise ValueError(f"Service item {item['service_item_id']} not found")
+                    raise ValueError(f"Service item {item['service_item_id']} not found or has been deleted")
                 
                 snapshot_item["service_item"] = {
                     "id": service_item.id,

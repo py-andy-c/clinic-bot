@@ -40,7 +40,7 @@ class CheckoutItemRequest(BaseModel):
     amount: Decimal = Field(..., ge=0, description="Amount (>= 0, allows free services)")
     revenue_share: Decimal = Field(..., ge=0)
     display_order: int = Field(0)
-    quantity: int = Field(1, ge=1, description="Quantity of items (default: 1)")
+    quantity: int = Field(1, ge=1, le=999, description="Quantity of items (default: 1, max: 999)")
 
 
 class CheckoutRequest(BaseModel):
@@ -117,6 +117,15 @@ async def checkout_appointment(
     Checkout an appointment (create receipt).
     
     Admin-only. Creates a receipt with immutable snapshot of all billing information.
+    
+    Validates:
+    - Payment method is valid (cash, card, transfer, other)
+    - All items have amount >= 0 (allows free services)
+    - Revenue share <= amount for each item
+    - Billing scenarios exist and are not deleted (if provided)
+    - Service items exist and are not deleted
+    - Quantity is between 1 and 999 (enforced by Pydantic model)
+    - Receipt number sequence is not exhausted
     """
     try:
         clinic_id = ensure_clinic_access(current_user)
@@ -153,6 +162,8 @@ async def checkout_appointment(
                     detail=f"Item {idx}: revenue_share must be >= 0"
                 )
             
+            # Note: quantity validation (1 <= quantity <= 999) is handled by Pydantic model
+            
             item_dict: Dict[str, Any] = {
                 "item_type": item.item_type,
                 "amount": float(item.amount),
@@ -171,6 +182,14 @@ async def checkout_appointment(
                 if item.practitioner_id is not None:
                     item_dict["practitioner_id"] = item.practitioner_id
                 if item.billing_scenario_id is not None:
+                    # Validate billing scenario exists and is not deleted
+                    # This prevents checkout with invalid or deleted billing scenarios
+                    scenario = BillingScenarioService.get_billing_scenario_by_id(db, item.billing_scenario_id)
+                    if not scenario:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Item {idx}: Billing scenario {item.billing_scenario_id} not found or has been deleted"
+                        )
                     item_dict["billing_scenario_id"] = item.billing_scenario_id
             elif item.item_type == "other":
                 if not item.item_name:
