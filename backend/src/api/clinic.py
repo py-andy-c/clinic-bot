@@ -1414,6 +1414,17 @@ async def generate_receipt_preview(
             is_voided=False
         )
         
+        # Add preview watermark (範例) to the HTML
+        # Reuse the same styling as voided watermark, only change the text
+        watermark_html = """
+        <div class="voided-watermark">
+            <div class="voided-watermark-text">範例</div>
+        </div>
+        """
+        
+        # Insert watermark before closing </body> tag
+        html_content = html_content.replace('</body>', watermark_html + '</body>')
+        
         return HTMLResponse(content=html_content)
         
     except HTTPException:
