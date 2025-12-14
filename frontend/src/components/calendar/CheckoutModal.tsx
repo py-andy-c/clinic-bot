@@ -10,7 +10,6 @@ import { apiService } from '../../services/api';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
 import { formatCurrency } from '../../utils/currencyUtils';
-import { preventScrollWheelChange } from '../../utils/inputUtils';
 import { NumberInput } from '../shared/NumberInput';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 

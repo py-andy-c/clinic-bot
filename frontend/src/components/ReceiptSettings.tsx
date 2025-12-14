@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ReceiptSettings as ReceiptSettingsType } from '../schemas/api';
 import { InfoButton, InfoModal } from './shared';
+import { ReceiptPreviewModal } from './ReceiptPreviewModal';
 
 interface ReceiptSettingsProps {
   receiptSettings: ReceiptSettingsType;
@@ -15,6 +16,7 @@ const ReceiptSettings: React.FC<ReceiptSettingsProps> = ({
 }) => {
   const [showCustomNotesModal, setShowCustomNotesModal] = useState(false);
   const [showStampModal, setShowStampModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   if (!isClinicAdmin) {
     return null; // Admin-only section
@@ -71,6 +73,36 @@ const ReceiptSettings: React.FC<ReceiptSettingsProps> = ({
         </p>
       </div>
 
+      {/* Preview Button */}
+      <div className="pt-6 border-t border-gray-200">
+        <button
+          type="button"
+          onClick={() => setShowPreviewModal(true)}
+          className="btn-secondary w-full sm:w-auto"
+        >
+          <svg
+            className="w-5 h-5 inline-block mr-2"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+            />
+          </svg>
+          預覽收據
+        </button>
+      </div>
+
       {/* Info Modals */}
       <InfoModal
         isOpen={showCustomNotesModal}
@@ -89,6 +121,14 @@ const ReceiptSettings: React.FC<ReceiptSettingsProps> = ({
       >
         <p>啟用後，收據上會顯示收訖章，包含診所名稱和結帳日期。</p>
       </InfoModal>
+
+      {/* Receipt Preview Modal */}
+      <ReceiptPreviewModal
+        isOpen={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        customNotes={receiptSettings.custom_notes ?? null}
+        showStamp={receiptSettings.show_stamp || false}
+      />
     </div>
   );
 };

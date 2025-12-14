@@ -75,8 +75,8 @@ export const NumberInput: React.FC<NumberInputProps> = ({
     {
       fallback,
       parseFn,
-      min,
-      max,
+      ...(min !== undefined && { min }),
+      ...(max !== undefined && { max }),
       round,
     }
   );

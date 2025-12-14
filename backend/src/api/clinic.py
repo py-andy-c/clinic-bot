@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Any, Union, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi import status as http_status
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field, model_validator, field_validator
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, cast, String
@@ -1184,12 +1185,18 @@ class ReminderPreviewRequest(BaseModel):
 
 
 class CancellationPreviewRequest(BaseModel):
-    """Request model for generating cancellation message preview."""
+    """Request model for cancellation message preview."""
     appointment_type: str
     appointment_time: str
-    therapist_name: str
+    therapist_name: Optional[str] = None
     patient_name: str
-    note: str | None = None
+    note: Optional[str] = None
+
+
+class ReceiptPreviewRequest(BaseModel):
+    """Request model for receipt preview."""
+    custom_notes: Optional[str] = None
+    show_stamp: bool = False
 
 
 @router.post("/reminder-preview", summary="Generate reminder message preview")
@@ -1288,6 +1295,134 @@ async def generate_cancellation_preview(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法產生取消預覽訊息"
+        )
+
+
+@router.post("/settings/receipts/preview", response_class=HTMLResponse, summary="Generate receipt preview")
+async def generate_receipt_preview(
+    request: ReceiptPreviewRequest,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> HTMLResponse:
+    """
+    Generate a preview of what a receipt would look like with current settings.
+    
+    This endpoint allows clinic admins to see exactly how their receipts
+    will appear with the current receipt settings (custom_notes, show_stamp).
+    Uses dummy data for preview purposes.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        if not clinic_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="使用者不屬於任何診所"
+            )
+
+        clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="診所不存在"
+            )
+
+        # Get clinic display name
+        clinic_display_name = clinic.effective_display_name
+        
+        # Generate dummy receipt data for preview
+        from utils.datetime_utils import taiwan_now
+        now = taiwan_now()
+        # Format as ISO string with timezone
+        issue_date_str = now.isoformat()
+        visit_date_str = now.isoformat()
+        
+        # Create dummy receipt data structure matching the template requirements
+        dummy_receipt_data = {
+            "receipt_number": "2024-00001",
+            "issue_date": issue_date_str,
+            "visit_date": visit_date_str,
+            "clinic": {
+                "id": clinic.id,
+                "display_name": clinic_display_name
+            },
+            "patient": {
+                "id": 1,
+                "name": "王小明"
+            },
+            "checked_out_by": {
+                "id": current_user.user_id,
+                "name": "管理員",
+                "email": "admin@example.com"
+            },
+            "items": [
+                {
+                    "item_type": "service_item",
+                    "service_item": {
+                        "id": 1,
+                        "name": "初診評估",
+                        "receipt_name": "初診評估"
+                    },
+                    "practitioner": {
+                        "id": 1,
+                        "name": "李醫師"
+                    },
+                    "amount": 1000.0,
+                    "revenue_share": 300.0,
+                    "display_order": 0,
+                    "quantity": 1
+                },
+                {
+                    "item_type": "service_item",
+                    "service_item": {
+                        "id": 2,
+                        "name": "復健治療",
+                        "receipt_name": "復健治療"
+                    },
+                    "practitioner": {
+                        "id": 1,
+                        "name": "李醫師"
+                    },
+                    "amount": 800.0,
+                    "revenue_share": 240.0,
+                    "display_order": 1,
+                    "quantity": 1
+                }
+            ],
+            "totals": {
+                "total_amount": 1800.0,
+                "total_revenue_share": 540.0
+            },
+            "payment_method": "cash",
+            "custom_notes": request.custom_notes,
+            "stamp": {
+                "enabled": request.show_stamp
+            },
+            "void_info": {
+                "voided": False,
+                "voided_at": None,
+                "voided_by": None,
+                "reason": None
+            }
+        }
+        
+        # Generate HTML using same template as actual receipts
+        from services.pdf_service import PDFService
+        
+        pdf_service = PDFService()
+        html_content = pdf_service.generate_receipt_html(
+            receipt_data=dummy_receipt_data,
+            is_voided=False
+        )
+        
+        return HTMLResponse(content=html_content)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error generating receipt preview: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法產生收據預覽"
         )
 
 

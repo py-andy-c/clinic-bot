@@ -535,6 +535,16 @@ export class ApiService {
     return response.data;
   }
 
+  async getReceiptPreview(customNotes: string | null, showStamp: boolean): Promise<string> {
+    const response = await this.client.post('/clinic/settings/receipts/preview', {
+      custom_notes: customNotes,
+      show_stamp: showStamp,
+    }, {
+      responseType: 'text',
+    });
+    return response.data;
+  }
+
   // Accounting endpoints (admin-only)
   async getAccountingSummary(
     startDate: string,
