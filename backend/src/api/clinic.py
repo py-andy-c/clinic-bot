@@ -1185,12 +1185,12 @@ class ReminderPreviewRequest(BaseModel):
 
 
 class CancellationPreviewRequest(BaseModel):
-    """Request model for cancellation message preview."""
+    """Request model for generating cancellation message preview."""
     appointment_type: str
     appointment_time: str
-    therapist_name: Optional[str] = None
+    therapist_name: str
     patient_name: str
-    note: Optional[str] = None
+    note: str | None = None
 
 
 class ReceiptPreviewRequest(BaseModel):
