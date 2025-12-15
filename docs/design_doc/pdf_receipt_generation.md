@@ -14,7 +14,7 @@
 ## Current State
 
 - ✅ **IMPLEMENTED**: Using WeasyPrint with HTML/CSS templates
-- ✅ **IMPLEMENTED**: Chinese text rendering with NotoSansTC font (subsetted, 290KB)
+- ✅ **IMPLEMENTED**: Chinese text rendering with NotoSansTC font (full font, 6.8MB - valid font file, replaced corrupted version)
 - ✅ **IMPLEMENTED**: Proper text wrapping and multi-page handling via CSS
 - ✅ **IMPLEMENTED**: Template matches reference design with A4 layout
 - ✅ **IMPLEMENTED**: Receipt PDF download endpoint (`/api/receipts/{receipt_id}/download`)
@@ -996,26 +996,161 @@ jinja2>=3.1.0     # Pin exact version for template rendering consistency
 fonttools>=4.0.0  # For font subsetting (pyftsubset)
 ```
 
-### System Dependencies (Dockerfile)
+### System Dependencies
+
+WeasyPrint requires these system libraries (must be installed at OS level, not via pip):
+- **Cairo** (`libcairo2`) - Graphics rendering engine
+- **Pango** (`libpango-1.0-0`) - Core text layout and rendering (handles Chinese/Unicode)
+- **Pango FreeType** (`libpangoft2-1.0-0`) - Pango FreeType font backend (required for font rendering)
+- **GDK-PixBuf** (`libgdk-pixbuf2.0-0`) - Image loading library
+- **libffi-dev** - Python bindings support (often required)
+
+**Note**: Railway uses Debian-based containers, so Debian/Ubuntu package names must be used (e.g., `libcairo2` not `cairo`).
+
+**Railway Configuration** (via environment variable):
+```
+RAILPACK_DEPLOY_APT_PACKAGES=libcairo2 libpango-1.0-0 libpangoft2-1.0-0 libgdk-pixbuf2.0-0 libffi-dev
+```
+
+**Alternative** (Dockerfile for other platforms):
 ```dockerfile
 RUN apt-get update && apt-get install -y \
-    python3-cffi \
-    python3-brotli \
+    libcairo2 \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
+    libgdk-pixbuf2.0-0 \
+    libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 ```
 
 ### Font Files
-- Noto Sans TC (Traditional Chinese) - subsetted using `pyftsubset`
+- **NotoSansTC-Regular.otf** (Traditional Chinese) - Full font file, 6.8MB
 - Store in `backend/fonts/` directory
-- Track font file version/hash for consistency
+- TTF format (TrueType), file extension is `.otf` but format is `truetype`
+- **Decision**: Not subsetted - full font file used for maximum character coverage
+  - Performance impact: Minimal (~40-50ms PDF generation)
+  - PDF file size: Not affected (WeasyPrint auto-subsettes fonts in PDFs)
+  - Memory usage: ~6.8MB (acceptable for modern systems)
+  - Deployment: +6.8MB to Docker image (minimal impact)
 
 ### Version Pinning
 - Pin all dependencies to specific versions in `requirements.txt`
 - Pin WeasyPrint version to ensure consistent rendering
 - Pin Jinja2 version for template rendering consistency
 - Track font file hashes/versions
+
+---
+
+## Production Deployment (Railway)
+
+### Current Configuration
+
+**Environment Variable** (Railway dashboard):
+```
+RAILPACK_DEPLOY_APT_PACKAGES=libcairo2 libpango-1.0-0 libpangoft2-1.0-0 libgdk-pixbuf2.0-0 libffi-dev
+```
+
+**Railway Config** (`backend/railway.toml`):
+- Python version specified via `nixpacksPlan` (`python312`)
+- System dependencies handled via environment variable (cleaner approach)
+
+**Why environment variable over nixpacksPlan**: Railway's Railpack may not reliably respect `nixpacksPlan` for system packages. Using `RAILPACK_DEPLOY_APT_PACKAGES` is more reliable based on community reports.
+
+### Font Loading Implementation
+
+**Font File**: `backend/fonts/NotoSansTC-Regular.otf` (TTF format, ~6.8MB)
+
+**CSS Implementation** (`backend/templates/receipts/receipt.html`):
+```css
+@font-face {
+    font-family: 'NotoSansTC';
+    src: url('fonts/NotoSansTC-Regular.otf') format('truetype');
+}
+```
+
+**How it works**:
+1. `PDFService` sets `base_url` to `backend/` directory
+2. WeasyPrint resolves CSS URLs relative to `base_url` (not template location)
+3. Font path `fonts/` relative to `base_url=backend/` correctly resolves to `backend/fonts/NotoSansTC-Regular.otf` ✅
+4. Font is embedded in PDF during generation (auto-subsetted by WeasyPrint)
+
+**Note**: File extension is `.otf` but the file is actually TTF format (TrueType), so `format('truetype')` is used.
+
+### Production Issues & Resolutions
+
+#### Issue 1: Missing System Dependencies (RESOLVED ✅)
+
+**Error**: `OSError: cannot load library 'libpangoft2-1.0-0'`
+
+**Root cause**: Missing `libpangoft2-1.0-0` package. This is the Pango FreeType font backend library, required by WeasyPrint for font rendering.
+
+**Fix**: Added `libpangoft2-1.0-0` to `RAILPACK_DEPLOY_APT_PACKAGES` environment variable.
+
+**Why both Pango packages are needed**:
+- `libpango-1.0-0` - Core Pango text layout library
+- `libpangoft2-1.0-0` - Pango FreeType font backend (required by WeasyPrint for font rendering)
+
+#### Issue 2: Font File Corruption (RESOLVED ✅)
+
+**Problem**: PDFs generated in production showed Chinese characters as empty boxes.
+
+**Root cause**: Font file was corrupted (contained HTML instead of font data, header: `0a0a0a0a` instead of valid font headers).
+
+**Why it "worked" locally**: 
+- Custom font never loaded in either environment (file was corrupted)
+- Local (macOS): System has `Arial-Unicode-MS` installed, which supports Chinese characters
+- Production (Linux): System has `DejaVu-Sans` as fallback, which does NOT support Chinese characters
+- WeasyPrint silently fell back to system fonts, but only macOS had Chinese-capable fallback
+
+**Fix**: 
+1. Replaced corrupted font file with valid NotoSansTC font from Google Fonts (TTF format, 6.8MB)
+2. Updated CSS format from `format('opentype')` to `format('truetype')` to match actual file format
+3. Verified font file integrity (header: `00010000` - valid TrueType font)
+
+#### Issue 3: Font Path Resolution (RESOLVED ✅)
+
+**Problem** (Historical): Template used `url('../fonts/NotoSansTC-Regular.otf')` which resolved incorrectly:
+- `base_url` = `backend/`
+- CSS URL = `../fonts/` → resolved to `clinic-bot/fonts/` (parent of backend) ❌
+- Actual font location = `backend/fonts/NotoSansTC-Regular.otf` ✅
+
+**Fix**: Updated template to `url('fonts/NotoSansTC-Regular.otf')` which resolves correctly relative to `base_url`.
+
+### Production Verification
+
+**Production Status**: ✅ **VERIFIED WORKING**
+
+**Verification Results**:
+- ✅ Application starts successfully
+- ✅ WeasyPrint imports without errors
+- ✅ PDF generation works correctly
+- ✅ NotoSansTC font is embedded (not system fallback)
+- ✅ Both regular and bold variants present
+- ✅ Font is subsetted (optimized for content) in generated PDFs
+- ✅ Unicode support confirmed (Identity-H encoding)
+- ✅ Chinese characters render properly (44+ characters verified in production PDFs)
+- ✅ No DejaVu-Sans or other system fonts detected
+
+**Production PDF Verification** (via `pdffonts`):
+```
+EQLAZY+NotoSansTC-Bold    CID TrueType  Identity-H  yes yes yes
+AKFQZR+NotoSansTC         CID TrueType  Identity-H  yes yes yes
+```
+
+### Performance Characteristics
+
+- **PDF generation time**: ~40-50ms (first run ~80ms due to font loading)
+- **PDF file size**: ~18-27KB (font auto-subsetted by WeasyPrint, only used characters embedded)
+- **Memory usage**: ~6.8MB (font loaded once, stays in memory)
+- **Font file size impact**: Minimal - PDF file size not affected by source font size
+
+### Key Files
+
+- Service: `backend/src/services/pdf_service.py`
+- Template: `backend/templates/receipts/receipt.html`
+- Font: `backend/fonts/NotoSansTC-Regular.otf`
+- Config: `backend/railway.toml`
+- Dependencies: `backend/requirements.txt`
 
 ---
 
@@ -1153,7 +1288,10 @@ When implementing the receipt template, ensure:
 **Completed (Phase 1-2 Core - ALL ITEMS):**
 - ✅ WeasyPrint setup and dependencies
 - ✅ Receipt HTML template with all fields
-- ✅ Chinese font rendering (NotoSansTC subsetted, 290KB)
+- ✅ Chinese font rendering (NotoSansTC full font, 6.8MB - valid font file)
+- ✅ Production deployment verified (Railway)
+- ✅ System dependencies configured
+- ✅ Font loading verified in production
 - ✅ Text wrapping and multi-page support
 - ✅ Voided receipt watermark
 - ✅ Stamp visibility toggle
