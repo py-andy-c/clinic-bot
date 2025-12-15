@@ -70,7 +70,16 @@ class PDFService:
         # Get absolute path to font file for WeasyPrint (needs filesystem path, not URL)
         # Resolve immediately to get absolute path regardless of working directory
         self.font_path = (self.base_dir / "fonts" / "NotoSansTC-Regular.otf").resolve()
-        if not self.font_path.exists():
+        
+        # [TEMP DEBUG] Log font path information for production debugging
+        logger.info(f"[TEMP DEBUG] Font path check:")
+        logger.info(f"[TEMP DEBUG]   base_dir: {self.base_dir}")
+        logger.info(f"[TEMP DEBUG]   font_path (absolute): {self.font_path}")
+        logger.info(f"[TEMP DEBUG]   font_path exists: {self.font_path.exists()}")
+        logger.info(f"[TEMP DEBUG]   font_path is_file: {self.font_path.is_file()}")
+        if self.font_path.exists():
+            logger.info(f"[TEMP DEBUG]   font_path size: {self.font_path.stat().st_size} bytes")
+        else:
             logger.warning(f"⚠️  Font file not found at {self.font_path}")
     
     def generate_receipt_pdf(
@@ -134,26 +143,59 @@ class PDFService:
                 metadata['creation_date'] = creation_date
             
             # Generate PDF using WeasyPrint
-            # Replace absolute font paths (/fonts/) with absolute filesystem paths for WeasyPrint
-            # WeasyPrint needs filesystem paths, not URLs, and the working directory may differ in production
-            # HTML viewing uses /fonts/ which works with the static file mount
-            # Use regex to handle both single and double quotes in CSS url() declarations
-            # Use absolute filesystem path - WeasyPrint accepts both file:// URLs and direct paths
-            # self.font_path is already resolved to absolute path in __init__
-            # Escape backslashes for Windows compatibility in CSS
-            font_file_path_escaped = str(self.font_path).replace('\\', '/')
+            # [TEMP DEBUG] Log original HTML to see font path
+            font_url_match = re.search(r"url\(['\"]?/fonts/NotoSansTC-Regular\.otf['\"]?\)", html_content)
+            if font_url_match:
+                logger.info(f"[TEMP DEBUG] Found font URL in original HTML: {font_url_match.group()}")
+            else:
+                logger.warning(f"[TEMP DEBUG] Font URL not found in original HTML!")
+            
+            # Try multiple approaches to fix font loading:
+            # Approach 1: Use file:// protocol with absolute path
+            # Approach 2: Use relative path from base_url
+            # Approach 3: Use direct absolute path (current approach)
+            
+            # [TEMP DEBUG] Try relative path first (relative to base_url)
+            # This is the most reliable approach for WeasyPrint
+            font_relative_path = "fonts/NotoSansTC-Regular.otf"
+            font_absolute_path = str(self.font_path).replace('\\', '/')
+            font_file_url = f"file://{font_absolute_path}"
+            
+            logger.info(f"[TEMP DEBUG] Font path options:")
+            logger.info(f"[TEMP DEBUG]   Relative (fonts/): {font_relative_path}")
+            logger.info(f"[TEMP DEBUG]   Absolute: {font_absolute_path}")
+            logger.info(f"[TEMP DEBUG]   file:// URL: {font_file_url}")
+            logger.info(f"[TEMP DEBUG]   base_url: {self.base_dir}")
+            
+            # Try relative path first (most reliable with base_url)
             html_content_for_pdf = re.sub(
                 r"url\(['\"]?/fonts/NotoSansTC-Regular\.otf['\"]?\)",
-                lambda m: f"url('{font_file_path_escaped}')",
+                lambda m: f"url('{font_relative_path}')",
                 html_content
             )
             
-            # base_url is set to backend directory for resolving relative paths (images, etc.)
-            # Font path is now absolute, so base_url doesn't affect it
+            # [TEMP DEBUG] Log the CSS after replacement
+            font_url_after = re.search(r"url\(['\"]?[^)]+NotoSansTC-Regular\.otf['\"]?\)", html_content_for_pdf)
+            if font_url_after:
+                logger.info(f"[TEMP DEBUG] Font URL after replacement: {font_url_after.group()}")
+            else:
+                logger.warning(f"[TEMP DEBUG] Font URL not found after replacement!")
+            
+            # [TEMP DEBUG] Log working directory and environment
+            import os
+            logger.info(f"[TEMP DEBUG] Environment info:")
+            logger.info(f"[TEMP DEBUG]   Working directory: {os.getcwd()}")
+            logger.info(f"[TEMP DEBUG]   __file__ location: {__file__}")
+            
+            # base_url is set to backend directory for resolving relative paths (fonts, images)
+            # Using relative path "fonts/" which resolves to base_url/fonts/
             pdf_bytes = HTML(
                 string=html_content_for_pdf,
                 base_url=str(self.base_dir)
             ).write_pdf(metadata=metadata)  # type: ignore[reportUnknownMemberType]
+            
+            # [TEMP DEBUG] Log success
+            logger.info(f"[TEMP DEBUG] PDF generated successfully, size: {len(pdf_bytes)} bytes")
             
             if pdf_bytes is None:
                 raise Exception("PDF generation returned None")
