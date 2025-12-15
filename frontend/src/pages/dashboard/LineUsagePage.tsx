@@ -3,6 +3,7 @@ import { useApiData } from '../../hooks/useApiData';
 import { apiService } from '../../services/api';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { InfoButton, InfoModal } from '../../components/shared';
+import DashboardBackButton from '../../components/DashboardBackButton';
 
 const LineUsagePage: React.FC = () => {
   const [showPaidMessagesModal, setShowPaidMessagesModal] = useState(false);
@@ -147,8 +148,10 @@ const LineUsagePage: React.FC = () => {
   const { months: aiMonths, dataByMonth: aiRepliesByMonth } = aiRepliesData || { months: [], dataByMonth: [] };
 
   return (
-    <div className="max-w-7xl mx-auto px-0 md:px-6 md:py-6">
-      {/* Page Header */}
+    <>
+      <DashboardBackButton />
+      <div className="max-w-7xl mx-auto px-0 md:px-6 md:py-6">
+        {/* Page Header */}
       <div className="px-3 md:px-0 mb-4 md:mb-6">
         <div className="flex items-center gap-2">
           <h1 className="text-xl md:text-2xl font-semibold text-gray-900">LINE 訊息統計</h1>
@@ -337,7 +340,8 @@ const LineUsagePage: React.FC = () => {
           <p>AI 回覆訊息不會消耗 LINE 訊息配額。</p>
         </InfoModal>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 

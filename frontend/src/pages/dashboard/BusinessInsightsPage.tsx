@@ -8,6 +8,7 @@ import { RevenueTrendChart, ChartView } from '../../components/dashboard/Revenue
 import { TimeRangePresets, TimeRangePreset, getDateRangeForPreset } from '../../components/dashboard/TimeRangePresets';
 import { FilterDropdown, PractitionerOption, ServiceItemOption } from '../../components/dashboard/FilterDropdown';
 import { formatCurrency } from '../../utils/currencyUtils';
+import DashboardBackButton from '../../components/DashboardBackButton';
 
 const BusinessInsightsPage: React.FC = () => {
   // Active filter state (used for API calls)
@@ -178,8 +179,10 @@ const BusinessInsightsPage: React.FC = () => {
   }));
 
   return (
-    <div className="max-w-7xl mx-auto px-0 md:px-6 md:py-6">
-      {/* Page Header */}
+    <>
+      <DashboardBackButton />
+      <div className="max-w-7xl mx-auto px-0 md:px-6 md:py-6">
+        {/* Page Header */}
       <div className="px-3 md:px-0 mb-4 md:mb-6">
         <div className="flex items-center gap-2">
           <h1 className="text-xl md:text-2xl font-semibold text-gray-900">業務洞察</h1>
@@ -490,7 +493,8 @@ const BusinessInsightsPage: React.FC = () => {
           <p>總營收除以有效收據數。代表平均每筆收據的金額。</p>
         </InfoModal>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 

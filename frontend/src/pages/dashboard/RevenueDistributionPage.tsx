@@ -14,6 +14,7 @@ import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { formatEventTimeRange } from '../../utils/calendarDataAdapter';
 import { useAuth } from '../../hooks/useAuth';
 import { logger } from '../../utils/logger';
+import DashboardBackButton from '../../components/DashboardBackButton';
 
 const RevenueDistributionPage: React.FC = () => {
   const { isClinicAdmin } = useAuth();
@@ -250,8 +251,10 @@ const RevenueDistributionPage: React.FC = () => {
   const totalPages = Math.ceil(total / page_size);
 
   return (
-    <div className="max-w-7xl mx-auto px-0 md:px-6 md:py-6">
-      {/* Page Header */}
+    <>
+      <DashboardBackButton />
+      <div className="max-w-7xl mx-auto px-0 md:px-6 md:py-6">
+        {/* Page Header */}
       <div className="px-3 md:px-0 mb-4 md:mb-6">
         <div className="flex items-center gap-2">
           <h1 className="text-xl md:text-2xl font-semibold text-gray-900">診所分潤審核</h1>
@@ -617,7 +620,8 @@ const RevenueDistributionPage: React.FC = () => {
           }}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 };
 
