@@ -123,8 +123,9 @@ Standard buttons across all applicable pages:
 ### Revenue Trend Chart
 - **Chart Library**: Use **Recharts** (already in dependencies: `recharts@3.5.1`)
 - **Chart Types**:
-  - Line chart for "總營收" view
-  - Stacked area chart (solid colors) for "依服務項目" and "依治療師" views
+  - **Bar chart** for all views ("總營收", "依服務項目", "依治療師")
+  - Bar charts provide better visual clarity for discrete time periods (daily/weekly/monthly granularity)
+  - Stacked bars for "依服務項目" and "依治療師" views using `stackId` prop
 - **Date Basis**: All revenue data is aggregated by **預約日期 (visit date/service date)**, not checkout date
   - Revenue is grouped by the appointment/service date when the service was provided
   - This ensures accurate business reporting based on when services were actually delivered
@@ -178,7 +179,9 @@ Standard buttons across all applicable pages:
 - **Pagination**: "顯示 1 到 20 筆，共 X 筆項目"
 
 ### Filters
-- **Date Range Filters**: Labeled as "開始日期（預約日期）" and "結束日期（預約日期）" to clarify that filtering is based on appointment/service date, not checkout date
+- **Date Range Filters**: Labeled as "開始日期" and "結束日期"
+  - Clarification is provided via chart subtitle ("依預約日期統計") and table column header ("預約日期")
+  - Filtering is based on appointment/service date (預約日期), not checkout date
 - **僅顯示覆寫計費方案**: Checkbox with info icon
 - **Info Modal**: Explains what "覆寫計費方案" means (billing scenario = "其他")
 
@@ -221,8 +224,8 @@ Standard buttons across all applicable pages:
 ✅ **Customizable**: Easy to style and customize colors, tooltips, legends  
 
 ### Requirements Fulfillment
-- ✅ **Line Charts**: `LineChart`, `Line` components
-- ✅ **Stacked Area Charts**: `AreaChart`, `Area` with `stackId` prop
+- ✅ **Bar Charts**: `BarChart`, `Bar` components
+- ✅ **Stacked Bars**: `Bar` components with `stackId` prop for stacked views
 - ✅ **Solid Colors**: Use `fill` prop with solid colors (not gradients)
 - ✅ **Responsive**: `ResponsiveContainer` wrapper
 - ✅ **Custom Styling**: Full control over colors, tooltips, axes
@@ -230,27 +233,30 @@ Standard buttons across all applicable pages:
 
 ### Implementation Example
 ```tsx
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, CartesianGrid } from 'recharts';
 
-// For total revenue (line chart)
+// For total revenue (bar chart)
 <ResponsiveContainer width="100%" height={256}>
-  <LineChart data={data}>
+  <BarChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} barCategoryGap={0}>
+    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
     <XAxis dataKey="date" />
     <YAxis />
     <Tooltip />
-    <Line type="monotone" dataKey="revenue" stroke="#2563eb" fill="#2563eb" fillOpacity={0.1} />
-  </LineChart>
+    <Bar dataKey="revenue" fill="#2563eb" />
+  </BarChart>
 </ResponsiveContainer>
 
-// For stacked view (area chart)
+// For stacked view (stacked bars)
 <ResponsiveContainer width="100%" height={256}>
-  <AreaChart data={data}>
+  <BarChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} barCategoryGap={0}>
+    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
     <XAxis dataKey="date" />
     <YAxis />
     <Tooltip />
-    <Area type="monotone" dataKey="service1" stackId="1" stroke="#2563eb" fill="#2563eb" />
-    <Area type="monotone" dataKey="service2" stackId="1" stroke="#10b981" fill="#10b981" />
-  </AreaChart>
+    <Legend />
+    <Bar dataKey="service1" stackId="1" fill="#2563eb" />
+    <Bar dataKey="service2" stackId="1" fill="#10b981" />
+  </BarChart>
 </ResponsiveContainer>
 ```
 
@@ -290,7 +296,9 @@ import { LineChart, Line, AreaChart, Area, XAxis, YAxis, ResponsiveContainer, To
    - **All revenue/accounting data uses 預約日期 (visit date/service date)**, not checkout date (issue_date)
    - Backend filters receipts by `visit_date` from `receipt_data` JSONB field
    - All dates are converted to Taiwan timezone (UTC+8) before filtering and aggregation
-   - Date range filters are labeled as "（預約日期）" to clarify the date basis
+   - Date range filters use simplified labels ("開始日期", "結束日期") with clarification provided via:
+     - Chart subtitle: "依預約日期統計" (Business Insights page)
+     - Table column header: "預約日期" (Revenue Distribution page)
    - This ensures consistent reporting: revenue is attributed to the date when services were provided, not when payment was processed
 
 2. **Percentages**: Always round to whole numbers using `Math.round()`
@@ -331,6 +339,7 @@ import { LineChart, Line, AreaChart, Area, XAxis, YAxis, ResponsiveContainer, To
    - **Server-side sorting**: Essential for large datasets (Revenue Distribution table)
    - Sort state can persist in URL params for shareability
    - When sorting by date, sorts by visit date (預約日期), not checkout date
+   - Date range filters use simplified labels with clarification provided via chart subtitles and table headers
 
 3. **Pagination**: Use page-based pagination (page size: 20)
    - Default sort: Date descending (newest first) - based on visit date
