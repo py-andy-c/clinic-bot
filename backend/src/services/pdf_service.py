@@ -167,36 +167,20 @@ class PDFService:
             # Approach 2: Use relative path from base_url
             # Approach 3: Use direct absolute path (current approach)
             
-            # SOLUTION: Embed font as base64 data URI in CSS
-            # WeasyPrint uses Fontconfig/Pango which expects fonts in system directories
-            # CSS @font-face with file:// URLs doesn't work reliably
-            # Base64 embedding bypasses all path resolution issues
-            if self.font_base64:
-                font_data_uri = f"data:font/opentype;base64,{self.font_base64}"
-                html_content_for_pdf = re.sub(
-                    r"url\(['\"]?/fonts/NotoSansTC-Regular\.otf['\"]?\)",
-                    lambda m: f"url('{font_data_uri}')",
-                    html_content
-                )
-                logger.info(f"[TEMP DEBUG] Using base64 embedded font (length: {len(self.font_base64)} chars)")
-                
-                # [TEMP DEBUG] Verify replacement worked (look for data URI, not filename)
-                font_url_after = re.search(r"url\(['\"]?data:font/opentype;base64,[^)]+['\"]?\)", html_content_for_pdf)
-                if font_url_after:
-                    # Show first 100 chars of data URI for verification
-                    uri_preview = font_url_after.group()[:100] + "..."
-                    logger.info(f"[TEMP DEBUG] Font URL after replacement (preview): {uri_preview}")
-                else:
-                    logger.warning(f"[TEMP DEBUG] Data URI not found after replacement! Checking if original URL still exists...")
-                    # Check if original URL is still there (replacement failed)
-                    original_still_there = re.search(r"url\(['\"]?/fonts/NotoSansTC-Regular\.otf['\"]?\)", html_content_for_pdf)
-                    if original_still_there:
-                        logger.error(f"[TEMP DEBUG] ❌ Replacement failed! Original URL still present: {original_still_there.group()}")
-                    else:
-                        logger.warning(f"[TEMP DEBUG] ⚠️  Neither data URI nor original URL found - replacement may have used different format")
-            else:
-                logger.error("⚠️  Font base64 not available, falling back to original path")
-                html_content_for_pdf = html_content
+            # SOLUTION: Use font by name (not path) - font is installed system-wide
+            # WeasyPrint uses Fontconfig which expects fonts in system directories
+            # Font is installed to ~/.local/share/fonts/ during startup (see start.sh)
+            # CSS @font-face should use font-family name, Fontconfig will find it
+            # Remove the @font-face rule entirely - Fontconfig will find the font by name
+            # OR keep @font-face but use local() to reference system font
+            html_content_for_pdf = re.sub(
+                r"@font-face\s*\{[^}]*font-family:\s*['\"]?NotoSansTC['\"]?[^}]*src:\s*url\([^)]+\)[^}]*\}",
+                lambda m: "@font-face {\n            font-family: 'NotoSansTC';\n            src: local('Noto Sans TC Regular'), local('NotoSansTC-Regular');\n        }",
+                html_content,
+                flags=re.DOTALL
+            )
+            logger.info(f"[TEMP DEBUG] Using system font (installed via Fontconfig)")
+            logger.info(f"[TEMP DEBUG] Font should be found by name 'NotoSansTC' or 'Noto Sans TC Regular'")
             
             # Use FontConfiguration (required for proper font loading in some WeasyPrint versions)
             font_config = FontConfiguration()

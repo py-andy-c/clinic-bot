@@ -95,6 +95,32 @@ if [ -z "$DATABASE_URL" ]; then
 fi
 echo "✅ DATABASE_URL is set"
 
+# Install font system-wide for WeasyPrint/Fontconfig
+# WeasyPrint uses Fontconfig which expects fonts in system directories
+# CSS @font-face with data URIs or file paths doesn't work reliably
+echo "=========================================="
+echo "🔤 Installing font for WeasyPrint..."
+echo "=========================================="
+if [ -f "fonts/NotoSansTC-Regular.otf" ]; then
+    FONT_DIR="$HOME/.local/share/fonts"
+    mkdir -p "$FONT_DIR"
+    cp fonts/NotoSansTC-Regular.otf "$FONT_DIR/" 2>&1
+    if [ $? -eq 0 ]; then
+        echo "✅ Font copied to $FONT_DIR/"
+        # Update font cache (if fc-cache is available)
+        if command -v fc-cache &> /dev/null; then
+            fc-cache -fv "$FONT_DIR" 2>&1 | head -5 || echo "⚠️  Font cache update skipped (fc-cache may not be available)"
+        else
+            echo "⚠️  fc-cache not available, font may still work"
+        fi
+    else
+        echo "⚠️  WARNING: Failed to copy font to $FONT_DIR/" >&2
+        echo "   Font may not be available to WeasyPrint" >&2
+    fi
+else
+    echo "⚠️  WARNING: Font file not found at fonts/NotoSansTC-Regular.otf" >&2
+fi
+
 # Check if we can import the main module (catches import errors early)
 echo "=========================================="
 echo "🔍 Testing Python imports..."
