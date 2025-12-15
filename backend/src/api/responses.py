@@ -215,7 +215,7 @@ class MemberResponse(BaseModel):
     roles: List[str]
     is_active: bool
     created_at: datetime
-    patient_booking_allowed: Optional[bool] = None  # Only set for practitioners, only for admins
+    patient_booking_allowed: Optional[bool] = None  # Only set for practitioners, available to all users for read-only access
 
 
 class MemberListResponse(BaseModel):

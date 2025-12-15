@@ -32,18 +32,18 @@ const SettingsAppointmentsPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  // Fetch practitioners and their booking settings
+  // Fetch practitioners and their booking settings (available to all clinic users for read-only access)
   const { data: membersData } = useApiData(
     () => apiService.getMembers(),
     {
-      enabled: isClinicAdmin,
+      enabled: true, // Allow all clinic users to fetch members
       cacheTTL: 5 * 60 * 1000,
     }
   );
 
   useEffect(() => {
     const loadPractitionerSettings = async () => {
-      if (!isClinicAdmin || !membersData) return;
+      if (!membersData) return;
 
       try {
         const practitioners = membersData.filter(m => m.roles.includes('practitioner'));
@@ -66,7 +66,7 @@ const SettingsAppointmentsPage: React.FC = () => {
     };
 
     loadPractitionerSettings();
-  }, [isClinicAdmin, membersData]);
+  }, [membersData]);
 
   // Check if practitioner booking settings have changed
   const hasPractitionerBookingSettingsChanged = React.useMemo(() => {

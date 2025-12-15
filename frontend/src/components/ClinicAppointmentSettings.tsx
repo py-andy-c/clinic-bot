@@ -138,8 +138,8 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
 
   return (
     <div className="space-y-6">
-        {/* 開放病患預約 (Admin Only) */}
-        {isClinicAdmin && practitioners.length > 0 && (
+        {/* 開放病患預約 (Read-only for non-admin users) */}
+        {practitioners.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-4">
               <label className="block text-sm font-medium text-gray-700">
@@ -153,7 +153,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
                   <label className="flex items-center cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={practitioner.patient_booking_allowed}
+                      checked={practitioner.patient_booking_allowed ?? true}
                       onChange={(e) => {
                         if (onPractitionerBookingSettingChange) {
                           onPractitionerBookingSettingChange(practitioner.id, e.target.checked);
@@ -171,7 +171,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
         )}
 
         {/* Divider before next section */}
-        {isClinicAdmin && practitioners.length > 0 && (
+        {practitioners.length > 0 && (
           <div className="pt-6 border-t border-gray-200"></div>
         )}
 

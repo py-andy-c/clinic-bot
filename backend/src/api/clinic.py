@@ -290,7 +290,6 @@ async def list_members(
         
         # Build member list with roles from associations
         member_list: List[MemberResponse] = []
-        is_admin = current_user.has_role('admin')
         
         for member in members_with_associations:
             # Get the association for this clinic from the eagerly loaded relationships
@@ -300,9 +299,9 @@ async def list_members(
                 None
             )
             
-            # Get patient_booking_allowed for practitioners (admin only)
+            # Get patient_booking_allowed for practitioners (available to all users for read-only access)
             patient_booking_allowed = None
-            if is_admin and association and 'practitioner' in (association.roles or []):
+            if association and 'practitioner' in (association.roles or []):
                 try:
                     settings = association.get_validated_settings()
                     patient_booking_allowed = settings.patient_booking_allowed

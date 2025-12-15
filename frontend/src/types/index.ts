@@ -80,7 +80,7 @@ export interface User {
   created_at: string;
   updated_at: string;
   last_login_at?: string;
-  patient_booking_allowed?: boolean;  // Only set for practitioners, only for admins
+  patient_booking_allowed?: boolean;  // Only set for practitioners, available to all users for read-only access
 }
 
 // Member type (alias for User in clinic context)
