@@ -133,5 +133,7 @@ cd src || {
 
 # Start uvicorn with explicit error handling
 # Use exec to replace shell process with uvicorn
-exec uvicorn main:app --host 0.0.0.0 --port "$PORT" --log-level info
+# Ensure logs are flushed immediately for Railway visibility
+export PYTHONUNBUFFERED=1
+exec uvicorn main:app --host 0.0.0.0 --port "$PORT" --log-level info --no-access-log
 

@@ -57,57 +57,33 @@ logger.info("🏥 Clinic Bot API starting...")
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup and shutdown events."""
     logger.info("🚀 Starting Clinic Bot Backend API")
+    
+    # Start schedulers - wrap each in try-except to ensure server starts even if schedulers fail
+    # Use asyncio.create_task to start schedulers in background without blocking
+    import asyncio
+    
+    async def start_scheduler_safely(name: str, start_func):
+        """Start a scheduler safely, logging errors but not blocking startup."""
+        try:
+            await start_func()
+            logger.info(f"✅ {name} started")
+        except Exception as e:
+            logger.exception(f"❌ Failed to start {name}: {e}")
+            # Don't re-raise - allow server to start even if scheduler fails
 
-    # Start reminder scheduler
-    # Note: Database sessions are created fresh for each scheduler run
-    try:
-        await start_reminder_scheduler()
-        logger.info("✅ Appointment reminder scheduler started")
-    except Exception as e:
-        logger.exception(f"❌ Failed to start reminder scheduler: {e}")
-
-    # Start test session cleanup scheduler
-    try:
-        await start_test_session_cleanup()
-        logger.info("✅ Test session cleanup scheduler started")
-    except Exception as e:
-        logger.exception(f"❌ Failed to start test session cleanup scheduler: {e}")
-
-    # Start LINE message cleanup scheduler
-    try:
-        await start_line_message_cleanup()
-        logger.info("✅ LINE message cleanup scheduler started")
-    except Exception as e:
-        logger.exception(f"❌ Failed to start LINE message cleanup scheduler: {e}")
-
-    # Start availability notification scheduler
-    try:
-        await start_availability_notification_scheduler()
-        logger.info("✅ Availability notification scheduler started")
-    except Exception as e:
-        logger.exception(f"❌ Failed to start availability notification scheduler: {e}")
-
-    # Start auto-assignment scheduler
-    try:
-        await start_auto_assignment_scheduler()
-        logger.info("✅ Auto-assignment scheduler started")
-    except Exception as e:
-        logger.exception(f"❌ Failed to start auto-assignment scheduler: {e}")
-
-    # Start practitioner daily notification scheduler
-    try:
-        await start_practitioner_daily_notification_scheduler()
-        logger.info("✅ Practitioner daily notification scheduler started")
-    except Exception as e:
-        logger.exception(f"❌ Failed to start practitioner daily notification scheduler: {e}")
-
-    # Start admin auto-assigned notification scheduler
-    try:
-        await start_admin_auto_assigned_notification_scheduler()
-        logger.info("✅ Admin auto-assigned notification scheduler started")
-    except Exception as e:
-        logger.exception(f"❌ Failed to start admin auto-assigned notification scheduler: {e}")
-
+    # Start all schedulers concurrently to avoid blocking
+    await asyncio.gather(
+        start_scheduler_safely("Appointment reminder scheduler", start_reminder_scheduler),
+        start_scheduler_safely("Test session cleanup scheduler", start_test_session_cleanup),
+        start_scheduler_safely("LINE message cleanup scheduler", start_line_message_cleanup),
+        start_scheduler_safely("Availability notification scheduler", start_availability_notification_scheduler),
+        start_scheduler_safely("Auto-assignment scheduler", start_auto_assignment_scheduler),
+        start_scheduler_safely("Practitioner daily notification scheduler", start_practitioner_daily_notification_scheduler),
+        start_scheduler_safely("Admin auto-assigned notification scheduler", start_admin_auto_assigned_notification_scheduler),
+        return_exceptions=True  # Don't fail if any scheduler fails
+    )
+    
+    logger.info("✅ All schedulers initialized (some may have failed, but server is ready)")
     yield
 
     # Stop reminder scheduler

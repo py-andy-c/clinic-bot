@@ -60,8 +60,17 @@ class LineMessageCleanupService:
         self._is_started = True
         logger.info("LINE message cleanup scheduler started")
         
-        # Run cleanup immediately on startup
-        await self._cleanup_old_messages()
+        # Run cleanup immediately on startup (but don't block if it fails)
+        # Schedule it to run in background to avoid blocking server startup
+        try:
+            import asyncio
+            # Get the current event loop and create a background task
+            loop = asyncio.get_event_loop()
+            loop.create_task(self._cleanup_old_messages())
+            logger.info("Initial cleanup scheduled in background")
+        except Exception as e:
+            logger.warning(f"Failed to schedule initial cleanup (non-blocking): {e}")
+            # Don't raise - allow scheduler to start even if initial cleanup fails
     
     async def stop_scheduler(self) -> None:
         """
