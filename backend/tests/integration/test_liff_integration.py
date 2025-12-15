@@ -2342,6 +2342,12 @@ class TestClinicIsolationSecurity:
             assert len(appointment_names) == 1
 
             # Should not include appointment types without practitioners or with only inactive practitioners
+            assert "Consultation without Practitioner" not in appointment_names
+            assert "Consultation with Inactive Practitioner" not in appointment_names
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
 
     def test_list_practitioners_filters_by_patient_booking_allowed(self, db_session: Session, test_clinic_with_liff):
         """Test that list_practitioners filters out practitioners who don't allow patient booking."""
@@ -2398,12 +2404,13 @@ class TestClinicIsolationSecurity:
         )
 
         # Mock the LINE user authentication
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_db
 
         def mock_get_current_line_user_with_clinic():
             return (line_user, clinic)
 
         client.app.dependency_overrides[get_current_line_user_with_clinic] = mock_get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
             # Get practitioners list (should filter out practitioner2)
@@ -2427,6 +2434,7 @@ class TestClinicIsolationSecurity:
             assert practitioner2.id not in practitioner_ids
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
 
     def test_list_practitioners_includes_all_when_all_allow_patient_booking(self, db_session: Session, test_clinic_with_liff):
         """Test that list_practitioners includes all practitioners when they all allow patient booking."""
@@ -2483,12 +2491,13 @@ class TestClinicIsolationSecurity:
         )
 
         # Mock the LINE user authentication
-        from auth.dependencies import get_current_line_user_with_clinic
+        from auth.dependencies import get_current_line_user_with_clinic, get_db
 
         def mock_get_current_line_user_with_clinic():
             return (line_user, clinic)
 
         client.app.dependency_overrides[get_current_line_user_with_clinic] = mock_get_current_line_user_with_clinic
+        client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
             # Get practitioners list (should include both)
@@ -2507,11 +2516,6 @@ class TestClinicIsolationSecurity:
             practitioner_ids = [p["id"] for p in practitioners]
             assert practitioner.id in practitioner_ids
             assert practitioner2.id in practitioner_ids
-        finally:
-            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
-            assert "Consultation without Practitioner" not in appointment_names
-            assert "Consultation with Inactive Practitioner" not in appointment_names
-
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)

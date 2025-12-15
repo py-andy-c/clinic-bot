@@ -882,7 +882,8 @@ class TestPatientBookingAllowedRestriction:
         self, db_session: Session
     ):
         """Test that patients cannot book appointments when practitioner disallows patient booking."""
-        clinic, practitioner, appt_type = _setup_clinic_with_practitioners(db_session)[:3]
+        clinic, practitioner1, practitioner2, appt_type, patient = _setup_clinic_with_practitioners(db_session)
+        practitioner = practitioner1
 
         # Set practitioner to disallow patient booking
         from models.user_clinic_association import PractitionerSettings, UserClinicAssociation
@@ -913,18 +914,23 @@ class TestPatientBookingAllowedRestriction:
         db_session.add(patient)
         db_session.commit()
 
-        # Create availability for practitioner
-        today = taiwan_now().date()
-        day_of_week = today.weekday()
+        # Create availability for practitioner (set up for tomorrow and day after)
+        tomorrow = (taiwan_now() + timedelta(days=1)).date()
+        day_of_week_tomorrow = tomorrow.weekday()
         create_practitioner_availability_with_clinic(
-            db_session, practitioner, clinic, day_of_week, time(9, 0), time(17, 0)
+            db_session, practitioner, clinic, day_of_week_tomorrow, time(9, 0), time(17, 0)
+        )
+        # Also set up for day after tomorrow to ensure we have availability
+        day_after = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week_day_after = day_after.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic, day_of_week_day_after, time(9, 0), time(17, 0)
         )
 
-        # Patient tries to create appointment (should fail)
-        start_time = taiwan_now().replace(hour=14, minute=0, second=0, microsecond=0)
-        if start_time < taiwan_now():
-            start_time = start_time + timedelta(days=1)
-        start_time = start_time.replace(minute=0, second=0, microsecond=0)
+        # Patient tries to create appointment (should fail due to patient_booking_allowed=False)
+        # Use a time that's at least 24 hours ahead to avoid booking restriction errors
+        start_time = taiwan_now() + timedelta(days=2, hours=1)
+        start_time = start_time.replace(hour=14, minute=0, second=0, microsecond=0)
 
         with pytest.raises(HTTPException) as exc_info:
             AppointmentService.create_appointment(
@@ -944,7 +950,8 @@ class TestPatientBookingAllowedRestriction:
         self, db_session: Session
     ):
         """Test that clinic admins can still book appointments when practitioner disallows patient booking."""
-        clinic, practitioner, appt_type = _setup_clinic_with_practitioners(db_session)[:3]
+        clinic, practitioner1, practitioner2, appt_type, patient = _setup_clinic_with_practitioners(db_session)
+        practitioner = practitioner1
 
         # Set practitioner to disallow patient booking
         from models.user_clinic_association import PractitionerSettings, UserClinicAssociation
@@ -966,18 +973,16 @@ class TestPatientBookingAllowedRestriction:
         db_session.add(patient)
         db_session.commit()
 
-        # Create availability for practitioner
-        today = taiwan_now().date()
-        day_of_week = today.weekday()
+        # Create availability for practitioner (set up for tomorrow)
+        tomorrow = (taiwan_now() + timedelta(days=1)).date()
+        day_of_week_tomorrow = tomorrow.weekday()
         create_practitioner_availability_with_clinic(
-            db_session, practitioner, clinic, day_of_week, time(9, 0), time(17, 0)
+            db_session, practitioner, clinic, day_of_week_tomorrow, time(9, 0), time(17, 0)
         )
 
         # Clinic admin creates appointment (should succeed)
-        start_time = taiwan_now().replace(hour=14, minute=0, second=0, microsecond=0)
-        if start_time < taiwan_now():
-            start_time = start_time + timedelta(days=1)
-        start_time = start_time.replace(minute=0, second=0, microsecond=0)
+        start_time = taiwan_now() + timedelta(days=1, hours=1)
+        start_time = start_time.replace(hour=14, minute=0, second=0, microsecond=0)
 
         result = AppointmentService.create_appointment(
             db=db_session,
@@ -995,7 +1000,8 @@ class TestPatientBookingAllowedRestriction:
         self, db_session: Session
     ):
         """Test that patients can book appointments when practitioner allows patient booking."""
-        clinic, practitioner, appt_type = _setup_clinic_with_practitioners(db_session)[:3]
+        clinic, practitioner1, practitioner2, appt_type, patient = _setup_clinic_with_practitioners(db_session)
+        practitioner = practitioner1
 
         # Set practitioner to allow patient booking (default)
         from models.user_clinic_association import PractitionerSettings, UserClinicAssociation
@@ -1026,18 +1032,15 @@ class TestPatientBookingAllowedRestriction:
         db_session.add(patient)
         db_session.commit()
 
-        # Create availability for practitioner
-        today = taiwan_now().date()
-        day_of_week = today.weekday()
+        # Create availability for practitioner (set up for the day we're booking)
+        # Use a time that's at least 24 hours ahead to avoid booking restriction errors
+        start_time = taiwan_now() + timedelta(days=2, hours=1)
+        start_time = start_time.replace(hour=14, minute=0, second=0, microsecond=0)
+        booking_date = start_time.date()
+        day_of_week_booking = booking_date.weekday()
         create_practitioner_availability_with_clinic(
-            db_session, practitioner, clinic, day_of_week, time(9, 0), time(17, 0)
+            db_session, practitioner, clinic, day_of_week_booking, time(9, 0), time(17, 0)
         )
-
-        # Patient creates appointment (should succeed)
-        start_time = taiwan_now().replace(hour=14, minute=0, second=0, microsecond=0)
-        if start_time < taiwan_now():
-            start_time = start_time + timedelta(days=1)
-        start_time = start_time.replace(minute=0, second=0, microsecond=0)
 
         result = AppointmentService.create_appointment(
             db=db_session,
@@ -1049,33 +1052,7 @@ class TestPatientBookingAllowedRestriction:
             line_user_id=line_user.id  # Patient booking - should succeed
         )
 
-        assert result['appointment_id'] is not None start_time + timedelta(days=1)
-        # Ensure it's less than 48 hours ahead
-        if (start_time - taiwan_now()).total_seconds() / 3600 >= 48:
-            # Use a time within availability window (9:00-17:00) and within 48 hours
-            fallback_time = taiwan_now() + timedelta(hours=1)
-            if fallback_time.hour < 9:
-                start_time = fallback_time.replace(hour=10, minute=0, second=0, microsecond=0)
-            elif fallback_time.hour >= 17:
-                start_time = (fallback_time + timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
-            else:
-                start_time = fallback_time.replace(minute=0, second=0, microsecond=0)
-        
-        with pytest.raises(HTTPException) as exc_info:
-            AppointmentService.create_appointment(
-                db=db_session,
-                clinic_id=clinic.id,
-                patient_id=patient.id,
-                appointment_type_id=appointment_type.id,
-                start_time=start_time,
-                practitioner_id=None,
-                line_user_id=line_user.id  # Patient booking - should enforce restrictions
-            )
-
-        # Should fail with 400 (booking restriction) not 409 (availability)
-        assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
-        # Error message should indicate booking restriction violation
-        assert exc_info.value.detail is not None
+        assert result['appointment_id'] is not None
 
     def test_availability_shows_all_slots_for_clinic_admin(
         self, db_session: Session, clinic_with_restrictions

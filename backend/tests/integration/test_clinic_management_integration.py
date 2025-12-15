@@ -1164,10 +1164,10 @@ class TestPractitionerSettings:
         client.app.dependency_overrides[get_db] = lambda: db_session
 
         try:
-            # Try to update with invalid settings
+            # Try to update with invalid settings (wrong type - should fail validation)
             response = client.put(
                 f"/api/clinic/practitioners/{therapist.id}/settings",
-                json={"settings": {"next_day_notification_time": "invalid_time"}}
+                json={"settings": {"patient_booking_allowed": "not_a_boolean"}}
             )
 
             assert response.status_code == 400
