@@ -167,18 +167,6 @@ class PDFService:
             # Approach 2: Use relative path from base_url
             # Approach 3: Use direct absolute path (current approach)
             
-            # [TEMP DEBUG] Try relative path first (relative to base_url)
-            # This is the most reliable approach for WeasyPrint
-            font_relative_path = "fonts/NotoSansTC-Regular.otf"
-            font_absolute_path = str(self.font_path).replace('\\', '/')
-            font_file_url = f"file://{font_absolute_path}"
-            
-            logger.info(f"[TEMP DEBUG] Font path options:")
-            logger.info(f"[TEMP DEBUG]   Relative (fonts/): {font_relative_path}")
-            logger.info(f"[TEMP DEBUG]   Absolute: {font_absolute_path}")
-            logger.info(f"[TEMP DEBUG]   file:// URL: {font_file_url}")
-            logger.info(f"[TEMP DEBUG]   base_url: {self.base_dir}")
-            
             # SOLUTION: Embed font as base64 data URI in CSS
             # WeasyPrint uses Fontconfig/Pango which expects fonts in system directories
             # CSS @font-face with file:// URLs doesn't work reliably
@@ -191,23 +179,24 @@ class PDFService:
                     html_content
                 )
                 logger.info(f"[TEMP DEBUG] Using base64 embedded font (length: {len(self.font_base64)} chars)")
+                
+                # [TEMP DEBUG] Verify replacement worked (look for data URI, not filename)
+                font_url_after = re.search(r"url\(['\"]?data:font/opentype;base64,[^)]+['\"]?\)", html_content_for_pdf)
+                if font_url_after:
+                    # Show first 100 chars of data URI for verification
+                    uri_preview = font_url_after.group()[:100] + "..."
+                    logger.info(f"[TEMP DEBUG] Font URL after replacement (preview): {uri_preview}")
+                else:
+                    logger.warning(f"[TEMP DEBUG] Data URI not found after replacement! Checking if original URL still exists...")
+                    # Check if original URL is still there (replacement failed)
+                    original_still_there = re.search(r"url\(['\"]?/fonts/NotoSansTC-Regular\.otf['\"]?\)", html_content_for_pdf)
+                    if original_still_there:
+                        logger.error(f"[TEMP DEBUG] ❌ Replacement failed! Original URL still present: {original_still_there.group()}")
+                    else:
+                        logger.warning(f"[TEMP DEBUG] ⚠️  Neither data URI nor original URL found - replacement may have used different format")
             else:
                 logger.error("⚠️  Font base64 not available, falling back to original path")
                 html_content_for_pdf = html_content
-            
-            # [TEMP DEBUG] Log the CSS after replacement
-            font_url_after = re.search(r"url\(['\"]?[^)]+NotoSansTC-Regular\.otf['\"]?\)", html_content_for_pdf)
-            if font_url_after:
-                logger.info(f"[TEMP DEBUG] Font URL after replacement: {font_url_after.group()}")
-            else:
-                logger.warning(f"[TEMP DEBUG] Font URL not found after replacement!")
-            
-            # [TEMP DEBUG] Log working directory and environment
-            import os
-            logger.info(f"[TEMP DEBUG] Environment info:")
-            logger.info(f"[TEMP DEBUG]   Working directory: {os.getcwd()}")
-            logger.info(f"[TEMP DEBUG]   __file__ location: {__file__}")
-            logger.info(f"[TEMP DEBUG] Using absolute path in CSS url(): {font_absolute_path}")
             
             # Use FontConfiguration (required for proper font loading in some WeasyPrint versions)
             font_config = FontConfiguration()
