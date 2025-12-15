@@ -68,8 +68,12 @@ const RevenueDistributionPage: React.FC = () => {
       sort_by: currentSort.column,
       sort_order: currentSort.direction || 'desc',
     };
-    if (typeof selectedPractitionerId === 'number') {
-      params.practitioner_id = selectedPractitionerId;
+    if (selectedPractitionerId !== null) {
+      if (typeof selectedPractitionerId === 'number') {
+        params.practitioner_id = selectedPractitionerId;
+      } else if (selectedPractitionerId === 'null') {
+        params.practitioner_id = 'null';
+      }
     }
     if (selectedServiceItemId) {
       params.service_item_id = selectedServiceItemId;
@@ -135,6 +139,11 @@ const RevenueDistributionPage: React.FC = () => {
   const standardServiceItemIds = useMemo(() => {
     return new Set(serviceItems.filter(si => !si.is_custom).map(si => si.id));
   }, [serviceItems]);
+
+  // Check if data contains null practitioners (for showing "無" option in dropdown)
+  const hasNullPractitionerInData = useMemo(() => {
+    return data?.items?.some(item => item.practitioner_id === null) ?? false;
+  }, [data?.items]);
 
   const handleSort = (column: string) => {
     setCurrentSort(prev => {
@@ -294,6 +303,7 @@ const RevenueDistributionPage: React.FC = () => {
               value={pendingPractitionerId}
               onChange={setPendingPractitionerId}
               practitioners={practitioners}
+              hasNullPractitionerInData={hasNullPractitionerInData}
             />
           </div>
           <div>

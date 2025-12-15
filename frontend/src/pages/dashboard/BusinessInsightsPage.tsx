@@ -49,7 +49,11 @@ const BusinessInsightsPage: React.FC = () => {
     return apiService.getBusinessInsights({
       start_date: startDate,
       end_date: endDate,
-      practitioner_id: typeof selectedPractitionerId === 'number' ? selectedPractitionerId : null,
+      practitioner_id: typeof selectedPractitionerId === 'number' 
+        ? selectedPractitionerId 
+        : selectedPractitionerId === 'null' 
+          ? 'null' 
+          : null,
       service_item_id: selectedServiceItemId || null,
     });
   }, [startDate, endDate, selectedPractitionerId, selectedServiceItemId]);
@@ -153,6 +157,11 @@ const BusinessInsightsPage: React.FC = () => {
     return names;
   }, [data?.by_practitioner]);
 
+  // Check if data contains null practitioners (for showing "無" option in dropdown)
+  const hasNullPractitionerInData = useMemo(() => {
+    return data?.by_practitioner?.some(item => item.practitioner_id === null) ?? false;
+  }, [data?.by_practitioner]);
+
   // Early returns AFTER all hooks
   if (loading && !data) {
     return (
@@ -221,6 +230,7 @@ const BusinessInsightsPage: React.FC = () => {
               value={pendingPractitionerId}
               onChange={setPendingPractitionerId}
               practitioners={practitioners}
+              hasNullPractitionerInData={hasNullPractitionerInData}
             />
           </div>
           <div>

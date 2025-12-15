@@ -904,7 +904,7 @@ export class ApiService {
   async getBusinessInsights(params: {
     start_date: string;
     end_date: string;
-    practitioner_id?: number | null;
+    practitioner_id?: number | string | null; // Can be number, 'null' string, or null
     service_item_id?: number | string | null; // Can be number or 'custom:name'
   }): Promise<{
     summary: {
@@ -945,7 +945,7 @@ export class ApiService {
   async getRevenueDistribution(params: {
     start_date: string;
     end_date: string;
-    practitioner_id?: number | null;
+    practitioner_id?: number | string | null; // Can be number, 'null' string, or null
     service_item_id?: number | string | null;
     show_overwritten_only?: boolean;
     page?: number;

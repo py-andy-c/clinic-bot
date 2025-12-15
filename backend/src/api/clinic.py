@@ -5282,7 +5282,7 @@ async def get_dashboard_metrics(
 async def get_business_insights(
     start_date: str = Query(..., description="Start date in YYYY-MM-DD format"),
     end_date: str = Query(..., description="End date in YYYY-MM-DD format"),
-    practitioner_id: Optional[int] = Query(None, description="Optional practitioner ID to filter by"),
+    practitioner_id: Optional[Union[int, str]] = Query(None, description="Optional practitioner ID to filter by, or 'null' to filter for items without practitioners"),
     service_item_id: Optional[str] = Query(None, description="Optional service item ID or 'custom:name' to filter by"),
     current_user: UserContext = Depends(require_admin_role),
     db: Session = Depends(get_db)
@@ -5309,9 +5309,17 @@ async def get_business_insights(
         # Parse service_item_id
         parsed_service_item_id = _parse_service_item_id(service_item_id)
 
+        # Parse practitioner_id - handle 'null' string to filter for null practitioners
+        parsed_practitioner_id: Optional[Union[int, str]] = None
+        if practitioner_id is not None:
+            if practitioner_id == 'null':
+                parsed_practitioner_id = 'null'
+            elif isinstance(practitioner_id, int):
+                parsed_practitioner_id = practitioner_id
+
         # Get business insights
         insights = BusinessInsightsService.get_business_insights(
-            db, clinic_id, start, end, practitioner_id, parsed_service_item_id
+            db, clinic_id, start, end, parsed_practitioner_id, parsed_service_item_id
         )
 
         return BusinessInsightsResponse(**insights)
@@ -5330,7 +5338,7 @@ async def get_business_insights(
 async def get_revenue_distribution(
     start_date: str = Query(..., description="Start date in YYYY-MM-DD format"),
     end_date: str = Query(..., description="End date in YYYY-MM-DD format"),
-    practitioner_id: Optional[int] = Query(None, description="Optional practitioner ID to filter by"),
+    practitioner_id: Optional[Union[int, str]] = Query(None, description="Optional practitioner ID to filter by, or 'null' to filter for items without practitioners"),
     service_item_id: Optional[str] = Query(None, description="Optional service item ID or 'custom:name' to filter by"),
     show_overwritten_only: bool = Query(False, description="Only show items with overwritten billing scenario"),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
@@ -5362,9 +5370,17 @@ async def get_revenue_distribution(
         # Parse service_item_id
         parsed_service_item_id = _parse_service_item_id(service_item_id)
 
+        # Parse practitioner_id - handle 'null' string to filter for null practitioners
+        parsed_practitioner_id: Optional[Union[int, str]] = None
+        if practitioner_id is not None:
+            if practitioner_id == 'null':
+                parsed_practitioner_id = 'null'
+            elif isinstance(practitioner_id, int):
+                parsed_practitioner_id = practitioner_id
+
         # Get revenue distribution
         distribution = RevenueDistributionService.get_revenue_distribution(
-            db, clinic_id, start, end, practitioner_id, parsed_service_item_id,
+            db, clinic_id, start, end, parsed_practitioner_id, parsed_service_item_id,
             show_overwritten_only, page, page_size, sort_by, sort_order
         )
 

@@ -77,7 +77,7 @@ class BusinessInsightsService:
         clinic_id: int,
         start_date: date,
         end_date: date,
-        practitioner_id: Optional[int] = None,
+        practitioner_id: Optional[Union[int, str]] = None,
         service_item_id: Optional[Union[int, str]] = None
     ) -> Dict[str, Any]:
         """
@@ -116,16 +116,25 @@ class BusinessInsightsService:
         receipts = _filter_receipts_by_visit_date(all_receipts, start_date, end_date)
         
         # Filter by practitioner if specified
-        if practitioner_id:
+        if practitioner_id is not None:
             filtered_receipts: List[Receipt] = []
             for receipt in receipts:
                 receipt_data: Dict[str, Any] = receipt.receipt_data
                 items: List[Dict[str, Any]] = receipt_data.get('items', [])
                 for item in items:
                     item_practitioner: Optional[Dict[str, Any]] = item.get('practitioner')
-                    if item_practitioner and item_practitioner.get('id') == practitioner_id:
-                        filtered_receipts.append(receipt)
-                        break
+                    
+                    # Handle null practitioner filter
+                    if practitioner_id == 'null':
+                        # Filter for items with no practitioner
+                        if item_practitioner is None:
+                            filtered_receipts.append(receipt)
+                            break
+                    else:
+                        # Filter for specific practitioner ID
+                        if item_practitioner and item_practitioner.get('id') == practitioner_id:
+                            filtered_receipts.append(receipt)
+                            break
             receipts = filtered_receipts
         
         # Filter by service item if specified
@@ -265,12 +274,12 @@ class BusinessInsightsService:
                 prac_key = str(prac_id) if prac_id else 'null'
                 revenue_by_date_practitioner[receipt_date][prac_key] += item_total
         
-        # Calculate percentages
+        # Calculate percentages (rounded to whole numbers)
         for stat in service_item_stats.values():
-            stat['percentage'] = float((stat['total_revenue'] / total_revenue * 100).quantize(Decimal('0.01'))) if total_revenue > 0 else 0.0
+            stat['percentage'] = round(float(stat['total_revenue'] / total_revenue * 100)) if total_revenue > 0 else 0.0
         
         for stat in practitioner_stats.values():
-            stat['percentage'] = float((stat['total_revenue'] / total_revenue * 100).quantize(Decimal('0.01'))) if total_revenue > 0 else 0.0
+            stat['percentage'] = round(float(stat['total_revenue'] / total_revenue * 100)) if total_revenue > 0 else 0.0
         
         # Build revenue trend (determine granularity)
         date_range_days = (end_date - start_date).days + 1
@@ -388,7 +397,7 @@ class RevenueDistributionService:
         clinic_id: int,
         start_date: date,
         end_date: date,
-        practitioner_id: Optional[int] = None,
+        practitioner_id: Optional[Union[int, str]] = None,
         service_item_id: Optional[Union[int, str]] = None,
         show_overwritten_only: bool = False,
         page: int = 1,
@@ -406,7 +415,7 @@ class RevenueDistributionService:
             end_date: End date for the range
             practitioner_id: Optional practitioner ID to filter by
             service_item_id: Optional service item ID or 'custom:name' to filter by
-            show_overwritten_only: If True, only show items with billing_scenario = "??"
+            show_overwritten_only: If True, only show items with billing_scenario = "其他"
             page: Page number (1-indexed)
             page_size: Items per page
             sort_by: Column to sort by
@@ -467,10 +476,18 @@ class RevenueDistributionService:
             
             for item in items:
                 # Apply filters
-                if practitioner_id:
+                if practitioner_id is not None:
                     item_practitioner: Optional[Dict[str, Any]] = item.get('practitioner')
-                    if not item_practitioner or item_practitioner.get('id') != practitioner_id:
-                        continue
+                    
+                    # Handle null practitioner filter
+                    if practitioner_id == 'null':
+                        # Filter for items with no practitioner
+                        if item_practitioner is not None:
+                            continue
+                    else:
+                        # Filter for specific practitioner ID
+                        if not item_practitioner or item_practitioner.get('id') != practitioner_id:
+                            continue
                 
                 if service_item_id:
                     if isinstance(service_item_id, str) and service_item_id.startswith('custom:'):

@@ -21,6 +21,7 @@ export interface FilterDropdownProps {
   practitioners?: PractitionerOption[];
   serviceItems?: ServiceItemOption[];
   standardServiceItemIds?: Set<number>; // IDs of standard service items (for detecting custom items)
+  hasNullPractitionerInData?: boolean; // Indicates if data contains null practitioners (for showing "無" option)
   className?: string;
 }
 
@@ -31,6 +32,7 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
   practitioners = [],
   serviceItems = [],
   standardServiceItemIds,
+  hasNullPractitionerInData = false,
   className = '',
 }) => {
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -48,7 +50,8 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
 
   if (type === 'practitioner') {
     const standardPractitioners = practitioners.filter(p => p.id !== null);
-    const hasNullPractitioner = practitioners.some(p => p.id === null);
+    // Check if null practitioners exist in data (not just in members list)
+    const hasNullPractitioner = hasNullPractitionerInData;
 
     return (
       <select
@@ -73,7 +76,7 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
                   ─────────────
                 </option>
                 <option value="null" style={{ color: '#6b7280' }}>
-                  無
+                  無治療師
                 </option>
               </>
             )}
