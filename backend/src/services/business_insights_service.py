@@ -117,7 +117,7 @@ class BusinessInsightsService:
         
         # Filter by practitioner if specified
         if practitioner_id:
-            filtered_receipts = []
+            filtered_receipts: List[Receipt] = []
             for receipt in receipts:
                 receipt_data: Dict[str, Any] = receipt.receipt_data
                 items: List[Dict[str, Any]] = receipt_data.get('items', [])
@@ -130,7 +130,7 @@ class BusinessInsightsService:
         
         # Filter by service item if specified
         if service_item_id:
-            filtered_receipts = []
+            filtered_receipts: List[Receipt] = []
             for receipt in receipts:
                 receipt_data: Dict[str, Any] = receipt.receipt_data
                 items: List[Dict[str, Any]] = receipt_data.get('items', [])

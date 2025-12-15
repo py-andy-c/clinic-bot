@@ -9,12 +9,11 @@ from typing import List, Optional, Dict, Any
 from decimal import Decimal
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import status as http_status
 from fastapi.responses import Response, HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from datetime import date
 
 from core.database import get_db
 from auth.dependencies import require_admin_role, UserContext, ensure_clinic_access
