@@ -66,6 +66,12 @@ class PDFService:
         
         # Get base directory for resolving relative paths (fonts, images)
         self.base_dir = Path(__file__).parent.parent.parent
+        
+        # Get absolute path to font file for WeasyPrint (needs filesystem path, not URL)
+        # Resolve immediately to get absolute path regardless of working directory
+        self.font_path = (self.base_dir / "fonts" / "NotoSansTC-Regular.otf").resolve()
+        if not self.font_path.exists():
+            logger.warning(f"⚠️  Font file not found at {self.font_path}")
     
     def generate_receipt_pdf(
         self,
@@ -128,17 +134,22 @@ class PDFService:
                 metadata['creation_date'] = creation_date
             
             # Generate PDF using WeasyPrint
-            # Replace absolute font paths (/fonts/) with relative paths (fonts/) for WeasyPrint
-            # WeasyPrint resolves relative paths based on base_url, so fonts/ resolves to backend/fonts/
+            # Replace absolute font paths (/fonts/) with absolute filesystem paths for WeasyPrint
+            # WeasyPrint needs filesystem paths, not URLs, and the working directory may differ in production
             # HTML viewing uses /fonts/ which works with the static file mount
             # Use regex to handle both single and double quotes in CSS url() declarations
+            # Use absolute filesystem path - WeasyPrint accepts both file:// URLs and direct paths
+            # self.font_path is already resolved to absolute path in __init__
+            # Escape backslashes for Windows compatibility in CSS
+            font_file_path_escaped = str(self.font_path).replace('\\', '/')
             html_content_for_pdf = re.sub(
-                r"url\(['\"]?/fonts/",
-                r"url('fonts/",
+                r"url\(['\"]?/fonts/NotoSansTC-Regular\.otf['\"]?\)",
+                lambda m: f"url('{font_file_path_escaped}')",
                 html_content
             )
             
-            # base_url is set to backend directory for resolving relative paths (fonts, images)
+            # base_url is set to backend directory for resolving relative paths (images, etc.)
+            # Font path is now absolute, so base_url doesn't affect it
             pdf_bytes = HTML(
                 string=html_content_for_pdf,
                 base_url=str(self.base_dir)
