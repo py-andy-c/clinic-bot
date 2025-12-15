@@ -38,7 +38,7 @@ const BusinessInsightsPage: React.FC = () => {
   const { data: settingsData } = useApiData(() => apiService.getClinicSettings(), { cacheTTL: 5 * 60 * 1000 });
 
   const practitioners = useMemo<PractitionerOption[]>(() => {
-    if (!membersData) return [];
+    if (!membersData || !Array.isArray(membersData)) return [];
     return membersData
       .filter(m => m.roles.includes('practitioner'))
       .map(m => ({ id: m.id, full_name: m.full_name }));

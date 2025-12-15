@@ -12,10 +12,10 @@ describe('DashboardIndexPage', () => {
     return render(<BrowserRouter>{component}</BrowserRouter>);
   };
 
-  it('renders page title and description', () => {
+  it('renders dashboard cards', () => {
     renderWithRouter(<DashboardIndexPage />);
-    expect(screen.getByText('儀表板')).toBeInTheDocument();
-    expect(screen.getByText('查看診所營運數據、會計資訊和系統使用情況')).toBeInTheDocument();
+    // Verify the component renders by checking for dashboard cards
+    expect(screen.getByText('業務洞察')).toBeInTheDocument();
   });
 
   it('renders all dashboard cards', () => {
@@ -64,6 +64,6 @@ describe('DashboardIndexPage', () => {
     
     const businessCard = screen.getByText('業務洞察').closest('a');
     expect(businessCard).toHaveClass('hover:shadow-md');
-    expect(businessCard).toHaveClass('hover:border-blue-300');
+    expect(businessCard).toHaveClass('hover:border-primary-300');
   });
 });

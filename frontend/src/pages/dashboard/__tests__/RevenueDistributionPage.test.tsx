@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import React from 'react';
+import { BrowserRouter } from 'react-router-dom';
 import RevenueDistributionPage from '../RevenueDistributionPage';
 import { useApiData } from '../../../hooks/useApiData';
 import { apiService } from '../../../services/api';
@@ -54,6 +55,7 @@ vi.mock('../../../components/dashboard/TimeRangePresets', () => ({
     startDate: '2024-01-01',
     endDate: '2024-01-31',
   })),
+  detectPresetFromDates: vi.fn(() => 'month'),
 }));
 
 // Mock FilterDropdown
@@ -118,6 +120,9 @@ vi.mock('../../../utils/calendarDataAdapter', () => ({
 const mockUseApiData = vi.mocked(useApiData);
 
 describe('RevenueDistributionPage', () => {
+  const renderWithRouter = (component: React.ReactElement) => {
+    return render(<BrowserRouter>{component}</BrowserRouter>);
+  };
   const mockMembers = [
     { id: 1, full_name: '王醫師', roles: ['practitioner'] },
   ];
@@ -239,7 +244,7 @@ describe('RevenueDistributionPage', () => {
       };
     });
 
-    render(<RevenueDistributionPage />);
+    renderWithRouter(<RevenueDistributionPage />);
     expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
   });
 
@@ -267,34 +272,40 @@ describe('RevenueDistributionPage', () => {
       };
     });
 
-    render(<RevenueDistributionPage />);
+    renderWithRouter(<RevenueDistributionPage />);
     expect(screen.getByTestId('error-message')).toBeInTheDocument();
   });
 
   it('renders revenue distribution data correctly', async () => {
-    render(<RevenueDistributionPage />);
+    renderWithRouter(<RevenueDistributionPage />);
 
     await waitFor(() => {
       expect(screen.getByText('診所分潤審核')).toBeInTheDocument();
     });
 
     // Check summary cards
-    expect(screen.getByText('總營收')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('總營收')).toBeInTheDocument();
+    });
     expect(screen.getByText('總診所分潤')).toBeInTheDocument();
     expect(screen.getByText('收據項目數')).toBeInTheDocument();
 
-    // Check table headers
-    expect(screen.getByText('收據編號')).toBeInTheDocument();
-    expect(screen.getByText('日期')).toBeInTheDocument();
-    expect(screen.getByText('病患')).toBeInTheDocument();
+    // Check table headers - wait for table to render
+    await waitFor(() => {
+      expect(screen.getByText('收據編號')).toBeInTheDocument();
+      expect(screen.getByText('預約日期')).toBeInTheDocument();
+      expect(screen.getByText('病患')).toBeInTheDocument();
+    });
 
     // Check table data
-    expect(screen.getByText('R2024-001')).toBeInTheDocument();
-    expect(screen.getByText('張三')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('R2024-001')).toBeInTheDocument();
+      expect(screen.getByText('張三')).toBeInTheDocument();
+    });
   });
 
   it('highlights overwritten items with yellow background', async () => {
-    render(<RevenueDistributionPage />);
+    renderWithRouter(<RevenueDistributionPage />);
 
     await waitFor(() => {
       const rows = screen.getAllByText('R2024-002');
@@ -346,7 +357,7 @@ describe('RevenueDistributionPage', () => {
       };
     });
 
-    render(<RevenueDistributionPage />);
+    renderWithRouter(<RevenueDistributionPage />);
 
     await waitFor(() => {
       expect(screen.getByText('目前沒有符合條件的資料')).toBeInTheDocument();
@@ -394,7 +405,7 @@ describe('RevenueDistributionPage', () => {
       };
     });
 
-    render(<RevenueDistributionPage />);
+    renderWithRouter(<RevenueDistributionPage />);
 
     await waitFor(() => {
       expect(screen.getByText(/顯示.*到.*筆/)).toBeInTheDocument();
@@ -402,7 +413,7 @@ describe('RevenueDistributionPage', () => {
   });
 
   it('displays custom service items with italic styling', async () => {
-    render(<RevenueDistributionPage />);
+    renderWithRouter(<RevenueDistributionPage />);
 
     await waitFor(() => {
       const customItem = screen.getByText('特殊檢查');
@@ -458,7 +469,7 @@ describe('RevenueDistributionPage', () => {
       };
     });
 
-    render(<RevenueDistributionPage />);
+    renderWithRouter(<RevenueDistributionPage />);
 
     await waitFor(() => {
       expect(screen.getByText('無')).toBeInTheDocument();
