@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, CartesianGrid } from 'recharts';
 import moment from 'moment-timezone';
 import { formatCurrency } from '../../utils/currencyUtils';
 
@@ -132,7 +132,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
         <div className="overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
           <div className="h-64" style={{ minWidth: '600px' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+              <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} categoryGap={0}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis
                   dataKey="label"
@@ -156,16 +156,11 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
                   labelStyle={{ color: '#374151', fontWeight: 500 }}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '0.375rem' }}
                 />
-                <Line
-                  type="monotone"
+                <Bar
                   dataKey="total"
-                  stroke="#2563eb"
-                  strokeWidth={2}
-                  dot={false}
                   fill="#2563eb"
-                  fillOpacity={0.1}
                 />
-              </LineChart>
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
@@ -181,7 +176,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
       <div className="overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
         <div className="h-64" style={{ minWidth: '600px' }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={stackedData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+            <BarChart data={stackedData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} categoryGap={0}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis
                 dataKey="label"
@@ -227,18 +222,15 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
               {keys.map((key, index) => {
                 const color = colorPalette[index % colorPalette.length] || '#2563eb';
                 return (
-                  <Area
+                  <Bar
                     key={key}
-                    type="monotone"
                     dataKey={key}
                     stackId="1"
-                    stroke={color}
                     fill={color}
-                    strokeWidth={2}
                   />
                 );
               })}
-            </AreaChart>
+            </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
