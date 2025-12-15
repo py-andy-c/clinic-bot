@@ -95,44 +95,6 @@ if [ -z "$DATABASE_URL" ]; then
 fi
 echo "✅ DATABASE_URL is set"
 
-# Install font system-wide for WeasyPrint/Fontconfig
-# WeasyPrint uses Fontconfig which expects fonts in system directories
-# CSS @font-face with data URIs or file paths doesn't work reliably
-echo "=========================================="
-echo "🔤 Installing font for WeasyPrint..."
-echo "=========================================="
-if [ -f "fonts/NotoSansTC-Regular.otf" ]; then
-    FONT_DIR="$HOME/.local/share/fonts"
-    mkdir -p "$FONT_DIR"
-    FONT_FILE="$FONT_DIR/NotoSansTC-Regular.otf"
-    cp fonts/NotoSansTC-Regular.otf "$FONT_FILE" 2>&1
-    if [ $? -eq 0 ]; then
-        echo "✅ Font copied to $FONT_FILE"
-        # Verify file exists and show size
-        if [ -f "$FONT_FILE" ]; then
-            FONT_SIZE=$(stat -f%z "$FONT_FILE" 2>/dev/null || stat -c%s "$FONT_FILE" 2>/dev/null || echo "unknown")
-            echo "   Font file size: $FONT_SIZE bytes"
-        fi
-        # Update font cache (if fc-cache is available)
-        if command -v fc-cache &> /dev/null; then
-            echo "   Updating font cache..."
-            fc-cache -fv "$FONT_DIR" 2>&1 | head -10
-            # List fonts in directory to verify
-            echo "   Fonts in directory:"
-            ls -la "$FONT_DIR/" | grep -i "\.otf\|\.ttf" | head -5 || echo "   (no font files found)"
-        else
-            echo "⚠️  fc-cache not available, font may still work"
-        fi
-        # Export font path for use in Python
-        export NOTO_FONT_PATH="$FONT_FILE"
-    else
-        echo "⚠️  WARNING: Failed to copy font to $FONT_DIR/" >&2
-        echo "   Font may not be available to WeasyPrint" >&2
-    fi
-else
-    echo "⚠️  WARNING: Font file not found at fonts/NotoSansTC-Regular.otf" >&2
-fi
-
 # Check if we can import the main module (catches import errors early)
 echo "=========================================="
 echo "🔍 Testing Python imports..."

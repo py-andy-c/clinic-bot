@@ -6,13 +6,11 @@ ensuring immutability and consistency between HTML display and PDF download.
 """
 
 import logging
-import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from weasyprint import HTML, CSS  # type: ignore
-from weasyprint.text.fonts import FontConfiguration  # type: ignore
+from weasyprint import HTML  # type: ignore
 
 from utils.datetime_utils import parse_datetime_string_to_taiwan
 
@@ -67,32 +65,6 @@ class PDFService:
         
         # Get base directory for resolving relative paths (fonts, images)
         self.base_dir = Path(__file__).parent.parent.parent
-        
-        # Get absolute path to font file for WeasyPrint (needs filesystem path, not URL)
-        # Resolve immediately to get absolute path regardless of working directory
-        self.font_path = (self.base_dir / "fonts" / "NotoSansTC-Regular.otf").resolve()
-        
-        # Load font file as base64 for embedding in CSS
-        # This bypasses Fontconfig/Pango path resolution issues
-        # WeasyPrint can load fonts from base64 data URIs in CSS @font-face
-        import base64
-        if self.font_path.exists():
-            with open(self.font_path, 'rb') as f:
-                font_data = f.read()
-                self.font_base64 = base64.b64encode(font_data).decode('utf-8')
-                logger.info(f"[TEMP DEBUG] Font loaded as base64: {len(self.font_base64)} chars")
-        else:
-            logger.warning(f"⚠️  Font file not found at {self.font_path}")
-            self.font_base64 = None
-        
-        # [TEMP DEBUG] Log font path information for production debugging
-        logger.info(f"[TEMP DEBUG] Font path check:")
-        logger.info(f"[TEMP DEBUG]   base_dir: {self.base_dir}")
-        logger.info(f"[TEMP DEBUG]   font_path (absolute): {self.font_path}")
-        logger.info(f"[TEMP DEBUG]   font_path exists: {self.font_path.exists()}")
-        logger.info(f"[TEMP DEBUG]   font_path is_file: {self.font_path.is_file()}")
-        if self.font_path.exists():
-            logger.info(f"[TEMP DEBUG]   font_path size: {self.font_path.stat().st_size} bytes")
     
     def generate_receipt_pdf(
         self,
@@ -155,64 +127,11 @@ class PDFService:
                 metadata['creation_date'] = creation_date
             
             # Generate PDF using WeasyPrint
-            # [TEMP DEBUG] Log original HTML to see font path
-            font_url_match = re.search(r"url\(['\"]?/fonts/NotoSansTC-Regular\.otf['\"]?\)", html_content)
-            if font_url_match:
-                logger.info(f"[TEMP DEBUG] Found font URL in original HTML: {font_url_match.group()}")
-            else:
-                logger.warning(f"[TEMP DEBUG] Font URL not found in original HTML!")
-            
-            # Try multiple approaches to fix font loading:
-            # Approach 1: Use file:// protocol with absolute path
-            # Approach 2: Use relative path from base_url
-            # Approach 3: Use direct absolute path (current approach)
-            
-            # SOLUTION: Use absolute path to installed font file (without file:// protocol)
-            # Font is installed to ~/.local/share/fonts/ during startup (see start.sh)
-            # WeasyPrint may not support file:// protocol, so use absolute path directly
-            # WeasyPrint should resolve absolute paths in CSS url() when base_url is set
-            import os
-            installed_font_path = os.path.expanduser("~/.local/share/fonts/NotoSansTC-Regular.otf")
-            # Also check environment variable set by start.sh
-            installed_font_path = os.getenv("NOTO_FONT_PATH", installed_font_path)
-            
-            # Use absolute path to installed font (normalize path separators)
-            if os.path.exists(installed_font_path):
-                font_path_normalized = str(installed_font_path).replace('\\', '/')
-                html_content_for_pdf = re.sub(
-                    r"url\(['\"]?/fonts/NotoSansTC-Regular\.otf['\"]?\)",
-                    lambda m: f"url('{font_path_normalized}')",
-                    html_content
-                )
-                logger.info(f"[TEMP DEBUG] Using installed font at: {installed_font_path}")
-            else:
-                # Fallback to original font path
-                font_path_normalized = str(self.font_path).replace('\\', '/')
-                html_content_for_pdf = re.sub(
-                    r"url\(['\"]?/fonts/NotoSansTC-Regular\.otf['\"]?\)",
-                    lambda m: f"url('{font_path_normalized}')",
-                    html_content
-                )
-                logger.warning(f"[TEMP DEBUG] Installed font not found at {installed_font_path}, using original path: {self.font_path}")
-            
-            # Use FontConfiguration (required for proper font loading in some WeasyPrint versions)
-            font_config = FontConfiguration()
-            
-            # Create HTML object with base_url for resolving other resources (images, etc.)
-            # base_url is still needed for other relative paths in the HTML
-            html_doc = HTML(
-                string=html_content_for_pdf,
+            # base_url is set to backend directory for resolving relative paths (fonts, images)
+            pdf_bytes = HTML(
+                string=html_content,
                 base_url=str(self.base_dir)
-            )
-            
-            # Generate PDF with FontConfiguration
-            pdf_bytes = html_doc.write_pdf(
-                metadata=metadata,
-                font_config=font_config
-            )  # type: ignore[reportUnknownMemberType]
-            
-            # [TEMP DEBUG] Log success
-            logger.info(f"[TEMP DEBUG] PDF generated successfully, size: {len(pdf_bytes)} bytes")
+            ).write_pdf(metadata=metadata)  # type: ignore[reportUnknownMemberType]
             
             if pdf_bytes is None:
                 raise Exception("PDF generation returned None")
