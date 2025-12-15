@@ -128,7 +128,11 @@ const LineUsagePage: React.FC = () => {
   }, [data?.ai_reply_messages_by_month, paidMessagesTableData]);
 
   if (loading && !data) {
-    return <LoadingSpinner size="xl" />;
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="xl" />
+      </div>
+    );
   }
 
   if (error) {

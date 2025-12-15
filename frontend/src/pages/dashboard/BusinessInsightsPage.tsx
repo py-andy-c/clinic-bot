@@ -152,7 +152,11 @@ const BusinessInsightsPage: React.FC = () => {
 
   // Early returns AFTER all hooks
   if (loading && !data) {
-    return <LoadingSpinner size="xl" />;
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="xl" />
+      </div>
+    );
   }
 
   if (error) {

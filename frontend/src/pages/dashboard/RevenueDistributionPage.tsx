@@ -231,7 +231,11 @@ const RevenueDistributionPage: React.FC = () => {
   };
 
   if (loading && !data) {
-    return <LoadingSpinner size="xl" />;
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="xl" />
+      </div>
+    );
   }
 
   if (error) {
