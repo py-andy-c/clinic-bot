@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from weasyprint import HTML  # type: ignore
+from weasyprint import HTML, CSS  # type: ignore
+from weasyprint.text.fonts import FontConfiguration  # type: ignore
 
 from utils.datetime_utils import parse_datetime_string_to_taiwan
 
@@ -167,10 +168,13 @@ class PDFService:
             logger.info(f"[TEMP DEBUG]   file:// URL: {font_file_url}")
             logger.info(f"[TEMP DEBUG]   base_url: {self.base_dir}")
             
-            # Try relative path first (most reliable with base_url)
+            # SOLUTION: Use absolute filesystem path in CSS url() with file:// protocol
+            # WeasyPrint needs explicit file:// protocol for absolute paths in CSS url()
+            # This bypasses base_url resolution issues when working directory differs
+            font_file_url = f"file://{font_absolute_path}"
             html_content_for_pdf = re.sub(
                 r"url\(['\"]?/fonts/NotoSansTC-Regular\.otf['\"]?\)",
-                lambda m: f"url('{font_relative_path}')",
+                lambda m: f"url('{font_file_url}')",
                 html_content
             )
             
@@ -186,13 +190,23 @@ class PDFService:
             logger.info(f"[TEMP DEBUG] Environment info:")
             logger.info(f"[TEMP DEBUG]   Working directory: {os.getcwd()}")
             logger.info(f"[TEMP DEBUG]   __file__ location: {__file__}")
+            logger.info(f"[TEMP DEBUG] Using absolute path in CSS url(): {font_absolute_path}")
             
-            # base_url is set to backend directory for resolving relative paths (fonts, images)
-            # Using relative path "fonts/" which resolves to base_url/fonts/
-            pdf_bytes = HTML(
+            # Use FontConfiguration (required for proper font loading in some WeasyPrint versions)
+            font_config = FontConfiguration()
+            
+            # Create HTML object with base_url for resolving other resources (images, etc.)
+            # base_url is still needed for other relative paths in the HTML
+            html_doc = HTML(
                 string=html_content_for_pdf,
                 base_url=str(self.base_dir)
-            ).write_pdf(metadata=metadata)  # type: ignore[reportUnknownMemberType]
+            )
+            
+            # Generate PDF with FontConfiguration
+            pdf_bytes = html_doc.write_pdf(
+                metadata=metadata,
+                font_config=font_config
+            )  # type: ignore[reportUnknownMemberType]
             
             # [TEMP DEBUG] Log success
             logger.info(f"[TEMP DEBUG] PDF generated successfully, size: {len(pdf_bytes)} bytes")
