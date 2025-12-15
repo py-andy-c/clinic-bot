@@ -43,26 +43,7 @@ const BusinessInsightsPage: React.FC = () => {
       .map(m => ({ id: m.id, full_name: m.full_name }));
   }, [membersData]);
 
-  const serviceItems = useMemo<ServiceItemOption[]>(() => {
-    if (!settingsData?.appointment_types) return [];
-    return settingsData.appointment_types.map(at => {
-      const item: ServiceItemOption = {
-        id: at.id,
-        name: at.name,
-        is_custom: false, // Will be determined by comparing with standard list
-      };
-      if (at.receipt_name !== undefined && at.receipt_name !== null) {
-        item.receipt_name = at.receipt_name;
-      }
-      return item;
-    });
-  }, [settingsData]);
-
-  const standardServiceItemIds = useMemo(() => {
-    return new Set(serviceItems.map(si => si.id));
-  }, [serviceItems]);
-
-  // Fetch business insights data
+  // Fetch business insights data (needed for custom items extraction)
   const fetchBusinessInsights = useCallback(() => {
     return apiService.getBusinessInsights({
       start_date: startDate,
@@ -76,6 +57,60 @@ const BusinessInsightsPage: React.FC = () => {
     cacheTTL: 2 * 60 * 1000, // 2 minutes cache
     dependencies: [startDate, endDate, selectedPractitionerId, selectedServiceItemId], // Explicit dependencies to trigger refetch when filters change
   });
+
+  // Helper function to generate a consistent numeric ID from a string
+  const stringToId = (str: string): number => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    // Use negative numbers to avoid conflicts with real IDs
+    return hash < 0 ? hash : -hash;
+  };
+
+  const serviceItems = useMemo<ServiceItemOption[]>(() => {
+    const predefinedItems: ServiceItemOption[] = [];
+    if (settingsData?.appointment_types) {
+      predefinedItems.push(...settingsData.appointment_types.map(at => {
+        const item: ServiceItemOption = {
+          id: at.id,
+          name: at.name,
+          is_custom: false,
+        };
+        if (at.receipt_name !== undefined && at.receipt_name !== null) {
+          item.receipt_name = at.receipt_name;
+        }
+        return item;
+      }));
+    }
+
+    // Extract custom items from business insights data
+    const customItemsMap = new Map<string, ServiceItemOption>();
+    if (data?.by_service) {
+      data.by_service.forEach(item => {
+        if (item.is_custom && item.receipt_name) {
+          // Use receipt_name as the key to avoid duplicates
+          if (!customItemsMap.has(item.receipt_name)) {
+            customItemsMap.set(item.receipt_name, {
+              id: stringToId(item.receipt_name),
+              name: item.receipt_name,
+              receipt_name: item.receipt_name,
+              is_custom: true,
+            });
+          }
+        }
+      });
+    }
+
+    // Combine predefined and custom items
+    return [...predefinedItems, ...Array.from(customItemsMap.values())];
+  }, [settingsData, data?.by_service]);
+
+  const standardServiceItemIds = useMemo(() => {
+    return new Set(serviceItems.filter(si => !si.is_custom).map(si => si.id));
+  }, [serviceItems]);
 
 
   const handleTimeRangePreset = (preset: TimeRangePreset) => {

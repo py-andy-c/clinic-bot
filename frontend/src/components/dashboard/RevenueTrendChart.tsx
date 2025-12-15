@@ -132,7 +132,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
         <div className="overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
           <div className="h-64" style={{ minWidth: '600px' }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} categoryGap={0}>
+              <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} barCategoryGap={0}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis
                   dataKey="label"
@@ -176,7 +176,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
       <div className="overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
         <div className="h-64" style={{ minWidth: '600px' }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={stackedData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} categoryGap={0}>
+            <BarChart data={stackedData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }} barCategoryGap={0}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis
                 dataKey="label"
