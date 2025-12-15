@@ -171,7 +171,7 @@ class BusinessInsightsService:
                 # Practitioner aggregation
                 practitioner: Optional[Dict[str, Any]] = item.get('practitioner')
                 prac_id = practitioner.get('id') if practitioner else None
-                prac_name = practitioner.get('name', '?') if practitioner else '?'
+                prac_name = practitioner.get('name', '無') if practitioner else '無'
                 
                 if prac_id not in practitioner_stats:
                     practitioner_stats[prac_id] = {

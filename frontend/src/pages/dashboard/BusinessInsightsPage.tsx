@@ -110,7 +110,7 @@ const BusinessInsightsPage: React.FC = () => {
     const names: Record<string, string> = {};
     data.by_practitioner.forEach(item => {
       const key = item.practitioner_id === null ? 'null' : String(item.practitioner_id);
-      names[key] = item.practitioner_name;
+      names[key] = item.practitioner_name === '?' || !item.practitioner_name ? '無' : item.practitioner_name;
     });
     return names;
   }, [data?.by_practitioner]);
@@ -367,7 +367,7 @@ const BusinessInsightsPage: React.FC = () => {
                     <td className={`px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium ${
                       item.practitioner_id === null ? 'text-gray-500' : 'text-gray-900'
                     }`}>
-                      {item.practitioner_name}
+                      {item.practitioner_name === '?' || !item.practitioner_name ? '無' : item.practitioner_name}
                     </td>
                     <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-right">
                       {formatCurrency(item.total_revenue)}
