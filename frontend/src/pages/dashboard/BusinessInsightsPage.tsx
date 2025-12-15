@@ -438,7 +438,7 @@ const BusinessInsightsPage: React.FC = () => {
           onClose={() => setShowMetricModals(prev => ({ ...prev, activePatients: false }))}
           title="活躍病患"
         >
-          <p>所選期間內有預約記錄的獨特病患數量。這是營運指標，與財務數據無直接關係。</p>
+          <p>所選期間內有預約記錄的不重複病患數量。這是營運指標，與財務數據無直接關係。</p>
         </InfoModal>
       )}
 
