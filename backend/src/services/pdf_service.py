@@ -167,20 +167,33 @@ class PDFService:
             # Approach 2: Use relative path from base_url
             # Approach 3: Use direct absolute path (current approach)
             
-            # SOLUTION: Use font by name (not path) - font is installed system-wide
-            # WeasyPrint uses Fontconfig which expects fonts in system directories
+            # SOLUTION: Use absolute path to installed font file (without file:// protocol)
             # Font is installed to ~/.local/share/fonts/ during startup (see start.sh)
-            # CSS @font-face should use font-family name, Fontconfig will find it
-            # Remove the @font-face rule entirely - Fontconfig will find the font by name
-            # OR keep @font-face but use local() to reference system font
-            html_content_for_pdf = re.sub(
-                r"@font-face\s*\{[^}]*font-family:\s*['\"]?NotoSansTC['\"]?[^}]*src:\s*url\([^)]+\)[^}]*\}",
-                lambda m: "@font-face {\n            font-family: 'NotoSansTC';\n            src: local('Noto Sans TC Regular'), local('NotoSansTC-Regular');\n        }",
-                html_content,
-                flags=re.DOTALL
-            )
-            logger.info(f"[TEMP DEBUG] Using system font (installed via Fontconfig)")
-            logger.info(f"[TEMP DEBUG] Font should be found by name 'NotoSansTC' or 'Noto Sans TC Regular'")
+            # WeasyPrint may not support file:// protocol, so use absolute path directly
+            # WeasyPrint should resolve absolute paths in CSS url() when base_url is set
+            import os
+            installed_font_path = os.path.expanduser("~/.local/share/fonts/NotoSansTC-Regular.otf")
+            # Also check environment variable set by start.sh
+            installed_font_path = os.getenv("NOTO_FONT_PATH", installed_font_path)
+            
+            # Use absolute path to installed font (normalize path separators)
+            if os.path.exists(installed_font_path):
+                font_path_normalized = str(installed_font_path).replace('\\', '/')
+                html_content_for_pdf = re.sub(
+                    r"url\(['\"]?/fonts/NotoSansTC-Regular\.otf['\"]?\)",
+                    lambda m: f"url('{font_path_normalized}')",
+                    html_content
+                )
+                logger.info(f"[TEMP DEBUG] Using installed font at: {installed_font_path}")
+            else:
+                # Fallback to original font path
+                font_path_normalized = str(self.font_path).replace('\\', '/')
+                html_content_for_pdf = re.sub(
+                    r"url\(['\"]?/fonts/NotoSansTC-Regular\.otf['\"]?\)",
+                    lambda m: f"url('{font_path_normalized}')",
+                    html_content
+                )
+                logger.warning(f"[TEMP DEBUG] Installed font not found at {installed_font_path}, using original path: {self.font_path}")
             
             # Use FontConfiguration (required for proper font loading in some WeasyPrint versions)
             font_config = FontConfiguration()
