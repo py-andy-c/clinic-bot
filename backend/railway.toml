@@ -31,9 +31,9 @@ healthcheckTimeout = 180  # Increased to 3 minutes to allow for migrations and s
 # Restart policy - restart on failure
 restartPolicyType = "ALWAYS"
 
-# Environment variables for Railpack to install apt packages
-# These are needed because Nix packages may not expose libraries in standard paths
-[variables]
-RAILPACK_BUILD_APT_PACKAGES = "libglib2.0-0 libcairo2 libpango-1.0-0 libgdk-pixbuf2.0-0 libpangoft2-1.0-0"
-RAILPACK_DEPLOY_APT_PACKAGES = "libglib2.0-0 libcairo2 libpango-1.0-0 libgdk-pixbuf2.0-0 libpangoft2-1.0-0"
+# NOTE: WeasyPrint requires apt packages to be installed via environment variables
+# Set these in Railway dashboard (Variables section):
+#   RAILPACK_BUILD_APT_PACKAGES = libglib2.0-0 libcairo2 libpango-1.0-0 libgdk-pixbuf2.0-0 libpangoft2-1.0-0
+#   RAILPACK_DEPLOY_APT_PACKAGES = libglib2.0-0 libcairo2 libpango-1.0-0 libgdk-pixbuf2.0-0 libpangoft2-1.0-0
+# These cannot be set in railway.toml - they must be set in the Railway dashboard
 
