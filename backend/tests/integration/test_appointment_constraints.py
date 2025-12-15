@@ -253,4 +253,3 @@ class TestAppointmentModificationConstraint:
         
         # Verify 403 error
         assert exc_info.value.status_code == 403
-

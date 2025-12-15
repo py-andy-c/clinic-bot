@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, cast, String
 from sqlalchemy.sql import sqltypes
 from utils.datetime_utils import datetime_validator, parse_date_string, taiwan_now
-from utils.practitioner_helpers import verify_practitioner_in_clinic
+from utils.practitioner_helpers import verify_practitioner_in_clinic, get_practitioner_display_name_for_appointment
 from utils.phone_validator import validate_taiwanese_phone_optional
 
 logger = logging.getLogger(__name__)
@@ -36,6 +36,7 @@ from services.availability_service import AvailabilityService
 from services.notification_service import NotificationService
 from services.receipt_service import ReceiptService
 from services.clinic_agent import ClinicAgentService
+from services.business_insights_service import BusinessInsightsService, RevenueDistributionService
 from services.line_user_ai_disabled_service import (
     disable_ai_for_line_user,
     enable_ai_for_line_user,
@@ -50,13 +51,42 @@ from api.responses import (
     MemberResponse, MemberListResponse,
     AvailableSlotsResponse, AvailableSlotResponse, ConflictWarningResponse, ConflictDetail,
     PatientCreateResponse, AppointmentListResponse, AppointmentListItem,
-    ClinicDashboardMetricsResponse
+    ClinicDashboardMetricsResponse,
+    BusinessInsightsResponse, RevenueDistributionResponse
 )
 
 router = APIRouter()
 
 
 # MemberResponse moved to api.responses - use that instead
+
+
+def _parse_service_item_id(service_item_id: Optional[str]) -> Optional[Union[int, str]]:
+    """
+    Parse service_item_id parameter.
+
+    Can be:
+    - None: No filter
+    - Integer: Standard service item ID
+    - String starting with 'custom:': Custom service item name
+
+    Returns:
+        Parsed service item ID (int, str, or None)
+
+    Raises:
+        HTTPException: If format is invalid
+    """
+    if not service_item_id:
+        return None
+    if service_item_id.startswith('custom:'):
+        return service_item_id
+    try:
+        return int(service_item_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=http_status.HTTP_400_BAD_REQUEST,
+            detail="無效的服務項目ID格式"
+        )
 
 
 class MemberInviteRequest(BaseModel):
@@ -2985,6 +3015,114 @@ async def edit_clinic_appointment(
         )
 
 
+@router.get("/appointments/{appointment_id}", summary="Get appointment details", response_model=AppointmentListItem)
+async def get_appointment_details(
+    appointment_id: int,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> AppointmentListItem:
+    """
+    Get appointment details by calendar_event_id.
+
+    Available to all clinic members (including read-only users).
+    Note: The appointment_id parameter is actually the calendar_event_id.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        is_admin = current_user.has_role('admin')
+        hide_auto_assigned_practitioner_id = not is_admin
+
+        # Get appointment with relationships
+        appointment = db.query(Appointment).join(
+            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
+        ).options(
+            joinedload(Appointment.patient).joinedload(Patient.line_user),
+            joinedload(Appointment.appointment_type),
+            joinedload(Appointment.calendar_event).joinedload(CalendarEvent.user)
+        ).filter(
+            Appointment.calendar_event_id == appointment_id,
+            CalendarEvent.clinic_id == clinic_id
+        ).first()
+
+        if not appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約不存在"
+            )
+
+        # Format appointment data using the same logic as list_appointments_for_patient
+        calendar_event = appointment.calendar_event
+        if not calendar_event:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到預約事件"
+            )
+
+        # Get practitioner name
+        practitioner_name = get_practitioner_display_name_for_appointment(
+            db, appointment, clinic_id
+        )
+
+        # Get effective event name
+        event_name = calendar_event.custom_event_name
+        if not event_name:
+            event_name = f"{appointment.patient.full_name} - {appointment.appointment_type.name if appointment.appointment_type else '未知'}"
+
+        # Format datetime
+        event_date = calendar_event.date
+        start_datetime = None
+        end_datetime = None
+        if calendar_event.start_time:
+            start_datetime = datetime.combine(event_date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+        if calendar_event.end_time:
+            end_datetime = datetime.combine(event_date, calendar_event.end_time).replace(tzinfo=TAIWAN_TZ)
+
+        # Get receipt info
+        receipt = ReceiptService.get_receipt_for_appointment(db, appointment_id)
+        has_active_receipt = receipt is not None and not receipt.is_voided
+        has_any_receipt = receipt is not None
+        receipt_id = receipt.id if receipt and not receipt.is_voided else None
+        receipt_ids = [receipt.id] if receipt else []
+
+        # Handle practitioner_id visibility for auto-assigned appointments
+        practitioner_id = calendar_event.user_id
+        if hide_auto_assigned_practitioner_id and appointment.is_auto_assigned:
+            practitioner_id = None
+
+        return AppointmentListItem(
+            id=appointment.calendar_event_id,
+            calendar_event_id=appointment.calendar_event_id,
+            patient_id=appointment.patient_id,
+            patient_name=appointment.patient.full_name,
+            practitioner_id=practitioner_id,
+            practitioner_name=practitioner_name,
+            appointment_type_id=appointment.appointment_type_id,
+            appointment_type_name=appointment.appointment_type.name if appointment.appointment_type else "未知",
+            event_name=event_name,
+            start_time=start_datetime.isoformat() if start_datetime else "",
+            end_time=end_datetime.isoformat() if end_datetime else "",
+            status=appointment.status,
+            notes=appointment.notes,
+            clinic_notes=appointment.clinic_notes,
+            line_display_name=appointment.patient.line_user.display_name if appointment.patient.line_user else None,
+            originally_auto_assigned=appointment.is_auto_assigned,
+            is_auto_assigned=appointment.is_auto_assigned,
+            has_active_receipt=has_active_receipt,
+            has_any_receipt=has_any_receipt,
+            receipt_id=receipt_id,
+            receipt_ids=receipt_ids
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting appointment {appointment_id}: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得預約詳情"
+        )
+
+
 @router.put("/calendar-events/{calendar_event_id}/event-name", summary="Update calendar event name")
 async def update_calendar_event_name(
     calendar_event_id: int,
@@ -5137,4 +5275,106 @@ async def get_dashboard_metrics(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得儀表板數據"
+        )
+
+
+@router.get("/dashboard/business-insights", summary="Get business insights data")
+async def get_business_insights(
+    start_date: str = Query(..., description="Start date in YYYY-MM-DD format"),
+    end_date: str = Query(..., description="End date in YYYY-MM-DD format"),
+    practitioner_id: Optional[int] = Query(None, description="Optional practitioner ID to filter by"),
+    service_item_id: Optional[str] = Query(None, description="Optional service item ID or 'custom:name' to filter by"),
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+):
+    """
+    Get business insights data for a date range.
+
+    Returns summary statistics, revenue trend, and breakdowns by service item and practitioner.
+    Admin-only endpoint.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+
+        # Parse dates
+        try:
+            start = parse_date_string(start_date)
+            end = parse_date_string(end_date)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=f"無效的日期格式: {str(e)}"
+            )
+
+        # Parse service_item_id
+        parsed_service_item_id = _parse_service_item_id(service_item_id)
+
+        # Get business insights
+        insights = BusinessInsightsService.get_business_insights(
+            db, clinic_id, start, end, practitioner_id, parsed_service_item_id
+        )
+
+        return BusinessInsightsResponse(**insights)
+    except HTTPException:
+        raise
+    except Exception as e:
+        clinic_id_str = str(getattr(current_user, 'active_clinic_id', 'unknown'))
+        logger.exception(f"Error getting business insights for clinic {clinic_id_str}: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得業務洞察數據"
+        )
+
+
+@router.get("/dashboard/revenue-distribution", summary="Get revenue distribution data")
+async def get_revenue_distribution(
+    start_date: str = Query(..., description="Start date in YYYY-MM-DD format"),
+    end_date: str = Query(..., description="End date in YYYY-MM-DD format"),
+    practitioner_id: Optional[int] = Query(None, description="Optional practitioner ID to filter by"),
+    service_item_id: Optional[str] = Query(None, description="Optional service item ID or 'custom:name' to filter by"),
+    show_overwritten_only: bool = Query(False, description="Only show items with overwritten billing scenario"),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    sort_by: str = Query('date', description="Column to sort by"),
+    sort_order: str = Query('desc', regex='^(asc|desc)$', description="Sort order"),
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+):
+    """
+    Get revenue distribution data for a date range.
+
+    Returns summary statistics and paginated list of receipt items.
+    Admin-only endpoint.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+
+        # Parse dates
+        try:
+            start = parse_date_string(start_date)
+            end = parse_date_string(end_date)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=f"無效的日期格式: {str(e)}"
+            )
+
+        # Parse service_item_id
+        parsed_service_item_id = _parse_service_item_id(service_item_id)
+
+        # Get revenue distribution
+        distribution = RevenueDistributionService.get_revenue_distribution(
+            db, clinic_id, start, end, practitioner_id, parsed_service_item_id,
+            show_overwritten_only, page, page_size, sort_by, sort_order
+        )
+
+        return RevenueDistributionResponse(**distribution)
+    except HTTPException:
+        raise
+    except Exception as e:
+        clinic_id_str = str(getattr(current_user, 'active_clinic_id', 'unknown'))
+        logger.exception(f"Error getting revenue distribution for clinic {clinic_id_str}: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得分潤審核數據"
         )

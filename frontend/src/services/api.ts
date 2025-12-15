@@ -514,6 +514,33 @@ export class ApiService {
     return response.data;
   }
 
+  async getAppointmentDetails(appointmentId: number): Promise<{
+    id: number;
+    calendar_event_id: number;
+    patient_id: number;
+    patient_name: string;
+    practitioner_id: number | null;
+    practitioner_name: string;
+    appointment_type_id: number;
+    appointment_type_name: string;
+    event_name: string;
+    start_time: string;
+    end_time: string;
+    status: string;
+    notes?: string | null;
+    clinic_notes?: string | null;
+    line_display_name?: string | null;
+    originally_auto_assigned: boolean;
+    is_auto_assigned: boolean;
+    has_active_receipt: boolean;
+    has_any_receipt: boolean;
+    receipt_id?: number | null;
+    receipt_ids: number[];
+  }> {
+    const response = await this.client.get(`/clinic/appointments/${appointmentId}`);
+    return response.data;
+  }
+
   async voidReceipt(receiptId: number, reason: string): Promise<any> {
     const response = await this.client.post(`/receipts/${receiptId}/void`, {
       reason: reason,
@@ -909,6 +936,89 @@ export class ApiService {
     }>;
   }> {
     const response = await this.client.get('/clinic/dashboard/metrics');
+    return response.data;
+  }
+
+  // Business Insights API
+  async getBusinessInsights(params: {
+    start_date: string;
+    end_date: string;
+    practitioner_id?: number | null;
+    service_item_id?: number | string | null; // Can be number or 'custom:name'
+  }): Promise<{
+    summary: {
+      total_revenue: number;
+      valid_receipt_count: number;
+      service_item_count: number;
+      active_patients: number;
+      average_transaction_amount: number;
+    };
+    revenue_trend: Array<{
+      date: string;
+      total: number;
+      by_service: Record<string, number>;
+      by_practitioner: Record<string, number>;
+    }>;
+    by_service: Array<{
+      service_item_id: number | null;
+      service_item_name: string;
+      receipt_name: string;
+      is_custom: boolean;
+      total_revenue: number;
+      item_count: number;
+      percentage: number;
+    }>;
+    by_practitioner: Array<{
+      practitioner_id: number | null;
+      practitioner_name: string;
+      total_revenue: number;
+      item_count: number;
+      percentage: number;
+    }>;
+  }> {
+    const response = await this.client.get('/clinic/dashboard/business-insights', { params });
+    return response.data;
+  }
+
+  // Revenue Distribution API
+  async getRevenueDistribution(params: {
+    start_date: string;
+    end_date: string;
+    practitioner_id?: number | null;
+    service_item_id?: number | string | null;
+    show_overwritten_only?: boolean;
+    page?: number;
+    page_size?: number;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+  }): Promise<{
+    summary: {
+      total_revenue: number;
+      total_clinic_share: number;
+      receipt_item_count: number;
+    };
+    items: Array<{
+      receipt_id: number;
+      receipt_number: string;
+      date: string;
+      patient_name: string;
+      service_item_id: number | null;
+      service_item_name: string;
+      receipt_name: string;
+      is_custom: boolean;
+      quantity: number;
+      practitioner_id: number | null;
+      practitioner_name: string | null;
+      billing_scenario: string;
+      amount: number;
+      revenue_share: number;
+      appointment_id: number | null;
+    }>;
+    total: number;
+    page: number;
+    page_size: number;
+  }> {
+    const response = await this.client.get('/clinic/dashboard/revenue-distribution', { params });
     return response.data;
   }
 }

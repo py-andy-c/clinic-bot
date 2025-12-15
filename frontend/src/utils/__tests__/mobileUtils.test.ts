@@ -74,8 +74,3 @@ describe('mobileUtils', () => {
     });
   });
 });
-
-
-
-
-

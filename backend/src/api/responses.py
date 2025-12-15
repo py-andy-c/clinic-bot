@@ -6,7 +6,7 @@ multiple API endpoints to ensure consistency and reduce duplication.
 """
 
 from datetime import datetime, date
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from pydantic import BaseModel
 
@@ -295,3 +295,85 @@ class ClinicDashboardMetricsResponse(BaseModel):
     practitioner_stats_by_month: List[MonthlyPractitionerStat]
     paid_messages_by_month: List[MonthlyMessageStat]
     ai_reply_messages_by_month: List[MonthlyMessageStat]
+
+
+# Business Insights Response Models
+class BusinessInsightsSummaryResponse(BaseModel):
+    """Summary statistics for business insights."""
+    total_revenue: float
+    valid_receipt_count: int
+    service_item_count: int
+    active_patients: int
+    average_transaction_amount: float
+
+
+class RevenueTrendPointResponse(BaseModel):
+    """Single point in revenue trend chart."""
+    date: str  # YYYY-MM-DD format
+    total: float
+    by_service: Optional[Dict[str, float]] = None  # Key: service_item_id or "custom:name", Value: revenue
+    by_practitioner: Optional[Dict[str, float]] = None  # Key: practitioner_id or "null", Value: revenue
+
+
+class ServiceItemBreakdownResponse(BaseModel):
+    """Breakdown by service item."""
+    service_item_id: Optional[int]
+    service_item_name: str
+    receipt_name: str
+    is_custom: bool
+    total_revenue: float
+    item_count: int
+    percentage: float
+
+
+class PractitionerBreakdownResponse(BaseModel):
+    """Breakdown by practitioner."""
+    practitioner_id: Optional[int]
+    practitioner_name: str
+    total_revenue: float
+    item_count: int
+    percentage: float
+
+
+class BusinessInsightsResponse(BaseModel):
+    """Response model for business insights dashboard."""
+    summary: BusinessInsightsSummaryResponse
+    revenue_trend: List[RevenueTrendPointResponse]
+    by_service: List[ServiceItemBreakdownResponse]
+    by_practitioner: List[PractitionerBreakdownResponse]
+
+
+# Revenue Distribution Response Models
+class RevenueDistributionSummaryResponse(BaseModel):
+    """Summary statistics for revenue distribution."""
+    total_revenue: float
+    total_clinic_share: float
+    receipt_item_count: int
+
+
+class RevenueDistributionItemResponse(BaseModel):
+    """Single receipt item in revenue distribution table."""
+    receipt_id: int
+    receipt_number: str
+    date: str  # YYYY-MM-DD format
+    patient_name: str
+    service_item_id: Optional[int]
+    service_item_name: str
+    receipt_name: str
+    is_custom: bool
+    quantity: int
+    practitioner_id: Optional[int]
+    practitioner_name: Optional[str]
+    billing_scenario: str
+    amount: float
+    revenue_share: float
+    appointment_id: Optional[int]  # calendar_event_id
+
+
+class RevenueDistributionResponse(BaseModel):
+    """Response model for revenue distribution dashboard."""
+    summary: RevenueDistributionSummaryResponse
+    items: List[RevenueDistributionItemResponse]
+    total: int  # Total number of items (for pagination)
+    page: int
+    page_size: int

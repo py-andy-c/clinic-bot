@@ -38,4 +38,3 @@ export function getCheckoutStatus(
   }
   return hasActiveReceipt ? 'checked_out' : 'not_checked_out';
 }
-

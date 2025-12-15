@@ -21,4 +21,3 @@ const SettingsBackButton: React.FC = () => {
 };
 
 export default SettingsBackButton;
-

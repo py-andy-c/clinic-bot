@@ -524,5 +524,3 @@ describe('clinicSettings', () => {
     });
   });
 });
-
-

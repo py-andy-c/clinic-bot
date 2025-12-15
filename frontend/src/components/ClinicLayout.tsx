@@ -334,7 +334,6 @@ const ClinicLayout: React.FC<ClinicLayoutProps> = ({ children }) => {
       icon: '🏥',
       items: [
         { name: '儀表板', href: '/admin/clinic/dashboard', icon: '📊', show: isClinicAdmin },
-        { name: '會計儀表板', href: '/admin/clinic/accounting', icon: '💰', show: isClinicAdmin },
         { name: '診所設定', href: '/admin/clinic/settings', icon: '⚙️', show: true },
         { name: '診所成員', href: '/admin/clinic/members', icon: '👥', show: true },
       ]

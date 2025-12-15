@@ -30,8 +30,12 @@ const SettingsRemindersPage = lazy(() => import('./pages/settings/SettingsRemind
 const SettingsChatPage = lazy(() => import('./pages/settings/SettingsChatPage'));
 const SettingsReceiptsPage = lazy(() => import('./pages/settings/SettingsReceiptsPage'));
 const AvailabilityPage = lazy(() => import('./pages/AvailabilityPage'));
-const ClinicDashboardPage = lazy(() => import('./pages/ClinicDashboardPage'));
 const AccountingDashboardPage = lazy(() => import('./pages/AccountingDashboardPage'));
+const DashboardLayout = lazy(() => import('./components/DashboardLayout'));
+const DashboardIndexPage = lazy(() => import('./pages/dashboard/DashboardIndexPage'));
+const BusinessInsightsPage = lazy(() => import('./pages/dashboard/BusinessInsightsPage'));
+const RevenueDistributionPage = lazy(() => import('./pages/dashboard/RevenueDistributionPage'));
+const LineUsagePage = lazy(() => import('./pages/dashboard/LineUsagePage'));
 const ClinicSignupPage = lazy(() => import('./pages/ClinicSignupPage'));
 const MemberSignupPage = lazy(() => import('./pages/MemberSignupPage'));
 const NameConfirmationPage = lazy(() => import('./pages/NameConfirmationPage'));
@@ -124,7 +128,12 @@ const AdminRoutes: React.FC = () => {
             <Route path="chat" element={<SettingsChatPage />} />
             <Route path="receipts" element={<SettingsReceiptsPage />} />
           </Route>
-          <Route path="clinic/dashboard" element={<ClinicDashboardPage />} />
+          <Route path="clinic/dashboard" element={<DashboardLayout />}>
+            <Route index element={<DashboardIndexPage />} />
+            <Route path="business-insights" element={<BusinessInsightsPage />} />
+            <Route path="revenue-distribution" element={<RevenueDistributionPage />} />
+            <Route path="line-usage" element={<LineUsagePage />} />
+          </Route>
           <Route path="clinic/accounting" element={<AccountingDashboardPage />} />
           <Route path="calendar" element={<AvailabilityPage />} />
           <Route path="profile" element={<ProfilePage />} />

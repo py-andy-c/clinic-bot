@@ -392,4 +392,3 @@ class TestVoidReasonPersistence:
         # Refresh from database to verify persistence
         db_session.refresh(voided_receipt)
         assert voided_receipt.void_reason == void_reason
-

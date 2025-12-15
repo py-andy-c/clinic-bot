@@ -62,7 +62,3 @@ class LineAiReply(Base):
             f"clinic_id={self.clinic_id}, "
             f"line_user_id={self.line_user_id[:10]}...)>"
         )
-
-
-
-

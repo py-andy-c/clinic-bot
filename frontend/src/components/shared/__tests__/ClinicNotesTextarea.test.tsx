@@ -87,6 +87,3 @@ describe('ClinicNotesTextarea', () => {
     expect(textarea).toHaveClass('custom-class');
   });
 });
-
-
-
