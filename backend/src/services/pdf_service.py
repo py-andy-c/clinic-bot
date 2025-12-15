@@ -72,6 +72,19 @@ class PDFService:
         # Resolve immediately to get absolute path regardless of working directory
         self.font_path = (self.base_dir / "fonts" / "NotoSansTC-Regular.otf").resolve()
         
+        # Load font file as base64 for embedding in CSS
+        # This bypasses Fontconfig/Pango path resolution issues
+        # WeasyPrint can load fonts from base64 data URIs in CSS @font-face
+        import base64
+        if self.font_path.exists():
+            with open(self.font_path, 'rb') as f:
+                font_data = f.read()
+                self.font_base64 = base64.b64encode(font_data).decode('utf-8')
+                logger.info(f"[TEMP DEBUG] Font loaded as base64: {len(self.font_base64)} chars")
+        else:
+            logger.warning(f"⚠️  Font file not found at {self.font_path}")
+            self.font_base64 = None
+        
         # [TEMP DEBUG] Log font path information for production debugging
         logger.info(f"[TEMP DEBUG] Font path check:")
         logger.info(f"[TEMP DEBUG]   base_dir: {self.base_dir}")
@@ -80,8 +93,6 @@ class PDFService:
         logger.info(f"[TEMP DEBUG]   font_path is_file: {self.font_path.is_file()}")
         if self.font_path.exists():
             logger.info(f"[TEMP DEBUG]   font_path size: {self.font_path.stat().st_size} bytes")
-        else:
-            logger.warning(f"⚠️  Font file not found at {self.font_path}")
     
     def generate_receipt_pdf(
         self,
@@ -168,15 +179,21 @@ class PDFService:
             logger.info(f"[TEMP DEBUG]   file:// URL: {font_file_url}")
             logger.info(f"[TEMP DEBUG]   base_url: {self.base_dir}")
             
-            # SOLUTION: Use absolute filesystem path in CSS url() with file:// protocol
-            # WeasyPrint needs explicit file:// protocol for absolute paths in CSS url()
-            # This bypasses base_url resolution issues when working directory differs
-            font_file_url = f"file://{font_absolute_path}"
-            html_content_for_pdf = re.sub(
-                r"url\(['\"]?/fonts/NotoSansTC-Regular\.otf['\"]?\)",
-                lambda m: f"url('{font_file_url}')",
-                html_content
-            )
+            # SOLUTION: Embed font as base64 data URI in CSS
+            # WeasyPrint uses Fontconfig/Pango which expects fonts in system directories
+            # CSS @font-face with file:// URLs doesn't work reliably
+            # Base64 embedding bypasses all path resolution issues
+            if self.font_base64:
+                font_data_uri = f"data:font/opentype;base64,{self.font_base64}"
+                html_content_for_pdf = re.sub(
+                    r"url\(['\"]?/fonts/NotoSansTC-Regular\.otf['\"]?\)",
+                    lambda m: f"url('{font_data_uri}')",
+                    html_content
+                )
+                logger.info(f"[TEMP DEBUG] Using base64 embedded font (length: {len(self.font_base64)} chars)")
+            else:
+                logger.error("⚠️  Font base64 not available, falling back to original path")
+                html_content_for_pdf = html_content
             
             # [TEMP DEBUG] Log the CSS after replacement
             font_url_after = re.search(r"url\(['\"]?[^)]+NotoSansTC-Regular\.otf['\"]?\)", html_content_for_pdf)
