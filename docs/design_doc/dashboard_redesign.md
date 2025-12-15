@@ -125,12 +125,16 @@ Standard buttons across all applicable pages:
 - **Chart Types**:
   - Line chart for "總營收" view
   - Stacked area chart (solid colors) for "依服務項目" and "依治療師" views
+- **Date Basis**: All revenue data is aggregated by **預約日期 (visit date/service date)**, not checkout date
+  - Revenue is grouped by the appointment/service date when the service was provided
+  - This ensures accurate business reporting based on when services were actually delivered
 - **Granularity**: Auto-adjusts based on date range
   - ≤ 31 days: Daily
   - ≤ 90 days: Weekly
   - ≤ 365 days: Monthly
 - **Mobile**: Horizontally scrollable with `min-width: 600px`
 - **Container**: `overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0`
+- **Subtitle**: "依預約日期統計" displayed below chart title to clarify date basis
 
 ### Breakdown Tables
 - **By Service Type (依服務項目)**: Revenue, item count, percentage
@@ -150,12 +154,15 @@ Standard buttons across all applicable pages:
 - **Page Size**: 20 items per page
 - **Default Sort**: Date descending (newest first)
 - **Sortable Columns**: All except "操作"
+- **Date Column**: Shows **預約日期 (visit date/service date)**, not checkout date
+  - All filtering and sorting is based on the appointment/service date
+  - This ensures consistent reporting across all dashboard pages
 - **Rowspan Handling**: For receipts with multiple items, use rowspan for receipt number, date, patient, and action columns
   - **Consideration**: If receipt has >10 items, consider simpler row-per-item approach
   - **Backend**: Should return data in format that supports rowspan (grouped by receipt)
 - **Columns**:
   - 收據編號 (min-width: 100px)
-  - 日期 (min-width: 90px)
+  - 預約日期 (min-width: 90px) - displays visit/service date
   - 病患 (min-width: 80px)
   - 項目 (min-width: 140px, allows wrapping)
   - 數量 (min-width: 60px, centered)
@@ -171,6 +178,7 @@ Standard buttons across all applicable pages:
 - **Pagination**: "顯示 1 到 20 筆，共 X 筆項目"
 
 ### Filters
+- **Date Range Filters**: Labeled as "開始日期（預約日期）" and "結束日期（預約日期）" to clarify that filtering is based on appointment/service date, not checkout date
 - **僅顯示覆寫計費方案**: Checkbox with info icon
 - **Info Modal**: Explains what "覆寫計費方案" means (billing scenario = "其他")
 
@@ -278,18 +286,29 @@ import { LineChart, Line, AreaChart, Area, XAxis, YAxis, ResponsiveContainer, To
 
 ### Data Handling
 
-1. **Percentages**: Always round to whole numbers using `Math.round()`
+1. **Date Filtering and Aggregation**:
+   - **All revenue/accounting data uses 預約日期 (visit date/service date)**, not checkout date (issue_date)
+   - Backend filters receipts by `visit_date` from `receipt_data` JSONB field
+   - All dates are converted to Taiwan timezone (UTC+8) before filtering and aggregation
+   - Date range filters are labeled as "（預約日期）" to clarify the date basis
+   - This ensures consistent reporting: revenue is attributed to the date when services were provided, not when payment was processed
+
+2. **Percentages**: Always round to whole numbers using `Math.round()`
    - Edge case: 0.5% rounds to 1% (standard rounding)
    - Zero values: Display as "0%" not "0.0%"
-2. **Currency**: Format as `$ X,XXX` with commas
+
+3. **Currency**: Format as `$ X,XXX` with commas
    - Zero values: Display as "$ 0"
    - Negative amounts: Not expected in this system, but handle gracefully if encountered
-3. **Custom Service Items**: Identify by checking if item name exists in standard list
+
+4. **Custom Service Items**: Identify by checking if item name exists in standard list
    - **Backend**: Should provide a flag or list of standard service items
    - **Matching**: Use exact case-sensitive match (backend should normalize)
    - **Display**: Custom items shown in italic with `(自訂)` label
-4. **Null Practitioners**: Display as "無" with gray text (`text-gray-500`)
-5. **Overwritten Items**: Identify by `billing_scenario === '其他'`
+
+5. **Null Practitioners**: Display as "無" with gray text (`text-gray-500`)
+
+6. **Overwritten Items**: Identify by `billing_scenario === '其他'`
    - **Styling**: Yellow background `#fef3c7` - verify WCAG AA contrast (4.5:1 ratio)
    - Consider adding border or darker yellow if contrast insufficient
 
@@ -306,16 +325,24 @@ import { LineChart, Line, AreaChart, Area, XAxis, YAxis, ResponsiveContainer, To
 1. **Filter State**: Manage filter state (date range, practitioner, service item, overwritten filter) in component state or URL params
    - **Recommendation**: Use URL params for shareable/bookmarkable views
    - Chart view selection (總營收/依服務項目/依治療師) can be component state
+   - **Date Range**: All date filters use 預約日期 (visit date/service date) for consistency
+
 2. **Sorting**: Pass sort parameters to API (`sort_by`, `sort_order`)
    - **Server-side sorting**: Essential for large datasets (Revenue Distribution table)
    - Sort state can persist in URL params for shareability
+   - When sorting by date, sorts by visit date (預約日期), not checkout date
+
 3. **Pagination**: Use page-based pagination (page size: 20)
-   - Default sort: Date descending (newest first)
+   - Default sort: Date descending (newest first) - based on visit date
    - Reset to page 1 when filters change
    - Total count should reflect current filter results
+
 4. **Data Aggregation**: Backend should handle date range aggregation and grouping
+   - **Date Basis**: All aggregation uses `visit_date` from `receipt_data` JSONB, converted to Taiwan timezone
+   - Backend uses `issue_date` as a first-pass filter (expanded range ±2 days) for performance, then filters by `visit_date` in Python
    - Chart granularity (daily/weekly/monthly) should be determined by backend based on date range
    - Frontend should not need to aggregate data client-side
+   - All date-based filtering and aggregation is consistent across Business Insights, Revenue Distribution, and Accounting Dashboard
 
 ### Testing Considerations
 

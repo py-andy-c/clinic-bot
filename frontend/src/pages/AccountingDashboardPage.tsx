@@ -493,7 +493,7 @@ const AccountingDashboardPage: React.FC = () => {
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">收據編號</th>
-                              <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">日期</th>
+                              <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">預約日期</th>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">病患</th>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">服務項目</th>
                               <th className="px-2 py-2 md:px-4 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">計費方案</th>
@@ -506,7 +506,7 @@ const AccountingDashboardPage: React.FC = () => {
                               <tr key={idx}>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900">{item.receipt_number}</td>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-500">
-                                  {moment(item.issue_date).tz('Asia/Taipei').format('YYYY-MM-DD')}
+                                  {item.visit_date || (item.issue_date ? moment(item.issue_date).tz('Asia/Taipei').format('YYYY-MM-DD') : '-')}
                                 </td>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900">{item.patient_name}</td>
                                 <td className="px-2 py-2 md:px-4 md:py-3 text-sm text-gray-900">

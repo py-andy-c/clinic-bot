@@ -4,15 +4,69 @@ Service for accounting and revenue reporting.
 Handles aggregation queries on receipt data for accounting dashboard.
 """
 
+import logging
 from typing import Dict, Any, List, Optional, cast as type_cast, Set
 from decimal import Decimal
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from models.receipt import Receipt
 from models.user import User
 from models.user_clinic_association import UserClinicAssociation
+from utils.datetime_utils import parse_datetime_string_to_taiwan
+
+logger = logging.getLogger(__name__)
+
+# Date expansion window for performance optimization
+# We use issue_date (checkout date) as a first-pass SQL filter, then filter by visit_date (service date) in Python.
+# Since checkout typically happens on the same day or within 1-2 days of service, we expand the range by 2 days
+# to ensure we don't miss any receipts while still reducing the dataset size significantly.
+DATE_FILTER_EXPANSION_DAYS = 2
+
+
+def _filter_receipts_by_visit_date(
+    receipts: List[Receipt],
+    start_date: date,
+    end_date: date
+) -> List[Receipt]:
+    """
+    Filter receipts by visit_date (service time) in Taiwan timezone.
+    
+    This helper function extracts the common logic for filtering receipts by visit_date
+    from receipt_data JSONB, converting to Taiwan timezone, and checking against date range.
+    
+    Args:
+        receipts: List of Receipt objects to filter
+        start_date: Start date for the range
+        end_date: End date for the range
+        
+    Returns:
+        Filtered list of receipts where visit_date falls within the date range
+    """
+    filtered_receipts: List[Receipt] = []
+    for receipt in receipts:
+        receipt_data: Dict[str, Any] = receipt.receipt_data  # type: ignore
+        visit_date_str = receipt_data.get('visit_date')
+        if not visit_date_str:
+            continue  # Skip receipts without visit_date (shouldn't happen, but defensive)
+        
+        try:
+            # Parse visit_date and convert to Taiwan timezone
+            visit_datetime = parse_datetime_string_to_taiwan(visit_date_str)
+            visit_date_taiwan = visit_datetime.date()
+            
+            # Filter by date range using Taiwan timezone
+            if visit_date_taiwan < start_date or visit_date_taiwan > end_date:
+                continue
+        except (ValueError, AttributeError) as e:
+            # Skip receipts with invalid visit_date
+            logger.warning(f"Invalid visit_date in receipt {receipt.id}: {visit_date_str}, error: {e}")
+            continue
+        
+        filtered_receipts.append(receipt)
+    
+    return filtered_receipts
 
 
 class AccountingService:
@@ -39,22 +93,26 @@ class AccountingService:
         Returns:
             Dictionary with summary statistics and breakdowns
         """
-        # Base query for non-voided receipts in date range
+        # Base query for non-voided receipts
+        # Note: We filter by visit_date (service time) in Python after loading,
+        # since visit_date is stored in JSONB. We use issue_date as a first-pass filter
+        # to reduce the dataset (checkout date should be close to service date).
+        # Expand the range by a few days to account for late checkouts (e.g., checkout next day).
+        # This is a performance optimization - we'll do exact filtering by visit_date in Python
+        expanded_start = (start_date - timedelta(days=DATE_FILTER_EXPANSION_DAYS))
+        expanded_end = (end_date + timedelta(days=DATE_FILTER_EXPANSION_DAYS))
+        
         base_query = db.query(Receipt).filter(
             Receipt.clinic_id == clinic_id,
             Receipt.is_voided == False,
-            func.date(Receipt.issue_date) >= start_date,
-            func.date(Receipt.issue_date) <= end_date
+            func.date(Receipt.issue_date) >= expanded_start,
+            func.date(Receipt.issue_date) <= expanded_end
         )
         
-        # Filter by practitioner if specified
-        if practitioner_id:
-            # Filter receipts where at least one item has this practitioner
-            # Use JSONB contains check - we'll filter in Python for accuracy
-            # This is a simple approach; for better performance, could use JSONB path queries
-            pass  # Will filter in Python loop below
+        all_receipts = base_query.all()
         
-        receipts = base_query.all()
+        # Filter by visit_date (service time) in Taiwan timezone
+        receipts = _filter_receipts_by_visit_date(all_receipts, start_date, end_date)
         
         # Filter by practitioner in Python if specified (more accurate than SQL JSONB queries)
         if practitioner_id:
@@ -145,12 +203,19 @@ class AccountingService:
                     practitioner_stats[prac_id]['receipt_count'] += 1
         
         # Count voided receipts
-        voided_count = db.query(func.count(Receipt.id)).filter(
+        # Note: For voided receipts, we filter by visit_date (service time) to be consistent
+        # with active receipts. Voiding is an administrative action, but we want to count
+        # voided receipts based on when the service was provided, not when it was voided.
+        # Use issue_date as a first-pass filter for performance (expanded range).
+        all_voided_receipts = db.query(Receipt).filter(
             Receipt.clinic_id == clinic_id,
             Receipt.is_voided == True,
-            func.date(Receipt.issue_date) >= start_date,
-            func.date(Receipt.issue_date) <= end_date
-        ).scalar() or 0
+            func.date(Receipt.issue_date) >= expanded_start,
+            func.date(Receipt.issue_date) <= expanded_end
+        ).all()
+        
+        filtered_voided_receipts = _filter_receipts_by_visit_date(all_voided_receipts, start_date, end_date)
+        voided_count = len(filtered_voided_receipts)
         
         return {
             'date_range': {
@@ -197,17 +262,25 @@ class AccountingService:
             raise ValueError(f"Practitioner {practitioner_id} not found")
         
         # Get receipts with items for this practitioner
-        # Get all receipts in date range, then filter by practitioner in Python
-        receipts = db.query(Receipt).filter(
+        # Note: We filter by visit_date (service time) in Python after loading,
+        # since visit_date is stored in JSONB. We use issue_date as a first-pass filter
+        # to reduce the dataset (checkout date should be close to service date).
+        expanded_start = (start_date - timedelta(days=DATE_FILTER_EXPANSION_DAYS))
+        expanded_end = (end_date + timedelta(days=DATE_FILTER_EXPANSION_DAYS))
+        
+        all_receipts = db.query(Receipt).filter(
             Receipt.clinic_id == clinic_id,
             Receipt.is_voided == False,
-            func.date(Receipt.issue_date) >= start_date,
-            func.date(Receipt.issue_date) <= end_date
+            func.date(Receipt.issue_date) >= expanded_start,
+            func.date(Receipt.issue_date) <= expanded_end
         ).all()
+        
+        # Filter by visit_date (service time) in Taiwan timezone
+        filtered_by_date = _filter_receipts_by_visit_date(all_receipts, start_date, end_date)
         
         # Filter to only receipts with items for this practitioner
         filtered_receipts: List[Receipt] = []
-        for receipt in receipts:
+        for receipt in filtered_by_date:
             receipt_data: Dict[str, Any] = receipt.receipt_data  # type: ignore
             items: List[Dict[str, Any]] = receipt_data.get('items', [])  # type: ignore
             for item in items:
@@ -248,10 +321,24 @@ class AccountingService:
                 
                 # Build item detail
                 patient_data: Dict[str, Any] = type_cast(Dict[str, Any], receipt_data.get('patient', {}))  # type: ignore
+                # Use visit_date (service time) for consistency with filtering
+                visit_date_str = receipt_data.get('visit_date')
+                visit_date_iso = None
+                if visit_date_str:
+                    try:
+                        visit_datetime = parse_datetime_string_to_taiwan(visit_date_str)
+                        visit_date_iso = visit_datetime.date().isoformat()
+                    except (ValueError, AttributeError):
+                        # Fallback to issue_date if visit_date is invalid
+                        visit_date_iso = receipt.issue_date.date().isoformat()
+                else:
+                    # Fallback to issue_date if visit_date is missing
+                    visit_date_iso = receipt.issue_date.date().isoformat()
+                
                 item_detail: Dict[str, Any] = {
                     'receipt_id': receipt.id,
                     'receipt_number': receipt.receipt_number,
-                    'issue_date': receipt.issue_date.isoformat(),
+                    'visit_date': visit_date_iso,  # Use visit_date for consistency
                     'patient_name': type_cast(str, patient_data.get('name', '')),  # type: ignore
                     'amount': float(item_total_amount),
                     'revenue_share': float(item_total_revenue_share),

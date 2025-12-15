@@ -333,7 +333,7 @@ const RevenueDistributionPage: React.FC = () => {
                   className="whitespace-nowrap"
                   style={{ minWidth: '90px' }}
                 >
-                  日期
+                  預約日期
                 </SortableTableHeader>
                 <SortableTableHeader
                   column="patient"

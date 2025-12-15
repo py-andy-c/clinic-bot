@@ -265,7 +265,10 @@ const BusinessInsightsPage: React.FC = () => {
       {/* Revenue Trend Chart */}
       <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-6 md:py-6 pt-6 border-t border-gray-200 md:pt-6 md:border-t-0 mb-4 md:mb-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-2 mb-3 md:mb-4">
-          <h2 className="text-base md:text-lg font-semibold text-gray-900">營收趨勢</h2>
+          <div>
+            <h2 className="text-base md:text-lg font-semibold text-gray-900">營收趨勢</h2>
+            <p className="text-xs text-gray-500 mt-0.5">依預約日期統計</p>
+          </div>
           <div className="flex items-center gap-2">
             <label className="text-xs md:text-sm text-gray-600">顯示方式：</label>
             <select

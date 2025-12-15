@@ -4,6 +4,7 @@ Service for business insights and revenue distribution dashboard.
 Handles aggregation queries on receipt data for business insights and revenue distribution pages.
 """
 
+import logging
 from typing import Dict, Any, List, Optional, Set, Union
 from decimal import Decimal
 from datetime import date, timedelta
@@ -12,6 +13,59 @@ from sqlalchemy import func
 from collections import defaultdict
 
 from models.receipt import Receipt
+from utils.datetime_utils import parse_datetime_string_to_taiwan
+
+logger = logging.getLogger(__name__)
+
+# Date expansion window for performance optimization
+# We use issue_date (checkout date) as a first-pass SQL filter, then filter by visit_date (service date) in Python.
+# Since checkout typically happens on the same day or within 1-2 days of service, we expand the range by 2 days
+# to ensure we don't miss any receipts while still reducing the dataset size significantly.
+DATE_FILTER_EXPANSION_DAYS = 2
+
+
+def _filter_receipts_by_visit_date(
+    receipts: List[Receipt],
+    start_date: date,
+    end_date: date
+) -> List[Receipt]:
+    """
+    Filter receipts by visit_date (service time) in Taiwan timezone.
+    
+    This helper function extracts the common logic for filtering receipts by visit_date
+    from receipt_data JSONB, converting to Taiwan timezone, and checking against date range.
+    
+    Args:
+        receipts: List of Receipt objects to filter
+        start_date: Start date for the range
+        end_date: End date for the range
+        
+    Returns:
+        Filtered list of receipts where visit_date falls within the date range
+    """
+    filtered_receipts: List[Receipt] = []
+    for receipt in receipts:
+        receipt_data: Dict[str, Any] = receipt.receipt_data
+        visit_date_str = receipt_data.get('visit_date')
+        if not visit_date_str:
+            continue  # Skip receipts without visit_date (shouldn't happen, but defensive)
+        
+        try:
+            # Parse visit_date and convert to Taiwan timezone
+            visit_datetime = parse_datetime_string_to_taiwan(visit_date_str)
+            visit_date_taiwan = visit_datetime.date()
+            
+            # Filter by date range using Taiwan timezone
+            if visit_date_taiwan < start_date or visit_date_taiwan > end_date:
+                continue
+        except (ValueError, AttributeError) as e:
+            # Skip receipts with invalid visit_date
+            logger.warning(f"Invalid visit_date in receipt {receipt.id}: {visit_date_str}, error: {e}")
+            continue
+        
+        filtered_receipts.append(receipt)
+    
+    return filtered_receipts
 
 
 class BusinessInsightsService:
@@ -40,19 +94,30 @@ class BusinessInsightsService:
         Returns:
             Dictionary with summary, revenue trend, and breakdowns
         """
-        # Base query for non-voided receipts in date range
+        # Base query for non-voided receipts
+        # Note: We filter by visit_date (service time) in Python after loading,
+        # since visit_date is stored in JSONB. We use issue_date as a first-pass filter
+        # to reduce the dataset (checkout date should be close to service date).
+        # Expand the range by a few days to account for late checkouts (e.g., checkout next day).
+        # This is a performance optimization - we'll do exact filtering by visit_date in Python
+        expanded_start = (start_date - timedelta(days=DATE_FILTER_EXPANSION_DAYS))
+        expanded_end = (end_date + timedelta(days=DATE_FILTER_EXPANSION_DAYS))
+        
         base_query = db.query(Receipt).filter(
             Receipt.clinic_id == clinic_id,
             Receipt.is_voided == False,
-            func.date(Receipt.issue_date) >= start_date,
-            func.date(Receipt.issue_date) <= end_date
+            func.date(Receipt.issue_date) >= expanded_start,
+            func.date(Receipt.issue_date) <= expanded_end
         )
         
-        receipts = base_query.all()
+        all_receipts = base_query.all()
+        
+        # Filter by visit_date (service time) in Taiwan timezone
+        receipts = _filter_receipts_by_visit_date(all_receipts, start_date, end_date)
         
         # Filter by practitioner if specified
         if practitioner_id:
-            filtered_receipts: List[Receipt] = []
+            filtered_receipts = []
             for receipt in receipts:
                 receipt_data: Dict[str, Any] = receipt.receipt_data
                 items: List[Dict[str, Any]] = receipt_data.get('items', [])
@@ -65,7 +130,7 @@ class BusinessInsightsService:
         
         # Filter by service item if specified
         if service_item_id:
-            filtered_receipts: List[Receipt] = []
+            filtered_receipts = []
             for receipt in receipts:
                 receipt_data: Dict[str, Any] = receipt.receipt_data
                 items: List[Dict[str, Any]] = receipt_data.get('items', [])
@@ -100,7 +165,20 @@ class BusinessInsightsService:
         
         for receipt in receipts:
             receipt_data: Dict[str, Any] = receipt.receipt_data
-            receipt_date = receipt.issue_date.date().isoformat()
+            # Use visit_date (service time) instead of issue_date (checkout time)
+            visit_date_str = receipt_data.get('visit_date')
+            if not visit_date_str:
+                continue  # Skip receipts without visit_date
+            
+            try:
+                # Parse visit_date and convert to Taiwan timezone, then extract date
+                visit_datetime = parse_datetime_string_to_taiwan(visit_date_str)
+                receipt_date = visit_datetime.date().isoformat()
+            except (ValueError, AttributeError) as e:
+                # Skip receipts with invalid visit_date
+                logger.warning(f"Invalid visit_date in receipt {receipt.id}: {visit_date_str}, error: {e}")
+                continue
+            
             receipt_ids.add(receipt.id)
             
             patient_data: Dict[str, Any] = receipt_data.get('patient', {})
@@ -337,15 +415,25 @@ class RevenueDistributionService:
         Returns:
             Dictionary with summary, items, and pagination info
         """
-        # Base query for non-voided receipts in date range
+        # Base query for non-voided receipts
+        # Note: We filter by visit_date (service time) in Python after loading,
+        # since visit_date is stored in JSONB. We use issue_date as a first-pass filter
+        # to reduce the dataset (checkout date should be close to service date).
+        # Expand the range by a few days to account for late checkouts (e.g., checkout next day).
+        expanded_start = (start_date - timedelta(days=DATE_FILTER_EXPANSION_DAYS))
+        expanded_end = (end_date + timedelta(days=DATE_FILTER_EXPANSION_DAYS))
+        
         base_query = db.query(Receipt).filter(
             Receipt.clinic_id == clinic_id,
             Receipt.is_voided == False,
-            func.date(Receipt.issue_date) >= start_date,
-            func.date(Receipt.issue_date) <= end_date
+            func.date(Receipt.issue_date) >= expanded_start,
+            func.date(Receipt.issue_date) <= expanded_end
         )
         
-        receipts = base_query.all()
+        all_receipts = base_query.all()
+        
+        # Filter by visit_date (service time) in Taiwan timezone
+        receipts = _filter_receipts_by_visit_date(all_receipts, start_date, end_date)
         
         # Collect all receipt items
         all_items: List[Dict[str, Any]] = []
@@ -356,7 +444,21 @@ class RevenueDistributionService:
             receipt_data: Dict[str, Any] = receipt.receipt_data
             receipt_id = receipt.id
             receipt_number = receipt_data.get('receipt_number', '')
-            receipt_date = receipt.issue_date.date().isoformat()
+            
+            # Use visit_date (service time) instead of issue_date (checkout time)
+            visit_date_str = receipt_data.get('visit_date')
+            if not visit_date_str:
+                continue  # Skip receipts without visit_date
+            
+            try:
+                # Parse visit_date and convert to Taiwan timezone, then extract date
+                visit_datetime = parse_datetime_string_to_taiwan(visit_date_str)
+                receipt_date = visit_datetime.date().isoformat()
+            except (ValueError, AttributeError) as e:
+                # Skip receipts with invalid visit_date
+                logger.warning(f"Invalid visit_date in receipt {receipt.id}: {visit_date_str}, error: {e}")
+                continue
+            
             patient_data: Dict[str, Any] = receipt_data.get('patient', {})
             patient_name = patient_data.get('name', '')
             appointment_id = receipt.appointment_id
