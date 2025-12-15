@@ -6,6 +6,7 @@ ensuring immutability and consistency between HTML display and PDF download.
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -127,9 +128,19 @@ class PDFService:
                 metadata['creation_date'] = creation_date
             
             # Generate PDF using WeasyPrint
+            # Replace absolute font paths (/fonts/) with relative paths (fonts/) for WeasyPrint
+            # WeasyPrint resolves relative paths based on base_url, so fonts/ resolves to backend/fonts/
+            # HTML viewing uses /fonts/ which works with the static file mount
+            # Use regex to handle both single and double quotes in CSS url() declarations
+            html_content_for_pdf = re.sub(
+                r"url\(['\"]?/fonts/",
+                r"url('fonts/",
+                html_content
+            )
+            
             # base_url is set to backend directory for resolving relative paths (fonts, images)
             pdf_bytes = HTML(
-                string=html_content,
+                string=html_content_for_pdf,
                 base_url=str(self.base_dir)
             ).write_pdf(metadata=metadata)  # type: ignore[reportUnknownMemberType]
             

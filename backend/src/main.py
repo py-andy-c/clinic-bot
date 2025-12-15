@@ -61,8 +61,10 @@ async def lifespan(app: FastAPI):
     # Start schedulers - wrap each in try-except to ensure server starts even if schedulers fail
     # Use asyncio.create_task to start schedulers in background without blocking
     import asyncio
+    from collections.abc import Callable, Coroutine
+    from typing import Any
     
-    async def start_scheduler_safely(name: str, start_func):
+    async def start_scheduler_safely(name: str, start_func: Callable[[], Coroutine[Any, Any, None]]):
         """Start a scheduler safely, logging errors but not blocking startup."""
         try:
             await start_func()
@@ -250,6 +252,15 @@ if frontend_dist_path.exists():
     logger.info(f"✅ Static files mounted from {frontend_dist_path}")
 else:
     logger.warning(f"⚠️  Frontend dist directory not found at {frontend_dist_path}")
+
+# Serve fonts as static files for receipt PDF/HTML generation
+# This allows WeasyPrint and browsers to access the font files
+fonts_path = Path(__file__).parent.parent / "fonts"
+if fonts_path.exists():
+    app.mount("/fonts", StaticFiles(directory=str(fonts_path)), name="fonts")
+    logger.info(f"✅ Fonts mounted from {fonts_path}")
+else:
+    logger.warning(f"⚠️  Fonts directory not found at {fonts_path}")
 
 
 @app.get(
