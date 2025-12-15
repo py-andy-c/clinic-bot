@@ -42,7 +42,7 @@ const RevenueDistributionPage: React.FC = () => {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [selectedAppointmentEvent, setSelectedAppointmentEvent] = useState<CalendarEvent | null>(null);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
-  const [loadingAppointmentId, setLoadingAppointmentId] = useState<number | null>(null);
+  const [loadingRowKey, setLoadingRowKey] = useState<string | null>(null);
 
   // Load practitioners and service items
   const { data: membersData } = useApiData(() => apiService.getMembers(), { cacheTTL: 5 * 60 * 1000 });
@@ -172,9 +172,10 @@ const RevenueDistributionPage: React.FC = () => {
     setPage(1);
   };
 
-  const handleViewAppointment = useCallback(async (appointmentId: number) => {
+  const handleViewAppointment = useCallback(async (appointmentId: number, receiptId: number, rowIndex: number) => {
+    const rowKey = `${receiptId}-${rowIndex}`;
     try {
-      setLoadingAppointmentId(appointmentId);
+      setLoadingRowKey(rowKey);
       
       // Fetch appointment details directly by ID (no need for date/practitioner)
       const appointmentData = await apiService.getAppointmentDetails(appointmentId);
@@ -224,7 +225,7 @@ const RevenueDistributionPage: React.FC = () => {
       logger.error('Failed to load appointment details:', error);
       alert('無法載入預約詳情，請稍後再試');
     } finally {
-      setLoadingAppointmentId(null);
+      setLoadingRowKey(null);
     }
   }, []);
 
@@ -511,10 +512,10 @@ const RevenueDistributionPage: React.FC = () => {
                             <>
                               <button
                                 className="text-blue-600 hover:text-blue-800 text-xs md:text-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-                                onClick={() => handleViewAppointment(item.appointment_id!)}
-                                disabled={loadingAppointmentId === item.appointment_id}
+                                onClick={() => handleViewAppointment(item.appointment_id!, item.receipt_id, index)}
+                                disabled={loadingRowKey === `${item.receipt_id}-${index}`}
                               >
-                                {loadingAppointmentId === item.appointment_id ? '載入中...' : '檢視預約'}
+                                {loadingRowKey === `${item.receipt_id}-${index}` ? '載入中...' : '檢視預約'}
                               </button>
                               <span className="text-gray-300">|</span>
                             </>
