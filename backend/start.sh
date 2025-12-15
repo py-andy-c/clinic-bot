@@ -37,11 +37,12 @@ if [ -d "alembic" ] && [ -f "alembic.ini" ]; then
     # Handle migration history reset transition
     # Only stamp to baseline if we have an invalid/unknown revision
     # Valid revisions in the chain should be upgraded normally
+    echo "Checking current database migration state..."
     CURRENT_REV=$(alembic current 2>&1 | grep -oE '[a-f0-9]{12}' | head -1 || echo "")
     BASELINE_REV="680334b106f8"
     
-    # Check if current revision is valid in the migration chain
     if [ -n "$CURRENT_REV" ]; then
+        echo "Current migration revision: $CURRENT_REV"
         # Check if the revision exists in our migration history
         if ! alembic history | grep -q "$CURRENT_REV"; then
             echo "⚠️  Detected invalid/unknown migration revision: $CURRENT_REV"
@@ -50,27 +51,34 @@ if [ -d "alembic" ] && [ -f "alembic.ini" ]; then
             echo "   Note: This assumes the schema already matches the baseline."
             echo "   If schema differs, you may need to create a bridge migration."
             
-            if alembic stamp "$BASELINE_REV" 2>&1; then
-                echo "✅ Database stamped to baseline successfully"
-            else
+            if ! alembic stamp "$BASELINE_REV" 2>&1; then
                 echo "❌ ERROR: Failed to stamp database to baseline" >&2
                 echo "   You may need to manually verify the schema matches" >&2
                 exit 1
             fi
+            echo "✅ Database stamped to baseline successfully"
         else
             echo "✅ Current revision $CURRENT_REV is valid in migration chain"
         fi
+    else
+        echo "No current migration revision found (fresh database or uninitialized)"
     fi
     
     # Run migrations - baseline migration handles everything (fresh or existing)
-    echo "Running migrations..."
-    if ! alembic upgrade head; then
+    echo "=========================================="
+    echo "🔄 Running database migrations..."
+    echo "=========================================="
+    if ! alembic upgrade head 2>&1; then
         echo "❌ ERROR: Database migrations failed. Aborting startup." >&2
         echo "The application will not start with an inconsistent database schema." >&2
         echo "Check the migration output above for details." >&2
         exit 1
     fi
     echo "✅ Migrations completed successfully"
+    
+    # Verify final migration state
+    FINAL_REV=$(alembic current 2>&1 | grep -oE '[a-f0-9]{12}' | head -1 || echo "")
+    echo "Final migration revision: ${FINAL_REV:-'none'}"
 else
     echo "ERROR: Alembic directory or config not found. Cannot proceed without migrations." >&2
     echo "This is a critical error - migrations are required for database consistency." >&2
@@ -112,8 +120,18 @@ fi
 echo "=========================================="
 echo "🚀 Starting application server..."
 echo "=========================================="
-echo "Command: uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
+PORT=${PORT:-8000}
+echo "Command: uvicorn main:app --host 0.0.0.0 --port $PORT"
+echo "Working directory: $(pwd)"
 echo "=========================================="
-cd src
-exec uvicorn main:app --host 0.0.0.0 --port "${PORT:-8000}"
+
+# Change to src directory for uvicorn
+cd src || {
+    echo "❌ ERROR: Failed to change to src directory" >&2
+    exit 1
+}
+
+# Start uvicorn with explicit error handling
+# Use exec to replace shell process with uvicorn
+exec uvicorn main:app --host 0.0.0.0 --port "$PORT" --log-level info
 

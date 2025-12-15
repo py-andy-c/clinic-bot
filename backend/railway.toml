@@ -23,7 +23,7 @@ startCommand = "bash start.sh"
 
 # Health check configuration
 healthcheckPath = "/health"
-healthcheckTimeout = 100
+healthcheckTimeout = 180  # Increased to 3 minutes to allow for migrations and startup
 
 # Restart policy - restart on failure
 restartPolicyType = "ALWAYS"
