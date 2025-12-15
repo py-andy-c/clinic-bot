@@ -134,6 +134,35 @@ class AppointmentService:
                 start_time, end_time
             )
 
+            # Validate patient booking restrictions
+            # If this is a patient booking (line_user_id provided), check if practitioner allows patient bookings
+            if line_user_id is not None:
+                from models.user_clinic_association import UserClinicAssociation
+                from pydantic import ValidationError
+                association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == assigned_practitioner_id,
+                    UserClinicAssociation.clinic_id == clinic_id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                
+                if association:
+                    try:
+                        settings = association.get_validated_settings()
+                        if not settings.patient_booking_allowed:
+                            raise HTTPException(
+                                status_code=status.HTTP_403_FORBIDDEN,
+                                detail="此治療師不接受患者預約，請聯繫診所預約"
+                            )
+                    except (ValidationError, ValueError) as e:
+                        # If settings validation fails, log and default to allowing booking (backward compatibility)
+                        logger.warning(
+                            f"Settings validation failed for practitioner {assigned_practitioner_id} "
+                            f"in clinic {clinic_id}: {e}. Defaulting to allowing patient booking."
+                        )
+                    except HTTPException:
+                        # Re-raise HTTP exceptions (like the 403 above)
+                        raise
+
             # Extract date and time components directly (start_time is already in Taiwan timezone)
             # CalendarEvent stores date and time as naive values, interpreted as Taiwan time
             calendar_event = CalendarEvent(

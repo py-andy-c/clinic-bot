@@ -773,6 +773,13 @@ export class ApiService {
     return response.data;
   }
 
+  async updatePractitionerSettings(userId: number, settings: Record<string, any>): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.put(`/clinic/practitioners/${userId}/settings`, {
+      settings
+    });
+    return response.data;
+  }
+
   // Practitioner Status Check APIs (for admin warnings)
   async getPractitionerStatus(userId: number): Promise<{
     has_appointment_types: boolean;

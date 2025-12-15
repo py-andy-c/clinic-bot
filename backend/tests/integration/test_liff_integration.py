@@ -2342,6 +2342,173 @@ class TestClinicIsolationSecurity:
             assert len(appointment_names) == 1
 
             # Should not include appointment types without practitioners or with only inactive practitioners
+
+    def test_list_practitioners_filters_by_patient_booking_allowed(self, db_session: Session, test_clinic_with_liff):
+        """Test that list_practitioners filters out practitioners who don't allow patient booking."""
+        clinic, practitioner, appt_types, practitioner_assoc = test_clinic_with_liff
+
+        # Create a second practitioner who disallows patient booking
+        practitioner2, practitioner2_assoc = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner2@liffclinic.com",
+            google_subject_id="google_456_practitioner2",
+            full_name="Dr. Restricted Practitioner",
+            roles=["practitioner"]
+        )
+
+        # Set practitioner2 to disallow patient booking
+        settings = PractitionerSettings(patient_booking_allowed=False)
+        practitioner2_assoc.set_validated_settings(settings)
+        db_session.commit()
+
+        # Associate practitioner2 with appointment types
+        for appt_type in appt_types:
+            pat = PractitionerAppointmentTypes(
+                user_id=practitioner2.id,
+                clinic_id=clinic.id,
+                appointment_type_id=appt_type.id
+            )
+            db_session.add(pat)
+
+        # Set up availability for practitioner2
+        for day_of_week in range(7):
+            create_practitioner_availability_with_clinic(
+                db_session, practitioner2, clinic,
+                day_of_week=day_of_week,
+                start_time=time(9, 0),
+                end_time=time(17, 0)
+            )
+
+        db_session.commit()
+
+        # Create LINE user and authenticate
+        line_user = LineUser(
+            line_user_id="U_test_filter_practitioners",
+            clinic_id=clinic.id,
+            display_name="Test LINE User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        token = create_line_user_jwt(
+            line_user_id=line_user.line_user_id,
+            clinic_id=clinic.id,
+            db_session=db_session
+        )
+
+        # Mock the LINE user authentication
+        from auth.dependencies import get_current_line_user_with_clinic
+
+        def mock_get_current_line_user_with_clinic():
+            return (line_user, clinic)
+
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = mock_get_current_line_user_with_clinic
+
+        try:
+            # Get practitioners list (should filter out practitioner2)
+            response = client.get(
+                "/api/liff/practitioners",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "practitioners" in data
+            practitioners = data["practitioners"]
+
+            # Should only return practitioner1 (who allows patient booking)
+            assert len(practitioners) == 1
+            assert practitioners[0]["id"] == practitioner.id
+            assert practitioners[0]["full_name"] == practitioner_assoc.full_name
+
+            # Verify practitioner2 is not in the list
+            practitioner_ids = [p["id"] for p in practitioners]
+            assert practitioner2.id not in practitioner_ids
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+
+    def test_list_practitioners_includes_all_when_all_allow_patient_booking(self, db_session: Session, test_clinic_with_liff):
+        """Test that list_practitioners includes all practitioners when they all allow patient booking."""
+        clinic, practitioner, appt_types, practitioner_assoc = test_clinic_with_liff
+
+        # Create a second practitioner who allows patient booking (default)
+        practitioner2, practitioner2_assoc = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner2@liffclinic.com",
+            google_subject_id="google_789_practitioner2",
+            full_name="Dr. Allowed Practitioner",
+            roles=["practitioner"]
+        )
+
+        # Ensure practitioner2 allows patient booking (default is True)
+        settings = PractitionerSettings(patient_booking_allowed=True)
+        practitioner2_assoc.set_validated_settings(settings)
+        db_session.commit()
+
+        # Associate practitioner2 with appointment types
+        for appt_type in appt_types:
+            pat = PractitionerAppointmentTypes(
+                user_id=practitioner2.id,
+                clinic_id=clinic.id,
+                appointment_type_id=appt_type.id
+            )
+            db_session.add(pat)
+
+        # Set up availability for practitioner2
+        for day_of_week in range(7):
+            create_practitioner_availability_with_clinic(
+                db_session, practitioner2, clinic,
+                day_of_week=day_of_week,
+                start_time=time(9, 0),
+                end_time=time(17, 0)
+            )
+
+        db_session.commit()
+
+        # Create LINE user and authenticate
+        line_user = LineUser(
+            line_user_id="U_test_all_practitioners",
+            clinic_id=clinic.id,
+            display_name="Test LINE User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        token = create_line_user_jwt(
+            line_user_id=line_user.line_user_id,
+            clinic_id=clinic.id,
+            db_session=db_session
+        )
+
+        # Mock the LINE user authentication
+        from auth.dependencies import get_current_line_user_with_clinic
+
+        def mock_get_current_line_user_with_clinic():
+            return (line_user, clinic)
+
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = mock_get_current_line_user_with_clinic
+
+        try:
+            # Get practitioners list (should include both)
+            response = client.get(
+                "/api/liff/practitioners",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "practitioners" in data
+            practitioners = data["practitioners"]
+
+            # Should return both practitioners
+            assert len(practitioners) == 2
+            practitioner_ids = [p["id"] for p in practitioners]
+            assert practitioner.id in practitioner_ids
+            assert practitioner2.id in practitioner_ids
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             assert "Consultation without Practitioner" not in appointment_names
             assert "Consultation with Inactive Practitioner" not in appointment_names
 

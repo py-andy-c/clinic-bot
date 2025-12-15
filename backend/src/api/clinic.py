@@ -235,6 +235,11 @@ class PractitionerAppointmentTypesUpdateRequest(BaseModel):
     appointment_type_ids: List[int]
 
 
+class PractitionerSettingsUpdateRequest(BaseModel):
+    """Request model for updating practitioner settings."""
+    settings: Dict[str, Any]  # PractitionerSettings fields
+
+
 class PractitionerAvailabilityResponse(BaseModel):
     """Response model for practitioner availability."""
     id: int
@@ -285,6 +290,8 @@ async def list_members(
         
         # Build member list with roles from associations
         member_list: List[MemberResponse] = []
+        is_admin = current_user.has_role('admin')
+        
         for member in members_with_associations:
             # Get the association for this clinic from the eagerly loaded relationships
             association = next(
@@ -293,13 +300,24 @@ async def list_members(
                 None
             )
             
+            # Get patient_booking_allowed for practitioners (admin only)
+            patient_booking_allowed = None
+            if is_admin and association and 'practitioner' in (association.roles or []):
+                try:
+                    settings = association.get_validated_settings()
+                    patient_booking_allowed = settings.patient_booking_allowed
+                except Exception:
+                    # If settings validation fails, default to None (will show as true in frontend)
+                    pass
+            
             member_list.append(MemberResponse(
                 id=member.id,
                 email=member.email,
                 full_name=association.full_name if association else member.email,  # Clinic users must have association
                 roles=association.roles if association else [],
                 is_active=association.is_active if association else False,
-                created_at=member.created_at
+                created_at=member.created_at,
+                patient_booking_allowed=patient_booking_allowed
             ))
 
         return MemberListResponse(members=member_list)
@@ -3328,6 +3346,69 @@ async def update_practitioner_appointment_types(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="更新治療師預約類型失敗"
+        )
+
+
+@router.put("/practitioners/{user_id}/settings", summary="Update practitioner settings")
+async def update_practitioner_settings(
+    user_id: int,
+    request: PractitionerSettingsUpdateRequest,
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+):
+    """
+    Update practitioner settings (admin only).
+    
+    Only clinic admins can update practitioner settings.
+    This includes settings like patient_booking_allowed.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Get the practitioner's association
+        association = db.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == user_id,
+            UserClinicAssociation.clinic_id == clinic_id,
+            UserClinicAssociation.is_active == True
+        ).first()
+
+        if not association:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="治療師不存在"
+            )
+
+        # Validate and update settings
+        from models.user_clinic_association import PractitionerSettings
+        from utils.datetime_utils import taiwan_now
+        
+        try:
+            # Get current settings and merge with new settings
+            current_settings = association.get_validated_settings()
+            # Merge: update only provided fields, keep existing values for others
+            merged_settings_dict = current_settings.model_dump()
+            merged_settings_dict.update(request.settings)
+            # Validate merged settings
+            validated_settings = PractitionerSettings.model_validate(merged_settings_dict)
+            association.set_validated_settings(validated_settings)
+            association.updated_at = taiwan_now()
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"無效的設定格式: {str(e)}"
+            )
+
+        db.commit()
+        return {"success": True, "message": "治療師設定已更新"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to update practitioner settings for user {user_id}: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="更新治療師設定失敗"
         )
 
 

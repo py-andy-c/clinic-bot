@@ -4,6 +4,12 @@ import { BaseModal } from './shared/BaseModal';
 import { InfoButton, InfoModal } from './shared';
 import { preventScrollWheelChange } from '../utils/inputUtils';
 
+interface PractitionerBookingSetting {
+  id: number;
+  full_name: string;
+  patient_booking_allowed: boolean;
+}
+
 interface ClinicAppointmentSettingsProps {
   appointmentTypeInstructions: string | null;
   appointmentNotesInstructions: string | null;
@@ -14,6 +20,8 @@ interface ClinicAppointmentSettingsProps {
   onBookingRestrictionSettingsChange: (settings: BookingRestrictionSettings) => void;
   onRequireBirthdayChange: (value: boolean) => void;
   isClinicAdmin?: boolean;
+  practitioners?: PractitionerBookingSetting[];
+  onPractitionerBookingSettingChange?: (practitionerId: number, patient_booking_allowed: boolean) => void;
 }
 
 const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
@@ -26,6 +34,8 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
   onBookingRestrictionSettingsChange,
   onRequireBirthdayChange,
   isClinicAdmin = false,
+  practitioners = [],
+  onPractitionerBookingSettingChange,
 }) => {
   const handleInstructionsChange = (value: string) => {
     onAppointmentTypeInstructionsChange(value || null);
@@ -124,9 +134,47 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
   const [showAllowPatientDeletionModal, setShowAllowPatientDeletionModal] = useState(false);
   const [showCancellationLimitModal, setShowCancellationLimitModal] = useState(false);
   const [showRequireBirthdayModal, setShowRequireBirthdayModal] = useState(false);
+  const [showPatientBookingModal, setShowPatientBookingModal] = useState(false);
 
   return (
     <div className="space-y-6">
+        {/* 開放病患預約 (Admin Only) */}
+        {isClinicAdmin && practitioners.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                開放病患預約
+              </label>
+              <InfoButton onClick={() => setShowPatientBookingModal(true)} />
+            </div>
+            <div className="space-y-2">
+              {practitioners.map((practitioner) => (
+                <div key={practitioner.id} className="flex items-center">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={practitioner.patient_booking_allowed}
+                      onChange={(e) => {
+                        if (onPractitionerBookingSettingChange) {
+                          onPractitionerBookingSettingChange(practitioner.id, e.target.checked);
+                        }
+                      }}
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!isClinicAdmin}
+                    />
+                    <span className="ml-3 text-sm text-gray-900">{practitioner.full_name}</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Divider before next section */}
+        {isClinicAdmin && practitioners.length > 0 && (
+          <div className="pt-6 border-t border-gray-200"></div>
+        )}
+
         {/* 預約類型選擇指引 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -514,6 +562,15 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
           ariaLabel="要求填寫生日說明"
         >
           <p>啟用後，病患在註冊或新增就診人時必須填寫生日。未填寫生日將無法完成註冊或新增就診人。</p>
+        </InfoModal>
+
+        <InfoModal
+          isOpen={showPatientBookingModal}
+          onClose={() => setShowPatientBookingModal(false)}
+          title="開放病患預約"
+          ariaLabel="開放病患預約說明"
+        >
+          <p>此設定影響病患是否能透過 LINE 自行預約該治療師的時段。停用後，病患無法透過 LINE 預約此治療師，但診所人員仍可為病患建立預約。</p>
         </InfoModal>
     </div>
   );

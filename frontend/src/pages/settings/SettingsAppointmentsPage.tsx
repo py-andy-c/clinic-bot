@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useModal } from '../../contexts/ModalContext';
@@ -8,17 +8,129 @@ import ClinicAppointmentSettings from '../../components/ClinicAppointmentSetting
 import SettingsBackButton from '../../components/SettingsBackButton';
 import PageHeader from '../../components/PageHeader';
 import { LINE_THEME } from '../../constants/lineTheme';
+import { apiService } from '../../services/api';
+import { useApiData } from '../../hooks/useApiData';
+import { useUnsavedChangesDetection } from '../../hooks/useUnsavedChangesDetection';
+
+interface PractitionerBookingSetting {
+  id: number;
+  full_name: string;
+  patient_booking_allowed: boolean;
+}
 
 const SettingsAppointmentsPage: React.FC = () => {
   const { settings, uiState, sectionChanges, saveData, updateData } = useSettings();
   const { isClinicAdmin } = useAuth();
   const { alert } = useModal();
   const [showLiffInfoModal, setShowLiffInfoModal] = useState(false);
+  const [practitionerBookingSettings, setPractitionerBookingSettings] = useState<PractitionerBookingSetting[]>([]);
+  const [originalPractitionerBookingSettings, setOriginalPractitionerBookingSettings] = useState<PractitionerBookingSetting[]>([]);
+  const [savingPractitionerSettings, setSavingPractitionerSettings] = useState(false);
 
   // Scroll to top when component mounts
   React.useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  // Fetch practitioners and their booking settings
+  const { data: membersData } = useApiData(
+    () => apiService.getMembers(),
+    {
+      enabled: isClinicAdmin,
+      cacheTTL: 5 * 60 * 1000,
+    }
+  );
+
+  useEffect(() => {
+    const loadPractitionerSettings = async () => {
+      if (!isClinicAdmin || !membersData) return;
+
+      try {
+        const practitioners = membersData.filter(m => m.roles.includes('practitioner'));
+        const settings: PractitionerBookingSetting[] = [];
+
+        for (const practitioner of practitioners) {
+          settings.push({
+            id: practitioner.id,
+            full_name: practitioner.full_name,
+            // Use actual setting if available, otherwise default to true for backward compatibility
+            patient_booking_allowed: practitioner.patient_booking_allowed ?? true,
+          });
+        }
+
+        setPractitionerBookingSettings(settings);
+        setOriginalPractitionerBookingSettings(JSON.parse(JSON.stringify(settings))); // Deep copy
+      } catch (err) {
+        logger.error('Failed to load practitioners:', err);
+      }
+    };
+
+    loadPractitionerSettings();
+  }, [isClinicAdmin, membersData]);
+
+  // Check if practitioner booking settings have changed
+  const hasPractitionerBookingSettingsChanged = React.useMemo(() => {
+    if (practitionerBookingSettings.length !== originalPractitionerBookingSettings.length) {
+      return false; // Length mismatch, not ready yet
+    }
+    return JSON.stringify(practitionerBookingSettings) !== JSON.stringify(originalPractitionerBookingSettings);
+  }, [practitionerBookingSettings, originalPractitionerBookingSettings]);
+
+  // Track unsaved changes for browser alert (includes both clinic settings and practitioner settings)
+  useUnsavedChangesDetection({
+    hasUnsavedChanges: () => {
+      return sectionChanges.appointmentSettings || hasPractitionerBookingSettingsChanged;
+    }
+  });
+
+  const handlePractitionerBookingSettingChange = (practitionerId: number, patient_booking_allowed: boolean) => {
+    if (!isClinicAdmin) return;
+
+    // Update local state only - don't save yet
+    setPractitionerBookingSettings(prev =>
+      prev.map(p =>
+        p.id === practitionerId
+          ? { ...p, patient_booking_allowed }
+          : p
+      )
+    );
+  };
+
+  const savePractitionerBookingSettings = async () => {
+    if (!isClinicAdmin) return;
+
+    setSavingPractitionerSettings(true);
+    try {
+      // Find all changed practitioners by comparing IDs, not indices
+      const changedPractitioners = practitionerBookingSettings.filter(current => {
+        const original = originalPractitionerBookingSettings.find(o => o.id === current.id);
+        return original && current.patient_booking_allowed !== original.patient_booking_allowed;
+      });
+
+      if (changedPractitioners.length === 0) {
+        return; // No changes to save
+      }
+
+      // Save all changes
+      await Promise.all(
+        changedPractitioners.map(practitioner =>
+          apiService.updatePractitionerSettings(practitioner.id, {
+            patient_booking_allowed: practitioner.patient_booking_allowed,
+          })
+        )
+      );
+
+      // Update original settings after successful save
+      setOriginalPractitionerBookingSettings(JSON.parse(JSON.stringify(practitionerBookingSettings)));
+    } catch (err: any) {
+      logger.error('Failed to update practitioner settings:', err);
+      const errorMessage = err.response?.data?.detail || '更新設定失敗';
+      await alert(errorMessage, '錯誤');
+      throw err; // Re-throw to let caller handle
+    } finally {
+      setSavingPractitionerSettings(false);
+    }
+  };
 
   if (uiState.loading) {
     return (
@@ -41,14 +153,29 @@ const SettingsAppointmentsPage: React.FC = () => {
       <SettingsBackButton />
       <div className="flex justify-between items-center mb-6">
         <PageHeader title="預約設定" />
-        {sectionChanges.appointmentSettings && (
+        {(sectionChanges.appointmentSettings || hasPractitionerBookingSettingsChanged) && (
           <button
             type="button"
-            onClick={saveData}
-            disabled={uiState.saving}
+            onClick={async () => {
+              try {
+                // Save both clinic settings and practitioner booking settings
+                const promises: Promise<void>[] = [];
+                if (sectionChanges.appointmentSettings) {
+                  promises.push(saveData());
+                }
+                if (hasPractitionerBookingSettingsChanged) {
+                  promises.push(savePractitionerBookingSettings());
+                }
+                await Promise.all(promises);
+                await alert('設定已更新', '成功');
+              } catch (err) {
+                // Error already handled in individual save functions
+              }
+            }}
+            disabled={uiState.saving || savingPractitionerSettings}
             className="btn-primary text-sm px-4 py-2"
           >
-            {uiState.saving ? '儲存中...' : '儲存更變'}
+            {(uiState.saving || savingPractitionerSettings) ? '儲存中...' : '儲存更變'}
           </button>
         )}
       </div>
@@ -89,6 +216,8 @@ const SettingsAppointmentsPage: React.FC = () => {
               }));
             }}
             isClinicAdmin={isClinicAdmin}
+            practitioners={practitionerBookingSettings}
+            onPractitionerBookingSettingChange={handlePractitionerBookingSettingChange}
           />
 
           {/* 預約系統連結 Section */}

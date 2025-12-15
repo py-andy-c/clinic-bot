@@ -14,6 +14,7 @@ Features:
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
+from typing import Callable, Awaitable
 import httpx
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -62,7 +63,7 @@ async def lifespan(app: FastAPI):
     # Use asyncio.create_task to start schedulers in background without blocking
     import asyncio
     
-    async def start_scheduler_safely(name: str, start_func):
+    async def start_scheduler_safely(name: str, start_func: Callable[[], Awaitable[None]]):
         """Start a scheduler safely, logging errors but not blocking startup."""
         try:
             await start_func()

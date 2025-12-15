@@ -777,10 +777,12 @@ async def list_practitioners(
 
     try:
         # Get practitioners using service
+        # Filter for patient booking: only show practitioners who allow patient bookings
         practitioners_data = PractitionerService.list_practitioners_for_clinic(
             db=db,
             clinic_id=clinic.id,
-            appointment_type_id=appointment_type_id
+            appointment_type_id=appointment_type_id,
+            for_patient_booking=True
         )
 
         # Convert dicts to response objects

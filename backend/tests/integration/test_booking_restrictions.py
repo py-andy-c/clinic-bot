@@ -869,6 +869,187 @@ class TestClinicAdminBypassBehavior:
         start_time = taiwan_now().replace(hour=14, minute=0, second=0, microsecond=0)
         if start_time < taiwan_now():
             start_time = start_time + timedelta(days=1)
+
+
+# ============================================================================
+# Patient Booking Allowed Restriction
+# ============================================================================
+
+class TestPatientBookingAllowedRestriction:
+    """Test patient_booking_allowed restriction."""
+
+    def test_patient_cannot_book_when_practitioner_disallows_patient_booking(
+        self, db_session: Session
+    ):
+        """Test that patients cannot book appointments when practitioner disallows patient booking."""
+        clinic, practitioner, appt_type = _setup_clinic_with_practitioners(db_session)[:3]
+
+        # Set practitioner to disallow patient booking
+        from models.user_clinic_association import PractitionerSettings, UserClinicAssociation
+        association = db_session.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == practitioner.id,
+            UserClinicAssociation.clinic_id == clinic.id
+        ).first()
+        
+        settings = PractitionerSettings(patient_booking_allowed=False)
+        association.set_validated_settings(settings)
+        db_session.commit()
+
+        # Create patient with LINE user
+        line_user = LineUser(
+            line_user_id="U_test_restricted_booking",
+            clinic_id=clinic.id,
+            display_name="Test Patient"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Create availability for practitioner
+        today = taiwan_now().date()
+        day_of_week = today.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic, day_of_week, time(9, 0), time(17, 0)
+        )
+
+        # Patient tries to create appointment (should fail)
+        start_time = taiwan_now().replace(hour=14, minute=0, second=0, microsecond=0)
+        if start_time < taiwan_now():
+            start_time = start_time + timedelta(days=1)
+        start_time = start_time.replace(minute=0, second=0, microsecond=0)
+
+        with pytest.raises(HTTPException) as exc_info:
+            AppointmentService.create_appointment(
+                db=db_session,
+                clinic_id=clinic.id,
+                patient_id=patient.id,
+                appointment_type_id=appt_type.id,
+                start_time=start_time,
+                practitioner_id=practitioner.id,
+                line_user_id=line_user.id  # Patient booking - should be blocked
+            )
+
+        assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+        assert "此治療師不接受患者預約" in str(exc_info.value.detail)
+
+    def test_clinic_admin_can_book_when_practitioner_disallows_patient_booking(
+        self, db_session: Session
+    ):
+        """Test that clinic admins can still book appointments when practitioner disallows patient booking."""
+        clinic, practitioner, appt_type = _setup_clinic_with_practitioners(db_session)[:3]
+
+        # Set practitioner to disallow patient booking
+        from models.user_clinic_association import PractitionerSettings, UserClinicAssociation
+        association = db_session.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == practitioner.id,
+            UserClinicAssociation.clinic_id == clinic.id
+        ).first()
+        
+        settings = PractitionerSettings(patient_booking_allowed=False)
+        association.set_validated_settings(settings)
+        db_session.commit()
+
+        # Create patient (no LINE user - clinic admin booking)
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Create availability for practitioner
+        today = taiwan_now().date()
+        day_of_week = today.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic, day_of_week, time(9, 0), time(17, 0)
+        )
+
+        # Clinic admin creates appointment (should succeed)
+        start_time = taiwan_now().replace(hour=14, minute=0, second=0, microsecond=0)
+        if start_time < taiwan_now():
+            start_time = start_time + timedelta(days=1)
+        start_time = start_time.replace(minute=0, second=0, microsecond=0)
+
+        result = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type.id,
+            start_time=start_time,
+            practitioner_id=practitioner.id,
+            line_user_id=None  # Clinic admin booking - should succeed
+        )
+
+        assert result['appointment_id'] is not None
+
+    def test_patient_can_book_when_practitioner_allows_patient_booking(
+        self, db_session: Session
+    ):
+        """Test that patients can book appointments when practitioner allows patient booking."""
+        clinic, practitioner, appt_type = _setup_clinic_with_practitioners(db_session)[:3]
+
+        # Set practitioner to allow patient booking (default)
+        from models.user_clinic_association import PractitionerSettings, UserClinicAssociation
+        association = db_session.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == practitioner.id,
+            UserClinicAssociation.clinic_id == clinic.id
+        ).first()
+        
+        settings = PractitionerSettings(patient_booking_allowed=True)
+        association.set_validated_settings(settings)
+        db_session.commit()
+
+        # Create patient with LINE user
+        line_user = LineUser(
+            line_user_id="U_test_allowed_booking",
+            clinic_id=clinic.id,
+            display_name="Test Patient"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Create availability for practitioner
+        today = taiwan_now().date()
+        day_of_week = today.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic, day_of_week, time(9, 0), time(17, 0)
+        )
+
+        # Patient creates appointment (should succeed)
+        start_time = taiwan_now().replace(hour=14, minute=0, second=0, microsecond=0)
+        if start_time < taiwan_now():
+            start_time = start_time + timedelta(days=1)
+        start_time = start_time.replace(minute=0, second=0, microsecond=0)
+
+        result = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type.id,
+            start_time=start_time,
+            practitioner_id=practitioner.id,
+            line_user_id=line_user.id  # Patient booking - should succeed
+        )
+
+        assert result['appointment_id'] is not None start_time + timedelta(days=1)
         # Ensure it's less than 48 hours ahead
         if (start_time - taiwan_now()).total_seconds() / 3600 >= 48:
             # Use a time within availability window (9:00-17:00) and within 48 hours

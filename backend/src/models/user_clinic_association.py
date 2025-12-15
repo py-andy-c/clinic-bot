@@ -29,6 +29,10 @@ class PractitionerSettings(BaseModel):
         default="21:00",
         description="Time to send auto-assigned appointment notifications to admins (HH:MM format, 24-hour)"
     )
+    patient_booking_allowed: bool = Field(
+        default=True,
+        description="Whether patients are allowed to schedule appointments with this practitioner. Only clinic users can book if False."
+    )
 
 
 class UserClinicAssociation(Base):

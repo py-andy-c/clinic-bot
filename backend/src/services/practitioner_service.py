@@ -8,6 +8,7 @@ between different API endpoints (LIFF, clinic admin, practitioner calendar).
 import logging
 from typing import List, Dict, Any, Optional
 
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from models import User, AppointmentType, PractitionerAppointmentTypes, UserClinicAssociation
@@ -29,7 +30,8 @@ class PractitionerService:
     def list_practitioners_for_clinic(
         db: Session,
         clinic_id: int,
-        appointment_type_id: Optional[int] = None
+        appointment_type_id: Optional[int] = None,
+        for_patient_booking: bool = False
     ) -> List[Dict[str, Any]]:
         """
         List all practitioners for a clinic, optionally filtered by appointment type.
@@ -38,6 +40,7 @@ class PractitionerService:
             db: Database session
             clinic_id: Clinic ID
             appointment_type_id: Optional appointment type filter
+            for_patient_booking: If True, filter out practitioners who don't allow patient bookings
 
         Returns:
             List of practitioner dictionaries
@@ -75,6 +78,20 @@ class PractitionerService:
         for practitioner in practitioners:
             # Get association for this clinic
             association = association_lookup.get(practitioner.id)
+            
+            # Filter out practitioners who don't allow patient bookings if for_patient_booking is True
+            if for_patient_booking and association:
+                try:
+                    settings = association.get_validated_settings()
+                    if not settings.patient_booking_allowed:
+                        continue  # Skip this practitioner
+                except (ValidationError, ValueError) as e:
+                    # If settings validation fails, log and default to allowing booking (backward compatibility)
+                    logger.warning(
+                        f"Settings validation failed for practitioner {practitioner.id} "
+                        f"in clinic {clinic_id}: {e}. Defaulting to allowing patient booking."
+                    )
+            
             offered_types = [
                 pat.appointment_type_id
                 for pat in practitioner.practitioner_appointment_types

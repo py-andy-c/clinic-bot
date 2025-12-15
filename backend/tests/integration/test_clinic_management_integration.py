@@ -1047,6 +1047,206 @@ class TestPractitionerAppointmentTypes:
             client.app.dependency_overrides.pop(get_db, None)
 
 
+class TestPractitionerSettings:
+    """Test practitioner settings management."""
+
+    def test_update_practitioner_settings_success(self, db_session, test_clinic_with_therapist):
+        """Test updating practitioner settings successfully."""
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
+
+        # Mock authentication for admin
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        admin_user_context = UserContext(
+            user_type="clinic_user",
+            email="admin@test.com",
+            roles=["admin"],
+            active_clinic_id=clinic.id,
+            google_subject_id="admin_subject",
+            name="Admin User",
+            user_id=999  # Different from therapist
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: admin_user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Update practitioner settings
+            response = client.put(
+                f"/api/clinic/practitioners/{therapist.id}/settings",
+                json={"settings": {"patient_booking_allowed": False}}
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert "治療師設定已更新" in data["message"]
+
+            # Verify the settings were updated
+            db_session.refresh(therapist_assoc)
+            from models.user_clinic_association import PractitionerSettings
+            settings = therapist_assoc.get_validated_settings()
+            assert settings.patient_booking_allowed is False
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_update_practitioner_settings_merge_existing(self, db_session, test_clinic_with_therapist):
+        """Test that updating settings merges with existing settings."""
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
+
+        # Set initial settings
+        from models.user_clinic_association import PractitionerSettings
+        initial_settings = PractitionerSettings(
+            patient_booking_allowed=True,
+            next_day_notification_time="20:00"
+        )
+        therapist_assoc.set_validated_settings(initial_settings)
+        db_session.commit()
+
+        # Mock authentication for admin
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        admin_user_context = UserContext(
+            user_type="clinic_user",
+            email="admin@test.com",
+            roles=["admin"],
+            active_clinic_id=clinic.id,
+            google_subject_id="admin_subject",
+            name="Admin User",
+            user_id=999
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: admin_user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Update only patient_booking_allowed
+            response = client.put(
+                f"/api/clinic/practitioners/{therapist.id}/settings",
+                json={"settings": {"patient_booking_allowed": False}}
+            )
+
+            assert response.status_code == 200
+
+            # Verify that other settings are preserved
+            db_session.refresh(therapist_assoc)
+            settings = therapist_assoc.get_validated_settings()
+            assert settings.patient_booking_allowed is False
+            assert settings.next_day_notification_time == "20:00"  # Preserved
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_update_practitioner_settings_invalid_settings(self, db_session, test_clinic_with_therapist):
+        """Test that invalid settings are rejected."""
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
+
+        # Mock authentication for admin
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        admin_user_context = UserContext(
+            user_type="clinic_user",
+            email="admin@test.com",
+            roles=["admin"],
+            active_clinic_id=clinic.id,
+            google_subject_id="admin_subject",
+            name="Admin User",
+            user_id=999
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: admin_user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Try to update with invalid settings
+            response = client.put(
+                f"/api/clinic/practitioners/{therapist.id}/settings",
+                json={"settings": {"next_day_notification_time": "invalid_time"}}
+            )
+
+            assert response.status_code == 400
+            assert "無效的設定格式" in response.json()["detail"]
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_update_practitioner_settings_practitioner_not_found(self, db_session, test_clinic_with_therapist):
+        """Test that updating settings for non-existent practitioner returns 404."""
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
+
+        # Mock authentication for admin
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        admin_user_context = UserContext(
+            user_type="clinic_user",
+            email="admin@test.com",
+            roles=["admin"],
+            active_clinic_id=clinic.id,
+            google_subject_id="admin_subject",
+            name="Admin User",
+            user_id=999
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: admin_user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Try to update settings for non-existent practitioner
+            response = client.put(
+                "/api/clinic/practitioners/99999/settings",
+                json={"settings": {"patient_booking_allowed": False}}
+            )
+
+            assert response.status_code == 404
+            assert "治療師不存在" in response.json()["detail"]
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_update_practitioner_settings_requires_admin(self, db_session, test_clinic_with_therapist):
+        """Test that only admins can update practitioner settings."""
+        clinic, therapist, appointment_types, therapist_assoc = test_clinic_with_therapist
+
+        # Mock authentication for practitioner (not admin)
+        from auth.dependencies import get_current_user, get_db
+        from auth.dependencies import UserContext
+
+        practitioner_user_context = UserContext(
+            user_type="clinic_user",
+            email=therapist.email,
+            roles=therapist_assoc.roles,  # Only practitioner role
+            active_clinic_id=therapist_assoc.clinic_id,
+            google_subject_id=therapist.google_subject_id,
+            name=therapist_assoc.full_name,
+            user_id=therapist.id
+        )
+
+        client.app.dependency_overrides[get_current_user] = lambda: practitioner_user_context
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Try to update settings as practitioner (should fail)
+            response = client.put(
+                f"/api/clinic/practitioners/{therapist.id}/settings",
+                json={"settings": {"patient_booking_allowed": False}}
+            )
+
+            assert response.status_code == 403
+        finally:
+            # Clean up overrides
+            client.app.dependency_overrides.pop(get_current_user, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+
 class TestPractitionerCrossClinicIsolation:
     """Test that practitioner appointment types, status, and availability are properly isolated by clinic.
     
