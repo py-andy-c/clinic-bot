@@ -572,45 +572,6 @@ export class ApiService {
     return response.data;
   }
 
-  // Accounting endpoints (admin-only)
-  async getAccountingSummary(
-    startDate: string,
-    endDate: string,
-    practitionerId?: number
-  ): Promise<any> {
-    const params: any = { start_date: startDate, end_date: endDate };
-    if (practitionerId) {
-      params.practitioner_id = practitionerId;
-    }
-    const response = await this.client.get('/accounting/summary', { params });
-    return response.data;
-  }
-
-  async getPractitionerAccountingDetails(
-    practitionerId: number,
-    startDate: string,
-    endDate: string
-  ): Promise<any> {
-    const response = await this.client.get(
-      `/accounting/practitioners/${practitionerId}/details`,
-      { params: { start_date: startDate, end_date: endDate } }
-    );
-    return response.data;
-  }
-
-  async getVoidedReceipts(startDate?: string, endDate?: string): Promise<{ voided_receipts: any[] }> {
-    const params: any = {};
-    if (startDate) params.start_date = startDate;
-    if (endDate) params.end_date = endDate;
-    const response = await this.client.get('/accounting/voided-receipts', { params });
-    return response.data;
-  }
-
-  async getReceiptNumberStatus(): Promise<any> {
-    const response = await this.client.get('/accounting/receipt-number-status');
-    return response.data;
-  }
-
   // Practitioner Availability APIs (Updated for new schema)
   async getPractitionerDefaultSchedule(userId: number): Promise<DefaultScheduleResponse> {
     const response = await this.client.get(`/clinic/practitioners/${userId}/availability/default`);

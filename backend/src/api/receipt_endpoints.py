@@ -21,7 +21,7 @@ from auth.dependencies import require_admin_role, UserContext, ensure_clinic_acc
 from models import Appointment, PractitionerAppointmentTypes, User
 from models.receipt import Receipt
 from models.user_clinic_association import UserClinicAssociation
-from services import ReceiptService, BillingScenarioService, AccountingService
+from services import ReceiptService, BillingScenarioService
 from services.receipt_service import ConcurrentCheckoutError
 
 logger = logging.getLogger(__name__)
@@ -953,112 +953,6 @@ async def get_receipt_html(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="生成HTML失敗"
-        )
-
-
-# Accounting endpoints (admin-only)
-@router.get("/accounting/summary", response_model=None)
-async def get_accounting_summary(
-    start_date: date = Query(..., description="Start date (YYYY-MM-DD)"),
-    end_date: date = Query(..., description="End date (YYYY-MM-DD)"),
-    practitioner_id: Optional[int] = Query(None, description="Filter by practitioner ID"),
-    db: Session = Depends(get_db),
-    current_user: UserContext = Depends(require_admin_role)
-):
-    """Get aggregated accounting statistics for a date range (admin-only)."""
-    try:
-        clinic_id = ensure_clinic_access(current_user)
-        summary = AccountingService.get_accounting_summary(
-            db=db,
-            clinic_id=clinic_id,
-            start_date=start_date,
-            end_date=end_date,
-            practitioner_id=practitioner_id
-        )
-        return summary
-    except Exception as e:
-        logger.error(f"Error getting accounting summary: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="無法載入會計統計"
-        )
-
-
-@router.get("/accounting/practitioners/{practitioner_id}/details", response_model=None)
-async def get_practitioner_accounting_details(
-    practitioner_id: int,
-    start_date: date = Query(..., description="Start date (YYYY-MM-DD)"),
-    end_date: date = Query(..., description="End date (YYYY-MM-DD)"),
-    db: Session = Depends(get_db),
-    current_user: UserContext = Depends(require_admin_role)
-):
-    """Get detailed accounting items for a specific practitioner (admin-only)."""
-    try:
-        clinic_id = ensure_clinic_access(current_user)
-        details = AccountingService.get_practitioner_details(
-            db=db,
-            clinic_id=clinic_id,
-            practitioner_id=practitioner_id,
-            start_date=start_date,
-            end_date=end_date
-        )
-        return details
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except Exception as e:
-        logger.error(f"Error getting practitioner accounting details: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="無法載入治療師會計明細"
-        )
-
-
-@router.get("/accounting/voided-receipts", response_model=None)
-async def get_voided_receipts(
-    start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
-    end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
-    db: Session = Depends(get_db),
-    current_user: UserContext = Depends(require_admin_role)
-):
-    """Get list of voided receipts (admin-only)."""
-    try:
-        clinic_id = ensure_clinic_access(current_user)
-        voided_receipts = AccountingService.get_voided_receipts(
-            db=db,
-            clinic_id=clinic_id,
-            start_date=start_date,
-            end_date=end_date
-        )
-        return {"voided_receipts": voided_receipts}
-    except Exception as e:
-        logger.error(f"Error getting voided receipts: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="無法載入作廢收據列表"
-        )
-
-
-@router.get("/accounting/receipt-number-status", response_model=None)
-async def get_receipt_number_status(
-    db: Session = Depends(get_db),
-    current_user: UserContext = Depends(require_admin_role)
-):
-    """Get receipt number sequence status and warnings (admin-only)."""
-    try:
-        clinic_id = ensure_clinic_access(current_user)
-        status_info = AccountingService.check_receipt_number_limits(
-            db=db,
-            clinic_id=clinic_id
-        )
-        return status_info
-    except Exception as e:
-        logger.error(f"Error checking receipt number status: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="無法載入收據編號狀態"
         )
 
 

@@ -30,7 +30,6 @@ const SettingsRemindersPage = lazy(() => import('./pages/settings/SettingsRemind
 const SettingsChatPage = lazy(() => import('./pages/settings/SettingsChatPage'));
 const SettingsReceiptsPage = lazy(() => import('./pages/settings/SettingsReceiptsPage'));
 const AvailabilityPage = lazy(() => import('./pages/AvailabilityPage'));
-const AccountingDashboardPage = lazy(() => import('./pages/AccountingDashboardPage'));
 const DashboardLayout = lazy(() => import('./components/DashboardLayout'));
 const DashboardIndexPage = lazy(() => import('./pages/dashboard/DashboardIndexPage'));
 const BusinessInsightsPage = lazy(() => import('./pages/dashboard/BusinessInsightsPage'));
@@ -134,7 +133,6 @@ const AdminRoutes: React.FC = () => {
             <Route path="revenue-distribution" element={<RevenueDistributionPage />} />
             <Route path="line-usage" element={<LineUsagePage />} />
           </Route>
-          <Route path="clinic/accounting" element={<AccountingDashboardPage />} />
           <Route path="calendar" element={<AvailabilityPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to={getDefaultRoute()} replace />} />
