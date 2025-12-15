@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
+import { BrowserRouter } from 'react-router-dom';
 import LineUsagePage from '../LineUsagePage';
 import { useApiData } from '../../../hooks/useApiData';
 import { apiService } from '../../../services/api';
@@ -105,6 +106,10 @@ describe('LineUsagePage', () => {
     }));
   });
 
+  const renderWithRouter = (component: React.ReactElement) => {
+    return render(<BrowserRouter>{component}</BrowserRouter>);
+  };
+
   it('renders loading state correctly', () => {
     mockUseApiData.mockImplementation(() => ({
       data: null,
@@ -115,7 +120,7 @@ describe('LineUsagePage', () => {
       setData: vi.fn(),
     }));
 
-    render(<LineUsagePage />);
+    renderWithRouter(<LineUsagePage />);
     expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
   });
 
@@ -129,12 +134,12 @@ describe('LineUsagePage', () => {
       setData: vi.fn(),
     }));
 
-    render(<LineUsagePage />);
+    renderWithRouter(<LineUsagePage />);
     expect(screen.getByTestId('error-message')).toBeInTheDocument();
   });
 
   it('renders LINE usage data correctly', async () => {
-    render(<LineUsagePage />);
+    renderWithRouter(<LineUsagePage />);
 
     await waitFor(() => {
       expect(screen.getByText('LINE 訊息統計')).toBeInTheDocument();
@@ -152,7 +157,7 @@ describe('LineUsagePage', () => {
   });
 
   it('highlights current month column', async () => {
-    render(<LineUsagePage />);
+    renderWithRouter(<LineUsagePage />);
 
     await waitFor(() => {
       // Find table headers with bg-blue-50 class (current month highlighting)
@@ -168,7 +173,7 @@ describe('LineUsagePage', () => {
   });
 
   it('displays data in count(percentage%) format', async () => {
-    render(<LineUsagePage />);
+    renderWithRouter(<LineUsagePage />);
 
     await waitFor(() => {
       // Look for the format pattern: number(percentage%)
@@ -178,7 +183,7 @@ describe('LineUsagePage', () => {
   });
 
   it('groups paid messages by recipient type', async () => {
-    render(<LineUsagePage />);
+    renderWithRouter(<LineUsagePage />);
 
     await waitFor(() => {
       expect(screen.getByText('發送給病患')).toBeInTheDocument();
@@ -186,7 +191,7 @@ describe('LineUsagePage', () => {
   });
 
   it('displays data in count(percentage%) format', async () => {
-    render(<LineUsagePage />);
+    renderWithRouter(<LineUsagePage />);
 
     await waitFor(() => {
       // Look for the format pattern: number(percentage%)
@@ -211,7 +216,7 @@ describe('LineUsagePage', () => {
       setData: vi.fn(),
     }));
 
-    render(<LineUsagePage />);
+    renderWithRouter(<LineUsagePage />);
 
     // Component should handle empty data without crashing
     await waitFor(() => {

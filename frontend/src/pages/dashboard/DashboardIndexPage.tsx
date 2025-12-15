@@ -32,6 +32,12 @@ const dashboardCards: DashboardCard[] = [
 const DashboardIndexPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto">
+      {/* Page Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-gray-900">儀表板</h1>
+        <p className="mt-2 text-sm text-gray-600">查看診所營運數據、會計資訊和系統使用情況</p>
+      </div>
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {dashboardCards.map((card) => (
           <Link

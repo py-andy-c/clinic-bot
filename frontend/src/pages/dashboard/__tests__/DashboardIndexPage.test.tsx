@@ -64,6 +64,6 @@ describe('DashboardIndexPage', () => {
     
     const businessCard = screen.getByText('業務洞察').closest('a');
     expect(businessCard).toHaveClass('hover:shadow-md');
-    expect(businessCard).toHaveClass('hover:border-blue-300');
+    expect(businessCard).toHaveClass('hover:border-primary-300');
   });
 });

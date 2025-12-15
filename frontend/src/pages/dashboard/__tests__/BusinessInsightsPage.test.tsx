@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import React from 'react';
+import { BrowserRouter } from 'react-router-dom';
 import BusinessInsightsPage from '../BusinessInsightsPage';
 import { useApiData } from '../../../hooks/useApiData';
 import { apiService } from '../../../services/api';
@@ -41,6 +42,7 @@ vi.mock('../../../components/dashboard/TimeRangePresets', () => ({
     startDate: '2024-01-01',
     endDate: '2024-01-31',
   })),
+  detectPresetFromDates: vi.fn(() => 'month'),
 }));
 
 // Mock FilterDropdown
@@ -79,6 +81,9 @@ vi.mock('../../../components/shared', () => ({
 const mockUseApiData = vi.mocked(useApiData);
 
 describe('BusinessInsightsPage', () => {
+  const renderWithRouter = (component: React.ReactElement) => {
+    return render(<BrowserRouter>{component}</BrowserRouter>);
+  };
   const mockMembers = [
     { id: 1, full_name: '王醫師', roles: ['practitioner'] },
     { id: 2, full_name: '李治療師', roles: ['practitioner'] },
@@ -189,7 +194,7 @@ describe('BusinessInsightsPage', () => {
       };
     });
 
-    render(<BusinessInsightsPage />);
+    renderWithRouter(<BusinessInsightsPage />);
     expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
   });
 
@@ -217,13 +222,13 @@ describe('BusinessInsightsPage', () => {
       };
     });
 
-    render(<BusinessInsightsPage />);
+    renderWithRouter(<BusinessInsightsPage />);
     expect(screen.getByTestId('error-message')).toBeInTheDocument();
     expect(screen.getByText('Failed to load data')).toBeInTheDocument();
   });
 
   it('renders business insights data correctly', async () => {
-    render(<BusinessInsightsPage />);
+    renderWithRouter(<BusinessInsightsPage />);
 
     await waitFor(() => {
       expect(screen.getByText('業務洞察')).toBeInTheDocument();
@@ -285,7 +290,7 @@ describe('BusinessInsightsPage', () => {
       };
     });
 
-    render(<BusinessInsightsPage />);
+    renderWithRouter(<BusinessInsightsPage />);
 
     await waitFor(() => {
       // Empty message appears in both tables, so use getAllByText
@@ -294,7 +299,7 @@ describe('BusinessInsightsPage', () => {
   });
 
   it('renders chart view selector', async () => {
-    render(<BusinessInsightsPage />);
+    renderWithRouter(<BusinessInsightsPage />);
 
     await waitFor(() => {
       expect(screen.getByText('顯示方式：')).toBeInTheDocument();
@@ -322,7 +327,7 @@ describe('BusinessInsightsPage', () => {
       };
     });
 
-    const { rerender } = render(<BusinessInsightsPage />);
+    const { rerender } = renderWithRouter(<BusinessInsightsPage />);
     expect(screen.getByTestId('loading-spinner')).toBeInTheDocument();
 
     // Second render with data
@@ -359,7 +364,7 @@ describe('BusinessInsightsPage', () => {
       };
     });
 
-    rerender(<BusinessInsightsPage />);
+    rerender(<BrowserRouter><BusinessInsightsPage /></BrowserRouter>);
 
     // If hooks are in wrong order, this will throw an error
     await waitFor(() => {
