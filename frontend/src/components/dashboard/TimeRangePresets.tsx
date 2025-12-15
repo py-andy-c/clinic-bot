@@ -5,11 +5,13 @@ export type TimeRangePreset = 'month' | '3months' | '6months' | 'year';
 
 export interface TimeRangePresetsProps {
   onSelect: (preset: TimeRangePreset) => void;
+  activePreset?: TimeRangePreset | null;
   className?: string;
 }
 
 export const TimeRangePresets: React.FC<TimeRangePresetsProps> = ({
   onSelect,
+  activePreset,
   className = '',
 }) => {
   const presets: Array<{ key: TimeRangePreset; label: string }> = [
@@ -21,16 +23,23 @@ export const TimeRangePresets: React.FC<TimeRangePresetsProps> = ({
 
   return (
     <div className={`flex flex-wrap gap-2 ${className}`}>
-      {presets.map((preset) => (
-        <button
-          key={preset.key}
-          type="button"
-          onClick={() => onSelect(preset.key)}
-          className="px-2 md:px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
-        >
-          {preset.label}
-        </button>
-      ))}
+      {presets.map((preset) => {
+        const isActive = activePreset === preset.key;
+        return (
+          <button
+            key={preset.key}
+            type="button"
+            onClick={() => onSelect(preset.key)}
+            className={`px-2 md:px-3 py-1 text-xs rounded-md transition-colors ${
+              isActive
+                ? 'bg-blue-600 text-white hover:bg-blue-700 font-medium'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            {preset.label}
+          </button>
+        );
+      })}
     </div>
   );
 };
@@ -65,4 +74,21 @@ export function getDateRangeForPreset(preset: TimeRangePreset): { startDate: str
     startDate: startDate.format('YYYY-MM-DD'),
     endDate: endDate.format('YYYY-MM-DD'),
   };
+}
+
+/**
+ * Detect which preset matches the given date range
+ */
+export function detectPresetFromDates(startDate: string, endDate: string): TimeRangePreset | null {
+  // Check each preset to see if it matches
+  const presets: TimeRangePreset[] = ['month', '3months', '6months', 'year'];
+  
+  for (const preset of presets) {
+    const range = getDateRangeForPreset(preset);
+    if (range.startDate === startDate && range.endDate === endDate) {
+      return preset;
+    }
+  }
+  
+  return null;
 }

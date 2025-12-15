@@ -5,7 +5,7 @@ import { apiService } from '../../services/api';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { InfoButton, InfoModal } from '../../components/shared';
 import { RevenueTrendChart, ChartView } from '../../components/dashboard/RevenueTrendChart';
-import { TimeRangePresets, TimeRangePreset, getDateRangeForPreset } from '../../components/dashboard/TimeRangePresets';
+import { TimeRangePresets, TimeRangePreset, getDateRangeForPreset, detectPresetFromDates } from '../../components/dashboard/TimeRangePresets';
 import { FilterDropdown, PractitionerOption, ServiceItemOption } from '../../components/dashboard/FilterDropdown';
 import { formatCurrency } from '../../utils/currencyUtils';
 import DashboardBackButton from '../../components/DashboardBackButton';
@@ -116,9 +116,11 @@ const BusinessInsightsPage: React.FC = () => {
 
   const handleTimeRangePreset = (preset: TimeRangePreset) => {
     const { startDate: newStartDate, endDate: newEndDate } = getDateRangeForPreset(preset);
-    // Time range presets only update pending dates; apply via "套用篩選" button
+    // Auto-apply preset: update both pending and active dates immediately
     setPendingStartDate(newStartDate);
     setPendingEndDate(newEndDate);
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
   };
 
   const handleApplyFilters = () => {
@@ -241,7 +243,10 @@ const BusinessInsightsPage: React.FC = () => {
           </div>
         </div>
         <div className="mt-3 md:mt-4">
-          <TimeRangePresets onSelect={handleTimeRangePreset} />
+          <TimeRangePresets 
+            onSelect={handleTimeRangePreset} 
+            activePreset={detectPresetFromDates(startDate, endDate)}
+          />
         </div>
       </div>
 

@@ -5,7 +5,7 @@ import { apiService } from '../../services/api';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { InfoButton, InfoModal } from '../../components/shared';
 import { SortableTableHeader, SortDirection } from '../../components/dashboard/SortableTableHeader';
-import { TimeRangePresets, TimeRangePreset, getDateRangeForPreset } from '../../components/dashboard/TimeRangePresets';
+import { TimeRangePresets, TimeRangePreset, getDateRangeForPreset, detectPresetFromDates } from '../../components/dashboard/TimeRangePresets';
 import { FilterDropdown, PractitionerOption, ServiceItemOption } from '../../components/dashboard/FilterDropdown';
 import { formatCurrency } from '../../utils/currencyUtils';
 import { ReceiptViewModal } from '../../components/calendar/ReceiptViewModal';
@@ -154,9 +154,11 @@ const RevenueDistributionPage: React.FC = () => {
 
   const handleTimeRangePreset = (preset: TimeRangePreset) => {
     const { startDate: newStartDate, endDate: newEndDate } = getDateRangeForPreset(preset);
-    // Time range presets only update pending dates; apply via "套用篩選" button
+    // Auto-apply preset: update both pending and active dates immediately
     setPendingStartDate(newStartDate);
     setPendingEndDate(newEndDate);
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
   };
 
   const handleApplyFilters = () => {
@@ -321,7 +323,10 @@ const RevenueDistributionPage: React.FC = () => {
         </div>
         <div className="mt-3 md:mt-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
           <div className="flex flex-wrap gap-2">
-            <TimeRangePresets onSelect={handleTimeRangePreset} />
+            <TimeRangePresets 
+              onSelect={handleTimeRangePreset} 
+              activePreset={detectPresetFromDates(startDate, endDate)}
+            />
           </div>
           <button
             onClick={handleApplyFilters}
