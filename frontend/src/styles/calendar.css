@@ -54,7 +54,7 @@
 }
 
 .rbc-date-cell {
-  @apply relative p-2 min-h-[80px] border-r border-gray-200 cursor-pointer;
+  @apply relative p-2 border-r border-gray-200 cursor-pointer;
 }
 
 .rbc-date-cell:not(.rbc-off-range):hover {
@@ -68,6 +68,28 @@
 /* Month row borders - override react-big-calendar default to match our design */
 .rbc-month-row + .rbc-month-row {
   border-top: 1px solid rgb(229 231 235); /* border-gray-200 */
+}
+
+/* Align row content height with row background height */
+.rbc-month-row {
+  position: relative;
+}
+
+.rbc-month-row .rbc-row-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.rbc-month-row .rbc-row-content {
+  position: relative;
+  z-index: 1;
+}
+
+.rbc-month-row .rbc-date-cell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Out-of-month dates - entire container should be gray */
@@ -370,10 +392,6 @@
   border-bottom: none !important;
 }
 
-/* Month view specific */
-.rbc-month-view .rbc-date-cell {
-  @apply min-h-[100px];
-}
 
 /* Out-of-month dates in month view - higher specificity for month view */
 .rbc-month-view .rbc-day-bg.rbc-off-range-bg {
@@ -394,11 +412,21 @@
   color: rgb(156 163 175) !important; /* text-gray-400 */
 }
 
-/* Hide events in month view on mobile */
-@media (max-width: 768px) {
-  .rbc-month-view .rbc-event {
-    display: none !important;
-  }
+/* Month view event styling - compact display */
+.rbc-month-view .rbc-event {
+  @apply text-xs;
+  padding: 1px 3px;
+  margin: 1px 0;
+  line-height: 1.2;
+  /* Single line, truncate overflow */
+  white-space: nowrap !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hide clinic notes in month view for more compact display */
+.rbc-month-view .rbc-event .break-words {
+  display: none;
 }
 
 /* Mobile optimizations */
@@ -409,7 +437,7 @@
   }
   
   .rbc-date-cell {
-    @apply min-h-[60px] p-1;
+    @apply p-1;
   }
   
   .rbc-date-number,

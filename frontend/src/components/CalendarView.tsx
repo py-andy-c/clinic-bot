@@ -562,14 +562,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const fetchCalendarData = useCallback(async (forceRefresh: boolean = false, silent: boolean = false) => {
     if (!userId) return;
 
-    // Monthly view is just for navigation - don't fetch events
-    if (view === Views.MONTH) {
-      setAllEvents([]);
-      return;
-    }
-
     // Determine the view type for date range calculation
-    const viewType = view === Views.WEEK ? 'week' : 'day';
+    const viewType = view === Views.MONTH ? 'month' : view === Views.WEEK ? 'week' : 'day';
     const { start, end } = getDateRange(currentDate, viewType);
     
     // Collect all practitioner IDs to fetch (primary + additional)
