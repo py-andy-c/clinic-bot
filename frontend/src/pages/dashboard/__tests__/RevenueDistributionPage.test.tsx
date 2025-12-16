@@ -180,6 +180,29 @@ describe('RevenueDistributionPage', () => {
     page_size: 20,
   };
 
+  const mockBusinessInsights = {
+    summary: {
+      total_revenue: 100000,
+      valid_receipt_count: 50,
+      service_item_count: 5,
+      active_patients: 30,
+      average_transaction_amount: 2000,
+    },
+    revenue_trend: [],
+    by_service: [
+      {
+        service_item_id: null,
+        service_item_name: '特殊檢查',
+        receipt_name: '特殊檢查',
+        is_custom: true,
+        total_revenue: 5000,
+        item_count: 5,
+        percentage: 5,
+      },
+    ],
+    by_practitioner: [],
+  };
+
   const setupDefaultMocks = () => {
     let callIndex = 0;
     mockUseApiData.mockImplementation(() => {
@@ -204,6 +227,18 @@ describe('RevenueDistributionPage', () => {
           setData: vi.fn(),
         };
       }
+      if (callIndex === 3) {
+        // Unfiltered business insights for custom items extraction
+        return {
+          data: mockBusinessInsights,
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+          clearError: vi.fn(),
+          setData: vi.fn(),
+        };
+      }
+      // Filtered revenue distribution for display (callIndex === 4)
       return {
         data: mockRevenueDistribution,
         loading: false,
@@ -224,7 +259,7 @@ describe('RevenueDistributionPage', () => {
     let callIndex = 0;
     mockUseApiData.mockImplementation(() => {
       callIndex++;
-      if (callIndex <= 2) {
+      if (callIndex <= 3) {
         return {
           data: null,
           loading: false,
@@ -252,7 +287,7 @@ describe('RevenueDistributionPage', () => {
     let callIndex = 0;
     mockUseApiData.mockImplementation(() => {
       callIndex++;
-      if (callIndex <= 2) {
+      if (callIndex <= 3) {
         return {
           data: null,
           loading: false,
@@ -347,6 +382,18 @@ describe('RevenueDistributionPage', () => {
           setData: vi.fn(),
         };
       }
+      if (callIndex === 3) {
+        // Unfiltered business insights for custom items extraction
+        return {
+          data: mockBusinessInsights,
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+          clearError: vi.fn(),
+          setData: vi.fn(),
+        };
+      }
+      // Filtered revenue distribution for display (callIndex === 4)
       return {
         data: emptyData,
         loading: false,
@@ -395,6 +442,18 @@ describe('RevenueDistributionPage', () => {
           setData: vi.fn(),
         };
       }
+      if (callIndex === 3) {
+        // Unfiltered business insights for custom items extraction
+        return {
+          data: mockBusinessInsights,
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+          clearError: vi.fn(),
+          setData: vi.fn(),
+        };
+      }
+      // Filtered revenue distribution for display (callIndex === 4)
       return {
         data: paginatedData,
         loading: false,
@@ -459,6 +518,18 @@ describe('RevenueDistributionPage', () => {
           setData: vi.fn(),
         };
       }
+      if (callIndex === 3) {
+        // Unfiltered business insights for custom items extraction
+        return {
+          data: mockBusinessInsights,
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+          clearError: vi.fn(),
+          setData: vi.fn(),
+        };
+      }
+      // Filtered revenue distribution for display (callIndex === 4)
       return {
         data: dataWithNullPractitioner,
         loading: false,

@@ -412,6 +412,201 @@ class TestBusinessInsightsService:
         )
         assert insights_all['summary']['total_revenue'] == 1800.0
 
+    def test_practitioner_filtering_only_counts_matching_items(self, db_session: Session, clinic_with_data):
+        """Test that practitioner filtering only counts revenue from matching items, not all items in receipt."""
+        data = clinic_with_data
+        clinic = data['clinic']
+        admin_user = data['admin_user']
+        practitioner_user = data['practitioner_user']
+        patient = data['patient']
+        apt_type1 = data['apt_type1']
+        scenario1 = data['scenario1']
+
+        # Create second practitioner
+        practitioner_user2 = User(
+            email="practitioner2@test.com",
+            google_subject_id="google_practitioner2_123"
+        )
+        db_session.add(practitioner_user2)
+        db_session.flush()
+
+        practitioner_association2 = UserClinicAssociation(
+            user_id=practitioner_user2.id,
+            clinic_id=clinic.id,
+            full_name="Dr. Jones",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.add(practitioner_association2)
+        db_session.commit()
+
+        visit_date = date.today()
+        calendar_event = CalendarEvent(
+            user_id=admin_user.id,
+            clinic_id=clinic.id,
+            event_type='appointment',
+            date=visit_date,
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=apt_type1.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Create receipt with MULTIPLE items from DIFFERENT practitioners
+        # This is the critical test: when filtering by practitioner_id, we should only
+        # count revenue from items that match, not all items in the receipt
+        items = [
+            {
+                "item_type": "service_item",
+                "service_item_id": apt_type1.id,
+                "practitioner_id": practitioner_user.id,  # First practitioner
+                "billing_scenario_id": scenario1.id,
+                "amount": 1000.00,
+                "revenue_share": 300.00,
+                "display_order": 0
+            },
+            {
+                "item_type": "service_item",
+                "service_item_id": apt_type1.id,
+                "practitioner_id": practitioner_user2.id,  # Second practitioner
+                "billing_scenario_id": scenario1.id,
+                "amount": 500.00,
+                "revenue_share": 150.00,
+                "display_order": 1
+            }
+        ]
+
+        receipt = ReceiptService.create_receipt(
+            db=db_session,
+            appointment_id=appointment.calendar_event_id,
+            clinic_id=clinic.id,
+            checked_out_by_user_id=admin_user.id,
+            items=items,
+            payment_method="cash"
+        )
+        db_session.commit()
+
+        # Test: Filter by first practitioner - should only count first item (1000)
+        insights_practitioner1 = BusinessInsightsService.get_business_insights(
+            db_session, clinic.id, visit_date, visit_date,
+            practitioner_id=practitioner_user.id
+        )
+        assert insights_practitioner1['summary']['total_revenue'] == 1000.0, \
+            f"Expected 1000.0 when filtering by practitioner {practitioner_user.id}, got {insights_practitioner1['summary']['total_revenue']}"
+
+        # Test: Filter by second practitioner - should only count second item (500)
+        insights_practitioner2 = BusinessInsightsService.get_business_insights(
+            db_session, clinic.id, visit_date, visit_date,
+            practitioner_id=practitioner_user2.id
+        )
+        assert insights_practitioner2['summary']['total_revenue'] == 500.0, \
+            f"Expected 500.0 when filtering by practitioner {practitioner_user2.id}, got {insights_practitioner2['summary']['total_revenue']}"
+
+        # Test: No filter - should count both items (1500)
+        insights_all = BusinessInsightsService.get_business_insights(
+            db_session, clinic.id, visit_date, visit_date
+        )
+        assert insights_all['summary']['total_revenue'] == 1500.0, \
+            f"Expected 1500.0 with no filter, got {insights_all['summary']['total_revenue']}"
+
+    def test_service_item_filtering_only_counts_matching_items(self, db_session: Session, clinic_with_data):
+        """Test that service_item filtering only counts revenue from matching items, not all items in receipt."""
+        data = clinic_with_data
+        clinic = data['clinic']
+        admin_user = data['admin_user']
+        patient = data['patient']
+        apt_type1 = data['apt_type1']
+        apt_type2 = data['apt_type2']
+        scenario1 = data['scenario1']
+        scenario2 = data['scenario2']
+
+        visit_date = date.today()
+        calendar_event = CalendarEvent(
+            user_id=admin_user.id,
+            clinic_id=clinic.id,
+            event_type='appointment',
+            date=visit_date,
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=apt_type1.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Create receipt with MULTIPLE items of DIFFERENT service types
+        # This is the critical test: when filtering by service_item_id, we should only
+        # count revenue from items that match, not all items in the receipt
+        items = [
+            {
+                "item_type": "service_item",
+                "service_item_id": apt_type1.id,  # First service type
+                "practitioner_id": None,
+                "billing_scenario_id": scenario1.id,
+                "amount": 1000.00,
+                "revenue_share": 300.00,
+                "display_order": 0
+            },
+            {
+                "item_type": "service_item",
+                "service_item_id": apt_type2.id,  # Second service type
+                "practitioner_id": None,
+                "billing_scenario_id": scenario2.id,
+                "amount": 500.00,
+                "revenue_share": 150.00,
+                "display_order": 1
+            }
+        ]
+
+        receipt = ReceiptService.create_receipt(
+            db=db_session,
+            appointment_id=appointment.calendar_event_id,
+            clinic_id=clinic.id,
+            checked_out_by_user_id=admin_user.id,
+            items=items,
+            payment_method="cash"
+        )
+        db_session.commit()
+
+        # Test: Filter by first service item - should only count first item (1000)
+        insights_service1 = BusinessInsightsService.get_business_insights(
+            db_session, clinic.id, visit_date, visit_date,
+            service_item_id=apt_type1.id
+        )
+        assert insights_service1['summary']['total_revenue'] == 1000.0, \
+            f"Expected 1000.0 when filtering by service_item {apt_type1.id}, got {insights_service1['summary']['total_revenue']}"
+
+        # Test: Filter by second service item - should only count second item (500)
+        insights_service2 = BusinessInsightsService.get_business_insights(
+            db_session, clinic.id, visit_date, visit_date,
+            service_item_id=apt_type2.id
+        )
+        assert insights_service2['summary']['total_revenue'] == 500.0, \
+            f"Expected 500.0 when filtering by service_item {apt_type2.id}, got {insights_service2['summary']['total_revenue']}"
+
+        # Test: No filter - should count both items (1500)
+        insights_all = BusinessInsightsService.get_business_insights(
+            db_session, clinic.id, visit_date, visit_date
+        )
+        assert insights_all['summary']['total_revenue'] == 1500.0, \
+            f"Expected 1500.0 with no filter, got {insights_all['summary']['total_revenue']}"
+
     def test_custom_service_items(self, db_session: Session, clinic_with_data):
         """Test custom service items are properly identified."""
         data = clinic_with_data

@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 # to ensure we don't miss any receipts while still reducing the dataset size significantly.
 DATE_FILTER_EXPANSION_DAYS = 2
 
+# Constant for null practitioner filter value
+PRACTITIONER_NULL_FILTER = 'null'
+
 
 def _filter_receipts_by_visit_date(
     receipts: List[Receipt],
@@ -116,6 +119,10 @@ class BusinessInsightsService:
         receipts = _filter_receipts_by_visit_date(all_receipts, start_date, end_date)
         
         # Filter by practitioner if specified
+        # NOTE: This receipt-level filtering is a performance optimization to skip receipts with no matching items.
+        # We still do item-level filtering in the aggregation loop (lines 205-214) to ensure only matching items
+        # contribute to revenue calculations. This two-stage filtering reduces the number of receipts we iterate
+        # through while maintaining correct accounting at the item level.
         if practitioner_id is not None:
             filtered_receipts: List[Receipt] = []
             for receipt in receipts:
@@ -125,7 +132,7 @@ class BusinessInsightsService:
                     item_practitioner: Optional[Dict[str, Any]] = item.get('practitioner')
                     
                     # Handle null practitioner filter
-                    if practitioner_id == 'null':
+                    if practitioner_id == PRACTITIONER_NULL_FILTER:
                         # Filter for items with no practitioner
                         if item_practitioner is None:
                             filtered_receipts.append(receipt)
@@ -197,6 +204,35 @@ class BusinessInsightsService:
             items: List[Dict[str, Any]] = receipt_data.get('items', [])
             
             for item in items:
+                # Extract item properties once for reuse
+                service_item: Optional[Dict[str, Any]] = item.get('service_item')
+                item_type = item.get('item_type', 'service_item')
+                item_practitioner: Optional[Dict[str, Any]] = item.get('practitioner')
+                
+                # If filtering by practitioner_id, only process items that match
+                # NOTE: This item-level filtering ensures correct accounting - only matching items contribute
+                # to revenue calculations, not all items in receipts that contain matching items.
+                if practitioner_id is not None:
+                    if practitioner_id == PRACTITIONER_NULL_FILTER:
+                        # Filter for items with no practitioner
+                        if item_practitioner is not None:
+                            continue
+                    else:
+                        # Filter for specific practitioner ID
+                        if not item_practitioner or item_practitioner.get('id') != practitioner_id:
+                            continue
+                
+                # If filtering by service_item_id, only process items that match
+                if service_item_id:
+                    if isinstance(service_item_id, str) and service_item_id.startswith('custom:'):
+                        # Custom item: check item_name
+                        if not (item_type == 'other' and item.get('item_name') == service_item_id[7:]):
+                            continue
+                    else:
+                        # Standard service item: check service_item.id
+                        if not service_item or service_item.get('id') != service_item_id:
+                            continue
+                
                 amount = Decimal(str(item.get('amount', 0)))
                 quantity = Decimal(str(item.get('quantity', 1)))
                 item_total = amount * quantity
@@ -207,8 +243,6 @@ class BusinessInsightsService:
                 revenue_by_date[receipt_date] += item_total
                 
                 # Service item aggregation
-                service_item: Optional[Dict[str, Any]] = item.get('service_item')
-                item_type = item.get('item_type', 'service_item')
                 
                 if item_type == 'service_item' and service_item:
                     si_id = service_item.get('id')
@@ -255,10 +289,9 @@ class BusinessInsightsService:
                     # Revenue trend by service
                     revenue_by_date_service[receipt_date][key] += item_total
                 
-                # Practitioner aggregation
-                practitioner: Optional[Dict[str, Any]] = item.get('practitioner')
-                prac_id = practitioner.get('id') if practitioner else None
-                prac_name = practitioner.get('name', '無') if practitioner else '無'
+                # Practitioner aggregation (use already extracted item_practitioner)
+                prac_id = item_practitioner.get('id') if item_practitioner else None
+                prac_name = item_practitioner.get('name', '無') if item_practitioner else '無'
                 
                 if prac_id not in practitioner_stats:
                     practitioner_stats[prac_id] = {
@@ -480,7 +513,7 @@ class RevenueDistributionService:
                     item_practitioner: Optional[Dict[str, Any]] = item.get('practitioner')
                     
                     # Handle null practitioner filter
-                    if practitioner_id == 'null':
+                    if practitioner_id == PRACTITIONER_NULL_FILTER:
                         # Filter for items with no practitioner
                         if item_practitioner is not None:
                             continue

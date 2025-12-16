@@ -137,10 +137,14 @@ function getCacheKey(fetchFn: () => Promise<any>, dependencies?: DependencyList)
     let dependencySuffix = '';
     if (dependencies && dependencies.length > 0) {
       // Create a stable string representation of dependencies
-      // Filter out undefined/null and create a hash for complex objects
+      // Include null/undefined values as special markers to differentiate cache keys
+      // This is important: null vs undefined vs actual values should create different cache keys
       const depValues = dependencies
-        .filter(dep => dep !== undefined && dep !== null)
         .map(dep => {
+          // Handle null and undefined explicitly (they are different values for cache purposes)
+          if (dep === null) return '__null__';
+          if (dep === undefined) return '__undefined__';
+          
           if (Array.isArray(dep)) {
             // For arrays, sort elements for consistent cache keys
             // Handle arrays of primitives and objects
@@ -198,7 +202,11 @@ function getCacheKey(fetchFn: () => Promise<any>, dependencies?: DependencyList)
 
   // Fallback for non-standard functions - use full function string and dependencies for uniqueness
   const fallbackKey = dependencies && dependencies.length > 0
-    ? `${functionString}_${dependencies.filter(d => d !== undefined && d !== null).join('|')}`
+    ? `${functionString}_${dependencies.map(d => {
+        if (d === null) return '__null__';
+        if (d === undefined) return '__undefined__';
+        return String(d);
+      }).join('|')}`
     : functionString;
 
   if (functionStringToKeyMap.has(fallbackKey)) {
@@ -372,7 +380,9 @@ export function useApiData<T>(
   const activeLockRef = useRef<string | null>(null);
   // Store latest dependencies in ref so performFetch always uses current values
   // without needing to be recreated on every render
+  // Update synchronously on each render to ensure we always have the latest values
   const dependenciesRef = useRef(dependencies);
+  dependenciesRef.current = dependencies; // Update synchronously, not in effect
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -386,11 +396,6 @@ export function useApiData<T>(
     };
   }, []);
 
-  // Update dependencies ref whenever dependencies change
-  useEffect(() => {
-    dependenciesRef.current = dependencies;
-  }, [dependencies]);
-
   const performFetch = useCallback(async () => {
     if (!enabled) {
       return;
@@ -400,7 +405,9 @@ export function useApiData<T>(
     // Compute cache key synchronously to ensure we use the latest key
     // Include dependencies in cache key to differentiate between different parameter values
     // Use ref to always get the latest dependencies without recreating this callback
-    const cacheKey = getCacheKey(fetchFn, dependenciesRef.current);
+    // dependenciesRef.current is updated synchronously on each render, so it's always current
+    const currentDeps = dependenciesRef.current;
+    const cacheKey = getCacheKey(fetchFn, currentDeps);
     if (cacheKey && inFlightRequests.has(cacheKey)) {
       try {
         const result = await inFlightRequests.get(cacheKey)!;

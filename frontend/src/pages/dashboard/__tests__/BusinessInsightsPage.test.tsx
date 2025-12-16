@@ -13,6 +13,15 @@ import { apiService } from '../../../services/api';
 // Mock useApiData hook
 vi.mock('../../../hooks/useApiData');
 
+// Mock useAuth hook
+vi.mock('../../../hooks/useAuth', () => ({
+  useAuth: () => ({
+    user: { active_clinic_id: 1 },
+    isAuthenticated: true,
+    isLoading: false,
+  }),
+}));
+
 // Mock apiService
 vi.mock('../../../services/api', () => ({
   apiService: {
@@ -154,6 +163,18 @@ describe('BusinessInsightsPage', () => {
           setData: vi.fn(),
         };
       }
+      if (callIndex === 3) {
+        // Unfiltered business insights for custom items extraction
+        return {
+          data: mockBusinessInsights,
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+          clearError: vi.fn(),
+          setData: vi.fn(),
+        };
+      }
+      // Filtered business insights for display (callIndex === 4)
       return {
         data: mockBusinessInsights,
         loading: false,
@@ -174,7 +195,7 @@ describe('BusinessInsightsPage', () => {
     let callCount = 0;
     mockUseApiData.mockImplementation(() => {
       callCount++;
-      if (callCount <= 2) {
+      if (callCount <= 3) {
         return {
           data: null,
           loading: false,
@@ -202,7 +223,7 @@ describe('BusinessInsightsPage', () => {
     let callIndex = 0;
     mockUseApiData.mockImplementation(() => {
       callIndex++;
-      if (callIndex <= 2) {
+      if (callIndex <= 3) {
         return {
           data: null,
           loading: false,
@@ -280,6 +301,18 @@ describe('BusinessInsightsPage', () => {
           setData: vi.fn(),
         };
       }
+      if (callIndex === 3) {
+        // Unfiltered business insights for custom items extraction
+        return {
+          data: emptyData,
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+          clearError: vi.fn(),
+          setData: vi.fn(),
+        };
+      }
+      // Filtered business insights for display (callIndex === 4)
       return {
         data: emptyData,
         loading: false,
@@ -319,7 +352,7 @@ describe('BusinessInsightsPage', () => {
       callIndex++;
       return {
         data: null,
-        loading: callIndex === 3, // Only third call (business insights) is loading
+        loading: callIndex === 4, // Only fourth call (filtered business insights) is loading
         error: null,
         refetch: vi.fn(),
         clearError: vi.fn(),
@@ -354,6 +387,18 @@ describe('BusinessInsightsPage', () => {
           setData: vi.fn(),
         };
       }
+      if (callIndex === 3) {
+        // Unfiltered business insights for custom items extraction
+        return {
+          data: mockBusinessInsights,
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+          clearError: vi.fn(),
+          setData: vi.fn(),
+        };
+      }
+      // Filtered business insights for display (callIndex === 4)
       return {
         data: mockBusinessInsights,
         loading: false,

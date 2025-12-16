@@ -13,6 +13,15 @@ import { apiService } from '../../../services/api';
 // Mock useApiData hook
 vi.mock('../../../hooks/useApiData');
 
+// Mock useAuth hook
+vi.mock('../../../hooks/useAuth', () => ({
+  useAuth: () => ({
+    user: { active_clinic_id: 1 },
+    isAuthenticated: true,
+    isLoading: false,
+  }),
+}));
+
 // Mock apiService
 vi.mock('../../../services/api', () => ({
   apiService: {

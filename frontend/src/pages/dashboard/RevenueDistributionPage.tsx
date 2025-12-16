@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import moment from 'moment-timezone';
 import { useApiData } from '../../hooks/useApiData';
 import { apiService } from '../../services/api';
@@ -17,7 +17,9 @@ import { logger } from '../../utils/logger';
 import DashboardBackButton from '../../components/DashboardBackButton';
 
 const RevenueDistributionPage: React.FC = () => {
-  const { isClinicAdmin } = useAuth();
+  const { isClinicAdmin, user } = useAuth();
+  const activeClinicId = user?.active_clinic_id ?? null;
+  
   // Active filter state (used for API calls)
   const [startDate, setStartDate] = useState<string>(moment().startOf('month').format('YYYY-MM-DD'));
   const [endDate, setEndDate] = useState<string>(moment().endOf('month').format('YYYY-MM-DD'));
@@ -36,6 +38,24 @@ const RevenueDistributionPage: React.FC = () => {
     direction: 'desc',
   });
   const [page, setPage] = useState(1);
+  
+  // Reset filters to default when clinic changes
+  useEffect(() => {
+    const defaultStartDate = moment().startOf('month').format('YYYY-MM-DD');
+    const defaultEndDate = moment().endOf('month').format('YYYY-MM-DD');
+    
+    setStartDate(defaultStartDate);
+    setEndDate(defaultEndDate);
+    setSelectedPractitionerId(null);
+    setSelectedServiceItemId(null);
+    setShowOverwrittenOnly(false);
+    setPendingStartDate(defaultStartDate);
+    setPendingEndDate(defaultEndDate);
+    setPendingPractitionerId(null);
+    setPendingServiceItemId(null);
+    setPendingShowOverwrittenOnly(false);
+    setPage(1);
+  }, [activeClinicId]);
   const [showPageInfoModal, setShowPageInfoModal] = useState(false);
   const [showOverwrittenFilterInfoModal, setShowOverwrittenFilterInfoModal] = useState(false);
   const [selectedReceiptId, setSelectedReceiptId] = useState<number | null>(null);
@@ -45,8 +65,14 @@ const RevenueDistributionPage: React.FC = () => {
   const [loadingRowKey, setLoadingRowKey] = useState<string | null>(null);
 
   // Load practitioners and service items
-  const { data: membersData } = useApiData(() => apiService.getMembers(), { cacheTTL: 5 * 60 * 1000 });
-  const { data: settingsData } = useApiData(() => apiService.getClinicSettings(), { cacheTTL: 5 * 60 * 1000 });
+  const { data: membersData } = useApiData(() => apiService.getMembers(), { 
+    cacheTTL: 5 * 60 * 1000,
+    dependencies: [activeClinicId], // Include activeClinicId to prevent cross-clinic cache reuse
+  });
+  const { data: settingsData } = useApiData(() => apiService.getClinicSettings(), { 
+    cacheTTL: 5 * 60 * 1000,
+    dependencies: [activeClinicId], // Include activeClinicId to prevent cross-clinic cache reuse
+  });
 
   const practitioners = useMemo<PractitionerOption[]>(() => {
     if (!membersData || !Array.isArray(membersData)) return [];
@@ -57,7 +83,23 @@ const RevenueDistributionPage: React.FC = () => {
     return pracs;
   }, [membersData]);
 
-  // Fetch revenue distribution data (needed for custom items extraction)
+  // Fetch business insights data for custom items extraction (unfiltered by service_item_id)
+  // This ensures all custom items always appear in the dropdown, even when filtering
+  // We use business insights API instead of revenue distribution because it returns all items in by_service
+  const fetchBusinessInsightsForCustomItems = useCallback(() => {
+    return apiService.getBusinessInsights({
+      start_date: startDate,
+      end_date: endDate,
+      practitioner_id: typeof selectedPractitionerId === 'number' 
+        ? selectedPractitionerId 
+        : selectedPractitionerId === 'null' 
+          ? 'null' 
+          : null,
+      service_item_id: null, // Always fetch without service_item_id filter to get all custom items
+    });
+  }, [startDate, endDate, selectedPractitionerId]);
+
+  // Fetch revenue distribution data with filters for display
   const fetchRevenueDistribution = useCallback(() => {
     const params: Parameters<typeof apiService.getRevenueDistribution>[0] = {
       start_date: startDate,
@@ -81,9 +123,16 @@ const RevenueDistributionPage: React.FC = () => {
     return apiService.getRevenueDistribution(params);
   }, [startDate, endDate, selectedPractitionerId, selectedServiceItemId, showOverwrittenOnly, page, currentSort]);
 
+  // Fetch unfiltered business insights data for custom items extraction
+  const { data: customItemsData } = useApiData(fetchBusinessInsightsForCustomItems, {
+    cacheTTL: 2 * 60 * 1000, // 2 minutes cache
+    dependencies: [startDate, endDate, selectedPractitionerId, activeClinicId], // Note: no selectedServiceItemId
+  });
+
+  // Fetch filtered revenue distribution data for display
   const { data, loading, error } = useApiData(fetchRevenueDistribution, {
     cacheTTL: 2 * 60 * 1000, // 2 minutes cache
-    dependencies: [startDate, endDate, selectedPractitionerId, selectedServiceItemId, showOverwrittenOnly, page, currentSort], // Explicit dependencies to trigger refetch when filters change
+    dependencies: [startDate, endDate, selectedPractitionerId, selectedServiceItemId, showOverwrittenOnly, page, currentSort, activeClinicId], // Include activeClinicId to prevent cross-clinic cache reuse
   });
 
   // Helper function to generate a consistent numeric ID from a string
@@ -114,10 +163,12 @@ const RevenueDistributionPage: React.FC = () => {
       }));
     }
 
-    // Extract custom items from revenue distribution data
+    // Extract custom items from unfiltered business insights data
+    // Use customItemsData (unfiltered) instead of data (filtered) to ensure all custom items
+    // always appear in the dropdown, even when a service_item_id filter is applied
     const customItemsMap = new Map<string, ServiceItemOption>();
-    if (data?.items) {
-      data.items.forEach(item => {
+    if (customItemsData?.by_service) {
+      customItemsData.by_service.forEach(item => {
         if (item.is_custom && item.receipt_name) {
           // Use receipt_name as the key to avoid duplicates
           if (!customItemsMap.has(item.receipt_name)) {
@@ -134,7 +185,7 @@ const RevenueDistributionPage: React.FC = () => {
 
     // Combine predefined and custom items
     return [...predefinedItems, ...Array.from(customItemsMap.values())];
-  }, [settingsData, data?.items]);
+  }, [settingsData, customItemsData?.by_service]);
 
   const standardServiceItemIds = useMemo(() => {
     return new Set(serviceItems.filter(si => !si.is_custom).map(si => si.id));
