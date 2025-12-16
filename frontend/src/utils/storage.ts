@@ -132,3 +132,83 @@ export const liffStorage = {
     }
   },
 };
+
+/**
+ * Calendar view state interface.
+ */
+export interface CalendarViewState {
+  view: 'month' | 'week' | 'day';
+  currentDate: string; // ISO date string (YYYY-MM-DD)
+  additionalPractitionerIds: number[];
+  defaultPractitionerId: number | null;
+}
+
+/**
+ * Calendar-specific storage utilities.
+ * 
+ * Uses 'calendar_' prefix for all keys and stores values as JSON.
+ * Keys are scoped by userId and clinicId: calendar_${userId}_${clinicId}
+ */
+export const calendarStorage = {
+  /**
+   * Get storage key for a user and clinic combination
+   */
+  getStorageKey(userId: number, clinicId: number | null): string {
+    const clinicKey = clinicId ?? 'no-clinic';
+    return `calendar_${userId}_${clinicKey}`;
+  },
+
+  /**
+   * Get calendar view state from localStorage
+   */
+  getCalendarState(userId: number, clinicId: number | null): CalendarViewState | null {
+    try {
+      const key = this.getStorageKey(userId, clinicId);
+      const stored = localStorage.getItem(key);
+      if (!stored) return null;
+      
+      const state = JSON.parse(stored) as CalendarViewState;
+      
+      // Validate state structure
+      if (
+        (state.view === 'month' || state.view === 'week' || state.view === 'day') &&
+        typeof state.currentDate === 'string' &&
+        Array.isArray(state.additionalPractitionerIds) &&
+        (state.defaultPractitionerId === null || typeof state.defaultPractitionerId === 'number')
+      ) {
+        return state;
+      }
+      
+      logger.warn('Invalid calendar state structure, clearing');
+      this.clearCalendarState(userId, clinicId);
+      return null;
+    } catch (error) {
+      logger.warn('Failed to read calendar state:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Set calendar view state in localStorage
+   */
+  setCalendarState(userId: number, clinicId: number | null, state: CalendarViewState): void {
+    try {
+      const key = this.getStorageKey(userId, clinicId);
+      localStorage.setItem(key, JSON.stringify(state));
+    } catch (error) {
+      logger.warn('Failed to save calendar state:', error);
+    }
+  },
+
+  /**
+   * Clear calendar view state from localStorage
+   */
+  clearCalendarState(userId: number, clinicId: number | null): void {
+    try {
+      const key = this.getStorageKey(userId, clinicId);
+      localStorage.removeItem(key);
+    } catch (error) {
+      logger.warn('Failed to clear calendar state:', error);
+    }
+  },
+};

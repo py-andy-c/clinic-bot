@@ -37,6 +37,7 @@ import {
   getScrollToTime,
   getWeekdayNames,
 } from '../utils/calendarUtils';
+import { calendarStorage } from '../utils/storage';
 
 // Configure moment for Taiwan timezone
 moment.locale('zh-tw');
@@ -72,6 +73,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Default schedule was removed - no longer needed (availability background events were removed)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Track if we've loaded persisted state to avoid overwriting with defaults
+  const hasLoadedPersistedStateRef = useRef(false);
   // Cache batch calendar data to avoid redundant API calls when navigating between dates
   // Key: `${practitionerIds.join(',')}-${startDate}-${endDate}`
   const cachedCalendarDataRef = useRef<Map<string, { data: ApiCalendarEvent[]; timestamp: number }>>(new Map());
@@ -159,6 +162,63 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Get current user for role checking
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const isAdmin = user?.roles?.includes('admin') ?? false;
+
+  // Load persisted calendar state on mount (view and date)
+  useEffect(() => {
+    if (!user?.user_id || !user?.active_clinic_id || hasLoadedPersistedStateRef.current) {
+      return;
+    }
+
+    const persistedState = calendarStorage.getCalendarState(user.user_id, user.active_clinic_id);
+    if (persistedState) {
+      // Load view mode
+      if (persistedState.view === 'month' || persistedState.view === 'week' || persistedState.view === 'day') {
+        const viewMap: Record<string, View> = {
+          month: Views.MONTH,
+          week: Views.WEEK,
+          day: Views.DAY,
+        };
+        setView(viewMap[persistedState.view] || Views.DAY);
+      }
+
+      // Load current date
+      if (persistedState.currentDate) {
+        try {
+          const parsedDate = new Date(persistedState.currentDate);
+          if (!isNaN(parsedDate.getTime())) {
+            setCurrentDate(parsedDate);
+          }
+        } catch (error) {
+          logger.warn('Failed to parse persisted date:', error);
+        }
+      }
+    }
+    
+    hasLoadedPersistedStateRef.current = true;
+  }, [user?.user_id, user?.active_clinic_id]);
+
+  // Persist view and date whenever they change (after initial load)
+  // Only update the fields that changed to avoid unnecessary storage reads
+  useEffect(() => {
+    if (!user?.user_id || !user?.active_clinic_id || !hasLoadedPersistedStateRef.current) {
+      return;
+    }
+
+    const viewString: 'month' | 'week' | 'day' = view === Views.MONTH ? 'month' : view === Views.WEEK ? 'week' : 'day';
+    const dateString = getDateString(currentDate);
+
+    // Only read from storage if we need practitioner data, otherwise construct minimal state
+    // This avoids reading storage on every view/date change
+    const currentState = calendarStorage.getCalendarState(user.user_id, user.active_clinic_id);
+    const updatedState = {
+      view: viewString,
+      currentDate: dateString,
+      additionalPractitionerIds: currentState?.additionalPractitionerIds || [],
+      defaultPractitionerId: currentState?.defaultPractitionerId || null,
+    };
+    
+    calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, updatedState);
+  }, [user?.user_id, user?.active_clinic_id, view, currentDate]);
 
   const fetchClinicSettingsFn = sharedFetchFunctions.getClinicSettings;
 
@@ -538,10 +598,62 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }, [view]);
 
   // Scroll week view to 9 AM on initial load (same as day view)
+  // Wait for calendar to finish loading and be fully rendered before scrolling
   useEffect(() => {
     if (view !== Views.WEEK) return;
-    scrollWeekViewTo9AM();
-  }, [view, currentDate, scrollWeekViewTo9AM]);
+    // Don't scroll if still loading
+    if (loading) return;
+    
+    // Wait for calendar to be ready - check for time slots being rendered
+    const checkAndScroll = (): boolean => {
+      if (!calendarContainerRef.current) return false;
+      
+      const timeView = calendarContainerRef.current.querySelector('.rbc-time-view') as HTMLElement;
+      if (!timeView) return false;
+      
+      // Check if time slots are actually rendered (not just empty container)
+      const timeGutter = timeView.querySelector('.rbc-time-gutter');
+      if (!timeGutter) return false;
+      
+      const timeLabels = timeGutter.querySelectorAll('.rbc-label');
+      // If time slots are rendered, calendar is ready
+      if (timeLabels.length > 0) {
+        scrollWeekViewTo9AM();
+        return true;
+      }
+      
+      return false;
+    };
+    
+    // Try immediately first (in case calendar is already rendered)
+    if (checkAndScroll()) {
+      return;
+    }
+    
+    // If not ready, wait for next paint then retry with a small delay
+    let rafId: number;
+    let timeoutId: NodeJS.Timeout;
+    
+    rafId = requestAnimationFrame(() => {
+      // Use double RAF to ensure layout is complete
+      rafId = requestAnimationFrame(() => {
+        if (checkAndScroll()) {
+          return;
+        }
+        // If still not ready, retry after a short delay
+        timeoutId = setTimeout(() => {
+          checkAndScroll();
+        }, 50);
+      });
+    });
+    
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [view, currentDate, scrollWeekViewTo9AM, loading]);
 
   // isMobile is already declared above
 

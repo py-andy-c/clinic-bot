@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useApiData } from '../hooks/useApiData';
@@ -11,6 +11,8 @@ import PractitionerSelector from '../components/PractitionerSelector';
 import PractitionerChips from '../components/PractitionerChips';
 import FloatingActionButton from '../components/FloatingActionButton';
 import { sharedFetchFunctions } from '../services/api';
+import { calendarStorage } from '../utils/storage';
+import { getDateString } from '../utils/calendarUtils';
 
 const AvailabilityPage: React.FC = () => {
   const { user, isPractitioner, isLoading: authLoading, isAuthenticated } = useAuth();
@@ -47,6 +49,72 @@ const AvailabilityPage: React.FC = () => {
   );
 
   const practitioners = practitionersData || [];
+  
+  // Track if we've loaded persisted state to avoid overwriting with defaults
+  const hasLoadedPersistedStateRef = useRef(false);
+  // Track if persisted state had a default practitioner to prevent default handler from overriding
+  const persistedStateHadDefaultPractitionerRef = useRef(false);
+
+  // Load persisted calendar state on mount (after user and practitioners are available)
+  // This must run before the default practitioner handler
+  useEffect(() => {
+    if (!user?.user_id || !user?.active_clinic_id || practitioners.length === 0 || hasLoadedPersistedStateRef.current) {
+      return;
+    }
+
+    const persistedState = calendarStorage.getCalendarState(user.user_id, user.active_clinic_id);
+    if (persistedState) {
+      // Filter out invalid practitioners (those that no longer exist)
+      const validPractitionerIds = persistedState.additionalPractitionerIds.filter(id =>
+        practitioners.some(p => p.id === id)
+      );
+      
+      // Validate default practitioner exists
+      const validDefaultPractitionerId = persistedState.defaultPractitionerId && 
+        practitioners.some(p => p.id === persistedState.defaultPractitionerId)
+        ? persistedState.defaultPractitionerId
+        : null;
+
+      setAdditionalPractitionerIds(validPractitionerIds);
+      
+      // Only set default practitioner if user is not a practitioner
+      if (!isPractitioner) {
+        if (validDefaultPractitionerId) {
+          setDefaultPractitionerId(validDefaultPractitionerId);
+          persistedStateHadDefaultPractitionerRef.current = true;
+        } else if (practitioners.length > 0) {
+          // Fallback to first practitioner if persisted one doesn't exist
+          setDefaultPractitionerId(practitioners[0]!.id);
+          persistedStateHadDefaultPractitionerRef.current = false;
+        }
+      }
+      
+      hasLoadedPersistedStateRef.current = true;
+    } else {
+      // No persisted state - will be handled by default practitioner handler
+      hasLoadedPersistedStateRef.current = true;
+      persistedStateHadDefaultPractitionerRef.current = false;
+    }
+  }, [user?.user_id, user?.active_clinic_id, practitioners, isPractitioner]);
+
+  // Persist state whenever it changes (after initial load)
+  useEffect(() => {
+    if (!user?.user_id || !user?.active_clinic_id || !hasLoadedPersistedStateRef.current) {
+      return;
+    }
+
+    // Get current view and date from storage (CalendarView manages these)
+    // We preserve them when saving practitioner state
+    const currentState = calendarStorage.getCalendarState(user.user_id, user.active_clinic_id);
+    const updatedState = {
+      view: (currentState?.view || 'day') as 'month' | 'week' | 'day',
+      // Preserve current date from storage, or use today's date if not available
+      currentDate: currentState?.currentDate || getDateString(new Date()),
+      additionalPractitionerIds,
+      defaultPractitionerId,
+    };
+    calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, updatedState);
+  }, [user?.user_id, user?.active_clinic_id, additionalPractitionerIds, defaultPractitionerId]);
 
   // Determine which practitioner IDs to display
   const displayedPractitionerIds = React.useMemo(() => {
@@ -73,7 +141,13 @@ const AvailabilityPage: React.FC = () => {
   }, [isPractitioner, user?.user_id, defaultPractitionerId, additionalPractitionerIds]);
 
   // Handle default practitioner for non-practitioners when practitioners data loads
+  // Only runs if persisted state didn't set a default practitioner
   useEffect(() => {
+    // Skip if we haven't loaded persisted state yet, or if persisted state already set a default
+    if (!hasLoadedPersistedStateRef.current || persistedStateHadDefaultPractitionerRef.current) {
+      return;
+    }
+
     if (!isPractitioner && practitioners.length > 0) {
       // Check if current default practitioner still exists
       if (defaultPractitionerId && practitioners.some(p => p.id === defaultPractitionerId)) {
