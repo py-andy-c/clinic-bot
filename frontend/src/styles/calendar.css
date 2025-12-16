@@ -48,7 +48,7 @@
 }
 
 .rbc-date-cell {
-  @apply relative p-2 border-r border-gray-200 cursor-pointer;
+  @apply relative border-r border-gray-200 cursor-pointer;
 }
 
 .rbc-date-cell:not(.rbc-off-range):hover {
@@ -425,10 +425,6 @@
 
 /* Mobile optimizations */
 @media (max-width: 768px) {
-  .rbc-date-cell {
-    @apply p-1;
-  }
-  
   .rbc-date-number,
   .rbc-event {
     @apply text-xs;
