@@ -307,7 +307,7 @@
 
 .rbc-time-slot {
   @apply text-xs text-gray-500 py-1;
-  min-height: 60px !important; /* Double the height - each hour will be ~120px (2 slots per hour) */
+  min-height: 30px !important; /* 15-minute slots: each hour is ~120px (4 slots of 30px each) */
 }
 
 /* Current time indicator line - make it thicker */
@@ -344,7 +344,7 @@
 
 /* Day slot styles */
 .rbc-day-slot {
-  min-height: 60px !important; /* Match time slot height for proper alignment */
+  min-height: 30px !important; /* Match time slot height for proper alignment (15-minute slots) */
 }
 
 .rbc-day-slot .rbc-events-container,
@@ -450,7 +450,7 @@
   /* Increase spacing between time slots on mobile */
   .rbc-time-slot {
     @apply py-2;
-    min-height: 96px !important; /* Double mobile height to match desktop scaling */
+    min-height: 30px !important; /* 15-minute slots: each hour is ~120px (4 slots of 30px each) */
   }
   
   /* Increase event padding on mobile */
@@ -463,7 +463,7 @@
   
   /* More spacing in day slot */
   .rbc-day-slot {
-    min-height: 96px !important; /* Double mobile height to match desktop scaling */
+    min-height: 30px !important; /* Match time slot height for proper alignment (15-minute slots) */
   }
   
   /* Increase time header content padding */

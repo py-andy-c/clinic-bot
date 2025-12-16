@@ -1353,8 +1353,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           eventPropGetter={eventStyleGetter}
           // Mobile optimizations
           showMultiDayTimes={!isMobile}
-          step={isMobile ? 60 : 30}
-          timeslots={isMobile ? 1 : 2}
+          step={15}
+          timeslots={4}
           // Timezone configuration
           culture="zh-TW"
           // Styling - expand to full screen, use full viewport height on mobile
