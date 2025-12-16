@@ -135,6 +135,16 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
       return;
     }
 
+    // Don't try to load billing scenarios for temporary IDs (Date.now() timestamps)
+    // These will be loaded after the appointment type is saved and gets a real ID
+    // Temporary IDs are generated using Date.now(), which produces large timestamps
+    const TEMPORARY_ID_THRESHOLD = 1000000000000;
+    if (serviceItemId > TEMPORARY_ID_THRESHOLD) {
+      // Set empty array to prevent retry attempts
+      onBillingScenariosChange(key, []);
+      return;
+    }
+
     try {
       setLoadingScenarios(prev => new Set(prev).add(key));
       const data = await apiService.getBillingScenarios(serviceItemId, practitionerId);
