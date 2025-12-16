@@ -463,7 +463,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     const MAX_RETRIES = 10; // Maximum retries to find 9 AM slot
     const RETRY_DELAY_MS = 100; // Delay between retries
     const HOURS_TO_9AM = 9;
-    const ESTIMATED_SLOT_HEIGHT_PX = 60; // pixels per hour
+    const ESTIMATED_SLOT_HEIGHT_PX = 120; // pixels per hour (doubled from 60)
 
     let retryCount = 0;
 
