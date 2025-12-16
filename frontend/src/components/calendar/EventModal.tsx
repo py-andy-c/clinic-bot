@@ -15,6 +15,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { CheckoutModal } from './CheckoutModal';
 import { ReceiptViewModal } from './ReceiptViewModal';
 import { ReceiptListModal } from './ReceiptListModal';
+import { canEditAppointment } from '../../utils/appointmentPermissions';
 
 // Maximum length for custom event names
 // Must match backend/src/core/constants.py MAX_EVENT_NAME_LENGTH = 100
@@ -49,7 +50,10 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
   practitioners = [],
   onReceiptCreated,
 }) => {
-  const { isClinicAdmin } = useAuth();
+  const { isClinicAdmin, user } = useAuth();
+  const canEdit = event.resource.type === 'appointment' 
+    ? canEditAppointment(event, user?.user_id, isClinicAdmin)
+    : false;
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showReceiptListModal, setShowReceiptListModal] = useState(false);
@@ -241,7 +245,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <p><strong>診所備注:</strong></p>
-                  {clinicNotes.trim() !== (event.resource.clinic_notes || '').trim() && (
+                  {canEdit && clinicNotes.trim() !== (event.resource.clinic_notes || '').trim() && (
                     <button
                       onClick={(e) => {
                         e.preventDefault();
@@ -259,7 +263,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                   value={clinicNotes}
                   onChange={(e) => setClinicNotes(e.target.value)}
                   rows={3}
-                  disabled={isSavingClinicNotes}
+                  disabled={!canEdit || isSavingClinicNotes}
                 />
               </div>
             </div>

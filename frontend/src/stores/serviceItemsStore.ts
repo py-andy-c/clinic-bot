@@ -62,6 +62,9 @@ interface ServiceItemsState {
   // Reset
   reset: () => void;
   
+  // Clear all data (used when clinic changes)
+  clear: () => void;
+  
   // Change detection
   hasUnsavedChanges: () => boolean;
 }

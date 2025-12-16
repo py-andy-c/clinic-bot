@@ -1258,6 +1258,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
   };
 
+  // Wrapper component to pass view to CustomEventComponent
+  // Must be defined before any early returns to comply with Rules of Hooks
+  const EventComponentWithView = useCallback((props: { event: CalendarEvent }) => {
+    return <CustomEventComponent event={props.event} view={view} />;
+  }, [view]);
 
   if (loading) {
     return (
@@ -1301,7 +1306,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           selectable={view === Views.MONTH || view === Views.WEEK}
           components={{
             toolbar: CustomToolbar,
-            event: CustomEventComponent,
+            event: EventComponentWithView,
             month: {
               dateHeader: DateHeaderWithClick,
               header: CustomWeekdayHeader,

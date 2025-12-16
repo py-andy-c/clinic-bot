@@ -1,6 +1,6 @@
 import React from 'react';
 import moment from 'moment-timezone';
-import { View, NavigateAction } from 'react-big-calendar';
+import { View, NavigateAction, Views } from 'react-big-calendar';
 import { CalendarEvent, formatEventTimeRange } from '../utils/calendarDataAdapter';
 import { getWeekdayNames } from '../utils/calendarUtils';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -188,17 +188,33 @@ export const CustomWeekHeader = ({ date }: any) => {
 };
 
 // Custom Event Component
-export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
+export const CustomEventComponent = ({ event, view }: { event: CalendarEvent; view?: View }) => {
   const timeStr = formatEventTimeRange(event.start, event.end);
   const practitionerName = event.resource.event_practitioner_name || event.resource.practitioner_name;
   const showPractitionerName = practitionerName && !event.resource.is_primary;
   const isAutoAssigned = event.resource.is_auto_assigned === true;
+  const clinicNotes = event.resource.clinic_notes || '';
+  
+  // Determine character limit based on view
+  // Daily view: 150 chars, Weekly view: 80 chars, Monthly view: 40 chars
+  const charLimit = view === Views.DAY ? 150 : view === Views.WEEK ? 80 : 40;
+  const shouldTruncate = clinicNotes.length > charLimit;
+  const displayNotes = shouldTruncate ? clinicNotes.substring(0, charLimit) + '...' : clinicNotes;
   
   // Build tooltip with practitioner name if available
-  // Order: Patient - Appointment Type, then Time
-  const tooltipText = showPractitionerName 
-    ? `${practitionerName} - ${event.title || ''} ${timeStr}`.trim()
-    : `${event.title || ''} ${timeStr}`.trim();
+  // Order: Patient - Appointment Type, then Time, then Clinic Notes
+  const tooltipParts: string[] = [];
+  if (showPractitionerName) {
+    tooltipParts.push(practitionerName);
+  }
+  if (event.title) {
+    tooltipParts.push(event.title);
+  }
+  tooltipParts.push(timeStr);
+  if (clinicNotes) {
+    tooltipParts.push(clinicNotes);
+  }
+  const tooltipText = tooltipParts.join(' - ');
 
   return (
     <div 
@@ -206,13 +222,19 @@ export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
       title={tooltipText}
     >
       <div className="flex-1 min-w-0 overflow-hidden">
-        <div className="text-xs leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
+        <div className="text-xs leading-tight">
           {event.title && (
-            <span className="font-medium">{event.title}</span>
+            <div className="font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+              {event.title}
+            </div>
           )}
-          <span className="ml-1">{timeStr}</span>
+          {clinicNotes && (
+            <div className="whitespace-nowrap overflow-hidden text-ellipsis">
+              {displayNotes}
+            </div>
+          )}
           {isAutoAssigned && (
-            <span className="ml-1 text-white/80" title="系統自動指派">*</span>
+            <span className="text-white/80" title="系統自動指派">*</span>
           )}
         </div>
       </div>

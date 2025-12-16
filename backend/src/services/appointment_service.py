@@ -1745,12 +1745,22 @@ class AppointmentService:
             raise HTTPException(status_code=404, detail="預約不存在")
         
         # Check if appointment has any receipt (within same transaction)
+        # Allow clinic notes updates even when receipts exist (clinic notes don't affect appointment details)
         from models.receipt import Receipt
         receipts = db.query(Receipt).filter(
             Receipt.appointment_id == appointment_id
         ).all()
         
-        if len(receipts) > 0:
+        # Check if this is a clinic notes-only update
+        is_clinic_notes_only = (
+            new_clinic_notes is not None and
+            new_practitioner_id is None and
+            new_start_time is None and
+            new_appointment_type_id is None and
+            new_notes is None
+        )
+        
+        if len(receipts) > 0 and not is_clinic_notes_only:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="此預約已有收據，無法修改"
