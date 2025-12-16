@@ -488,27 +488,39 @@ class TestAppointmentServiceIntegration:
         db_session.add(pat)
         db_session.commit()
 
-        # Create availability
-        tomorrow = (taiwan_now() + timedelta(days=1)).date()
+        # Create availability for the appointment date (2 days ahead)
+        appointment_date = (taiwan_now() + timedelta(days=2)).date()
         create_practitioner_availability_with_clinic(
             db_session, practitioner, clinic,
-            day_of_week=tomorrow.weekday(),
+            day_of_week=appointment_date.weekday(),
             start_time=time(9, 0),
             end_time=time(17, 0)
         )
         db_session.commit()
 
+        # Create LineUser for patient booking (to test conflict prevention)
+        from models import LineUser
+        line_user = LineUser(
+            line_user_id="U_test_patient_double_booking",
+            clinic_id=clinic.id,
+            display_name="Test Patient"
+        )
+        db_session.add(line_user)
+        db_session.flush()
+
         # Create patient
         patient = Patient(
             clinic_id=clinic.id,
             full_name="Test Patient",
-            phone_number="0912345678"
+            phone_number="0912345678",
+            line_user_id=line_user.id
         )
         db_session.add(patient)
         db_session.commit()
 
-        # First appointment booking should succeed
-        start_time = taiwan_now() + timedelta(days=1)
+        # First appointment booking should succeed (patient booking)
+        # Schedule 2 days ahead to satisfy minimum booking hours constraint
+        start_time = taiwan_now() + timedelta(days=2)
         start_time = start_time.replace(hour=10, minute=0, second=0, microsecond=0)
 
         result1 = AppointmentService.create_appointment(
@@ -518,13 +530,14 @@ class TestAppointmentServiceIntegration:
             appointment_type_id=appt_type.id,
             start_time=start_time,
             practitioner_id=practitioner.id,
+            line_user_id=line_user.id,  # Patient booking - use database ID
             notes="First appointment"
         )
 
         assert result1["appointment_id"] is not None
         assert result1["status"] == "confirmed"
 
-        # Second appointment booking at the same time should fail
+        # Second appointment booking at the same time should fail (patient booking prevents conflicts)
         from fastapi import HTTPException
         with pytest.raises(HTTPException) as exc_info:
             AppointmentService.create_appointment(
@@ -534,6 +547,7 @@ class TestAppointmentServiceIntegration:
                 appointment_type_id=appt_type.id,
                 start_time=start_time,  # Same time slot
                 practitioner_id=practitioner.id,
+                line_user_id=line_user.id,  # Patient booking - use database ID
                 notes="Second appointment"
             )
 

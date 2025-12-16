@@ -642,29 +642,48 @@ class TestAppointmentConflictChecking:
         db_session.add(pat)
         db_session.commit()
 
-        # Create availability
-        tomorrow = (taiwan_now() + timedelta(days=1)).date()
-        day_of_week = tomorrow.weekday()
+        # Create availability for the appointment date (2 days ahead)
+        appointment_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = appointment_date.weekday()
         create_practitioner_availability_with_clinic(
             db_session, practitioner, clinic, day_of_week, time(9, 0), time(17, 0)
         )
 
+        # Create LineUsers for patient bookings (to test conflict prevention)
+        from models import LineUser
+        line_user1 = LineUser(
+            line_user_id="U_test_patient1",
+            clinic_id=clinic.id,
+            display_name="Test Patient 1"
+        )
+        line_user2 = LineUser(
+            line_user_id="U_test_patient2",
+            clinic_id=clinic.id,
+            display_name="Test Patient 2"
+        )
+        db_session.add(line_user1)
+        db_session.add(line_user2)
+        db_session.flush()
+
         patient1 = Patient(
             clinic_id=clinic.id,
             full_name="Test Patient 1",
-            phone_number="0912345678"
+            phone_number="0912345678",
+            line_user_id=line_user1.id
         )
         patient2 = Patient(
             clinic_id=clinic.id,
             full_name="Test Patient 2",
-            phone_number="0912345699"
+            phone_number="0912345699",
+            line_user_id=line_user2.id
         )
         db_session.add(patient1)
         db_session.add(patient2)
         db_session.commit()
 
-        # Create first appointment
-        start_time1 = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        # Create first appointment (patient booking - should prevent conflicts)
+        # Schedule 2 days ahead to satisfy minimum booking hours constraint
+        start_time1 = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=2)
         result1 = AppointmentService.create_appointment(
             db=db_session,
             clinic_id=clinic.id,
@@ -672,7 +691,7 @@ class TestAppointmentConflictChecking:
             appointment_type_id=appointment_type.id,
             start_time=start_time1,
             practitioner_id=practitioner.id,
-            line_user_id=None
+            line_user_id=line_user1.id  # Patient booking - use database ID
         )
         appointment_id1 = result1['appointment_id']
 
@@ -685,12 +704,13 @@ class TestAppointmentConflictChecking:
             appointment_type_id=appointment_type.id,
             start_time=start_time2,
             practitioner_id=practitioner.id,
-            line_user_id=None
+            line_user_id=line_user2.id  # Patient booking - use database ID
         )
         appointment_id2 = result2['appointment_id']
 
         # Try to edit first appointment to overlap with second (should detect conflict)
         # Move first appointment to same time as second appointment
+        # Use apply_booking_constraints=True to test patient booking conflict prevention
         new_start_time = start_time2  # Same time as second appointment
         with pytest.raises(HTTPException) as exc_info:
             AppointmentService.update_appointment(
@@ -698,9 +718,8 @@ class TestAppointmentConflictChecking:
                 appointment_id=appointment_id1,
                 new_start_time=new_start_time,
                 new_practitioner_id=None,
-                apply_booking_constraints=False,
-                allow_auto_assignment=False,
-                reassigned_by_user_id=practitioner.id
+                apply_booking_constraints=True,  # Patient booking - should prevent conflicts
+                allow_auto_assignment=False
             )
 
         assert exc_info.value.status_code == status.HTTP_409_CONFLICT

@@ -72,6 +72,127 @@ def get_auth_token(client: TestClient, email: str) -> str:
 class TestSchedulingConflicts:
     """Test scheduling conflict detection endpoint."""
 
+    def test_check_scheduling_conflicts_past_appointment(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test checking scheduling conflicts - past appointment (highest priority)."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30,
+            scheduling_buffer_minutes=0
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create default availability
+        past_date = (taiwan_now() - timedelta(days=1)).date()
+        day_of_week = past_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test checking conflict for past appointment
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
+            params={
+                "date": past_date.isoformat(),
+                "start_time": "10:00",
+                "appointment_type_id": appointment_type.id
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["has_conflict"] is True
+        assert data["conflict_type"] == "past_appointment"
+        assert data["appointment_conflict"] is None
+        assert data["exception_conflict"] is None
+
+    def test_check_scheduling_conflicts_past_appointment_priority(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test that past appointment takes priority over other conflicts."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30,
+            scheduling_buffer_minutes=0
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create default availability
+        past_date = (taiwan_now() - timedelta(days=1)).date()
+        day_of_week = past_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.flush()
+
+        # Create existing appointment at the same time (would normally cause appointment conflict)
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Existing Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        existing_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="appointment",
+            event_date=past_date,
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.flush()
+
+        existing_appointment = Appointment(
+            calendar_event_id=existing_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(existing_appointment)
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test checking conflict - should show past_appointment (highest priority), not appointment conflict
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
+            params={
+                "date": past_date.isoformat(),
+                "start_time": "10:15",
+                "appointment_type_id": appointment_type.id
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should show past_appointment (highest priority), not appointment conflict
+        assert data["has_conflict"] is True
+        assert data["conflict_type"] == "past_appointment"
+        assert data["appointment_conflict"] is None
+
     def test_check_scheduling_conflicts_appointment_conflict(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test checking scheduling conflicts - appointment conflict (highest priority)."""
         clinic, practitioner = test_clinic_and_practitioner
@@ -480,3 +601,471 @@ class TestSchedulingConflicts:
         assert data["appointment_conflict"] is not None
         assert data["exception_conflict"] is None
 
+
+class TestRecurringConflicts:
+    """Test recurring appointment conflict detection endpoint."""
+
+    def test_check_recurring_conflicts_past_appointment(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test checking recurring conflicts - past appointment."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30,
+            scheduling_buffer_minutes=0
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create default availability for both past and future dates
+        past_date = (taiwan_now() - timedelta(days=1)).date()
+        future_date = (taiwan_now() + timedelta(days=2)).date()
+        past_day_of_week = past_date.weekday()
+        future_day_of_week = future_date.weekday()
+        
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=past_day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        if future_day_of_week != past_day_of_week:
+            create_practitioner_availability_with_clinic(
+                db_session, practitioner, clinic,
+                day_of_week=future_day_of_week,
+                start_time=time(9, 0),
+                end_time=time(17, 0)
+            )
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test checking recurring conflicts with past appointment
+        from utils.datetime_utils import TAIWAN_TZ
+        from datetime import datetime
+        past_time = datetime.combine(past_date, time(10, 0)).replace(tzinfo=TAIWAN_TZ)
+        future_time = datetime.combine(future_date, time(11, 0)).replace(tzinfo=TAIWAN_TZ)
+        
+        response = client.post(
+            "/api/clinic/appointments/check-recurring-conflicts",
+            json={
+                "practitioner_id": practitioner.id,
+                "appointment_type_id": appointment_type.id,
+                "occurrences": [
+                    past_time.isoformat(),
+                    future_time.isoformat()
+                ]
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert len(data["occurrences"]) == 2
+        
+        # First occurrence has past_appointment conflict
+        occ1 = data["occurrences"][0]
+        assert occ1["has_conflict"] is True
+        assert occ1["conflict_type"] == "past_appointment"
+        assert occ1["appointment_conflict"] is None
+        assert occ1["exception_conflict"] is None
+        assert occ1["is_duplicate"] is False
+        
+        # Second occurrence has no conflict
+        occ2 = data["occurrences"][1]
+        assert occ2["has_conflict"] is False
+        assert occ2["conflict_type"] is None
+        assert occ2["appointment_conflict"] is None
+        assert occ2["exception_conflict"] is None
+        assert occ2["is_duplicate"] is False
+
+    def test_check_recurring_conflicts_appointment_conflict(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test checking recurring conflicts - appointment conflict."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30,
+            scheduling_buffer_minutes=0
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create default availability
+        future_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = future_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.flush()
+
+        # Create existing appointment
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Existing Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        existing_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="appointment",
+            event_date=future_date,
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.flush()
+
+        existing_appointment = Appointment(
+            calendar_event_id=existing_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(existing_appointment)
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test checking recurring conflicts
+        from utils.datetime_utils import TAIWAN_TZ
+        from datetime import datetime
+        conflict_time = datetime.combine(future_date, time(10, 15)).replace(tzinfo=TAIWAN_TZ)
+        no_conflict_time = datetime.combine(future_date, time(11, 0)).replace(tzinfo=TAIWAN_TZ)
+        
+        response = client.post(
+            "/api/clinic/appointments/check-recurring-conflicts",
+            json={
+                "practitioner_id": practitioner.id,
+                "appointment_type_id": appointment_type.id,
+                "occurrences": [
+                    conflict_time.isoformat(),
+                    no_conflict_time.isoformat()
+                ]
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert len(data["occurrences"]) == 2
+        
+        # First occurrence has conflict
+        occ1 = data["occurrences"][0]
+        assert occ1["has_conflict"] is True
+        assert occ1["conflict_type"] == "appointment"
+        assert occ1["appointment_conflict"] is not None
+        assert occ1["appointment_conflict"]["patient_name"] == "Existing Patient"
+        assert occ1["appointment_conflict"]["start_time"] == "10:00"
+        assert occ1["appointment_conflict"]["end_time"] == "10:30"
+        assert occ1["exception_conflict"] is None
+        assert occ1["is_duplicate"] is False
+        
+        # Second occurrence has no conflict
+        occ2 = data["occurrences"][1]
+        assert occ2["has_conflict"] is False
+        assert occ2["conflict_type"] is None
+        assert occ2["appointment_conflict"] is None
+        assert occ2["exception_conflict"] is None
+        assert occ2["is_duplicate"] is False
+
+    def test_check_recurring_conflicts_exception_conflict(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test checking recurring conflicts - exception conflict."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30,
+            scheduling_buffer_minutes=0
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create default availability
+        future_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = future_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.flush()
+
+        # Create availability exception
+        exception_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="availability_exception",
+            event_date=future_date,
+            start_time=time(14, 0),
+            end_time=time(16, 0),
+            custom_event_name="個人請假"
+        )
+        db_session.flush()
+
+        exception = AvailabilityException(
+            calendar_event_id=exception_event.id
+        )
+        db_session.add(exception)
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test checking recurring conflicts
+        from utils.datetime_utils import TAIWAN_TZ
+        from datetime import datetime
+        conflict_time = datetime.combine(future_date, time(14, 30)).replace(tzinfo=TAIWAN_TZ)
+        
+        response = client.post(
+            "/api/clinic/appointments/check-recurring-conflicts",
+            json={
+                "practitioner_id": practitioner.id,
+                "appointment_type_id": appointment_type.id,
+                "occurrences": [conflict_time.isoformat()]
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert len(data["occurrences"]) == 1
+        occ = data["occurrences"][0]
+        assert occ["has_conflict"] is True
+        assert occ["conflict_type"] == "exception"
+        assert occ["exception_conflict"] is not None
+        assert occ["exception_conflict"]["start_time"] == "14:00"
+        assert occ["exception_conflict"]["end_time"] == "16:00"
+        assert occ["exception_conflict"]["reason"] == "個人請假"
+        assert occ["appointment_conflict"] is None
+
+    def test_check_recurring_conflicts_outside_availability(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test checking recurring conflicts - outside default availability."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30,
+            scheduling_buffer_minutes=0
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create default availability (9 AM to 5 PM)
+        future_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = future_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test checking conflict outside normal hours (8 AM)
+        from utils.datetime_utils import TAIWAN_TZ
+        from datetime import datetime
+        conflict_time = datetime.combine(future_date, time(8, 0)).replace(tzinfo=TAIWAN_TZ)
+        
+        response = client.post(
+            "/api/clinic/appointments/check-recurring-conflicts",
+            json={
+                "practitioner_id": practitioner.id,
+                "appointment_type_id": appointment_type.id,
+                "occurrences": [conflict_time.isoformat()]
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert len(data["occurrences"]) == 1
+        occ = data["occurrences"][0]
+        assert occ["has_conflict"] is True
+        assert occ["conflict_type"] == "availability"
+        assert occ["default_availability"]["is_within_hours"] is False
+        assert occ["default_availability"]["normal_hours"] is not None
+        assert "09:00" in occ["default_availability"]["normal_hours"]
+        assert occ["appointment_conflict"] is None
+        assert occ["exception_conflict"] is None
+
+    def test_check_recurring_conflicts_duplicate(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test checking recurring conflicts - duplicate occurrences."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30,
+            scheduling_buffer_minutes=0
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create default availability
+        future_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = future_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test checking duplicate occurrences
+        from utils.datetime_utils import TAIWAN_TZ
+        from datetime import datetime
+        same_time = datetime.combine(future_date, time(11, 0)).replace(tzinfo=TAIWAN_TZ)
+        
+        response = client.post(
+            "/api/clinic/appointments/check-recurring-conflicts",
+            json={
+                "practitioner_id": practitioner.id,
+                "appointment_type_id": appointment_type.id,
+                "occurrences": [
+                    same_time.isoformat(),
+                    same_time.isoformat()  # Duplicate
+                ]
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert len(data["occurrences"]) == 2
+        
+        # First occurrence - duplicate
+        occ1 = data["occurrences"][0]
+        assert occ1["has_conflict"] is True
+        assert occ1["conflict_type"] == "duplicate"
+        assert occ1["is_duplicate"] is True
+        assert occ1["duplicate_index"] == 1
+        
+        # Second occurrence - duplicate
+        occ2 = data["occurrences"][1]
+        assert occ2["has_conflict"] is True
+        assert occ2["conflict_type"] == "duplicate"
+        assert occ2["is_duplicate"] is True
+        assert occ2["duplicate_index"] == 0
+
+    def test_check_recurring_conflicts_mixed(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test checking recurring conflicts - mixed conflict types."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30,
+            scheduling_buffer_minutes=0
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create default availability
+        future_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = future_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.flush()
+
+        # Create existing appointment
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Existing Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        existing_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="appointment",
+            event_date=future_date,
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.flush()
+
+        existing_appointment = Appointment(
+            calendar_event_id=existing_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(existing_appointment)
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test checking mixed conflicts
+        from utils.datetime_utils import TAIWAN_TZ
+        from datetime import datetime
+        appointment_conflict_time = datetime.combine(future_date, time(10, 15)).replace(tzinfo=TAIWAN_TZ)
+        outside_availability_time = datetime.combine(future_date, time(8, 0)).replace(tzinfo=TAIWAN_TZ)
+        no_conflict_time = datetime.combine(future_date, time(11, 0)).replace(tzinfo=TAIWAN_TZ)
+        
+        response = client.post(
+            "/api/clinic/appointments/check-recurring-conflicts",
+            json={
+                "practitioner_id": practitioner.id,
+                "appointment_type_id": appointment_type.id,
+                "occurrences": [
+                    appointment_conflict_time.isoformat(),
+                    outside_availability_time.isoformat(),
+                    no_conflict_time.isoformat()
+                ]
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert len(data["occurrences"]) == 3
+        
+        # First: appointment conflict
+        assert data["occurrences"][0]["has_conflict"] is True
+        assert data["occurrences"][0]["conflict_type"] == "appointment"
+        assert data["occurrences"][0]["appointment_conflict"] is not None
+        
+        # Second: outside availability
+        assert data["occurrences"][1]["has_conflict"] is True
+        assert data["occurrences"][1]["conflict_type"] == "availability"
+        assert data["occurrences"][1]["default_availability"]["is_within_hours"] is False
+        
+        # Third: no conflict
+        assert data["occurrences"][2]["has_conflict"] is False
+        assert data["occurrences"][2]["conflict_type"] is None

@@ -29,7 +29,8 @@ import {
   AvailableSlotsResponse,
   BatchAvailableSlotsResponse,
   AvailabilityExceptionRequest,
-  AvailabilityExceptionResponse
+  AvailabilityExceptionResponse,
+  SchedulingConflictResponse
 } from '../types';
 
 /**
@@ -660,6 +661,30 @@ export class ApiService {
     return response.data;
   }
 
+  async checkSchedulingConflicts(
+    userId: number,
+    date: string,
+    startTime: string,
+    appointmentTypeId: number,
+    excludeCalendarEventId?: number
+  ): Promise<SchedulingConflictResponse> {
+    const params: {
+      date: string;
+      start_time: string;
+      appointment_type_id: number;
+      exclude_calendar_event_id?: number;
+    } = {
+      date,
+      start_time: startTime,
+      appointment_type_id: appointmentTypeId,
+    };
+    if (excludeCalendarEventId !== undefined) {
+      params.exclude_calendar_event_id = excludeCalendarEventId;
+    }
+    const response = await this.client.get(`/clinic/practitioners/${userId}/availability/conflicts`, { params });
+    return response.data;
+  }
+
   // Appointment Management APIs
   async cancelClinicAppointment(appointmentId: number, note?: string): Promise<{ success: boolean; message: string; appointment_id: number }> {
     const params = note ? { note } : {};
@@ -686,15 +711,27 @@ export class ApiService {
     occurrences: Array<{
       start_time: string;
       has_conflict: boolean;
-      is_duplicate: boolean;
-      duplicate_index: number | null;
-      conflicting_appointment: {
+      conflict_type: string | null;
+      appointment_conflict: {
         appointment_id: number;
         patient_name: string;
         start_time: string;
         end_time: string;
+        appointment_type: string;
       } | null;
-      violation_type: string | null;
+      exception_conflict: {
+        exception_id: number;
+        start_time: string;
+        end_time: string;
+        reason: string | null;
+      } | null;
+      default_availability: {
+        is_within_hours: boolean;
+        normal_hours: string | null;
+      };
+      // Additional fields for duplicate detection
+      is_duplicate: boolean;
+      duplicate_index: number | null;
     }>;
   }> {
     const response = await this.client.post('/clinic/appointments/check-recurring-conflicts', data);

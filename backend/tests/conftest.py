@@ -338,7 +338,8 @@ def create_calendar_event_with_clinic(
     event_type: str,
     event_date: date,
     start_time: time | None = None,
-    end_time: time | None = None
+    end_time: time | None = None,
+    custom_event_name: str | None = None
 ) -> CalendarEvent:
     """
     Helper to create CalendarEvent with clinic_id automatically set.
@@ -364,7 +365,8 @@ def create_calendar_event_with_clinic(
         event_type=event_type,
         date=event_date,
         start_time=start_time,
-        end_time=end_time
+        end_time=end_time,
+        custom_event_name=custom_event_name
     )
     db_session.add(calendar_event)
     return calendar_event

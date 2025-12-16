@@ -24,6 +24,30 @@ import { PatientCreationSuccessModal } from '../PatientCreationSuccessModal';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 import { preventScrollWheelChange } from '../../utils/inputUtils';
 import { NumberInput } from '../shared/NumberInput';
+import { ConflictIndicator } from '../shared';
+import { SchedulingConflictResponse } from '../../types';
+
+/**
+ * Helper function to convert recurring conflict status to SchedulingConflictResponse format
+ */
+const convertConflictStatusToResponse = (
+  conflictStatus: any
+): SchedulingConflictResponse | null => {
+  if (!conflictStatus) {
+    return null;
+  }
+
+  return {
+    has_conflict: conflictStatus.has_conflict || false,
+    conflict_type: conflictStatus.conflict_type || null,
+    appointment_conflict: conflictStatus.appointment_conflict || null,
+    exception_conflict: conflictStatus.exception_conflict || null,
+    default_availability: conflictStatus.default_availability || {
+      is_within_hours: true,
+      normal_hours: null,
+    },
+  };
+};
 
 // Wrapper component for DateTimePicker in conflict resolution
 const RecurrenceDateTimePickerWrapper: React.FC<{
@@ -81,6 +105,8 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
         appointmentTypeId={appointmentTypeId}
         onDateSelect={handleDateSelect}
         onTimeSelect={handleTimeSelect}
+        allowOverride={true}
+        isOverrideMode={false}
       />
       <div className="flex gap-2">
         <button
@@ -180,12 +206,14 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     date: string;
     time: string;
     hasConflict: boolean;
+    conflictInfo?: any;
   }>>([]);
   const [isCheckingConflicts, setIsCheckingConflicts] = useState<boolean>(false);
   const [editingOccurrenceId, setEditingOccurrenceId] = useState<string | null>(null);
   const [addingOccurrence, setAddingOccurrence] = useState<boolean>(false);
   const [hasVisitedConflictResolution, setHasVisitedConflictResolution] = useState<boolean>(false);
-  
+  const [singleAppointmentConflict, setSingleAppointmentConflict] = useState<any>(null);
+
   const [searchInput, setSearchInput] = useState<string>('');
   const [isComposing, setIsComposing] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -446,6 +474,18 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     }
   }, [preSelectedPatientId, resetState, initialDate, preSelectedAppointmentTypeId, preSelectedPractitionerId, preSelectedTime, preSelectedClinicNotes]);
 
+  // Clear single appointment conflict when date/time changes
+  useEffect(() => {
+    setSingleAppointmentConflict(null);
+  }, [selectedDate, selectedTime]);
+
+  // Clear single appointment conflict when step changes away from confirm
+  useEffect(() => {
+    if (step !== 'confirm') {
+      setSingleAppointmentConflict(null);
+    }
+  }, [step]);
+
   const handleFormSubmit = async () => {
     // Validate required fields
     if (!selectedPatientId) {
@@ -482,15 +522,13 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       
       for (let i = 0; i < occurrenceCount; i++) {
         const occurrenceDate = baseDateTime.clone().add(i * weeksInterval, 'weeks');
-        // Filter out past dates
-        if (occurrenceDate.isAfter(moment())) {
-          generatedOccurrences.push({
-            id: `gen-${i}`,
-            date: occurrenceDate.format('YYYY-MM-DD'),
-            time: occurrenceDate.format('HH:mm'),
-            hasConflict: false,
-          });
-        }
+        // Include all occurrences (including past ones) - conflicts will be detected by backend
+        generatedOccurrences.push({
+          id: `gen-${i}`,
+          date: occurrenceDate.format('YYYY-MM-DD'),
+          time: occurrenceDate.format('HH:mm'),
+          hasConflict: false,
+        });
       }
       
       if (generatedOccurrences.length === 0) {
@@ -513,18 +551,30 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           occurrences: occurrenceStrings,
         });
         
-        // Update occurrences with conflict status
+        // Update occurrences with conflict status (using new backend format)
         const updatedOccurrences = generatedOccurrences.map((occ, idx) => {
           const conflictStatus = conflictResult.occurrences[idx];
+          if (!conflictStatus) {
+            return {
+              ...occ,
+              hasConflict: false,
+              conflictInfo: null,
+            };
+          }
+          
+          // Convert to SchedulingConflictResponse format
+          const conflictInfo = convertConflictStatusToResponse(conflictStatus);
+          
           return {
             ...occ,
-            hasConflict: conflictStatus?.has_conflict || false,
+            hasConflict: conflictStatus.has_conflict || false,
+            conflictInfo: conflictInfo?.has_conflict ? conflictInfo : null,
           };
         });
         
         setOccurrences(updatedOccurrences);
         
-        // Check if there are any conflicts
+        // Always show conflict resolution if any conflicts exist (simplified logic)
         const hasConflicts = updatedOccurrences.some(occ => occ.hasConflict);
         
         if (hasConflicts) {
@@ -541,8 +591,23 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         setIsCheckingConflicts(false);
       }
     } else {
-      // Single appointment - go directly to confirmation
+      // Single appointment - check conflicts before going to confirmation
       setError(null);
+      if (selectedDate && selectedTime && selectedPractitionerId && selectedAppointmentTypeId) {
+        try {
+          const conflictResponse = await apiService.checkSchedulingConflicts(
+            selectedPractitionerId,
+            selectedDate,
+            selectedTime,
+            selectedAppointmentTypeId
+          );
+          setSingleAppointmentConflict(conflictResponse.has_conflict ? conflictResponse : null);
+        } catch (error) {
+          logger.error('Failed to check single appointment conflicts:', error);
+          // Don't block confirmation on conflict check failure
+          setSingleAppointmentConflict(null);
+        }
+      }
       setStep('confirm');
     }
   };
@@ -772,6 +837,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             onDateSelect={handleDateSelect}
             onTimeSelect={handleTimeSelect}
             error={error}
+            allowOverride={true}
           />
         )}
 
@@ -906,20 +972,12 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   // Render conflict resolution step
   const renderConflictResolutionStep = () => {
-    const hasConflicts = occurrences.some(occ => occ.hasConflict);
-    const canProceed = occurrences.length > 0 && !hasConflicts;
+    // Simplified: canProceed is always enabled if occurrences exist (users can proceed with conflicts)
+    const canProceed = occurrences.length > 0;
     
     return (
       <>
         <div className="space-y-4 mb-6">
-          {hasConflicts && (
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-              <p className="text-sm text-blue-800">
-                請刪除或重新安排所有衝突的時段後才能繼續
-              </p>
-            </div>
-          )}
-          
           <div className="space-y-2">
             {occurrences.map((occ, idx) => {
               const dateMoment = moment.tz(`${occ.date}T${occ.time}`, 'Asia/Taipei');
@@ -928,21 +986,21 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
               
               return (
                 <div key={occ.id} className="space-y-2">
-                  <div
-                    className={`flex items-center justify-between gap-3 p-3 rounded-md ${
-                      occ.hasConflict
-                        ? 'bg-red-50 border-l-4 border-red-500'
-                        : 'bg-white border border-gray-200'
-                    }`}
-                  >
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-md bg-white border border-gray-200">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-700">
                         {idx + 1}
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
                         <span className="text-sm font-medium text-gray-900">
                           {formattedDateTime}
                         </span>
+                        {occ.hasConflict && occ.conflictInfo && (
+                          <ConflictIndicator
+                            conflictInfo={occ.conflictInfo}
+                            compact={true}
+                          />
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -992,8 +1050,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                             return;
                           }
                           
-                          // Always check for conflicts when editing, even if time hasn't changed
-                          // This fixes the edge case where user edits but doesn't change time
+                          // Real-time conflict detection - check conflicts immediately
                           const occurrenceString = moment.tz(`${date}T${time}`, 'Asia/Taipei').toISOString();
                           try {
                             const conflictResult = await apiService.checkRecurringConflicts({
@@ -1003,22 +1060,31 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                             });
                             
                             const conflictStatus = conflictResult.occurrences[0];
-                            const hasConflict = conflictStatus?.has_conflict || false;
+                            if (!conflictStatus) {
+                              setError('無法檢查衝突，請稍後再試');
+                              return;
+                            }
                             
-                            // Update occurrence with new time and conflict status
+                            // Convert to SchedulingConflictResponse format
+                            const conflictInfo = convertConflictStatusToResponse(conflictStatus);
+                            
+                            // Update occurrence immediately with new time and conflict status
+                            // Users can proceed with conflicts (override implicit for clinic users)
                             const updated = occurrences.map(o => 
                               o.id === occ.id
-                                ? { ...o, date, time, hasConflict }
+                                ? {
+                                    ...o,
+                                    date,
+                                    time,
+                                    hasConflict: conflictStatus.has_conflict || false,
+                                    conflictInfo: conflictInfo?.has_conflict ? conflictInfo : null,
+                                  }
                                 : o
                             );
                             
-                            if (hasConflict) {
-                              setError('此時間段已有衝突，請選擇其他時間');
-                            } else {
-                              setOccurrences(updated);
-                              setEditingOccurrenceId(null);
-                              setError(null);
-                            }
+                            setOccurrences(updated);
+                            setEditingOccurrenceId(null);
+                            setError(null);
                           } catch (err) {
                             logger.error('Error checking conflict for edited occurrence:', err);
                             setError('無法檢查衝突，請稍後再試');
@@ -1062,37 +1128,42 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                     const isDuplicate = occurrences.some(o => o.date === date && o.time === time);
                     if (isDuplicate) {
                       setError('此時間已在列表中，請選擇其他時間');
-                    } else {
-                      // Check for conflicts with existing appointments/availability
-                      const occurrenceString = moment.tz(`${date}T${time}`, 'Asia/Taipei').toISOString();
-                      try {
-                        const conflictResult = await apiService.checkRecurringConflicts({
-                          practitioner_id: selectedPractitionerId!,
-                          appointment_type_id: selectedAppointmentTypeId!,
-                          occurrences: [occurrenceString],
-                        });
-                        
-                        const conflictStatus = conflictResult.occurrences[0];
-                        const hasConflict = conflictStatus?.has_conflict || false;
-                        
-                        if (hasConflict) {
-                          setError('此時間段已有衝突，請選擇其他時間');
-                        } else {
-                          const newOcc = {
-                            id: `new-${Date.now()}`,
-                            date,
-                            time,
-                            hasConflict: false,
-                          };
-                          setOccurrences([...occurrences, newOcc]);
-                          // Close the picker and show the 新增 button again
-                          setAddingOccurrence(false);
-                          setError(null);
-                        }
-                      } catch (err) {
-                        logger.error('Error checking conflict for new occurrence:', err);
+                      return;
+                    }
+                    
+                    // Real-time conflict detection - check conflicts immediately
+                    const occurrenceString = moment.tz(`${date}T${time}`, 'Asia/Taipei').toISOString();
+                    try {
+                      const conflictResult = await apiService.checkRecurringConflicts({
+                        practitioner_id: selectedPractitionerId!,
+                        appointment_type_id: selectedAppointmentTypeId!,
+                        occurrences: [occurrenceString],
+                      });
+                      
+                      const conflictStatus = conflictResult.occurrences[0];
+                      if (!conflictStatus) {
                         setError('無法檢查衝突，請稍後再試');
+                        return;
                       }
+                      
+                      // Convert to SchedulingConflictResponse format
+                      const conflictInfo = convertConflictStatusToResponse(conflictStatus);
+                      
+                      // Add occurrence immediately (users can proceed with conflicts)
+                      const newOcc = {
+                        id: `new-${Date.now()}`,
+                        date,
+                        time,
+                        hasConflict: conflictStatus.has_conflict || false,
+                        conflictInfo: conflictInfo?.has_conflict ? conflictInfo : null,
+                      };
+                      setOccurrences([...occurrences, newOcc]);
+                      // Close the picker and show the 新增 button again
+                      setAddingOccurrence(false);
+                      setError(null);
+                    } catch (err) {
+                      logger.error('Error checking conflict for new occurrence:', err);
+                      setError('無法檢查衝突，請稍後再試');
                     }
                   }}
                   onCancel={() => {
@@ -1125,10 +1196,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           </button>
           <button
             onClick={() => {
-              if (canProceed) {
-                setHasVisitedConflictResolution(true);
-                setStep('confirm');
-              }
+              // Always enabled - users can proceed with conflicts
+              setHasVisitedConflictResolution(true);
+              setStep('confirm');
             }}
             disabled={!canProceed}
             className={`btn-primary ${!canProceed ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -1188,8 +1258,14 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                       const dateMoment = moment.tz(`${occ.date}T${occ.time}`, 'Asia/Taipei');
                       const formattedDateTime = formatAppointmentDateTime(dateMoment.toDate());
                       return (
-                        <div key={occ.id} className="text-sm text-gray-700">
-                          {idx + 1}. {formattedDateTime}
+                        <div key={occ.id} className="flex items-center gap-2 text-sm text-gray-700">
+                          <span>{idx + 1}. {formattedDateTime}</span>
+                          {occ.hasConflict && occ.conflictInfo && (
+                            <ConflictIndicator
+                              conflictInfo={occ.conflictInfo}
+                              compact={true}
+                            />
+                          )}
                         </div>
                       );
                     })}
@@ -1200,9 +1276,17 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                 </div>
               </>
             ) : (
-              <div>
-                <span className="text-sm text-gray-600">日期時間：</span>
-                <span className="text-sm text-gray-900 ml-2">{formattedDateTime}</span>
+              <div className="flex items-center gap-2">
+                <div>
+                  <span className="text-sm text-gray-600">日期時間：</span>
+                  <span className="text-sm text-gray-900 ml-2">{formattedDateTime}</span>
+                </div>
+                {singleAppointmentConflict && (
+                  <ConflictIndicator
+                    conflictInfo={singleAppointmentConflict}
+                    compact={true}
+                  />
+                )}
               </div>
             )}
             {clinicNotes.trim() && (

@@ -1368,6 +1368,62 @@ export interface components {
       results: components["schemas"]["AvailableSlotsResponse"][];
     };
     /**
+     * AppointmentConflictDetail
+     * @description Detail model for appointment conflict.
+     */
+    AppointmentConflictDetail: {
+      /** Appointment Id */
+      appointment_id: number;
+      /** Patient Name */
+      patient_name: string;
+      /** Start Time */
+      start_time: string;
+      /** End Time */
+      end_time: string;
+      /** Appointment Type */
+      appointment_type: string;
+    };
+    /**
+     * ExceptionConflictDetail
+     * @description Detail model for availability exception conflict.
+     */
+    ExceptionConflictDetail: {
+      /** Exception Id */
+      exception_id: number;
+      /** Start Time */
+      start_time: string;
+      /** End Time */
+      end_time: string;
+      /** Reason */
+      reason: string | null;
+    };
+    /**
+     * DefaultAvailabilityInfo
+     * @description Information about default availability.
+     */
+    DefaultAvailabilityInfo: {
+      /** Is Within Hours */
+      is_within_hours: boolean;
+      /** Normal Hours */
+      normal_hours: string | null;
+    };
+    /**
+     * SchedulingConflictResponse
+     * @description Response model for scheduling conflict detection.
+     */
+    SchedulingConflictResponse: {
+      /** Has Conflict */
+      has_conflict: boolean;
+      /** Conflict Type */
+      conflict_type: string | null;
+      /** Appointment Conflict */
+      appointment_conflict: components["schemas"]["AppointmentConflictDetail"] | null;
+      /** Exception Conflict */
+      exception_conflict: components["schemas"]["ExceptionConflictDetail"] | null;
+      /** Default Availability */
+      default_availability: components["schemas"]["DefaultAvailabilityInfo"];
+    };
+    /**
      * BatchCalendarDayResponse
      * @description Response model for batch calendar day data per practitioner.
      */
@@ -6661,6 +6717,12 @@ export interface ApiResult<T> {
   error?: ApiError;
   success: boolean;
 }
+
+// Conflict detection types
+export type SchedulingConflictResponse = components["schemas"]["SchedulingConflictResponse"];
+export type AppointmentConflictDetail = components["schemas"]["AppointmentConflictDetail"];
+export type ExceptionConflictDetail = components["schemas"]["ExceptionConflictDetail"];
+export type DefaultAvailabilityInfo = components["schemas"]["DefaultAvailabilityInfo"];
 
 /**
  * Helper function to extract error message from various error types

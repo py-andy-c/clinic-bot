@@ -129,9 +129,13 @@ class AppointmentService:
             end_time = start_time + timedelta(minutes=appointment_type.duration_minutes)
 
             # Handle practitioner assignment
+            # Allow override for clinic-created appointments (line_user_id is None)
+            # Override mode allows scheduling outside normal hours and despite conflicts
+            # (conflicts are shown as warnings in frontend, but backend allows scheduling)
+            allow_override = (line_user_id is None)
             assigned_practitioner_id = AppointmentService._assign_practitioner(
                 db, clinic_id, appointment_type_id, practitioner_id,
-                start_time, end_time
+                start_time, end_time, allow_override=allow_override
             )
 
             # Validate patient booking restrictions
@@ -296,7 +300,8 @@ class AppointmentService:
         schedule_data: Dict[int, Dict[str, Any]],
         practitioner_id: int,
         start_time: time,
-        end_time: time
+        end_time: time,
+        allow_override: bool = False
     ) -> bool:
         """
         Check if a practitioner is available at the given time slot.
@@ -306,6 +311,8 @@ class AppointmentService:
             practitioner_id: Practitioner ID to check
             start_time: Slot start time
             end_time: Slot end time
+            allow_override: If True, skip both availability interval and conflict checks
+                           (for clinic users - allows scheduling outside normal hours and despite conflicts)
 
         Returns:
             True if practitioner is available, False otherwise
@@ -315,17 +322,23 @@ class AppointmentService:
             'events': []
         })
 
-        # Check if slot is within default intervals
-        if not AvailabilityService.is_slot_within_default_intervals(
-            data['default_intervals'], start_time, end_time
-        ):
-            return False
+        # Check if slot is within default intervals (skip for override mode)
+        # Override mode allows clinic users to schedule outside normal availability hours
+        if not allow_override:
+            if not AvailabilityService.is_slot_within_default_intervals(
+                data['default_intervals'], start_time, end_time
+            ):
+                return False
 
-        # Check if slot has conflicts
-        if AvailabilityService.has_slot_conflicts(
-            data['events'], start_time, end_time
-        ):
-            return False
+        # Check if slot has conflicts (appointments or exceptions)
+        # In override mode, we skip conflict checks to allow scheduling despite conflicts
+        # Conflicts are shown as warnings in the frontend, but backend allows the scheduling
+        # This allows clinic users to override both availability intervals and existing conflicts
+        if not allow_override:
+            if AvailabilityService.has_slot_conflicts(
+                data['events'], start_time, end_time
+            ):
+                return False
 
         return True
 
@@ -336,7 +349,8 @@ class AppointmentService:
         appointment_type_id: int,
         requested_practitioner_id: Optional[int],
         start_time: datetime,
-        end_time: datetime
+        end_time: datetime,
+        allow_override: bool = False
     ) -> int:
         """
         Assign a practitioner to an appointment.
@@ -385,7 +399,7 @@ class AppointmentService:
                 )
 
             if not AppointmentService._is_practitioner_available_at_slot(
-                schedule_data, practitioner.id, slot_start_time, slot_end_time
+                schedule_data, practitioner.id, slot_start_time, slot_end_time, allow_override=allow_override
             ):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -400,7 +414,7 @@ class AppointmentService:
             available_candidates = [
                 p for p in practitioners
                 if AppointmentService._is_practitioner_available_at_slot(
-                    schedule_data, p.id, slot_start_time, slot_end_time
+                    schedule_data, p.id, slot_start_time, slot_end_time, allow_override=allow_override
                 )
             ]
 
@@ -909,7 +923,8 @@ class AppointmentService:
         new_practitioner_id: Optional[int],
         new_start_time: Optional[datetime],
         appointment_type_id: int,
-        clinic_id: int
+        clinic_id: int,
+        allow_override: bool = False
     ) -> Tuple[bool, Optional[str], List[str]]:
         """
         Check if appointment edit would cause conflicts.
@@ -976,7 +991,7 @@ class AppointmentService:
         slot_end_time = end_time_to_check.time()
 
         is_available = AppointmentService._is_practitioner_available_at_slot(
-            schedule_data, practitioner_id_to_check, slot_start_time, slot_end_time
+            schedule_data, practitioner_id_to_check, slot_start_time, slot_end_time, allow_override=allow_override
         )
 
         if not is_available:
@@ -1067,7 +1082,8 @@ class AppointmentService:
         notification_note: Optional[str] = None,
         time_actually_changed: Optional[bool] = None,
         originally_auto_assigned: Optional[bool] = None,
-        new_appointment_type_id: Optional[int] = None
+        new_appointment_type_id: Optional[int] = None,
+        allow_override: bool = False
     ) -> None:
         """
         Core shared logic for updating an appointment.
@@ -1586,7 +1602,8 @@ class AppointmentService:
         clinic_id: int,
         new_start_time: datetime,
         duration_minutes: int,
-        allow_auto_assignment: bool
+        allow_auto_assignment: bool,
+        allow_override: bool = False
     ) -> int:
         """
         Resolve which practitioner ID to use for the appointment.
@@ -1632,7 +1649,7 @@ class AppointmentService:
                 
                 # Check if old practitioner is available
                 if AppointmentService._is_practitioner_available_at_slot(
-                    schedule_data, old_practitioner_id, slot_start_time, slot_end_time
+                    schedule_data, old_practitioner_id, slot_start_time, slot_end_time, allow_override=allow_override
                 ):
                     # Old practitioner is available - keep them (don't auto-assign)
                     return old_practitioner_id
@@ -1645,7 +1662,8 @@ class AppointmentService:
                 appointment_type_id=appointment.appointment_type_id,
                 requested_practitioner_id=None,  # None triggers auto-assignment
                 start_time=new_start_time,
-                end_time=end_time
+                end_time=end_time,
+                allow_override=allow_override
             )
         elif new_practitioner_id is not None and new_practitioner_id != -1:
             # Specific practitioner requested - validate
@@ -1792,6 +1810,8 @@ class AppointmentService:
         old_practitioner_id = calendar_event.user_id
 
         # Resolve practitioner ID to use
+        # Allow override for clinic edits (when apply_booking_constraints=False)
+        allow_override = not apply_booking_constraints
         practitioner_id_to_use = AppointmentService._resolve_practitioner_id(
             db=db,
             new_practitioner_id=new_practitioner_id,
@@ -1800,7 +1820,8 @@ class AppointmentService:
             clinic_id=clinic_id,
             new_start_time=normalized_start_time,
             duration_minutes=duration_minutes,
-            allow_auto_assignment=allow_auto_assignment
+            allow_auto_assignment=allow_auto_assignment,
+            allow_override=allow_override
         )
 
         # Check if practitioner, time, or appointment type actually changed
@@ -1822,7 +1843,7 @@ class AppointmentService:
         if practitioner_actually_changed or time_actually_changed or appointment_type_actually_changed:
             is_valid, error_message, _ = AppointmentService.check_appointment_edit_conflicts(
                 db, appointment_id, practitioner_id_to_use, normalized_start_time,
-                appointment_type_id_to_use, clinic_id
+                appointment_type_id_to_use, clinic_id, allow_override=allow_override
             )
 
             if not is_valid:
@@ -1844,6 +1865,7 @@ class AppointmentService:
             should_send_patient_notification = False
         
         # Update appointment using shared core method
+        # Allow override (skip availability interval checks) for clinic edits (when apply_booking_constraints=False)
         AppointmentService._update_appointment_core(
             db=db,
             appointment=appointment,
@@ -1867,7 +1889,8 @@ class AppointmentService:
             notification_note=notification_note if should_send_patient_notification else None,
             time_actually_changed=time_actually_changed,  # Pass pre-calculated value to avoid recalculation
             originally_auto_assigned=originally_auto_assigned,  # Pass for special handling
-            new_appointment_type_id=appointment_type_id_to_use if appointment_type_actually_changed else None
+            new_appointment_type_id=appointment_type_id_to_use if appointment_type_actually_changed else None,
+            allow_override=not apply_booking_constraints  # Allow override for clinic edits
         )
 
         logger.info(f"Updated appointment {appointment_id}")

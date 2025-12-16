@@ -6,10 +6,12 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { LoadingSpinner } from '../shared';
+import { LoadingSpinner, TimeInput, ConflictDisplay } from '../shared';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
+import { SchedulingConflictResponse } from '../../types';
 import { useDateSlotSelection } from '../../hooks/useDateSlotSelection';
+import { useDebounce } from '../../hooks/useDebounce';
 import {
   formatTo12Hour,
   groupTimeSlots,
@@ -38,6 +40,12 @@ export interface DateTimePickerProps {
   onPractitionerError?: (errorMessage: string) => void;
   // Optional: force clear cache when practitioner error is detected
   practitionerError?: string | null;
+  // Optional: enable override mode toggle
+  allowOverride?: boolean;
+  // Optional: callback when override mode changes
+  onOverrideChange?: (enabled: boolean) => void;
+  // Optional: force override mode state from parent
+  isOverrideMode?: boolean;
 }
 
 const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
@@ -54,6 +62,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   onHasAvailableSlotsChange,
   onPractitionerError,
   practitionerError,
+  allowOverride = false,
+  onOverrideChange,
+  isOverrideMode: parentOverrideMode,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -87,6 +98,13 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   // Track last manually selected time (not auto-filled) to preserve when switching dates
   const [lastManuallySelectedTime, setLastManuallySelectedTime] = useState<string | null>(null);
 
+  // Override mode state
+  const [overrideMode, setOverrideMode] = useState(false);
+  const [freeFormTime, setFreeFormTime] = useState('');
+  const [conflictInfo, setConflictInfo] = useState<SchedulingConflictResponse | null>(null);
+  const [isCheckingConflict, setIsCheckingConflict] = useState(false);
+  const [conflictCheckError, setConflictCheckError] = useState<string | null>(null);
+
   // Determine which date/time to use for display and slot loading
   // Use tempDate/tempTime when expanded (for UI navigation), selectedDate/selectedTime when collapsed
   // If tempDate is set (user clicked a date), use it even if picker appears collapsed
@@ -104,6 +122,44 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     loadingAvailability,
     batchInitiatedRef,
   });
+
+  // Debounced conflict checking
+  const debouncedTime = useDebounce(displayTime, 300);
+  const debouncedDate = useDebounce(displayDate, 300);
+
+  // Conflict detection effect
+  useEffect(() => {
+    if (!allowOverride || !overrideMode || !debouncedDate || !debouncedTime || !selectedPractitionerId || !appointmentTypeId) {
+      setConflictInfo(null);
+      setConflictCheckError(null);
+      return;
+    }
+
+    const checkConflicts = async () => {
+      setIsCheckingConflict(true);
+      setConflictCheckError(null);
+      try {
+        const response = await apiService.checkSchedulingConflicts(
+          selectedPractitionerId,
+          debouncedDate,
+          debouncedTime,
+          appointmentTypeId,
+          excludeCalendarEventId ?? undefined
+        );
+        setConflictInfo(response);
+      } catch (error) {
+        logger.error('Failed to check scheduling conflicts:', error);
+        // Show user-friendly error message per design doc
+        setConflictCheckError('無法檢查時間衝突，請稍後再試');
+        // Clear conflict info on error - don't block scheduling
+        setConflictInfo(null);
+      } finally {
+        setIsCheckingConflict(false);
+      }
+    };
+
+    checkConflicts();
+  }, [allowOverride, overrideMode, debouncedDate, debouncedTime, selectedPractitionerId, appointmentTypeId, excludeCalendarEventId]);
 
   // Update currentMonth when selectedDate changes (but only if it's a different month)
   // Don't reset if user manually navigated to a different month
@@ -144,6 +200,31 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   useEffect(() => {
     setLastManuallySelectedTime(null);
   }, [appointmentTypeId]);
+
+  // Sync override mode with parent prop
+  useEffect(() => {
+    if (parentOverrideMode !== undefined) {
+      setOverrideMode(parentOverrideMode);
+    }
+  }, [parentOverrideMode]);
+
+  // Auto-enable override mode if practitioner has no default availability
+  useEffect(() => {
+    if (
+      allowOverride &&
+      !overrideMode &&
+      parentOverrideMode === undefined && // Only auto-enable if parent hasn't set it
+      !isLoadingSlots &&
+      !practitionerError &&
+      selectedPractitionerId &&
+      appointmentTypeId &&
+      availableSlots.length === 0 &&
+      datesWithSlots.size === 0 // No dates have slots
+    ) {
+      setOverrideMode(true);
+      onOverrideChange?.(true);
+    }
+  }, [allowOverride, overrideMode, parentOverrideMode, isLoadingSlots, practitionerError, selectedPractitionerId, appointmentTypeId, availableSlots.length, datesWithSlots.size, onOverrideChange]);
 
   // Load month availability for calendar
   useEffect(() => {
@@ -356,7 +437,13 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   // Auto-deselect and expand if selectedTime becomes unavailable
   // This ensures the picker is never collapsed with an unavailable time selected
   // Checks when: slots load, date changes, practitioner changes, appointment type changes
+  // NOTE: Skip this check when override mode is enabled - override mode allows any time
   useEffect(() => {
+    // Skip check if override mode is enabled - override mode allows scheduling outside normal availability
+    if (overrideMode) {
+      return;
+    }
+
     // Skip check while slots are loading to avoid clearing time prematurely
     // Also check loadingAvailability since isLoadingSlots might be false while batch is loading
     if (isLoadingSlots || loadingAvailability || !selectedTime || !selectedDate || !selectedPractitionerId) {
@@ -398,7 +485,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       setTempTime('');
       userCollapsedRef.current = false;
     }
-  }, [selectedTime, allTimeSlots, isLoadingSlots, loadingAvailability, selectedDate, selectedPractitionerId, appointmentTypeId, cachedAvailabilityData, excludeCalendarEventId, onTimeSelect]);
+  }, [selectedTime, allTimeSlots, isLoadingSlots, loadingAvailability, selectedDate, selectedPractitionerId, appointmentTypeId, cachedAvailabilityData, excludeCalendarEventId, onTimeSelect, overrideMode]);
 
   // Auto-select last manually selected time when date changes in expanded view
   useEffect(() => {
@@ -449,6 +536,33 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     setLastManuallySelectedTime(time);
     // Immediately update parent state - no need to wait for collapse
     onTimeSelect(time);
+  };
+
+  const handleOverrideToggle = (enabled: boolean) => {
+    setOverrideMode(enabled);
+    onOverrideChange?.(enabled);
+
+    if (!enabled) {
+      // When turning off override mode, clear conflict info and reset to dropdown mode
+      setConflictInfo(null);
+      setFreeFormTime('');
+      // If current time is not in available slots, clear it
+      if (displayTime && !availableSlots.includes(displayTime)) {
+        onTimeSelect('');
+        setTempTime('');
+      }
+    } else {
+      // When turning on override mode, set free-form time to current selected time if valid
+      if (displayTime) {
+        setFreeFormTime(displayTime);
+      }
+    }
+  };
+
+  const handleFreeFormTimeChange = (time: string) => {
+    setFreeFormTime(time);
+    onTimeSelect(time);
+    setTempTime(time);
   };
 
   // Collapsed view
@@ -545,16 +659,18 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               const available = isDateAvailable(date);
               const selected = displayDate === dateString;
               const todayDate = isToday(date);
+              // In override mode, all dates are selectable (even if no normal availability)
+              const isEnabled = overrideMode || available;
 
               return (
                 <button
                   key={dateString}
                   onClick={() => handleDateSelect(date)}
-                  disabled={!available}
+                  disabled={!isEnabled}
                   className={`h-9 text-center rounded-lg transition-colors ${
                     selected
                       ? 'bg-blue-500 text-white font-semibold'
-                      : available
+                      : isEnabled
                       ? 'bg-white text-gray-900 font-semibold hover:bg-gray-50 border border-gray-200'
                       : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-100'
                   }`}
@@ -571,12 +687,55 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
         )}
       </div>
 
+      {/* Override Toggle */}
+      {allowOverride && displayDate && (
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="override-mode"
+            checked={overrideMode}
+            onChange={(e) => handleOverrideToggle(e.target.checked)}
+            className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded"
+            aria-label="允許預約在非可用時間"
+          />
+          <label htmlFor="override-mode" className="text-sm text-gray-700">
+            允許預約在非可用時間
+          </label>
+        </div>
+      )}
+
       {/* Time Selection */}
       {displayDate ? (
         <div>
           {isLoadingSlots ? (
             <div className="flex items-center justify-center py-4">
               <LoadingSpinner size="sm" />
+            </div>
+          ) : overrideMode ? (
+            // Free-form time input mode
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  時間 <span className="text-red-500">*</span>
+                </label>
+                <TimeInput
+                  value={freeFormTime}
+                  onChange={handleFreeFormTimeChange}
+                  placeholder="H:MM AM/PM"
+                  className="w-full"
+                />
+              </div>
+              {/* Conflict Display */}
+              {conflictCheckError ? (
+                <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
+                  {conflictCheckError}
+                </div>
+              ) : (
+                <ConflictDisplay
+                  conflictInfo={conflictInfo}
+                  isLoading={isCheckingConflict}
+                />
+              )}
             </div>
           ) : error && allTimeSlots.length === 0 ? (
             // Only show error if there are no time slots available

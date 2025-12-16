@@ -86,6 +86,3 @@ This optimization is planned for future implementation to improve the user exper
 - `frontend/src/components/CalendarView.tsx` - Main calendar component
 - `frontend/src/components/calendar/EventModal.tsx` - Event modal with edit functionality
 - `frontend/src/components/patient/PatientAppointmentsList.tsx` - Reference implementation with smooth updates
-
-
-

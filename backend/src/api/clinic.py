@@ -10,7 +10,7 @@ import logging
 import math
 import secrets
 from datetime import datetime, timedelta, date as date_type, time
-from typing import Dict, List, Optional, Any, Union, Tuple
+from typing import Dict, List, Optional, Any, Union
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi import status as http_status
@@ -53,7 +53,7 @@ from api.responses import (
     PatientCreateResponse, AppointmentListResponse, AppointmentListItem,
     ClinicDashboardMetricsResponse,
     BusinessInsightsResponse, RevenueDistributionResponse,
-    SchedulingConflictResponse
+    SchedulingConflictResponse, AppointmentConflictDetail, ExceptionConflictDetail, DefaultAvailabilityInfo
 )
 
 router = APIRouter()
@@ -2302,13 +2302,20 @@ class CheckRecurringConflictsRequest(BaseModel):
 
 
 class OccurrenceConflictStatus(BaseModel):
-    """Conflict status for a single occurrence."""
+    """Conflict status for a single occurrence.
+    
+    Uses the same format as SchedulingConflictResponse for consistency.
+    Additional fields for duplicate detection within the occurrence list.
+    """
     start_time: str  # ISO datetime
     has_conflict: bool
+    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "duplicate" | null
+    appointment_conflict: Optional["AppointmentConflictDetail"] = None
+    exception_conflict: Optional["ExceptionConflictDetail"] = None
+    default_availability: "DefaultAvailabilityInfo"
+    # Additional fields for duplicate detection
     is_duplicate: bool = False
     duplicate_index: Optional[int] = None
-    conflicting_appointment: Optional[Dict[str, Any]] = None
-    violation_type: Optional[str] = None  # "availability", "booking_restriction", "existing_appointment", "duplicate"
 
 
 class ConflictCheckResult(BaseModel):
@@ -2326,6 +2333,7 @@ async def check_recurring_conflicts(
     Check for conflicts in a list of appointment occurrences.
     
     Returns conflict status for each occurrence, including:
+    - Past appointment conflicts (highest priority)
     - Availability conflicts
     - Existing appointment conflicts
     - Duplicate occurrences within the list
@@ -2333,12 +2341,6 @@ async def check_recurring_conflicts(
     """
     try:
         clinic_id = ensure_clinic_access(current_user)
-        
-        # Get appointment type for duration
-        appointment_type = AppointmentTypeService.get_appointment_type_by_id(
-            db, request.appointment_type_id, clinic_id=clinic_id
-        )
-        duration_minutes = appointment_type.duration_minutes
         
         # Parse occurrences
         parsed_occurrences: List[datetime] = []
@@ -2361,97 +2363,84 @@ async def check_recurring_conflicts(
                     duplicate_indices[i] = j
                     break
         
-        # Group occurrences by date for efficient batch checking
-        occurrences_by_date: Dict[date_type, List[Tuple[int, datetime]]] = {}
-        for idx, dt in enumerate(parsed_occurrences):
-            date_key = dt.date()
-            if date_key not in occurrences_by_date:
-                occurrences_by_date[date_key] = []
-            occurrences_by_date[date_key].append((idx, dt))
-        
-        # Batch fetch schedule data for all unique dates (performance optimization)
-        # This avoids fetching the same date's schedule data multiple times
-        schedule_data_cache: Dict[date_type, Dict[int, Dict[str, Any]]] = {}
-        for date_key in occurrences_by_date.keys():
-            schedule_data_cache[date_key] = AvailabilityService.fetch_practitioner_schedule_data(
-                db, [request.practitioner_id], date_key, clinic_id
-            )
-        
-        # Check conflicts for each occurrence using cached schedule data
+        # Check conflicts for each occurrence using the same service method as single conflict endpoint
+        # This ensures consistent conflict detection format across single and recurring appointments
         results: List[OccurrenceConflictStatus] = []
         
         for idx, dt in enumerate(parsed_occurrences):
-            start_time = dt.time()
-            end_time = (dt + timedelta(minutes=duration_minutes)).time()
             date_key = dt.date()
+            start_time_obj = dt.time()
             
             # Check if duplicate
             is_duplicate = idx in duplicate_indices
             duplicate_idx = duplicate_indices.get(idx)
             
-            # Check availability and conflicts
-            has_conflict = False
-            violation_type: Optional[str] = None
-            conflicting_appointment: Optional[Dict[str, Any]] = None
-            
             if is_duplicate:
-                has_conflict = True
-                violation_type = "duplicate"
+                # For duplicates, create a conflict response with duplicate type
+                results.append(OccurrenceConflictStatus(
+                    start_time=request.occurrences[idx],
+                    has_conflict=True,
+                    conflict_type="duplicate",
+                    appointment_conflict=None,
+                    exception_conflict=None,
+                    default_availability=DefaultAvailabilityInfo(
+                        is_within_hours=True,  # Default for duplicates
+                        normal_hours=None
+                    ),
+                    is_duplicate=True,
+                    duplicate_index=duplicate_idx
+                ))
             else:
-                # Use cached schedule data for this date
-                schedule_data = schedule_data_cache.get(date_key, {})
+                # Use the same service method as single conflict endpoint for consistency
+                # check_past_appointment=True for clinic users (this endpoint is clinic-only)
+                conflict_data = AvailabilityService.check_scheduling_conflicts(
+                    db=db,
+                    practitioner_id=request.practitioner_id,
+                    date=date_key,
+                    start_time=start_time_obj,
+                    appointment_type_id=request.appointment_type_id,
+                    clinic_id=clinic_id,
+                    exclude_calendar_event_id=None,
+                    check_past_appointment=True
+                )
                 
-                # Check availability using service method
-                data = schedule_data.get(request.practitioner_id, {
-                    'default_intervals': [],
-                    'events': []
-                })
+                # Convert to response models
+                appointment_conflict = None
+                if conflict_data.get("appointment_conflict"):
+                    ac = conflict_data["appointment_conflict"]
+                    appointment_conflict = AppointmentConflictDetail(
+                        appointment_id=ac["appointment_id"],
+                        patient_name=ac["patient_name"],
+                        start_time=ac["start_time"],
+                        end_time=ac["end_time"],
+                        appointment_type=ac["appointment_type"]
+                    )
                 
-                # Check if slot is within default intervals
-                if not AvailabilityService.is_slot_within_default_intervals(
-                    data['default_intervals'], start_time, end_time
-                ):
-                    has_conflict = True
-                    violation_type = "availability"
-                # Check if slot has conflicts
-                elif AvailabilityService.has_slot_conflicts(
-                    data['events'], start_time, end_time
-                ):
-                    has_conflict = True
-                    violation_type = "availability"
-                    
-                    # Check if conflict is with existing appointment
-                    for event in data['events']:
-                        if (event.start_time and event.end_time and
-                            event.event_type == 'appointment' and
-                            _check_time_overlap(
-                                start_time, end_time,
-                                event.start_time, event.end_time
-                            )):
-                            # Get appointment details
-                            appointment = db.query(Appointment).filter(
-                                Appointment.calendar_event_id == event.id,
-                                Appointment.status == 'confirmed'
-                            ).first()
-                            
-                            if appointment:
-                                violation_type = "existing_appointment"
-                                conflicting_appointment = {
-                                    "appointment_id": appointment.calendar_event_id,
-                                    "patient_name": appointment.patient.full_name if appointment.patient else "未知",
-                                    "start_time": f"{event.date} {event.start_time}",
-                                    "end_time": f"{event.date} {event.end_time}"
-                                }
-                            break
-            
-            results.append(OccurrenceConflictStatus(
-                start_time=request.occurrences[idx],
-                has_conflict=has_conflict,
-                is_duplicate=is_duplicate,
-                duplicate_index=duplicate_idx,
-                conflicting_appointment=conflicting_appointment,
-                violation_type=violation_type
-            ))
+                exception_conflict = None
+                if conflict_data.get("exception_conflict"):
+                    ec = conflict_data["exception_conflict"]
+                    exception_conflict = ExceptionConflictDetail(
+                        exception_id=ec["exception_id"],
+                        start_time=ec["start_time"],
+                        end_time=ec["end_time"],
+                        reason=ec.get("reason")
+                    )
+                
+                default_availability = DefaultAvailabilityInfo(
+                    is_within_hours=conflict_data["default_availability"]["is_within_hours"],
+                    normal_hours=conflict_data["default_availability"].get("normal_hours")
+                )
+                
+                results.append(OccurrenceConflictStatus(
+                    start_time=request.occurrences[idx],
+                    has_conflict=conflict_data["has_conflict"],
+                    conflict_type=conflict_data.get("conflict_type"),
+                    appointment_conflict=appointment_conflict,
+                    exception_conflict=exception_conflict,
+                    default_availability=default_availability,
+                    is_duplicate=False,
+                    duplicate_index=None
+                ))
         
         return ConflictCheckResult(occurrences=results)
         
@@ -2873,9 +2862,10 @@ async def preview_edit_notification(
                 )
         
         # Check conflicts (after permission check)
+        # Allow override for clinic users (skip availability interval checks)
         is_valid, _, conflicts = AppointmentService.check_appointment_edit_conflicts(
             db, appointment_id, request.new_practitioner_id, request.new_start_time,
-            appointment.appointment_type_id, clinic_id
+            appointment.appointment_type_id, clinic_id, allow_override=True
         )
         
         # Determine if notification will be sent
@@ -4524,9 +4514,10 @@ async def check_scheduling_conflicts(
     Check for scheduling conflicts at a specific time.
     
     Returns conflict information in priority order:
-    1. Appointment conflicts (highest priority)
-    2. Availability exception conflicts (medium priority)
-    3. Outside default availability (lowest priority)
+    1. Past appointment (highest priority)
+    2. Appointment conflicts
+    3. Availability exception conflicts (medium priority)
+    4. Outside default availability (lowest priority)
     
     Used by frontend to show conflict warnings when scheduling appointments
     outside normal availability (override mode).
@@ -4553,6 +4544,7 @@ async def check_scheduling_conflicts(
             )
         
         # Check conflicts using service
+        # check_past_appointment=True for clinic users (this endpoint is clinic-only)
         conflict_data = AvailabilityService.check_scheduling_conflicts(
             db=db,
             practitioner_id=user_id,
@@ -4560,7 +4552,8 @@ async def check_scheduling_conflicts(
             start_time=start_time_obj,
             appointment_type_id=appointment_type_id,
             clinic_id=clinic_id,
-            exclude_calendar_event_id=exclude_calendar_event_id
+            exclude_calendar_event_id=exclude_calendar_event_id,
+            check_past_appointment=True
         )
         
         # Convert to response model

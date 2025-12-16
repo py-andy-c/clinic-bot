@@ -1300,15 +1300,17 @@ class AvailabilityService:
         start_time: time,
         appointment_type_id: int,
         clinic_id: int,
-        exclude_calendar_event_id: Optional[int] = None
+        exclude_calendar_event_id: Optional[int] = None,
+        check_past_appointment: bool = True
     ) -> Dict[str, Any]:
         """
         Check for scheduling conflicts at a specific time.
         
         Checks conflicts in priority order:
-        1. Appointment conflicts (highest priority)
-        2. Availability exception conflicts (medium priority)
-        3. Outside default availability (lowest priority)
+        1. Past appointment (highest priority, only if check_past_appointment=True)
+        2. Appointment conflicts
+        3. Availability exception conflicts (medium priority)
+        4. Outside default availability (lowest priority)
         
         Args:
             db: Database session
@@ -1318,12 +1320,13 @@ class AvailabilityService:
             appointment_type_id: Appointment type ID (for duration calculation)
             clinic_id: Clinic ID
             exclude_calendar_event_id: Optional calendar event ID to exclude from conflict checking
+            check_past_appointment: Whether to check if appointment is in the past (default: True for clinic users)
             
         Returns:
             Dict with conflict information:
             {
                 "has_conflict": bool,
-                "conflict_type": "appointment" | "exception" | "availability" | None,
+                "conflict_type": "past_appointment" | "appointment" | "exception" | "availability" | None,
                 "appointment_conflict": {...} | None,
                 "exception_conflict": {...} | None,
                 "default_availability": {
@@ -1333,7 +1336,7 @@ class AvailabilityService:
             }
         """
         from services.appointment_type_service import AppointmentTypeService
-        from models import Appointment, CalendarEvent
+        from models import Appointment
         
         # Get appointment type for duration
         # Note: get_appointment_type_by_id raises HTTPException if not found, so no need for None check
@@ -1377,7 +1380,31 @@ class AvailabilityService:
         
         # Check conflicts in priority order
         
-        # 1. Check for appointment conflicts (highest priority)
+        # 0. Check if appointment is in the past (highest priority, only for clinic users)
+        if check_past_appointment:
+            from utils.datetime_utils import TAIWAN_TZ
+            scheduled_datetime = datetime.combine(date, start_time).replace(tzinfo=TAIWAN_TZ)
+            current_datetime = taiwan_now()
+            
+            if scheduled_datetime < current_datetime:
+                # Format default availability info
+                is_within_hours = AvailabilityService.is_slot_within_default_intervals(
+                    default_intervals, start_time, end_time
+                )
+                normal_hours = AvailabilityService._format_normal_hours(date, default_intervals)
+                
+                return {
+                    "has_conflict": True,
+                    "conflict_type": "past_appointment",
+                    "appointment_conflict": None,
+                    "exception_conflict": None,
+                    "default_availability": {
+                        "is_within_hours": is_within_hours,
+                        "normal_hours": normal_hours
+                    }
+                }
+        
+        # 1. Check for appointment conflicts
         appointment_conflict = None
         for event in events:
             if (event.start_time and event.end_time and
@@ -1603,5 +1630,3 @@ class AvailabilityService:
                 })
         
         return results
-
-    @staticmethod

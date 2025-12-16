@@ -263,6 +263,3 @@ The existing `formatDateTime` function in `calendarUtils.ts` will be kept for ba
 
 - [Moment.js Format Documentation](https://momentjs.com/docs/#/displaying/format/)
 - [i18n Weekday Abbreviations](../multi_lang.md)
-
-
-
