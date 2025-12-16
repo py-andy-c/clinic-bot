@@ -7,6 +7,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ServiceItemsSettings from '../ServiceItemsSettings';
 import { AppointmentType } from '../../types';
 import { apiService } from '../../services/api';
+import { useServiceItemsStore } from '../../stores/serviceItemsStore';
 
 // Mock apiService
 vi.mock('../../services/api', () => ({
@@ -20,7 +21,22 @@ vi.mock('../../services/api', () => ({
 vi.mock('../../utils/logger', () => ({
   logger: {
     error: vi.fn(),
+    debug: vi.fn(),
   },
+}));
+
+// Mock the service items store
+const mockStore = {
+  practitionerAssignments: {},
+  billingScenarios: {},
+  loadingScenarios: new Set<string>(),
+  updatePractitionerAssignments: vi.fn(),
+  updateBillingScenarios: vi.fn(),
+  loadBillingScenarios: vi.fn(),
+};
+
+vi.mock('../../stores/serviceItemsStore', () => ({
+  useServiceItemsStore: vi.fn(() => mockStore),
 }));
 
 describe('ServiceItemsSettings', () => {
@@ -49,12 +65,34 @@ describe('ServiceItemsSettings', () => {
   const mockOnAddType = vi.fn();
   const mockOnUpdateType = vi.fn();
   const mockOnRemoveType = vi.fn();
-  const mockOnPractitionerAssignmentsChange = vi.fn();
-  const mockOnBillingScenariosChange = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(apiService.getMembers).mockResolvedValue(mockMembers);
+    // Reset store state
+    mockStore.practitionerAssignments = {};
+    mockStore.billingScenarios = {};
+    mockStore.loadingScenarios = new Set();
+    mockStore.updatePractitionerAssignments.mockImplementation((serviceItemId, practitionerIds) => {
+      mockStore.practitionerAssignments = {
+        ...mockStore.practitionerAssignments,
+        [serviceItemId]: practitionerIds,
+      };
+    });
+    mockStore.updateBillingScenarios.mockImplementation((key, scenarios) => {
+      mockStore.billingScenarios = {
+        ...mockStore.billingScenarios,
+        [key]: scenarios,
+      };
+    });
+    mockStore.loadBillingScenarios.mockImplementation(async (serviceItemId, practitionerId) => {
+      const key = `${serviceItemId}-${practitionerId}`;
+      const data = await apiService.getBillingScenarios(serviceItemId, practitionerId);
+      mockStore.billingScenarios = {
+        ...mockStore.billingScenarios,
+        [key]: data.billing_scenarios,
+      };
+    });
   });
 
   const defaultProps = {
@@ -63,10 +101,6 @@ describe('ServiceItemsSettings', () => {
     onUpdateType: mockOnUpdateType,
     onRemoveType: mockOnRemoveType,
     isClinicAdmin: true,
-    practitionerAssignments: {},
-    billingScenarios: {},
-    onPractitionerAssignmentsChange: mockOnPractitionerAssignmentsChange,
-    onBillingScenariosChange: mockOnBillingScenariosChange,
   };
 
   it('should render service items list', () => {
@@ -91,16 +125,14 @@ describe('ServiceItemsSettings', () => {
       ],
     };
 
+    // Set store state
+    mockStore.practitionerAssignments = { 1: [1] };
+    mockStore.billingScenarios = billingScenarios;
+
     // This should not throw an error - the component should render without crashing
     // The key test is that it doesn't throw "toFixed is not a function"
     expect(() => {
-      render(
-        <ServiceItemsSettings
-          {...defaultProps}
-          practitionerAssignments={{ 1: [1] }}
-          billingScenarios={billingScenarios}
-        />
-      );
+      render(<ServiceItemsSettings {...defaultProps} />);
     }).not.toThrow();
   });
 
@@ -119,15 +151,13 @@ describe('ServiceItemsSettings', () => {
       ],
     };
 
+    // Set store state
+    mockStore.practitionerAssignments = { 1: [1] };
+    mockStore.billingScenarios = billingScenarios;
+
     // This should not throw an error
     expect(() => {
-      render(
-        <ServiceItemsSettings
-          {...defaultProps}
-          practitionerAssignments={{ 1: [1] }}
-          billingScenarios={billingScenarios}
-        />
-      );
+      render(<ServiceItemsSettings {...defaultProps} />);
     }).not.toThrow();
   });
 
@@ -147,15 +177,13 @@ describe('ServiceItemsSettings', () => {
       ],
     };
 
+    // Set store state
+    mockStore.practitionerAssignments = { 1: [1] };
+    mockStore.billingScenarios = billingScenarios;
+
     // This should not throw an error even with invalid amounts
     expect(() => {
-      render(
-        <ServiceItemsSettings
-          {...defaultProps}
-          practitionerAssignments={{ 1: [1] }}
-          billingScenarios={billingScenarios}
-        />
-      );
+      render(<ServiceItemsSettings {...defaultProps} />);
     }).not.toThrow();
   });
 
@@ -174,13 +202,9 @@ describe('ServiceItemsSettings', () => {
     };
 
     vi.mocked(apiService.getBillingScenarios).mockResolvedValue(mockBillingScenarios);
+    mockStore.practitionerAssignments = { 1: [1] };
 
-    render(
-      <ServiceItemsSettings
-        {...defaultProps}
-        practitionerAssignments={{ 1: [1] }}
-      />
-    );
+    render(<ServiceItemsSettings {...defaultProps} />);
 
     // Expand the service item
     const expandButton = screen.getByText('初診評估').closest('button');
@@ -198,9 +222,10 @@ describe('ServiceItemsSettings', () => {
       expect(apiService.getBillingScenarios).toHaveBeenCalledWith(1, 1);
     });
 
-    // Wait for scenarios to be displayed (after onBillingScenariosChange is called)
+    // Wait for scenarios to be displayed (store updates its own state)
     await waitFor(() => {
-      expect(mockOnBillingScenariosChange).toHaveBeenCalled();
+      expect(mockStore.loadBillingScenarios).toHaveBeenCalledWith(1, 1);
+      expect(mockStore.billingScenarios['1-1']).toBeDefined();
     }, { timeout: 2000 });
   });
 
@@ -218,17 +243,15 @@ describe('ServiceItemsSettings', () => {
       ],
     };
 
+    // Set store state
+    mockStore.practitionerAssignments = { 1: [1] };
+    mockStore.billingScenarios = billingScenarios;
+
     // The key test: component should render without crashing
     // handleEditScenario will be called when user clicks edit, and it should
     // handle string amounts properly (converting them to numbers)
     expect(() => {
-      render(
-        <ServiceItemsSettings
-          {...defaultProps}
-          practitionerAssignments={{ 1: [1] }}
-          billingScenarios={billingScenarios}
-        />
-      );
+      render(<ServiceItemsSettings {...defaultProps} />);
     }).not.toThrow();
   });
 
@@ -260,13 +283,24 @@ describe('ServiceItemsSettings', () => {
       message: 'Request failed with status code 404',
     };
     vi.mocked(apiService.getBillingScenarios).mockRejectedValue(axiosError);
+    mockStore.practitionerAssignments = { 1: [1] };
+    // Update mock to handle 404
+    mockStore.loadBillingScenarios.mockImplementation(async (serviceItemId, practitionerId) => {
+      const key = `${serviceItemId}-${practitionerId}`;
+      try {
+        await apiService.getBillingScenarios(serviceItemId, practitionerId);
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          mockStore.billingScenarios = {
+            ...mockStore.billingScenarios,
+            [key]: [],
+          };
+        }
+        throw err;
+      }
+    });
 
-    render(
-      <ServiceItemsSettings
-        {...defaultProps}
-        practitionerAssignments={{ 1: [1] }}
-      />
-    );
+    render(<ServiceItemsSettings {...defaultProps} />);
 
     // Expand the service item
     const expandButton = screen.getByText('初診評估').closest('button');
@@ -284,9 +318,9 @@ describe('ServiceItemsSettings', () => {
       expect(apiService.getBillingScenarios).toHaveBeenCalledWith(1, 1);
     });
 
-    // Verify that onBillingScenariosChange was called with empty array (404 handled gracefully)
+    // Verify that store was updated with empty array (404 handled gracefully)
     await waitFor(() => {
-      expect(mockOnBillingScenariosChange).toHaveBeenCalledWith('1-1', []);
+      expect(mockStore.billingScenarios['1-1']).toEqual([]);
     });
 
     // Wait a bit and verify the API was only called once (no infinite retries)
@@ -298,13 +332,9 @@ describe('ServiceItemsSettings', () => {
     // This test ensures we're not calling async functions during render
     // which was the root cause of the infinite loop bug
     vi.mocked(apiService.getBillingScenarios).mockResolvedValue({ billing_scenarios: [] });
+    mockStore.practitionerAssignments = { 1: [1] };
 
-    render(
-      <ServiceItemsSettings
-        {...defaultProps}
-        practitionerAssignments={{ 1: [1] }}
-      />
-    );
+    render(<ServiceItemsSettings {...defaultProps} />);
 
     // Immediately after render, API should not have been called yet
     // (it should only be called in useEffect, not during render)
@@ -319,13 +349,9 @@ describe('ServiceItemsSettings', () => {
       message: 'Internal server error',
     };
     vi.mocked(apiService.getBillingScenarios).mockRejectedValue(serverError);
+    mockStore.practitionerAssignments = { 1: [1] };
 
-    render(
-      <ServiceItemsSettings
-        {...defaultProps}
-        practitionerAssignments={{ 1: [1] }}
-      />
-    );
+    render(<ServiceItemsSettings {...defaultProps} />);
 
     // Expand the service item
     const expandButton = screen.getByText('初診評估').closest('button');
@@ -363,13 +389,9 @@ describe('ServiceItemsSettings', () => {
     };
 
     vi.mocked(apiService.getBillingScenarios).mockResolvedValue(mockBillingScenarios);
+    mockStore.practitionerAssignments = { 1: [1] };
 
-    render(
-      <ServiceItemsSettings
-        {...defaultProps}
-        practitionerAssignments={{ 1: [1] }}
-      />
-    );
+    render(<ServiceItemsSettings {...defaultProps} />);
 
     // Wait for members to load first (they load automatically when isClinicAdmin is true)
     await waitFor(() => {
@@ -392,12 +414,9 @@ describe('ServiceItemsSettings', () => {
       expect(apiService.getBillingScenarios).toHaveBeenCalledWith(1, 1);
     }, { timeout: 2000 });
 
-    // Verify scenarios were loaded
+    // Verify scenarios were loaded via store
     await waitFor(() => {
-      expect(mockOnBillingScenariosChange).toHaveBeenCalledWith(
-        '1-1',
-        mockBillingScenarios.billing_scenarios
-      );
+      expect(mockStore.loadBillingScenarios).toHaveBeenCalledWith(1, 1);
     });
   });
 });

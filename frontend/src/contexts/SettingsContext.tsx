@@ -3,30 +3,14 @@ import { ClinicSettings } from '../schemas/api';
 import { useSettingsPage } from '../hooks/useSettingsPage';
 import { useAuth } from '../hooks/useAuth';
 import { useApiData, invalidateCacheForFunction, invalidateCacheByPattern } from '../hooks/useApiData';
-import { sharedFetchFunctions } from '../services/api';
-import { apiService } from '../services/api';
+import { sharedFetchFunctions, apiService } from '../services/api';
 import { validateClinicSettings, getClinicSectionChanges } from '../utils/clinicSettings';
 import { useModal } from './ModalContext';
-import { logger } from '../utils/logger';
 import { useUnsavedChangesDetection } from '../hooks/useUnsavedChangesDetection';
-import { AppointmentType } from '../types';
+import { useServiceItemsStore } from '../stores/serviceItemsStore';
 
-// Temporary IDs are generated using Date.now(), which produces large timestamps
-// Real IDs from the backend are small integers, so we use this threshold to distinguish them
-const TEMPORARY_ID_THRESHOLD = 1000000000000;
-
-// Type alias for appointment type ID mapping (temporary ID -> real ID)
-type AppointmentTypeIdMapping = Record<number, number>;
-
-// BillingScenario type (matches ServiceItemsSettings)
-export interface BillingScenario {
-  id: number;
-  practitioner_appointment_type_id: number;
-  name: string;
-  amount: number;
-  revenue_share: number;
-  is_default: boolean;
-}
+// Re-export BillingScenario from store for backwards compatibility
+export type { BillingScenario } from '../stores/serviceItemsStore';
 
 interface SettingsContextValue {
   settings: ClinicSettings | null;
@@ -42,13 +26,6 @@ interface SettingsContextValue {
   fetchData: () => Promise<void>;
   refreshTrigger: number;
   setRefreshTrigger: React.Dispatch<React.SetStateAction<number>>;
-  // Service Items additional state
-  practitionerAssignments: Record<number, number[]>; // service_item_id -> practitioner_ids[]
-  originalPractitionerAssignments: Record<number, number[]>;
-  billingScenarios: Record<string, BillingScenario[]>; // key: "service_item_id-practitioner_id"
-  originalBillingScenarios: Record<string, BillingScenario[]>;
-  updatePractitionerAssignments: (serviceItemId: number, practitionerIds: number[]) => void;
-  updateBillingScenarios: (key: string, scenarios: BillingScenario[]) => void;
 }
 
 const SettingsContext = createContext<SettingsContextValue | undefined>(undefined);
@@ -70,16 +47,6 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
   const activeClinicId = user?.active_clinic_id;
   const { alert } = useModal();
   const [clinicInfoRefreshTrigger, setClinicInfoRefreshTrigger] = React.useState(0);
-  
-  // Service Items additional state: Practitioner assignments
-  // service_item_id -> practitioner_ids[]
-  const [practitionerAssignments, setPractitionerAssignments] = React.useState<Record<number, number[]>>({});
-  const [originalPractitionerAssignments, setOriginalPractitionerAssignments] = React.useState<Record<number, number[]>>({});
-  
-  // Service Items additional state: Billing scenarios
-  // key: "service_item_id-practitioner_id" -> BillingScenario[]
-  const [billingScenarios, setBillingScenarios] = React.useState<Record<string, BillingScenario[]>>({});
-  const [originalBillingScenarios, setOriginalBillingScenarios] = React.useState<Record<string, BillingScenario[]>>({});
 
   // Fetch clinic settings with caching (shares cache with GlobalWarnings)
   const { data: cachedSettings, loading: settingsLoading } = useApiData(
@@ -171,75 +138,11 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     skipFetch: !!cachedSettings // Only skip fetch if we have cached data
   });
 
-  // Load original practitioner assignments and billing scenarios when settings are loaded
-  const isLoadingServiceItemsDataRef = React.useRef(false);
-  React.useEffect(() => {
-    const loadServiceItemsData = async () => {
-      if (!settings || !settings.appointment_types || settings.appointment_types.length === 0) {
-        return;
-      }
-
-      // Prevent multiple concurrent loads
-      if (isLoadingServiceItemsDataRef.current) {
-        return;
-      }
-
-      isLoadingServiceItemsDataRef.current = true;
-
-      try {
-        // Load members (practitioners)
-        const membersData = await apiService.getMembers();
-        const practitioners = membersData.filter(m => m.roles.includes('practitioner'));
-        
-        if (practitioners.length === 0) {
-          setOriginalPractitionerAssignments({});
-          setPractitionerAssignments({});
-          return;
-        }
-
-        // Load practitioner assignments
-        const assignments: Record<number, number[]> = {};
-        for (const practitioner of practitioners) {
-          try {
-            const data = await apiService.getPractitionerAppointmentTypes(practitioner.id);
-            const appointmentTypes = data?.appointment_types;
-            if (appointmentTypes && Array.isArray(appointmentTypes)) {
-              for (const at of appointmentTypes) {
-                if (at?.id) {
-                  const typeId = at.id;
-                  if (!assignments[typeId]) {
-                    assignments[typeId] = [];
-                  }
-                  assignments[typeId].push(practitioner.id);
-                }
-              }
-            }
-          } catch (err) {
-            logger.error(`Error loading assignments for practitioner ${practitioner.id}:`, err);
-          }
-        }
-        
-        setOriginalPractitionerAssignments(assignments);
-        setPractitionerAssignments(assignments);
-        
-        // Billing scenarios will be loaded lazily when service items are expanded
-        setOriginalBillingScenarios({});
-        setBillingScenarios({});
-      } catch (err) {
-        logger.error('Error loading service items data:', err);
-      } finally {
-        isLoadingServiceItemsDataRef.current = false;
-      }
-    };
-
-    if (settings && !uiState.loading) {
-      loadServiceItemsData();
-    }
-  }, [settings, uiState.loading]);
 
   // Refresh settings when clinic changes
   // Invalidate cache to ensure fresh data for the new clinic
   const previousClinicIdRef = React.useRef<number | null | undefined>(activeClinicId ?? null);
+  const clearServiceItems = useServiceItemsStore(state => state.clear);
   React.useEffect(() => {
     const currentClinicId = activeClinicId;
     if (!isLoading && currentClinicId && previousClinicIdRef.current !== currentClinicId && previousClinicIdRef.current !== null && previousClinicIdRef.current !== undefined) {
@@ -247,11 +150,8 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       invalidateCacheForFunction(sharedFetchFunctions.getClinicSettings);
       invalidateCacheByPattern('api_getPractitionerStatus_');
       invalidateCacheByPattern('api_getBatchPractitionerStatus_');
-      // Reset service items state
-      setPractitionerAssignments({});
-      setOriginalPractitionerAssignments({});
-      setBillingScenarios({});
-      setOriginalBillingScenarios({});
+      // Clear service items store when clinic changes (will be reloaded for new clinic)
+      clearServiceItems();
       // Force refetch by calling fetchData (skipFetch will be false after invalidation)
       if (fetchData) {
         fetchData();
@@ -260,525 +160,34 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     // Update ref value
     previousClinicIdRef.current = currentClinicId ?? null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeClinicId, isLoading]);
+  }, [activeClinicId, isLoading, clearServiceItems]);
 
-  // Update functions for practitioner assignments and billing scenarios
-  const updatePractitionerAssignments = React.useCallback((serviceItemId: number, practitionerIds: number[]) => {
-    setPractitionerAssignments(prev => ({
-      ...prev,
-      [serviceItemId]: practitionerIds,
-    }));
-  }, []);
-
-  const updateBillingScenarios = React.useCallback((key: string, scenarios: BillingScenario[]) => {
-    setBillingScenarios(prev => {
-      const updated = { ...prev, [key]: scenarios };
-      // If this is the first time we're setting scenarios for this key, also update original
-      // (lazy loading - original starts empty, so first load becomes original)
-      setOriginalBillingScenarios(prevOriginal => {
-        if (!prevOriginal[key]) {
-          return { ...prevOriginal, [key]: scenarios };
-        }
-        return prevOriginal;
-      });
-      return updated;
-    });
-  }, []);
-
-  // Extended save function that saves appointment types, practitioner assignments, and billing scenarios
+  // Save function that saves appointment types
   const saveData = async () => {
-    const saveResults = {
-      appointmentTypes: false,
-      practitionerAssignments: false,
-      billingScenarios: false,
-    };
-    const errors: string[] = [];
-
-    // Check if there are service items changes (practitioner assignments or billing scenarios)
-    const hasServiceItemsChanges = 
-      JSON.stringify(practitionerAssignments) !== JSON.stringify(originalPractitionerAssignments) ||
-      JSON.stringify(billingScenarios) !== JSON.stringify(originalBillingScenarios);
-
-    try {
-      // 1. Save appointment types (existing)
-      // Note: If there are service items changes, we'll handle success message ourselves
-      // to show combined result. Otherwise, saveDataInternal's onSuccess will handle it.
-      let appointmentTypeIdMapping: AppointmentTypeIdMapping = {}; // tempId -> realId
-      
-      // Capture temporary IDs from current settings BEFORE saving
-      // (originalData gets updated after save, so we need to capture from settings)
-      const currentSettingsSnapshot = settings ? JSON.parse(JSON.stringify(settings)) : null;
-      const allAppointmentTypes = currentSettingsSnapshot?.appointment_types || [];
-      
-      const tempTypesBeforeSave = allAppointmentTypes.filter((at: AppointmentType) => 
-        at.id > TEMPORARY_ID_THRESHOLD
-      );
-      
-      // Also check practitionerAssignments and billingScenarios for temporary IDs
-      const tempIdsInAssignments = Object.keys(practitionerAssignments)
-        .map(Number)
-        .filter(id => id > TEMPORARY_ID_THRESHOLD);
-      
-      const tempIdsInBillingScenarios = Object.keys(billingScenarios)
-        .map(key => {
-          const parts = key.split('-');
-          return parts.length === 2 && parts[0] ? parseInt(parts[0], 10) : null;
-        })
-        .filter((id): id is number => id !== null && id > TEMPORARY_ID_THRESHOLD);
-      
-      // Combine all temporary IDs we found
-      const allTempIds = new Set([
-        ...tempTypesBeforeSave.map((t: AppointmentType) => t.id),
-        ...tempIdsInAssignments,
-        ...tempIdsInBillingScenarios
-      ]);
-      
-      try {
         await saveDataInternal();
-        saveResults.appointmentTypes = true;
-        
-        // Map temporary IDs to real IDs by matching name + duration
-        // This is needed because new appointment types get temporary IDs (Date.now())
-        // but after saving, they get real IDs from the backend
-        // Note: We need to fetch fresh settings after save to get the real IDs
-        // because React state updates are async and settings might not be updated yet
-        try {
-          const freshSettings = await sharedFetchFunctions.getClinicSettings();
-          
-          // Use all temporary IDs we found (from settings, assignments, or billing scenarios)
-          const tempIdsToMap = Array.from(allTempIds);
-          
-          if (freshSettings && tempIdsToMap.length > 0) {
-            const savedTypes = freshSettings.appointment_types;
-            
-            // First, try to match by name+duration if we have tempTypesBeforeSave
-            if (tempTypesBeforeSave.length > 0) {
-              for (const tempType of tempTypesBeforeSave) {
-                const realType = savedTypes.find(at => 
-                  at.name === tempType.name && 
-                  at.duration_minutes === tempType.duration_minutes &&
-                  at.id < TEMPORARY_ID_THRESHOLD
-                );
-                if (realType) {
-                  appointmentTypeIdMapping[tempType.id] = realType.id;
-                }
-              }
-            }
-            
-            // Fallback: if we still have unmapped temp IDs, try to find newly created types
-            // by checking what's new in savedTypes compared to originalData
-            const unmappedTempIds = tempIdsToMap.filter(id => !appointmentTypeIdMapping[id]);
-            if (unmappedTempIds.length > 0) {
-              const originalTypeIds = new Set((originalData?.appointment_types || []).map(at => at.id).filter(id => id < TEMPORARY_ID_THRESHOLD));
-              const newTypes = savedTypes.filter(at => !originalTypeIds.has(at.id));
-              
-              // Match by order - this is a fallback when we can't match by name+duration
-              if (newTypes.length === unmappedTempIds.length && newTypes.length > 0) {
-                for (let i = 0; i < unmappedTempIds.length; i++) {
-                  const newType = newTypes[i];
-                  if (newType) {
-                    appointmentTypeIdMapping[unmappedTempIds[i]] = newType.id;
-                  }
-                }
-              }
-            }
-          }
-        } catch (fetchErr) {
-          // If fetching fresh settings fails, try to use current settings as fallback
-          logger.warn('Failed to fetch fresh settings after save, using current settings:', fetchErr);
-          if (settings && tempTypesBeforeSave.length > 0) {
-            const savedTypes = settings.appointment_types;
-            
-            for (const tempType of tempTypesBeforeSave) {
-              const realType = savedTypes.find(at => 
-                at.name === tempType.name && 
-                at.duration_minutes === tempType.duration_minutes &&
-                at.id < TEMPORARY_ID_THRESHOLD
-              );
-              if (realType) {
-                appointmentTypeIdMapping[tempType.id] = realType.id;
-              }
-            }
-          }
-        }
-        
-        // If there are no service items changes, saveDataInternal's onSuccess already showed success
-        // If there are service items changes, we'll show combined success/error message below
-      } catch (err: any) {
-        const errorMsg = `儲存服務項目設定失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
-        errors.push(errorMsg);
-        logger.error('Error saving appointment types:', err);
-        // Don't throw yet - continue to try other operations if there are service items changes
-        if (!hasServiceItemsChanges) {
-          // If no service items changes, let the error propagate (saveDataInternal already handled it)
-          throw err;
-        }
-      }
-
-      // Update practitionerAssignments and billingScenarios with real IDs if mapping exists
-      let updatedPractitionerAssignments = practitionerAssignments;
-      let updatedBillingScenarios = billingScenarios;
-      
-      if (Object.keys(appointmentTypeIdMapping).length > 0) {
-        // Update practitionerAssignments keys from temporary to real IDs
-        updatedPractitionerAssignments = {};
-        for (const [tempId, practitionerIds] of Object.entries(practitionerAssignments)) {
-          const tempIdNum = parseInt(tempId, 10);
-          const realId = appointmentTypeIdMapping[tempIdNum];
-          if (realId) {
-            updatedPractitionerAssignments[realId] = practitionerIds;
-          } else {
-            // Keep original if not in mapping (real ID or not a new type)
-            updatedPractitionerAssignments[tempIdNum] = practitionerIds;
-          }
-        }
-        setPractitionerAssignments(updatedPractitionerAssignments);
-        
-        // Update billingScenarios keys from temporary to real IDs
-        updatedBillingScenarios = {};
-        for (const [key, scenarios] of Object.entries(billingScenarios)) {
-          const parts = key.split('-');
-          if (parts.length === 2 && parts[0] && parts[1]) {
-            const tempServiceItemId = parseInt(parts[0], 10);
-            const practitionerId = parseInt(parts[1], 10);
-            const realServiceItemId = appointmentTypeIdMapping[tempServiceItemId];
-            
-            if (realServiceItemId) {
-              // Update key with real ID
-              const newKey = `${realServiceItemId}-${practitionerId}`;
-              updatedBillingScenarios[newKey] = scenarios;
-            } else {
-              // Keep original key if not in mapping
-              updatedBillingScenarios[key] = scenarios;
-            }
-          } else {
-            // Keep original if key format is invalid
-            updatedBillingScenarios[key] = scenarios;
-          }
-        }
-        setBillingScenarios(updatedBillingScenarios);
-      }
-
-      // 2. Save practitioner assignments
-      // Use updated assignments if IDs were mapped
-      const assignmentsToUse = Object.keys(appointmentTypeIdMapping).length > 0 
-        ? updatedPractitionerAssignments 
-        : practitionerAssignments;
-      
-      // Calculate changes using the updated assignments
-      const assignmentChanges: Record<number, number[]> = {};
-      const allServiceItemIds = new Set([
-        ...Object.keys(assignmentsToUse).map(Number),
-        ...Object.keys(originalPractitionerAssignments).map(Number),
-      ]);
-      
-      for (const serviceItemId of allServiceItemIds) {
-        const current = assignmentsToUse[serviceItemId] || [];
-        const original = originalPractitionerAssignments[serviceItemId] || [];
-        if (JSON.stringify(current.sort()) !== JSON.stringify(original.sort())) {
-          assignmentChanges[serviceItemId] = current;
-        }
-      }
-      const practitionerAssignmentErrors: string[] = [];
-      
-      if (Object.keys(assignmentChanges).length > 0) {
-        // Get all practitioners
-        const membersData = await apiService.getMembers();
-        const practitioners = membersData.filter(m => m.roles.includes('practitioner'));
-        
-        // For each practitioner, determine their new appointment type IDs from current state
-          for (const practitioner of practitioners) {
-          const newTypeIds: number[] = [];
-          for (const [serviceItemId, practitionerIds] of Object.entries(assignmentsToUse)) {
-            if (practitionerIds.includes(practitioner.id)) {
-              newTypeIds.push(parseInt(serviceItemId));
-            }
-          }
-          
-          // Get original assignment for this practitioner
-          const originalTypeIds: number[] = [];
-          for (const [serviceItemId, practitionerIds] of Object.entries(originalPractitionerAssignments)) {
-            if (practitionerIds.includes(practitioner.id)) {
-              originalTypeIds.push(parseInt(serviceItemId));
-            }
-          }
-          
-          // Only save if changed
-          if (JSON.stringify(newTypeIds.sort()) !== JSON.stringify(originalTypeIds.sort())) {
-            try {
-              await apiService.updatePractitionerAppointmentTypes(practitioner.id, newTypeIds);
-            } catch (err) {
-              const errorMsg = `儲存治療師「${practitioner.full_name}」的指派失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
-              logger.error(`Error saving practitioner assignments for practitioner ${practitioner.id}:`, err);
-              practitionerAssignmentErrors.push(errorMsg);
-              // Continue with other practitioners
-            }
-          }
-        }
-        
-        // Mark as succeeded if no errors occurred
-        if (practitionerAssignmentErrors.length === 0) {
-          saveResults.practitionerAssignments = true;
-        } else {
-          errors.push(...practitionerAssignmentErrors);
-        }
-      } else {
-        // No changes to save
-        saveResults.practitionerAssignments = true;
-      }
-
-      // 3. Save billing scenarios
-      // Use updated scenarios if IDs were mapped
-      const scenariosToUse = Object.keys(appointmentTypeIdMapping).length > 0 
-        ? updatedBillingScenarios 
-        : billingScenarios;
-      
-      // Calculate changes using the updated scenarios
-      const scenarioChanges: Record<string, BillingScenario[]> = {};
-      const allKeys = new Set([
-        ...Object.keys(scenariosToUse),
-        ...Object.keys(originalBillingScenarios),
-      ]);
-      
-      for (const key of allKeys) {
-        const current = scenariosToUse[key] || [];
-        const original = originalBillingScenarios[key] || [];
-        if (JSON.stringify(current) !== JSON.stringify(original)) {
-          scenarioChanges[key] = current;
-        }
-      }
-      const billingScenarioErrors: string[] = [];
-      const createdScenarios: Array<{ key: string; tempId: number; realId: number; practitioner_appointment_type_id: number }> = [];
-      
-      for (const [key, scenarios] of Object.entries(scenarioChanges)) {
-        const parts = key.split('-');
-        if (parts.length !== 2 || !parts[0] || !parts[1]) {
-          logger.error(`Invalid billing scenario key format: ${key}`);
-          continue;
-        }
-        const serviceItemId = parseInt(parts[0], 10);
-        const practitionerId = parseInt(parts[1], 10);
-        
-        // If we have a mapping, use the real ID instead of temporary ID
-        const realServiceItemId = appointmentTypeIdMapping[serviceItemId] || serviceItemId;
-        
-        if (isNaN(serviceItemId) || isNaN(practitionerId)) {
-          logger.error(`[BILLING_SCENARIO] Invalid billing scenario key values: ${key}`);
-          continue;
-        }
-        
-        const originalKey = key;
-        const originalScenarios = originalBillingScenarios[originalKey] || [];
-        
-        // Determine what needs to be created, updated, or deleted
-        const originalIds = new Set(originalScenarios.map(s => s.id));
-        const currentIds = new Set(scenarios.map(s => s.id));
-        
-        // Delete scenarios that are no longer present
-        for (const originalScenario of originalScenarios) {
-          if (!currentIds.has(originalScenario.id)) {
-            try {
-              await apiService.deleteBillingScenario(realServiceItemId, practitionerId, originalScenario.id);
-            } catch (err) {
-              const errorMsg = `刪除計費方案「${originalScenario.name}」失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
-              logger.error(`Error deleting billing scenario ${originalScenario.id}:`, err);
-              billingScenarioErrors.push(errorMsg);
-            }
-          }
-        }
-        
-        // Create or update scenarios
-        for (const scenario of scenarios) {
-          // Check if this is a temporary ID (negative IDs are temporary)
-          const isTemporaryId = scenario.id < 0;
-          
-          if (!isTemporaryId && originalIds.has(scenario.id)) {
-            // Update existing (real ID from backend)
-            try {
-              // Normalize amount and revenue_share to numbers (handle string types from API)
-              const normalizedAmount = typeof scenario.amount === 'string' ? parseFloat(scenario.amount) : scenario.amount;
-              const normalizedRevenueShare = typeof scenario.revenue_share === 'string' ? parseFloat(scenario.revenue_share) : scenario.revenue_share;
-              await apiService.updateBillingScenario(realServiceItemId, practitionerId, scenario.id, {
-                name: scenario.name,
-                amount: normalizedAmount,
-                revenue_share: normalizedRevenueShare,
-                is_default: scenario.is_default,
-              });
-            } catch (err) {
-              const errorMsg = `更新計費方案「${scenario.name}」失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
-              logger.error(`Error updating billing scenario ${scenario.id}:`, err);
-              billingScenarioErrors.push(errorMsg);
-            }
-          } else {
-            // Create new (either temporary ID or not in original)
-            try {
-              // Normalize amount and revenue_share to numbers (handle string types from API)
-              const normalizedAmount = typeof scenario.amount === 'string' ? parseFloat(scenario.amount) : scenario.amount;
-              const normalizedRevenueShare = typeof scenario.revenue_share === 'string' ? parseFloat(scenario.revenue_share) : scenario.revenue_share;
-              const response = await apiService.createBillingScenario(realServiceItemId, practitionerId, {
-                name: scenario.name,
-                amount: normalizedAmount,
-                revenue_share: normalizedRevenueShare,
-                is_default: scenario.is_default,
-              });
-              // Track created scenarios to update state after all operations
-              createdScenarios.push({
-                key,
-                tempId: scenario.id,
-                realId: response.id,
-                practitioner_appointment_type_id: response.practitioner_appointment_type_id,
-              });
-            } catch (err) {
-              const errorMsg = `建立計費方案「${scenario.name}」失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
-              logger.error(`Error creating billing scenario:`, err);
-              billingScenarioErrors.push(errorMsg);
-            }
-          }
-        }
-      }
-
-      // 4. Track billing scenarios save result
-      if (Object.keys(scenarioChanges).length > 0) {
-        if (billingScenarioErrors.length === 0) {
-          saveResults.billingScenarios = true;
-        } else {
-          errors.push(...billingScenarioErrors);
-        }
-      } else {
-        // No changes to save
-        saveResults.billingScenarios = true;
-      }
-
-      // 5. Update billing scenarios with real IDs from backend (only if no errors)
-      // Start with the already-updated scenarios if IDs were mapped
-      let finalBillingScenarios = Object.keys(appointmentTypeIdMapping).length > 0 
-        ? updatedBillingScenarios 
-        : billingScenarios;
-      if (createdScenarios.length > 0) {
-        finalBillingScenarios = { ...finalBillingScenarios };
-        for (const { key, tempId, realId, practitioner_appointment_type_id } of createdScenarios) {
-          const currentScenarios = finalBillingScenarios[key] || [];
-          finalBillingScenarios[key] = currentScenarios.map(s => 
-            s.id === tempId 
-              ? { ...s, id: realId, practitioner_appointment_type_id }
-              : s
-          );
-        }
-        setBillingScenarios(finalBillingScenarios);
-      }
-
-      // 5. Check if all operations succeeded
-      const allSucceeded = saveResults.appointmentTypes && saveResults.practitionerAssignments && saveResults.billingScenarios;
-      
-      if (!allSucceeded) {
-        // Build detailed error message
-        const succeededParts: string[] = [];
-        const failedParts: string[] = [];
-        
-        if (saveResults.appointmentTypes) {
-          succeededParts.push('服務項目設定');
-        } else {
-          failedParts.push('服務項目設定');
-        }
-        
-        if (saveResults.practitionerAssignments) {
-          succeededParts.push('治療師指派');
-        } else {
-          failedParts.push('治療師指派');
-        }
-        
-        if (saveResults.billingScenarios) {
-          succeededParts.push('計費方案');
-        } else {
-          failedParts.push('計費方案');
-        }
-        
-        let errorMessage = '部分設定儲存失敗：\n\n';
-        if (succeededParts.length > 0) {
-          errorMessage += `✅ 已成功儲存：${succeededParts.join('、')}\n\n`;
-        }
-        if (failedParts.length > 0) {
-          errorMessage += `❌ 儲存失敗：${failedParts.join('、')}\n\n`;
-        }
-        if (errors.length > 0) {
-          errorMessage += `詳細錯誤：\n${errors.join('\n')}`;
-        }
-        
-        // Show error via modal and throw to prevent state update
-        await alert(errorMessage, '儲存失敗');
-        throw new Error(errorMessage);
-      }
-
-      // 6. Update original states only after all operations succeed
-      // Use the final updated states (with real IDs)
-      const finalPractitionerAssignments = Object.keys(appointmentTypeIdMapping).length > 0 
-        ? updatedPractitionerAssignments 
-        : practitionerAssignments;
-      const finalBillingScenariosForOriginal = Object.keys(appointmentTypeIdMapping).length > 0 
-        ? (createdScenarios.length > 0 ? finalBillingScenarios : updatedBillingScenarios)
-        : (createdScenarios.length > 0 ? finalBillingScenarios : billingScenarios);
-      setOriginalPractitionerAssignments(JSON.parse(JSON.stringify(finalPractitionerAssignments)));
-      setOriginalBillingScenarios(JSON.parse(JSON.stringify(finalBillingScenariosForOriginal)));
-      
-      // 7. Show success message only if all operations succeeded
-      // Only show if there were service items changes (otherwise saveDataInternal already showed success)
-      if (hasServiceItemsChanges) {
-        // Invalidate cache after successful save
-        invalidateCacheForFunction(sharedFetchFunctions.getClinicSettings);
-        
-        // Check if clinic info was changed (from appointment types save)
-        if (settings && originalData) {
-          const changes = getClinicSectionChanges(settings, originalData);
-          if (changes.clinicInfoSettings) {
-            setClinicInfoRefreshTrigger(prev => prev + 1);
-          }
-        }
-        
-        await alert('所有設定已成功儲存', '成功');
-      }
-      // If no service items changes, saveDataInternal's onSuccess already handled cache invalidation and success message
-    } catch (error: any) {
-      logger.error('Error saving service items data:', error);
-      throw error;
-    }
   };
 
 
-  // Extended hasUnsavedChanges that includes service items changes
+  // hasUnsavedChanges only checks settings changes (service items are handled separately)
   const hasUnsavedChanges = React.useCallback(() => {
     // Check settings changes (from useSettingsPage)
-    const settingsChanged = settings && originalData && 
-      JSON.stringify(settings) !== JSON.stringify(originalData);
-    
-    // Check practitioner assignments changes
-    const practitionerAssignmentsChanged = 
-      JSON.stringify(practitionerAssignments) !== JSON.stringify(originalPractitionerAssignments);
-    
-    // Check billing scenarios changes
-    const billingScenariosChanged = 
-      JSON.stringify(billingScenarios) !== JSON.stringify(originalBillingScenarios);
-    
-    return settingsChanged || practitionerAssignmentsChanged || billingScenariosChanged;
-  }, [settings, originalData, practitionerAssignments, originalPractitionerAssignments, billingScenarios, originalBillingScenarios]);
+    if (!settings || !originalData) {
+      return false;
+    }
+    return JSON.stringify(settings) !== JSON.stringify(originalData);
+  }, [settings, originalData]);
 
   // Setup navigation warnings for unsaved changes (including service items)
   useUnsavedChangesDetection({ hasUnsavedChanges });
 
-  // Extend sectionChanges to include service items changes
+  // sectionChanges includes settings changes and service items changes
+  const hasServiceItemsUnsavedChanges = useServiceItemsStore(state => state.hasUnsavedChanges);
   const extendedSectionChanges = React.useMemo(() => {
-    const practitionerAssignmentsChanged = 
-      JSON.stringify(practitionerAssignments) !== JSON.stringify(originalPractitionerAssignments);
-    const billingScenariosChanged = 
-      JSON.stringify(billingScenarios) !== JSON.stringify(originalBillingScenarios);
-    
     return {
       ...sectionChanges,
-      serviceItemsSettings: 
-        sectionChanges.appointmentSettings || 
-        practitionerAssignmentsChanged || 
-        billingScenariosChanged,
+      serviceItemsSettings: sectionChanges.appointmentSettings || hasServiceItemsUnsavedChanges(),
     };
-  }, [sectionChanges, practitionerAssignments, originalPractitionerAssignments, billingScenarios, originalBillingScenarios]);
+  }, [sectionChanges, hasServiceItemsUnsavedChanges]);
 
   const value: SettingsContextValue = {
     settings,
@@ -790,12 +199,6 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     fetchData,
     refreshTrigger: clinicInfoRefreshTrigger,
     setRefreshTrigger: setClinicInfoRefreshTrigger,
-    practitionerAssignments,
-    originalPractitionerAssignments,
-    billingScenarios,
-    originalBillingScenarios,
-    updatePractitionerAssignments,
-    updateBillingScenarios,
   };
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

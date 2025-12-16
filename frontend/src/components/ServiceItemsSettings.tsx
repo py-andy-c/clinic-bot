@@ -8,15 +8,7 @@ import { formatCurrency } from '../utils/currencyUtils';
 import { BaseModal } from './shared/BaseModal';
 import { InfoButton, InfoModal } from './shared';
 import { NumberInput } from './shared/NumberInput';
-
-interface BillingScenario {
-  id: number;
-  practitioner_appointment_type_id: number;
-  name: string;
-  amount: number;
-  revenue_share: number;
-  is_default: boolean;
-}
+import { useServiceItemsStore, BillingScenario } from '../stores/serviceItemsStore';
 
 interface ServiceItemsSettingsProps {
   appointmentTypes: AppointmentType[];
@@ -24,10 +16,6 @@ interface ServiceItemsSettingsProps {
   onUpdateType: (index: number, field: keyof AppointmentType, value: string | number | boolean | null) => void;
   onRemoveType: (index: number) => Promise<void> | void;
   isClinicAdmin: boolean;
-  practitionerAssignments: Record<number, number[]>; // service_item_id -> practitioner_ids[]
-  billingScenarios: Record<string, BillingScenario[]>; // key: "service_item_id-practitioner_id"
-  onPractitionerAssignmentsChange: (serviceItemId: number, practitionerIds: number[]) => void;
-  onBillingScenariosChange: (key: string, scenarios: BillingScenario[]) => void;
 }
 
 const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
@@ -36,15 +24,20 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
   onUpdateType,
   onRemoveType,
   isClinicAdmin,
-  practitionerAssignments,
-  billingScenarios,
-  onPractitionerAssignmentsChange,
-  onBillingScenariosChange,
 }) => {
+  // Use service items store
+  const {
+    practitionerAssignments,
+    billingScenarios,
+    loadingScenarios,
+    updatePractitionerAssignments,
+    updateBillingScenarios,
+    loadBillingScenarios: loadBillingScenariosFromStore,
+  } = useServiceItemsStore();
+
   const [members, setMembers] = useState<Member[]>([]);
   const [, setLoadingMembers] = useState(false);
   const [expandedServiceItems, setExpandedServiceItems] = useState<Set<number>>(new Set());
-  const [loadingScenarios, setLoadingScenarios] = useState<Set<string>>(new Set());
   // Track failed requests to prevent infinite retries (especially 404s)
   const [failedScenarios, setFailedScenarios] = useState<Set<string>>(new Set());
   const [editingScenario, setEditingScenario] = useState<{ serviceItemId: number; practitionerId: number; scenarioId?: number } | null>(null);
@@ -68,7 +61,6 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
   }, [isClinicAdmin]);
 
   // Load billing scenarios when service items are expanded and practitioners are assigned
-  // This replaces the render-time loading that was causing infinite loops
   useEffect(() => {
     if (!isClinicAdmin || members.length === 0) {
       return;
@@ -84,17 +76,17 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
       assignedPractitionerIds.forEach(practitionerId => {
         const key = `${type.id}-${practitionerId}`;
         // Only load if not already loaded, not currently loading, and not previously failed
-        // We check these values inside the effect to avoid unnecessary re-runs
         const isLoaded = !!billingScenarios[key];
         const isLoading = loadingScenarios.has(key);
         const hasFailed = failedScenarios.has(key);
         
         if (!isLoaded && !isLoading && !hasFailed) {
-          loadBillingScenarios(type.id, practitionerId);
+          loadBillingScenariosFromStore(type.id, practitionerId);
         }
       });
     });
     // Only depend on the triggers that should cause loading, not the loading state itself
+    // billingScenarios and loadingScenarios are checked inside the effect, not in dependencies
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandedServiceItems, practitionerAssignments, members.length, isClinicAdmin, appointmentTypes.length]);
 
@@ -135,24 +127,8 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
       return;
     }
 
-    // Don't try to load billing scenarios for temporary IDs (Date.now() timestamps)
-    // These will be loaded after the appointment type is saved and gets a real ID
-    // Temporary IDs are generated using Date.now(), which produces large timestamps
-    const TEMPORARY_ID_THRESHOLD = 1000000000000;
-    if (serviceItemId > TEMPORARY_ID_THRESHOLD) {
-      // Set empty array to prevent retry attempts
-      onBillingScenariosChange(key, []);
-      return;
-    }
-
     try {
-      setLoadingScenarios(prev => new Set(prev).add(key));
-      const data = await apiService.getBillingScenarios(serviceItemId, practitionerId);
-      // Update both current and original state when first loading
-      // (This ensures original state is set for comparison)
-      onBillingScenariosChange(key, data.billing_scenarios);
-      // Note: Original state should also be updated, but that's handled by the context
-      // when it detects this is the first load (original is empty)
+      await loadBillingScenariosFromStore(serviceItemId, practitionerId);
       // Remove from failed set if it was there (in case of retry after error)
       setFailedScenarios(prev => {
         const newSet = new Set(prev);
@@ -160,22 +136,9 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
         return newSet;
       });
     } catch (err: any) {
-      // Handle 404 gracefully - treat as "no scenarios exist yet" (expected for new practitioners)
-      // Don't log 404s as errors since this is a normal, expected state
-      if (err?.response?.status === 404 || err?.code === 'ERR_BAD_REQUEST') {
-        // 404 means no scenarios exist - set empty array and mark as "loaded" (not failed)
-        onBillingScenariosChange(key, []);
-      } else {
-        // For actual errors (network issues, 500s, etc.), log and mark as failed
-        logger.error('Error loading billing scenarios:', err);
-        setFailedScenarios(prev => new Set(prev).add(key));
-      }
-    } finally {
-      setLoadingScenarios(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(key);
-        return newSet;
-      });
+      // For actual errors (network issues, 500s, etc.), mark as failed
+      logger.error('Error loading billing scenarios:', err);
+      setFailedScenarios(prev => new Set(prev).add(key));
     }
   };
 
@@ -235,7 +198,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
           ? { ...s, name: scenarioForm.name, amount, revenue_share, is_default: scenarioForm.is_default }
           : scenarioForm.is_default ? { ...s, is_default: false } : s
       );
-      onBillingScenariosChange(key, updatedScenarios);
+      updateBillingScenarios(key, updatedScenarios);
     } else {
       // Create new (with temporary negative ID, will be replaced by real ID from backend on save)
       const newScenario: BillingScenario = {
@@ -250,7 +213,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
       const updatedScenarios = scenarioForm.is_default
         ? [...currentScenarios.map(s => ({ ...s, is_default: false })), newScenario]
         : [...currentScenarios, newScenario];
-      onBillingScenariosChange(key, updatedScenarios);
+      updateBillingScenarios(key, updatedScenarios);
     }
 
     setEditingScenario(null);
@@ -264,7 +227,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
     const key = `${serviceItemId}-${practitionerId}`;
     const currentScenarios = billingScenarios[key] || [];
     const updatedScenarios = currentScenarios.filter(s => s.id !== scenarioId);
-    onBillingScenariosChange(key, updatedScenarios);
+    updateBillingScenarios(key, updatedScenarios);
   };
 
   return (
@@ -514,16 +477,16 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                                             if (shouldAssign) {
                                               // Add practitioner to this service item
                                               if (!currentPractitionerIds.includes(practitioner.id)) {
-                                                onPractitionerAssignmentsChange(type.id, [...currentPractitionerIds, practitioner.id]);
+                                                updatePractitionerAssignments(type.id, [...currentPractitionerIds, practitioner.id]);
                                               }
                                             } else {
                                               // Remove practitioner from this service item
-                                              onPractitionerAssignmentsChange(
+                                              updatePractitionerAssignments(
                                                 type.id,
                                                 currentPractitionerIds.filter(id => id !== practitioner.id)
                                               );
                                               // Clear billing scenarios for this practitioner-service
-                                              onBillingScenariosChange(key, []);
+                                              updateBillingScenarios(key, []);
                                               // Also clear from failed set to allow retry if needed
                                               setFailedScenarios(prev => {
                                                 const newSet = new Set(prev);
