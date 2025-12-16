@@ -140,6 +140,17 @@ const RevenueDistributionPage: React.FC = () => {
     return new Set(serviceItems.filter(si => !si.is_custom).map(si => si.id));
   }, [serviceItems]);
 
+  // Map service_item_id to name from appointment_types for display
+  const serviceItemIdToName = useMemo(() => {
+    const map = new Map<number, string>();
+    if (settingsData?.appointment_types) {
+      settingsData.appointment_types.forEach(at => {
+        map.set(at.id, at.name);
+      });
+    }
+    return map;
+  }, [settingsData]);
+
   // Check if data contains null practitioners (for showing "無" option in dropdown)
   const hasNullPractitionerInData = useMemo(() => {
     return data?.items?.some(item => item.practitioner_id === null) ?? false;
@@ -496,7 +507,7 @@ const RevenueDistributionPage: React.FC = () => {
                             <span className="text-xs text-gray-400 ml-1">(自訂)</span>
                           </>
                         ) : (
-                          item.receipt_name
+                          item.service_item_id ? (serviceItemIdToName.get(item.service_item_id) || item.receipt_name) : item.receipt_name
                         )}
                       </td>
                       <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-500 text-center whitespace-nowrap">

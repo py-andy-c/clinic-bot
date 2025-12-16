@@ -114,7 +114,7 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
           </option>
           {standardItems.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.receipt_name || item.name}
+              {item.name}
             </option>
           ))}
         </>

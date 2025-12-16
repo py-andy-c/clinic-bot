@@ -117,6 +117,16 @@ const BusinessInsightsPage: React.FC = () => {
     return new Set(serviceItems.filter(si => !si.is_custom).map(si => si.id));
   }, [serviceItems]);
 
+  // Map service_item_id to name from appointment_types for display
+  const serviceItemIdToName = useMemo(() => {
+    const map = new Map<number, string>();
+    if (settingsData?.appointment_types) {
+      settingsData.appointment_types.forEach(at => {
+        map.set(at.id, at.name);
+      });
+    }
+    return map;
+  }, [settingsData]);
 
   const handleTimeRangePreset = (preset: TimeRangePreset) => {
     const { startDate: newStartDate, endDate: newEndDate } = getDateRangeForPreset(preset);
@@ -142,10 +152,13 @@ const BusinessInsightsPage: React.FC = () => {
     const names: Record<string, string> = {};
     data.by_service.forEach(item => {
       const key = item.is_custom ? `custom:${item.receipt_name}` : String(item.service_item_id);
-      names[key] = item.receipt_name;
+      // Use name for standard items, receipt_name for custom items
+      names[key] = item.is_custom 
+        ? item.receipt_name 
+        : (item.service_item_id ? (serviceItemIdToName.get(item.service_item_id) || item.receipt_name) : item.receipt_name);
     });
     return names;
-  }, [data?.by_service]);
+  }, [data?.by_service, serviceItemIdToName]);
 
   const practitionerNames = useMemo(() => {
     if (!data?.by_practitioner) return {};
@@ -381,7 +394,7 @@ const BusinessInsightsPage: React.FC = () => {
                           <span className="text-xs text-gray-400 ml-1">(自訂)</span>
                         </>
                       ) : (
-                        item.receipt_name
+                        item.service_item_id ? (serviceItemIdToName.get(item.service_item_id) || item.receipt_name) : item.receipt_name
                       )}
                     </td>
                     <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-right">

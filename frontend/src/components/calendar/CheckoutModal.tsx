@@ -703,7 +703,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <option value="">選擇服務項目...</option>
                       {availableServiceItems.map(si => (
                         <option key={si.id} value={si.id}>
-                          {si.receipt_name || si.name}
+                          {si.name}
                         </option>
                       ))}
                       <option value="other">其他</option>
