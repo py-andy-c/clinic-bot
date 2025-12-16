@@ -1261,6 +1261,241 @@ class AvailabilityService:
         return results
 
     @staticmethod
+    def _format_normal_hours(
+        date: date_type,
+        default_intervals: List[PractitionerAvailability]
+    ) -> Optional[str]:
+        """
+        Format normal availability hours for a given date.
+        
+        Shows all intervals if multiple exist, e.g., "週一 09:00-12:00, 14:00-18:00"
+        
+        Args:
+            date: Date to format
+            default_intervals: List of default availability intervals for the day
+            
+        Returns:
+            Formatted string with day name and all intervals, or None if no intervals
+        """
+        if not default_intervals:
+            return None
+        
+        day_of_week = date.weekday()
+        day_names = ['週一', '週二', '週三', '週四', '週五', '週六', '週日']
+        day_name = day_names[day_of_week]
+        
+        # Format all intervals
+        intervals_str = ", ".join([
+            f"{AvailabilityService._format_time(interval.start_time)}-{AvailabilityService._format_time(interval.end_time)}"
+            for interval in default_intervals
+        ])
+        
+        return f"{day_name} {intervals_str}"
+
+    @staticmethod
+    def check_scheduling_conflicts(
+        db: Session,
+        practitioner_id: int,
+        date: date_type,
+        start_time: time,
+        appointment_type_id: int,
+        clinic_id: int,
+        exclude_calendar_event_id: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Check for scheduling conflicts at a specific time.
+        
+        Checks conflicts in priority order:
+        1. Appointment conflicts (highest priority)
+        2. Availability exception conflicts (medium priority)
+        3. Outside default availability (lowest priority)
+        
+        Args:
+            db: Database session
+            practitioner_id: Practitioner user ID
+            date: Date to check
+            start_time: Start time to check (HH:MM)
+            appointment_type_id: Appointment type ID (for duration calculation)
+            clinic_id: Clinic ID
+            exclude_calendar_event_id: Optional calendar event ID to exclude from conflict checking
+            
+        Returns:
+            Dict with conflict information:
+            {
+                "has_conflict": bool,
+                "conflict_type": "appointment" | "exception" | "availability" | None,
+                "appointment_conflict": {...} | None,
+                "exception_conflict": {...} | None,
+                "default_availability": {
+                    "is_within_hours": bool,
+                    "normal_hours": str | None
+                }
+            }
+        """
+        from services.appointment_type_service import AppointmentTypeService
+        from models import Appointment, CalendarEvent
+        
+        # Get appointment type for duration
+        # Note: get_appointment_type_by_id raises HTTPException if not found, so no need for None check
+        appointment_type = AppointmentTypeService.get_appointment_type_by_id(
+            db, appointment_type_id, clinic_id=clinic_id
+        )
+        
+        # Calculate end_time = start_time + duration_minutes + scheduling_buffer_minutes
+        total_minutes = start_time.hour * 60 + start_time.minute
+        total_minutes += appointment_type.duration_minutes
+        total_minutes += (appointment_type.scheduling_buffer_minutes or 0)
+        
+        end_hour = total_minutes // 60
+        end_minute = total_minutes % 60
+        
+        # Handle overflow past 23:59
+        if end_hour >= 24:
+            logger.warning(
+                f"Appointment end time overflow: start_time={start_time}, "
+                f"duration={appointment_type.duration_minutes}, "
+                f"buffer={appointment_type.scheduling_buffer_minutes}, "
+                f"calculated_end_hour={end_hour}"
+            )
+            end_hour = 23
+            end_minute = 59
+        
+        end_time = time(end_hour, end_minute)
+        
+        # Fetch schedule data for this practitioner and date
+        schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
+            db, [practitioner_id], date, clinic_id, exclude_calendar_event_id
+        )
+        
+        practitioner_data = schedule_data.get(practitioner_id, {
+            'default_intervals': [],
+            'events': []
+        })
+        
+        default_intervals = practitioner_data['default_intervals']
+        events = practitioner_data['events']
+        
+        # Check conflicts in priority order
+        
+        # 1. Check for appointment conflicts (highest priority)
+        appointment_conflict = None
+        for event in events:
+            if (event.start_time and event.end_time and
+                event.event_type == 'appointment' and
+                AvailabilityService._check_time_overlap(
+                    start_time, end_time,
+                    event.start_time, event.end_time
+                )):
+                # Get appointment details
+                appointment = db.query(Appointment).filter(
+                    Appointment.calendar_event_id == event.id,
+                    Appointment.status == 'confirmed'
+                ).first()
+                
+                if appointment:
+                    # Get appointment type name
+                    appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "未知"
+                    patient_name = appointment.patient.full_name if appointment.patient else "未知"
+                    
+                    # Note: appointment.calendar_event_id is the primary key of Appointment
+                    # and represents the appointment ID used throughout the API
+                    appointment_conflict = {
+                        "appointment_id": appointment.calendar_event_id,
+                        "patient_name": patient_name,
+                        "start_time": AvailabilityService._format_time(event.start_time),
+                        "end_time": AvailabilityService._format_time(event.end_time),
+                        "appointment_type": appointment_type_name
+                    }
+                    break  # Return first conflict found (highest priority)
+        
+        if appointment_conflict:
+            # Format default availability info
+            is_within_hours = AvailabilityService.is_slot_within_default_intervals(
+                default_intervals, start_time, end_time
+            )
+            normal_hours = AvailabilityService._format_normal_hours(date, default_intervals)
+            
+            return {
+                "has_conflict": True,
+                "conflict_type": "appointment",
+                "appointment_conflict": appointment_conflict,
+                "exception_conflict": None,
+                "default_availability": {
+                    "is_within_hours": is_within_hours,
+                    "normal_hours": normal_hours
+                }
+            }
+        
+        # 2. Check for availability exception conflicts (medium priority)
+        exception_conflict = None
+        for event in events:
+            if (event.start_time and event.end_time and
+                event.event_type == 'availability_exception' and
+                AvailabilityService._check_time_overlap(
+                    start_time, end_time,
+                    event.start_time, event.end_time
+                )):
+                # Get exception reason if available (use custom_event_name as reason)
+                reason = event.custom_event_name if event.custom_event_name else None
+                
+                exception_conflict = {
+                    "exception_id": event.id,
+                    "start_time": AvailabilityService._format_time(event.start_time),
+                    "end_time": AvailabilityService._format_time(event.end_time),
+                    "reason": reason
+                }
+                break  # Return first conflict found
+        
+        if exception_conflict:
+            # Format default availability info
+            is_within_hours = AvailabilityService.is_slot_within_default_intervals(
+                default_intervals, start_time, end_time
+            )
+            normal_hours = AvailabilityService._format_normal_hours(date, default_intervals)
+            
+            return {
+                "has_conflict": True,
+                "conflict_type": "exception",
+                "appointment_conflict": None,
+                "exception_conflict": exception_conflict,
+                "default_availability": {
+                    "is_within_hours": is_within_hours,
+                    "normal_hours": normal_hours
+                }
+            }
+        
+        # 3. Check if outside default availability (lowest priority)
+        is_within_hours = AvailabilityService.is_slot_within_default_intervals(
+            default_intervals, start_time, end_time
+        )
+        
+        normal_hours = AvailabilityService._format_normal_hours(date, default_intervals)
+        
+        if not is_within_hours:
+            return {
+                "has_conflict": True,
+                "conflict_type": "availability",
+                "appointment_conflict": None,
+                "exception_conflict": None,
+                "default_availability": {
+                    "is_within_hours": False,
+                    "normal_hours": normal_hours
+                }
+            }
+        
+        # No conflicts
+        return {
+            "has_conflict": False,
+            "conflict_type": None,
+            "appointment_conflict": None,
+            "exception_conflict": None,
+            "default_availability": {
+                "is_within_hours": True,
+                "normal_hours": normal_hours
+            }
+        }
+
+    @staticmethod
     def get_batch_available_slots_for_clinic(
         db: Session,
         clinic_id: int,
@@ -1368,3 +1603,5 @@ class AvailabilityService:
                 })
         
         return results
+
+    @staticmethod

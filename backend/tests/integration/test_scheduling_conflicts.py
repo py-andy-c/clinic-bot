@@ -1,0 +1,482 @@
+"""
+Integration tests for scheduling conflict detection endpoint.
+
+Tests the conflict detection functionality including:
+- Appointment conflicts (highest priority)
+- Availability exception conflicts (medium priority)
+- Outside default availability (lowest priority)
+- Excluding calendar events (for editing appointments)
+"""
+
+import pytest
+from datetime import date, time, timedelta
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
+from main import app
+from utils.datetime_utils import taiwan_now
+from models import User, Clinic, AppointmentType, Patient, PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment
+from core.database import get_db
+from tests.conftest import (
+    create_user_with_clinic_association,
+    create_practitioner_availability_with_clinic,
+    create_calendar_event_with_clinic
+)
+
+
+@pytest.fixture
+def client(db_session):
+    """Create test client with database override."""
+    def override_get_db():
+        return db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+    yield client
+    app.dependency_overrides.pop(get_db, None)
+
+
+@pytest.fixture
+def test_clinic_and_practitioner(db_session: Session):
+    """Create a test clinic and practitioner with clinic association."""
+    clinic = Clinic(
+        name="Test Clinic",
+        line_channel_id="test_channel",
+        line_channel_secret="test_secret",
+        line_channel_access_token="test_token"
+    )
+    db_session.add(clinic)
+    db_session.flush()
+    
+    practitioner, _ = create_user_with_clinic_association(
+        db_session=db_session,
+        clinic=clinic,
+        full_name="Dr. Test",
+        email="practitioner@example.com",
+        google_subject_id="practitioner_subject",
+        roles=["practitioner"],
+        is_active=True
+    )
+    db_session.flush()
+    
+    return clinic, practitioner
+
+
+def get_auth_token(client: TestClient, email: str) -> str:
+    """Helper to get authentication token for a user."""
+    response = client.post(f"/api/auth/dev/login?email={email}&user_type=clinic_user")
+    assert response.status_code == 200
+    return response.json()["access_token"]
+
+
+class TestSchedulingConflicts:
+    """Test scheduling conflict detection endpoint."""
+
+    def test_check_scheduling_conflicts_appointment_conflict(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test checking scheduling conflicts - appointment conflict (highest priority)."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30,
+            scheduling_buffer_minutes=0
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create default availability
+        future_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = future_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.flush()
+
+        # Create existing appointment
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Existing Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        existing_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="appointment",
+            event_date=future_date,
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.flush()
+
+        existing_appointment = Appointment(
+            calendar_event_id=existing_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(existing_appointment)
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test checking conflict at overlapping time
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
+            params={
+                "date": future_date.isoformat(),
+                "start_time": "10:15",
+                "appointment_type_id": appointment_type.id
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["has_conflict"] is True
+        assert data["conflict_type"] == "appointment"
+        assert data["appointment_conflict"] is not None
+        assert data["appointment_conflict"]["patient_name"] == "Existing Patient"
+        assert data["appointment_conflict"]["start_time"] == "10:00"
+        assert data["appointment_conflict"]["end_time"] == "10:30"
+        assert data["exception_conflict"] is None
+
+    def test_check_scheduling_conflicts_exception_conflict(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test checking scheduling conflicts - availability exception conflict (medium priority)."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30,
+            scheduling_buffer_minutes=0
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create default availability
+        future_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = future_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.flush()
+
+        # Create availability exception
+        exception_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="availability_exception",
+            event_date=future_date,
+            start_time=time(14, 0),
+            end_time=time(16, 0),
+            custom_event_name="個人請假"
+        )
+        db_session.flush()
+
+        exception = AvailabilityException(
+            calendar_event_id=exception_event.id
+        )
+        db_session.add(exception)
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test checking conflict at overlapping time
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
+            params={
+                "date": future_date.isoformat(),
+                "start_time": "14:30",
+                "appointment_type_id": appointment_type.id
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["has_conflict"] is True
+        assert data["conflict_type"] == "exception"
+        assert data["exception_conflict"] is not None
+        assert data["exception_conflict"]["start_time"] == "14:00"
+        assert data["exception_conflict"]["end_time"] == "16:00"
+        assert data["exception_conflict"]["reason"] == "個人請假"
+        assert data["appointment_conflict"] is None
+
+    def test_check_scheduling_conflicts_outside_availability(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test checking scheduling conflicts - outside default availability (lowest priority)."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30,
+            scheduling_buffer_minutes=0
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create default availability (9 AM to 5 PM)
+        future_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = future_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test checking conflict outside normal hours (8 AM)
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
+            params={
+                "date": future_date.isoformat(),
+                "start_time": "08:00",
+                "appointment_type_id": appointment_type.id
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["has_conflict"] is True
+        assert data["conflict_type"] == "availability"
+        assert data["default_availability"]["is_within_hours"] is False
+        assert data["default_availability"]["normal_hours"] is not None
+        assert "09:00" in data["default_availability"]["normal_hours"]
+        assert data["appointment_conflict"] is None
+        assert data["exception_conflict"] is None
+
+    def test_check_scheduling_conflicts_no_conflict(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test checking scheduling conflicts - no conflict."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30,
+            scheduling_buffer_minutes=0
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create default availability
+        future_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = future_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test checking conflict at available time
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
+            params={
+                "date": future_date.isoformat(),
+                "start_time": "11:00",
+                "appointment_type_id": appointment_type.id
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["has_conflict"] is False
+        assert data["conflict_type"] is None
+        assert data["default_availability"]["is_within_hours"] is True
+        assert data["appointment_conflict"] is None
+        assert data["exception_conflict"] is None
+
+    def test_check_scheduling_conflicts_exclude_calendar_event(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test checking scheduling conflicts with exclude_calendar_event_id (for editing appointments)."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30,
+            scheduling_buffer_minutes=0
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create default availability
+        future_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = future_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.flush()
+
+        # Create existing appointment
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Existing Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        existing_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="appointment",
+            event_date=future_date,
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.flush()
+
+        existing_appointment = Appointment(
+            calendar_event_id=existing_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(existing_appointment)
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test checking conflict at same time but excluding the existing appointment
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
+            params={
+                "date": future_date.isoformat(),
+                "start_time": "10:00",
+                "appointment_type_id": appointment_type.id,
+                "exclude_calendar_event_id": existing_event.id
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should not show conflict since we're excluding the existing appointment
+        assert data["has_conflict"] is False
+        assert data["conflict_type"] is None
+
+    def test_check_scheduling_conflicts_priority_order(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
+        """Test that appointment conflicts take priority over exception conflicts."""
+        clinic, practitioner = test_clinic_and_practitioner
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Appointment",
+            duration_minutes=30,
+            scheduling_buffer_minutes=0
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        # Create default availability
+        future_date = (taiwan_now() + timedelta(days=2)).date()
+        day_of_week = future_date.weekday()
+        create_practitioner_availability_with_clinic(
+            db_session, practitioner, clinic,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.flush()
+
+        # Create availability exception
+        exception_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="availability_exception",
+            event_date=future_date,
+            start_time=time(10, 0),
+            end_time=time(12, 0),
+            custom_event_name="個人請假"
+        )
+        db_session.flush()
+
+        exception = AvailabilityException(
+            calendar_event_id=exception_event.id
+        )
+        db_session.add(exception)
+        db_session.flush()
+
+        # Create appointment that overlaps with exception
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Existing Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        existing_event = create_calendar_event_with_clinic(
+            db_session, practitioner, clinic,
+            event_type="appointment",
+            event_date=future_date,
+            start_time=time(10, 30),
+            end_time=time(11, 0)
+        )
+        db_session.flush()
+
+        existing_appointment = Appointment(
+            calendar_event_id=existing_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(existing_appointment)
+        db_session.commit()
+
+        # Get authentication token
+        token = get_auth_token(client, practitioner.email)
+
+        # Test checking conflict - should show appointment conflict (higher priority)
+        response = client.get(
+            f"/api/clinic/practitioners/{practitioner.id}/availability/conflicts",
+            params={
+                "date": future_date.isoformat(),
+                "start_time": "10:45",
+                "appointment_type_id": appointment_type.id
+            },
+            headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should show appointment conflict (highest priority), not exception conflict
+        assert data["has_conflict"] is True
+        assert data["conflict_type"] == "appointment"
+        assert data["appointment_conflict"] is not None
+        assert data["exception_conflict"] is None
+

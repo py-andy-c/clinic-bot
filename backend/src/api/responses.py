@@ -378,3 +378,36 @@ class RevenueDistributionResponse(BaseModel):
     total: int  # Total number of items (for pagination)
     page: int
     page_size: int
+
+
+# Conflict Detection Response Models
+class AppointmentConflictDetail(BaseModel):
+    """Detail model for appointment conflict."""
+    appointment_id: int
+    patient_name: str
+    start_time: str  # HH:MM format
+    end_time: str  # HH:MM format
+    appointment_type: str
+
+
+class ExceptionConflictDetail(BaseModel):
+    """Detail model for availability exception conflict."""
+    exception_id: int
+    start_time: str  # HH:MM format
+    end_time: str  # HH:MM format
+    reason: Optional[str] = None
+
+
+class DefaultAvailabilityInfo(BaseModel):
+    """Information about default availability."""
+    is_within_hours: bool
+    normal_hours: Optional[str] = None  # e.g., "週一 09:00-18:00"
+
+
+class SchedulingConflictResponse(BaseModel):
+    """Response model for scheduling conflict detection."""
+    has_conflict: bool
+    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | null
+    appointment_conflict: Optional[AppointmentConflictDetail] = None
+    exception_conflict: Optional[ExceptionConflictDetail] = None
+    default_availability: DefaultAvailabilityInfo

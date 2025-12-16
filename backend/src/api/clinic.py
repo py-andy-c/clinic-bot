@@ -52,7 +52,8 @@ from api.responses import (
     AvailableSlotsResponse, AvailableSlotResponse, ConflictWarningResponse, ConflictDetail,
     PatientCreateResponse, AppointmentListResponse, AppointmentListItem,
     ClinicDashboardMetricsResponse,
-    BusinessInsightsResponse, RevenueDistributionResponse
+    BusinessInsightsResponse, RevenueDistributionResponse,
+    SchedulingConflictResponse
 )
 
 router = APIRouter()
@@ -4505,6 +4506,109 @@ async def get_available_slots(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法取得可用時段"
+        )
+
+
+@router.get("/practitioners/{user_id}/availability/conflicts",
+           summary="Check scheduling conflicts for a specific time")
+async def check_scheduling_conflicts(
+    user_id: int,
+    date: str = Query(..., description="Date in YYYY-MM-DD format"),
+    start_time: str = Query(..., description="Start time in HH:MM format"),
+    appointment_type_id: int = Query(..., description="Appointment type ID"),
+    exclude_calendar_event_id: int | None = Query(None, description="Calendar event ID to exclude from conflict checking (for appointment editing)"),
+    db: Session = Depends(get_db),
+    current_user: UserContext = Depends(require_practitioner_or_admin)
+) -> SchedulingConflictResponse:
+    """
+    Check for scheduling conflicts at a specific time.
+    
+    Returns conflict information in priority order:
+    1. Appointment conflicts (highest priority)
+    2. Availability exception conflicts (medium priority)
+    3. Outside default availability (lowest priority)
+    
+    Used by frontend to show conflict warnings when scheduling appointments
+    outside normal availability (override mode).
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Verify user exists, is active, and is a practitioner in the same clinic
+        verify_practitioner_in_clinic(db, user_id, clinic_id)
+        
+        # Parse date
+        requested_date = parse_date_string(date)
+        
+        # Parse start_time
+        try:
+            hour, minute = map(int, start_time.split(':'))
+            if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                raise ValueError("Invalid time range")
+            start_time_obj = time(hour, minute)
+        except (ValueError, AttributeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無效的時間格式（請使用 HH:MM）"
+            )
+        
+        # Check conflicts using service
+        conflict_data = AvailabilityService.check_scheduling_conflicts(
+            db=db,
+            practitioner_id=user_id,
+            date=requested_date,
+            start_time=start_time_obj,
+            appointment_type_id=appointment_type_id,
+            clinic_id=clinic_id,
+            exclude_calendar_event_id=exclude_calendar_event_id
+        )
+        
+        # Convert to response model
+        from api.responses import (
+            AppointmentConflictDetail, ExceptionConflictDetail, DefaultAvailabilityInfo
+        )
+        
+        appointment_conflict = None
+        if conflict_data.get("appointment_conflict"):
+            ac = conflict_data["appointment_conflict"]
+            appointment_conflict = AppointmentConflictDetail(
+                appointment_id=ac["appointment_id"],
+                patient_name=ac["patient_name"],
+                start_time=ac["start_time"],
+                end_time=ac["end_time"],
+                appointment_type=ac["appointment_type"]
+            )
+        
+        exception_conflict = None
+        if conflict_data.get("exception_conflict"):
+            ec = conflict_data["exception_conflict"]
+            exception_conflict = ExceptionConflictDetail(
+                exception_id=ec["exception_id"],
+                start_time=ec["start_time"],
+                end_time=ec["end_time"],
+                reason=ec.get("reason")
+            )
+        
+        default_availability = DefaultAvailabilityInfo(
+            is_within_hours=conflict_data["default_availability"]["is_within_hours"],
+            normal_hours=conflict_data["default_availability"].get("normal_hours")
+        )
+        
+        return SchedulingConflictResponse(
+            has_conflict=conflict_data["has_conflict"],
+            conflict_type=conflict_data.get("conflict_type"),
+            appointment_conflict=appointment_conflict,
+            exception_conflict=exception_conflict,
+            default_availability=default_availability
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to check scheduling conflicts for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="檢查時間衝突失敗"
         )
 
 
