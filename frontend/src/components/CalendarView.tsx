@@ -1355,8 +1355,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           timeslots={4}
           // Timezone configuration
           culture="zh-TW"
-          // Styling - expand to full screen, use full viewport height on mobile
-          style={{ height: isMobile ? '100vh' : 600 }}
+          style={{ height: 800 }}
         />
       </div>
 

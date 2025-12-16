@@ -19,12 +19,6 @@
   }
 }
 
-/* Main calendar container */
-.calendar-container {
-  @apply bg-white rounded-lg shadow-sm;
-  /* Height is set via style prop on Calendar component (required for react-big-calendar) */
-}
-
 /* Calendar header */
 .rbc-header {
   @apply bg-gray-50 text-gray-700 font-medium py-3 text-center border-b border-gray-200;
@@ -431,11 +425,6 @@
 
 /* Mobile optimizations */
 @media (max-width: 768px) {
-  .calendar-container {
-    height: 500px;
-    @apply rounded-none shadow-none;
-  }
-  
   .rbc-date-cell {
     @apply p-1;
   }
