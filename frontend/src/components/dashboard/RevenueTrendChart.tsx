@@ -196,20 +196,38 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
                 }}
               />
               <Tooltip
-                formatter={(value: number, name: string, props: any) => {
-                  // Get original value (not stacked) from the data point
-                  const dataIndex = props.payload?.dataIndex;
-                  if (dataIndex !== undefined && stackedData[dataIndex]) {
-                    const originalValue = stackedData[dataIndex][`${name}_original`] || 0;
-                    const label = view === 'stacked-service'
-                      ? serviceNames[name] || name
-                      : practitionerNames[name] || name;
-                    return [formatCurrency(originalValue), label];
-                  }
-                  return [formatCurrency(value), name];
+                content={({ active, payload, label }) => {
+                  if (!active || !payload || !payload.length) return null;
+                  
+                  return (
+                    <div className="bg-white border border-gray-200 rounded-md p-3 shadow-lg">
+                      <p className="text-sm font-medium text-gray-900 mb-2">{label}</p>
+                      <div className="space-y-1">
+                        {payload.map((entry: any, index: number) => {
+                          const dataKey = entry.dataKey || entry.name;
+                          const displayName = view === 'stacked-service'
+                            ? serviceNames[dataKey] || dataKey
+                            : practitionerNames[dataKey] || dataKey;
+                          // Get original (unstacked) value from the data point
+                          const originalValue = entry.payload?.[`${dataKey}_original`] ?? entry.value ?? 0;
+                          
+                          return (
+                            <div key={index} className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded"
+                                style={{ backgroundColor: entry.color }}
+                              />
+                              <span className="text-sm text-gray-700">{displayName}:</span>
+                              <span className="text-sm font-medium text-gray-900">
+                                {formatCurrency(originalValue)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
                 }}
-                labelStyle={{ color: '#374151', fontWeight: 500 }}
-                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '0.375rem' }}
               />
               <Legend
                 wrapperStyle={{ paddingTop: '10px' }}
