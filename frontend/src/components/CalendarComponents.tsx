@@ -1,6 +1,6 @@
 import React from 'react';
 import moment from 'moment-timezone';
-import { View, NavigateAction, Views } from 'react-big-calendar';
+import { View, NavigateAction } from 'react-big-calendar';
 import { CalendarEvent, formatEventTimeRange } from '../utils/calendarDataAdapter';
 import { getWeekdayNames } from '../utils/calendarUtils';
 import { useIsMobile } from '../hooks/useIsMobile';
@@ -188,18 +188,12 @@ export const CustomWeekHeader = ({ date }: any) => {
 };
 
 // Custom Event Component
-export const CustomEventComponent = ({ event, view }: { event: CalendarEvent; view?: View }) => {
+export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
   const timeStr = formatEventTimeRange(event.start, event.end);
   const practitionerName = event.resource.event_practitioner_name || event.resource.practitioner_name;
   const showPractitionerName = practitionerName && !event.resource.is_primary;
   const isAutoAssigned = event.resource.is_auto_assigned === true;
   const clinicNotes = event.resource.clinic_notes || '';
-  
-  // Determine character limit based on view
-  // Daily view: 150 chars, Weekly view: 80 chars, Monthly view: 40 chars
-  const charLimit = view === Views.DAY ? 150 : view === Views.WEEK ? 80 : 40;
-  const shouldTruncate = clinicNotes.length > charLimit;
-  const displayNotes = shouldTruncate ? clinicNotes.substring(0, charLimit) + '...' : clinicNotes;
   
   // Build tooltip with practitioner name if available
   // Order: Patient - Appointment Type, then Time, then Clinic Notes
@@ -218,10 +212,10 @@ export const CustomEventComponent = ({ event, view }: { event: CalendarEvent; vi
 
   return (
     <div 
-      className="flex items-center space-x-1"
+      className="flex items-start space-x-1"
       title={tooltipText}
     >
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex-1 min-w-0">
         <div className="text-xs leading-tight">
           {event.title && (
             <div className="font-medium whitespace-nowrap overflow-hidden text-ellipsis">
@@ -229,8 +223,8 @@ export const CustomEventComponent = ({ event, view }: { event: CalendarEvent; vi
             </div>
           )}
           {clinicNotes && (
-            <div className="whitespace-nowrap overflow-hidden text-ellipsis">
-              {displayNotes}
+            <div className="break-words">
+              {clinicNotes}
             </div>
           )}
           {isAutoAssigned && (
