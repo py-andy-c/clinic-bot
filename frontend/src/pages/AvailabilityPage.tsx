@@ -127,20 +127,41 @@ const AvailabilityPage: React.FC = () => {
   const hasLoadedPersistedStateRef = useRef(false);
   // Track if persisted state had a default practitioner to prevent default handler from overriding
   const persistedStateHadDefaultPractitionerRef = useRef(false);
+  // Track previous clinic ID to reset persistence flags when clinic changes
+  const previousClinicIdForPractitionersRef = useRef<number | null>(null);
 
   // Load persisted calendar state on mount (after user and practitioners are available)
   // This must run before the default practitioner handler
   useEffect(() => {
+    // Reset persistence flags when clinic changes
+    if (user?.active_clinic_id !== previousClinicIdForPractitionersRef.current && previousClinicIdForPractitionersRef.current !== null) {
+      hasLoadedPersistedStateRef.current = false;
+      persistedStateHadDefaultPractitionerRef.current = false;
+    }
+    previousClinicIdForPractitionersRef.current = user?.active_clinic_id ?? null;
+    
     if (!user?.user_id || !user?.active_clinic_id || practitioners.length === 0 || hasLoadedPersistedStateRef.current) {
       return;
     }
 
     const persistedState = calendarStorage.getCalendarState(user.user_id, user.active_clinic_id);
+    
     if (persistedState) {
       // Filter out invalid practitioners (those that no longer exist)
       const validPractitionerIds = persistedState.additionalPractitionerIds.filter(id =>
         practitioners.some(p => p.id === id)
       );
+      
+      // If we filtered out IDs but the persisted state had IDs, practitioners might still be loading.
+      // Don't mark as loaded yet - wait for practitioners array to grow to avoid overwriting persisted state.
+      // Only mark as loaded if all persisted IDs are valid OR persisted state had no IDs to begin with.
+      const allPersistedIdsAreValid = validPractitionerIds.length === persistedState.additionalPractitionerIds.length;
+      const hadNoPersistedIds = persistedState.additionalPractitionerIds.length === 0;
+      
+      if (!allPersistedIdsAreValid && !hadNoPersistedIds) {
+        // Don't set state or mark as loaded - let it re-run when more practitioners load
+        return;
+      }
       
       // Validate default practitioner exists
       const validDefaultPractitionerId = persistedState.defaultPractitionerId && 

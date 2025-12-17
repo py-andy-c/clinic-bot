@@ -678,6 +678,16 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Memoize fetchCalendarData to prevent unnecessary re-renders and enable proper dependency tracking
   const fetchCalendarData = useCallback(async (forceRefresh: boolean = false, silent: boolean = false) => {
     if (!userId) return;
+    
+    // Don't fetch if clinic ID is not available (e.g., during clinic switch)
+    if (!user?.active_clinic_id) {
+      setAllEvents([]);
+      setError(null);
+      if (!silent) {
+        setLoading(false);
+      }
+      return;
+    }
 
     // Determine the view type for date range calculation
     const viewType = view === Views.MONTH ? 'month' : view === Views.WEEK ? 'week' : 'day';
@@ -691,7 +701,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     const endDateStr = moment(end).format('YYYY-MM-DD');
     
     // Create cache key - include clinic ID and resource IDs to prevent stale data when switching clinics/resources
-    const clinicId = user?.active_clinic_id ?? 'no-clinic';
+    const clinicId = user.active_clinic_id;
     const sortedResourceIds = [...resourceIds].sort((a, b) => a - b);
     const resourceKey = sortedResourceIds.length > 0 ? `-resources-${sortedResourceIds.join(',')}` : '';
     const cacheKey = `${clinicId}-${allPractitionerIds.join(',')}${resourceKey}-${startDateStr}-${endDateStr}`;
@@ -908,14 +918,24 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
       setAllEvents(allEvents);
 
-    } catch (err) {
+    } catch (err: any) {
       // Remove from in-flight requests on error
       inFlightBatchRequestsRef.current.delete(cacheKey);
-      // Only show error if not silent (silent refreshes shouldn't disrupt UI)
-      if (!silent) {
-        setError('無法載入月曆資料');
+      
+      // Handle 404 errors gracefully - these can occur when switching clinics
+      // with stale practitioner/resource IDs that don't exist in the new clinic
+      if (err?.response?.status === 404) {
+        // Clear events and silently continue - the next fetch with correct IDs will succeed
+        setAllEvents([]);
+        setError(null);
+        logger.log('Calendar fetch returned 404 (likely clinic switch with stale IDs), clearing events');
+      } else {
+        // For other errors, show error message
+        if (!silent) {
+          setError('無法載入月曆資料');
+        }
+        logger.error('Fetch calendar data error:', err);
       }
-      logger.error('Fetch calendar data error:', err);
     } finally {
       if (!silent) {
         setLoading(false);
@@ -937,6 +957,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       cachedCalendarDataRef.current.clear();
       // Clear all in-flight requests
       inFlightBatchRequestsRef.current.clear();
+      // Clear events immediately to avoid showing stale data from previous clinic
+      setAllEvents([]);
       logger.log('Clinic changed, invalidated calendar cache', { 
         from: previousClinicIdRef.current, 
         to: currentClinicId 
