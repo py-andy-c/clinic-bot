@@ -93,16 +93,22 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
 
   setStep: (step) => set({ step }),
 
-  setAppointmentType: (id, type) => set({
-    appointmentTypeId: id,
-    appointmentType: type,
-    step: 2,
-    // Reset dependent fields
-    practitionerId: null,
-    practitioner: null,
-    date: null,
-    startTime: null,
-  }),
+  setAppointmentType: (id, type) => {
+    // If practitioner selection is not allowed, skip to step 3 and auto-assign
+    const skipPractitionerStep = type.allow_patient_practitioner_selection === false;
+    
+    set({
+      appointmentTypeId: id,
+      appointmentType: type,
+      step: skipPractitionerStep ? 3 : 2, // Skip to step 3 if practitioner selection disabled
+      // Reset dependent fields
+      practitionerId: null,
+      practitioner: null,
+      isAutoAssigned: skipPractitionerStep ? true : false, // Auto-assign if skipped
+      date: null,
+      startTime: null,
+    });
+  },
 
   setAppointmentTypeInstructions: (instructions) => set({
     appointmentTypeInstructions: instructions,

@@ -744,6 +744,7 @@ async def list_appointment_types(
                     duration_minutes=at.duration_minutes,
                     receipt_name=at.receipt_name,
                     allow_patient_booking=at.allow_patient_booking,
+                    allow_patient_practitioner_selection=at.allow_patient_practitioner_selection,
                     description=at.description,
                     scheduling_buffer_minutes=at.scheduling_buffer_minutes
                 ) for at in appointment_types
@@ -957,6 +958,29 @@ async def create_appointment(
     line_user, clinic = line_user_clinic
 
     try:
+        # Validate appointment type allows practitioner selection
+        appointment_type = db.query(AppointmentType).filter(
+            AppointmentType.id == request.appointment_type_id,
+            AppointmentType.clinic_id == clinic.id,
+            AppointmentType.is_deleted == False
+        ).first()
+
+        if not appointment_type:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="預約類型不存在"
+            )
+
+        # If appointment type doesn't allow practitioner selection and practitioner_id is provided, reject
+        if not appointment_type.allow_patient_practitioner_selection and request.practitioner_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="此服務類型不允許指定治療師"
+            )
+
+        # Force practitioner_id to None if setting is False (auto-assignment)
+        practitioner_id = None if not appointment_type.allow_patient_practitioner_selection else request.practitioner_id
+
         # Create appointment using service
         appointment_data = AppointmentService.create_appointment(
             db=db,
@@ -964,7 +988,7 @@ async def create_appointment(
             patient_id=request.patient_id,
             appointment_type_id=request.appointment_type_id,
             start_time=request.start_time,
-            practitioner_id=request.practitioner_id,
+            practitioner_id=practitioner_id,
             notes=request.notes,
             line_user_id=line_user.id
         )
@@ -1084,6 +1108,16 @@ async def get_appointment_details(
             db, appointment, clinic.id
         )
 
+        # Include appointment type information for frontend to check allow_patient_practitioner_selection
+        appointment_type = appointment.appointment_type
+        appointment_type_info = None
+        if appointment_type:
+            appointment_type_info = {
+                "id": appointment_type.id,
+                "name": appointment_type.name,
+                "allow_patient_practitioner_selection": appointment_type.allow_patient_practitioner_selection
+            }
+
         return {
             "id": appointment.calendar_event_id,
             "calendar_event_id": appointment.calendar_event_id,
@@ -1093,6 +1127,7 @@ async def get_appointment_details(
             "practitioner_name": practitioner_name,
             "appointment_type_id": appointment.appointment_type_id,
             "appointment_type_name": appointment.appointment_type.name if appointment.appointment_type else "未知",
+            "appointment_type": appointment_type_info,
             "start_time": start_datetime.isoformat() if start_datetime else "",
             "end_time": end_datetime.isoformat() if end_datetime else "",
             "status": appointment.status,
@@ -1330,6 +1365,37 @@ async def reschedule_appointment(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="您沒有權限修改此預約"
             )
+
+        # Validate appointment type allows practitioner selection
+        appointment_type = appointment.appointment_type
+        if not appointment_type:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="找不到預約類型"
+            )
+
+        # Check if patient is trying to change practitioner when not allowed
+        if not appointment_type.allow_patient_practitioner_selection:
+            calendar_event = appointment.calendar_event
+            current_practitioner_id = calendar_event.user_id if calendar_event else None
+            
+            # Determine what practitioner_id the patient wants
+            # request.new_practitioner_id can be:
+            # - None: keep current
+            # - -1: auto-assign (不指定)
+            # - int: specific practitioner
+            
+            if request.new_practitioner_id is not None:
+                if request.new_practitioner_id == -1:
+                    # Trying to auto-assign - this is allowed (setting is False, so auto-assign is expected)
+                    pass
+                elif request.new_practitioner_id != current_practitioner_id:
+                    # Trying to change to a different practitioner - reject
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="此服務類型不允許變更治療師"
+                    )
+                # If request.new_practitioner_id == current_practitioner_id, that's keeping same - allowed
 
         # Reschedule appointment using service
         # Pass pre-fetched appointment to avoid duplicate query (already fetched for authorization check)

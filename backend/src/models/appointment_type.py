@@ -43,6 +43,9 @@ class AppointmentType(Base):
     allow_patient_booking: Mapped[bool] = mapped_column(default=True)
     """Whether patients can book this service via LIFF. Default: true."""
 
+    allow_patient_practitioner_selection: Mapped[bool] = mapped_column(default=True)
+    """Whether patients can specify a practitioner when booking. Default: true."""
+
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     """Service description shown on LIFF."""
 

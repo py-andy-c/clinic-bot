@@ -709,6 +709,7 @@ async def get_settings(
                 duration_minutes=at.duration_minutes,
                 receipt_name=at.receipt_name,
                 allow_patient_booking=at.allow_patient_booking,
+                allow_patient_practitioner_selection=at.allow_patient_practitioner_selection,
                 description=at.description,
                 scheduling_buffer_minutes=at.scheduling_buffer_minutes
             )
@@ -1023,6 +1024,11 @@ async def update_settings(
                     existing_type.receipt_name = incoming_data.get("receipt_name")
                 if "allow_patient_booking" in incoming_data:
                     existing_type.allow_patient_booking = incoming_data.get("allow_patient_booking", True)
+                # Only update if explicitly provided (not None/undefined)
+                if "allow_patient_practitioner_selection" in incoming_data:
+                    raw_value = incoming_data.get("allow_patient_practitioner_selection")
+                    if raw_value is not None:
+                        existing_type.allow_patient_practitioner_selection = bool(raw_value)
                 if "description" in incoming_data:
                     existing_type.description = incoming_data.get("description")
                 if "scheduling_buffer_minutes" in incoming_data:
@@ -1039,6 +1045,11 @@ async def update_settings(
                     existing_type.receipt_name = incoming_data.get("receipt_name")
                 if "allow_patient_booking" in incoming_data:
                     existing_type.allow_patient_booking = incoming_data.get("allow_patient_booking", True)
+                # Only update if explicitly provided (not None/undefined)
+                if "allow_patient_practitioner_selection" in incoming_data:
+                    raw_value = incoming_data.get("allow_patient_practitioner_selection")
+                    if raw_value is not None:
+                        existing_type.allow_patient_practitioner_selection = bool(raw_value)
                 if "description" in incoming_data:
                     existing_type.description = incoming_data.get("description")
                 if "scheduling_buffer_minutes" in incoming_data:
@@ -1090,18 +1101,27 @@ async def update_settings(
                     existing.receipt_name = at_data.get("receipt_name")
                 if "allow_patient_booking" in at_data:
                     existing.allow_patient_booking = at_data.get("allow_patient_booking", True)
+                # Only update if explicitly provided (not None/undefined)
+                if "allow_patient_practitioner_selection" in at_data:
+                    raw_value = at_data.get("allow_patient_practitioner_selection")
+                    if raw_value is not None:
+                        existing.allow_patient_practitioner_selection = bool(raw_value)
                 if "description" in at_data:
                     existing.description = at_data.get("description")
                 if "scheduling_buffer_minutes" in at_data:
                     existing.scheduling_buffer_minutes = at_data.get("scheduling_buffer_minutes", 0)
             else:
                 # Create new
+                # Handle None as missing value (default to True)
+                raw_practitioner_selection = at_data.get("allow_patient_practitioner_selection")
+                allow_practitioner_selection = raw_practitioner_selection if raw_practitioner_selection is not None else True
                 appointment_type = AppointmentType(
                     clinic_id=clinic_id,
                     name=name,
                     duration_minutes=duration,
                     receipt_name=at_data.get("receipt_name"),
                     allow_patient_booking=at_data.get("allow_patient_booking", True),
+                    allow_patient_practitioner_selection=allow_practitioner_selection,
                     description=at_data.get("description"),
                     scheduling_buffer_minutes=at_data.get("scheduling_buffer_minutes", 0)
                 )

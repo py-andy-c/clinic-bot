@@ -64,6 +64,11 @@ const RescheduleFlow: React.FC = () => {
     practitioner_name: string;
     appointment_type_id: number;
     appointment_type_name: string;
+    appointment_type?: {
+      id: number;
+      name: string;
+      allow_patient_practitioner_selection: boolean;
+    } | null;
     start_time: string;
     end_time: string;
     status: string;
@@ -302,12 +307,17 @@ const RescheduleFlow: React.FC = () => {
       const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toISOString();
 
       // Determine practitioner ID to send:
+      // - If practitioner selection is not allowed, always keep current practitioner
       // - If same as original, send the ID to keep it
       // - If different (and not null), send the new ID
       // - If null (不指定 selected), send -1 for auto-assignment
       // - If undefined (not changed), send undefined to keep current
       let practitionerIdToSend: number | undefined;
-      if (selectedPractitionerId === null) {
+      
+      // If practitioner selection is disabled, always keep current practitioner
+      if (appointmentDetails.appointment_type?.allow_patient_practitioner_selection === false) {
+        practitionerIdToSend = appointmentDetails.practitioner_id;
+      } else if (selectedPractitionerId === null) {
         // "不指定" selected - request auto-assignment
         practitionerIdToSend = -1;
       } else if (selectedPractitionerId === appointmentDetails.practitioner_id) {
@@ -647,33 +657,35 @@ const RescheduleFlow: React.FC = () => {
             />
           </div>
 
-          {/* Practitioner selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('appointment.reschedule.practitioner')}
-            </label>
-            <select
-              value={selectedPractitionerId !== null ? selectedPractitionerId : ''}
-              onChange={(e) => {
-                const newPractitionerId = e.target.value ? parseInt(e.target.value) : null;
-                setSelectedPractitionerId(newPractitionerId);
-                // Reset date/time when practitioner changes
-                setSelectedDate(null);
-                setSelectedTime(null);
-              }}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {practitioners.map((p) => {
-                const isOriginalPractitioner = !appointmentDetails?.is_auto_assigned && p.id === appointmentDetails?.practitioner_id;
-                return (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name}{isOriginalPractitioner ? ` (${t('appointment.reschedule.originalPractitioner')})` : ''}
-                  </option>
-                );
-              })}
-              <option value="">{t('practitioner.notSpecified')}</option>
-            </select>
-          </div>
+          {/* Practitioner selection - only show if allowed */}
+          {appointmentDetails?.appointment_type?.allow_patient_practitioner_selection !== false && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('appointment.reschedule.practitioner')}
+              </label>
+              <select
+                value={selectedPractitionerId !== null ? selectedPractitionerId : ''}
+                onChange={(e) => {
+                  const newPractitionerId = e.target.value ? parseInt(e.target.value) : null;
+                  setSelectedPractitionerId(newPractitionerId);
+                  // Reset date/time when practitioner changes
+                  setSelectedDate(null);
+                  setSelectedTime(null);
+                }}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {practitioners.map((p) => {
+                  const isOriginalPractitioner = !appointmentDetails?.is_auto_assigned && p.id === appointmentDetails?.practitioner_id;
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {p.full_name}{isOriginalPractitioner ? ` (${t('appointment.reschedule.originalPractitioner')})` : ''}
+                    </option>
+                  );
+                })}
+                <option value="">{t('practitioner.notSpecified')}</option>
+              </select>
+            </div>
+          )}
 
           {/* Date/Time Picker */}
           <div>

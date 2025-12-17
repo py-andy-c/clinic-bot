@@ -94,6 +94,7 @@ const Step7Success: React.FC = () => {
       clinic_address: clinicAddress || undefined,
       clinic_phone_number: clinicPhoneNumber || undefined,
       is_auto_assigned: isAutoAssigned, // Pass flag for defensive check in ICS generator
+      allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true, // Pass flag to control practitioner display in ICS (default to true if undefined)
     };
 
       // Use Google Calendar URL (works on all platforms - iOS, Android, Desktop)
@@ -135,6 +136,7 @@ const Step7Success: React.FC = () => {
           // Use explicit undefined instead of conditional spread for clarity and type safety
           clinic_address: clinicAddress || undefined,
           clinic_phone_number: clinicPhoneNumber || undefined,
+          allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true, // Pass flag to control practitioner display in ICS (default to true if undefined)
         };
     downloadAppointmentICS(appointmentData);
       } catch (fallbackError) {
@@ -183,13 +185,16 @@ const Step7Success: React.FC = () => {
             <span className="text-gray-600">{t('success.appointmentType')}</span>
             <span className="font-medium">{appointmentType?.name}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">{t('success.practitioner')}</span>
-            <span className="font-medium">
-              {/* For auto-assigned appointments, always show "不指定" (patient doesn't see practitioner name) */}
-              {isAutoAssigned ? t('success.notSpecified') : (practitioner?.full_name || t('success.notSpecified'))}
-            </span>
-          </div>
+          {/* Only show practitioner field if appointment type allows patient to specify practitioner */}
+          {appointmentType?.allow_patient_practitioner_selection !== false && (
+            <div className="flex justify-between">
+              <span className="text-gray-600">{t('success.practitioner')}</span>
+              <span className="font-medium">
+                {/* For auto-assigned appointments, always show "不指定" (patient doesn't see practitioner name) */}
+                {isAutoAssigned ? t('success.notSpecified') : (practitioner?.full_name || t('success.notSpecified'))}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-gray-600">{t('success.dateTime')}</span>
             <span className="font-medium">{formatDateTime()}</span>

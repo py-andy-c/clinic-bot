@@ -69,12 +69,15 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointment, onCancel
       </div>
 
       <div className="space-y-2 mb-4">
-        <div className="flex items-center text-sm text-gray-600">
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-          {appointment.practitioner_name}
-        </div>
+        {/* Only show practitioner if not "不指定" (not specified) */}
+        {appointment.practitioner_name !== '不指定' && (
+          <div className="flex items-center text-sm text-gray-600">
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            {appointment.practitioner_name}
+          </div>
+        )}
 
         <div className="flex items-center text-sm text-gray-600">
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

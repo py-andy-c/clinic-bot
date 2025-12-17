@@ -3210,3 +3210,444 @@ class TestLanguagePreference:
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
+
+
+class TestAllowPatientPractitionerSelection:
+    """Test allow_patient_practitioner_selection setting for appointment types."""
+
+    def test_create_appointment_rejects_practitioner_when_setting_false(self, db_session: Session, test_clinic_with_liff):
+        """Test that creating appointment with practitioner_id is rejected when allow_patient_practitioner_selection=False."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create appointment type with allow_patient_practitioner_selection=False
+        appt_type_no_selection = AppointmentType(
+            clinic_id=clinic.id,
+            name="No Practitioner Selection",
+            duration_minutes=30,
+            allow_patient_practitioner_selection=False
+        )
+        db_session.add(appt_type_no_selection)
+        
+        # Associate practitioner with this appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type_no_selection.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        # Create LINE user and patient
+        line_user = LineUser(
+            line_user_id="U_test_no_selection",
+            clinic_id=clinic.id,
+            display_name="No Selection User"
+        )
+        db_session.add(line_user)
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="No Selection Patient",
+            phone_number="0911111111",
+            line_user_id=None
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        patient.line_user_id = line_user.id
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Try to create appointment with practitioner_id - should be rejected
+            future_date = (taiwan_now() + timedelta(days=3)).date().isoformat()
+            appointment_data = {
+                "patient_id": patient.id,
+                "appointment_type_id": appt_type_no_selection.id,
+                "practitioner_id": practitioner.id,  # This should be rejected
+                "start_time": f"{future_date}T10:00:00+08:00",
+                "notes": "Test appointment"
+            }
+
+            response = client.post("/api/liff/appointments", json=appointment_data)
+            assert response.status_code == 400
+            assert "不允許指定治療師" in response.json()["detail"]
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_create_appointment_auto_assigns_when_setting_false(self, db_session: Session, test_clinic_with_liff):
+        """Test that creating appointment without practitioner_id auto-assigns when allow_patient_practitioner_selection=False."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create appointment type with allow_patient_practitioner_selection=False
+        appt_type_no_selection = AppointmentType(
+            clinic_id=clinic.id,
+            name="Auto Assign Type",
+            duration_minutes=30,
+            allow_patient_practitioner_selection=False
+        )
+        db_session.add(appt_type_no_selection)
+        
+        # Associate practitioner with this appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type_no_selection.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        # Create LINE user and patient
+        line_user = LineUser(
+            line_user_id="U_test_auto_assign",
+            clinic_id=clinic.id,
+            display_name="Auto Assign User"
+        )
+        db_session.add(line_user)
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Auto Assign Patient",
+            phone_number="0911111112",
+            line_user_id=None
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        patient.line_user_id = line_user.id
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Create appointment without practitioner_id - should auto-assign
+            future_date = (taiwan_now() + timedelta(days=3)).date().isoformat()
+            appointment_data = {
+                "patient_id": patient.id,
+                "appointment_type_id": appt_type_no_selection.id,
+                "practitioner_id": None,  # No practitioner specified
+                "start_time": f"{future_date}T10:00:00+08:00",
+                "notes": "Auto assigned appointment"
+            }
+
+            response = client.post("/api/liff/appointments", json=appointment_data)
+            assert response.status_code == 200
+
+            appointment_result = response.json()
+            # Should be auto-assigned
+            assert appointment_result["practitioner_id"] is not None
+
+            # Verify in database that it's auto-assigned
+            calendar_event = db_session.query(CalendarEvent).filter(
+                CalendarEvent.date == datetime.fromisoformat(future_date).date(),
+                CalendarEvent.start_time == time(10, 0)
+            ).first()
+            assert calendar_event is not None
+
+            appointment = db_session.query(Appointment).filter_by(
+                calendar_event_id=calendar_event.id
+            ).first()
+            assert appointment is not None
+            assert appointment.is_auto_assigned == True
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_reschedule_rejects_practitioner_change_when_setting_false(self, db_session: Session, test_clinic_with_liff):
+        """Test that rescheduling with practitioner change is rejected when allow_patient_practitioner_selection=False."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create second practitioner
+        practitioner2, practitioner2_assoc = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner2@liffclinic.com",
+            google_subject_id="google_123_practitioner2",
+            full_name="Dr. Second Practitioner",
+            roles=["practitioner"]
+        )
+
+        # Create appointment type with allow_patient_practitioner_selection=False
+        appt_type_no_selection = AppointmentType(
+            clinic_id=clinic.id,
+            name="No Selection Type",
+            duration_minutes=30,
+            allow_patient_practitioner_selection=False
+        )
+        db_session.add(appt_type_no_selection)
+        
+        # Associate both practitioners with this appointment type
+        for p in [practitioner, practitioner2]:
+            pat = PractitionerAppointmentTypes(
+                user_id=p.id,
+                clinic_id=clinic.id,
+                appointment_type_id=appt_type_no_selection.id
+            )
+            db_session.add(pat)
+        db_session.commit()
+
+        # Create LINE user and patient
+        line_user = LineUser(
+            line_user_id="U_test_reschedule_reject",
+            clinic_id=clinic.id,
+            display_name="Reschedule Reject User"
+        )
+        db_session.add(line_user)
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Reschedule Reject Patient",
+            phone_number="0911111113",
+            line_user_id=None
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        patient.line_user_id = line_user.id
+        db_session.commit()
+
+        # Create an existing appointment with practitioner
+        future_date = (taiwan_now() + timedelta(days=3)).date()
+        calendar_event = create_calendar_event_with_clinic(
+            db_session,
+            practitioner=practitioner,
+            clinic=clinic,
+            event_type="appointment",
+            event_date=future_date,
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.flush()  # Flush to get calendar_event.id
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type_no_selection.id,
+            status="confirmed",
+            is_auto_assigned=False  # Originally manually assigned
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Try to reschedule and change practitioner - should be rejected
+            new_future_date = (taiwan_now() + timedelta(days=4)).date().isoformat()
+            reschedule_data = {
+                "new_practitioner_id": practitioner2.id,  # Trying to change practitioner
+                "new_start_time": f"{new_future_date}T11:00:00+08:00",
+                "new_notes": None
+            }
+
+            response = client.post(
+                f"/api/liff/appointments/{appointment.calendar_event_id}/reschedule",
+                json=reschedule_data
+            )
+            assert response.status_code == 400
+            assert "不允許變更治療師" in response.json()["detail"]
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_reschedule_allows_keeping_same_practitioner_when_setting_false(self, db_session: Session, test_clinic_with_liff):
+        """Test that rescheduling while keeping same practitioner is allowed when allow_patient_practitioner_selection=False."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create appointment type with allow_patient_practitioner_selection=False
+        appt_type_no_selection = AppointmentType(
+            clinic_id=clinic.id,
+            name="Keep Practitioner Type",
+            duration_minutes=30,
+            allow_patient_practitioner_selection=False
+        )
+        db_session.add(appt_type_no_selection)
+        
+        # Associate practitioner with this appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type_no_selection.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        # Create LINE user and patient
+        line_user = LineUser(
+            line_user_id="U_test_reschedule_keep",
+            clinic_id=clinic.id,
+            display_name="Reschedule Keep User"
+        )
+        db_session.add(line_user)
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Reschedule Keep Patient",
+            phone_number="0911111114",
+            line_user_id=None
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        patient.line_user_id = line_user.id
+        db_session.commit()
+
+        # Create an existing appointment with practitioner
+        future_date = (taiwan_now() + timedelta(days=3)).date()
+        calendar_event = create_calendar_event_with_clinic(
+            db_session,
+            practitioner=practitioner,
+            clinic=clinic,
+            event_type="appointment",
+            event_date=future_date,
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.flush()  # Flush to get calendar_event.id
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type_no_selection.id,
+            status="confirmed",
+            is_auto_assigned=False  # Originally manually assigned
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Reschedule keeping same practitioner (by passing current practitioner_id) - should succeed
+            new_future_date = (taiwan_now() + timedelta(days=4)).date().isoformat()
+            reschedule_data = {
+                "new_practitioner_id": practitioner.id,  # Keeping same practitioner
+                "new_start_time": f"{new_future_date}T11:00:00+08:00",
+                "new_notes": "Updated notes"
+            }
+
+            response = client.post(
+                f"/api/liff/appointments/{appointment.calendar_event_id}/reschedule",
+                json=reschedule_data
+            )
+            assert response.status_code == 200
+
+            # Verify appointment was updated
+            db_session.refresh(appointment)
+            db_session.refresh(calendar_event)
+            assert calendar_event.user_id == practitioner.id  # Still same practitioner
+            assert appointment.notes == "Updated notes"
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_reschedule_allows_auto_assignment_request_when_setting_false(self, db_session: Session, test_clinic_with_liff):
+        """Test that rescheduling with auto-assignment request (-1) is allowed when allow_patient_practitioner_selection=False."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create appointment type with allow_patient_practitioner_selection=False
+        appt_type_no_selection = AppointmentType(
+            clinic_id=clinic.id,
+            name="Auto Assign Request Type",
+            duration_minutes=30,
+            allow_patient_practitioner_selection=False
+        )
+        db_session.add(appt_type_no_selection)
+        
+        # Associate practitioner with this appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type_no_selection.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        # Create LINE user and patient
+        line_user = LineUser(
+            line_user_id="U_test_reschedule_auto",
+            clinic_id=clinic.id,
+            display_name="Reschedule Auto User"
+        )
+        db_session.add(line_user)
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Reschedule Auto Patient",
+            phone_number="0911111115",
+            line_user_id=None
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        patient.line_user_id = line_user.id
+        db_session.commit()
+
+        # Create an existing appointment with practitioner
+        future_date = (taiwan_now() + timedelta(days=3)).date()
+        calendar_event = create_calendar_event_with_clinic(
+            db_session,
+            practitioner=practitioner,
+            clinic=clinic,
+            event_type="appointment",
+            event_date=future_date,
+            start_time=time(10, 0),
+            end_time=time(10, 30)
+        )
+        db_session.flush()  # Flush to get calendar_event.id
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type_no_selection.id,
+            status="confirmed",
+            is_auto_assigned=False  # Originally manually assigned
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Reschedule requesting auto-assignment (pass -1) - should succeed
+            # Note: Frontend doesn't currently expose this option, but backend supports it
+            new_future_date = (taiwan_now() + timedelta(days=4)).date().isoformat()
+            reschedule_data = {
+                "new_practitioner_id": -1,  # Request auto-assignment
+                "new_start_time": f"{new_future_date}T11:00:00+08:00",
+                "new_notes": "Request auto-assignment"
+            }
+
+            response = client.post(
+                f"/api/liff/appointments/{appointment.calendar_event_id}/reschedule",
+                json=reschedule_data
+            )
+            assert response.status_code == 200
+
+            # Verify appointment was updated and auto-assigned
+            db_session.refresh(appointment)
+            db_session.refresh(calendar_event)
+            # The appointment should be auto-assigned (practitioner may be different or same)
+            assert appointment.notes == "Request auto-assignment"
+            # Verify it's marked as auto-assigned
+            assert appointment.is_auto_assigned == True
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)

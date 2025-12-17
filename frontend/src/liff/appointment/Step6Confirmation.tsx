@@ -100,13 +100,16 @@ const Step6Confirmation: React.FC = () => {
             <span className="text-gray-600">{t('confirmation.appointmentType')}</span>
             <span className="font-medium">{appointmentType?.name}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">{t('confirmation.practitioner')}</span>
-            <span className="font-medium">
-              {/* For auto-assigned appointments, always show "不指定" (patient doesn't see practitioner name) */}
-              {practitionerId === null || isAutoAssigned ? t('confirmation.notSpecified') : (practitioner?.full_name || t('confirmation.notSpecified'))}
-            </span>
-          </div>
+          {/* Only show practitioner field if appointment type allows patient to specify practitioner */}
+          {appointmentType?.allow_patient_practitioner_selection !== false && (
+            <div className="flex justify-between">
+              <span className="text-gray-600">{t('confirmation.practitioner')}</span>
+              <span className="font-medium">
+                {/* For auto-assigned appointments, always show "不指定" (patient doesn't see practitioner name) */}
+                {practitionerId === null || isAutoAssigned ? t('confirmation.notSpecified') : (practitioner?.full_name || t('confirmation.notSpecified'))}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-gray-600">{t('confirmation.dateTime')}</span>
             <span className="font-medium">{formatDateTime()}</span>

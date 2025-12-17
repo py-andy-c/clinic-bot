@@ -67,6 +67,7 @@ export const AppointmentTypeSchema = z.object({
   duration_minutes: z.number(),
   receipt_name: z.string().nullable().optional(),
   allow_patient_booking: z.boolean().optional(),
+  allow_patient_practitioner_selection: z.boolean().optional(),
   description: z.string().nullable().optional(),
   scheduling_buffer_minutes: z.number().optional(),
 });

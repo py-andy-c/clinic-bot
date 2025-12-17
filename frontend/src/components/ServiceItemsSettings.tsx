@@ -50,6 +50,7 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
   const [showDurationModal, setShowDurationModal] = useState(false);
   const [showBufferModal, setShowBufferModal] = useState(false);
   const [showAllowBookingModal, setShowAllowBookingModal] = useState(false);
+  const [showAllowPractitionerSelectionModal, setShowAllowPractitionerSelectionModal] = useState(false);
   const [showReceiptNameModal, setShowReceiptNameModal] = useState(false);
   const [showBillingScenarioModal, setShowBillingScenarioModal] = useState(false);
 
@@ -427,6 +428,21 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                           </label>
                         </div>
 
+                        {/* Allow Patient Practitioner Selection */}
+                        <div>
+                          <label className="flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={type.allow_patient_practitioner_selection !== false}
+                              onChange={(e) => onUpdateType(index, 'allow_patient_practitioner_selection', e.target.checked)}
+                              className="mr-2"
+                              disabled={!isClinicAdmin}
+                            />
+                            <span className="text-sm font-medium text-gray-700">開放病患指定治療師</span>
+                            <InfoButton onClick={() => setShowAllowPractitionerSelectionModal(true)} />
+                          </label>
+                        </div>
+
                         {/* Description */}
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -646,6 +662,15 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
         ariaLabel="開放病患自行預約說明"
       >
         <p>啟用後，病患可透過 LINE 預約系統選擇此服務項目。停用後，此服務項目不會出現在病患的預約選單中，僅能由診所管理員手動建立預約。</p>
+      </InfoModal>
+
+      <InfoModal
+        isOpen={showAllowPractitionerSelectionModal}
+        onClose={() => setShowAllowPractitionerSelectionModal(false)}
+        title="開放病患指定治療師"
+        ariaLabel="開放病患指定治療師說明"
+      >
+        <p>啟用後，病患在預約時可以選擇指定的治療師。停用後，病患無法選擇治療師，系統將自動指派治療師，並由診所管理員審核與重新指派。</p>
       </InfoModal>
 
       <InfoModal

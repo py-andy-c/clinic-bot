@@ -72,6 +72,7 @@ const SettingsServiceItemsPage: React.FC = () => {
       duration_minutes: 30,
       receipt_name: undefined,
       allow_patient_booking: true,
+      allow_patient_practitioner_selection: true,
       description: undefined,
       scheduling_buffer_minutes: 0,
     };

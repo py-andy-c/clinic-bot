@@ -272,6 +272,11 @@ class LiffApiService {
     practitioner_name: string;
     appointment_type_id: number;
     appointment_type_name: string;
+    appointment_type?: {
+      id: number;
+      name: string;
+      allow_patient_practitioner_selection: boolean;
+    } | null;
     start_time: string;
     end_time: string;
     status: string;
