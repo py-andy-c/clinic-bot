@@ -6534,7 +6534,7 @@ async def update_appointment_resources(
             AppointmentType.id == appointment.appointment_type_id
         ).first()
         
-        if appointment_type and appointment_type.appointment_resource_requirements:
+        if appointment_type and appointment_type.resource_requirements:
             # Validate that provided resources match requirements
             # Get required resource types and quantities
             requirements = db.query(AppointmentResourceRequirement).filter(
