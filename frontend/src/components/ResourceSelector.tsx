@@ -87,6 +87,28 @@ const ResourceSelector: React.FC<ResourceSelectorProps> = ({
     };
   }, [isOpen]);
 
+  // Calculate dropdown position
+  useEffect(() => {
+    if (isOpen && dropdownRef.current && dropdownMenuRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const dropdownHeight = 200;
+      
+      if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+        dropdownMenuRef.current.style.bottom = '100%';
+        dropdownMenuRef.current.style.top = 'auto';
+        dropdownMenuRef.current.style.marginBottom = '0.5rem';
+        dropdownMenuRef.current.style.marginTop = '0';
+      } else {
+        dropdownMenuRef.current.style.top = '100%';
+        dropdownMenuRef.current.style.bottom = 'auto';
+        dropdownMenuRef.current.style.marginTop = '0.5rem';
+        dropdownMenuRef.current.style.marginBottom = '0';
+      }
+    }
+  }, [isOpen]);
+
   // Get selected resource names for display
   const selectedResources = resources.filter((r) =>
     selectedResourceIds.includes(r.id)
@@ -121,28 +143,6 @@ const ResourceSelector: React.FC<ResourceSelectorProps> = ({
   if (resources.length === 0) {
     return null;
   }
-
-  // Calculate dropdown position
-  useEffect(() => {
-    if (isOpen && dropdownRef.current && dropdownMenuRef.current) {
-      const rect = dropdownRef.current.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      const dropdownHeight = 200;
-      
-      if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
-        dropdownMenuRef.current.style.bottom = '100%';
-        dropdownMenuRef.current.style.top = 'auto';
-        dropdownMenuRef.current.style.marginBottom = '0.5rem';
-        dropdownMenuRef.current.style.marginTop = '0';
-      } else {
-        dropdownMenuRef.current.style.top = '100%';
-        dropdownMenuRef.current.style.bottom = 'auto';
-        dropdownMenuRef.current.style.marginTop = '0.5rem';
-        dropdownMenuRef.current.style.marginBottom = '0';
-      }
-    }
-  }, [isOpen]);
 
   // List view
   if (showAsList) {

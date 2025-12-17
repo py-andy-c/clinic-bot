@@ -824,9 +824,23 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         }
       }
 
+      // Deduplicate events by calendar_event_id to prevent duplicate keys in React
+      // An appointment can appear in both practitioner and resource calendars,
+      // but we only want to show it once in the merged view
+      // Keep the first occurrence (practitioner events are processed first) which have more complete data
+      const seenIds = new Set<number>();
+      const deduplicatedEvents = events.filter(event => {
+        const eventId = event.calendar_event_id;
+        if (seenIds.has(eventId)) {
+          return false;
+        }
+        seenIds.add(eventId);
+        return true;
+      });
+
       // Cache the data
       cachedCalendarDataRef.current.set(cacheKey, {
-        data: events,
+        data: deduplicatedEvents,
         timestamp: Date.now()
       });
 
@@ -846,7 +860,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       // Remove from in-flight requests
       inFlightBatchRequestsRef.current.delete(cacheKey);
 
-      setAllEvents(events);
+      setAllEvents(deduplicatedEvents);
 
     } catch (err) {
       // Remove from in-flight requests on error
