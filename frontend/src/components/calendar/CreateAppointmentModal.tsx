@@ -27,6 +27,7 @@ import { NumberInput } from '../shared/NumberInput';
 import { ConflictIndicator } from '../shared';
 import { SchedulingConflictResponse } from '../../types';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { ResourceSelection } from '../ResourceSelection';
 
 /**
  * Helper function to convert recurring conflict status to SchedulingConflictResponse format
@@ -43,6 +44,7 @@ const convertConflictStatusToResponse = (
     conflict_type: conflictStatus.conflict_type || null,
     appointment_conflict: conflictStatus.appointment_conflict || null,
     exception_conflict: conflictStatus.exception_conflict || null,
+    resource_conflicts: conflictStatus.resource_conflicts || null,
     default_availability: conflictStatus.default_availability || {
       is_within_hours: true,
       normal_hours: null,
@@ -146,6 +148,7 @@ export interface CreateAppointmentModalProps {
     practitioner_id: number;
     start_time: string;
     clinic_notes?: string;
+    selected_resource_ids?: number[];
   }) => Promise<void>;
   onRecurringAppointmentsCreated?: () => Promise<void>;
 }
@@ -196,6 +199,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate || null);
   const [selectedTime, setSelectedTime] = useState<string>(preSelectedTime || '');
   const [clinicNotes, setClinicNotes] = useState<string>(preSelectedClinicNotes || '');
+  // Resource selection: single array for non-recurring, map for recurring
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [occurrenceResourceIds, setOccurrenceResourceIds] = useState<Record<string, number[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -432,6 +438,8 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     setSelectedDate(initialDate || null);
     setSelectedTime('');
     setClinicNotes('');
+    setSelectedResourceIds([]);
+    setOccurrenceResourceIds({});
     setSearchInput('');
     setStep('form');
     setError(null);
@@ -469,6 +477,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       if (preSelectedClinicNotes === undefined) {
         setClinicNotes('');
       }
+      setSelectedResourceIds([]);
       setSelectedDate(initialDate || null);
       setSearchInput('');
       setStep('form');
@@ -633,8 +642,20 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           patient_id: selectedPatientId,
           appointment_type_id: selectedAppointmentTypeId,
           practitioner_id: selectedPractitionerId,
-          ...(clinicNotes.trim() ? { clinic_notes: clinicNotes.trim() } : {}),
-          occurrences: occurrenceStrings.map(start_time => ({ start_time })),
+            ...(clinicNotes.trim() ? { clinic_notes: clinicNotes.trim() } : {}),
+          occurrences: occurrences.map((occ, idx) => {
+            const startTime = occurrenceStrings[idx];
+            if (!startTime) {
+              throw new Error(`Invalid start time for occurrence ${idx}`);
+            }
+            const resourceIds = occurrenceResourceIds[occ.id];
+            return {
+              start_time: startTime,
+              ...(resourceIds && resourceIds.length > 0 
+                ? { selected_resource_ids: resourceIds } 
+                : {}),
+            };
+          }),
         });
         
         if (result.failed_count > 0) {
@@ -664,6 +685,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           practitioner_id: number;
           start_time: string;
           clinic_notes?: string;
+          selected_resource_ids?: number[];
         } = {
           patient_id: selectedPatientId,
           appointment_type_id: selectedAppointmentTypeId,
@@ -672,6 +694,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         };
         if (clinicNotes.trim()) {
           formData.clinic_notes = clinicNotes.trim();
+        }
+        if (selectedResourceIds.length > 0) {
+          formData.selected_resource_ids = selectedResourceIds;
         }
         await onConfirm(formData);
         // Reset state after successful creation
@@ -921,6 +946,19 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             )}
           </div>
 
+          {/* Resource Selection */}
+          {selectedAppointmentTypeId && selectedPractitionerId && selectedDate && selectedTime && (
+            <ResourceSelection
+              appointmentTypeId={selectedAppointmentTypeId}
+              practitionerId={selectedPractitionerId}
+              date={selectedDate}
+              startTime={selectedTime}
+              durationMinutes={appointmentTypes.find(t => t.id === selectedAppointmentTypeId)?.duration_minutes || 30}
+              selectedResourceIds={selectedResourceIds}
+              onSelectionChange={setSelectedResourceIds}
+            />
+          )}
+
           {/* Clinic Notes */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1033,7 +1071,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                   
                   {/* DateTimePicker for editing - appears right below the occurrence */}
                   {isEditing && selectedAppointmentTypeId && selectedPractitionerId && (
-                    <div className="border-t border-gray-200 pt-3">
+                    <div className="border-t border-gray-200 pt-3 space-y-3">
                       <RecurrenceDateTimePickerWrapper
                         initialDate={occ.date}
                         initialTime={occ.time}
@@ -1091,6 +1129,43 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                         }}
                         onCancel={() => {
                           setEditingOccurrenceId(null);
+                        }}
+                      />
+                      {/* Resource Selection for this occurrence */}
+                      <div className="border-t border-gray-200 pt-3">
+                        <ResourceSelection
+                          appointmentTypeId={selectedAppointmentTypeId}
+                          practitionerId={selectedPractitionerId}
+                          date={occ.date}
+                          startTime={occ.time}
+                          durationMinutes={appointmentTypes.find(t => t.id === selectedAppointmentTypeId)?.duration_minutes || 30}
+                          selectedResourceIds={occurrenceResourceIds[occ.id] || []}
+                          onSelectionChange={(resourceIds) => {
+                            setOccurrenceResourceIds({
+                              ...occurrenceResourceIds,
+                              [occ.id]: resourceIds,
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Resource Selection for non-editing occurrences (collapsed) */}
+                  {!isEditing && selectedAppointmentTypeId && selectedPractitionerId && (
+                    <div className="border-t border-gray-200 pt-3">
+                      <ResourceSelection
+                        appointmentTypeId={selectedAppointmentTypeId}
+                        practitionerId={selectedPractitionerId}
+                        date={occ.date}
+                        startTime={occ.time}
+                        durationMinutes={appointmentTypes.find(t => t.id === selectedAppointmentTypeId)?.duration_minutes || 30}
+                        selectedResourceIds={occurrenceResourceIds[occ.id] || []}
+                        onSelectionChange={(resourceIds) => {
+                          setOccurrenceResourceIds({
+                            ...occurrenceResourceIds,
+                            [occ.id]: resourceIds,
+                          });
                         }}
                       />
                     </div>

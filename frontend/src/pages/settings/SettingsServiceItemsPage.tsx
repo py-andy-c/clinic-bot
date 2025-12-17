@@ -31,6 +31,7 @@ const SettingsServiceItemsPage: React.FC = () => {
     loadPractitionerAssignments,
     savePractitionerAssignments,
     saveBillingScenarios,
+    saveResourceRequirements,
     hasUnsavedChanges: hasServiceItemsUnsavedChanges,
   } = useServiceItemsStore();
 
@@ -189,11 +190,14 @@ const SettingsServiceItemsPage: React.FC = () => {
         }
       }
 
-      // 2. Save practitioner assignments and billing scenarios with ID mapping
+      // 2. Save practitioner assignments, billing scenarios, and resource requirements with ID mapping
       const assignmentResult = await savePractitionerAssignments(
         Object.keys(appointmentTypeIdMapping).length > 0 ? appointmentTypeIdMapping : undefined
       );
       const scenarioResult = await saveBillingScenarios(
+        Object.keys(appointmentTypeIdMapping).length > 0 ? appointmentTypeIdMapping : undefined
+      );
+      const requirementsResult = await saveResourceRequirements(
         Object.keys(appointmentTypeIdMapping).length > 0 ? appointmentTypeIdMapping : undefined
       );
 
@@ -204,6 +208,9 @@ const SettingsServiceItemsPage: React.FC = () => {
       }
       if (!scenarioResult.success) {
         errors.push(...scenarioResult.errors);
+      }
+      if (!requirementsResult.success) {
+        errors.push(...requirementsResult.errors);
       }
 
       if (errors.length > 0) {

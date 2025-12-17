@@ -190,24 +190,42 @@ export const CustomWeekHeader = ({ date }: any) => {
 // Custom Event Component
 export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
   const timeStr = formatEventTimeRange(event.start, event.end);
+  const isResourceEvent = event.resource.is_resource_event === true;
+  const resourceName = event.resource.resource_name;
   const practitionerName = event.resource.event_practitioner_name || event.resource.practitioner_name;
-  const showPractitionerName = practitionerName && !event.resource.is_primary;
+  const showPractitionerName = practitionerName && !event.resource.is_primary && !isResourceEvent;
   const isAutoAssigned = event.resource.is_auto_assigned === true;
   const clinicNotes = event.resource.clinic_notes || '';
+  const resourceNames = event.resource.resource_names || [];
   
-  // Build tooltip with practitioner name if available
-  // Order: Patient - Appointment Type, then Time, then Clinic Notes
+  // For resource events, show resource name in title
+  // For practitioner events, format title with resources: {EventName} {ResourceName1} {ResourceName2} | {ClinicNotes}
+  let displayTitle: string;
+  let displayText: string;
+  
+  if (isResourceEvent && resourceName) {
+    // Resource calendar event: show resource name prefix
+    const resourceText = resourceNames.length > 0 ? ` ${resourceNames.join(' ')}` : '';
+    displayTitle = event.title ? `[${resourceName}] ${event.title}${resourceText}` : `[${resourceName}]`;
+    displayText = clinicNotes ? `${displayTitle} | ${clinicNotes}` : displayTitle;
+  } else {
+    // Practitioner calendar event: existing format
+    const resourceText = resourceNames.length > 0 ? ` ${resourceNames.join(' ')}` : '';
+    displayTitle = event.title ? `${event.title}${resourceText}` : '';
+    displayText = clinicNotes ? `${displayTitle} | ${clinicNotes}` : displayTitle;
+  }
+  
+  // Build tooltip with practitioner/resource name if available
   const tooltipParts: string[] = [];
-  if (showPractitionerName) {
+  if (isResourceEvent && resourceName) {
+    tooltipParts.push(`資源: ${resourceName}`);
+  } else if (showPractitionerName) {
     tooltipParts.push(practitionerName);
   }
-  if (event.title) {
-    tooltipParts.push(event.title);
+  if (displayText) {
+    tooltipParts.push(displayText);
   }
   tooltipParts.push(timeStr);
-  if (clinicNotes) {
-    tooltipParts.push(clinicNotes);
-  }
   const tooltipText = tooltipParts.join(' - ');
 
   return (
@@ -217,14 +235,14 @@ export const CustomEventComponent = ({ event }: { event: CalendarEvent }) => {
     >
       <div className="flex-1 min-w-0">
         <div className="text-xs leading-tight">
-          {event.title && (
+          {displayText && (
             <div className="font-medium whitespace-nowrap overflow-hidden text-ellipsis">
-              {event.title}
+              {displayText}
             </div>
           )}
-          {clinicNotes && (
-            <div className="break-words">
-              {clinicNotes}
+          {!displayText && event.title && (
+            <div className="font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+              {event.title}
             </div>
           )}
           {isAutoAssigned && (

@@ -4,11 +4,12 @@
  * Modal for displaying calendar event details (appointments or availability exceptions).
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { BaseModal } from './BaseModal';
 import { apiService } from '../../services/api';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
+import { ConflictDisplay } from '../shared/ConflictDisplay';
 import { logger } from '../../utils/logger';
 import { formatDateOnly } from '../../utils/calendarUtils';
 import { useAuth } from '../../hooks/useAuth';
@@ -16,6 +17,8 @@ import { CheckoutModal } from './CheckoutModal';
 import { ReceiptViewModal } from './ReceiptViewModal';
 import { ReceiptListModal } from './ReceiptListModal';
 import { canEditAppointment } from '../../utils/appointmentPermissions';
+import { SchedulingConflictResponse } from '../../types';
+import moment from 'moment-timezone';
 
 // Maximum length for custom event names
 // Must match backend/src/core/constants.py MAX_EVENT_NAME_LENGTH = 100
@@ -64,6 +67,8 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
   const [currentTitle, setCurrentTitle] = useState(event.title);
   const [clinicNotes, setClinicNotes] = useState(event.resource.clinic_notes || '');
   const [isSavingClinicNotes, setIsSavingClinicNotes] = useState(false);
+  const [resourceConflictInfo, setResourceConflictInfo] = useState<SchedulingConflictResponse | null>(null);
+  const [isCheckingResourceConflict, setIsCheckingResourceConflict] = useState(false);
 
   // Update currentTitle when event.title changes (e.g., after calendar refresh)
   React.useEffect(() => {
@@ -74,6 +79,47 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
   React.useEffect(() => {
     setClinicNotes(event.resource.clinic_notes || '');
   }, [event.resource.clinic_notes]);
+
+  // Check for resource conflicts when viewing appointment
+  useEffect(() => {
+    if (event.resource.type === 'appointment' && 
+        event.resource.appointment_type_id && 
+        event.resource.practitioner_id && 
+        event.start && 
+        event.end) {
+      const checkResourceConflict = async () => {
+        setIsCheckingResourceConflict(true);
+        try {
+          const dateStr = moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD');
+          const timeStr = moment(event.start).tz('Asia/Taipei').format('HH:mm');
+          
+          const conflictInfo = await apiService.checkSchedulingConflicts(
+            event.resource.practitioner_id!,
+            dateStr,
+            timeStr,
+            event.resource.appointment_type_id!,
+            event.resource.calendar_event_id
+          );
+          
+          // Only show if it's a resource conflict
+          if (conflictInfo.has_conflict && conflictInfo.conflict_type === 'resource') {
+            setResourceConflictInfo(conflictInfo);
+          } else {
+            setResourceConflictInfo(null);
+          }
+        } catch (err) {
+          logger.error('Failed to check resource conflicts:', err);
+          setResourceConflictInfo(null);
+        } finally {
+          setIsCheckingResourceConflict(false);
+        }
+      };
+      
+      checkResourceConflict();
+    } else {
+      setResourceConflictInfo(null);
+    }
+  }, [event.resource.type, event.resource.appointment_type_id, event.resource.practitioner_id, event.start, event.end, event.resource.calendar_event_id]);
 
   const handleStartEdit = useCallback(() => {
     setEditingName(currentTitle);
@@ -241,6 +287,18 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
               )}
               {event.resource.notes && (
                 <p><strong>病患備註:</strong> {event.resource.notes}</p>
+              )}
+              {event.resource.resource_names && event.resource.resource_names.length > 0 && (
+                <p>{event.resource.resource_names.join(' ')}</p>
+              )}
+              {/* Resource Conflict Warning */}
+              {resourceConflictInfo && resourceConflictInfo.has_conflict && resourceConflictInfo.conflict_type === 'resource' && (
+                <div className="mt-2">
+                  <ConflictDisplay
+                    conflictInfo={resourceConflictInfo}
+                    isLoading={isCheckingResourceConflict}
+                  />
+                </div>
               )}
               <div>
                 <div className="flex items-center justify-between mb-1">

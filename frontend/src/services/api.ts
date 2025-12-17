@@ -30,7 +30,11 @@ import {
   BatchAvailableSlotsResponse,
   AvailabilityExceptionRequest,
   AvailabilityExceptionResponse,
-  SchedulingConflictResponse
+  SchedulingConflictResponse,
+  ResourceType,
+  Resource,
+  ResourceRequirement,
+  ResourceAvailabilityResponse
 } from '../types';
 
 /**
@@ -626,6 +630,36 @@ export class ApiService {
     return response.data;
   }
 
+  // Resource Calendar APIs
+  async getResourceCalendar(resourceId: number, date: string): Promise<{
+    resource_id: number;
+    date: string;
+    events: any[];
+  }> {
+    const params = { date };
+    const response = await this.client.get(`/clinic/resources/${resourceId}/availability/calendar`, { params });
+    return response.data;
+  }
+
+  async getBatchResourceCalendar(data: {
+    resourceIds: number[];
+    startDate: string;
+    endDate: string;
+  }): Promise<{
+    results: Array<{
+      resource_id: number;
+      date: string;
+      events: any[];
+    }>;
+  }> {
+    const response = await this.client.post('/clinic/resources/calendar/batch', {
+      resource_ids: data.resourceIds,
+      start_date: data.startDate,
+      end_date: data.endDate,
+    });
+    return response.data;
+  }
+
   async getBatchAvailableSlots(
     userId: number,
     dates: string[],
@@ -698,6 +732,7 @@ export class ApiService {
     start_time: string; // ISO datetime string
     practitioner_id?: number | null;
     clinic_notes?: string;
+    selected_resource_ids?: number[];
   }): Promise<{ success: boolean; appointment_id: number; message: string }> {
     const response = await this.client.post('/clinic/appointments', data);
     return response.data;
@@ -743,7 +778,7 @@ export class ApiService {
     appointment_type_id: number;
     practitioner_id: number;
     clinic_notes?: string;
-    occurrences: Array<{ start_time: string }>;
+    occurrences: Array<{ start_time: string; selected_resource_ids?: number[] }>;
   }): Promise<{
     success: boolean;
     created_count: number;
@@ -792,6 +827,7 @@ export class ApiService {
     start_time?: string | null; // ISO datetime string
     clinic_notes?: string;
     notification_note?: string; // Optional note for notification (does not update appointment.notes)
+    selected_resource_ids?: number[];
   }): Promise<{ success: boolean; appointment_id: number; message: string }> {
     const response = await this.client.put(`/clinic/appointments/${appointmentId}`, data);
     return response.data;
@@ -1024,6 +1060,112 @@ export class ApiService {
     page_size: number;
   }> {
     const response = await this.client.get('/clinic/dashboard/revenue-distribution', { params });
+    return response.data;
+  }
+
+  // Resource Management APIs
+  async getResourceTypes(): Promise<{ resource_types: ResourceType[] }> {
+    const response = await this.client.get('/clinic/resource-types');
+    return response.data;
+  }
+
+  async createResourceType(data: { name: string }): Promise<ResourceType> {
+    const response = await this.client.post('/clinic/resource-types', data);
+    return response.data;
+  }
+
+  async updateResourceType(resourceTypeId: number, data: { name: string }): Promise<ResourceType> {
+    const response = await this.client.put(`/clinic/resource-types/${resourceTypeId}`, data);
+    return response.data;
+  }
+
+  async deleteResourceType(resourceTypeId: number): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(`/clinic/resource-types/${resourceTypeId}`);
+    return response.data;
+  }
+
+  async getResources(resourceTypeId: number): Promise<{ resources: Resource[] }> {
+    const response = await this.client.get(`/clinic/resource-types/${resourceTypeId}/resources`);
+    return response.data;
+  }
+
+  async createResource(resourceTypeId: number, data: { name?: string; description?: string }): Promise<Resource> {
+    const response = await this.client.post(`/clinic/resource-types/${resourceTypeId}/resources`, data);
+    return response.data;
+  }
+
+  async updateResource(resourceId: number, data: { name: string; description?: string }): Promise<Resource> {
+    const response = await this.client.put(`/clinic/resources/${resourceId}`, data);
+    return response.data;
+  }
+
+  async deleteResource(resourceId: number): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(`/clinic/resources/${resourceId}`);
+    return response.data;
+  }
+
+  async getAppointmentTypesByResourceType(resourceTypeId: number): Promise<{ appointment_types: Array<{ id: number; name: string; required_quantity: number }> }> {
+    const response = await this.client.get(`/clinic/resource-types/${resourceTypeId}/appointment-types`);
+    return response.data;
+  }
+
+  async getResourceRequirements(appointmentTypeId: number): Promise<{ requirements: ResourceRequirement[] }> {
+    const response = await this.client.get(`/clinic/appointment-types/${appointmentTypeId}/resource-requirements`);
+    return response.data;
+  }
+
+  async createResourceRequirement(
+    appointmentTypeId: number,
+    data: { resource_type_id: number; quantity: number }
+  ): Promise<ResourceRequirement> {
+    const response = await this.client.post(`/clinic/appointment-types/${appointmentTypeId}/resource-requirements`, data);
+    return response.data;
+  }
+
+  async updateResourceRequirement(
+    appointmentTypeId: number,
+    requirementId: number,
+    data: { quantity: number }
+  ): Promise<ResourceRequirement> {
+    const response = await this.client.put(
+      `/clinic/appointment-types/${appointmentTypeId}/resource-requirements/${requirementId}`,
+      data
+    );
+    return response.data;
+  }
+
+  async deleteResourceRequirement(
+    appointmentTypeId: number,
+    requirementId: number
+  ): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(
+      `/clinic/appointment-types/${appointmentTypeId}/resource-requirements/${requirementId}`
+    );
+    return response.data;
+  }
+
+  async getResourceAvailability(params: {
+    appointment_type_id: number;
+    practitioner_id: number;
+    date: string;
+    start_time: string;
+    end_time: string;
+    exclude_calendar_event_id?: number;
+  }): Promise<ResourceAvailabilityResponse> {
+    const response = await this.client.get('/clinic/appointments/resource-availability', { params });
+    return response.data;
+  }
+
+  async getAppointmentResources(appointmentId: number): Promise<{ resources: Resource[] }> {
+    const response = await this.client.get(`/clinic/appointments/${appointmentId}/resources`);
+    return response.data;
+  }
+
+  async updateAppointmentResources(
+    appointmentId: number,
+    resourceIds: number[]
+  ): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.put(`/clinic/appointments/${appointmentId}/resources`, resourceIds);
     return response.data;
   }
 }

@@ -4,16 +4,23 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import React from 'react';
 import ServiceItemsSettings from '../ServiceItemsSettings';
 import { AppointmentType } from '../../types';
 import { apiService } from '../../services/api';
 import { useServiceItemsStore } from '../../stores/serviceItemsStore';
+import { ModalProvider } from '../../contexts/ModalContext';
 
 // Mock apiService
 vi.mock('../../services/api', () => ({
   apiService: {
     getMembers: vi.fn(),
     getBillingScenarios: vi.fn(),
+    getResourceTypes: vi.fn().mockResolvedValue({ resource_types: [] }),
+    getResourceRequirements: vi.fn().mockResolvedValue({ requirements: [] }),
+    createResourceRequirement: vi.fn(),
+    updateResourceRequirement: vi.fn(),
+    deleteResourceRequirement: vi.fn(),
   },
 }));
 
@@ -29,10 +36,14 @@ vi.mock('../../utils/logger', () => ({
 const mockStore = {
   practitionerAssignments: {},
   billingScenarios: {},
+  resourceRequirements: {},
   loadingScenarios: new Set<string>(),
+  loadingResourceRequirements: new Set<number>(),
   updatePractitionerAssignments: vi.fn(),
   updateBillingScenarios: vi.fn(),
   loadBillingScenarios: vi.fn(),
+  loadResourceRequirements: vi.fn(),
+  updateResourceRequirements: vi.fn(),
 };
 
 vi.mock('../../stores/serviceItemsStore', () => ({
@@ -72,7 +83,9 @@ describe('ServiceItemsSettings', () => {
     // Reset store state
     mockStore.practitionerAssignments = {};
     mockStore.billingScenarios = {};
+    mockStore.resourceRequirements = {};
     mockStore.loadingScenarios = new Set();
+    mockStore.loadingResourceRequirements = new Set();
     mockStore.updatePractitionerAssignments.mockImplementation((serviceItemId, practitionerIds) => {
       mockStore.practitionerAssignments = {
         ...mockStore.practitionerAssignments,
@@ -103,8 +116,16 @@ describe('ServiceItemsSettings', () => {
     isClinicAdmin: true,
   };
 
+  const renderWithProviders = (component: React.ReactElement) => {
+    return render(
+      <ModalProvider>
+        {component}
+      </ModalProvider>
+    );
+  };
+
   it('should render service items list', () => {
-    render(<ServiceItemsSettings {...defaultProps} />);
+    renderWithProviders(<ServiceItemsSettings {...defaultProps} />);
     expect(screen.getByText('服務項目')).toBeInTheDocument();
     expect(screen.getByText('初診評估')).toBeInTheDocument();
   });
@@ -132,7 +153,7 @@ describe('ServiceItemsSettings', () => {
     // This should not throw an error - the component should render without crashing
     // The key test is that it doesn't throw "toFixed is not a function"
     expect(() => {
-      render(<ServiceItemsSettings {...defaultProps} />);
+      renderWithProviders(<ServiceItemsSettings {...defaultProps} />);
     }).not.toThrow();
   });
 
@@ -157,7 +178,7 @@ describe('ServiceItemsSettings', () => {
 
     // This should not throw an error
     expect(() => {
-      render(<ServiceItemsSettings {...defaultProps} />);
+      renderWithProviders(<ServiceItemsSettings {...defaultProps} />);
     }).not.toThrow();
   });
 
@@ -183,7 +204,7 @@ describe('ServiceItemsSettings', () => {
 
     // This should not throw an error even with invalid amounts
     expect(() => {
-      render(<ServiceItemsSettings {...defaultProps} />);
+      renderWithProviders(<ServiceItemsSettings {...defaultProps} />);
     }).not.toThrow();
   });
 
@@ -204,7 +225,7 @@ describe('ServiceItemsSettings', () => {
     vi.mocked(apiService.getBillingScenarios).mockResolvedValue(mockBillingScenarios);
     mockStore.practitionerAssignments = { 1: [1] };
 
-    render(<ServiceItemsSettings {...defaultProps} />);
+    renderWithProviders(<ServiceItemsSettings {...defaultProps} />);
 
     // Expand the service item
     const expandButton = screen.getByText('初診評估').closest('button');
@@ -251,12 +272,12 @@ describe('ServiceItemsSettings', () => {
     // handleEditScenario will be called when user clicks edit, and it should
     // handle string amounts properly (converting them to numbers)
     expect(() => {
-      render(<ServiceItemsSettings {...defaultProps} />);
+      renderWithProviders(<ServiceItemsSettings {...defaultProps} />);
     }).not.toThrow();
   });
 
   it('should call onAddType when add button is clicked', () => {
-    render(<ServiceItemsSettings {...defaultProps} />);
+    renderWithProviders(<ServiceItemsSettings {...defaultProps} />);
     
     const addButton = screen.getByText('+ 新增服務項目');
     fireEvent.click(addButton);
@@ -265,7 +286,7 @@ describe('ServiceItemsSettings', () => {
   });
 
   it('should not show add button when not clinic admin', () => {
-    render(
+    renderWithProviders(
       <ServiceItemsSettings
         {...defaultProps}
         isClinicAdmin={false}
@@ -300,7 +321,7 @@ describe('ServiceItemsSettings', () => {
       }
     });
 
-    render(<ServiceItemsSettings {...defaultProps} />);
+    renderWithProviders(<ServiceItemsSettings {...defaultProps} />);
 
     // Expand the service item
     const expandButton = screen.getByText('初診評估').closest('button');
@@ -334,7 +355,7 @@ describe('ServiceItemsSettings', () => {
     vi.mocked(apiService.getBillingScenarios).mockResolvedValue({ billing_scenarios: [] });
     mockStore.practitionerAssignments = { 1: [1] };
 
-    render(<ServiceItemsSettings {...defaultProps} />);
+    renderWithProviders(<ServiceItemsSettings {...defaultProps} />);
 
     // Immediately after render, API should not have been called yet
     // (it should only be called in useEffect, not during render)
@@ -351,7 +372,7 @@ describe('ServiceItemsSettings', () => {
     vi.mocked(apiService.getBillingScenarios).mockRejectedValue(serverError);
     mockStore.practitionerAssignments = { 1: [1] };
 
-    render(<ServiceItemsSettings {...defaultProps} />);
+    renderWithProviders(<ServiceItemsSettings {...defaultProps} />);
 
     // Expand the service item
     const expandButton = screen.getByText('初診評估').closest('button');
@@ -391,7 +412,7 @@ describe('ServiceItemsSettings', () => {
     vi.mocked(apiService.getBillingScenarios).mockResolvedValue(mockBillingScenarios);
     mockStore.practitionerAssignments = { 1: [1] };
 
-    render(<ServiceItemsSettings {...defaultProps} />);
+    renderWithProviders(<ServiceItemsSettings {...defaultProps} />);
 
     // Wait for members to load first (they load automatically when isClinicAdmin is true)
     await waitFor(() => {

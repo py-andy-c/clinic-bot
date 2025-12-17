@@ -9,6 +9,7 @@ import { BaseModal } from './shared/BaseModal';
 import { InfoButton, InfoModal } from './shared';
 import { NumberInput } from './shared/NumberInput';
 import { useServiceItemsStore, BillingScenario } from '../stores/serviceItemsStore';
+import { ResourceRequirementsSection } from './ResourceRequirementsSection';
 
 interface ServiceItemsSettingsProps {
   appointmentTypes: AppointmentType[];
@@ -457,6 +458,14 @@ const ServiceItemsSettings: React.FC<ServiceItemsSettingsProps> = ({
                             rows={3}
                           />
                         </div>
+
+                        {/* Resource Requirements Section */}
+                        {isClinicAdmin && (
+                          <ResourceRequirementsSection
+                            appointmentTypeId={type.id}
+                            isClinicAdmin={isClinicAdmin}
+                          />
+                        )}
                       </div>
                     </div>
 

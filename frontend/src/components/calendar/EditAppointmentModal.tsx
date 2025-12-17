@@ -16,6 +16,7 @@ import { getPractitionerDisplayName, formatAppointmentDateTime } from '../../uti
 import moment from 'moment-timezone';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { ResourceSelection } from '../ResourceSelection';
 
 type EditStep = 'form' | 'review' | 'note' | 'preview';
 
@@ -24,7 +25,7 @@ export interface EditAppointmentModalProps {
   practitioners: { id: number; full_name: string }[];
   appointmentTypes: { id: number; name: string; duration_minutes: number }[];
   onClose: () => void;
-  onConfirm: (formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string }) => Promise<void>;
+  onConfirm: (formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string; selected_resource_ids?: number[] }) => Promise<void>;
   formatAppointmentTime: (start: Date, end: Date) => string;
   errorMessage?: string | null; // Error message to display (e.g., from failed save)
   showReadOnlyFields?: boolean; // If false, skip patient name, appointment type, and notes fields (default: true)
@@ -71,6 +72,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const originalClinicNotes = event.resource.clinic_notes || '';
   const [clinicNotes, setClinicNotes] = useState<string>(originalClinicNotes);
   const [customNote, setCustomNote] = useState<string>(''); // Custom note for notification
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   
   // Check if appointment was originally auto-assigned
   const originallyAutoAssigned = event.resource.originally_auto_assigned ?? false;
@@ -139,6 +141,20 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
 
     return { appointmentTypeChanged, practitionerChanged, timeChanged, dateChanged };
   }, [selectedDate, selectedTime, selectedPractitionerId, selectedAppointmentTypeId, originalPractitionerId, originalAppointmentTypeId, event.start]);
+
+  // Load existing resources when modal opens
+  useEffect(() => {
+    const loadResources = async () => {
+      try {
+        const response = await apiService.getAppointmentResources(event.resource.calendar_event_id);
+        setSelectedResourceIds(response.resources.map(r => r.id));
+      } catch (err) {
+        logger.error('Failed to load appointment resources:', err);
+        // Don't show error - resources might not exist yet
+      }
+    };
+    loadResources();
+  }, [event.resource.calendar_event_id]);
 
   // Reset step when modal closes or error occurs
   useEffect(() => {
@@ -293,7 +309,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     // If there is no LINE user attached to this appointment, skip the note/preview flow
     // and just save the updated practitioner/time without sending any notification.
     if (!hasLineUser) {
-      const formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string } = {
+      const formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string; selected_resource_ids?: number[] } = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTimeISO,
       };
@@ -304,6 +320,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       // Always send clinic_notes if it has changed from original (allows clearing notes)
       if (clinicNotes.trim() !== originalClinicNotes.trim()) {
         formData.clinic_notes = clinicNotes.trim();
+      }
+      // Include selected resources if any
+      if (selectedResourceIds.length > 0) {
+        formData.selected_resource_ids = selectedResourceIds;
       }
       await onConfirm(formData);
       return;
@@ -315,7 +335,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       // Time didn't change - skip note step and go directly to save
       // Don't send notes or notification_note to preserve original patient notes
       // and avoid notifying the patient (omit properties instead of setting to undefined)
-      const formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string } = {
+      const formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string; selected_resource_ids?: number[] } = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTimeISO,
       };
@@ -326,6 +346,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       // Always send clinic_notes if it has changed from original (allows clearing notes)
       if (clinicNotes.trim() !== originalClinicNotes.trim()) {
         formData.clinic_notes = clinicNotes.trim();
+      }
+      // Include selected resources if any
+      if (selectedResourceIds.length > 0) {
+        formData.selected_resource_ids = selectedResourceIds;
       }
       await onConfirm(formData);
       return;
@@ -369,7 +393,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     
     try {
       const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toISOString();
-      const formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string } = {
+      const formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string; selected_resource_ids?: number[] } = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTime,
       };
@@ -384,6 +408,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       // Send customNote as notification_note for the one-time notification only
       if (customNote.trim()) {
         formData.notification_note = customNote.trim();
+      }
+      // Include selected resources if any
+      if (selectedResourceIds.length > 0) {
+        formData.selected_resource_ids = selectedResourceIds;
       }
       await onConfirm(formData);
       // onConfirm will handle closing the modal and refreshing data
@@ -511,6 +539,20 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             onPractitionerError={handlePractitionerError}
             allowOverride={true}
             onOverrideChange={setOverrideMode}
+          />
+        )}
+
+        {/* Resource Selection */}
+        {appointmentTypeId && selectedPractitionerId && selectedDate && selectedTime && (
+          <ResourceSelection
+            appointmentTypeId={appointmentTypeId}
+            practitionerId={selectedPractitionerId}
+            date={selectedDate}
+            startTime={selectedTime}
+            durationMinutes={appointmentTypes.find(t => t.id === appointmentTypeId)?.duration_minutes || 30}
+            excludeCalendarEventId={event.resource.calendar_event_id}
+            selectedResourceIds={selectedResourceIds}
+            onSelectionChange={setSelectedResourceIds}
           />
         )}
 

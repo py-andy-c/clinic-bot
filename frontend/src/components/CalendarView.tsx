@@ -18,6 +18,7 @@ import {
 } from '../utils/calendarDataAdapter';
 import { canEditAppointment, canDuplicateAppointment, getPractitionerIdForDuplicate } from '../utils/appointmentPermissions';
 import { getPractitionerColor } from '../utils/practitionerColors';
+import { getResourceColor } from '../utils/resourceColors';
 import { CustomToolbar, CustomEventComponent, CustomDateHeader, CustomDayHeader, CustomWeekdayHeader, CustomWeekHeader } from './CalendarComponents';
 import {
   EventModal,
@@ -50,6 +51,8 @@ interface CalendarViewProps {
   userId: number;
   additionalPractitionerIds?: number[];
   practitioners?: { id: number; full_name: string }[]; // Practitioner names for display
+  resourceIds?: number[]; // Resource IDs to display calendars for
+  resources?: { id: number; name: string }[]; // Resource names for display
   onSelectEvent?: (event: CalendarEvent) => void;
   onNavigate?: (date: Date) => void;
   onAddExceptionHandlerReady?: (handler: () => void, view: View) => void;
@@ -61,6 +64,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   userId, 
   additionalPractitionerIds = [],
   practitioners = [],
+  resourceIds = [],
+  resources = [],
   onSelectEvent, 
   onNavigate,
   onAddExceptionHandlerReady,
@@ -685,9 +690,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     const startDateStr = moment(start).format('YYYY-MM-DD');
     const endDateStr = moment(end).format('YYYY-MM-DD');
     
-    // Create cache key - include clinic ID to prevent stale data when switching clinics
+    // Create cache key - include clinic ID and resource IDs to prevent stale data when switching clinics/resources
     const clinicId = user?.active_clinic_id ?? 'no-clinic';
-    const cacheKey = `${clinicId}-${allPractitionerIds.join(',')}-${startDateStr}-${endDateStr}`;
+    const sortedResourceIds = [...resourceIds].sort((a, b) => a - b);
+    const resourceKey = sortedResourceIds.length > 0 ? `-resources-${sortedResourceIds.join(',')}` : '';
+    const cacheKey = `${clinicId}-${allPractitionerIds.join(',')}${resourceKey}-${startDateStr}-${endDateStr}`;
     
     // If force refresh, clear both caches for this specific key
     if (forceRefresh) {
@@ -744,19 +751,35 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       }
       setError(null);
 
-      // Create the fetch promise and store it for deduplication
-      const fetchPromise = apiService.getBatchCalendar({
+      // Fetch both practitioner and resource calendars in parallel
+      const practitionerPromise = apiService.getBatchCalendar({
         practitionerIds: allPractitionerIds,
         startDate: startDateStr,
         endDate: endDateStr,
       });
-      inFlightBatchRequestsRef.current.set(cacheKey, fetchPromise);
+      
+      // Fetch resource calendar if resources are selected
+      const resourcePromise = resourceIds.length > 0
+        ? apiService.getBatchResourceCalendar({
+            resourceIds: sortedResourceIds,
+            startDate: startDateStr,
+            endDate: endDateStr,
+          })
+        : Promise.resolve(null);
 
-      const batchData = await fetchPromise;
+      // Store practitioner promise for cache deduplication
+      inFlightBatchRequestsRef.current.set(cacheKey, practitionerPromise);
+
+      // Wait for both fetches to complete
+      const [batchData, resourceBatchData] = await Promise.all([
+        practitionerPromise,
+        resourcePromise,
+      ]);
 
       // Transform batch response to flat events array
       const events: ApiCalendarEvent[] = [];
       
+      // Process practitioner events
       for (const result of batchData.results) {
         const practitionerId = result.user_id;
         const dateStr = result.date;
@@ -770,10 +793,35 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           date: dateStr,
           practitioner_id: practitionerId, // Add practitioner ID for color-coding
           practitioner_name: practitionerName, // Add practitioner name for display
-          is_primary: practitionerId === userId // Mark primary practitioner's events
+          is_primary: practitionerId === userId, // Mark primary practitioner's events
+          is_resource_event: false, // Mark as practitioner event
         }));
         
         events.push(...transformedEvents);
+      }
+
+      // Process resource events
+      if (resourceBatchData && resourceBatchData.results) {
+        // Create resource name map for O(1) lookup
+        const resourceMap = new Map<number, string>();
+        resources.forEach(r => resourceMap.set(r.id, r.name));
+        
+        for (const result of resourceBatchData.results) {
+          const resourceId = result.resource_id;
+          const dateStr = result.date;
+          const resourceName = resourceMap.get(resourceId) || '';
+          
+          // Transform resource events and mark them as resource events
+          const transformedEvents = result.events.map((event: any) => ({
+            ...event,
+            date: dateStr,
+            resource_id: resourceId, // Add resource ID for color-coding
+            resource_name: resourceName, // Add resource name for display
+            is_resource_event: true, // Mark as resource event for visual distinction
+          }));
+          
+          events.push(...transformedEvents);
+        }
       }
 
       // Cache the data
@@ -813,12 +861,15 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         setLoading(false);
       }
     }
-  }, [userId, additionalPractitionerIds, currentDate, view, practitionerMap, user?.active_clinic_id]);
+  }, [userId, additionalPractitionerIds, resourceIds, resources, currentDate, view, practitionerMap, user?.active_clinic_id]);
 
-  // Invalidate cache when clinic changes to prevent stale data
+  // Invalidate cache when clinic or resources change to prevent stale data
   const previousClinicIdRef = useRef<number | null | undefined>(user?.active_clinic_id ?? null);
+  const previousResourceIdsRef = useRef<string>('');
   useEffect(() => {
     const currentClinicId = user?.active_clinic_id;
+    const currentResourceIdsStr = resourceIds.sort((a, b) => a - b).join(',');
+    
     // If clinic changed (and we had a previous clinic), invalidate all cache
     if (previousClinicIdRef.current !== null && previousClinicIdRef.current !== undefined && 
         currentClinicId !== previousClinicIdRef.current) {
@@ -830,10 +881,20 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         from: previousClinicIdRef.current, 
         to: currentClinicId 
       });
+    } else if (previousResourceIdsRef.current !== currentResourceIdsStr) {
+      // Resource selection changed - clear cache to refetch with new resources
+      cachedCalendarDataRef.current.clear();
+      inFlightBatchRequestsRef.current.clear();
+      logger.log('Resource selection changed, invalidated calendar cache', {
+        from: previousResourceIdsRef.current,
+        to: currentResourceIdsStr
+      });
     }
-    // Update ref to track current clinic
+    
+    // Update refs to track current state
     previousClinicIdRef.current = currentClinicId ?? null;
-  }, [user?.active_clinic_id]);
+    previousResourceIdsRef.current = currentResourceIdsStr;
+  }, [user?.active_clinic_id, resourceIds]);
 
   // Fetch calendar data when date/view/practitioners/clinic change
   useEffect(() => {
@@ -845,12 +906,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   const eventStyleGetter = useCallback((event: CalendarEvent) => {
     // Style checked-out appointments differently (with opacity or border)
     const isCheckedOut = event.resource.has_active_receipt === true;
-    const practitionerId = event.resource.practitioner_id || userId;
-    const isPrimary = practitionerId === userId;
     
-    // Get color for this practitioner using shared utility
-    const allPractitionerIds = [userId, ...additionalPractitionerIds];
-    const practitionerColor = getPractitionerColor(practitionerId, userId, allPractitionerIds);
+    // Check if this is a resource event
+    const isResourceEvent = event.resource.is_resource_event === true;
     
     let style: any = {
       borderRadius: '6px',
@@ -858,6 +916,31 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       border: 'none',
       display: 'block'
     };
+    
+    // Handle resource events with visual distinction (dashed border pattern)
+    if (isResourceEvent && event.resource.resource_id) {
+      const resourceId = event.resource.resource_id;
+      const allResourceIds = [...resourceIds].sort((a, b) => a - b);
+      const resourceColor = getResourceColor(resourceId, allResourceIds);
+      
+      // Use dashed border pattern to distinguish resource events from practitioner events
+      style = {
+        ...style,
+        backgroundColor: resourceColor,
+        border: '2px dashed rgba(255, 255, 255, 0.6)',
+        opacity: isCheckedOut ? 0.7 : 1,
+      };
+      
+      return { style };
+    }
+    
+    // Handle practitioner events (existing logic)
+    const practitionerId = event.resource.practitioner_id || userId;
+    const isPrimary = practitionerId === userId;
+    
+    // Get color for this practitioner using shared utility
+    const allPractitionerIds = [userId, ...additionalPractitionerIds];
+    const practitionerColor = getPractitionerColor(practitionerId, userId, allPractitionerIds);
 
     // Style based on event type and practitioner
     if (event.resource.type === 'appointment') {
@@ -923,7 +1006,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
     
     return { style };
-  }, [userId, additionalPractitionerIds]);
+  }, [userId, additionalPractitionerIds, resourceIds]);
 
   // Handle event selection
   const handleSelectEvent = useCallback((event: CalendarEvent) => {

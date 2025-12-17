@@ -24,6 +24,7 @@ vi.mock('../../../services/api', () => ({
     getPractitionerStatus: vi.fn(),
     previewEditNotification: vi.fn(),
     getPractitioners: vi.fn(),
+    getAppointmentResources: vi.fn().mockResolvedValue({ resources: [] }),
   },
 }));
 

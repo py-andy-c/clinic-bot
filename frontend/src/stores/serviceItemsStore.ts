@@ -14,7 +14,7 @@
 import { create } from 'zustand';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
-import { AppointmentType } from '../types';
+import { AppointmentType, ResourceRequirement } from '../types';
 
 // Temporary IDs are generated using Date.now(), which produces large timestamps
 // Real IDs from the backend are small integers, so we use this threshold to distinguish them
@@ -38,9 +38,14 @@ interface ServiceItemsState {
   billingScenarios: Record<string, BillingScenario[]>;
   originalBillingScenarios: Record<string, BillingScenario[]>;
   
+  // Resource requirements: service_item_id -> ResourceRequirement[]
+  resourceRequirements: Record<number, ResourceRequirement[]>;
+  originalResourceRequirements: Record<number, ResourceRequirement[]>;
+  
   // Loading states
   loadingAssignments: boolean;
   loadingScenarios: Set<string>; // Set of keys being loaded
+  loadingResourceRequirements: Set<number>; // Set of service item IDs being loaded
   
   // Error states
   error: string | null;
@@ -52,9 +57,13 @@ interface ServiceItemsState {
   loadBillingScenarios: (serviceItemId: number, practitionerId: number) => Promise<void>;
   updateBillingScenarios: (key: string, scenarios: BillingScenario[]) => void;
   
+  loadResourceRequirements: (serviceItemId: number) => Promise<void>;
+  updateResourceRequirements: (serviceItemId: number, requirements: ResourceRequirement[]) => void;
+  
   // Save operations
   savePractitionerAssignments: (idMapping?: Record<number, number>) => Promise<{ success: boolean; errors: string[] }>;
   saveBillingScenarios: (idMapping?: Record<number, number>) => Promise<{ success: boolean; errors: string[] }>;
+  saveResourceRequirements: (idMapping?: Record<number, number>) => Promise<{ success: boolean; errors: string[] }>;
   
   // ID mapping helpers
   applyIdMapping: (idMapping: Record<number, number>) => void;
@@ -75,8 +84,11 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
   originalPractitionerAssignments: {},
   billingScenarios: {},
   originalBillingScenarios: {},
+  resourceRequirements: {},
+  originalResourceRequirements: {},
   loadingAssignments: false,
   loadingScenarios: new Set(),
+  loadingResourceRequirements: new Set(),
   error: null,
 
   /**
@@ -500,9 +512,13 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
     // Update billing scenarios
     const updatedScenarios = applyIdMappingToScenarios(state.billingScenarios, idMapping);
     
+    // Update resource requirements
+    const updatedRequirements = applyIdMappingToResourceRequirements(state.resourceRequirements, idMapping);
+    
     set({
       practitionerAssignments: updatedAssignments,
       billingScenarios: updatedScenarios,
+      resourceRequirements: updatedRequirements,
     });
   },
 
@@ -514,8 +530,192 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
     set({
       practitionerAssignments: JSON.parse(JSON.stringify(state.originalPractitionerAssignments)),
       billingScenarios: JSON.parse(JSON.stringify(state.originalBillingScenarios)),
+      resourceRequirements: JSON.parse(JSON.stringify(state.originalResourceRequirements)),
       error: null,
     });
+  },
+
+  /**
+   * Load resource requirements for a service item.
+   */
+  loadResourceRequirements: async (serviceItemId: number) => {
+    // Skip if already loading or loaded
+    const state = get();
+    if (state.loadingResourceRequirements.has(serviceItemId) || state.resourceRequirements[serviceItemId]) {
+      return;
+    }
+
+    try {
+      set((state) => {
+        const newLoading = new Set(state.loadingResourceRequirements);
+        newLoading.add(serviceItemId);
+        return { loadingResourceRequirements: newLoading };
+      });
+
+      const response = await apiService.getResourceRequirements(serviceItemId);
+      
+      set((state) => {
+        const newRequirements = { ...state.resourceRequirements, [serviceItemId]: response.requirements };
+        const newOriginalRequirements = { ...state.originalResourceRequirements, [serviceItemId]: JSON.parse(JSON.stringify(response.requirements)) };
+        const newLoading = new Set(state.loadingResourceRequirements);
+        newLoading.delete(serviceItemId);
+
+        return {
+          resourceRequirements: newRequirements,
+          originalResourceRequirements: newOriginalRequirements,
+          loadingResourceRequirements: newLoading,
+        };
+      });
+    } catch (err: any) {
+      logger.error(`Error loading resource requirements for ${serviceItemId}:`, err);
+      
+      // Handle 404 gracefully (no requirements exist yet)
+      if (err?.response?.status === 404) {
+        set((state) => {
+          const newRequirements = { ...state.resourceRequirements, [serviceItemId]: [] };
+          const newOriginalRequirements = { ...state.originalResourceRequirements, [serviceItemId]: [] };
+          const newLoading = new Set(state.loadingResourceRequirements);
+          newLoading.delete(serviceItemId);
+
+          return {
+            resourceRequirements: newRequirements,
+            originalResourceRequirements: newOriginalRequirements,
+            loadingResourceRequirements: newLoading,
+          };
+        });
+      } else {
+        set((state) => {
+          const newLoading = new Set(state.loadingResourceRequirements);
+          newLoading.delete(serviceItemId);
+          return {
+            loadingResourceRequirements: newLoading,
+            error: err instanceof Error ? err.message : '無法載入資源需求',
+          };
+        });
+      }
+    }
+  },
+
+  /**
+   * Update resource requirements for a specific service item.
+   */
+  updateResourceRequirements: (serviceItemId: number, requirements: ResourceRequirement[]) => {
+    set((state) => ({
+      resourceRequirements: {
+        ...state.resourceRequirements,
+        [serviceItemId]: requirements,
+      },
+    }));
+  },
+
+  /**
+   * Save resource requirements.
+   * @param idMapping Optional mapping from temporary IDs to real IDs
+   */
+  saveResourceRequirements: async (idMapping?: Record<number, number>) => {
+    const state = get();
+    const requirementsToUse = idMapping && Object.keys(idMapping).length > 0
+      ? applyIdMappingToResourceRequirements(state.resourceRequirements, idMapping)
+      : state.resourceRequirements;
+
+    // Calculate changes
+    const requirementChanges: Record<number, ResourceRequirement[]> = {};
+    const allServiceItemIds = new Set([
+      ...Object.keys(requirementsToUse).map(Number),
+      ...Object.keys(state.originalResourceRequirements).map(Number),
+    ]);
+
+    for (const serviceItemId of allServiceItemIds) {
+      const current = requirementsToUse[serviceItemId] || [];
+      const original = state.originalResourceRequirements[serviceItemId] || [];
+      if (JSON.stringify(current.sort((a, b) => a.id - b.id)) !== JSON.stringify(original.sort((a, b) => a.id - b.id))) {
+        requirementChanges[serviceItemId] = current;
+      }
+    }
+
+    if (Object.keys(requirementChanges).length === 0) {
+      return { success: true, errors: [] };
+    }
+
+    const errors: string[] = [];
+
+    // For each service item with changes, sync requirements
+    for (const [serviceItemIdStr, requirements] of Object.entries(requirementChanges)) {
+      const serviceItemId = parseInt(serviceItemIdStr, 10);
+      const realServiceItemId = idMapping?.[serviceItemId] || serviceItemId;
+      const originalRequirements = state.originalResourceRequirements[serviceItemId] || [];
+
+      // Determine what needs to be created, updated, or deleted
+      const originalIds = new Set(originalRequirements.map(r => r.id));
+      const currentIds = new Set(requirements.map(r => r.id));
+
+      // Delete requirements that are no longer present
+      for (const originalReq of originalRequirements) {
+        if (!currentIds.has(originalReq.id)) {
+          try {
+            await apiService.deleteResourceRequirement(realServiceItemId, originalReq.id);
+          } catch (err) {
+            const errorMsg = `刪除資源需求失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
+            logger.error(`Error deleting resource requirement ${originalReq.id}:`, err);
+            errors.push(errorMsg);
+          }
+        }
+      }
+
+      // Create or update requirements
+      for (const requirement of requirements) {
+        if (originalIds.has(requirement.id)) {
+          // Update existing
+          try {
+            await apiService.updateResourceRequirement(realServiceItemId, requirement.id, {
+              quantity: requirement.quantity,
+            });
+          } catch (err) {
+            const errorMsg = `更新資源需求失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
+            logger.error(`Error updating resource requirement ${requirement.id}:`, err);
+            errors.push(errorMsg);
+          }
+        } else {
+          // Create new (temporary ID or not in original)
+          try {
+            await apiService.createResourceRequirement(realServiceItemId, {
+              resource_type_id: requirement.resource_type_id,
+              quantity: requirement.quantity,
+            });
+          } catch (err) {
+            const errorMsg = `建立資源需求失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
+            logger.error(`Error creating resource requirement:`, err);
+            errors.push(errorMsg);
+          }
+        }
+      }
+    }
+
+    // Reload requirements to get real IDs from backend
+    for (const serviceItemIdStr of Object.keys(requirementChanges)) {
+      const serviceItemId = parseInt(serviceItemIdStr, 10);
+      const realServiceItemId = idMapping?.[serviceItemId] || serviceItemId;
+      try {
+        const response = await apiService.getResourceRequirements(realServiceItemId);
+        set((state) => ({
+          resourceRequirements: {
+            ...state.resourceRequirements,
+            [realServiceItemId]: response.requirements,
+          },
+          originalResourceRequirements: {
+            ...state.originalResourceRequirements,
+            [realServiceItemId]: JSON.parse(JSON.stringify(response.requirements)),
+          },
+        }));
+      } catch (err) {
+        logger.error(`Error reloading resource requirements for ${realServiceItemId}:`, err);
+      }
+    }
+
+    return {
+      success: errors.length === 0,
+      errors,
+    };
   },
 
   /**
@@ -527,8 +727,11 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
       originalPractitionerAssignments: {},
       billingScenarios: {},
       originalBillingScenarios: {},
+      resourceRequirements: {},
+      originalResourceRequirements: {},
       loadingAssignments: false,
       loadingScenarios: new Set(),
+      loadingResourceRequirements: new Set(),
       error: null,
     });
   },
@@ -540,7 +743,8 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
     const state = get();
     const assignmentsChanged = JSON.stringify(state.practitionerAssignments) !== JSON.stringify(state.originalPractitionerAssignments);
     const scenariosChanged = JSON.stringify(state.billingScenarios) !== JSON.stringify(state.originalBillingScenarios);
-    return assignmentsChanged || scenariosChanged;
+    const requirementsChanged = JSON.stringify(state.resourceRequirements) !== JSON.stringify(state.originalResourceRequirements);
+    return assignmentsChanged || scenariosChanged || requirementsChanged;
   },
 }));
 
@@ -587,6 +791,26 @@ function applyIdMappingToScenarios(
       }
     } else {
       updated[key] = scenarioList;
+    }
+  }
+  return updated;
+}
+
+/**
+ * Helper: Apply ID mapping to resource requirements.
+ */
+function applyIdMappingToResourceRequirements(
+  requirements: Record<number, ResourceRequirement[]>,
+  mapping: Record<number, number>
+): Record<number, ResourceRequirement[]> {
+  const updated: Record<number, ResourceRequirement[]> = {};
+  for (const [tempId, reqList] of Object.entries(requirements)) {
+    const tempIdNum = parseInt(tempId, 10);
+    const realId = mapping[tempIdNum];
+    if (realId) {
+      updated[realId] = reqList;
+    } else {
+      updated[tempIdNum] = reqList;
     }
   }
   return updated;

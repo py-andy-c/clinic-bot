@@ -1408,6 +1408,20 @@ export interface components {
       normal_hours: string | null;
     };
     /**
+     * ResourceConflictDetail
+     * @description Detail model for resource conflict.
+     */
+    ResourceConflictDetail: {
+      /** Resource Type Id */
+      resource_type_id: number;
+      /** Resource Type Name */
+      resource_type_name: string;
+      /** Required Quantity */
+      required_quantity: number;
+      /** Available Quantity */
+      available_quantity: number;
+    };
+    /**
      * SchedulingConflictResponse
      * @description Response model for scheduling conflict detection.
      */
@@ -1420,6 +1434,8 @@ export interface components {
       appointment_conflict: components["schemas"]["AppointmentConflictDetail"] | null;
       /** Exception Conflict */
       exception_conflict: components["schemas"]["ExceptionConflictDetail"] | null;
+      /** Resource Conflicts */
+      resource_conflicts: components["schemas"]["ResourceConflictDetail"][] | null;
       /** Default Availability */
       default_availability: components["schemas"]["DefaultAvailabilityInfo"];
     };
@@ -6722,6 +6738,7 @@ export interface ApiResult<T> {
 export type SchedulingConflictResponse = components["schemas"]["SchedulingConflictResponse"];
 export type AppointmentConflictDetail = components["schemas"]["AppointmentConflictDetail"];
 export type ExceptionConflictDetail = components["schemas"]["ExceptionConflictDetail"];
+export type ResourceConflictDetail = components["schemas"]["ResourceConflictDetail"];
 export type DefaultAvailabilityInfo = components["schemas"]["DefaultAvailabilityInfo"];
 
 /**

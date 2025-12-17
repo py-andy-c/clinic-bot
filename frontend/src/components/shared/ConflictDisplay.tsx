@@ -84,6 +84,23 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
           textClass: 'text-blue-800',
         };
 
+      case 'resource':
+        if (!conflictInfo.resource_conflicts || conflictInfo.resource_conflicts.length === 0) return null;
+        const resourceDetails = conflictInfo.resource_conflicts.map((conflict: any) => {
+          // Format per design doc: ⚠️ 資源不足：{ResourceTypeName}
+          //   需要數量：{RequiredQuantity}
+          //   可用數量：{AvailableQuantity}
+          // Note: Date/time is not in conflictInfo, but is shown in the context where this is displayed
+          return `資源不足：${conflict.resource_type_name}\n   需要數量：${conflict.required_quantity}\n   可用數量：${conflict.available_quantity}`;
+        });
+        return {
+          icon: '⚠️',
+          title: '資源不足',
+          details: resourceDetails,
+          borderClass: 'border-yellow-300 bg-yellow-50',
+          textClass: 'text-yellow-800',
+        };
+
       default:
         return null;
     }

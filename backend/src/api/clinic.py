@@ -2067,6 +2067,72 @@ async def get_patient_appointments(
         )
 
 
+class ResourceAvailabilityResponse(BaseModel):
+    """Response model for resource availability."""
+    requirements: List[Dict[str, Any]]
+    suggested_allocation: List[Dict[str, Any]]
+    conflicts: List[Dict[str, Any]]
+
+
+@router.get("/appointments/resource-availability", summary="Get resource availability for a time slot")
+async def get_resource_availability(
+    appointment_type_id: int = Query(...),
+    practitioner_id: int = Query(...),
+    date: str = Query(..., description="YYYY-MM-DD"),
+    start_time: str = Query(..., description="HH:MM"),
+    end_time: str = Query(..., description="HH:MM"),
+    exclude_calendar_event_id: Optional[int] = Query(None),
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+) -> ResourceAvailabilityResponse:
+    """Get resource availability and suggested allocation for a time slot."""
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Parse date and time
+        try:
+            parsed_date = parse_date_string(date)
+        except ValueError:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail="無效的日期格式（請使用 YYYY-MM-DD）"
+            )
+        
+        try:
+            start_hour, start_min = map(int, start_time.split(':'))
+            end_hour, end_min = map(int, end_time.split(':'))
+            start_time_obj = time(start_hour, start_min)
+            end_time_obj = time(end_hour, end_min)
+        except ValueError:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail="無效的時間格式（請使用 HH:MM）"
+            )
+        
+        start_datetime = datetime.combine(parsed_date, start_time_obj)
+        end_datetime = datetime.combine(parsed_date, end_time_obj)
+        
+        # Get resource availability
+        availability = ResourceService.get_resource_availability_for_slot(
+            db=db,
+            appointment_type_id=appointment_type_id,
+            clinic_id=clinic_id,
+            start_time=start_datetime,
+            end_time=end_datetime,
+            exclude_calendar_event_id=exclude_calendar_event_id
+        )
+        
+        return ResourceAvailabilityResponse(**availability)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to get resource availability: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得資源可用性"
+        )
+
+
 @router.delete("/appointments/{appointment_id}", summary="Cancel appointment by clinic admin or practitioner")
 async def cancel_clinic_appointment(
     appointment_id: int,
@@ -2334,9 +2400,10 @@ class OccurrenceConflictStatus(BaseModel):
     """
     start_time: str  # ISO datetime
     has_conflict: bool
-    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "duplicate" | null
+    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | "duplicate" | null
     appointment_conflict: Optional["AppointmentConflictDetail"] = None
     exception_conflict: Optional["ExceptionConflictDetail"] = None
+    resource_conflicts: Optional[List["ResourceConflictDetail"]] = None
     default_availability: "DefaultAvailabilityInfo"
     # Additional fields for duplicate detection
     is_duplicate: bool = False
@@ -2408,6 +2475,7 @@ async def check_recurring_conflicts(
                     conflict_type="duplicate",
                     appointment_conflict=None,
                     exception_conflict=None,
+                    resource_conflicts=None,
                     default_availability=DefaultAvailabilityInfo(
                         is_within_hours=True,  # Default for duplicates
                         normal_hours=None
@@ -2430,6 +2498,10 @@ async def check_recurring_conflicts(
                 )
                 
                 # Convert to response models
+                from api.responses import (
+                    AppointmentConflictDetail, ExceptionConflictDetail, ResourceConflictDetail, DefaultAvailabilityInfo
+                )
+                
                 appointment_conflict = None
                 if conflict_data.get("appointment_conflict"):
                     ac = conflict_data["appointment_conflict"]
@@ -2451,6 +2523,18 @@ async def check_recurring_conflicts(
                         reason=ec.get("reason")
                     )
                 
+                resource_conflicts = None
+                if conflict_data.get("resource_conflicts"):
+                    resource_conflicts = [
+                        ResourceConflictDetail(
+                            resource_type_id=rc["resource_type_id"],
+                            resource_type_name=rc["resource_type_name"],
+                            required_quantity=rc["required_quantity"],
+                            available_quantity=rc["available_quantity"]
+                        )
+                        for rc in conflict_data["resource_conflicts"]
+                    ]
+                
                 default_availability = DefaultAvailabilityInfo(
                     is_within_hours=conflict_data["default_availability"]["is_within_hours"],
                     normal_hours=conflict_data["default_availability"].get("normal_hours")
@@ -2462,6 +2546,7 @@ async def check_recurring_conflicts(
                     conflict_type=conflict_data.get("conflict_type"),
                     appointment_conflict=appointment_conflict,
                     exception_conflict=exception_conflict,
+                    resource_conflicts=resource_conflicts,
                     default_availability=default_availability,
                     is_duplicate=False,
                     duplicate_index=None
@@ -2482,6 +2567,7 @@ async def check_recurring_conflicts(
 class OccurrenceRequest(BaseModel):
     """Single occurrence in recurring appointment request."""
     start_time: str  # ISO datetime
+    selected_resource_ids: Optional[List[int]] = None  # Optional resource IDs for this occurrence
 
 
 class RecurringAppointmentCreateRequest(BaseModel):
@@ -2590,7 +2676,8 @@ async def create_recurring_appointments(
                     notes=None,  # Clinic users cannot set patient notes
                     clinic_notes=request.clinic_notes,
                     line_user_id=None,  # No LINE validation for clinic users
-                    skip_notifications=skip_individual_notifications
+                    skip_notifications=skip_individual_notifications,
+                    selected_resource_ids=occ.selected_resource_ids  # Per-occurrence resource selection
                 )
                 
                 created_appointments.append({
@@ -3717,6 +3804,25 @@ class BatchCalendarResponse(BaseModel):
     results: List[BatchCalendarDayResponse]
 
 
+class ResourceCalendarDayResponse(BaseModel):
+    """Response model for resource calendar day data."""
+    resource_id: int
+    date: str  # Format: "YYYY-MM-DD"
+    events: List[CalendarEventResponse]  # Only appointments (no default schedule or exceptions)
+
+
+class BatchResourceCalendarRequest(BaseModel):
+    """Request model for batch resource calendar data."""
+    resource_ids: List[int]
+    start_date: str  # Format: "YYYY-MM-DD"
+    end_date: str    # Format: "YYYY-MM-DD"
+
+
+class BatchResourceCalendarResponse(BaseModel):
+    """Response model for batch resource calendar data."""
+    results: List[ResourceCalendarDayResponse]
+
+
 class AvailabilityExceptionRequest(BaseModel):
     """Request model for creating availability exceptions."""
     date: str  # Format: "YYYY-MM-DD"
@@ -4469,6 +4575,357 @@ async def get_batch_calendar(
         )
 
 
+@router.get("/resources/{resource_id}/availability/calendar",
+           summary="Get calendar data for resource")
+async def get_resource_calendar_data(
+    resource_id: int,
+    date: str = Query(..., description="Date in YYYY-MM-DD format for daily view"),
+    db: Session = Depends(get_db),
+    current_user: UserContext = Depends(require_authenticated)
+):
+    """
+    Get calendar data for a resource.
+    
+    Returns daily calendar data (appointments using this resource).
+    Only shows confirmed appointments (excludes canceled appointments).
+    """
+    try:
+        # Check clinic access first
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Verify resource exists and belongs to clinic
+        resource = db.query(Resource).filter(
+            Resource.id == resource_id,
+            Resource.clinic_id == clinic_id,
+            Resource.is_deleted == False
+        ).first()
+        
+        if not resource:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="資源不存在或已被刪除"
+            )
+        
+        # Parse date
+        try:
+            target_date = parse_date_string(date)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無效的日期格式，請使用 YYYY-MM-DD"
+            )
+        
+        # Get appointments using this resource through AppointmentResourceAllocation
+        # Only show confirmed appointments (exclude canceled)
+        events = db.query(CalendarEvent).join(
+            AppointmentResourceAllocation,
+            CalendarEvent.id == AppointmentResourceAllocation.appointment_id
+        ).join(
+            Appointment,
+            CalendarEvent.id == Appointment.calendar_event_id
+        ).filter(
+            AppointmentResourceAllocation.resource_id == resource_id,
+            CalendarEvent.clinic_id == clinic_id,
+            CalendarEvent.date == target_date,
+            CalendarEvent.event_type == 'appointment',
+            Appointment.status == 'confirmed'  # Only confirmed appointments
+        ).options(
+            # Eagerly load all relationships to avoid N+1 queries
+            joinedload(CalendarEvent.appointment).joinedload(Appointment.patient).joinedload(Patient.line_user),
+            joinedload(CalendarEvent.appointment).joinedload(Appointment.appointment_type)
+        ).order_by(CalendarEvent.start_time).all()
+        
+        # Collect appointment IDs for bulk receipt query
+        appointment_ids = [
+            event.appointment.calendar_event_id
+            for event in events
+            if event.appointment
+        ]
+        
+        # Bulk load all receipts for all appointments
+        all_receipts_map = ReceiptService.get_all_receipts_for_appointments(db, appointment_ids)
+        
+        # Helper function to format time
+        def _format_time(t: Optional[time]) -> Optional[str]:
+            if t is None:
+                return None
+            return t.strftime('%H:%M')
+        
+        # Helper function to get event title
+        def _get_event_title(event: CalendarEvent, appointment: Optional[Appointment] = None) -> str:
+            if appointment:
+                patient_name = appointment.patient.full_name if appointment.patient else "Unknown"
+                appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "Unknown"
+                return f"{patient_name} - {appointment_type_name}"
+            return "Unknown Event"
+        
+        event_responses: List[CalendarEventResponse] = []
+        for event in events:
+            if event.appointment:
+                appointment = event.appointment
+                
+                # Get LINE display name if patient has LINE user
+                line_display_name = None
+                if appointment.patient and appointment.patient.line_user:
+                    line_display_name = appointment.patient.line_user.effective_display_name
+                
+                # Get appointment type name
+                appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "Unknown"
+                
+                # Format birthday as string if available
+                patient_birthday_str = None
+                if appointment.patient and appointment.patient.birthday:
+                    patient_birthday_str = appointment.patient.birthday.strftime('%Y-%m-%d')
+                
+                # Get practitioner name
+                practitioner_name = None
+                if event.user_id:
+                    practitioner_name = get_practitioner_display_name_for_appointment(db, appointment, clinic_id)
+                
+                # Get receipt status from bulk-loaded map
+                receipts = all_receipts_map.get(appointment.calendar_event_id, [])
+                receipt_fields = ReceiptService.compute_receipt_fields(receipts)
+                
+                event_responses.append(CalendarEventResponse(
+                    calendar_event_id=event.id,
+                    type='appointment',
+                    start_time=_format_time(event.start_time) if event.start_time else None,
+                    end_time=_format_time(event.end_time) if event.end_time else None,
+                    title=_get_event_title(event, appointment),
+                    patient_id=appointment.patient_id,
+                    appointment_type_id=appointment.appointment_type_id,
+                    status=appointment.status,
+                    appointment_id=appointment.calendar_event_id,
+                    notes=appointment.notes,
+                    clinic_notes=appointment.clinic_notes,
+                    patient_phone=appointment.patient.phone_number,
+                    patient_birthday=patient_birthday_str,
+                    line_display_name=line_display_name,
+                    patient_name=appointment.patient.full_name,
+                    practitioner_name=practitioner_name,
+                    appointment_type_name=appointment_type_name,
+                    is_auto_assigned=appointment.is_auto_assigned,
+                    has_active_receipt=receipt_fields["has_active_receipt"],
+                    has_any_receipt=receipt_fields["has_any_receipt"],
+                    receipt_id=receipt_fields["receipt_id"],
+                    receipt_ids=receipt_fields["receipt_ids"]
+                ))
+        
+        return ResourceCalendarDayResponse(
+            resource_id=resource_id,
+            date=date,
+            events=event_responses
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to get resource calendar data: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得資源行事曆資料"
+        )
+
+
+@router.post("/resources/calendar/batch",
+           summary="Get calendar data for multiple resources and date range")
+async def get_batch_resource_calendar(
+    request: BatchResourceCalendarRequest,
+    db: Session = Depends(get_db),
+    current_user: UserContext = Depends(require_authenticated)
+) -> BatchResourceCalendarResponse:
+    """
+    Get calendar data for multiple resources across a date range.
+    
+    This endpoint efficiently fetches calendar data for multiple resources
+    in a single request, reducing API calls from N to 1.
+    
+    Returns daily calendar data (appointments) for each resource for each day in the date range.
+    Only shows confirmed appointments (excludes canceled appointments).
+    """
+    try:
+        # Check clinic access first
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Parse date range
+        try:
+            start_date = parse_date_string(request.start_date)
+            end_date = parse_date_string(request.end_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="無效的日期格式，請使用 YYYY-MM-DD"
+            )
+        
+        if start_date > end_date:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="開始日期不能晚於結束日期"
+            )
+        
+        # Limit date range to prevent excessive queries
+        max_days = 31
+        if (end_date - start_date).days > max_days:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"日期範圍不能超過 {max_days} 天"
+            )
+        
+        # Limit number of resources
+        max_resources = 10
+        if len(request.resource_ids) > max_resources:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"一次最多只能查詢 {max_resources} 個資源"
+            )
+        
+        # Verify all resources exist and belong to the clinic
+        resources = db.query(Resource).filter(
+            Resource.id.in_(request.resource_ids),
+            Resource.clinic_id == clinic_id,
+            Resource.is_deleted == False
+        ).all()
+        
+        if len(resources) != len(request.resource_ids):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="部分資源不存在或已被刪除"
+            )
+        
+        # Fetch all events for all resources and dates in a single query with eager loading
+        # We need to join AppointmentResourceAllocation to get resource_id
+        events_query = db.query(CalendarEvent, AppointmentResourceAllocation.resource_id).join(
+            AppointmentResourceAllocation,
+            CalendarEvent.id == AppointmentResourceAllocation.appointment_id
+        ).join(
+            Appointment,
+            CalendarEvent.id == Appointment.calendar_event_id
+        ).filter(
+            AppointmentResourceAllocation.resource_id.in_(request.resource_ids),
+            CalendarEvent.clinic_id == clinic_id,
+            CalendarEvent.date >= start_date,
+            CalendarEvent.date <= end_date,
+            CalendarEvent.event_type == 'appointment',
+            Appointment.status == 'confirmed'  # Only confirmed appointments
+        ).options(
+            # Eagerly load all relationships to avoid N+1 queries
+            joinedload(CalendarEvent.appointment).joinedload(Appointment.patient).joinedload(Patient.line_user),
+            joinedload(CalendarEvent.appointment).joinedload(Appointment.appointment_type)
+        ).order_by(AppointmentResourceAllocation.resource_id, CalendarEvent.date, CalendarEvent.start_time)
+        
+        events_with_resource = events_query.all()
+        
+        # Group events by resource and date
+        events_by_resource_date: Dict[tuple[int, date_type], List[CalendarEvent]] = {}
+        for event, resource_id in events_with_resource:
+            key = (resource_id, event.date)
+            if key not in events_by_resource_date:
+                events_by_resource_date[key] = []
+            events_by_resource_date[key].append(event)
+        
+        # Collect all appointment IDs for bulk receipt query
+        appointment_ids = [
+            event.appointment.calendar_event_id
+            for event, _ in events_with_resource
+            if event.appointment
+        ]
+        
+        # Bulk load all receipts for all appointments
+        all_receipts_map = ReceiptService.get_all_receipts_for_appointments(db, appointment_ids)
+        
+        # Helper functions
+        def _format_time(t: Optional[time]) -> Optional[str]:
+            if t is None:
+                return None
+            return t.strftime('%H:%M')
+        
+        def _get_event_title(event: CalendarEvent, appointment: Optional[Appointment] = None) -> str:
+            if appointment:
+                patient_name = appointment.patient.full_name if appointment.patient else "Unknown"
+                appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "Unknown"
+                return f"{patient_name} - {appointment_type_name}"
+            return "Unknown Event"
+        
+        # Build response for each resource and date
+        results: List[ResourceCalendarDayResponse] = []
+        current_date = start_date
+        while current_date <= end_date:
+            for resource_id in request.resource_ids:
+                key = (resource_id, current_date)
+                day_events = events_by_resource_date.get(key, [])
+                
+                event_responses: List[CalendarEventResponse] = []
+                for event in day_events:
+                    if event.appointment:
+                        appointment = event.appointment
+                        
+                        # Get LINE display name
+                        line_display_name = None
+                        if appointment.patient and appointment.patient.line_user:
+                            line_display_name = appointment.patient.line_user.effective_display_name
+                        
+                        # Get appointment type name
+                        appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "Unknown"
+                        
+                        # Format birthday
+                        patient_birthday_str = None
+                        if appointment.patient and appointment.patient.birthday:
+                            patient_birthday_str = appointment.patient.birthday.strftime('%Y-%m-%d')
+                        
+                        # Get practitioner name
+                        practitioner_name = None
+                        if event.user_id:
+                            practitioner_name = get_practitioner_display_name_for_appointment(db, appointment, clinic_id)
+                        
+                        # Get receipt status
+                        receipts = all_receipts_map.get(appointment.calendar_event_id, [])
+                        receipt_fields = ReceiptService.compute_receipt_fields(receipts)
+                        
+                        event_responses.append(CalendarEventResponse(
+                            calendar_event_id=event.id,
+                            type='appointment',
+                            start_time=_format_time(event.start_time) if event.start_time else None,
+                            end_time=_format_time(event.end_time) if event.end_time else None,
+                            title=_get_event_title(event, appointment),
+                            patient_id=appointment.patient_id,
+                            appointment_type_id=appointment.appointment_type_id,
+                            status=appointment.status,
+                            appointment_id=appointment.calendar_event_id,
+                            notes=appointment.notes,
+                            clinic_notes=appointment.clinic_notes,
+                            patient_phone=appointment.patient.phone_number,
+                            patient_birthday=patient_birthday_str,
+                            line_display_name=line_display_name,
+                            patient_name=appointment.patient.full_name,
+                            practitioner_name=practitioner_name,
+                            appointment_type_name=appointment_type_name,
+                            is_auto_assigned=appointment.is_auto_assigned,
+                            has_active_receipt=receipt_fields["has_active_receipt"],
+                            has_any_receipt=receipt_fields["has_any_receipt"],
+                            receipt_id=receipt_fields["receipt_id"],
+                            receipt_ids=receipt_fields["receipt_ids"]
+                        ))
+                
+                results.append(ResourceCalendarDayResponse(
+                    resource_id=resource_id,
+                    date=current_date.strftime('%Y-%m-%d'),
+                    events=event_responses
+                ))
+            
+            current_date += timedelta(days=1)
+        
+        return BatchResourceCalendarResponse(results=results)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to fetch batch resource calendar data: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得資源行事曆資料"
+        )
+
+
 @router.get("/practitioners/{user_id}/availability/slots",
            summary="Get available time slots for booking")
 async def get_available_slots(
@@ -4593,7 +5050,7 @@ async def check_scheduling_conflicts(
         
         # Convert to response model
         from api.responses import (
-            AppointmentConflictDetail, ExceptionConflictDetail, DefaultAvailabilityInfo
+            AppointmentConflictDetail, ExceptionConflictDetail, ResourceConflictDetail, DefaultAvailabilityInfo
         )
         
         appointment_conflict = None
@@ -4617,6 +5074,18 @@ async def check_scheduling_conflicts(
                 reason=ec.get("reason")
             )
         
+        resource_conflicts = None
+        if conflict_data.get("resource_conflicts"):
+            resource_conflicts = [
+                ResourceConflictDetail(
+                    resource_type_id=rc["resource_type_id"],
+                    resource_type_name=rc["resource_type_name"],
+                    required_quantity=rc["required_quantity"],
+                    available_quantity=rc["available_quantity"]
+                )
+                for rc in conflict_data["resource_conflicts"]
+            ]
+        
         default_availability = DefaultAvailabilityInfo(
             is_within_hours=conflict_data["default_availability"]["is_within_hours"],
             normal_hours=conflict_data["default_availability"].get("normal_hours")
@@ -4627,6 +5096,7 @@ async def check_scheduling_conflicts(
             conflict_type=conflict_data.get("conflict_type"),
             appointment_conflict=appointment_conflict,
             exception_conflict=exception_conflict,
+            resource_conflicts=resource_conflicts,
             default_availability=default_availability
         )
         
@@ -5690,13 +6160,6 @@ class ResourceRequirementListResponse(BaseModel):
     requirements: List[ResourceRequirementResponse]
 
 
-class ResourceAvailabilityResponse(BaseModel):
-    """Response model for resource availability."""
-    requirements: List[Dict[str, Any]]
-    suggested_allocation: List[Dict[str, Any]]
-    conflicts: List[Dict[str, Any]]
-
-
 class ResourceAllocationResponse(BaseModel):
     """Response model for resource allocation."""
     resources: List[ResourceResponse]
@@ -6164,6 +6627,57 @@ async def delete_resource(
         )
 
 
+@router.get("/resource-types/{resource_type_id}/appointment-types", summary="Get appointment types that require a resource type")
+async def get_appointment_types_by_resource_type(
+    resource_type_id: int,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Get all appointment types that require a specific resource type."""
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Verify resource type belongs to clinic
+        resource_type = db.query(ResourceType).filter(
+            ResourceType.id == resource_type_id,
+            ResourceType.clinic_id == clinic_id
+        ).first()
+        
+        if not resource_type:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="資源類型不存在"
+            )
+        
+        # Get requirements for this resource type
+        requirements = db.query(AppointmentResourceRequirement).join(
+            AppointmentType, AppointmentResourceRequirement.appointment_type_id == AppointmentType.id
+        ).filter(
+            AppointmentResourceRequirement.resource_type_id == resource_type_id,
+            AppointmentType.clinic_id == clinic_id,
+            AppointmentType.is_deleted == False
+        ).all()
+        
+        appointment_types = [
+            {
+                "id": req.appointment_type.id,
+                "name": req.appointment_type.name,
+                "required_quantity": req.quantity
+            }
+            for req in requirements
+        ]
+        
+        return {"appointment_types": appointment_types}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to get appointment types for resource type: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法取得服務項目列表"
+        )
+
+
 @router.get("/appointment-types/{appointment_type_id}/resource-requirements", summary="Get resource requirements for appointment type")
 async def get_resource_requirements(
     appointment_type_id: int,
@@ -6383,65 +6897,6 @@ async def delete_resource_requirement(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法刪除資源需求"
-        )
-
-
-@router.get("/appointments/resource-availability", summary="Get resource availability for a time slot")
-async def get_resource_availability(
-    appointment_type_id: int = Query(...),
-    practitioner_id: int = Query(...),
-    date: str = Query(..., description="YYYY-MM-DD"),
-    start_time: str = Query(..., description="HH:MM"),
-    end_time: str = Query(..., description="HH:MM"),
-    exclude_calendar_event_id: Optional[int] = Query(None),
-    current_user: UserContext = Depends(require_practitioner_or_admin),
-    db: Session = Depends(get_db)
-) -> ResourceAvailabilityResponse:
-    """Get resource availability and suggested allocation for a time slot."""
-    try:
-        clinic_id = ensure_clinic_access(current_user)
-        
-        # Parse date and time
-        try:
-            parsed_date = parse_date_string(date)
-        except ValueError:
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail="無效的日期格式（請使用 YYYY-MM-DD）"
-            )
-        
-        try:
-            start_hour, start_min = map(int, start_time.split(':'))
-            end_hour, end_min = map(int, end_time.split(':'))
-            start_time_obj = time(start_hour, start_min)
-            end_time_obj = time(end_hour, end_min)
-        except ValueError:
-            raise HTTPException(
-                status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail="無效的時間格式（請使用 HH:MM）"
-            )
-        
-        start_datetime = datetime.combine(parsed_date, start_time_obj)
-        end_datetime = datetime.combine(parsed_date, end_time_obj)
-        
-        # Get resource availability
-        availability = ResourceService.get_resource_availability_for_slot(
-            db=db,
-            appointment_type_id=appointment_type_id,
-            clinic_id=clinic_id,
-            start_time=start_datetime,
-            end_time=end_datetime,
-            exclude_calendar_event_id=exclude_calendar_event_id
-        )
-        
-        return ResourceAvailabilityResponse(**availability)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Failed to get resource availability: {e}")
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="無法取得資源可用性"
         )
 
 

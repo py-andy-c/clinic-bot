@@ -399,6 +399,14 @@ class ExceptionConflictDetail(BaseModel):
     reason: Optional[str] = None
 
 
+class ResourceConflictDetail(BaseModel):
+    """Detail model for resource conflict."""
+    resource_type_id: int
+    resource_type_name: str
+    required_quantity: int
+    available_quantity: int
+
+
 class DefaultAvailabilityInfo(BaseModel):
     """Information about default availability."""
     is_within_hours: bool
@@ -408,7 +416,8 @@ class DefaultAvailabilityInfo(BaseModel):
 class SchedulingConflictResponse(BaseModel):
     """Response model for scheduling conflict detection."""
     has_conflict: bool
-    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | null
+    conflict_type: Optional[str] = None  # "appointment" | "exception" | "availability" | "resource" | null
     appointment_conflict: Optional[AppointmentConflictDetail] = None
     exception_conflict: Optional[ExceptionConflictDetail] = None
+    resource_conflicts: Optional[List[ResourceConflictDetail]] = None
     default_availability: DefaultAvailabilityInfo

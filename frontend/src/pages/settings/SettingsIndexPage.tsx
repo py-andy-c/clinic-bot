@@ -48,6 +48,13 @@ const settingCards: SettingCard[] = [
     description: '自訂收據的格式和內容',
     adminOnly: true,
   },
+  {
+    name: '設備資源',
+    path: 'resources',
+    icon: '🏢',
+    description: '管理診所的設備和資源（治療室、設備等）',
+    adminOnly: true,
+  },
 ];
 
 const SettingsIndexPage: React.FC = () => {

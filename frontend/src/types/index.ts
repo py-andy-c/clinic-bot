@@ -169,6 +169,68 @@ export interface AppointmentType {
   description?: string | null | undefined;
   scheduling_buffer_minutes?: number | undefined;
   is_deleted?: boolean;
+  resource_requirements?: ResourceRequirement[];
+}
+
+export interface ResourceType {
+  id: number;
+  clinic_id: number;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Resource {
+  id: number;
+  resource_type_id: number;
+  clinic_id: number;
+  name: string;
+  description?: string | null;
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResourceRequirement {
+  id: number;
+  appointment_type_id: number;
+  resource_type_id: number;
+  resource_type_name: string;
+  quantity: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResourceAllocation {
+  id: number;
+  appointment_id: number;
+  resource_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResourceAvailabilityResponse {
+  requirements: Array<{
+    resource_type_id: number;
+    resource_type_name: string;
+    required_quantity: number;
+    available_resources: Array<{
+      id: number;
+      name: string;
+      is_available: boolean;
+    }>;
+    available_quantity: number;
+  }>;
+  suggested_allocation: Array<{
+    id: number;
+    name: string;
+  }>;
+  conflicts: Array<{
+    resource_type_id: number;
+    resource_type_name: string;
+    required_quantity: number;
+    available_quantity: number;
+  }>;
 }
 
 export interface Appointment {

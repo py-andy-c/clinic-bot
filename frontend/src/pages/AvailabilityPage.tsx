@@ -9,10 +9,14 @@ import CalendarView from '../components/CalendarView';
 import PageHeader from '../components/PageHeader';
 import PractitionerSelector from '../components/PractitionerSelector';
 import PractitionerChips from '../components/PractitionerChips';
+import ResourceSelector from '../components/ResourceSelector';
+import ResourceChips from '../components/ResourceChips';
 import FloatingActionButton from '../components/FloatingActionButton';
-import { sharedFetchFunctions } from '../services/api';
+import { sharedFetchFunctions, apiService } from '../services/api';
 import { calendarStorage } from '../utils/storage';
 import { getDateString } from '../utils/calendarUtils';
+import { logger } from '../utils/logger';
+import { Resource } from '../types';
 
 const AvailabilityPage: React.FC = () => {
   const { user, isPractitioner, isLoading: authLoading, isAuthenticated } = useAuth();
@@ -23,6 +27,8 @@ const AvailabilityPage: React.FC = () => {
   const [additionalPractitionerIds, setAdditionalPractitionerIds] = useState<number[]>([]);
   const [defaultPractitionerId, setDefaultPractitionerId] = useState<number | null>(null);
   const [showPractitionerModal, setShowPractitionerModal] = useState(false);
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
   
   // Scroll to top when component mounts
   useEffect(() => {
@@ -50,6 +56,43 @@ const AvailabilityPage: React.FC = () => {
 
   const practitioners = practitionersData || [];
   
+  // Load resources for resource selector
+  const [resourcesLoading, setResourcesLoading] = useState(false);
+  useEffect(() => {
+    const loadResources = async () => {
+      try {
+        setResourcesLoading(true);
+        // Fetch all resource types
+        const resourceTypesResponse = await apiService.getResourceTypes();
+        const resourceTypes = resourceTypesResponse.resource_types;
+
+        // Fetch all resources for each type
+        const allResources: Resource[] = [];
+        for (const resourceType of resourceTypes) {
+          try {
+            const resourcesResponse = await apiService.getResources(resourceType.id);
+            // Filter out deleted resources
+            const activeResources = resourcesResponse.resources
+              .filter(r => !r.is_deleted);
+            allResources.push(...activeResources);
+          } catch (err) {
+            logger.error(`Failed to load resources for type ${resourceType.id}:`, err);
+          }
+        }
+
+        setResources(allResources);
+      } catch (err) {
+        logger.error('Failed to load resources:', err);
+      } finally {
+        setResourcesLoading(false);
+      }
+    };
+
+    if (isAuthenticated && !authLoading) {
+      loadResources();
+    }
+  }, [isAuthenticated, authLoading]);
+  
   // Track if we've loaded persisted state to avoid overwriting with defaults
   const hasLoadedPersistedStateRef = useRef(false);
   // Track if persisted state had a default practitioner to prevent default handler from overriding
@@ -76,6 +119,20 @@ const AvailabilityPage: React.FC = () => {
         : null;
 
       setAdditionalPractitionerIds(validPractitionerIds);
+      
+      // Load resource IDs from persisted state (stored separately)
+      const resourceKey = `calendar_resources_${user.user_id}_${user.active_clinic_id}`;
+      try {
+        const savedResourceIds = localStorage.getItem(resourceKey);
+        if (savedResourceIds) {
+          const parsedIds = JSON.parse(savedResourceIds);
+          if (Array.isArray(parsedIds)) {
+            setSelectedResourceIds(parsedIds);
+          }
+        }
+      } catch (err) {
+        logger.warn('Failed to load resource selection:', err);
+      }
       
       // Only set default practitioner if user is not a practitioner
       if (!isPractitioner) {
@@ -114,7 +171,18 @@ const AvailabilityPage: React.FC = () => {
       defaultPractitionerId,
     };
     calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, updatedState);
-  }, [user?.user_id, user?.active_clinic_id, additionalPractitionerIds, defaultPractitionerId]);
+    
+    // Persist resource selection separately (using a different storage key)
+    // Resources are hidden by default, so we only save when user explicitly selects them
+    if (selectedResourceIds.length > 0) {
+      const resourceKey = `calendar_resources_${user.user_id}_${user.active_clinic_id}`;
+      try {
+        localStorage.setItem(resourceKey, JSON.stringify(selectedResourceIds));
+      } catch (err) {
+        logger.warn('Failed to save resource selection:', err);
+      }
+    }
+  }, [user?.user_id, user?.active_clinic_id, additionalPractitionerIds, defaultPractitionerId, selectedResourceIds]);
 
   // Determine which practitioner IDs to display
   const displayedPractitionerIds = React.useMemo(() => {
@@ -219,6 +287,15 @@ const AvailabilityPage: React.FC = () => {
         />
       )}
 
+      {/* Resource Chips - Mobile only, show below header */}
+      {isMobile && !resourcesLoading && resources.length > 0 && selectedResourceIds.length > 0 && (
+        <ResourceChips
+          resources={resources}
+          selectedResourceIds={selectedResourceIds}
+          onRemove={(id) => setSelectedResourceIds(prev => prev.filter(rid => rid !== id))}
+        />
+      )}
+
       {/* Header - Hide title on mobile */}
       <PageHeader
         title={isMobile ? "" : "行事曆"}
@@ -234,6 +311,17 @@ const AvailabilityPage: React.FC = () => {
                   isPractitioner={isPractitioner || false}
                   onChange={setAdditionalPractitionerIds}
                   maxSelectable={5}
+                />
+              </div>
+            )}
+            
+            {/* Resource Selector - Desktop only */}
+            {!resourcesLoading && resources.length > 0 && (
+              <div className="desktop-only w-full md:w-auto">
+                <ResourceSelector
+                  selectedResourceIds={selectedResourceIds}
+                  onChange={setSelectedResourceIds}
+                  maxSelectable={10}
                 />
               </div>
             )}
@@ -268,6 +356,8 @@ const AvailabilityPage: React.FC = () => {
             userId={primaryUserId}
             additionalPractitionerIds={displayedPractitionerIds.filter(id => id !== primaryUserId)}
             practitioners={practitioners}
+            resourceIds={selectedResourceIds}
+            resources={resources}
             onAddExceptionHandlerReady={handleAddExceptionHandlerReady}
             {...(preSelectedPatientId !== undefined ? { preSelectedPatientId } : {})}
           />
@@ -346,6 +436,21 @@ const AvailabilityPage: React.FC = () => {
                   maxSelectable={5}
                   showAsList={true}
                 />
+              )}
+              
+              {/* Resource Selector - Mobile only, in modal */}
+              {!resourcesLoading && resources.length > 0 && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    資源
+                  </label>
+                  <ResourceSelector
+                    selectedResourceIds={selectedResourceIds}
+                    onChange={setSelectedResourceIds}
+                    maxSelectable={10}
+                    showAsList={true}
+                  />
+                </div>
               )}
             </div>
           </div>
