@@ -251,17 +251,17 @@ class AppointmentService:
 
             logger.info(f"Created appointment {appointment.calendar_event_id} for patient {patient_id}")
 
-            # Get practitioner name from association
+            # Get practitioner name from association with title for patient-facing display
             # For auto-assigned appointments, return "不指定" instead of actual practitioner name
-            from utils.practitioner_helpers import get_practitioner_display_name, AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
+            from utils.practitioner_helpers import get_practitioner_display_name_with_title, AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
             practitioner_name = ''
             if practitioner:
                 if was_auto_assigned:
                     # Return "不指定" for auto-assigned appointments (patient doesn't see practitioner name)
                     practitioner_name = AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
                 else:
-                    name = get_practitioner_display_name(db, practitioner.id, clinic_id)
-                    practitioner_name = name if name else practitioner.email
+                    # Use display name with title for patient-facing displays (LIFF)
+                    practitioner_name = get_practitioner_display_name_with_title(db, practitioner.id, clinic_id)
 
             return {
                 'appointment_id': appointment.calendar_event_id,

@@ -212,7 +212,8 @@ class AvailabilityService:
         appointment_type_id: int,
         clinic_id: int,
         exclude_calendar_event_id: int | None = None,
-        apply_booking_restrictions: bool = True
+        apply_booking_restrictions: bool = True,
+        for_patient_display: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Get available time slots for a specific practitioner.
@@ -290,7 +291,8 @@ class AvailabilityService:
             slots = AvailabilityService._calculate_available_slots(
                 db, requested_date, [practitioner], total_duration, 
                 clinic, clinic_id, exclude_calendar_event_id, schedule_data=schedule_data,
-                apply_booking_restrictions=apply_booking_restrictions
+                apply_booking_restrictions=apply_booking_restrictions,
+                for_patient_display=for_patient_display
             )
             
             # Apply compact schedule recommendations if enabled
@@ -345,7 +347,8 @@ class AvailabilityService:
         date: str,
         appointment_type_id: int,
         exclude_calendar_event_id: int | None = None,
-        apply_booking_restrictions: bool = True
+        apply_booking_restrictions: bool = True,
+        for_patient_display: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Get available time slots for all practitioners in a clinic.
@@ -411,7 +414,8 @@ class AvailabilityService:
             all_slots = AvailabilityService._calculate_available_slots(
                 db, requested_date, practitioners, total_duration, clinic, clinic_id,
                 exclude_calendar_event_id=exclude_calendar_event_id,
-                apply_booking_restrictions=apply_booking_restrictions
+                apply_booking_restrictions=apply_booking_restrictions,
+                for_patient_display=for_patient_display
             )
             
             # Deduplicate slots by start_time (practitioner assignment happens in _assign_practitioner)
@@ -442,7 +446,8 @@ class AvailabilityService:
         clinic_id: int,
         exclude_calendar_event_id: int | None = None,
         schedule_data: Dict[int, Dict[str, Any]] | None = None,
-        apply_booking_restrictions: bool = True
+        apply_booking_restrictions: bool = True,
+        for_patient_display: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Calculate available time slots for the given date and practitioners.
@@ -495,7 +500,14 @@ class AvailabilityService:
             
             # Get association for this practitioner
             association = association_lookup.get(practitioner_id)
-            practitioner_name = association.full_name if association else practitioner.email
+            # For patient-facing displays, include title; for internal displays, just name
+            if for_patient_display and association:
+                from utils.practitioner_helpers import get_practitioner_display_name_with_title
+                practitioner_name = get_practitioner_display_name_with_title(
+                    db, practitioner_id, clinic_id
+                )
+            else:
+                practitioner_name = association.full_name if association else practitioner.email
             
             default_intervals = data['default_intervals']
             if not default_intervals:
@@ -1157,7 +1169,8 @@ class AvailabilityService:
         appointment_type_id: int,
         clinic_id: int,
         exclude_calendar_event_id: int | None = None,
-        apply_booking_restrictions: bool = True
+        apply_booking_restrictions: bool = True,
+        for_patient_display: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Get available slots for a practitioner across multiple dates.
@@ -1226,7 +1239,8 @@ class AvailabilityService:
                     appointment_type_id=appointment_type_id,
                     clinic_id=clinic_id,
                     exclude_calendar_event_id=exclude_calendar_event_id,
-                    apply_booking_restrictions=apply_booking_restrictions
+                    apply_booking_restrictions=apply_booking_restrictions,
+                    for_patient_display=for_patient_display
                 )
                 
                 results.append({
@@ -1530,7 +1544,8 @@ class AvailabilityService:
         appointment_type_id: int,
         practitioner_id: Optional[int] = None,
         exclude_calendar_event_id: int | None = None,
-        apply_booking_restrictions: bool = True
+        apply_booking_restrictions: bool = True,
+        for_patient_display: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Get available slots for a clinic across multiple dates.
@@ -1587,7 +1602,8 @@ class AvailabilityService:
                         appointment_type_id=appointment_type_id,
                         clinic_id=clinic_id,
                         exclude_calendar_event_id=exclude_calendar_event_id,
-                        apply_booking_restrictions=apply_booking_restrictions
+                        apply_booking_restrictions=apply_booking_restrictions,
+                        for_patient_display=for_patient_display
                     )
                 else:
                     # All practitioners in clinic
@@ -1597,7 +1613,8 @@ class AvailabilityService:
                         date=date_str,
                         appointment_type_id=appointment_type_id,
                         exclude_calendar_event_id=exclude_calendar_event_id,
-                        apply_booking_restrictions=apply_booking_restrictions
+                        apply_booking_restrictions=apply_booking_restrictions,
+                        for_patient_display=for_patient_display
                     )
                 
                 results.append({

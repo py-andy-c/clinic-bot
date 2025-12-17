@@ -345,7 +345,7 @@
                             {{ item.item_name }}
                         {% endif %}
                         {% if item.practitioner %}
-                        <span class="therapist">→{{ item.practitioner.name }}{{ item.practitioner.title|default('') }}</span>
+                        <span class="therapist">→{{ item.practitioner.name }} {{ item.practitioner.title|default('') }}</span>
                         {% endif %}
                     </td>
                     <td>{{ item.quantity|default(1) }}</td>

@@ -608,20 +608,13 @@ class AvailabilityNotificationService:
         
         # Get practitioner name
         # Note: User model doesn't have full_name directly, it's accessed via UserClinicAssociation
+        # Use helper function to get name with title for patient-facing notifications
         practitioner_name = "不指定"
         if notification.practitioner:
-            # Get name from association if available
-            from models.user_clinic_association import UserClinicAssociation
-            association = db.query(UserClinicAssociation).filter(
-                UserClinicAssociation.user_id == notification.practitioner.id,
-                UserClinicAssociation.clinic_id == notification.clinic_id,
-                UserClinicAssociation.is_active == True
-            ).first()
-            if association:
-                practitioner_name = association.full_name
-            else:
-                # Fallback to email if no association found
-                practitioner_name = notification.practitioner.email
+            from utils.practitioner_helpers import get_practitioner_display_name_with_title
+            practitioner_name = get_practitioner_display_name_with_title(
+                db, notification.practitioner.id, notification.clinic_id
+            )
         
         # Format slots by date
         slots_lines: List[str] = []

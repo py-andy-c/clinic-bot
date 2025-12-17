@@ -97,9 +97,21 @@ class PractitionerService:
                 for pat in practitioner.practitioner_appointment_types
             ]
 
+            # Get practitioner display name
+            # For patient-facing displays (LIFF), include title; for internal displays, just name
+            if for_patient_booking and association:
+                # Patient-facing: include title for external display
+                from utils.practitioner_helpers import get_practitioner_display_name_with_title
+                display_name = get_practitioner_display_name_with_title(
+                    db, practitioner.id, clinic_id
+                )
+            else:
+                # Internal display: just name without title
+                display_name = association.full_name if association else practitioner.email
+
             result.append({
                 'id': practitioner.id,
-                'full_name': association.full_name if association else practitioner.email,  # Clinic users must have association
+                'full_name': display_name,
                 'offered_types': offered_types
             })
 

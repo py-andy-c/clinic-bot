@@ -52,7 +52,7 @@ class TestPractitionerDisplayName:
         display_name = get_practitioner_display_name_with_title(
             db_session, user.id, clinic.id
         )
-        assert display_name == "王小明治療師"
+        assert display_name == "王小明 治療師"
         
         # Test with empty title
         association.title = ""
@@ -68,7 +68,7 @@ class TestPractitionerDisplayName:
         display_name_different = get_practitioner_display_name_with_title(
             db_session, user.id, clinic.id
         )
-        assert display_name_different == "王小明復健師"
+        assert display_name_different == "王小明 復健師"
     
     def test_get_practitioner_display_name_without_title(self, db_session: Session):
         """Test getting practitioner name without title for internal displays."""
@@ -188,7 +188,7 @@ class TestPractitionerDisplayName:
         display_name = get_practitioner_display_name_for_appointment(
             db_session, appointment, clinic.id
         )
-        assert display_name == "王小明治療師"  # Should include title for external display
+        assert display_name == "王小明 治療師"  # Should include title for external display
         
         # Test with auto-assigned
         appointment.is_auto_assigned = True

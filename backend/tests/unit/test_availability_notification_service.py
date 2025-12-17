@@ -148,6 +148,7 @@ class TestMessageFormatting:
 
     def test_format_notification_message_with_practitioner(self):
         """Test message formatting with specific practitioner."""
+        from unittest.mock import patch
         service = AvailabilityNotificationService()
 
         notification = Mock(spec=AvailabilityNotification)
@@ -161,23 +162,20 @@ class TestMessageFormatting:
         notification.practitioner_id = 2
         notification.clinic_id = 1
 
-        # Create mock association
-        association = Mock()
-        association.full_name = "王醫師"
-
         clinic = Mock(spec=Clinic)
         clinic.id = 1
         clinic.liff_id = "1234567890"
 
         # Create mock db
         db = Mock()
-        db.query.return_value.filter.return_value.first.return_value = association
 
         slots_by_date = {"2024-01-15": ["09:00"]}
 
-        message = service._format_notification_message(notification, slots_by_date, clinic, db)
+        # Mock the helper function to return name with title
+        with patch('utils.practitioner_helpers.get_practitioner_display_name_with_title', return_value="王醫師 治療師"):
+            message = service._format_notification_message(notification, slots_by_date, clinic, db)
 
-        assert "治療師：王醫師" in message
+        assert "治療師：王醫師 治療師" in message
         # URL is no longer in message text (it's in a button)
         assert "https://liff.line.me" not in message
         assert "立即預約" not in message

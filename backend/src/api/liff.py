@@ -33,7 +33,7 @@ from models.receipt import Receipt
 from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
 from utils.datetime_utils import TAIWAN_TZ, taiwan_now, parse_datetime_to_taiwan, parse_date_string
-from utils.practitioner_helpers import get_practitioner_display_name
+# get_practitioner_display_name removed - use get_practitioner_display_name_with_title for patient-facing displays
 from utils.liff_token import validate_token_format, validate_liff_id_format
 from api.responses import (
     PatientResponse, PatientCreateResponse, PatientListResponse,
@@ -829,7 +829,8 @@ async def get_availability(
                 appointment_type_id=appointment_type_id,
                 clinic_id=clinic.id,
                 exclude_calendar_event_id=exclude_calendar_event_id,
-                apply_booking_restrictions=True  # Patients must follow booking restrictions
+                apply_booking_restrictions=True,  # Patients must follow booking restrictions
+                for_patient_display=True  # Include title for patient-facing display
             )
         else:
             # All practitioners in clinic
@@ -839,7 +840,8 @@ async def get_availability(
                 clinic_id=clinic.id,
                 date=date,
                 appointment_type_id=appointment_type_id,
-                apply_booking_restrictions=True  # Patients must follow booking restrictions
+                apply_booking_restrictions=True,  # Patients must follow booking restrictions
+                for_patient_display=True  # Include title for patient-facing display
             )
 
         # Convert dicts to response objects
@@ -913,7 +915,8 @@ async def get_availability_batch(
             appointment_type_id=request.appointment_type_id,
             practitioner_id=request.practitioner_id,
             exclude_calendar_event_id=request.exclude_calendar_event_id,
-            apply_booking_restrictions=True  # Patients must follow booking restrictions
+            apply_booking_restrictions=True,  # Patients must follow booking restrictions
+            for_patient_display=True  # Include title for patient-facing display
         )
 
         # Convert to response format
@@ -1605,8 +1608,9 @@ async def create_notification(
         # Calculate min/max dates from time_windows
         dates = [tw["date"] for tw in notification.time_windows]
 
-        # Get practitioner name safely
-        practitioner_name = get_practitioner_display_name(db, notification.practitioner.id, clinic.id) if notification.practitioner else None
+        # Get practitioner name with title for patient-facing display
+        from utils.practitioner_helpers import get_practitioner_display_name_with_title
+        practitioner_name = get_practitioner_display_name_with_title(db, notification.practitioner.id, clinic.id) if notification.practitioner else None
 
         return AvailabilityNotificationResponse(
             id=notification.id,
@@ -1662,8 +1666,9 @@ async def list_notifications(
             if notification.appointment_type:
                 appointment_type_name = notification.appointment_type.name
 
-            # Get practitioner name safely
-            practitioner_name = get_practitioner_display_name(db, notification.practitioner.id, clinic.id) if notification.practitioner else None
+            # Get practitioner name with title for patient-facing display
+            from utils.practitioner_helpers import get_practitioner_display_name_with_title
+            practitioner_name = get_practitioner_display_name_with_title(db, notification.practitioner.id, clinic.id) if notification.practitioner else None
 
             notification_responses.append(
                 AvailabilityNotificationResponse(

@@ -206,7 +206,7 @@ def get_practitioner_name_for_notification(
     
     This function handles all fallback scenarios for practitioner names in notifications:
     1. If auto-assigned, returns AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
-    2. Tries to get display name from UserClinicAssociation
+    2. Tries to get display name with title from UserClinicAssociation (for patient-facing notifications)
     3. Falls back to practitioner email if available
     4. Falls back to DEFAULT_PRACTITIONER_DISPLAY_NAME as last resort
     
@@ -226,8 +226,8 @@ def get_practitioner_name_for_notification(
     if practitioner_id is None:
         return DEFAULT_PRACTITIONER_DISPLAY_NAME
     
-    # Try to get display name from association
-    name = get_practitioner_display_name(db, practitioner_id, clinic_id)
+    # Try to get display name with title from association (for patient-facing notifications)
+    name = get_practitioner_display_name_with_title(db, practitioner_id, clinic_id)
     if name:
         return name
     
@@ -283,7 +283,7 @@ def get_practitioner_display_name_with_title(
     Get practitioner display name with title for external displays (receipts, LINE messages, LIFF).
     
     Returns name + title if title exists, otherwise just the name.
-    Example: "王小明治療師" if title is "治療師", or "王小明" if title is empty.
+    Example: "王小明 治療師" if title is "治療師", or "王小明" if title is empty.
     
     Args:
         db: Database session
@@ -291,7 +291,7 @@ def get_practitioner_display_name_with_title(
         clinic_id: Clinic ID
         
     Returns:
-        Practitioner display name with title (e.g., "王小明治療師") or just name if no title
+        Practitioner display name with title (e.g., "王小明 治療師") or just name if no title
     """
     association = db.query(UserClinicAssociation).filter(
         UserClinicAssociation.user_id == user_id,
@@ -307,9 +307,9 @@ def get_practitioner_display_name_with_title(
         association.user.email if association.user else DEFAULT_PRACTITIONER_DISPLAY_NAME
     )
     
-    # Append title if it exists
+    # Append title if it exists (with space between name and title)
     if association.title and association.title.strip():
-        return f"{name}{association.title}"
+        return f"{name} {association.title}"
     
     return name
 
