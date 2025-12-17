@@ -188,10 +188,11 @@ class TestSchedulingConflicts:
         assert response.status_code == 200
         data = response.json()
         
-        # Should show past_appointment (highest priority), not appointment conflict
+        # Should show past_appointment (highest priority), but also include appointment conflict
         assert data["has_conflict"] is True
-        assert data["conflict_type"] == "past_appointment"
-        assert data["appointment_conflict"] is None
+        assert data["conflict_type"] == "past_appointment"  # Highest priority for backward compatibility
+        # With new behavior, all conflicts are returned, so appointment_conflict should be populated
+        assert data["appointment_conflict"] is not None
 
     def test_check_scheduling_conflicts_appointment_conflict(self, client: TestClient, db_session: Session, test_clinic_and_practitioner):
         """Test checking scheduling conflicts - appointment conflict (highest priority)."""
@@ -595,11 +596,12 @@ class TestSchedulingConflicts:
         assert response.status_code == 200
         data = response.json()
         
-        # Should show appointment conflict (highest priority), not exception conflict
+        # Should show appointment conflict (highest priority), but also include exception conflict
         assert data["has_conflict"] is True
-        assert data["conflict_type"] == "appointment"
+        assert data["conflict_type"] == "appointment"  # Highest priority for backward compatibility
         assert data["appointment_conflict"] is not None
-        assert data["exception_conflict"] is None
+        # With new behavior, all conflicts are returned, so exception_conflict should be populated
+        assert data["exception_conflict"] is not None
 
 
 class TestRecurringConflicts:

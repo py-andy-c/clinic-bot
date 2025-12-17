@@ -11,7 +11,8 @@ interface ConflictDisplayProps {
  * ConflictDisplay Component
  *
  * Displays scheduling conflict information with appropriate styling based on conflict type.
- * Shows conflicts in priority order: past_appointment > appointment > exception > availability.
+ * Shows ALL conflicts found, not just the highest priority one.
+ * Conflicts are displayed in priority order: past_appointment > appointment > exception > availability > resource.
  */
 export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
   conflictInfo,
@@ -31,8 +32,8 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
     return null;
   }
 
-  const getConflictDisplay = () => {
-    switch (conflictInfo.conflict_type) {
+  const getConflictDisplay = (conflictType: string) => {
+    switch (conflictType) {
       case 'past_appointment':
         return {
           icon: '⚠️',
@@ -66,7 +67,7 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
           details: [
             `不可用時間：${exc.start_time}-${exc.end_time}`,
             exc.reason ? `原因：${exc.reason}` : null,
-          ].filter(Boolean),
+          ].filter((d): d is string => d !== null),
           borderClass: 'border-orange-300 bg-orange-50',
           textClass: 'text-orange-800',
         };
@@ -106,24 +107,81 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
     }
   };
 
-  const display = getConflictDisplay();
-  if (!display) return null;
+  // Collect all conflicts in priority order
+  type ConflictDisplay = {
+    icon: string;
+    title: string;
+    details: string[];
+    borderClass: string;
+    textClass: string;
+  };
+  
+  const conflicts: Array<{ type: string; display: ConflictDisplay }> = [];
+  
+  // Check for past appointment conflict (highest priority)
+  // Backend sets conflict_type to "past_appointment" when appointment is in the past
+  if (conflictInfo.conflict_type === 'past_appointment') {
+    const display = getConflictDisplay('past_appointment');
+    if (display) {
+      conflicts.push({ type: 'past_appointment', display });
+    }
+  }
+  
+  // Check for appointment conflict
+  if (conflictInfo.appointment_conflict) {
+    const display = getConflictDisplay('appointment');
+    if (display) {
+      conflicts.push({ type: 'appointment', display });
+    }
+  }
+  
+  // Check for exception conflict
+  if (conflictInfo.exception_conflict) {
+    const display = getConflictDisplay('exception');
+    if (display) {
+      conflicts.push({ type: 'exception', display });
+    }
+  }
+  
+  // Check for availability conflict
+  if (conflictInfo.default_availability && !conflictInfo.default_availability.is_within_hours) {
+    const display = getConflictDisplay('availability');
+    if (display) {
+      conflicts.push({ type: 'availability', display });
+    }
+  }
+  
+  // Check for resource conflict
+  if (conflictInfo.resource_conflicts && conflictInfo.resource_conflicts.length > 0) {
+    const display = getConflictDisplay('resource');
+    if (display) {
+      conflicts.push({ type: 'resource', display });
+    }
+  }
+
+  if (conflicts.length === 0) {
+    return null;
+  }
 
   return (
-    <div className={`rounded-md border p-3 ${display.borderClass} ${className}`}>
-      <div className={`flex items-start gap-2 ${display.textClass}`}>
-        <span className="text-lg flex-shrink-0">{display.icon}</span>
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm mb-1">
-            {display.title}
-          </div>
-          {display.details.map((detail, index) => (
-            <div key={index} className="text-xs leading-relaxed">
-              {detail}
+    <div className={`space-y-2 ${className}`}>
+      {conflicts.map((conflict, index) => (
+        <div key={index} className={`rounded-md border p-3 ${conflict.display.borderClass}`}>
+          <div className={`flex items-start gap-2 ${conflict.display.textClass}`}>
+            <span className="text-lg flex-shrink-0">{conflict.display.icon}</span>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm mb-1">
+                {conflict.display.title}
+              </div>
+              {conflict.display.details.map((detail, detailIndex) => (
+                <div key={detailIndex} className="text-xs leading-relaxed whitespace-pre-line">
+                  {detail}
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
-      </div>
+      ))}
     </div>
   );
 };

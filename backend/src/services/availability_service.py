@@ -1504,7 +1504,18 @@ class AvailabilityService:
         default_intervals = practitioner_data['default_intervals']
         events = practitioner_data['events']
         
-        # Check conflicts in priority order
+        # Check all conflict types and collect all conflicts found
+        # conflict_type will still indicate the highest priority conflict for backward compatibility
+        
+        # Initialize conflict tracking
+        past_appointment_conflict = False
+        appointment_conflict = None
+        exception_conflict = None
+        is_within_hours = AvailabilityService.is_slot_within_default_intervals(
+            default_intervals, start_time, end_time
+        )
+        normal_hours = AvailabilityService._format_normal_hours(date, default_intervals)
+        resource_conflicts = None
         
         # 0. Check if appointment is in the past (highest priority, only for clinic users)
         if check_past_appointment:
@@ -1513,26 +1524,9 @@ class AvailabilityService:
             current_datetime = taiwan_now()
             
             if scheduled_datetime < current_datetime:
-                # Format default availability info
-                is_within_hours = AvailabilityService.is_slot_within_default_intervals(
-                    default_intervals, start_time, end_time
-                )
-                normal_hours = AvailabilityService._format_normal_hours(date, default_intervals)
-                
-                return {
-                    "has_conflict": True,
-                    "conflict_type": "past_appointment",
-                    "appointment_conflict": None,
-                    "exception_conflict": None,
-                    "resource_conflicts": None,
-                    "default_availability": {
-                        "is_within_hours": is_within_hours,
-                        "normal_hours": normal_hours
-                    }
-                }
+                past_appointment_conflict = True
         
         # 1. Check for appointment conflicts
-        appointment_conflict = None
         for event in events:
             if (event.start_time and event.end_time and
                 event.event_type == 'appointment' and
@@ -1560,29 +1554,9 @@ class AvailabilityService:
                         "end_time": AvailabilityService._format_time(event.end_time),
                         "appointment_type": appointment_type_name
                     }
-                    break  # Return first conflict found (highest priority)
+                    break  # Only need first conflict of this type for display
         
-        if appointment_conflict:
-            # Format default availability info
-            is_within_hours = AvailabilityService.is_slot_within_default_intervals(
-                default_intervals, start_time, end_time
-            )
-            normal_hours = AvailabilityService._format_normal_hours(date, default_intervals)
-            
-            return {
-                "has_conflict": True,
-                "conflict_type": "appointment",
-                "appointment_conflict": appointment_conflict,
-                "exception_conflict": None,
-                "resource_conflicts": None,
-                "default_availability": {
-                    "is_within_hours": is_within_hours,
-                    "normal_hours": normal_hours
-                }
-            }
-        
-        # 2. Check for availability exception conflicts (medium priority)
-        exception_conflict = None
+        # 2. Check for availability exception conflicts
         for event in events:
             if (event.start_time and event.end_time and
                 event.event_type == 'availability_exception' and
@@ -1599,48 +1573,9 @@ class AvailabilityService:
                     "end_time": AvailabilityService._format_time(event.end_time),
                     "reason": reason
                 }
-                break  # Return first conflict found
+                break  # Only need first conflict for display
         
-        if exception_conflict:
-            # Format default availability info
-            is_within_hours = AvailabilityService.is_slot_within_default_intervals(
-                default_intervals, start_time, end_time
-            )
-            normal_hours = AvailabilityService._format_normal_hours(date, default_intervals)
-            
-            return {
-                "has_conflict": True,
-                "conflict_type": "exception",
-                "appointment_conflict": None,
-                "exception_conflict": exception_conflict,
-                "resource_conflicts": None,
-                "default_availability": {
-                    "is_within_hours": is_within_hours,
-                    "normal_hours": normal_hours
-                }
-            }
-        
-        # 3. Check if outside default availability (lowest priority)
-        is_within_hours = AvailabilityService.is_slot_within_default_intervals(
-            default_intervals, start_time, end_time
-        )
-        
-        normal_hours = AvailabilityService._format_normal_hours(date, default_intervals)
-        
-        if not is_within_hours:
-            return {
-                "has_conflict": True,
-                "conflict_type": "availability",
-                "appointment_conflict": None,
-                "exception_conflict": None,
-                "resource_conflicts": None,
-                "default_availability": {
-                    "is_within_hours": False,
-                    "normal_hours": normal_hours
-                }
-            }
-        
-        # 4. Check for resource conflicts (lowest priority)
+        # 3. Check for resource conflicts
         from services.resource_service import ResourceService
         start_datetime = datetime.combine(date, start_time)
         end_datetime = datetime.combine(date, end_time)
@@ -1654,27 +1589,38 @@ class AvailabilityService:
         )
         
         if not resource_result['is_available']:
-            return {
-                "has_conflict": True,
-                "conflict_type": "resource",
-                "appointment_conflict": None,
-                "exception_conflict": None,
-                "resource_conflicts": resource_result['conflicts'],
-                "default_availability": {
-                    "is_within_hours": is_within_hours,
-                    "normal_hours": normal_hours
-                }
-            }
+            resource_conflicts = resource_result['conflicts']
         
-        # No conflicts
+        # Determine highest priority conflict type for backward compatibility
+        conflict_type = None
+        if past_appointment_conflict:
+            conflict_type = "past_appointment"
+        elif appointment_conflict:
+            conflict_type = "appointment"
+        elif exception_conflict:
+            conflict_type = "exception"
+        elif not is_within_hours:
+            conflict_type = "availability"
+        elif resource_conflicts:
+            conflict_type = "resource"
+        
+        # Return all conflicts found
+        has_conflict = (
+            past_appointment_conflict or
+            appointment_conflict is not None or
+            exception_conflict is not None or
+            not is_within_hours or
+            resource_conflicts is not None
+        )
+        
         return {
-            "has_conflict": False,
-            "conflict_type": None,
-            "appointment_conflict": None,
-            "exception_conflict": None,
-            "resource_conflicts": None,
+            "has_conflict": has_conflict,
+            "conflict_type": conflict_type,  # Highest priority for backward compatibility
+            "appointment_conflict": appointment_conflict,
+            "exception_conflict": exception_conflict,
+            "resource_conflicts": resource_conflicts,
             "default_availability": {
-                "is_within_hours": True,
+                "is_within_hours": is_within_hours,
                 "normal_hours": normal_hours
             }
         }

@@ -101,8 +101,8 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
             event.resource.calendar_event_id
           );
           
-          // Only show if it's a resource conflict
-          if (conflictInfo.has_conflict && conflictInfo.conflict_type === 'resource') {
+          // Show all conflicts (not just resource conflicts)
+          if (conflictInfo.has_conflict) {
             setResourceConflictInfo(conflictInfo);
           } else {
             setResourceConflictInfo(null);
@@ -291,8 +291,8 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
               {event.resource.resource_names && event.resource.resource_names.length > 0 && (
                 <p>{event.resource.resource_names.join(' ')}</p>
               )}
-              {/* Resource Conflict Warning */}
-              {resourceConflictInfo && resourceConflictInfo.has_conflict && resourceConflictInfo.conflict_type === 'resource' && (
+              {/* Conflict Warning - shows all conflicts */}
+              {resourceConflictInfo && resourceConflictInfo.has_conflict && (
                 <div className="mt-2">
                   <ConflictDisplay
                     conflictInfo={resourceConflictInfo}

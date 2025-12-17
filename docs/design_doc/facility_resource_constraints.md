@@ -86,6 +86,7 @@ Extend the appointment system to consider facility resource constraints (e.g., t
 ### Conflict Detection
 
 #### Conflict Priority (Updated)
+All conflicts are detected and returned to the frontend. The priority below determines the order of display and the "highest priority" status for backward compatibility:
 1. **Past Appointment** (Highest Priority)
 2. **Appointment Conflict**
 3. **Availability Exception Conflict**
@@ -100,7 +101,8 @@ Extend the appointment system to consider facility resource constraints (e.g., t
 - Resource conflict occurs when:
   - Required quantity of a resource type > Available quantity at that time
 - Conflict is detected at **resource type level**, not individual resource level
-- Example: If 3 rooms exist, all booked, and 4th appointment is created (bypassing constraint), all 4 appointments show resource conflict warning
+- **Multiple conflicts**: If multiple conflict types exist (e.g., appointment conflict + resource conflict), ALL are displayed to the practitioner.
+- Example: If 3 rooms exist, all booked, and 4th appointment is created (bypassing constraint), all 4 appointments show resource conflict warning. If one of them also overlaps with a practitioner exception, both warnings are shown.
 
 #### Resource Conflict Display Format
 ```

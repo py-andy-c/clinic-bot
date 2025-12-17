@@ -34,27 +34,31 @@ Allow clinic users (admins and practitioners) to schedule appointments at any ti
 
 ### Conflict Detection and Display
 
-**Conflict Detection Priority** (checked in order, show highest priority conflict):
+**Conflict Detection Priority** (checked in order, returned in full):
 1. **Past Appointment** (Highest Priority) - Warning style
 2. **Appointment Conflict** - Red/Error style
 3. **Availability Exception Conflict** (Medium Priority) - Orange/Warning style
 4. **Outside Default Availability** (Lowest Priority) - Blue/Info style
+5. **Resource Conflict** (Lowest Priority) - Yellow/Warning style
 
 **When Conflicts Are Detected**:
-- **DateTimePicker (Time Selection)**: Show conflict warning with full details below time input
+- **DateTimePicker (Time Selection)**: Show conflict warnings with full details below time input
   - Always checks conflicts (not just in override mode)
   - Checks immediately when practitioner/appointment type changes
   - Debounced (300ms) when date/time changes to avoid excessive API calls
   - Full conflict details always visible (even when picker is collapsed)
   - Displays outside the collapsible section
-  - Color-coded border around time input based on conflict type (in override mode)
+  - Color-coded border around time input based on highest priority conflict (in override mode)
+  - **Shows ALL conflicts found** in priority order, each in its own styled box
 - **Conflict Resolution Step**: Show warning icon (⚠️) next to conflicting occurrences
-  - Click icon to show conflict details in popover
+  - Click icon to show ALL conflict details in popover
   - Conflict status updates immediately when editing occurrences
 - **Review/Confirmation Step**: Show warning icon (⚠️) next to conflicting occurrences
-  - Click icon to show conflict details in popover (same component as conflict resolution)
+  - Click icon to show ALL conflict details in popover (same component as conflict resolution)
 
 **Conflict Display Format** (same format in all contexts):
+- Multiple conflicts are stacked vertically with a 2-unit space (`space-y-2`) between them.
+- Each conflict type maintains its specific icon, title, and detail format.
 
 **1. Past Appointment**:
 ```
@@ -84,9 +88,9 @@ Allow clinic users (admins and practitioners) to schedule appointments at any ti
 
 **Visual Indicators**:
 - **Warning Icon (⚠️)**: Used for all conflict types (not red marking)
-- **Popover**: Shows full conflict details when icon is clicked
-- **Color-coded borders**: Red (appointment) > Orange (exception) > Blue (availability) - only in DateTimePicker
-- Only show ONE conflict message at a time (highest priority)
+- **Popover**: Shows ALL detected conflict details when icon is clicked
+- **Color-coded borders**: Highest priority conflict determines the border color: Red (appointment) > Orange (exception) > Blue (availability) - only in DateTimePicker
+- **Shows ALL relevant conflict messages** instead of just the highest priority one.
 
 ### Recurring Appointments Flow
 
