@@ -975,9 +975,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   // Render conflict resolution step content (without buttons)
   const renderConflictResolutionStepContent = () => {
-    // Simplified: canProceed is always enabled if occurrences exist (users can proceed with conflicts)
-    const canProceed = occurrences.length > 0;
-    
     return (
       <div className="space-y-4">
           <div className="space-y-2">

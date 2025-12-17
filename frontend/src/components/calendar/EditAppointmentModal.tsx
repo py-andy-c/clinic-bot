@@ -640,10 +640,6 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
 
   // Render review step footer buttons
   const renderReviewStepFooter = () => {
-    const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
-    const originalStartTime = moment(event.start).tz('Asia/Taipei');
-    const showTimeWarning = changeDetails.timeChanged || changeDetails.dateChanged;
-
     // Determine if this is the final step (will go directly to save)
     const isFinalStep = !hasLineUser || (originallyAutoAssigned && !changeDetails.timeChanged);
     const reviewButtonText = isFinalStep ? saveButtonText : '下一步';
