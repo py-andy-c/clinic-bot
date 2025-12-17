@@ -202,6 +202,43 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     setLastManuallySelectedTime(null);
   }, [appointmentTypeId]);
 
+  // Track previous slot candidate values to detect changes
+  const prevSlotCandidatesRef = useRef<{
+    practitionerId: number | null;
+    appointmentTypeId: number | null;
+    date: string | null;
+  }>({
+    practitionerId: selectedPractitionerId,
+    appointmentTypeId: appointmentTypeId,
+    date: selectedDate,
+  });
+
+  // Reset override mode when slot candidates change (practitioner/appointment type/date)
+  useEffect(() => {
+    const prev = prevSlotCandidatesRef.current;
+    const hasChanged = 
+      prev.practitionerId !== selectedPractitionerId ||
+      prev.appointmentTypeId !== appointmentTypeId ||
+      prev.date !== selectedDate;
+    
+    if (hasChanged) {
+      // Update ref first to prevent duplicate resets
+      prevSlotCandidatesRef.current = {
+        practitionerId: selectedPractitionerId,
+        appointmentTypeId: appointmentTypeId,
+        date: selectedDate,
+      };
+      
+      // Reset override mode if it's currently enabled
+      if (overrideMode) {
+        setOverrideMode(false);
+        onOverrideChange?.(false);
+        setConflictInfo(null);
+        setFreeFormTime('');
+      }
+    }
+  }, [selectedPractitionerId, appointmentTypeId, selectedDate, overrideMode, onOverrideChange]);
+
   // Sync override mode with parent prop
   useEffect(() => {
     if (parentOverrideMode !== undefined) {

@@ -136,12 +136,9 @@ Allow clinic users (admins and practitioners) to schedule appointments at any ti
 ### Edit Appointment Flow
 
 **In EditAppointmentModal**:
-- If editing appointment scheduled outside normal hours:
-  - Override toggle pre-enabled
-  - Shows conflict indicators if user changes time
-- If editing appointment in normal hours:
-  - Override toggle available but OFF by default
-  - User can enable to move outside normal hours
+- Override toggle always starts OFF (never pre-enabled, even if appointment was scheduled outside normal hours)
+- User can enable override toggle to move appointment outside normal hours
+- If user changes practitioner/appointment type/date, override mode resets to OFF
 - Confirmation step: Shows conflict indicators same as create flow
 
 ## Simplified Frontend Logic
@@ -165,9 +162,9 @@ Allow clinic users (admins and practitioners) to schedule appointments at any ti
 
 ### No Default Availability
 - If practitioner has no default availability set:
-  - Override mode should be enabled by default
+  - Override mode starts OFF (user must enable manually if needed)
   - Show message: "此治療師尚未設定可用時間，請手動選擇時間"
-  - All times available for selection
+  - User can enable override mode to select any time
 
 ### Conflict Detection Timing
 - Check conflicts in real-time as user types/selects time
@@ -198,9 +195,11 @@ Allow clinic users (admins and practitioners) to schedule appointments at any ti
 ### Field Changes After Time Selection
 - **Toggling Override Mode OFF**: Clear selected time if outside normal availability, switch to dropdown, clear conflict display
 - **Toggling Override Mode ON**: Keep selected time if valid, switch to free-form input, trigger conflict detection
-- **Appointment Type Change**: Re-check conflicts (duration may have changed), keep selected time, update conflict display
-- **Practitioner Change**: Clear selected time, reset override mode to OFF, clear conflict display
-- **Date Change**: Keep selected time if valid, re-check conflicts for new date, update conflict display
+- **Slot Candidates Change (Practitioner/Appointment Type/Date)**: Reset override mode to OFF, clear conflict display
+  - **Practitioner Change**: Clear selected time, reset override mode to OFF, clear conflict display
+  - **Appointment Type Change**: Reset override mode to OFF, keep selected time if valid, re-check conflicts (duration may have changed), update conflict display
+  - **Date Change**: Reset override mode to OFF, keep selected time if valid, re-check conflicts for new date, update conflict display
+- Override mode resets whenever slot candidates change to ensure user starts fresh with new available slots
 
 ### Editing Existing Appointment
 - When editing, exclude current appointment from conflict detection
@@ -214,7 +213,7 @@ Allow clinic users (admins and practitioners) to schedule appointments at any ti
 **Props**:
 - `allowOverride?: boolean` - Enable override mode toggle
 - `onOverrideChange?: (enabled: boolean) => void` - Callback when toggle changes
-- `isOverrideMode?: boolean` - Current override state (for edit mode)
+- `isOverrideMode?: boolean` - (Deprecated) Parent should not pass this prop; override mode always starts as false
 
 **State**:
 - `overrideMode: boolean` - Whether override is enabled

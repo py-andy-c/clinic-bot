@@ -63,7 +63,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const [selectedTime, setSelectedTime] = useState<string>(
     moment(event.start).tz('Asia/Taipei').format('HH:mm')
   );
-  const [overrideMode, setOverrideMode] = useState<boolean>(false);
+  const [, setOverrideMode] = useState<boolean>(false);
   // Store original notes (from patient) - cannot be edited by clinic
   const originalNotes = event.resource.notes || '';
   const originalClinicNotes = event.resource.clinic_notes || '';
@@ -239,32 +239,6 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     setHasAvailableSlots(false);
   };
 
-  // Check if current appointment is outside normal availability and enable override mode
-  useEffect(() => {
-    if (selectedPractitionerId && selectedAppointmentTypeId && selectedDate && selectedTime) {
-      const checkIfOutsideAvailability = async () => {
-        try {
-          const conflictResponse = await apiService.checkSchedulingConflicts(
-            selectedPractitionerId,
-            selectedDate,
-            selectedTime,
-            selectedAppointmentTypeId,
-            event.resource.calendar_event_id // Exclude current appointment from conflict check
-          );
-          // Enable override mode if appointment is outside normal availability or in the past
-          // (availability or past_appointment conflicts indicate override was used)
-          if (conflictResponse.has_conflict && 
-              (conflictResponse.conflict_type === 'availability' || conflictResponse.conflict_type === 'past_appointment')) {
-            setOverrideMode(true);
-          }
-        } catch (error) {
-          logger.error('Failed to check if appointment is outside availability:', error);
-          // Don't change override mode on error
-        }
-      };
-      checkIfOutsideAvailability();
-    }
-  }, [selectedPractitionerId, selectedAppointmentTypeId, selectedDate, selectedTime, event.resource.calendar_event_id]);
 
   // Handle appointment type change - clear dependent fields
   const handleAppointmentTypeChange = (appointmentTypeId: number | null) => {
@@ -536,7 +510,6 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             onPractitionerError={handlePractitionerError}
             allowOverride={true}
             onOverrideChange={setOverrideMode}
-            isOverrideMode={overrideMode}
           />
         )}
 
