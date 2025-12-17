@@ -274,7 +274,7 @@ const ResourcesSettings: React.FC<ResourcesSettingsProps> = ({ isClinicAdmin }) 
                                       type="text"
                                       value={resource.description || ''}
                                       onChange={(e) => updateResourceLocal(resource.id, resource.name, e.target.value)}
-                                      placeholder="描述 (選填)"
+                                      placeholder="備注 (選填)"
                                       className="input text-sm py-1.5"
                                     />
                                   </div>
