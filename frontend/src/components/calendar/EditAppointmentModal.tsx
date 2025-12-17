@@ -15,6 +15,7 @@ import { logger } from '../../utils/logger';
 import { getPractitionerDisplayName, formatAppointmentDateTime } from '../../utils/calendarUtils';
 import moment from 'moment-timezone';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 type EditStep = 'form' | 'review' | 'note' | 'preview';
 
@@ -44,6 +45,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   saveButtonText = '確認更動',
   allowConfirmWithoutChanges = false,
 }) => {
+  const isMobile = useIsMobile();
   // Step state: 'form' | 'review' | 'note' | 'preview'
   const [step, setStep] = useState<EditStep>('form');
   
@@ -401,10 +403,9 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     return [...appointmentTypes].sort((a, b) => a.name.localeCompare(b.name, 'zh-TW'));
   }, [appointmentTypes]);
 
-  // Render form step
-  const renderFormStep = () => (
-    <>
-      <div className="space-y-4 mb-6">
+  // Render form step content (without buttons)
+  const renderFormStepContent = () => (
+    <div className="space-y-4">
         {/* Read-only fields - only show if showReadOnlyFields is true */}
         {showReadOnlyFields && (
           <>
@@ -527,35 +528,37 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           </div>
         )}
       </div>
+  );
 
-      <div className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200 flex-shrink-0">
-        <button
-          onClick={handleFormSubmit}
-          disabled={
-            !selectedAppointmentTypeId ||
+  // Render form step footer buttons
+  const renderFormStepFooter = () => (
+    <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
+      <button
+        onClick={handleFormSubmit}
+        disabled={
+          !selectedAppointmentTypeId ||
+          !selectedPractitionerId ||
+          !selectedTime ||
+          (!hasChanges && !allowConfirmWithoutChanges) ||
+          !hasAvailableSlots
+        }
+        className={`btn-primary ${
+          (!selectedAppointmentTypeId ||
             !selectedPractitionerId ||
             !selectedTime ||
             (!hasChanges && !allowConfirmWithoutChanges) ||
-            !hasAvailableSlots
-          }
-          className={`btn-primary ${
-            (!selectedAppointmentTypeId ||
-              !selectedPractitionerId ||
-              !selectedTime ||
-              (!hasChanges && !allowConfirmWithoutChanges) ||
-              !hasAvailableSlots)
-              ? 'opacity-50 cursor-not-allowed'
-              : ''
-          }`}
-        >
-          {formSubmitButtonText}
-        </button>
-      </div>
-    </>
+            !hasAvailableSlots)
+            ? 'opacity-50 cursor-not-allowed'
+            : ''
+        }`}
+      >
+        {formSubmitButtonText}
+      </button>
+    </div>
   );
 
-  // Render review step
-  const renderReviewStep = () => {
+  // Render review step content (without buttons)
+  const renderReviewStepContent = () => {
     const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
     const originalStartTime = moment(event.start).tz('Asia/Taipei');
     const newFormattedDateTime = formatAppointmentDateTime(newStartTime.toDate());
@@ -565,13 +568,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     const originalAppointmentType = appointmentTypes.find(at => at.id === originalAppointmentTypeId);
     const newAppointmentType = appointmentTypes.find(at => at.id === selectedAppointmentTypeId);
 
-    // Determine if this is the final step (will go directly to save)
-    const isFinalStep = !hasLineUser || (originallyAutoAssigned && !changeDetails.timeChanged);
-    const reviewButtonText = isFinalStep ? saveButtonText : '下一步';
-
     return (
-      <>
-        <div className="space-y-4 mb-6">
+      <div className="space-y-4">
           {/* Original Appointment */}
           <div>
             <h4 className="text-sm font-semibold text-gray-700 mb-2">原預約</h4>
@@ -637,48 +635,21 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             </div>
           )}
         </div>
-
-        <div className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200 flex-shrink-0">
-          <button
-            onClick={() => {
-              setStep('form');
-              setError(null);
-            }}
-            className="btn-secondary"
-          >
-            返回修改
-          </button>
-          <button
-            onClick={handleReviewNext}
-            className="btn-primary"
-          >
-            {reviewButtonText}
-          </button>
-        </div>
-      </>
     );
   };
 
-  // Render note step
-  const renderNoteStep = () => (
-    <>
-      <div className="space-y-4 mb-6">
-        <div>
-          <textarea
-            value={customNote}
-            onChange={(e) => setCustomNote(e.target.value)}
-            placeholder="例如：因治療師調度，已為您調整預約時間"
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            rows={3}
-            maxLength={200}
-          />
-          <p className="text-sm text-gray-500 mt-1">
-            {customNote.length}/200 字元
-          </p>
-        </div>
-      </div>
+  // Render review step footer buttons
+  const renderReviewStepFooter = () => {
+    const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
+    const originalStartTime = moment(event.start).tz('Asia/Taipei');
+    const showTimeWarning = changeDetails.timeChanged || changeDetails.dateChanged;
 
-      <div className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200 flex-shrink-0">
+    // Determine if this is the final step (will go directly to save)
+    const isFinalStep = !hasLineUser || (originallyAutoAssigned && !changeDetails.timeChanged);
+    const reviewButtonText = isFinalStep ? saveButtonText : '下一步';
+
+    return (
+      <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
         <button
           onClick={() => {
             setStep('form');
@@ -686,55 +657,96 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           }}
           className="btn-secondary"
         >
-          返回
-        </button>
-        <button
-          onClick={handleNoteSubmit}
-          disabled={isLoadingPreview}
-          className="btn-primary"
-        >
-          {isLoadingPreview ? '產生預覽中...' : '下一步'}
-        </button>
-      </div>
-    </>
-  );
-
-  // Render preview step
-  const renderPreviewStep = () => (
-    <>
-      <div className="space-y-4 mb-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            病患將收到此LINE訊息
-          </label>
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="text-sm text-gray-700 whitespace-pre-line">
-              {previewMessage}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200 flex-shrink-0">
-        <button
-          onClick={() => {
-            setStep('note');
-            setError(null);
-          }}
-          className="btn-secondary"
-          disabled={isSaving}
-        >
           返回修改
         </button>
         <button
-          onClick={handleSave}
-          disabled={isSaving}
+          onClick={handleReviewNext}
           className="btn-primary"
         >
-          {isSaving ? '儲存中...' : saveButtonText}
+          {reviewButtonText}
         </button>
       </div>
-    </>
+    );
+  };
+
+  // Render note step content (without buttons)
+  const renderNoteStepContent = () => (
+    <div className="space-y-4">
+      <div>
+        <textarea
+          value={customNote}
+          onChange={(e) => setCustomNote(e.target.value)}
+          placeholder="例如：因治療師調度，已為您調整預約時間"
+          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          rows={3}
+          maxLength={200}
+        />
+        <p className="text-sm text-gray-500 mt-1">
+          {customNote.length}/200 字元
+        </p>
+      </div>
+    </div>
+  );
+
+  // Render note step footer buttons
+  const renderNoteStepFooter = () => (
+    <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
+      <button
+        onClick={() => {
+          setStep('form');
+          setError(null);
+        }}
+        className="btn-secondary"
+      >
+        返回
+      </button>
+      <button
+        onClick={handleNoteSubmit}
+        disabled={isLoadingPreview}
+        className="btn-primary"
+      >
+        {isLoadingPreview ? '產生預覽中...' : '下一步'}
+      </button>
+    </div>
+  );
+
+  // Render preview step content (without buttons)
+  const renderPreviewStepContent = () => (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          病患將收到此LINE訊息
+        </label>
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="text-sm text-gray-700 whitespace-pre-line">
+            {previewMessage}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Render preview step footer buttons
+  const renderPreviewStepFooter = () => (
+    <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
+      <button
+        onClick={() => {
+          setStep('note');
+          setError(null);
+        }}
+        className="btn-secondary"
+        disabled={isSaving}
+      >
+        返回修改
+      </button>
+      <button
+        onClick={handleSave}
+        disabled={isSaving}
+        className="btn-primary"
+      >
+        {isSaving ? '儲存中...' : saveButtonText}
+      </button>
+    </div>
   );
 
   return (
@@ -742,9 +754,11 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       onClose={onClose}
       aria-label="調整預約"
       className="!p-0"
+      fullScreen={isMobile}
     >
-      <div className="px-6 pt-6 pb-6">
-        <div className="flex items-center mb-4">
+      <div className={`flex flex-col h-full ${isMobile ? 'px-4 pt-4 pb-0' : 'px-6 pt-6 pb-6'}`}>
+        {/* Header */}
+        <div className="flex items-center mb-4 flex-shrink-0">
           <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2">
             <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
               <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
@@ -757,18 +771,34 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             {step === 'preview' && 'LINE訊息預覽'}
           </h3>
         </div>
-      {/* Display error message */}
-      {(error || externalErrorMessage) && (
-        <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
-          <p className="text-sm text-red-800">{error || externalErrorMessage}</p>
-        </div>
-      )}
+        
+        {/* Error messages */}
+        {(error || externalErrorMessage) && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3 flex-shrink-0">
+            <p className="text-sm text-red-800">{error || externalErrorMessage}</p>
+          </div>
+        )}
 
-      {/* Render current step */}
-      {step === 'form' && renderFormStep()}
-      {step === 'review' && renderReviewStep()}
-      {step === 'note' && renderNoteStep()}
-      {step === 'preview' && renderPreviewStep()}
+        {/* Scrollable content area */}
+        <div className={`flex-1 overflow-y-auto ${isMobile ? 'px-0' : ''}`}>
+          {step === 'form' && renderFormStepContent()}
+          {step === 'review' && renderReviewStepContent()}
+          {step === 'note' && renderNoteStepContent()}
+          {step === 'preview' && renderPreviewStepContent()}
+        </div>
+        
+        {/* Footer with buttons - always visible at bottom */}
+        <div 
+          className={`flex-shrink-0 ${isMobile ? 'px-4' : ''}`}
+          style={isMobile ? {
+            paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+          } : undefined}
+        >
+          {step === 'form' && renderFormStepFooter()}
+          {step === 'review' && renderReviewStepFooter()}
+          {step === 'note' && renderNoteStepFooter()}
+          {step === 'preview' && renderPreviewStepFooter()}
+        </div>
       </div>
     </BaseModal>
   );

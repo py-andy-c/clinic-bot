@@ -167,8 +167,8 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
       }
       style={{
         width: '100vw',
-        height: '100vh',
-        minHeight: '100vh',
+        height: '100dvh',
+        minHeight: '100dvh',
         zIndex: zIndex,
         overflow: 'hidden',
       }}
@@ -180,8 +180,8 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
     >
       <div
         className={fullScreen
-          ? `w-screen h-[100dvh] min-h-[100dvh] overflow-hidden relative ${className}`
-          : `bg-white rounded-lg p-6 max-w-md w-full mx-4 mb-4 max-h-[90vh] overflow-y-auto relative ${className}`
+          ? `w-screen h-[100dvh] min-h-[100dvh] overflow-hidden relative flex flex-col ${className}`
+          : `bg-white rounded-lg p-6 max-w-md w-full mx-4 mb-4 max-h-[90dvh] overflow-y-auto relative ${className}`
         }
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}

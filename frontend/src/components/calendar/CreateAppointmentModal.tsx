@@ -26,6 +26,7 @@ import { preventScrollWheelChange } from '../../utils/inputUtils';
 import { NumberInput } from '../shared/NumberInput';
 import { ConflictIndicator } from '../shared';
 import { SchedulingConflictResponse } from '../../types';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 /**
  * Helper function to convert recurring conflict status to SchedulingConflictResponse format
@@ -162,6 +163,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   onConfirm,
   onRecurringAppointmentsCreated,
 }) => {
+  const isMobile = useIsMobile();
   const [step, setStep] = useState<CreateStep>('form');
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(preSelectedPatientId || null);
   
@@ -709,10 +711,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     // Auto-deselection handled by useEffect
   };
 
-  // Render form step
-  const renderFormStep = () => (
-    <>
-      <div className="space-y-4 mb-6">
+  // Render form step content (without buttons)
+  const renderFormStepContent = () => (
+    <div className="space-y-4">
         {/* Patient search and selection */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -932,52 +933,53 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           />
         </div>
       </div>
+  );
 
-      <div 
-        className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200 flex-shrink-0"
-        onMouseDown={(e) => {
-          // Stop propagation to prevent DateTimePicker's click outside handler from collapsing
-          // This allows the button to work even when picker is expanded
-          e.stopPropagation();
-        }}
-      >
-        <button
-          onClick={handleFormSubmit}
-          disabled={
-            !selectedPatientId ||
+  // Render form step footer buttons
+  const renderFormStepFooter = () => (
+    <div 
+      className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0"
+      onMouseDown={(e) => {
+        // Stop propagation to prevent DateTimePicker's click outside handler from collapsing
+        // This allows the button to work even when picker is expanded
+        e.stopPropagation();
+      }}
+    >
+      <button
+        onClick={handleFormSubmit}
+        disabled={
+          !selectedPatientId ||
+          !selectedAppointmentTypeId ||
+          !selectedPractitionerId ||
+          !selectedDate ||
+          !selectedTime ||
+          isCheckingConflicts ||
+          (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1))
+        }
+        className={`btn-primary ${
+          (!selectedPatientId ||
             !selectedAppointmentTypeId ||
             !selectedPractitionerId ||
             !selectedDate ||
             !selectedTime ||
             isCheckingConflicts ||
-            (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1))
-          }
-          className={`btn-primary ${
-            (!selectedPatientId ||
-              !selectedAppointmentTypeId ||
-              !selectedPractitionerId ||
-              !selectedDate ||
-              !selectedTime ||
-              isCheckingConflicts ||
-              (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1)))
-              ? 'opacity-50 cursor-not-allowed'
-              : ''
-          }`}
-        >
-          {isCheckingConflicts ? '正在檢查衝突...' : '下一步'}
-        </button>
-      </div>
-    </>
+            (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1)))
+            ? 'opacity-50 cursor-not-allowed'
+            : ''
+        }`}
+      >
+        {isCheckingConflicts ? '正在檢查衝突...' : '下一步'}
+      </button>
+    </div>
   );
 
-  // Render conflict resolution step
-  const renderConflictResolutionStep = () => {
+  // Render conflict resolution step content (without buttons)
+  const renderConflictResolutionStepContent = () => {
     // Simplified: canProceed is always enabled if occurrences exist (users can proceed with conflicts)
     const canProceed = occurrences.length > 0;
     
     return (
-      <>
-        <div className="space-y-4 mb-6">
+      <div className="space-y-4">
           <div className="space-y-2">
             {occurrences.map((occ, idx) => {
               const dateMoment = moment.tz(`${occ.date}T${occ.time}`, 'Asia/Taipei');
@@ -1180,46 +1182,51 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             </div>
           )}
         </div>
-        
-        <div className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200">
-          <button
-            onClick={() => {
-              // Clear conflict resolution state when going back
-              setOccurrences([]);
-              setHasVisitedConflictResolution(false);
-              setStep('form');
-              setError(null);
-            }}
-            className="btn-secondary"
-          >
-            返回
-          </button>
-          <button
-            onClick={() => {
-              // Always enabled - users can proceed with conflicts
-              setHasVisitedConflictResolution(true);
-              setStep('confirm');
-            }}
-            disabled={!canProceed}
-            className={`btn-primary ${!canProceed ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            下一步
-          </button>
-        </div>
-      </>
     );
   };
 
-  // Render confirmation step
-  const renderConfirmStep = () => {
+  // Render conflict resolution step footer buttons
+  const renderConflictResolutionStepFooter = () => {
+    const canProceed = occurrences.length > 0;
+    
+    return (
+      <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
+        <button
+          onClick={() => {
+            // Clear conflict resolution state when going back
+            setOccurrences([]);
+            setHasVisitedConflictResolution(false);
+            setStep('form');
+            setError(null);
+          }}
+          className="btn-secondary"
+        >
+          返回
+        </button>
+        <button
+          onClick={() => {
+            // Always enabled - users can proceed with conflicts
+            setHasVisitedConflictResolution(true);
+            setStep('confirm');
+          }}
+          disabled={!canProceed}
+          className={`btn-primary ${!canProceed ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          下一步
+        </button>
+      </div>
+    );
+  };
+
+  // Render confirmation step content (without buttons)
+  const renderConfirmStepContent = () => {
     const dateTime = selectedDate && selectedTime 
       ? moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toDate()
       : null;
     const formattedDateTime = dateTime ? formatAppointmentDateTime(dateTime) : '';
 
     return (
-      <>
-        <div className="space-y-4 mb-6">
+      <div className="space-y-4">
           <div className="space-y-2">
             <div>
               <span className="text-sm text-gray-600">病患：</span>
@@ -1297,33 +1304,35 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             )}
           </div>
         </div>
-
-        <div className="flex justify-end space-x-2 mt-6 pt-4 border-t border-gray-200 flex-shrink-0">
-          <button
-            onClick={() => {
-              // If conflict resolution was visited, go back there; otherwise go to form
-              if (hasVisitedConflictResolution) {
-                setStep('conflict-resolution');
-              } else {
-                setStep('form');
-              }
-              setError(null);
-            }}
-            className="btn-secondary"
-          >
-            返回修改
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="btn-primary"
-          >
-            {isSaving ? '建立中...' : '確認建立'}
-          </button>
-        </div>
-      </>
     );
   };
+
+  // Render confirmation step footer buttons
+  const renderConfirmStepFooter = () => (
+    <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
+      <button
+        onClick={() => {
+          // If conflict resolution was visited, go back there; otherwise go to form
+          if (hasVisitedConflictResolution) {
+            setStep('conflict-resolution');
+          } else {
+            setStep('form');
+          }
+          setError(null);
+        }}
+        className="btn-secondary"
+      >
+        返回修改
+      </button>
+      <button
+        onClick={handleSave}
+        disabled={isSaving}
+        className="btn-primary"
+      >
+        {isSaving ? '建立中...' : '確認建立'}
+      </button>
+    </div>
+  );
 
   // Handle patient creation success
   const handlePatientCreated = useCallback((
@@ -1416,9 +1425,10 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
   return (
     <>
-      <BaseModal onClose={handleClose} aria-label={modalTitle} className="!p-0">
-        <div className="px-6 pt-6 pb-6">
-          <div className="flex items-center mb-4">
+      <BaseModal onClose={handleClose} aria-label={modalTitle} className="!p-0" fullScreen={isMobile}>
+        <div className={`flex flex-col h-full ${isMobile ? 'px-4 pt-4 pb-0' : 'px-6 pt-6 pb-6'}`}>
+          {/* Header */}
+          <div className="flex items-center mb-4 flex-shrink-0">
             <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2">
               <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
@@ -1426,22 +1436,39 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             </div>
             <h3 className="text-base font-semibold text-blue-800">{modalTitle}</h3>
           </div>
+          
+          {/* Error messages */}
           {/* Only show error at top if DateTimePicker is not visible (to avoid duplicate error messages) */}
           {error && step === 'form' && (!selectedAppointmentTypeId || !selectedPractitionerId) && (
-            <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3 flex-shrink-0">
               <p className="text-sm text-red-800">{error}</p>
             </div>
           )}
           {/* Show error for other steps (conflict-resolution, confirm) */}
           {error && step !== 'form' && (
-            <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3 flex-shrink-0">
               <p className="text-sm text-red-800">{error}</p>
             </div>
           )}
 
-          {step === 'form' && renderFormStep()}
-          {step === 'conflict-resolution' && renderConflictResolutionStep()}
-          {step === 'confirm' && renderConfirmStep()}
+          {/* Scrollable content area */}
+          <div className={`flex-1 overflow-y-auto ${isMobile ? 'px-0' : ''}`}>
+            {step === 'form' && renderFormStepContent()}
+            {step === 'conflict-resolution' && renderConflictResolutionStepContent()}
+            {step === 'confirm' && renderConfirmStepContent()}
+          </div>
+          
+          {/* Footer with buttons - always visible at bottom */}
+          <div 
+            className={`flex-shrink-0 ${isMobile ? 'px-4' : ''}`}
+            style={isMobile ? {
+              paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+            } : undefined}
+          >
+            {step === 'form' && renderFormStepFooter()}
+            {step === 'conflict-resolution' && renderConflictResolutionStepFooter()}
+            {step === 'confirm' && renderConfirmStepFooter()}
+          </div>
         </div>
       </BaseModal>
     
