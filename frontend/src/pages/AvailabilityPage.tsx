@@ -57,10 +57,20 @@ const AvailabilityPage: React.FC = () => {
   
   // Load resources for resource selector
   const [resourcesLoading, setResourcesLoading] = useState(false);
+  // Track previous clinic ID to clear resource selection when clinic changes
+  const previousClinicIdRef = useRef<number | null>(null);
+  
   useEffect(() => {
     const loadResources = async () => {
       try {
         setResourcesLoading(true);
+        
+        // Clear resource selection if clinic changed
+        if (user?.active_clinic_id !== previousClinicIdRef.current && previousClinicIdRef.current !== null) {
+          setSelectedResourceIds([]);
+        }
+        previousClinicIdRef.current = user?.active_clinic_id ?? null;
+        
         // Fetch all resource types
         const resourceTypesResponse = await apiService.getResourceTypes();
         const resourceTypes = resourceTypesResponse.resource_types;
@@ -80,6 +90,27 @@ const AvailabilityPage: React.FC = () => {
         }
 
         setResources(allResources);
+        
+        // Load resource IDs from persisted state AFTER resources are loaded
+        // This ensures we can properly validate which resources still exist
+        if (user?.user_id && user?.active_clinic_id) {
+          const resourceKey = `calendar_resources_${user.user_id}_${user.active_clinic_id}`;
+          try {
+            const savedResourceIds = localStorage.getItem(resourceKey);
+            if (savedResourceIds) {
+              const parsedIds = JSON.parse(savedResourceIds);
+              if (Array.isArray(parsedIds)) {
+                // Filter out invalid resources (those that no longer exist or are deleted)
+                const validResourceIds = parsedIds.filter(id =>
+                  allResources.some(r => r.id === id && !r.is_deleted)
+                );
+                setSelectedResourceIds(validResourceIds);
+              }
+            }
+          } catch (err) {
+            logger.warn('Failed to load resource selection:', err);
+          }
+        }
       } catch (err) {
         logger.error('Failed to load resources:', err);
       } finally {
@@ -90,7 +121,7 @@ const AvailabilityPage: React.FC = () => {
     if (isAuthenticated && !authLoading) {
       loadResources();
     }
-  }, [isAuthenticated, authLoading]);
+  }, [isAuthenticated, authLoading, user?.active_clinic_id]);
   
   // Track if we've loaded persisted state to avoid overwriting with defaults
   const hasLoadedPersistedStateRef = useRef(false);
@@ -118,20 +149,6 @@ const AvailabilityPage: React.FC = () => {
         : null;
 
       setAdditionalPractitionerIds(validPractitionerIds);
-      
-      // Load resource IDs from persisted state (stored separately)
-      const resourceKey = `calendar_resources_${user.user_id}_${user.active_clinic_id}`;
-      try {
-        const savedResourceIds = localStorage.getItem(resourceKey);
-        if (savedResourceIds) {
-          const parsedIds = JSON.parse(savedResourceIds);
-          if (Array.isArray(parsedIds)) {
-            setSelectedResourceIds(parsedIds);
-          }
-        }
-      } catch (err) {
-        logger.warn('Failed to load resource selection:', err);
-      }
       
       // Only set default practitioner if user is not a practitioner
       if (!isPractitioner) {
@@ -172,8 +189,9 @@ const AvailabilityPage: React.FC = () => {
     calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, updatedState);
     
     // Persist resource selection separately (using a different storage key)
-    // Resources are hidden by default, so we only save when user explicitly selects them
-    if (selectedResourceIds.length > 0) {
+    // Only save after resources have been loaded to prevent overwriting with empty state
+    // Always save (even if empty) to properly clear state when user deselects all
+    if (resources.length > 0) {
       const resourceKey = `calendar_resources_${user.user_id}_${user.active_clinic_id}`;
       try {
         localStorage.setItem(resourceKey, JSON.stringify(selectedResourceIds));
@@ -181,7 +199,7 @@ const AvailabilityPage: React.FC = () => {
         logger.warn('Failed to save resource selection:', err);
       }
     }
-  }, [user?.user_id, user?.active_clinic_id, additionalPractitionerIds, defaultPractitionerId, selectedResourceIds]);
+  }, [user?.user_id, user?.active_clinic_id, additionalPractitionerIds, defaultPractitionerId, selectedResourceIds, resources.length]);
 
   // Determine which practitioner IDs to display
   const displayedPractitionerIds = React.useMemo(() => {
