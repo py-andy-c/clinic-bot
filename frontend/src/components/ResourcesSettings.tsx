@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ResourceType, Resource } from '../types';
 import { useResourcesStore } from '../stores/resourcesStore';
 import { useModal } from '../contexts/ModalContext';
@@ -11,6 +11,7 @@ interface ResourcesSettingsProps {
 
 const ResourcesSettings: React.FC<ResourcesSettingsProps> = ({ isClinicAdmin }) => {
   const { confirm } = useModal();
+  const navigate = useNavigate();
   const {
     resourceTypes,
     resourcesByType,
@@ -24,9 +25,19 @@ const ResourcesSettings: React.FC<ResourcesSettingsProps> = ({ isClinicAdmin }) 
     addResourceLocal,
     updateResourceLocal,
     removeResourceLocal,
+    hasUnsavedChanges,
   } = useResourcesStore();
 
   const [expandedTypes, setExpandedTypes] = useState<Set<number>>(new Set());
+
+  const handleServiceItemsNavigation = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (hasUnsavedChanges()) {
+      const confirmed = await confirm('您有未儲存的變更，確定要離開嗎？', '確認離開');
+      if (!confirmed) return;
+    }
+    navigate('/admin/clinic/settings/service-items');
+  };
 
   const toggleType = async (typeId: number) => {
     const isExpanding = !expandedTypes.has(typeId);
@@ -211,20 +222,24 @@ const ResourcesSettings: React.FC<ResourcesSettingsProps> = ({ isClinicAdmin }) 
                         {/* Associated Service Items */}
                         {serviceItems.length > 0 && (
                           <div className="border border-gray-100 rounded-md p-3 bg-blue-50/50">
-                            <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">相關服務項目</h4>
-                            <ul className="space-y-1">
-                              {serviceItems.map((item) => (
-                                <li key={item.id} className="text-sm text-gray-700 flex justify-between">
-                                  <span>{item.name}</span>
-                                  <span className="text-gray-500 text-xs">需要數量：{item.required_quantity}</span>
-                                </li>
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider">相關服務項目</h4>
+                              <button 
+                                onClick={handleServiceItemsNavigation}
+                                className="text-xs text-primary-600 hover:underline font-medium flex items-center gap-1"
+                              >
+                                修改需求 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-x-2 gap-y-1 items-center">
+                              {serviceItems.map((item, idx) => (
+                                <React.Fragment key={item.id}>
+                                  {idx > 0 && <span className="text-gray-300 text-xs mx-1">|</span>}
+                                  <div className="text-sm text-gray-600">
+                                    {item.name} (需 {item.required_quantity} 個)
+                                  </div>
+                                </React.Fragment>
                               ))}
-                            </ul>
-                            <div className="mt-2 text-xs text-gray-500 flex items-center justify-between">
-                              <span>欲修改資源需求，請前往服務項目設定</span>
-                              <Link to="/clinic/settings/service-items" className="text-primary-600 hover:underline font-medium">
-                                前往 →
-                              </Link>
                             </div>
                           </div>
                         )}
