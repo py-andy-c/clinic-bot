@@ -93,14 +93,26 @@ This document describes the business logic and state management for the DateTime
 ### When Conflicts Are Checked
 
 1. **Initial Validation:** NO conflict checks (only slot existence check)
-2. **Override Mode Enabled:** Real-time conflict detection as user types/selects time
-3. **Manual Time Selection in Override Mode:** Trigger conflict check
+2. **Always Active:** Conflict detection runs whenever date/time/practitioner/appointment type changes
+   - Checks immediately when practitioner/appointment type changes (no debounce)
+   - Debounced (300ms) when date/time changes to avoid excessive API calls
+   - Works in both override mode and normal mode
+   - Shows conflicts even when picker is collapsed
+3. **Conflict Display Location:**
+   - Always visible outside the collapsible section
+   - Shows in both collapsed and expanded views
+   - Displays below time selection area
 
 ### Conflict Check Details
 
 - Uses `/availability/conflicts` endpoint
 - Includes `exclude_calendar_event_id` in edit mode (backend handles exclusion)
-- Returns detailed conflict information (appointment conflicts, exception conflicts, availability conflicts)
+- Checks all 4 conflict types in priority order:
+  1. Past appointment (highest priority)
+  2. Appointment conflicts
+  3. Availability exception conflicts
+  4. Outside default availability (lowest priority)
+- Returns detailed conflict information for the highest priority conflict
 - Shows highest priority conflict only
 
 ## State Management Summary

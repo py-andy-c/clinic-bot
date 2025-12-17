@@ -72,13 +72,14 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
         };
 
       case 'availability':
-        if (!conflictInfo.default_availability?.normal_hours) return null;
+        // Show warning even if practitioner has no default availability set
+        const normalHours = conflictInfo.default_availability?.normal_hours;
         return {
           icon: 'ℹ️',
           title: '非正常可用時間',
-          details: [
-            `正常可用時間：${conflictInfo.default_availability.normal_hours}`,
-          ],
+          details: normalHours
+            ? [`正常可用時間：${normalHours}`]
+            : ['此治療師尚未設定可用時間'],
           borderClass: 'border-blue-300 bg-blue-50',
           textClass: 'text-blue-800',
         };

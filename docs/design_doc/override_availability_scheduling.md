@@ -42,9 +42,12 @@ Allow clinic users (admins and practitioners) to schedule appointments at any ti
 
 **When Conflicts Are Detected**:
 - **DateTimePicker (Time Selection)**: Show conflict warning with full details below time input
-  - Real-time updates as user types/selects time (debounced 300ms)
-  - Full conflict details always visible
-  - Color-coded border around time input based on conflict type
+  - Always checks conflicts (not just in override mode)
+  - Checks immediately when practitioner/appointment type changes
+  - Debounced (300ms) when date/time changes to avoid excessive API calls
+  - Full conflict details always visible (even when picker is collapsed)
+  - Displays outside the collapsible section
+  - Color-coded border around time input based on conflict type (in override mode)
 - **Conflict Resolution Step**: Show warning icon (⚠️) next to conflicting occurrences
   - Click icon to show conflict details in popover
   - Conflict status updates immediately when editing occurrences

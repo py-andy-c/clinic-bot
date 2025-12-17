@@ -22,6 +22,7 @@ vi.mock('react-dom', async () => {
 vi.mock('../../../services/api', () => ({
   apiService: {
     getBatchAvailableSlots: vi.fn(),
+    checkSchedulingConflicts: vi.fn(),
   },
 }));
 
@@ -487,6 +488,245 @@ describe('DateTimePicker', () => {
     
     // onTimeSelect should be called immediately (not waiting for collapse)
     expect(mockOnTimeSelect).toHaveBeenCalledWith('10:00');
+  });
+
+  describe('Conflict Detection', () => {
+    beforeEach(() => {
+      vi.mocked(apiService.checkSchedulingConflicts).mockResolvedValue({
+        has_conflict: false,
+        conflict_type: null,
+        appointment_conflict: null,
+        exception_conflict: null,
+        default_availability: {
+          is_within_hours: true,
+          normal_hours: null,
+        },
+      });
+    });
+
+    it('should check conflicts when date and time are selected', async () => {
+      render(
+        <DateTimePicker
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+          selectedPractitionerId={1}
+          appointmentTypeId={1}
+          onDateSelect={mockOnDateSelect}
+          onTimeSelect={mockOnTimeSelect}
+          allowOverride={true}
+        />
+      );
+
+      // Wait for debounced conflict check
+      await waitFor(
+        () => {
+          expect(apiService.checkSchedulingConflicts).toHaveBeenCalledWith(
+            1,
+            '2024-01-15',
+            '09:00',
+            1,
+            undefined
+          );
+        },
+        { timeout: 500 }
+      );
+    });
+
+    it('should check conflicts immediately when practitioner changes', async () => {
+      const { rerender } = render(
+        <DateTimePicker
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+          selectedPractitionerId={1}
+          appointmentTypeId={1}
+          onDateSelect={mockOnDateSelect}
+          onTimeSelect={mockOnTimeSelect}
+          allowOverride={true}
+        />
+      );
+
+      // Clear previous calls
+      vi.clearAllMocks();
+
+      // Change practitioner
+      rerender(
+        <DateTimePicker
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+          selectedPractitionerId={2}
+          appointmentTypeId={1}
+          onDateSelect={mockOnDateSelect}
+          onTimeSelect={mockOnTimeSelect}
+          allowOverride={true}
+        />
+      );
+
+      // Should check immediately (not debounced)
+      await waitFor(() => {
+        expect(apiService.checkSchedulingConflicts).toHaveBeenCalledWith(
+          2,
+          '2024-01-15',
+          '09:00',
+          1,
+          undefined
+        );
+      });
+    });
+
+    it('should check conflicts immediately when appointment type changes', async () => {
+      const { rerender } = render(
+        <DateTimePicker
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+          selectedPractitionerId={1}
+          appointmentTypeId={1}
+          onDateSelect={mockOnDateSelect}
+          onTimeSelect={mockOnTimeSelect}
+          allowOverride={true}
+        />
+      );
+
+      // Clear previous calls
+      vi.clearAllMocks();
+
+      // Change appointment type
+      rerender(
+        <DateTimePicker
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+          selectedPractitionerId={1}
+          appointmentTypeId={2}
+          onDateSelect={mockOnDateSelect}
+          onTimeSelect={mockOnTimeSelect}
+          allowOverride={true}
+        />
+      );
+
+      // Should check immediately (not debounced)
+      await waitFor(() => {
+        expect(apiService.checkSchedulingConflicts).toHaveBeenCalledWith(
+          1,
+          '2024-01-15',
+          '09:00',
+          2,
+          undefined
+        );
+      });
+    });
+
+    it('should display conflict warning when conflict exists', async () => {
+      vi.mocked(apiService.checkSchedulingConflicts).mockResolvedValue({
+        has_conflict: true,
+        conflict_type: 'availability',
+        appointment_conflict: null,
+        exception_conflict: null,
+        default_availability: {
+          is_within_hours: false,
+          normal_hours: '週一 09:00-18:00',
+        },
+      });
+
+      render(
+        <DateTimePicker
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+          selectedPractitionerId={1}
+          appointmentTypeId={1}
+          onDateSelect={mockOnDateSelect}
+          onTimeSelect={mockOnTimeSelect}
+          allowOverride={true}
+        />
+      );
+
+      // Wait for conflict check and display
+      await waitFor(
+        () => {
+          expect(screen.getByText('非正常可用時間')).toBeInTheDocument();
+        },
+        { timeout: 500 }
+      );
+    });
+
+    it('should display conflict warning in collapsed view', async () => {
+      vi.mocked(apiService.checkSchedulingConflicts).mockResolvedValue({
+        has_conflict: true,
+        conflict_type: 'availability',
+        appointment_conflict: null,
+        exception_conflict: null,
+        default_availability: {
+          is_within_hours: false,
+          normal_hours: null,
+        },
+      });
+
+      render(
+        <DateTimePicker
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+          selectedPractitionerId={1}
+          appointmentTypeId={1}
+          onDateSelect={mockOnDateSelect}
+          onTimeSelect={mockOnTimeSelect}
+          allowOverride={true}
+        />
+      );
+
+      // Wait for conflict check and display (should be visible even when collapsed)
+      await waitFor(
+        () => {
+          expect(screen.getByText('非正常可用時間')).toBeInTheDocument();
+        },
+        { timeout: 500 }
+      );
+    });
+
+    it('should exclude calendar event ID in edit mode', async () => {
+      render(
+        <DateTimePicker
+          selectedDate="2024-01-15"
+          selectedTime="09:00"
+          selectedPractitionerId={1}
+          appointmentTypeId={1}
+          onDateSelect={mockOnDateSelect}
+          onTimeSelect={mockOnTimeSelect}
+          excludeCalendarEventId={123}
+          allowOverride={true}
+        />
+      );
+
+      // Wait for debounced conflict check
+      await waitFor(
+        () => {
+          expect(apiService.checkSchedulingConflicts).toHaveBeenCalledWith(
+            1,
+            '2024-01-15',
+            '09:00',
+            1,
+            123
+          );
+        },
+        { timeout: 500 }
+      );
+    });
+
+    it('should not check conflicts when date or time is missing', async () => {
+      render(
+        <DateTimePicker
+          selectedDate={null}
+          selectedTime=""
+          selectedPractitionerId={1}
+          appointmentTypeId={1}
+          onDateSelect={mockOnDateSelect}
+          onTimeSelect={mockOnTimeSelect}
+          allowOverride={true}
+        />
+      );
+
+      // Wait a bit to ensure no conflict check happens
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      expect(apiService.checkSchedulingConflicts).not.toHaveBeenCalled();
+    });
   });
 
 });

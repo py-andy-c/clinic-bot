@@ -124,13 +124,30 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     batchInitiatedRef,
   });
 
-  // Debounced conflict checking
+  // Debounced conflict checking - debounce time/date changes, but check immediately when practitioner/appointment type changes
   const debouncedTime = useDebounce(displayTime, 300);
   const debouncedDate = useDebounce(displayDate, 300);
+  
+  // Track previous practitioner/appointment type to detect immediate changes
+  const prevPractitionerRef = useRef(selectedPractitionerId);
+  const prevAppointmentTypeRef = useRef(appointmentTypeId);
 
-  // Conflict detection effect
+  // Conflict detection effect - always check conflicts when date/time/practitioner/appointment type changes
   useEffect(() => {
-    if (!allowOverride || !overrideMode || !debouncedDate || !debouncedTime || !selectedPractitionerId || !appointmentTypeId) {
+    // Check if practitioner or appointment type changed
+    const practitionerOrTypeChanged = 
+      prevPractitionerRef.current !== selectedPractitionerId || 
+      prevAppointmentTypeRef.current !== appointmentTypeId;
+    
+    // Update refs
+    prevPractitionerRef.current = selectedPractitionerId;
+    prevAppointmentTypeRef.current = appointmentTypeId;
+    
+    // Use debounced values for time/date changes, but immediate values when practitioner/appointment type changes
+    const conflictCheckDate = practitionerOrTypeChanged ? displayDate : debouncedDate;
+    const conflictCheckTime = practitionerOrTypeChanged ? displayTime : debouncedTime;
+
+    if (!conflictCheckDate || !conflictCheckTime || !selectedPractitionerId || !appointmentTypeId) {
       setConflictInfo(null);
       setConflictCheckError(null);
       return;
@@ -142,8 +159,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       try {
         const response = await apiService.checkSchedulingConflicts(
           selectedPractitionerId,
-          debouncedDate,
-          debouncedTime,
+          conflictCheckDate,
+          conflictCheckTime,
           appointmentTypeId,
           excludeCalendarEventId ?? undefined
         );
@@ -160,7 +177,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     };
 
     checkConflicts();
-  }, [allowOverride, overrideMode, debouncedDate, debouncedTime, selectedPractitionerId, appointmentTypeId, excludeCalendarEventId]);
+  }, [debouncedDate, debouncedTime, selectedPractitionerId, appointmentTypeId, excludeCalendarEventId, displayDate, displayTime]);
 
   // Update currentMonth when selectedDate changes (but only if it's a different month)
   // Don't reset if user manually navigated to a different month
@@ -622,6 +639,23 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
         {error && (
           <p className="mt-1 text-sm text-red-600">{error}</p>
         )}
+        {/* Conflict Display - always visible when there's a conflict */}
+        {selectedDate && selectedTime && (
+          <>
+            {conflictCheckError ? (
+              <div className="mt-2 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
+                {conflictCheckError}
+              </div>
+            ) : (
+              <div className="mt-2">
+                <ConflictDisplay
+                  conflictInfo={conflictInfo}
+                  isLoading={isCheckingConflict}
+                />
+              </div>
+            )}
+          </>
+        )}
       </div>
     );
   }
@@ -746,29 +780,16 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
             </div>
           ) : overrideMode ? (
             // Free-form time input mode
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  時間 <span className="text-red-500">*</span>
-                </label>
-                <TimeInput
-                  value={freeFormTime}
-                  onChange={handleFreeFormTimeChange}
-                  placeholder="H:MM AM/PM"
-                  className="w-full"
-                />
-              </div>
-              {/* Conflict Display */}
-              {conflictCheckError ? (
-                <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
-                  {conflictCheckError}
-                </div>
-              ) : (
-                <ConflictDisplay
-                  conflictInfo={conflictInfo}
-                  isLoading={isCheckingConflict}
-                />
-              )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                時間 <span className="text-red-500">*</span>
+              </label>
+              <TimeInput
+                value={freeFormTime}
+                onChange={handleFreeFormTimeChange}
+                placeholder="H:MM AM/PM"
+                className="w-full"
+              />
             </div>
           ) : error && allTimeSlots.length === 0 ? (
             // Only show error if there are no time slots available
@@ -838,7 +859,24 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
         </div>
       ) : null}
       </div>
-      {/* Error message removed - already shown in time selection area above when error exists */}
+      
+      {/* Conflict Display - always visible when there's a conflict, outside collapsible section */}
+      {displayDate && displayTime && (
+        <>
+          {conflictCheckError ? (
+            <div className="mt-3 text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2">
+              {conflictCheckError}
+            </div>
+          ) : (
+            <div className="mt-3">
+              <ConflictDisplay
+                conflictInfo={conflictInfo}
+                isLoading={isCheckingConflict}
+              />
+            </div>
+          )}
+        </>
+      )}
       
       {/* Override Mode Info Modal */}
       <InfoModal
