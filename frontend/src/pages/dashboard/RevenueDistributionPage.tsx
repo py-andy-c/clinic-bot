@@ -17,7 +17,7 @@ import { logger } from '../../utils/logger';
 import DashboardBackButton from '../../components/DashboardBackButton';
 
 const RevenueDistributionPage: React.FC = () => {
-  const { isClinicAdmin, user } = useAuth();
+  const { user, isClinicUser } = useAuth();
   const activeClinicId = user?.active_clinic_id ?? null;
   
   // Active filter state (used for API calls)
@@ -673,7 +673,7 @@ const RevenueDistributionPage: React.FC = () => {
             // Refetch data after voiding
             // The useApiData hook will automatically refetch when dependencies change
           }}
-          isAdmin={isClinicAdmin || false}
+          isClinicUser={isClinicUser || false}
         />
       )}
 

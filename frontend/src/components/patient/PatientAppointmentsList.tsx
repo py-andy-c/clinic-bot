@@ -71,7 +71,7 @@ export const PatientAppointmentsList: React.FC<
 > = ({ patientId, practitioners, appointmentTypes, onRefetchReady }) => {
   const [activeTab, setActiveTab] = useState<TabType>("future");
   const { alert } = useModal();
-  const { hasRole, user } = useAuth();
+  const { hasRole, user, isClinicUser } = useAuth();
 
   // Event modal state
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
@@ -664,7 +664,7 @@ export const PatientAppointmentsList: React.FC<
           onReceiptVoided={async () => {
             await refreshAppointmentsList();
           }}
-          isAdmin={isAdmin}
+          isClinicUser={isClinicUser || false}
         />
       )}
       {showReceiptModal && selectedReceiptAppointmentId && !selectedReceiptId && 
@@ -679,7 +679,7 @@ export const PatientAppointmentsList: React.FC<
           onReceiptVoided={async () => {
             await refreshAppointmentsList();
           }}
-          isAdmin={isAdmin}
+          isClinicUser={isClinicUser || false}
         />
       )}
 

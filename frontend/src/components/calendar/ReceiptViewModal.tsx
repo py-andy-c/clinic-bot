@@ -17,7 +17,7 @@ interface ReceiptViewModalProps {
   receiptId?: number;
   onClose: () => void;
   onReceiptVoided?: () => void;
-  isAdmin: boolean;
+  isClinicUser: boolean;
 }
 
 export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
@@ -25,7 +25,7 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
   receiptId,
   onClose,
   onReceiptVoided,
-  isAdmin,
+  isClinicUser,
 }) => {
   const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
   const [receiptInfo, setReceiptInfo] = useState<any>(null); // For receipt_id and void_info
@@ -241,8 +241,8 @@ export const ReceiptViewModal: React.FC<ReceiptViewModalProps> = ({
             )}
           </button>
 
-          {/* Void button (only show if not voided and is admin) */}
-          {!isVoided && isAdmin && (
+          {/* Void button (only show if not voided and is clinic user) */}
+          {!isVoided && isClinicUser && (
             <button
               onClick={(e) => {
                 e.preventDefault();

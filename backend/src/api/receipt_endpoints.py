@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from auth.dependencies import require_admin_role, UserContext, ensure_clinic_access
+from auth.dependencies import require_clinic_user, require_admin_role, UserContext, ensure_clinic_access
 from models import Appointment, PractitionerAppointmentTypes, User
 from models.receipt import Receipt
 from models.user_clinic_association import UserClinicAssociation
@@ -109,13 +109,13 @@ class VoidReceiptResponse(BaseModel):
 async def checkout_appointment(
     appointment_id: int,
     request: CheckoutRequest,
-    current_user: UserContext = Depends(require_admin_role),
+    current_user: UserContext = Depends(require_clinic_user),
     db: Session = Depends(get_db)
 ):
     """
     Checkout an appointment (create receipt).
     
-    Admin-only. Creates a receipt with immutable snapshot of all billing information.
+    Clinic users only. Creates a receipt with immutable snapshot of all billing information.
     
     Validates:
     - Payment method is valid (cash, card, transfer, other)
@@ -281,13 +281,13 @@ async def checkout_appointment(
 @router.get("/appointments/{appointment_id}/receipt", response_model=ReceiptResponse)
 async def get_appointment_receipt(
     appointment_id: int,
-    current_user: UserContext = Depends(require_admin_role),
+    current_user: UserContext = Depends(require_clinic_user),
     db: Session = Depends(get_db)
 ):
     """
     Get receipt for an appointment.
     
-    Admin-only. Returns active receipt if exists, otherwise most recent voided receipt.
+    Clinic users only. Returns active receipt if exists, otherwise most recent voided receipt.
     """
     try:
         clinic_id = ensure_clinic_access(current_user)
@@ -385,13 +385,13 @@ async def get_appointment_receipt(
 async def void_receipt(
     receipt_id: int,
     request: VoidReceiptRequest,
-    current_user: UserContext = Depends(require_admin_role),
+    current_user: UserContext = Depends(require_clinic_user),
     db: Session = Depends(get_db)
 ):
     """
     Void a receipt.
     
-    Admin-only. Voids a receipt for corrections while maintaining audit trail.
+    Clinic users only. Voids a receipt for corrections while maintaining audit trail.
     """
     try:
         clinic_id = ensure_clinic_access(current_user)
@@ -787,13 +787,13 @@ async def delete_billing_scenario(
 @router.get("/receipts/{receipt_id}/download")
 async def download_receipt_pdf(
     receipt_id: int,
-    current_user: UserContext = Depends(require_admin_role),
+    current_user: UserContext = Depends(require_clinic_user),
     db: Session = Depends(get_db)
 ):
     """
     Download receipt as PDF.
     
-    Admin-only. Returns PDF file with receipt information.
+    Clinic users only. Returns PDF file with receipt information.
     """
     try:
         clinic_id = ensure_clinic_access(current_user)
@@ -876,12 +876,12 @@ async def download_receipt_pdf(
 async def get_receipt_html(
     receipt_id: int,
     db: Session = Depends(get_db),
-    current_user: UserContext = Depends(require_admin_role)
+    current_user: UserContext = Depends(require_clinic_user)
 ):
     """
     Get receipt as HTML for LIFF display.
     
-    Admin-only. Returns HTML page with receipt information.
+    Clinic users only. Returns HTML page with receipt information.
     Same template as PDF to ensure consistency.
     """
     try:
@@ -959,9 +959,9 @@ async def get_receipt_html(
 async def get_receipt_by_id(
     receipt_id: int,
     db: Session = Depends(get_db),
-    current_user: UserContext = Depends(require_admin_role)
+    current_user: UserContext = Depends(require_clinic_user)
 ):
-    """Get receipt by ID (admin-only)."""
+    """Get receipt by ID (clinic users only)."""
     try:
         clinic_id = ensure_clinic_access(current_user)
         

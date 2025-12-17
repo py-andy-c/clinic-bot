@@ -50,7 +50,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
   practitioners = [],
   onReceiptCreated,
 }) => {
-  const { isClinicAdmin, user } = useAuth();
+  const { isClinicAdmin, user, isClinicUser } = useAuth();
   const canEdit = event.resource.type === 'appointment' 
     ? canEditAppointment(event, user?.user_id, isClinicAdmin)
     : false;
@@ -301,8 +301,8 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 </button>
               )}
               
-              {/* Re-issue Receipt Button - Show when receipt is voided (previously checked out, admin only) */}
-              {event.resource.has_any_receipt && !event.resource.has_active_receipt && isClinicAdmin && (
+              {/* Re-issue Receipt Button - Show when receipt is voided (previously checked out, clinic users only) */}
+              {event.resource.has_any_receipt && !event.resource.has_active_receipt && isClinicUser && (
                 <button
                   onClick={() => setShowCheckoutModal(true)}
                   className="btn-primary bg-orange-600 hover:bg-orange-700"
@@ -311,8 +311,8 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 </button>
               )}
               
-              {/* Checkout Button - Show when no receipts at all (never checked out, admin only) */}
-              {!event.resource.has_any_receipt && isClinicAdmin && (
+              {/* Checkout Button - Show when no receipts at all (never checked out, clinic users only) */}
+              {!event.resource.has_any_receipt && isClinicUser && (
                 <button
                   onClick={() => setShowCheckoutModal(true)}
                   className="btn-primary bg-green-600 hover:bg-green-700"
@@ -411,7 +411,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 await onEventNameUpdated(null);
               }
             }}
-            isAdmin={isClinicAdmin}
+            isClinicUser={isClinicUser}
           />
         )}
     </BaseModal>
