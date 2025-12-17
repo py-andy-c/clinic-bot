@@ -145,8 +145,10 @@ const ResourcesSettings: React.FC<ResourcesSettingsProps> = ({ isClinicAdmin }) 
                                   {type.name || <span className="text-gray-400 italic">未命名資源類型</span>}
                                 </span>
                               </div>
-                              <div className="text-sm text-gray-500 mt-1">
-                                {resources.length} 個資源
+                              <div className="text-sm text-gray-500 mt-1 flex items-center gap-2">
+                                <span>{resources.length} 個資源</span>
+                                <span className="text-gray-300">·</span>
+                                <span>{serviceItems.length} 個相關服務</span>
                               </div>
                             </div>
                           </button>

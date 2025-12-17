@@ -75,15 +75,27 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
       const response = await apiService.getResourceTypes();
       const types = response.resource_types;
       
-      // Load resources for each type sequentially to avoid overloading
+      // Load resources and service items for each type sequentially to avoid overloading
       const resourcesMap: Record<number, Resource[]> = {};
+      const serviceItemsMap: Record<number, AssociatedServiceItem[]> = {};
+      
       for (const type of types) {
+        // Load resources
         try {
           const resourcesResponse = await apiService.getResources(type.id);
           resourcesMap[type.id] = resourcesResponse.resources;
         } catch (err) {
           logger.error(`Failed to load resources for type ${type.id}:`, err);
           resourcesMap[type.id] = [];
+        }
+
+        // Load associated service items
+        try {
+          const serviceItemsResponse = await apiService.getAppointmentTypesByResourceType(type.id);
+          serviceItemsMap[type.id] = serviceItemsResponse.appointment_types;
+        } catch (err) {
+          logger.error(`Failed to load service items for type ${type.id}:`, err);
+          serviceItemsMap[type.id] = [];
         }
       }
       
@@ -92,6 +104,7 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
         originalResourceTypes: JSON.parse(JSON.stringify(types)),
         resourcesByType: resourcesMap,
         originalResourcesByType: JSON.parse(JSON.stringify(resourcesMap)),
+        associatedServiceItems: serviceItemsMap,
         loading: false 
       });
     } catch (err) {
