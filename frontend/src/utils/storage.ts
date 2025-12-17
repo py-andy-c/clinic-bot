@@ -211,4 +211,59 @@ export const calendarStorage = {
       logger.warn('Failed to clear calendar state:', error);
     }
   },
+
+  /**
+   * Get storage key for resource selection
+   */
+  getResourceSelectionKey(userId: number, clinicId: number | null): string {
+    const clinicKey = clinicId ?? 'no-clinic';
+    return `calendar_resources_${userId}_${clinicKey}`;
+  },
+
+  /**
+   * Get resource selection IDs from localStorage
+   */
+  getResourceSelection(userId: number, clinicId: number | null): number[] {
+    try {
+      const key = this.getResourceSelectionKey(userId, clinicId);
+      const stored = localStorage.getItem(key);
+      if (!stored) return [];
+      
+      const ids = JSON.parse(stored);
+      if (Array.isArray(ids) && ids.every(id => typeof id === 'number')) {
+        return ids;
+      }
+      
+      logger.warn('Invalid resource selection structure, clearing');
+      this.setResourceSelection(userId, clinicId, []);
+      return [];
+    } catch (error) {
+      logger.warn('Failed to read resource selection:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Set resource selection IDs in localStorage
+   */
+  setResourceSelection(userId: number, clinicId: number | null, ids: number[]): void {
+    try {
+      const key = this.getResourceSelectionKey(userId, clinicId);
+      localStorage.setItem(key, JSON.stringify(ids));
+    } catch (error) {
+      logger.warn('Failed to save resource selection:', error);
+    }
+  },
+
+  /**
+   * Clear resource selection from localStorage
+   */
+  clearResourceSelection(userId: number, clinicId: number | null): void {
+    try {
+      const key = this.getResourceSelectionKey(userId, clinicId);
+      localStorage.removeItem(key);
+    } catch (error) {
+      logger.warn('Failed to clear resource selection:', error);
+    }
+  },
 };

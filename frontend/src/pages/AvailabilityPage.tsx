@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useApiData } from '../hooks/useApiData';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useCalendarSelection } from '../hooks/useCalendarSelection';
 import { LoadingSpinner } from '../components/shared';
 import { View } from 'react-big-calendar';
 import CalendarView from '../components/CalendarView';
@@ -26,7 +27,6 @@ const AvailabilityPage: React.FC = () => {
   const [additionalPractitionerIds, setAdditionalPractitionerIds] = useState<number[]>([]);
   const [defaultPractitionerId, setDefaultPractitionerId] = useState<number | null>(null);
   const [showPractitionerModal, setShowPractitionerModal] = useState(false);
-  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   
   // Scroll to top when component mounts
@@ -57,19 +57,11 @@ const AvailabilityPage: React.FC = () => {
   
   // Load resources for resource selector
   const [resourcesLoading, setResourcesLoading] = useState(false);
-  // Track previous clinic ID to clear resource selection when clinic changes
-  const previousClinicIdRef = useRef<number | null>(null);
   
   useEffect(() => {
     const loadResources = async () => {
       try {
         setResourcesLoading(true);
-        
-        // Clear resource selection if clinic changed
-        if (user?.active_clinic_id !== previousClinicIdRef.current && previousClinicIdRef.current !== null) {
-          setSelectedResourceIds([]);
-        }
-        previousClinicIdRef.current = user?.active_clinic_id ?? null;
         
         // Fetch all resource types
         const resourceTypesResponse = await apiService.getResourceTypes();
@@ -90,27 +82,6 @@ const AvailabilityPage: React.FC = () => {
         }
 
         setResources(allResources);
-        
-        // Load resource IDs from persisted state AFTER resources are loaded
-        // This ensures we can properly validate which resources still exist
-        if (user?.user_id && user?.active_clinic_id) {
-          const resourceKey = `calendar_resources_${user.user_id}_${user.active_clinic_id}`;
-          try {
-            const savedResourceIds = localStorage.getItem(resourceKey);
-            if (savedResourceIds) {
-              const parsedIds = JSON.parse(savedResourceIds);
-              if (Array.isArray(parsedIds)) {
-                // Filter out invalid resources (those that no longer exist or are deleted)
-                const validResourceIds = parsedIds.filter(id =>
-                  allResources.some(r => r.id === id && !r.is_deleted)
-                );
-                setSelectedResourceIds(validResourceIds);
-              }
-            }
-          } catch (err) {
-            logger.warn('Failed to load resource selection:', err);
-          }
-        }
       } catch (err) {
         logger.error('Failed to load resources:', err);
       } finally {
@@ -122,6 +93,19 @@ const AvailabilityPage: React.FC = () => {
       loadResources();
     }
   }, [isAuthenticated, authLoading, user?.active_clinic_id]);
+
+  // Use unified hook for resource selection persistence
+  const {
+    selectedIds: selectedResourceIds,
+    setSelectedIds: setSelectedResourceIds,
+  } = useCalendarSelection({
+    items: resources,
+    userId: user?.user_id,
+    clinicId: user?.active_clinic_id ?? null,
+    validateItem: (resource) => !resource.is_deleted,
+    storageType: 'resources',
+    waitForAllItems: false, // Resources load all at once, no race condition
+  });
   
   // Track if we've loaded persisted state to avoid overwriting with defaults
   const hasLoadedPersistedStateRef = useRef(false);
@@ -208,19 +192,8 @@ const AvailabilityPage: React.FC = () => {
       defaultPractitionerId,
     };
     calendarStorage.setCalendarState(user.user_id, user.active_clinic_id, updatedState);
-    
-    // Persist resource selection separately (using a different storage key)
-    // Only save after resources have been loaded to prevent overwriting with empty state
-    // Always save (even if empty) to properly clear state when user deselects all
-    if (resources.length > 0) {
-      const resourceKey = `calendar_resources_${user.user_id}_${user.active_clinic_id}`;
-      try {
-        localStorage.setItem(resourceKey, JSON.stringify(selectedResourceIds));
-      } catch (err) {
-        logger.warn('Failed to save resource selection:', err);
-      }
-    }
-  }, [user?.user_id, user?.active_clinic_id, additionalPractitionerIds, defaultPractitionerId, selectedResourceIds, resources.length]);
+    // Resource selection is now handled by useCalendarSelection hook
+  }, [user?.user_id, user?.active_clinic_id, additionalPractitionerIds, defaultPractitionerId]);
 
   // Determine which practitioner IDs to display
   const displayedPractitionerIds = React.useMemo(() => {
