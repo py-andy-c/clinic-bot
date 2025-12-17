@@ -55,7 +55,7 @@ from api.responses import (
     PatientCreateResponse, AppointmentListResponse, AppointmentListItem,
     ClinicDashboardMetricsResponse,
     BusinessInsightsResponse, RevenueDistributionResponse,
-    SchedulingConflictResponse, AppointmentConflictDetail, ExceptionConflictDetail, DefaultAvailabilityInfo
+    SchedulingConflictResponse, AppointmentConflictDetail, ExceptionConflictDetail, ResourceConflictDetail, DefaultAvailabilityInfo
 )
 
 router = APIRouter()
@@ -2497,11 +2497,7 @@ async def check_recurring_conflicts(
                     check_past_appointment=True
                 )
                 
-                # Convert to response models
-                from api.responses import (
-                    AppointmentConflictDetail, ExceptionConflictDetail, ResourceConflictDetail, DefaultAvailabilityInfo
-                )
-                
+                # Convert to response models (types already imported at top level)
                 appointment_conflict = None
                 if conflict_data.get("appointment_conflict"):
                     ac = conflict_data["appointment_conflict"]

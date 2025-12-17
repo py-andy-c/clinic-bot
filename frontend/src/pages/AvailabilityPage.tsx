@@ -7,9 +7,8 @@ import { LoadingSpinner } from '../components/shared';
 import { View } from 'react-big-calendar';
 import CalendarView from '../components/CalendarView';
 import PageHeader from '../components/PageHeader';
-import PractitionerSelector from '../components/PractitionerSelector';
+import CalendarSelector from '../components/CalendarSelector';
 import PractitionerChips from '../components/PractitionerChips';
-import ResourceSelector from '../components/ResourceSelector';
 import ResourceChips from '../components/ResourceChips';
 import FloatingActionButton from '../components/FloatingActionButton';
 import { sharedFetchFunctions, apiService } from '../services/api';
@@ -293,6 +292,8 @@ const AvailabilityPage: React.FC = () => {
           resources={resources}
           selectedResourceIds={selectedResourceIds}
           onRemove={(id) => setSelectedResourceIds(prev => prev.filter(rid => rid !== id))}
+          allPractitionerIds={displayedPractitionerIds}
+          primaryUserId={primaryUserId}
         />
       )}
 
@@ -301,27 +302,20 @@ const AvailabilityPage: React.FC = () => {
         title={isMobile ? "" : "行事曆"}
         action={
           <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4 w-full md:w-auto">
-            {/* Practitioner Selector - Desktop only */}
-            {practitioners.length > 0 && (
+            {/* Calendar Selector - Desktop only (combines practitioners and resources) */}
+            {(practitioners.length > 0 || (!resourcesLoading && resources.length > 0)) && (
               <div className="desktop-only w-full md:w-auto">
-                <PractitionerSelector
+                <CalendarSelector
                   practitioners={practitioners}
                   selectedPractitionerIds={additionalPractitionerIds}
                   currentUserId={user?.user_id || null}
                   isPractitioner={isPractitioner || false}
-                  onChange={setAdditionalPractitionerIds}
-                  maxSelectable={5}
-                />
-              </div>
-            )}
-            
-            {/* Resource Selector - Desktop only */}
-            {!resourcesLoading && resources.length > 0 && (
-              <div className="desktop-only w-full md:w-auto">
-                <ResourceSelector
+                  onPractitionerChange={setAdditionalPractitionerIds}
+                  resources={resources}
                   selectedResourceIds={selectedResourceIds}
-                  onChange={setSelectedResourceIds}
-                  maxSelectable={10}
+                  onResourceChange={setSelectedResourceIds}
+                  maxSelectablePractitioners={5}
+                  maxSelectableResources={10}
                 />
               </div>
             )}
@@ -395,14 +389,14 @@ const AvailabilityPage: React.FC = () => {
                 </svg>
               ),
             }] : []),
-            ...(practitioners.length > 0 ? [{
-              id: 'add-practitioner',
-              label: '加入其他治療師',
+            ...((practitioners.length > 0 || (!resourcesLoading && resources.length > 0)) ? [{
+              id: 'add-calendar',
+              label: '加入行事曆',
               onClick: () => setShowPractitionerModal(true),
               color: 'purple' as const,
               icon: (
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               ),
             }] : []),
@@ -411,12 +405,12 @@ const AvailabilityPage: React.FC = () => {
         )}
       </div>
 
-      {/* Practitioner Selector Modal - Mobile only */}
+      {/* Calendar Selector Modal - Mobile only */}
       {isMobile && showPractitionerModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={() => setShowPractitionerModal(false)}>
           <div className="bg-white rounded-lg w-full md:w-auto md:max-w-md max-h-[80vh] flex flex-col mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex-shrink-0 bg-white border-b px-4 py-3 flex justify-between items-center z-10 rounded-t-lg">
-              <h2 className="text-lg font-semibold">加入其他治療師</h2>
+              <h2 className="text-lg font-semibold">加入行事曆</h2>
               <button
                 onClick={() => setShowPractitionerModal(false)}
                 className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
@@ -426,32 +420,19 @@ const AvailabilityPage: React.FC = () => {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              {practitioners.length > 0 && (
-                <PractitionerSelector
-                  practitioners={practitioners}
-                  selectedPractitionerIds={additionalPractitionerIds}
-                  currentUserId={user?.user_id || null}
-                  isPractitioner={isPractitioner || false}
-                  onChange={setAdditionalPractitionerIds}
-                  maxSelectable={5}
-                  showAsList={true}
-                />
-              )}
-              
-              {/* Resource Selector - Mobile only, in modal */}
-              {!resourcesLoading && resources.length > 0 && (
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    資源
-                  </label>
-                  <ResourceSelector
-                    selectedResourceIds={selectedResourceIds}
-                    onChange={setSelectedResourceIds}
-                    maxSelectable={10}
-                    showAsList={true}
-                  />
-                </div>
-              )}
+              <CalendarSelector
+                practitioners={practitioners}
+                selectedPractitionerIds={additionalPractitionerIds}
+                currentUserId={user?.user_id || null}
+                isPractitioner={isPractitioner || false}
+                onPractitionerChange={setAdditionalPractitionerIds}
+                resources={resources}
+                selectedResourceIds={selectedResourceIds}
+                onResourceChange={setSelectedResourceIds}
+                maxSelectablePractitioners={5}
+                maxSelectableResources={10}
+                showAsList={true}
+              />
             </div>
           </div>
         </div>

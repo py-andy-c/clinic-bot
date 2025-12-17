@@ -18,7 +18,7 @@ import {
 } from '../utils/calendarDataAdapter';
 import { canEditAppointment, canDuplicateAppointment, getPractitionerIdForDuplicate } from '../utils/appointmentPermissions';
 import { getPractitionerColor } from '../utils/practitionerColors';
-import { getResourceColor } from '../utils/resourceColors';
+import { getResourceColorById } from '../utils/resourceColorUtils';
 import { CustomToolbar, CustomEventComponent, CustomDateHeader, CustomDayHeader, CustomWeekdayHeader, CustomWeekHeader } from './CalendarComponents';
 import {
   EventModal,
@@ -824,23 +824,69 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         }
       }
 
-      // Deduplicate events by calendar_event_id to prevent duplicate keys in React
-      // An appointment can appear in both practitioner and resource calendars,
-      // but we only want to show it once in the merged view
-      // Keep the first occurrence (practitioner events are processed first) which have more complete data
-      const seenIds = new Set<number>();
-      const deduplicatedEvents = events.filter(event => {
-        const eventId = event.calendar_event_id;
-        if (seenIds.has(eventId)) {
-          return false;
+      // Resource calendars should show events separately from practitioner calendars
+      // Even if they share the same calendar_event_id, we want to show both
+      // Strategy: Keep all practitioner events, keep all resource events for selected resources
+      // Use composite keys for React to avoid duplicate key warnings
+      const practitionerEvents: ApiCalendarEvent[] = [];
+      const resourceEvents: ApiCalendarEvent[] = [];
+
+      // Separate practitioner and resource events
+      for (const event of events) {
+        const eventAny = event as any;
+        if (eventAny.is_resource_event) {
+          // Only keep resource events for selected resources
+          if (eventAny.resource_id && resourceIds.includes(eventAny.resource_id)) {
+            resourceEvents.push(event);
+          }
+        } else {
+          practitionerEvents.push(event);
         }
-        seenIds.add(eventId);
-        return true;
-      });
+      }
+
+      // Merge resource information into practitioner events for display
+      // (so practitioner events show which resources they use)
+      const practitionerEventMap = new Map<number, ApiCalendarEvent>();
+      for (const event of practitionerEvents) {
+        const eventId = event.calendar_event_id;
+        if (!practitionerEventMap.has(eventId)) {
+          practitionerEventMap.set(eventId, event);
+        }
+      }
+
+      // Collect resource info from resource events to merge into practitioner events
+      const resourceInfoByEventId = new Map<number, { resourceIds: Set<number>; resourceNames: Set<string> }>();
+      for (const resourceEvent of resourceEvents) {
+        const eventAny = resourceEvent as any;
+        const eventId = resourceEvent.calendar_event_id;
+        if (!resourceInfoByEventId.has(eventId)) {
+          resourceInfoByEventId.set(eventId, { resourceIds: new Set(), resourceNames: new Set() });
+        }
+        const info = resourceInfoByEventId.get(eventId)!;
+        if (eventAny.resource_id) {
+          info.resourceIds.add(eventAny.resource_id);
+        }
+        if (eventAny.resource_name) {
+          info.resourceNames.add(eventAny.resource_name);
+        }
+      }
+
+      // Merge resource info into practitioner events
+      for (const [eventId, info] of resourceInfoByEventId.entries()) {
+        const practitionerEvent = practitionerEventMap.get(eventId);
+        if (practitionerEvent) {
+          (practitionerEvent as any).resource_ids = Array.from(info.resourceIds);
+          (practitionerEvent as any).resource_names = Array.from(info.resourceNames);
+        }
+      }
+
+      // Combine all events: practitioner events + resource events
+      // Resource events will be displayed separately with unique keys
+      const allEvents = [...Array.from(practitionerEventMap.values()), ...resourceEvents];
 
       // Cache the data
       cachedCalendarDataRef.current.set(cacheKey, {
-        data: deduplicatedEvents,
+        data: allEvents,
         timestamp: Date.now()
       });
 
@@ -860,7 +906,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       // Remove from in-flight requests
       inFlightBatchRequestsRef.current.delete(cacheKey);
 
-      setAllEvents(deduplicatedEvents);
+      setAllEvents(allEvents);
 
     } catch (err) {
       // Remove from in-flight requests on error
@@ -930,12 +976,21 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       border: 'none',
       display: 'block'
     };
-    
+
     // Handle resource events with visual distinction (dashed border pattern)
+    // Resources use the same color scheme as practitioners
     if (isResourceEvent && event.resource.resource_id) {
       const resourceId = event.resource.resource_id;
-      const allResourceIds = [...resourceIds].sort((a, b) => a - b);
-      const resourceColor = getResourceColor(resourceId, allResourceIds);
+      const allPractitionerIds = [userId, ...additionalPractitionerIds];
+
+      // Calculate color for resource using practitioner color scheme
+      // Resources get colors after all practitioners
+      const resourceColor = getResourceColorById(
+        resourceId,
+        allPractitionerIds,
+        resourceIds,
+        userId
+      );
       
       // Use dashed border pattern to distinguish resource events from practitioner events
       style = {

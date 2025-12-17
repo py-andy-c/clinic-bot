@@ -1,17 +1,22 @@
 import React from 'react';
 import { Resource } from '../types';
-import { getResourceColor } from '../utils/resourceColors';
+import { getResourceColorById } from '../utils/resourceColorUtils';
 
 interface ResourceChipsProps {
   resources: Resource[];
   selectedResourceIds: number[];
   onRemove: (resourceId: number) => void;
+  // For color calculation - resources use same colors as practitioners
+  allPractitionerIds?: number[]; // All practitioner IDs (for color indexing)
+  primaryUserId?: number | null; // Primary user ID (for color indexing)
 }
 
 const ResourceChips: React.FC<ResourceChipsProps> = ({
   resources,
   selectedResourceIds,
   onRemove,
+  allPractitionerIds = [],
+  primaryUserId = null,
 }) => {
   // Get selected resources
   const selectedResources = resources.filter((r) =>
@@ -22,19 +27,22 @@ const ResourceChips: React.FC<ResourceChipsProps> = ({
     return null;
   }
 
-  // Calculate all resource IDs for color indexing
-  const allResourceIds = selectedResourceIds;
-
-  // Memoize color calculations for each selected resource
+  // Calculate colors for resources using the same scheme as practitioners
+  // Resources get colors after all practitioners
   const chipColors = React.useMemo(() => {
     return selectedResources.map((r) => {
-      const color = getResourceColor(r.id, allResourceIds);
+      const color = getResourceColorById(
+        r.id,
+        allPractitionerIds,
+        selectedResourceIds,
+        primaryUserId
+      );
       return {
         id: r.id,
         resourceColor: color,
       };
     });
-  }, [selectedResources, allResourceIds]);
+  }, [selectedResources, selectedResourceIds, allPractitionerIds, primaryUserId]);
 
   return (
     <div className="flex flex-wrap gap-2 mb-2 pl-2">

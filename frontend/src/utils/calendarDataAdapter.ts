@@ -2,7 +2,7 @@ import { ApiCalendarEvent } from '../types';
 import moment from 'moment-timezone';
 
 export interface CalendarEvent {
-  id: number;
+  id: number | string; // Can be number for practitioner events or string for resource events (composite key)
   title: string;
   start: Date;
   end: Date;
@@ -54,8 +54,17 @@ export const transformToCalendarEvents = (apiEvents: (ApiCalendarEvent | any)[])
     const startDateTime = moment.tz(`${(event as any).date}T${event.start_time || '00:00'}`, taiwanTimezone);
     const endDateTime = moment.tz(`${(event as any).date}T${event.end_time || '23:59'}`, taiwanTimezone);
     
+    // For resource events, use composite ID to ensure unique React keys
+    // Format: calendar_event_id-resource-{resource_id}
+    const eventId = event.calendar_event_id;
+    const isResourceEvent = (event as any).is_resource_event === true;
+    const resourceId = (event as any).resource_id;
+    const uniqueId = isResourceEvent && resourceId
+      ? `${eventId}-resource-${resourceId}`
+      : eventId;
+
     return {
-      id: event.calendar_event_id,
+      id: uniqueId,
       title: event.title,
       start: startDateTime.toDate(),
       end: endDateTime.toDate(),
