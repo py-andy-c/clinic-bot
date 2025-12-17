@@ -687,6 +687,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               const todayDate = isToday(date);
               // In override mode, all dates are selectable (even if no normal availability)
               const isEnabled = overrideMode || available;
+              // In override mode, all dates should look the same (light up) - treat all as available for styling
+              const displayAsAvailable = overrideMode ? true : available;
 
               return (
                 <button
@@ -702,7 +704,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                   }`}
                 >
                   <div className="flex items-center justify-center h-full">
-                    <span className={`${selected ? 'text-white' : available ? 'text-gray-900' : 'text-gray-400'} ${todayDate ? `border-b-2 ${selected ? 'border-white' : 'border-gray-500'}` : ''}`}>
+                    <span className={`${selected ? 'text-white' : displayAsAvailable ? 'text-gray-900' : 'text-gray-400'} ${todayDate ? `border-b-2 ${selected ? 'border-white' : 'border-gray-500'}` : ''}`}>
                       {date.getDate()}
                     </span>
                   </div>
