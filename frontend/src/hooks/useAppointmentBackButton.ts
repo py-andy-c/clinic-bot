@@ -125,7 +125,16 @@ export const useAppointmentBackButton = (isInAppointmentFlow: boolean) => {
           // Step 1 or Step 7 (success): go to home
           if (currentStep > FIRST_STEP && currentStep < SUCCESS_STEP) {
             // Go to previous step (steps 2-6)
-            const previousStep = currentStep - 1;
+            let previousStep = currentStep - 1;
+            
+            // If going back from step 3 and practitioner selection is disabled, skip step 2
+            if (previousStep === 2) {
+              const appointmentType = useAppointmentStore.getState().appointmentType;
+              if (appointmentType?.allow_patient_practitioner_selection === false) {
+                previousStep = 1; // Skip step 2, go directly to step 1
+              }
+            }
+            
             setStep(previousStep);
             // Replace the current state (which was just popped) with the previous step state.
             // This maintains the history stack correctly without adding unnecessary entries.

@@ -14,12 +14,21 @@ import Step6Confirmation from './Step6Confirmation';
 import Step7Success from './Step7Success';
 
 const AppointmentFlow: React.FC = () => {
-  const { step } = useAppointmentStore();
+  const { step, appointmentType, setStep } = useAppointmentStore();
   const { t } = useTranslation();
 
   // Enable back button navigation during appointment flow
   // The back button will navigate to previous steps or home as appropriate
   useAppointmentBackButton(true);
+
+  // Prevent accessing step 2 if practitioner selection is disabled
+  // This is a defensive check in case user somehow ends up on step 2
+  React.useEffect(() => {
+    if (step === 2 && appointmentType?.allow_patient_practitioner_selection === false) {
+      // Redirect to step 3 (skip step 2)
+      setStep(3);
+    }
+  }, [step, appointmentType, setStep]);
 
   // Progress indicator
   const steps = [
