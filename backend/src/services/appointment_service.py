@@ -69,7 +69,8 @@ class AppointmentService:
         notes: Optional[str] = None,
         clinic_notes: Optional[str] = None,
         line_user_id: Optional[int] = None,
-        skip_notifications: bool = False
+        skip_notifications: bool = False,
+        selected_resource_ids: Optional[List[int]] = None
     ) -> Dict[str, Any]:
         """
         Create a new appointment with automatic practitioner assignment if needed.
@@ -198,6 +199,25 @@ class AppointmentService:
             )
 
             db.add(appointment)
+            db.flush()  # Flush to ensure appointment is available for resource allocation
+
+            # Allocate resources for the appointment
+            from services.resource_service import ResourceService
+            try:
+                ResourceService.allocate_resources(
+                    db=db,
+                    appointment_id=calendar_event.id,
+                    appointment_type_id=appointment_type_id,
+                    start_time=start_time,
+                    end_time=end_time,
+                    clinic_id=clinic_id,
+                    selected_resource_ids=selected_resource_ids,
+                    exclude_calendar_event_id=None  # No exclusion needed for new appointments
+                )
+            except Exception as e:
+                logger.warning(f"Failed to allocate resources for appointment {calendar_event.id}: {e}")
+                # Continue without resource allocation (graceful degradation)
+
             db.commit()
             db.refresh(appointment)
 
@@ -1690,7 +1710,8 @@ class AppointmentService:
         notification_note: Optional[str] = None,
         success_message: str = '預約已更新',
         appointment: Optional[Appointment] = None,
-        new_appointment_type_id: Optional[int] = None
+        new_appointment_type_id: Optional[int] = None,
+        selected_resource_ids: Optional[List[int]] = None
     ) -> Dict[str, Any]:
         """
         Update an appointment (time, practitioner, and/or appointment type).
@@ -1712,6 +1733,7 @@ class AppointmentService:
             success_message: Success message to return
             appointment: Optional pre-fetched appointment to avoid duplicate query
             new_appointment_type_id: New appointment type ID (None = keep current)
+            selected_resource_ids: Optional list of resource IDs to allocate (None = auto-allocate)
 
         Returns:
             Dict with updated appointment details
@@ -1902,6 +1924,35 @@ class AppointmentService:
             new_appointment_type_id=appointment_type_id_to_use if appointment_type_actually_changed else None,
             allow_override=not apply_booking_constraints  # Allow override for clinic edits
         )
+
+        # Re-allocate resources if time or appointment type changed
+        if time_actually_changed or appointment_type_actually_changed:
+            from services.resource_service import ResourceService
+            from models.appointment_resource_allocation import AppointmentResourceAllocation
+            
+            # Delete old allocations
+            db.query(AppointmentResourceAllocation).filter(
+                AppointmentResourceAllocation.appointment_id == appointment_id
+            ).delete()
+            
+            # Calculate new end time
+            new_end_time = normalized_start_time + timedelta(minutes=duration_minutes)
+            
+            # Allocate new resources (use selected_resource_ids if provided, otherwise auto-allocate)
+            try:
+                ResourceService.allocate_resources(
+                    db=db,
+                    appointment_id=appointment_id,
+                    appointment_type_id=appointment_type_id_to_use,
+                    start_time=normalized_start_time,
+                    end_time=new_end_time,
+                    clinic_id=clinic_id,
+                    selected_resource_ids=selected_resource_ids,  # Use provided selection or auto-allocate
+                    exclude_calendar_event_id=appointment_id  # Exclude current appointment from availability checks
+                )
+            except Exception as e:
+                logger.warning(f"Failed to re-allocate resources for appointment {appointment_id}: {e}")
+                # Continue without resource allocation (graceful degradation)
 
         logger.info(f"Updated appointment {appointment_id}")
 

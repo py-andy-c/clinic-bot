@@ -20,6 +20,10 @@ from .availability_notification import AvailabilityNotification
 from .practitioner_link_code import PractitionerLinkCode
 from .billing_scenario import BillingScenario
 from .receipt import Receipt
+from .resource_type import ResourceType
+from .resource import Resource
+from .appointment_resource_requirement import AppointmentResourceRequirement
+from .appointment_resource_allocation import AppointmentResourceAllocation
 
 __all__ = [
     "Clinic",
@@ -42,4 +46,8 @@ __all__ = [
     "PractitionerLinkCode",
     "BillingScenario",
     "Receipt",
+    "ResourceType",
+    "Resource",
+    "AppointmentResourceRequirement",
+    "AppointmentResourceAllocation",
 ]

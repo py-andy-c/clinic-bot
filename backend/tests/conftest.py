@@ -42,6 +42,10 @@ from models.practitioner_link_code import PractitionerLinkCode
 from models.practitioner_appointment_types import PractitionerAppointmentTypes
 from models.billing_scenario import BillingScenario
 from models.receipt import Receipt
+from models.resource_type import ResourceType
+from models.resource import Resource
+from models.appointment_resource_requirement import AppointmentResourceRequirement
+from models.appointment_resource_allocation import AppointmentResourceAllocation
 
 
 # Test database URL

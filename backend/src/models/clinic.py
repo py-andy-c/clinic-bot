@@ -318,6 +318,12 @@ class Clinic(Base):
     appointment_types = relationship("AppointmentType", back_populates="clinic")
     """Types of appointments offered by this clinic."""
 
+    resource_types = relationship("ResourceType", back_populates="clinic", cascade="all, delete-orphan")
+    """Resource types owned by this clinic."""
+
+    resources = relationship("Resource", back_populates="clinic", cascade="all, delete-orphan")
+    """Resources owned by this clinic."""
+
     signup_tokens = relationship("SignupToken", back_populates="clinic")
     """Active signup tokens for inviting new users"""
 

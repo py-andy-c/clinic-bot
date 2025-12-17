@@ -87,6 +87,13 @@ class CalendarEvent(Base):
     availability_exception = relationship("AvailabilityException", back_populates="calendar_event", uselist=False, cascade="all, delete-orphan")
     """Relationship to the AvailabilityException entity (if this is an availability exception)."""
 
+    resource_allocations = relationship(
+        "AppointmentResourceAllocation",
+        back_populates="appointment",
+        cascade="all, delete-orphan"
+    )
+    """Relationship to resource allocations for this calendar event (if this is an appointment)."""
+
     # Table constraints and indexes
     __table_args__ = (
         CheckConstraint(

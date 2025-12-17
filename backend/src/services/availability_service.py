@@ -292,7 +292,8 @@ class AvailabilityService:
                 db, requested_date, [practitioner], total_duration, 
                 clinic, clinic_id, exclude_calendar_event_id, schedule_data=schedule_data,
                 apply_booking_restrictions=apply_booking_restrictions,
-                for_patient_display=for_patient_display
+                for_patient_display=for_patient_display,
+                appointment_type_id=appointment_type_id
             )
             
             # Apply compact schedule recommendations if enabled
@@ -415,7 +416,8 @@ class AvailabilityService:
                 db, requested_date, practitioners, total_duration, clinic, clinic_id,
                 exclude_calendar_event_id=exclude_calendar_event_id,
                 apply_booking_restrictions=apply_booking_restrictions,
-                for_patient_display=for_patient_display
+                for_patient_display=for_patient_display,
+                appointment_type_id=appointment_type_id
             )
             
             # Deduplicate slots by start_time (practitioner assignment happens in _assign_practitioner)
@@ -447,7 +449,8 @@ class AvailabilityService:
         exclude_calendar_event_id: int | None = None,
         schedule_data: Dict[int, Dict[str, Any]] | None = None,
         apply_booking_restrictions: bool = True,
-        for_patient_display: bool = False
+        for_patient_display: bool = False,
+        appointment_type_id: int | None = None
     ) -> List[Dict[str, Any]]:
         """
         Calculate available time slots for the given date and practitioners.
@@ -456,6 +459,7 @@ class AvailabilityService:
         - Default availability schedule (PractitionerAvailability)
         - Availability exceptions (CalendarEvent with event_type='availability_exception')
         - Existing appointments (CalendarEvent with event_type='appointment')
+        - Resource availability (if appointment_type_id is provided)
         - Clinic booking restrictions (if apply_booking_restrictions=True)
 
         Args:
@@ -468,6 +472,7 @@ class AvailabilityService:
             schedule_data: Pre-fetched schedule data (optional, for performance)
             apply_booking_restrictions: Whether to filter slots by booking restrictions (default: True)
                                       Set to False for clinic admin endpoints (admins bypass restrictions)
+            appointment_type_id: Optional appointment type ID for resource availability checking
 
         Returns:
             List of available slot dictionaries with practitioner_id and practitioner_name
@@ -529,15 +534,33 @@ class AvailabilityService:
             # Note: candidate_slots are already guaranteed to be within default_intervals,
             # so we only need to check for conflicts (exceptions and appointments)
             for slot_start, slot_end in candidate_slots:
-                if not AvailabilityService.has_slot_conflicts(
-                    events, slot_start, slot_end
-                ):
-                    available_slots.append({
-                        'start_time': AvailabilityService._format_time(slot_start),
-                        'end_time': AvailabilityService._format_time(slot_end),
-                        'practitioner_id': practitioner.id,
-                        'practitioner_name': practitioner_name
-                    })
+                # Check practitioner availability (conflicts with exceptions/appointments)
+                if AvailabilityService.has_slot_conflicts(events, slot_start, slot_end):
+                    continue
+                
+                # Check resource availability if appointment_type_id is provided
+                if appointment_type_id:
+                    slot_availability = AvailabilityService.check_slot_availability(
+                        db=db,
+                        practitioner_id=practitioner.id,
+                        date=requested_date,
+                        start_time=slot_start,
+                        end_time=slot_end,
+                        appointment_type_id=appointment_type_id,
+                        clinic_id=clinic_id,
+                        schedule_data=schedule_data,
+                        exclude_calendar_event_id=exclude_calendar_event_id,
+                        check_resources=True
+                    )
+                    if not slot_availability['is_available']:
+                        continue  # Skip slot if resources are not available
+                
+                available_slots.append({
+                    'start_time': AvailabilityService._format_time(slot_start),
+                    'end_time': AvailabilityService._format_time(slot_end),
+                    'practitioner_id': practitioner.id,
+                    'practitioner_name': practitioner_name
+                })
 
         # Apply booking restrictions if requested (for patient-facing endpoints)
         # Clinic admin endpoints should pass apply_booking_restrictions=False to bypass restrictions
@@ -760,6 +783,93 @@ class AvailabilityService:
                 return True
         
         return False
+
+    @staticmethod
+    def check_slot_availability(
+        db: Session,
+        practitioner_id: int,
+        date: date_type,
+        start_time: time,
+        end_time: time,
+        appointment_type_id: int,
+        clinic_id: int,
+        schedule_data: Dict[int, Dict[str, Any]] | None = None,
+        exclude_calendar_event_id: int | None = None,
+        check_resources: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Core function to check if a time slot is available.
+        
+        Checks both practitioner availability and resource availability.
+        Used by: slot calculation, conflict checking, availability notifications.
+        
+        Args:
+            db: Database session
+            practitioner_id: Practitioner ID
+            date: Date to check
+            start_time: Slot start time
+            end_time: Slot end time
+            appointment_type_id: Appointment type ID (for resource requirements)
+            clinic_id: Clinic ID
+            schedule_data: Pre-fetched schedule data (optional)
+            exclude_calendar_event_id: Exclude this appointment from checks (for editing)
+            check_resources: Whether to check resource availability (default: True)
+        
+        Returns:
+            Dict with availability status:
+            {
+                'is_available': bool,
+                'practitioner_available': bool,
+                'resources_available': bool,
+                'resource_conflicts': List[Dict]  # List of resource conflict details
+            }
+        """
+        # 1. Check practitioner availability (existing logic)
+        if schedule_data is None:
+            schedule_data = AvailabilityService.fetch_practitioner_schedule_data(
+                db, [practitioner_id], date, clinic_id, exclude_calendar_event_id
+            )
+        
+        practitioner_data = schedule_data.get(practitioner_id, {
+            'default_intervals': [],
+            'events': []
+        })
+        
+        default_intervals = practitioner_data['default_intervals']
+        events = practitioner_data['events']
+        
+        practitioner_available = (
+            AvailabilityService.is_slot_within_default_intervals(default_intervals, start_time, end_time)
+            and not AvailabilityService.has_slot_conflicts(events, start_time, end_time)
+        )
+        
+        # 2. Check resource availability (NEW)
+        resources_available = True
+        resource_conflicts = []
+        
+        if check_resources:
+            from services.resource_service import ResourceService
+            start_datetime = datetime.combine(date, start_time)
+            end_datetime = datetime.combine(date, end_time)
+            resource_result = ResourceService.check_resource_availability(
+                db=db,
+                appointment_type_id=appointment_type_id,
+                clinic_id=clinic_id,
+                start_time=start_datetime,
+                end_time=end_datetime,
+                exclude_calendar_event_id=exclude_calendar_event_id
+            )
+            resources_available = resource_result['is_available']
+            resource_conflicts = resource_result['conflicts']
+        
+        is_available = practitioner_available and resources_available
+        
+        return {
+            'is_available': is_available,
+            'practitioner_available': practitioner_available,
+            'resources_available': resources_available,
+            'resource_conflicts': resource_conflicts
+        }
 
     @staticmethod
     def fetch_practitioner_schedule_data(
@@ -1324,7 +1434,8 @@ class AvailabilityService:
         1. Past appointment (highest priority, only if check_past_appointment=True)
         2. Appointment conflicts
         3. Availability exception conflicts (medium priority)
-        4. Outside default availability (lowest priority)
+        4. Outside default availability
+        5. Resource conflicts (lowest priority)
         
         Args:
             db: Database session
@@ -1340,9 +1451,10 @@ class AvailabilityService:
             Dict with conflict information:
             {
                 "has_conflict": bool,
-                "conflict_type": "past_appointment" | "appointment" | "exception" | "availability" | None,
+                "conflict_type": "past_appointment" | "appointment" | "exception" | "availability" | "resource" | None,
                 "appointment_conflict": {...} | None,
                 "exception_conflict": {...} | None,
+                "resource_conflicts": List[Dict] | None,
                 "default_availability": {
                     "is_within_hours": bool,
                     "normal_hours": str | None
@@ -1412,6 +1524,7 @@ class AvailabilityService:
                     "conflict_type": "past_appointment",
                     "appointment_conflict": None,
                     "exception_conflict": None,
+                    "resource_conflicts": None,
                     "default_availability": {
                         "is_within_hours": is_within_hours,
                         "normal_hours": normal_hours
@@ -1461,6 +1574,7 @@ class AvailabilityService:
                 "conflict_type": "appointment",
                 "appointment_conflict": appointment_conflict,
                 "exception_conflict": None,
+                "resource_conflicts": None,
                 "default_availability": {
                     "is_within_hours": is_within_hours,
                     "normal_hours": normal_hours
@@ -1499,6 +1613,7 @@ class AvailabilityService:
                 "conflict_type": "exception",
                 "appointment_conflict": None,
                 "exception_conflict": exception_conflict,
+                "resource_conflicts": None,
                 "default_availability": {
                     "is_within_hours": is_within_hours,
                     "normal_hours": normal_hours
@@ -1518,8 +1633,35 @@ class AvailabilityService:
                 "conflict_type": "availability",
                 "appointment_conflict": None,
                 "exception_conflict": None,
+                "resource_conflicts": None,
                 "default_availability": {
                     "is_within_hours": False,
+                    "normal_hours": normal_hours
+                }
+            }
+        
+        # 4. Check for resource conflicts (lowest priority)
+        from services.resource_service import ResourceService
+        start_datetime = datetime.combine(date, start_time)
+        end_datetime = datetime.combine(date, end_time)
+        resource_result = ResourceService.check_resource_availability(
+            db=db,
+            appointment_type_id=appointment_type_id,
+            clinic_id=clinic_id,
+            start_time=start_datetime,
+            end_time=end_datetime,
+            exclude_calendar_event_id=exclude_calendar_event_id
+        )
+        
+        if not resource_result['is_available']:
+            return {
+                "has_conflict": True,
+                "conflict_type": "resource",
+                "appointment_conflict": None,
+                "exception_conflict": None,
+                "resource_conflicts": resource_result['conflicts'],
+                "default_availability": {
+                    "is_within_hours": is_within_hours,
                     "normal_hours": normal_hours
                 }
             }
@@ -1530,6 +1672,7 @@ class AvailabilityService:
             "conflict_type": None,
             "appointment_conflict": None,
             "exception_conflict": None,
+            "resource_conflicts": None,
             "default_availability": {
                 "is_within_hours": True,
                 "normal_hours": normal_hours
