@@ -262,9 +262,10 @@ class ReminderService:
         if clinic_info:
             clinic_info_str = "\n\n" + "\n".join(clinic_info)
 
+        # therapist_name already includes title from get_practitioner_display_name_with_title
         message = (
             f"提醒您，您預約的【{appointment_type}】預計於【{appointment_time}】"
-            f"開始，由【{therapist_name}治療師】為您服務。{clinic_info_str}"
+            f"開始，由【{therapist_name}】為您服務。{clinic_info_str}"
             f"\n\n請準時前往診所，期待為您服務！"
         )
 
@@ -333,19 +334,16 @@ class ReminderService:
                     db.commit()
                     return False
 
-            # Format reminder message - get practitioner name from pre-loaded association lookup
+            # Format reminder message - get practitioner name with title for external display
             # Show "不指定" if appointment is auto-assigned
             if appointment.is_auto_assigned:
                 therapist_name = "不指定"
             else:
+                from utils.practitioner_helpers import get_practitioner_display_name_with_title
                 user = appointment.calendar_event.user
-                association = association_lookup.get(user.id)
-                if not association:
-                    logger.warning(
-                        f"No active association found for user {user.id} in clinic {clinic.id}. "
-                        f"Using email as fallback."
-                    )
-                therapist_name = association.full_name if association else user.email
+                therapist_name = get_practitioner_display_name_with_title(
+                    db, user.id, clinic.id
+                )
             appointment_datetime = ensure_taiwan(datetime.combine(
                 appointment.calendar_event.date,
                 appointment.calendar_event.start_time

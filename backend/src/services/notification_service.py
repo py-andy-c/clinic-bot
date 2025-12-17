@@ -50,13 +50,10 @@ class NotificationService:
             clinic = patient.clinic
 
             # Get practitioner name from association
-            from models.user_clinic_association import UserClinicAssociation
-            association = db.query(UserClinicAssociation).filter(
-                UserClinicAssociation.user_id == practitioner.id,
-                UserClinicAssociation.clinic_id == clinic.id,
-                UserClinicAssociation.is_active == True
-            ).first()
-            practitioner_name = association.full_name if association else practitioner.email
+            from utils.practitioner_helpers import get_practitioner_display_name_with_title
+            practitioner_name = get_practitioner_display_name_with_title(
+                db, practitioner.id, clinic.id
+            )
 
             # Format datetime - combine date and start_time (Taiwan timezone)
             start_datetime = datetime.combine(
@@ -153,10 +150,11 @@ class NotificationService:
     ) -> str:
         """Generate appropriate cancellation message."""
         # Build base message with appointment type if available
+        # practitioner_name already includes title from get_practitioner_display_name_with_title
         if appointment_type_name:
-            base = f"{formatted_datetime} - 【{appointment_type_name}】{practitioner_name}治療師"
+            base = f"{formatted_datetime} - 【{appointment_type_name}】{practitioner_name}"
         else:
-            base = f"{formatted_datetime} - {practitioner_name}治療師"
+            base = f"{formatted_datetime} - {practitioner_name}"
 
         # Add note if provided
         note_str = ""
@@ -198,8 +196,9 @@ class NotificationService:
         new_practitioner_display = new_practitioner if new_practitioner else "不指定"
 
         message = f"{patient_name}，您的預約已調整：\n\n"
-        message += f"原預約：{old_datetime} - 【{appointment_type}】{old_practitioner_display}治療師\n"
-        message += f"新預約：{new_datetime} - 【{appointment_type}】{new_practitioner_display}治療師\n"
+        # old_practitioner_display and new_practitioner_display already include title
+        message += f"原預約：{old_datetime} - 【{appointment_type}】{old_practitioner_display}\n"
+        message += f"新預約：{new_datetime} - 【{appointment_type}】{new_practitioner_display}\n"
         if note:
             message += f"\n備註：{note}\n"
         message += "\n如有疑問，請聯繫診所。"
@@ -241,25 +240,20 @@ class NotificationService:
             clinic = patient.clinic
 
             # Get practitioner names from associations
-            from models.user_clinic_association import UserClinicAssociation
+
+            from utils.practitioner_helpers import get_practitioner_display_name_with_title
 
             old_practitioner_name: str | None = None
             if old_practitioner:
-                association = db.query(UserClinicAssociation).filter(
-                    UserClinicAssociation.user_id == old_practitioner.id,
-                    UserClinicAssociation.clinic_id == clinic.id,
-                    UserClinicAssociation.is_active == True
-                ).first()
-                old_practitioner_name = association.full_name if association else old_practitioner.email
+                old_practitioner_name = get_practitioner_display_name_with_title(
+                    db, old_practitioner.id, clinic.id
+                )
 
             new_practitioner_name: str | None = None
             if new_practitioner:
-                association = db.query(UserClinicAssociation).filter(
-                    UserClinicAssociation.user_id == new_practitioner.id,
-                    UserClinicAssociation.clinic_id == clinic.id,
-                    UserClinicAssociation.is_active == True
-                ).first()
-                new_practitioner_name = association.full_name if association else new_practitioner.email
+                new_practitioner_name = get_practitioner_display_name_with_title(
+                    db, new_practitioner.id, clinic.id
+                )
 
             # Format datetimes
             old_formatted = format_datetime(old_start_time)
@@ -412,8 +406,20 @@ class NotificationService:
             appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
 
             # Build message
+            # Get practitioner name with title for external display
+            # If practitioner_name is "不指定", use it as-is (for auto-assigned appointments)
+            from utils.practitioner_helpers import get_practitioner_display_name_with_title, AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
+            if practitioner_name == AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME:
+                practitioner_display_name = practitioner_name
+            elif appointment.calendar_event and appointment.calendar_event.user_id:
+                practitioner_display_name = get_practitioner_display_name_with_title(
+                    db, appointment.calendar_event.user_id, clinic.id
+                )
+            else:
+                practitioner_display_name = practitioner_name
+            
             message = f"{patient.full_name}，您的預約已建立：\n\n"
-            message += f"{formatted_datetime} - 【{appointment_type_name}】{practitioner_name}治療師"
+            message += f"{formatted_datetime} - 【{appointment_type_name}】{practitioner_display_name}"
             
             if appointment.notes:
                 message += f"\n\n備註：{appointment.notes}"
@@ -661,13 +667,11 @@ class NotificationService:
                         # Get appointment type name
                         appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
 
-                        # Get new practitioner name
-                        new_practitioner_assoc = db.query(UserClinicAssociation).filter(
-                            UserClinicAssociation.user_id == new_practitioner.id,
-                            UserClinicAssociation.clinic_id == clinic.id,
-                            UserClinicAssociation.is_active == True
-                        ).first()
-                        new_practitioner_name = new_practitioner_assoc.full_name if new_practitioner_assoc else "治療師"
+                        # Get new practitioner name with title for external display
+                        from utils.practitioner_helpers import get_practitioner_display_name_with_title
+                        new_practitioner_name = get_practitioner_display_name_with_title(
+                            db, new_practitioner.id, clinic.id
+                        )
 
                         # Build message
                         message = f"🔄 預約調整通知\n\n"
@@ -727,15 +731,13 @@ class NotificationService:
                     # Get appointment type name
                     appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
 
-                    # Get old practitioner name (if exists)
+                    # Get old practitioner name with title for external display (if exists)
                     old_practitioner_name = None
                     if old_practitioner:
-                        old_practitioner_assoc = db.query(UserClinicAssociation).filter(
-                            UserClinicAssociation.user_id == old_practitioner.id,
-                            UserClinicAssociation.clinic_id == clinic.id,
-                            UserClinicAssociation.is_active == True
-                        ).first()
-                        old_practitioner_name = old_practitioner_assoc.full_name if old_practitioner_assoc else "治療師"
+                        from utils.practitioner_helpers import get_practitioner_display_name_with_title
+                        old_practitioner_name = get_practitioner_display_name_with_title(
+                            db, old_practitioner.id, clinic.id
+                        )
 
                     # Build message
                     message = f"📅 預約調整通知\n\n"

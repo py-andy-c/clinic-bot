@@ -245,10 +245,10 @@ def get_practitioner_display_name_for_appointment(
     clinic_id: int
 ) -> str:
     """
-    Get practitioner display name for patient-facing appointment display.
+    Get practitioner display name with title for patient-facing appointment display (external).
     
     Returns "不指定" for auto-assigned appointments, otherwise returns the actual
-    practitioner display name (full_name or email).
+    practitioner display name with title (full_name + title or email).
     
     This function consolidates the logic for returning practitioner names in
     appointment responses, ensuring consistency across all endpoints.
@@ -259,19 +259,57 @@ def get_practitioner_display_name_for_appointment(
         clinic_id: Clinic ID for association lookup
         
     Returns:
-        Practitioner display name ("不指定" for auto-assigned, or actual name)
+        Practitioner display name with title ("不指定" for auto-assigned, or "name + title")
     """
     if appointment.is_auto_assigned:
         return AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
     
-    # Get actual practitioner name
+    # Get actual practitioner name with title for external display
     if appointment.calendar_event and appointment.calendar_event.user_id:
-        name = get_practitioner_display_name(
+        return get_practitioner_display_name_with_title(
             db, appointment.calendar_event.user_id, clinic_id
         )
-        if name:
-            return name
     
     # Fallback (shouldn't happen for valid appointments)
     return AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
+
+
+def get_practitioner_display_name_with_title(
+    db: Session,
+    user_id: int,
+    clinic_id: int
+) -> str:
+    """
+    Get practitioner display name with title for external displays (receipts, LINE messages, LIFF).
+    
+    Returns name + title if title exists, otherwise just the name.
+    Example: "王小明治療師" if title is "治療師", or "王小明" if title is empty.
+    
+    Args:
+        db: Database session
+        user_id: Practitioner user ID
+        clinic_id: Clinic ID
+        
+    Returns:
+        Practitioner display name with title (e.g., "王小明治療師") or just name if no title
+    """
+    association = db.query(UserClinicAssociation).filter(
+        UserClinicAssociation.user_id == user_id,
+        UserClinicAssociation.clinic_id == clinic_id,
+        UserClinicAssociation.is_active == True
+    ).options(joinedload(UserClinicAssociation.user)).first()
+    
+    if not association:
+        return DEFAULT_PRACTITIONER_DISPLAY_NAME
+    
+    # Get name (full_name or email fallback)
+    name = association.full_name if association.full_name else (
+        association.user.email if association.user else DEFAULT_PRACTITIONER_DISPLAY_NAME
+    )
+    
+    # Append title if it exists
+    if association.title and association.title.strip():
+        return f"{name}{association.title}"
+    
+    return name
 

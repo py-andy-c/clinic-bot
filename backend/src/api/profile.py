@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session, joinedload
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,7 @@ class ProfileResponse(BaseModel):
     id: int
     email: str  # Read-only, cannot be changed
     full_name: str
+    title: str = ""  # Title/honorific (e.g., "治療師") - used in external displays
     roles: list[str]  # Roles at active clinic (from UserClinicAssociation)
     active_clinic_id: Optional[int]  # Currently active clinic ID (None for system admins)
     created_at: datetime
@@ -42,8 +43,21 @@ class ProfileResponse(BaseModel):
 class ProfileUpdateRequest(BaseModel):
     """Request model for updating user profile."""
     full_name: Optional[str] = None
+    title: Optional[str] = None  # Title/honorific (e.g., "治療師") - max 50 characters
     settings: Optional[Dict[str, Any]] = None  # Practitioner settings (only for practitioners)
     # Note: email is intentionally excluded - cannot be changed
+    
+    @field_validator('title')
+    @classmethod
+    def validate_title(cls, v: Optional[str]) -> Optional[str]:
+        """Validate title length and content."""
+        if v is None:
+            return v
+        # Strip whitespace and validate length
+        v = v.strip() if v else ""
+        if len(v) > 50:
+            raise ValueError("稱謂長度不能超過 50 個字元")
+        return v
 
 
 
@@ -96,10 +110,22 @@ async def get_profile(
                 # Check if LINE account is linked for this clinic
                 line_linked = bool(association.line_user_id)
 
+        # Get title from association if available
+        title = ""
+        if current_user.active_clinic_id:
+            association = next(
+                (a for a in user.clinic_associations
+                 if a.clinic_id == current_user.active_clinic_id and a.is_active),
+                None
+            )
+            if association:
+                title = association.title or ""
+
         return ProfileResponse(
             id=user.id,
             email=user.email,
             full_name=current_user.name,  # Use clinic-specific name
+            title=title,
             roles=roles,
             active_clinic_id=active_clinic_id,
             created_at=user.created_at,
@@ -170,6 +196,11 @@ async def update_profile(
                 association.full_name = profile_data.full_name
                 association.updated_at = taiwan_now()
 
+            # Update title if provided
+            if profile_data.title is not None:
+                association.title = profile_data.title
+                association.updated_at = taiwan_now()
+
             # Update settings if provided (for practitioners and admins)
             if profile_data.settings is not None:
                 # Allow both practitioners and admins to update settings
@@ -223,6 +254,7 @@ async def update_profile(
                 roles = association.roles or []
                 active_clinic_id = association.clinic_id
                 clinic_full_name = association.full_name  # Clinic users always have association.full_name
+                clinic_title = association.title or ""  # Get title from association
                 # Include settings if user is a practitioner
                 if 'practitioner' in roles:
                     settings = association.get_validated_settings().model_dump()
@@ -234,11 +266,14 @@ async def update_profile(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="找不到診所關聯"
                 )
+        else:
+            clinic_title = ""  # System admins don't have title
 
         return ProfileResponse(
             id=user.id,
             email=user.email,  # Email cannot be changed
             full_name=clinic_full_name,  # Use updated clinic-specific name
+            title=clinic_title,
             roles=roles,
             active_clinic_id=active_clinic_id,
             created_at=user.created_at,

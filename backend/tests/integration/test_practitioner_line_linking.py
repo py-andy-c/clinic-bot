@@ -255,3 +255,95 @@ class TestPractitionerLineLinking:
         # The idempotency check should pass: used_at is not None AND association.line_user_id == line_user_id
         # This would return success in the actual webhook handler
 
+    def test_profile_title_field(self, client, clinic_user, auth_token, db_session):
+        """Test that profile endpoint includes and allows updating title field."""
+        user, clinic = clinic_user
+        
+        # Get profile - should include title field (default empty or migrated to '治療師')
+        response = client.get(
+            "/api/profile",
+            headers={"Authorization": f"Bearer {auth_token}"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "title" in data
+        # Title should be empty for new users, or '治療師' if migrated
+        assert data["title"] in ["", "治療師"]
+        
+        # Update title
+        update_response = client.put(
+            "/api/profile",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            json={"title": "復健師"}
+        )
+        assert update_response.status_code == 200
+        update_data = update_response.json()
+        assert update_data["title"] == "復健師"
+        
+        # Verify in database
+        association = db_session.query(UserClinicAssociation).filter(
+            UserClinicAssociation.user_id == user.id,
+            UserClinicAssociation.clinic_id == clinic.id
+        ).first()
+        assert association.title == "復健師"
+        
+        # Update title to empty
+        update_response2 = client.put(
+            "/api/profile",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            json={"title": ""}
+        )
+        assert update_response2.status_code == 200
+        update_data2 = update_response2.json()
+        assert update_data2["title"] == ""
+        
+        # Verify in database
+        db_session.refresh(association)
+        assert association.title == ""
+        
+        # Update both full_name and title together
+        update_response3 = client.put(
+            "/api/profile",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            json={"full_name": "新名字", "title": "醫師"}
+        )
+        assert update_response3.status_code == 200
+        update_data3 = update_response3.json()
+        assert update_data3["full_name"] == "新名字"
+        assert update_data3["title"] == "醫師"
+        
+        # Verify in database
+        db_session.refresh(association)
+        assert association.full_name == "新名字"
+        assert association.title == "醫師"
+    
+    def test_profile_title_validation(self, client, clinic_user, auth_token):
+        """Test that title field validates length (max 50 characters)."""
+        # Test with title that's too long
+        long_title = "a" * 51  # 51 characters
+        response = client.put(
+            "/api/profile",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            json={"title": long_title}
+        )
+        assert response.status_code == 422  # Validation error
+        
+        # Test with valid length (50 characters)
+        valid_title = "a" * 50  # 50 characters
+        response2 = client.put(
+            "/api/profile",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            json={"title": valid_title}
+        )
+        assert response2.status_code == 200
+        
+        # Test with whitespace-only title (should be stripped)
+        response3 = client.put(
+            "/api/profile",
+            headers={"Authorization": f"Bearer {auth_token}"},
+            json={"title": "   "}
+        )
+        assert response3.status_code == 200
+        data = response3.json()
+        assert data["title"] == ""  # Whitespace should be stripped
+

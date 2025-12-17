@@ -222,9 +222,11 @@ class ReceiptService:
                             UserClinicAssociation.clinic_id == clinic_id
                         ).first()
                         practitioner_name = association.full_name if association else practitioner_user.email
+                        practitioner_title = association.title if association else ""
                         snapshot_item["practitioner"] = {
                             "id": practitioner_user.id,
-                            "name": practitioner_name
+                            "name": practitioner_name,
+                            "title": practitioner_title
                         }
                 else:
                     snapshot_item["practitioner"] = None
@@ -254,9 +256,11 @@ class ReceiptService:
                             UserClinicAssociation.clinic_id == clinic_id
                         ).first()
                         practitioner_name = association.full_name if association else practitioner_user.email
+                        practitioner_title = association.title if association else ""
                         snapshot_item["practitioner"] = {
                             "id": practitioner_user.id,
-                            "name": practitioner_name
+                            "name": practitioner_name,
+                            "title": practitioner_title
                         }
                 else:
                     snapshot_item["practitioner"] = None

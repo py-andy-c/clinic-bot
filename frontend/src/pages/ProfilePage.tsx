@@ -158,6 +158,7 @@ interface PractitionerSettings {
 
 interface ProfileData {
   fullName: string;
+  title: string;
   schedule: any;
   settings?: PractitionerSettings;
 }
@@ -186,6 +187,7 @@ const ProfilePage: React.FC = () => {
     fetchData: async () => {
       const result: ProfileData = {
         fullName: '',
+        title: '',
         schedule: {},
         settings: {
           compact_schedule_enabled: false,
@@ -201,9 +203,10 @@ const ProfilePage: React.FC = () => {
         logger.error('Error fetching profile:', err);
       }
 
-      // Set the full name from the profile
+      // Set the full name and title from the profile
       if (profileToUse) {
         result.fullName = profileToUse.full_name || '';
+        result.title = profileToUse.title || '';
         // Set settings from profile
         if (profileToUse.settings) {
           const settings = profileToUse.settings as PractitionerSettings;
@@ -237,11 +240,16 @@ const ProfilePage: React.FC = () => {
     },
     saveData: async (data: ProfileData) => {
       // Prepare profile update data
-      const profileUpdate: { full_name?: string; settings?: PractitionerSettings } = {};
+      const profileUpdate: { full_name?: string; title?: string; settings?: PractitionerSettings } = {};
 
       // Check if full name changed
       if (data.fullName !== profile?.full_name) {
         profileUpdate.full_name = data.fullName;
+      }
+
+      // Check if title changed
+      if (data.title !== (profile?.title || '')) {
+        profileUpdate.title = data.title;
       }
 
       // Check if settings changed (for practitioners and admins)
@@ -385,7 +393,9 @@ const ProfilePage: React.FC = () => {
               <ProfileForm
                 profile={profile}
                 fullName={profileData?.fullName || ''}
+                title={profileData?.title || ''}
                 onFullNameChange={(name) => updateData({ fullName: name })}
+                onTitleChange={(title) => updateData({ title })}
                 showSaveButton={sectionChanges.profile || false}
                 onSave={saveData}
                 saving={uiState.saving}

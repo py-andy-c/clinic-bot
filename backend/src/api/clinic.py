@@ -2727,10 +2727,19 @@ async def create_recurring_appointments(
                             if len(created_appointments) > 10:
                                 appointment_text += f"\n... 還有 {len(created_appointments) - 10} 個"
                             
+                            # Get practitioner name with title for external display
+                            from utils.practitioner_helpers import get_practitioner_display_name_with_title
+                            if practitioner:
+                                practitioner_display_name = get_practitioner_display_name_with_title(
+                                    db, practitioner.id, clinic_id
+                                )
+                            else:
+                                practitioner_display_name = practitioner_name
+                            
                             message = f"{patient.full_name}，已為您建立 {len(created_appointments)} 個預約：\n\n"
                             message += date_range
                             message += appointment_text
-                            message += f"\n\n【{appointment_type_name}】{practitioner_name}治療師"
+                            message += f"\n\n【{appointment_type_name}】{practitioner_display_name}"
                             message += "\n\n期待為您服務！"
                             
                             # Send notification using LINE service directly

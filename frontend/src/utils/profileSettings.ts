@@ -8,6 +8,7 @@ interface PractitionerSettings {
 
 interface ProfileSettingsData {
   fullName: string;
+  title: string;
   schedule: DefaultScheduleResponse;
   settings?: PractitionerSettings;
 }
@@ -70,7 +71,7 @@ export const getProfileSectionChanges = (current: ProfileSettingsData, original:
     (currentSettings.auto_assigned_notification_time || '21:00') !== (originalSettings.auto_assigned_notification_time || '21:00');
 
   return {
-    profile: current.fullName !== original.fullName,
+    profile: current.fullName !== original.fullName || current.title !== original.title,
     schedule: original.schedule ?
       JSON.stringify(current.schedule) !== JSON.stringify(original.schedule) : false,
     settings: settingsChanged,

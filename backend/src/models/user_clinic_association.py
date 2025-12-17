@@ -45,6 +45,7 @@ class UserClinicAssociation(Base):
     clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id", ondelete="CASCADE"))
     roles: Mapped[list[str]] = mapped_column(JSONB, default=list)
     full_name: Mapped[str] = mapped_column(String(255))  # Clinic-specific name
+    title: Mapped[str] = mapped_column(String(50), default="")  # Title/honorific (e.g., "治療師") - used in external displays
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_accessed_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default="now()")

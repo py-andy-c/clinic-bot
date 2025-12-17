@@ -227,3 +227,62 @@ def test_send_practitioner_notification_line_service_error(
     # Assert
     assert result is False
 
+
+@patch('utils.practitioner_helpers.get_practitioner_display_name_with_title')
+@patch('services.notification_service.format_datetime')
+@patch('services.line_service.LINEService')
+def test_send_appointment_confirmation_with_title(
+    mock_line_service_class,
+    mock_format_datetime,
+    mock_get_practitioner_display_name_with_title,
+    mock_appointment,
+    mock_clinic,
+    mock_db
+):
+    """Test that appointment confirmation includes practitioner title in message."""
+    # Setup
+    mock_format_datetime.return_value = "01/20 (一) 2:30 PM"
+    mock_get_practitioner_display_name_with_title.return_value = "王小明治療師"
+    
+    # Mock patient with LINE user
+    mock_patient = Mock()
+    mock_patient.full_name = "病患"
+    mock_patient.id = 1
+    mock_line_user = Mock()
+    mock_line_user.line_user_id = "U1234567890"
+    mock_patient.line_user = mock_line_user
+    mock_appointment.patient = mock_patient
+    
+    # Mock calendar event with user_id
+    mock_calendar_event = Mock()
+    mock_calendar_event.user_id = 1
+    mock_calendar_event.date = date(2025, 1, 20)
+    mock_calendar_event.start_time = time(14, 30)
+    mock_appointment.calendar_event = mock_calendar_event
+    
+    mock_line_service = Mock()
+    mock_line_service_class.return_value = mock_line_service
+    
+    # Execute
+    result = NotificationService.send_appointment_confirmation(
+        mock_db,
+        mock_appointment,
+        "王小明",  # practitioner_name parameter (not used when calendar_event has user_id)
+        mock_clinic,
+        trigger_source='clinic_triggered'
+    )
+    
+    # Assert
+    assert result is True
+    mock_get_practitioner_display_name_with_title.assert_called_once_with(
+        mock_db, 1, mock_clinic.id
+    )
+    call_args = mock_line_service.send_text_message.call_args
+    assert call_args[0][0] == "U1234567890"
+    message = call_args[0][1]
+    assert "病患" in message
+    assert "王小明治療師" in message  # Should include title
+    assert "物理治療" in message
+    # Should not have hardcoded "治療師" appended (title is already in the name)
+    assert message.count("治療師") == 1  # Only once in "王小明治療師"
+

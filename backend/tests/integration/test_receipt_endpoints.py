@@ -963,4 +963,180 @@ class TestBillingScenarioEndpoints:
                 is_default=False
             )
 
+    def test_checkout_with_practitioner_title(self, db_session: Session):
+        """Test that receipt stores practitioner title in JSONB snapshot."""
+        # Create clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create practitioner with title
+        practitioner_user = User(
+            email="practitioner@test.com",
+            google_subject_id="google_practitioner_title"
+        )
+        db_session.add(practitioner_user)
+        db_session.flush()
+
+        practitioner_association = UserClinicAssociation(
+            user_id=practitioner_user.id,
+            clinic_id=clinic.id,
+            full_name="王小明",
+            title="治療師",
+            roles=["practitioner"],
+            is_active=True
+        )
+        db_session.add(practitioner_association)
+        db_session.commit()
+
+        # Create admin user
+        admin_user = User(
+            email="admin@test.com",
+            google_subject_id="google_admin_title"
+        )
+        db_session.add(admin_user)
+        db_session.flush()
+
+        admin_association = UserClinicAssociation(
+            user_id=admin_user.id,
+            clinic_id=clinic.id,
+            full_name="Admin User",
+            roles=["admin"],
+            is_active=True
+        )
+        db_session.add(admin_association)
+        db_session.commit()
+
+        # Create patient
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Create appointment type
+        apt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="初診評估",
+            duration_minutes=60
+        )
+        db_session.add(apt_type)
+        db_session.commit()
+
+        # Create calendar event and appointment
+        calendar_event = CalendarEvent(
+            user_id=practitioner_user.id,
+            clinic_id=clinic.id,
+            event_type='appointment',
+            date=date.today(),
+            start_time=time(10, 0),
+            end_time=time(11, 0)
+        )
+        db_session.add(calendar_event)
+        db_session.commit()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=apt_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.commit()
+
+        # Test checkout with practitioner
+        items = [
+            {
+                "item_type": "service_item",
+                "service_item_id": apt_type.id,
+                "practitioner_id": practitioner_user.id,
+                "billing_scenario_id": None,
+                "amount": 1000.00,
+                "revenue_share": 300.00,
+                "display_order": 0
+            }
+        ]
+        
+        receipt = ReceiptService.create_receipt(
+            db=db_session,
+            appointment_id=appointment.calendar_event_id,
+            clinic_id=clinic.id,
+            checked_out_by_user_id=admin_user.id,
+            items=items,
+            payment_method="cash"
+        )
+        
+        db_session.commit()
+        
+        # Verify receipt data includes practitioner title
+        receipt_data = receipt.receipt_data
+        assert len(receipt_data["items"]) == 1
+        item = receipt_data["items"][0]
+        assert item["practitioner"] is not None
+        assert item["practitioner"]["id"] == practitioner_user.id
+        assert item["practitioner"]["name"] == "王小明"
+        assert item["practitioner"]["title"] == "治療師"
+        
+        # Test with empty title - create a new appointment for this test
+        practitioner_association.title = ""
+        db_session.commit()
+        
+        # Create a new calendar event and appointment for the second receipt
+        calendar_event2 = CalendarEvent(
+            user_id=practitioner_user.id,
+            clinic_id=clinic.id,
+            event_type='appointment',
+            date=date.today(),
+            start_time=time(14, 0),
+            end_time=time(15, 0)
+        )
+        db_session.add(calendar_event2)
+        db_session.commit()
+        
+        appointment2 = Appointment(
+            calendar_event_id=calendar_event2.id,
+            patient_id=patient.id,
+            appointment_type_id=apt_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment2)
+        db_session.commit()
+        
+        items2 = [
+            {
+                "item_type": "other",
+                "item_name": "其他項目",
+                "practitioner_id": practitioner_user.id,
+                "amount": 500.00,
+                "revenue_share": 150.00,
+                "display_order": 0
+            }
+        ]
+        
+        receipt2 = ReceiptService.create_receipt(
+            db=db_session,
+            appointment_id=appointment2.calendar_event_id,
+            clinic_id=clinic.id,
+            checked_out_by_user_id=admin_user.id,
+            items=items2,
+            payment_method="cash"
+        )
+        
+        db_session.commit()
+        
+        # Verify receipt data includes empty title
+        receipt_data2 = receipt2.receipt_data
+        assert len(receipt_data2["items"]) == 1
+        item2 = receipt_data2["items"][0]
+        assert item2["practitioner"] is not None
+        assert item2["practitioner"]["name"] == "王小明"
+        assert item2["practitioner"]["title"] == ""
+
 
