@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { LoadingSpinner, TimeInput, ConflictDisplay } from '../shared';
+import { LoadingSpinner, TimeInput, ConflictDisplay, InfoButton, InfoModal } from '../shared';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
 import { SchedulingConflictResponse } from '../../types';
@@ -104,6 +104,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   const [conflictInfo, setConflictInfo] = useState<SchedulingConflictResponse | null>(null);
   const [isCheckingConflict, setIsCheckingConflict] = useState(false);
   const [conflictCheckError, setConflictCheckError] = useState<string | null>(null);
+  const [showOverrideInfoModal, setShowOverrideInfoModal] = useState(false);
 
   // Determine which date/time to use for display and slot loading
   // Use tempDate/tempTime when expanded (for UI navigation), selectedDate/selectedTime when collapsed
@@ -207,24 +208,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       setOverrideMode(parentOverrideMode);
     }
   }, [parentOverrideMode]);
-
-  // Auto-enable override mode if practitioner has no default availability
-  useEffect(() => {
-    if (
-      allowOverride &&
-      !overrideMode &&
-      parentOverrideMode === undefined && // Only auto-enable if parent hasn't set it
-      !isLoadingSlots &&
-      !practitionerError &&
-      selectedPractitionerId &&
-      appointmentTypeId &&
-      availableSlots.length === 0 &&
-      datesWithSlots.size === 0 // No dates have slots
-    ) {
-      setOverrideMode(true);
-      onOverrideChange?.(true);
-    }
-  }, [allowOverride, overrideMode, parentOverrideMode, isLoadingSlots, practitionerError, selectedPractitionerId, appointmentTypeId, availableSlots.length, datesWithSlots.size, onOverrideChange]);
 
   // Load month availability for calendar
   useEffect(() => {
@@ -506,7 +489,13 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     if (!isExpanded) return;
     
     const handleClickOutside = (event: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const isInsidePicker = pickerRef.current && pickerRef.current.contains(target);
+      // Check if click is inside a modal (modals are rendered via portal to document.body)
+      // This is a defensive check - BaseModal should stop propagation, but this provides extra safety
+      const isInsideModal = (target as Element)?.closest?.('[role="dialog"]') !== null;
+      
+      if (pickerRef.current && !isInsidePicker && !isInsideModal) {
         handleCollapse();
       }
     };
@@ -696,10 +685,15 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
             checked={overrideMode}
             onChange={(e) => handleOverrideToggle(e.target.checked)}
             className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded"
-            aria-label="允許預約在非可用時間"
+            aria-label="允許衝突時間"
           />
-          <label htmlFor="override-mode" className="text-sm text-gray-700">
-            允許預約在非可用時間
+          <label htmlFor="override-mode" className="text-sm text-gray-700 flex items-center gap-1">
+            允許衝突時間
+            <InfoButton 
+              onClick={() => setShowOverrideInfoModal(true)} 
+              ariaLabel="允許衝突時間說明"
+              size="small"
+            />
           </label>
         </div>
       )}
@@ -806,6 +800,18 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       ) : null}
       </div>
       {/* Error message removed - already shown in time selection area above when error exists */}
+      
+      {/* Override Mode Info Modal */}
+      <InfoModal
+        isOpen={showOverrideInfoModal}
+        onClose={() => setShowOverrideInfoModal(false)}
+        title="允許衝突時間"
+        ariaLabel="允許衝突時間說明"
+      >
+        <p>顯示的時段是根據治療師的排程表計算的可用時間。</p>
+        <p>啟用此選項後，您可以手動輸入任何時間來建立預約，即使該時間不在顯示的可用時段內，或與其他預約衝突。</p>
+        <p>系統仍會顯示衝突警告，但不會阻止您建立預約。</p>
+      </InfoModal>
     </div>
   );
 });

@@ -184,6 +184,7 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
           : `bg-white rounded-lg p-6 max-w-md w-full mx-4 mb-4 max-h-[90vh] overflow-y-auto relative ${className}`
         }
         onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
         tabIndex={-1}
       >
         {/* Close button (X) in top-right corner */}

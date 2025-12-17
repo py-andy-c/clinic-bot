@@ -22,6 +22,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({
     <BaseModal
       onClose={onClose}
       aria-label={ariaLabel || title}
+      closeOnOverlayClick={false}
     >
       <div className="flex items-start">
         <div className="flex-shrink-0">
