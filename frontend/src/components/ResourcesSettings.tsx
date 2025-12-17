@@ -247,7 +247,7 @@ const ResourcesSettings: React.FC<ResourcesSettingsProps> = ({ isClinicAdmin }) 
                         {/* Resources List */}
                         <div className="space-y-3 pt-2">
                           <div className="flex items-center justify-between mb-1">
-                            <label className="block text-sm font-medium text-gray-700">具體資源清單</label>
+                            <label className="block text-sm font-medium text-gray-700">資源清單</label>
                           </div>
                           
                           {loadingResources.has(type.id) ? (
@@ -255,7 +255,7 @@ const ResourcesSettings: React.FC<ResourcesSettingsProps> = ({ isClinicAdmin }) 
                               <LoadingSpinner size="sm" />
                             </div>
                           ) : resources.length === 0 ? (
-                            <div className="text-sm text-gray-500 italic py-2">尚無具體資源</div>
+                            <div className="text-sm text-gray-500 italic py-2">尚無資源</div>
                           ) : (
                             <div className="space-y-2">
                               {resources.map((resource) => (
@@ -303,7 +303,7 @@ const ResourcesSettings: React.FC<ResourcesSettingsProps> = ({ isClinicAdmin }) 
                                 onClick={() => handleCreateResource(type.id)}
                                 className="btn-secondary text-xs w-full py-2 flex items-center justify-center gap-1"
                               >
-                                <span>+ 新增具體資源</span>
+                                <span>+ 新增資源</span>
                               </button>
                             </div>
                           )}
