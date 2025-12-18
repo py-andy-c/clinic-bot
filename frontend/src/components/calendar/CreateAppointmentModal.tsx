@@ -139,6 +139,7 @@ export interface CreateAppointmentModalProps {
   preSelectedPractitionerId?: number;
   preSelectedTime?: string; // Initial time in HH:mm format
   preSelectedClinicNotes?: string; // Initial clinic notes
+  preSelectedResourceIds?: number[]; // Initial selected resource IDs
   practitioners: { id: number; full_name: string }[];
   appointmentTypes: { id: number; name: string; duration_minutes: number }[];
   onClose: () => void;
@@ -160,6 +161,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   preSelectedPractitionerId,
   preSelectedTime,
   preSelectedClinicNotes,
+  preSelectedResourceIds,
   practitioners: initialPractitioners,
   appointmentTypes,
   onClose,
@@ -200,7 +202,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const [selectedTime, setSelectedTime] = useState<string>(preSelectedTime || '');
   const [clinicNotes, setClinicNotes] = useState<string>(preSelectedClinicNotes || '');
   // Resource selection: single array for non-recurring, map for recurring
-  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>(preSelectedResourceIds || []);
   const [occurrenceResourceIds, setOccurrenceResourceIds] = useState<Record<string, number[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -477,7 +479,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       if (preSelectedClinicNotes === undefined) {
         setClinicNotes('');
       }
-      setSelectedResourceIds([]);
+      setSelectedResourceIds(preSelectedResourceIds || []);
       setSelectedDate(initialDate || null);
       setSearchInput('');
       setStep('form');
@@ -1232,13 +1234,21 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
                       const conflictInfo = convertConflictStatusToResponse(conflictStatus);
                       
                       // Add occurrence immediately (users can proceed with conflicts)
+                      const newOccId = `new-${Date.now()}`;
                       const newOcc = {
-                        id: `new-${Date.now()}`,
+                        id: newOccId,
                         date,
                         time,
                         hasConflict: conflictStatus.has_conflict || false,
                         conflictInfo: conflictInfo?.has_conflict ? conflictInfo : null,
                       };
+                      
+                      // Also propagate the currently selected resource IDs to the new occurrence
+                      setOccurrenceResourceIds({
+                        ...occurrenceResourceIds,
+                        [newOccId]: [...selectedResourceIds],
+                      });
+                      
                       setOccurrences([...occurrences, newOcc]);
                       // Close the picker and show the 新增 button again
                       setAddingOccurrence(false);

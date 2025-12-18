@@ -73,6 +73,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const [clinicNotes, setClinicNotes] = useState<string>(originalClinicNotes);
   const [customNote, setCustomNote] = useState<string>(''); // Custom note for notification
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [isLoadingResources, setIsLoadingResources] = useState(true);
   
   // Check if appointment was originally auto-assigned
   const originallyAutoAssigned = event.resource.originally_auto_assigned ?? false;
@@ -145,12 +146,16 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   // Load existing resources when modal opens
   useEffect(() => {
     const loadResources = async () => {
+      setIsLoadingResources(true);
       try {
         const response = await apiService.getAppointmentResources(event.resource.calendar_event_id);
-        setSelectedResourceIds(response.resources.map(r => r.id));
+        const resourceIds = response.resources.map(r => r.id);
+        setSelectedResourceIds(resourceIds);
       } catch (err) {
         logger.error('Failed to load appointment resources:', err);
         // Don't show error - resources might not exist yet
+      } finally {
+        setIsLoadingResources(false);
       }
     };
     loadResources();
@@ -233,7 +238,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         
         if (!status.has_availability) {
           setHasAvailableSlots(false);
-          setSelectedTime(''); // Clear selected time when no availability
+          // Note: We used to clear selectedTime here, but that's too aggressive for edit mode.
+          // Clinic users can override availability anyway, and the appointment already exists.
           return;
         }
         
@@ -543,7 +549,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         )}
 
         {/* Resource Selection */}
-        {appointmentTypeId && selectedPractitionerId && selectedDate && selectedTime && (
+        {appointmentTypeId && selectedPractitionerId && selectedDate && selectedTime && !isLoadingResources && (
           <ResourceSelection
             appointmentTypeId={appointmentTypeId}
             practitionerId={selectedPractitionerId}

@@ -307,6 +307,15 @@ export const PatientAppointmentsList: React.FC<
     const startMoment = moment(event.start).tz(TAIWAN_TIMEZONE);
     const initialDate = startMoment.format('YYYY-MM-DD');
     const initialTime = startMoment.format('HH:mm');
+
+    // Fetch resources for the original appointment
+    let preSelectedResourceIds: number[] = [];
+    try {
+      const response = await apiService.getAppointmentResources(event.resource.calendar_event_id);
+      preSelectedResourceIds = response.resources.map(r => r.id);
+    } catch (err) {
+      logger.error('Failed to fetch resources for duplicate:', err);
+    }
     
     // Set up duplicate appointment data - only include fields that have values
     setDuplicateData({
@@ -316,6 +325,7 @@ export const PatientAppointmentsList: React.FC<
       ...(practitionerId !== undefined && { preSelectedPractitionerId: practitionerId }),
       ...(initialTime && { preSelectedTime: initialTime }),
       ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
+      preSelectedResourceIds,
     });
     setCreateModalKey(prev => prev + 1); // Force remount to reset state
     setIsCreateModalOpen(true);

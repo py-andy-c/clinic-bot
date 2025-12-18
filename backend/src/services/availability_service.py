@@ -423,9 +423,8 @@ class AvailabilityService:
             # Deduplicate slots by start_time (practitioner assignment happens in _assign_practitioner)
             deduplicated_slots = AvailabilityService._deduplicate_slots_by_time(all_slots)
             
-            # Sort by start_time to ensure consistent chronological ordering
-            # (slots from multiple practitioners may not be in order)
-            deduplicated_slots.sort(key=lambda s: s['start_time'])
+            # Sort by start_time to ensure chronological order (with safety check for None)
+            deduplicated_slots.sort(key=lambda s: s.get('start_time', ''))
             
             return deduplicated_slots
 
@@ -498,6 +497,15 @@ class AvailabilityService:
             db, practitioner_ids, clinic_id
         )
         
+        # If we're excluding an event (editing), fetch its start time and user_id to ensure it's included in candidates
+        excluded_event_start_time = None
+        excluded_event_user_id = None
+        if exclude_calendar_event_id:
+            excluded_event = db.query(CalendarEvent).filter(CalendarEvent.id == exclude_calendar_event_id).first()
+            if excluded_event:
+                excluded_event_start_time = excluded_event.start_time
+                excluded_event_user_id = excluded_event.user_id
+
         for practitioner_id, data in schedule_data.items():
             practitioner = practitioner_lookup.get(practitioner_id)
             if not practitioner:
@@ -530,6 +538,25 @@ class AvailabilityService:
                 default_intervals, duration_minutes, step_size_minutes=step_size_minutes
             )
             
+            # If we have an excluded event, explicitly add its start time as a candidate slot
+            # with the CURRENT duration (in case duration changed for the appointment type)
+            if excluded_event_start_time:
+                # Calculate end time based on current duration_minutes
+                end_minutes = (excluded_event_start_time.hour * 60 + excluded_event_start_time.minute + duration_minutes)
+                # Handle overflow past midnight
+                if end_minutes < 1440:
+                    inj_end_time = time(end_minutes // 60, end_minutes % 60)
+                    
+                    # Logically:
+                    # 1. If this is the practitioner who owns the event, always allow keeping the original time
+                    # 2. If this is a different practitioner, only allow it if it fits their schedule
+                    is_original_practitioner = (excluded_event_user_id == practitioner_id)
+                    is_within_hours = AvailabilityService.is_slot_within_default_intervals(default_intervals, excluded_event_start_time, inj_end_time)
+                    
+                    if is_original_practitioner or is_within_hours:
+                        if (excluded_event_start_time, inj_end_time) not in candidate_slots:
+                            candidate_slots.append((excluded_event_start_time, inj_end_time))
+            
             # Filter out slots that overlap with exceptions or appointments
             # Note: candidate_slots are already guaranteed to be within default_intervals,
             # so we only need to check for conflicts (exceptions and appointments)
@@ -561,6 +588,9 @@ class AvailabilityService:
                     'practitioner_id': practitioner.id,
                     'practitioner_name': practitioner_name
                 })
+
+        # Sort by start_time to ensure chronological order (with safety check for None)
+        available_slots.sort(key=lambda s: s.get('start_time', ''))
 
         # Apply booking restrictions if requested (for patient-facing endpoints)
         # Clinic admin endpoints should pass apply_booking_restrictions=False to bypass restrictions
@@ -953,6 +983,7 @@ class AvailabilityService:
                 )
             )
         )
+        
         if exclude_calendar_event_id is not None:
             event_filter = and_(event_filter, CalendarEvent.id != exclude_calendar_event_id)
         

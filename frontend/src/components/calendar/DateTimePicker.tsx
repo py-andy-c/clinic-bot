@@ -68,6 +68,15 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
+  
+  // Store initial values to ensure original time is always selectable in edit mode,
+  // even if it doesn't align with the standard availability grid.
+  const initialValuesRef = useRef({
+    date: selectedDate,
+    time: selectedTime,
+    practitionerId: selectedPractitionerId
+  });
+
   const [currentMonth, setCurrentMonth] = useState<Date>(() => {
     // Initialize to selected date or today
     if (selectedDate) {
@@ -132,10 +141,21 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       return [];
     }
     
-    // Backend already includes original time in availableSlots when excludeCalendarEventId is provided
-    // No need to manually add it
-    return [...availableSlots];
-  }, [availableSlots, practitionerError]);
+    const slots = [...availableSlots];
+
+    // In edit mode, if we are on the original date and practitioner, 
+    // ensure the original time is included in the list even if it's not in the standard grid.
+    if (excludeCalendarEventId && 
+        displayDate === initialValuesRef.current.date && 
+        selectedPractitionerId === initialValuesRef.current.practitionerId &&
+        initialValuesRef.current.time &&
+        !slots.includes(initialValuesRef.current.time)) {
+      slots.push(initialValuesRef.current.time);
+      slots.sort();
+    }
+    
+    return slots;
+  }, [availableSlots, practitionerError, excludeCalendarEventId, displayDate, selectedPractitionerId]);
 
   // Debounced conflict checking - debounce time/date changes, but check immediately when practitioner/appointment type changes
   const debouncedTime = useDebounce(displayTime, 300);
