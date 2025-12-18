@@ -123,9 +123,12 @@ export const useAppointmentForm = ({
             setSelectedTime('');
           }
         } else if (practitionersResult && practitionersResult.status === 'rejected') {
-          logger.error('Failed to fetch practitioners:', practitionersResult.reason);
-          setAvailablePractitioners([]);
-          setError('無法載入治療師列表，請稍後再試');
+          const reason = practitionersResult.reason;
+          if (reason?.name !== 'CanceledError' && reason?.name !== 'AbortError') {
+            logger.error('Failed to fetch practitioners:', reason);
+            setAvailablePractitioners([]);
+            setError('無法載入治療師列表，請稍後再試');
+          }
         }
 
         // Handle resources result
@@ -135,14 +138,19 @@ export const useAppointmentForm = ({
             const ids = resourcesResult.value.resources.map((r: any) => r.id);
             setSelectedResourceIds(ids);
           } else if (resourcesResult && resourcesResult.status === 'rejected') {
-            logger.error('Failed to load appointment resources:', resourcesResult.reason);
-            // Don't block the form if resources fail to load
+            const reason = resourcesResult.reason;
+            if (reason?.name !== 'CanceledError' && reason?.name !== 'AbortError') {
+              logger.error('Failed to load appointment resources:', reason);
+              // Don't block the form if resources fail to load
+            }
           }
         }
 
-      } catch (err) {
-        logger.error('Error initializing appointment form:', err);
-        setError(getErrorMessage(err));
+      } catch (err: any) {
+        if (err?.name !== 'CanceledError' && err?.name !== 'AbortError') {
+          logger.error('Error initializing appointment form:', err);
+          setError(getErrorMessage(err));
+        }
       } finally {
         setIsInitialLoading(false);
         isInitialMountRef.current = false;
@@ -185,8 +193,8 @@ export const useAppointmentForm = ({
         const sorted = [...fetched].sort((a, b) => a.full_name.localeCompare(b.full_name, 'zh-TW'));
         setAvailablePractitioners(sorted);
         lastFetchedTypeIdRef.current = selectedAppointmentTypeId;
-      } catch (err) {
-        if (isStale) return;
+      } catch (err: any) {
+        if (isStale || err?.name === 'CanceledError' || err?.name === 'AbortError') return;
         logger.error('Failed to fetch practitioners:', err);
         setError('無法載入治療師列表，請稍後再試');
         setAvailablePractitioners([]);

@@ -75,6 +75,7 @@ const PatientsPage: React.FC = () => {
   // Appointment creation modal state
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [selectedPatientIdForAppointment, setSelectedPatientIdForAppointment] = useState<number | undefined>(undefined);
+  const [selectedPatientNameForAppointment, setSelectedPatientNameForAppointment] = useState<string | undefined>(undefined);
 
   // Check if user can create patients (admin or practitioner)
   const canCreatePatient = useMemo(() => {
@@ -440,6 +441,7 @@ const PatientsPage: React.FC = () => {
                               e.stopPropagation();
                               // Open appointment modal with pre-selected patient
                               setSelectedPatientIdForAppointment(patient.id);
+                              setSelectedPatientNameForAppointment(patient.full_name);
                               setIsAppointmentModalOpen(true);
                             }}
                             className="text-blue-600 hover:text-blue-800 font-medium"
@@ -491,6 +493,7 @@ const PatientsPage: React.FC = () => {
             // Close success modal and open appointment modal with the newly created patient
             setIsSuccessModalOpen(false);
             setSelectedPatientIdForAppointment(createdPatientId);
+            setSelectedPatientNameForAppointment(createdPatientName);
             setIsAppointmentModalOpen(true);
           }}
         />
@@ -500,18 +503,21 @@ const PatientsPage: React.FC = () => {
       {isAppointmentModalOpen && (
         <CreateAppointmentModal
           {...(selectedPatientIdForAppointment !== undefined && { preSelectedPatientId: selectedPatientIdForAppointment })}
+          {...(selectedPatientNameForAppointment !== undefined && { preSelectedPatientName: selectedPatientNameForAppointment })}
           initialDate={null}
           practitioners={practitioners}
           appointmentTypes={appointmentTypes}
           onClose={() => {
             setIsAppointmentModalOpen(false);
             setSelectedPatientIdForAppointment(undefined);
+            setSelectedPatientNameForAppointment(undefined);
           }}
           onConfirm={async (formData) => {
             try {
               await apiService.createClinicAppointment(formData);
               setIsAppointmentModalOpen(false);
               setSelectedPatientIdForAppointment(undefined);
+              setSelectedPatientNameForAppointment(undefined);
               await alert('預約已建立');
               // Refetch patients list in case any data changed
               refetch();

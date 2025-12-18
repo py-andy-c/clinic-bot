@@ -133,6 +133,7 @@ type CreateStep = 'form' | 'conflict-resolution' | 'confirm';
 
 export interface CreateAppointmentModalProps {
   preSelectedPatientId?: number;
+  preSelectedPatientName?: string; // Optional: patient name for pre-selection
   initialDate?: string | null; // Initial date in YYYY-MM-DD format
   preSelectedAppointmentTypeId?: number;
   preSelectedPractitionerId?: number;
@@ -156,6 +157,7 @@ export interface CreateAppointmentModalProps {
 
 export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = React.memo(({
   preSelectedPatientId,
+  preSelectedPatientName,
   initialDate,
   preSelectedAppointmentTypeId,
   preSelectedPractitionerId,
@@ -249,11 +251,14 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const [hasVisitedConflictResolution, setHasVisitedConflictResolution] = useState<boolean>(false);
   const [singleAppointmentConflict, setSingleAppointmentConflict] = useState<any>(null);
 
-  const [searchInput, setSearchInput] = useState<string>('');
+  const [searchInput, setSearchInput] = useState<string>(
+    preSelectedPatientName || ((isDuplication && event?.resource.patient_name) ? event.resource.patient_name : '')
+  );
   const [isComposing, setIsComposing] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const isCreatingPatientFromModal = useRef(false);
+  const searchInputInitializedRef = useRef(!!preSelectedPatientName || (isDuplication && !!event?.resource.patient_name));
   
   // Patient creation modal state
   const [isCreatePatientModalOpen, setIsCreatePatientModalOpen] = useState(false);
@@ -338,16 +343,19 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     }
     return patients.find(p => p.id === selectedPatientId) || null;
   }, [patients, selectedPatientId, preSelectedPatientData]);
-  
+
   useEffect(() => {
     if (selectedPatientId && selectedPatient && !searchInput) {
       setSearchInput(selectedPatient.full_name);
+      searchInputInitializedRef.current = true;
     }
   }, [selectedPatientId, selectedPatient, searchInput]);
 
   useEffect(() => {
-    if (selectedPatientId && !searchInput.trim()) {
+    // Only clear if searchInput is empty AND it was previously initialized (either by prop or by auto-fill)
+    if (selectedPatientId && !searchInput.trim() && searchInputInitializedRef.current) {
       setSelectedPatientId(null);
+      searchInputInitializedRef.current = false;
     }
   }, [searchInput, selectedPatientId, setSelectedPatientId]);
   
