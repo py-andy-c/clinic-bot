@@ -446,6 +446,7 @@ class ResourceService:
                 available_resources.append({
                     "id": resource.id,
                     "name": resource.name,
+                    "description": resource.description,
                     "is_available": is_available
                 })
 
@@ -475,7 +476,8 @@ class ResourceService:
                 resource_obj = available_resource_objs[i]
                 suggested_allocation.append({
                     "id": resource_obj.id,
-                    "name": resource_obj.name
+                    "name": resource_obj.name,
+                    "description": resource_obj.description
                 })
 
         return {

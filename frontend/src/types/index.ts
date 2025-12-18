@@ -217,6 +217,7 @@ export interface ResourceAvailabilityResponse {
     available_resources: Array<{
       id: number;
       name: string;
+      description?: string | null;
       is_available: boolean;
     }>;
     available_quantity: number;

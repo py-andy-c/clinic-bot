@@ -271,6 +271,13 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
     }
   });
 
+  // Find all selected resources that have descriptions
+  const selectedWithDescriptions = availability?.requirements.flatMap(req => 
+    req.available_resources.filter(r => 
+      selectedResourceIds.includes(r.id) && r.description
+    )
+  ) || [];
+
   return (
     <div className="space-y-4 min-h-[100px]">
       <div className="border-t border-gray-200 pt-4">
@@ -334,12 +341,15 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
                           type="button"
                           onClick={() => handleResourceToggle(resource.id)}
                           disabled={loading}
+                          title={resource.description || undefined}
                           className={`
                             px-3 py-2 rounded-md border text-sm text-left transition-colors
                             ${isSelected
-                              ? 'bg-primary-50 border-primary-500 text-primary-900'
+                              ? isUnavailable
+                                ? 'bg-yellow-50 border-yellow-500 text-yellow-900'
+                                : 'bg-primary-50 border-primary-500 text-primary-900'
                               : isUnavailable
-                              ? 'bg-gray-100 border-gray-300 text-gray-500 opacity-60'
+                              ? 'bg-white border-gray-300 text-gray-500'
                               : 'bg-white border-gray-300 text-gray-700 hover:border-primary-300 hover:bg-primary-50'
                             }
                           `}
@@ -347,9 +357,13 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
                           <div className="flex items-center justify-between">
                             <span>{resource.name}</span>
                             {isSelected && (
-                              <svg className="w-4 h-4 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
+                              isUnavailable ? (
+                                <span className="text-xs text-yellow-700">衝突</span>
+                              ) : (
+                                <svg className="w-4 h-4 text-primary-600" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )
                             )}
                             {isUnavailable && !isSelected && (
                               <span className="text-xs text-gray-400">已使用</span>
@@ -359,27 +373,26 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
                       );
                     })}
                   </div>
-                  
-                  {isQuantityInsufficient && (
-                    <p className="text-xs text-orange-600">
-                      已選擇的資源數量不足，建議選擇 {req.required_quantity} 個
-                    </p>
-                  )}
                 </div>
               );
             })}
-            
-            {availability.conflicts.length > 0 && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
-                <p className="text-sm text-yellow-800">
-                  <strong>資源衝突：</strong>
-                  {availability.conflicts.map((conflict, idx) => (
-                    <span key={conflict.resource_type_id}>
-                      {idx > 0 && '、'}
-                      {conflict.resource_type_name} 僅有 {conflict.available_quantity} 個可用（需要 {conflict.required_quantity} 個）
-                    </span>
+
+            {selectedWithDescriptions.length > 0 && (
+              <div className="bg-blue-50 border border-blue-100 rounded-md p-3 space-y-2">
+                <h4 className="text-xs font-semibold text-blue-900 flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  資源備注
+                </h4>
+                <div className="space-y-1.5">
+                  {selectedWithDescriptions.map(resource => (
+                    <div key={resource.id} className="text-xs text-blue-800 leading-relaxed">
+                      <span className="font-medium mr-1">{resource.name}：</span>
+                      {resource.description}
+                    </div>
                   ))}
-                </p>
+                </div>
               </div>
             )}
           </div>
@@ -388,4 +401,3 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
     </div>
   );
 };
-
