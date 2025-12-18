@@ -3,7 +3,6 @@ import { SchedulingConflictResponse } from '../../types';
 
 interface ConflictDisplayProps {
   conflictInfo: SchedulingConflictResponse | null;
-  isLoading?: boolean;
   className?: string;
 }
 
@@ -16,13 +15,8 @@ interface ConflictDisplayProps {
  */
 export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
   conflictInfo,
-  isLoading = false,
   className = '',
 }) => {
-  if (isLoading) {
-    return null;
-  }
-
   if (!conflictInfo || !conflictInfo.has_conflict) {
     return null;
   }

@@ -101,12 +101,8 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
             event.resource.calendar_event_id
           );
           
-          // Show all conflicts (not just resource conflicts)
-          if (conflictInfo.has_conflict) {
-            setResourceConflictInfo(conflictInfo);
-          } else {
-            setResourceConflictInfo(null);
-          }
+          // Only update once data is received to prevent UI flashing
+          setResourceConflictInfo(conflictInfo.has_conflict ? conflictInfo : null);
         } catch (err) {
           logger.error('Failed to check resource conflicts:', err);
           setResourceConflictInfo(null);
@@ -301,7 +297,6 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 <div className="mt-2">
                   <ConflictDisplay
                     conflictInfo={resourceConflictInfo}
-                    isLoading={isCheckingResourceConflict}
                   />
                 </div>
               )}

@@ -32,6 +32,8 @@ export const TimeInput: React.FC<TimeInputProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isValid, setIsValid] = useState(true);
+  const [isTouched, setIsTouched] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Parse 24-hour time to 12-hour display
@@ -84,6 +86,8 @@ export const TimeInput: React.FC<TimeInputProps> = ({
   };
 
   const handleBlur = () => {
+    setIsTouched(true);
+    setIsFocused(false);
     // On blur, if the input is invalid and not empty, try to format it properly
     if (!isValid && inputValue.trim()) {
       // Try 12-hour format first
@@ -114,8 +118,14 @@ export const TimeInput: React.FC<TimeInputProps> = ({
     }
   };
 
+  const handleFocus = () => {
+    setIsFocused(true);
+  };
+
   const baseInputClass = 'px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-center text-sm font-medium';
-  const errorClass = error || !isValid ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white';
+  // Show error only if it's external or if the internal validation failed AND we are not currently typing (blurred)
+  const hasError = error || (!isValid && isTouched && !isFocused);
+  const errorClass = hasError ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white';
 
   return (
     <div className={className}>
@@ -125,13 +135,14 @@ export const TimeInput: React.FC<TimeInputProps> = ({
         value={inputValue}
         onChange={handleInputChange}
         onBlur={handleBlur}
+        onFocus={handleFocus}
         placeholder={placeholder}
         required={required}
         disabled={disabled}
         className={`${baseInputClass} ${errorClass} ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'hover:border-gray-400'}`}
         maxLength={8} // Max length for "12:59 PM"
       />
-      {(error || !isValid) && (
+      {hasError && (
         <p className="mt-1 text-sm text-red-600">
           {error || '請輸入有效的時間格式 (H:MM AM/PM 或 HH:MM)'}
         </p>

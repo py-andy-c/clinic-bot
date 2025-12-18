@@ -187,6 +187,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
           appointmentTypeId,
           excludeCalendarEventId ?? undefined
         );
+        // Only update conflict info once we have the result to prevent UI flashing
         setConflictInfo(response);
       } catch (error) {
         logger.error('Failed to check scheduling conflicts:', error);
@@ -622,18 +623,13 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   if (!isExpanded) {
     return (
       <div>
-        <div className="flex items-center gap-2 mb-1">
-          <label className="block text-sm font-medium text-gray-700">
-            日期與時間 <span className="text-red-500">*</span>
-          </label>
-          {isCheckingConflict && (
-            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
-          )}
-        </div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          日期與時間 <span className="text-red-500">*</span>
+        </label>
         <button
           type="button"
           onClick={handleCollapsedClick}
-          className={`w-full border rounded-md px-3 py-2 text-left transition-colors ${
+          className={`w-full border rounded-md px-3 py-2 text-left transition-colors flex items-center justify-between ${
             error
               ? 'border-red-300 bg-red-50'
               : 'border-gray-300 bg-white hover:border-gray-400'
@@ -642,14 +638,19 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
           <span className={selectedDate && selectedTime ? 'text-gray-900' : 'text-gray-500'}>
             {getCollapsedDisplay()}
           </span>
-          <svg
-            className="w-5 h-5 float-right text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+          <div className="flex items-center gap-2">
+            {isCheckingConflict && (
+              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+            )}
+            <svg
+              className="w-5 h-5 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
         </button>
         {error && (
           <p className="mt-1 text-sm text-red-600">{error}</p>
@@ -665,7 +666,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               <div className="mt-2">
                 <ConflictDisplay
                   conflictInfo={conflictInfo}
-                  isLoading={isCheckingConflict}
                 />
               </div>
             )}
@@ -678,14 +678,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   // Expanded view
   return (
     <div ref={pickerRef}>
-      <div className="flex items-center gap-2 mb-1">
-        <label className="block text-sm font-medium text-gray-700">
-          日期與時間 <span className="text-red-500">*</span>
-        </label>
-        {isCheckingConflict && (
-          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
-        )}
-      </div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        日期與時間 <span className="text-red-500">*</span>
+      </label>
       <div className="space-y-4 mt-2">
         {/* Calendar View */}
         <div>
@@ -801,9 +796,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
           ) : overrideMode ? (
             // Free-form time input mode
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                時間 <span className="text-red-500">*</span>
-              </label>
+              <div className="flex items-center gap-2 mb-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  時間 <span className="text-red-500">*</span>
+                </label>
+                {isCheckingConflict && (
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+                )}
+              </div>
               <TimeInput
                 value={freeFormTime}
                 onChange={handleFreeFormTimeChange}
@@ -819,9 +819,15 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
             </div>
           ) : allTimeSlots.length > 0 ? (
             <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-gray-700">時段</h4>
+                {isCheckingConflict && (
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+                )}
+              </div>
               {amSlots.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-1.5">上午</h4>
+                  <h4 className="text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">上午</h4>
                   <div className="grid grid-cols-4 gap-2">
                     {amSlots.map((time) => {
                       const formatted = formatTo12Hour(time);
@@ -846,7 +852,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               )}
               {pmSlots.length > 0 && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-1.5">下午</h4>
+                  <h4 className="text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">下午</h4>
                   <div className="grid grid-cols-4 gap-2">
                     {pmSlots.map((time) => {
                       const formatted = formatTo12Hour(time);
@@ -891,7 +897,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
             <div className="mt-3">
               <ConflictDisplay
                 conflictInfo={conflictInfo}
-                isLoading={isCheckingConflict}
               />
             </div>
           )}
