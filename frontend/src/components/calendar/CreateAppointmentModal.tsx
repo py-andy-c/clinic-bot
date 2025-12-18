@@ -28,6 +28,14 @@ import { ConflictIndicator } from '../shared';
 import { SchedulingConflictResponse } from '../../types';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ResourceSelection } from '../ResourceSelection';
+import { useAppointmentForm } from '../../hooks/useAppointmentForm';
+import { CalendarEvent } from '../../utils/calendarDataAdapter';
+import { 
+  AppointmentReferenceHeader, 
+  AppointmentTypeSelector, 
+  PractitionerSelector, 
+  AppointmentFormSkeleton 
+} from './form';
 
 /**
  * Helper function to convert recurring conflict status to SchedulingConflictResponse format
@@ -63,7 +71,6 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
 }> = ({ initialDate, initialTime: _initialTime, selectedPractitionerId, appointmentTypeId, onConfirm, onCancel }) => {
   const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
   // When editing (initialTime has value), start with empty selectedTime to prevent auto-initialization
-  // Note: initialTime is intentionally not used to prevent auto-initialization issues
   const [selectedTime, setSelectedTime] = useState<string>('');
   
   const handleDateSelect = (date: string | null) => {
@@ -76,25 +83,17 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
   };
   
   const handleConfirm = async (e: React.MouseEvent) => {
-    // Stop propagation to prevent DateTimePicker's click outside handler from collapsing
     e.stopPropagation();
-    
-    // selectedDate and selectedTime are always up to date (updated immediately on selection)
     if (selectedDate && selectedTime) {
       await onConfirm(selectedDate, selectedTime);
     }
   };
   
   const handleCancel = (e: React.MouseEvent) => {
-    // Stop propagation to prevent DateTimePicker's click outside handler from collapsing
     e.stopPropagation();
     onCancel();
   };
   
-  // Stop mousedown propagation to prevent DateTimePicker's click outside handler from collapsing
-  // This allows the confirm/cancel buttons to work without collapsing the picker.
-  // Note: This only stops mousedown events, not click events, so DateTimePicker's internal
-  // onClick handlers (for date/time selection) continue to work normally.
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
   };
@@ -137,9 +136,9 @@ export interface CreateAppointmentModalProps {
   initialDate?: string | null; // Initial date in YYYY-MM-DD format
   preSelectedAppointmentTypeId?: number;
   preSelectedPractitionerId?: number;
-  preSelectedTime?: string; // Initial time in HH:mm format
-  preSelectedClinicNotes?: string; // Initial clinic notes
-  preSelectedResourceIds?: number[]; // Initial selected resource IDs
+  preSelectedTime?: string | null | undefined; // Initial time in HH:mm format
+  preSelectedClinicNotes?: string | null | undefined; // Initial clinic notes
+  preSelectedResourceIds?: number[] | null | undefined; // Initial selected resource IDs
   practitioners: { id: number; full_name: string }[];
   appointmentTypes: { id: number; name: string; duration_minutes: number }[];
   onClose: () => void;
@@ -152,6 +151,7 @@ export interface CreateAppointmentModalProps {
     selected_resource_ids?: number[];
   }) => Promise<void>;
   onRecurringAppointmentsCreated?: () => Promise<void>;
+  event?: CalendarEvent | null | undefined; // Optional original event for duplication reference
 }
 
 export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = React.memo(({
@@ -167,44 +167,69 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   onClose,
   onConfirm,
   onRecurringAppointmentsCreated,
+  event,
 }) => {
   const isMobile = useIsMobile();
   const [step, setStep] = useState<CreateStep>('form');
-  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(preSelectedPatientId || null);
   
+  // Duplication mode detection
+  const isDuplication = !!preSelectedTime || !!event;
+
+  const {
+    selectedPatientId,
+    setSelectedPatientId,
+    selectedAppointmentTypeId,
+    setSelectedAppointmentTypeId,
+    selectedPractitionerId,
+    setSelectedPractitionerId,
+    selectedDate,
+    setSelectedDate,
+    selectedTime,
+    setSelectedTime,
+    clinicNotes,
+    setClinicNotes,
+    selectedResourceIds,
+    setSelectedResourceIds,
+    availablePractitioners,
+    isInitialLoading,
+    isLoadingPractitioners,
+    error,
+    setError,
+    isValid,
+    referenceDateTime,
+  } = useAppointmentForm({
+    mode: isDuplication ? 'duplicate' : 'create',
+    event,
+    appointmentTypes,
+    practitioners: initialPractitioners,
+    initialDate,
+    preSelectedPatientId,
+    preSelectedAppointmentTypeId,
+    preSelectedPractitionerId,
+    preSelectedTime,
+    preSelectedClinicNotes,
+    preSelectedResourceIds,
+  });
+
   // Try to get patient data from sessionStorage if preSelectedPatientId is set
   const [preSelectedPatientData, setPreSelectedPatientData] = useState<Patient | null>(() => {
-    if (preSelectedPatientId) {
+    if (selectedPatientId) {
       try {
         const stored = sessionStorage.getItem('preSelectedPatientData');
         if (stored) {
           const data = JSON.parse(stored);
-          // Only use if it matches the preSelectedPatientId
-          if (data.id === preSelectedPatientId) {
+          if (data.id === selectedPatientId) {
             return data as Patient;
           }
         }
       } catch (err) {
-        // Log warning for debugging, but don't block functionality
         logger.warn('Failed to read preSelectedPatientData from sessionStorage:', err);
       }
     }
     return null;
   });
   
-  const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<number | null>(
-    preSelectedAppointmentTypeId !== undefined ? preSelectedAppointmentTypeId : null
-  );
-  const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(
-    preSelectedPractitionerId !== undefined ? preSelectedPractitionerId : null
-  );
-  const [selectedDate, setSelectedDate] = useState<string | null>(initialDate || null);
-  const [selectedTime, setSelectedTime] = useState<string>(preSelectedTime || '');
-  const [clinicNotes, setClinicNotes] = useState<string>(preSelectedClinicNotes || '');
-  // Resource selection: single array for non-recurring, map for recurring
-  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>(preSelectedResourceIds || []);
   const [occurrenceResourceIds, setOccurrenceResourceIds] = useState<Record<string, number[]>>({});
-  const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   
   // Recurrence state
@@ -238,92 +263,12 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const [createdPatientPhone, setCreatedPatientPhone] = useState<string | null>(null);
   const [createdPatientBirthday, setCreatedPatientBirthday] = useState<string | null>(null);
 
-  // Conditional practitioner fetching
-  const [availablePractitioners, setAvailablePractitioners] = useState<{ id: number; full_name: string }[]>(initialPractitioners);
-  const [isLoadingPractitioners, setIsLoadingPractitioners] = useState(false);
-  
-  // Track if this is the initial mount to prevent auto-deselection from clearing pre-filled values
-  const isInitialMountRef = useRef(true);
-
-  // Fetch practitioners when appointment type is selected
-  useEffect(() => {
-    const fetchPractitioners = async () => {
-      if (!selectedAppointmentTypeId) {
-        // No appointment type selected - use all practitioners
-        setAvailablePractitioners(initialPractitioners);
-        return;
-      }
-
-      setIsLoadingPractitioners(true);
-      try {
-        const practitioners = await apiService.getPractitioners(selectedAppointmentTypeId);
-        // Sort alphabetically by name (supports Chinese)
-        const sorted = [...practitioners].sort((a, b) => a.full_name.localeCompare(b.full_name, 'zh-TW'));
-        setAvailablePractitioners(sorted);
-        
-        // Auto-deselect practitioner if current selection is not in the filtered list
-        if (selectedPractitionerId && !sorted.find(p => p.id === selectedPractitionerId)) {
-          setSelectedPractitionerId(null);
-          setSelectedDate(null);
-          setSelectedTime('');
-        }
-      } catch (err) {
-        logger.error('Failed to fetch practitioners:', err);
-        setError('無法載入治療師列表，請稍後再試');
-        setAvailablePractitioners([]);
-        // Clear selections
-        setSelectedPractitionerId(null);
-        setSelectedDate(null);
-        setSelectedTime('');
-      } finally {
-        setIsLoadingPractitioners(false);
-      }
-    };
-
-    fetchPractitioners();
-  }, [selectedAppointmentTypeId, initialPractitioners, selectedPractitionerId]);
-
-  // Sync effective values when selected values change (for initial state)
-
-  // Mark initial mount as complete after first render
-  useEffect(() => {
-    isInitialMountRef.current = false;
-  }, []);
-
-  // Auto-deselection: When appointment type changes, clear practitioner, date, time
-  useEffect(() => {
-    // Skip on initial mount to preserve pre-filled values
-    if (isInitialMountRef.current) return;
-    
-    if (selectedAppointmentTypeId === null && (selectedPractitionerId !== null || selectedDate !== null || selectedTime !== '')) {
-      // Appointment type was cleared - clear dependent fields
-      setSelectedPractitionerId(null);
-      setSelectedDate(null);
-      setSelectedTime('');
-    }
-  }, [selectedAppointmentTypeId, selectedPractitionerId, selectedDate, selectedTime]);
-
-  // Auto-deselection: When practitioner changes, clear date, time
-  useEffect(() => {
-    // Skip on initial mount to preserve pre-filled values
-    if (isInitialMountRef.current) return;
-    
-    if (selectedPractitionerId === null && (selectedDate !== null || selectedTime !== '')) {
-      // Practitioner was cleared - clear dependent fields
-      setSelectedDate(null);
-      setSelectedTime('');
-    }
-  }, [selectedPractitionerId, selectedDate, selectedTime]);
-
   // Use debounced search for server-side search
   const debouncedSearchQuery = useDebouncedSearch(searchInput, 400, isComposing);
   
-  // Only fetch when there's a valid search query (3+ digits, 1+ letter, or 1+ Chinese char)
-  // Exception: if preSelectedPatientId is set, we need to fetch the patient even without search
   const hasValidSearch = debouncedSearchQuery.trim().length > 0 && shouldTriggerSearch(debouncedSearchQuery);
-  const shouldFetchForPreSelected = !!preSelectedPatientId && !hasValidSearch;
+  const shouldFetchForPreSelected = !!selectedPatientId && !hasValidSearch;
   
-  // Use useApiData for patients with caching and request deduplication
   const { isLoading: authLoading, isAuthenticated } = useAuth();
   const fetchPatientsFn = useCallback(
     () => {
@@ -349,7 +294,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     fetchPatientsFn,
     {
       enabled: !authLoading && isAuthenticated && (hasValidSearch || shouldFetchForPreSelected),
-      dependencies: [authLoading, isAuthenticated, preSelectedPatientId, debouncedSearchQuery, hasValidSearch, shouldFetchForPreSelected],
+      dependencies: [authLoading, isAuthenticated, selectedPatientId, debouncedSearchQuery, hasValidSearch, shouldFetchForPreSelected],
       cacheTTL: 5 * 60 * 1000,
       defaultErrorMessage: '無法載入病患列表',
       initialData: { patients: [], total: 0, page: 1, page_size: 1 },
@@ -381,14 +326,12 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const totalPatients = displayData?.total || 0;
   const displayPatients = patients;
   
-  // Update error state when patients fetch fails
   useEffect(() => {
     if (patientsError) {
       setError(patientsError);
     }
-  }, [patientsError]);
+  }, [patientsError, setError]);
 
-  // Derived values
   const selectedPatient = useMemo(() => {
     if (preSelectedPatientData && preSelectedPatientData.id === selectedPatientId) {
       return preSelectedPatientData;
@@ -396,21 +339,18 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     return patients.find(p => p.id === selectedPatientId) || null;
   }, [patients, selectedPatientId, preSelectedPatientData]);
   
-  // Pre-fill search input when preSelectedPatientId is provided and patient is loaded
   useEffect(() => {
-    if (preSelectedPatientId && selectedPatient && !searchInput) {
+    if (selectedPatientId && selectedPatient && !searchInput) {
       setSearchInput(selectedPatient.full_name);
     }
-  }, [preSelectedPatientId, selectedPatient, searchInput]);
+  }, [selectedPatientId, selectedPatient, searchInput]);
 
-  // Clear patient selection when search input is cleared
   useEffect(() => {
     if (selectedPatientId && !searchInput.trim()) {
       setSelectedPatientId(null);
     }
-  }, [searchInput, selectedPatientId]);
+  }, [searchInput, selectedPatientId, setSelectedPatientId]);
   
-  // Clear sessionStorage when patient is found in the patients array
   useEffect(() => {
     if (preSelectedPatientData && selectedPatient && selectedPatient.id === preSelectedPatientData.id && patients.length > 0) {
       try {
@@ -427,66 +367,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     [appointmentTypes, selectedAppointmentTypeId]
   );
 
-  // Sort appointment types alphabetically
-  const sortedAppointmentTypes = useMemo(() => {
-    return [...appointmentTypes].sort((a, b) => a.name.localeCompare(b.name, 'zh-TW'));
-  }, [appointmentTypes]);
-
-  // Reset all state function
-  const resetState = useCallback(() => {
-    setSelectedPatientId(null);
-    setSelectedAppointmentTypeId(null);
-    setSelectedPractitionerId(null);
-    setSelectedDate(initialDate || null);
-    setSelectedTime('');
-    setClinicNotes('');
-    setSelectedResourceIds([]);
-    setOccurrenceResourceIds({});
-    setSearchInput('');
-    setStep('form');
-    setError(null);
-    // Reset recurrence state
-    setRecurrenceEnabled(false);
-    setWeeksInterval(1);
-    setOccurrenceCount(null);
-    setOccurrences([]);
-    setEditingOccurrenceId(null);
-    setAddingOccurrence(false);
-    setHasVisitedConflictResolution(false);
-  }, [initialDate]);
-
-  // Reset state when preSelectedPatientId changes
-  useEffect(() => {
-    if (isCreatingPatientFromModal.current) {
-      return;
-    }
-    
-    if (preSelectedPatientId === undefined) {
-      resetState();
-    } else {
-      setSelectedPatientId(preSelectedPatientId);
-      // Only clear appointment type/practitioner/time if they weren't pre-filled
-      // This preserves pre-filled values when duplicating
-      if (preSelectedAppointmentTypeId === undefined) {
-        setSelectedAppointmentTypeId(null);
-      }
-      if (preSelectedPractitionerId === undefined) {
-        setSelectedPractitionerId(null);
-      }
-      if (preSelectedTime === undefined) {
-        setSelectedTime('');
-      }
-      if (preSelectedClinicNotes === undefined) {
-        setClinicNotes('');
-      }
-      setSelectedResourceIds(preSelectedResourceIds || []);
-      setSelectedDate(initialDate || null);
-      setSearchInput('');
-      setStep('form');
-      setError(null);
-    }
-  }, [preSelectedPatientId, resetState, initialDate, preSelectedAppointmentTypeId, preSelectedPractitionerId, preSelectedTime, preSelectedClinicNotes]);
-
   // Clear single appointment conflict when date/time changes
   useEffect(() => {
     setSingleAppointmentConflict(null);
@@ -500,25 +380,14 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   }, [step]);
 
   const handleFormSubmit = async () => {
-    // Validate required fields
-    if (!selectedPatientId) {
-      setError('請選擇病患');
-      return;
-    }
-    if (!selectedAppointmentTypeId) {
-      setError('請選擇預約類型');
-      return;
-    }
-    if (!selectedPractitionerId) {
-      setError('請選擇治療師');
-      return;
-    }
-    if (!selectedDate || !selectedTime) {
-      setError('請選擇日期與時間');
+    if (!isValid) {
+      if (!selectedPatientId) setError('請選擇病患');
+      else if (!selectedAppointmentTypeId) setError('請選擇預約類型');
+      else if (!selectedPractitionerId) setError('請選擇治療師');
+      else if (!selectedDate || !selectedTime) setError('請選擇日期與時間');
       return;
     }
 
-    // If recurrence is enabled, validate and check conflicts
     if (recurrenceEnabled) {
       if (!occurrenceCount || occurrenceCount < 1) {
         setError('請輸入預約次數');
@@ -529,13 +398,11 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         return;
       }
       
-      // Generate occurrences from pattern
       const baseDateTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
       const generatedOccurrences: Array<{ id: string; date: string; time: string; hasConflict: boolean }> = [];
       
       for (let i = 0; i < occurrenceCount; i++) {
         const occurrenceDate = baseDateTime.clone().add(i * weeksInterval, 'weeks');
-        // Include all occurrences (including past ones) - conflicts will be detected by backend
         generatedOccurrences.push({
           id: `gen-${i}`,
           date: occurrenceDate.format('YYYY-MM-DD'),
@@ -549,7 +416,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         return;
       }
       
-      // Always check conflicts (no state preservation)
       setIsCheckingConflicts(true);
       setError(null);
       
@@ -564,18 +430,12 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           occurrences: occurrenceStrings,
         });
         
-        // Update occurrences with conflict status (using new backend format)
         const updatedOccurrences = generatedOccurrences.map((occ, idx) => {
           const conflictStatus = conflictResult.occurrences[idx];
           if (!conflictStatus) {
-            return {
-              ...occ,
-              hasConflict: false,
-              conflictInfo: null,
-            };
+            return { ...occ, hasConflict: false, conflictInfo: null };
           }
           
-          // Convert to SchedulingConflictResponse format
           const conflictInfo = convertConflictStatusToResponse(conflictStatus);
           
           return {
@@ -587,15 +447,12 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         
         setOccurrences(updatedOccurrences);
         
-        // Initialize resource IDs map for occurrences
-        // Propagate current selection to all generated occurrences as a starting point
         const initialOccurrenceResources: Record<string, number[]> = {};
         updatedOccurrences.forEach(occ => {
           initialOccurrenceResources[occ.id] = [...selectedResourceIds];
         });
         setOccurrenceResourceIds(initialOccurrenceResources);
         
-        // Always show conflict resolution if any conflicts exist (simplified logic)
         const hasConflicts = updatedOccurrences.some(occ => occ.hasConflict);
         
         if (hasConflicts) {
@@ -612,7 +469,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         setIsCheckingConflicts(false);
       }
     } else {
-      // Single appointment - check conflicts before going to confirmation
       setError(null);
       if (selectedDate && selectedTime && selectedPractitionerId && selectedAppointmentTypeId) {
         try {
@@ -625,7 +481,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           setSingleAppointmentConflict(conflictResponse.has_conflict ? conflictResponse : null);
         } catch (error) {
           logger.error('Failed to check single appointment conflicts:', error);
-          // Don't block confirmation on conflict check failure
           setSingleAppointmentConflict(null);
         }
       }
@@ -634,7 +489,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   };
 
   const handleSave = async () => {
-    if (!selectedPatientId || !selectedAppointmentTypeId || !selectedPractitionerId || !selectedDate || !selectedTime) {
+    if (!isValid) {
       setError('請填寫所有必填欄位');
       return;
     }
@@ -643,27 +498,22 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     setError(null);
     try {
       if (recurrenceEnabled && occurrences.length > 0) {
-        // Create recurring appointments
         const occurrenceStrings = occurrences.map(occ => 
           moment.tz(`${occ.date}T${occ.time}`, 'Asia/Taipei').toISOString()
         );
         
         const result = await apiService.createRecurringAppointments({
-          patient_id: selectedPatientId,
-          appointment_type_id: selectedAppointmentTypeId,
-          practitioner_id: selectedPractitionerId,
-            ...(clinicNotes.trim() ? { clinic_notes: clinicNotes.trim() } : {}),
+          patient_id: selectedPatientId!,
+          appointment_type_id: selectedAppointmentTypeId!,
+          practitioner_id: selectedPractitionerId!,
+          ...(clinicNotes.trim() ? { clinic_notes: clinicNotes.trim() } : {}),
           occurrences: occurrences.map((occ, idx) => {
             const startTime = occurrenceStrings[idx];
-            if (!startTime) {
-              throw new Error(`Invalid start time for occurrence ${idx}`);
-            }
+            if (!startTime) throw new Error(`Invalid start time for occurrence ${idx}`);
             const resourceIds = occurrenceResourceIds[occ.id];
             return {
               start_time: startTime,
-              ...(resourceIds && resourceIds.length > 0 
-                ? { selected_resource_ids: resourceIds } 
-                : {}),
+              ...(resourceIds && resourceIds.length > 0 ? { selected_resource_ids: resourceIds } : {}),
             };
           }),
         });
@@ -672,45 +522,27 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           const errorMessages = result.failed_occurrences.map(f => `${f.start_time}: ${f.error_message}`).join('\n');
           setError(`已建立 ${result.created_count} 個預約，${result.failed_count} 個失敗：\n${errorMessages}`);
           setStep('conflict-resolution');
-          // Still trigger refresh if some appointments were created
           if (result.created_count > 0 && onRecurringAppointmentsCreated) {
             await onRecurringAppointmentsCreated();
           }
         } else {
-          // Success - trigger refresh callback if provided
           if (onRecurringAppointmentsCreated) {
             await onRecurringAppointmentsCreated();
           }
-          // Close modal without showing alert
-          // The success is indicated by closing the modal
-          resetState();
           onClose();
         }
       } else {
-        // Single appointment
         const startTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toISOString();
-        const formData: {
-          patient_id: number;
-          appointment_type_id: number;
-          practitioner_id: number;
-          start_time: string;
-          clinic_notes?: string;
-          selected_resource_ids?: number[];
-        } = {
+        const formData: any = {
           patient_id: selectedPatientId,
           appointment_type_id: selectedAppointmentTypeId,
           practitioner_id: selectedPractitionerId,
           start_time: startTime,
         };
-        if (clinicNotes.trim()) {
-          formData.clinic_notes = clinicNotes.trim();
-        }
-        if (selectedResourceIds.length > 0) {
-          formData.selected_resource_ids = selectedResourceIds;
-        }
+        if (clinicNotes.trim()) formData.clinic_notes = clinicNotes.trim();
+        if (selectedResourceIds.length > 0) formData.selected_resource_ids = selectedResourceIds;
+        
         await onConfirm(formData);
-        // Reset state after successful creation
-        resetState();
       }
     } catch (err) {
       logger.error('Error creating appointment:', err);
@@ -724,31 +556,17 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const handleDateSelect = (dateString: string | null) => {
     setSelectedDate(dateString);
     setSelectedTime('');
-    // Clear error when user selects a new date (error might be stale from previous action)
-    if (error && dateString) {
-      setError(null);
-    }
-  };
-
-  const handleTimeSelect = (time: string) => {
-    setSelectedTime(time);
-  };
-
-  // Handle appointment type change - clear dependent fields
-  const handleAppointmentTypeChange = (appointmentTypeId: number | null) => {
-    setSelectedAppointmentTypeId(appointmentTypeId);
-    // Auto-deselection handled by useEffect
-  };
-
-  // Handle practitioner change - clear dependent fields
-  const handlePractitionerChange = (practitionerId: number | null) => {
-    setSelectedPractitionerId(practitionerId);
-    // Auto-deselection handled by useEffect
+    if (error && dateString) setError(null);
   };
 
   // Render form step content (without buttons)
-  const renderFormStepContent = () => (
-    <div className="space-y-4">
+  const renderFormStepContent = () => {
+    if (isInitialLoading) {
+      return <AppointmentFormSkeleton />;
+    }
+
+    return (
+      <div className="space-y-4">
         {/* Patient search and selection */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -815,55 +633,22 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           )}
         </div>
 
-        {/* Appointment type selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            預約類型 <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={selectedAppointmentTypeId || ''}
-            onChange={(e) => handleAppointmentTypeChange(e.target.value ? parseInt(e.target.value) : null)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-            >
-              <option value="">選擇預約類型</option>
-              {sortedAppointmentTypes.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name} ({type.duration_minutes}分鐘)
-                </option>
-              ))}
-            </select>
-          </div>
+        <AppointmentTypeSelector
+          value={selectedAppointmentTypeId}
+          options={appointmentTypes}
+          onChange={setSelectedAppointmentTypeId}
+        />
 
-        {/* Practitioner selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            治療師 <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={selectedPractitionerId || ''}
-            onChange={(e) => handlePractitionerChange(e.target.value ? parseInt(e.target.value) : null)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-            required
-            disabled={!selectedAppointmentTypeId || isLoadingPractitioners}
-          >
-            <option value="">選擇治療師</option>
-            {isLoadingPractitioners ? (
-              <option value="" disabled>載入中...</option>
-            ) : (
-              availablePractitioners.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name}
-                </option>
-              ))
-            )}
-          </select>
-          {selectedAppointmentTypeId && !isLoadingPractitioners && availablePractitioners.length === 0 && (
-            <p className="text-sm text-gray-500 mt-1">此預約類型目前沒有可用的治療師</p>
-          )}
-        </div>
+        <PractitionerSelector
+          value={selectedPractitionerId}
+          options={availablePractitioners}
+          onChange={setSelectedPractitionerId}
+          isLoading={isLoadingPractitioners}
+          appointmentTypeSelected={!!selectedAppointmentTypeId}
+        />
 
-        {/* Date/Time Picker */}
+        <AppointmentReferenceHeader referenceDateTime={referenceDateTime} />
+
         {selectedAppointmentTypeId && selectedPractitionerId && (
           <DateTimePicker
             selectedDate={selectedDate}
@@ -871,109 +656,87 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             selectedPractitionerId={selectedPractitionerId}
             appointmentTypeId={selectedAppointmentTypeId}
             onDateSelect={handleDateSelect}
-            onTimeSelect={handleTimeSelect}
+            onTimeSelect={setSelectedTime}
             error={error}
             allowOverride={true}
+            initialExpanded={isDuplication}
           />
         )}
 
-          {/* Recurrence Toggle */}
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                // Stop propagation to prevent DateTimePicker's click outside handler from collapsing
-                // This allows the button to work even when picker is expanded
-                e.stopPropagation();
-              }}
-              onClick={() => {
-                const newValue = !recurrenceEnabled;
-                setRecurrenceEnabled(newValue);
-                if (!newValue) {
-                  // Reset recurrence state when disabled
-                  setOccurrences([]);
-                  setWeeksInterval(1);
-                  setOccurrenceCount(null);
-                  setHasVisitedConflictResolution(false);
-                }
-              }}
-              aria-pressed={recurrenceEnabled}
-              className={
-                recurrenceEnabled
-                  ? 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 flex-shrink-0'
-                  : 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500 flex-shrink-0'
+        {/* Recurrence Toggle */}
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              const newValue = !recurrenceEnabled;
+              setRecurrenceEnabled(newValue);
+              if (!newValue) {
+                setOccurrences([]);
+                setWeeksInterval(1);
+                setOccurrenceCount(null);
+                setHasVisitedConflictResolution(false);
               }
-            >
-              重複
-            </button>
+            }}
+            aria-pressed={recurrenceEnabled}
+            className={
+              recurrenceEnabled
+                ? 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 flex-shrink-0'
+                : 'inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500 flex-shrink-0'
+            }
+          >
+            重複
+          </button>
 
-            {/* Recurrence Pattern Inputs */}
-            {recurrenceEnabled && (
-              <div 
-                className="flex items-center gap-2 flex-1"
-                onMouseDown={(e) => {
-                  // Stop propagation to prevent DateTimePicker's click outside handler from collapsing
-                  e.stopPropagation();
+          {recurrenceEnabled && (
+            <div className="flex items-center gap-2 flex-1" onMouseDown={(e) => e.stopPropagation()}>
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">每</label>
+              <NumberInput
+                value={weeksInterval}
+                onChange={setWeeksInterval}
+                fallback={1}
+                parseFn="parseInt"
+                min={1}
+                className="w-16 border border-gray-300 rounded-md px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">週,</label>
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">共</label>
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={occurrenceCount || ''}
+                onChange={(e) => {
+                  const value = e.target.value ? parseInt(e.target.value) : null;
+                  if (value !== null) {
+                    setOccurrenceCount(Math.max(1, Math.min(50, value)));
+                  } else {
+                    setOccurrenceCount(null);
+                  }
                 }}
-              >
-                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                  每
-                </label>
-                <NumberInput
-                  value={weeksInterval}
-                  onChange={(value) => setWeeksInterval(value)}
-                  fallback={1}
-                  parseFn="parseInt"
-                  min={1}
-                  className="w-16 border border-gray-300 rounded-md px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                  週,
-                </label>
-                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                  共
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="50"
-                  value={occurrenceCount || ''}
-                  onChange={(e) => {
-                    const value = e.target.value ? parseInt(e.target.value) : null;
-                    if (value !== null) {
-                      setOccurrenceCount(Math.max(1, Math.min(50, value)));
-                    } else {
-                      setOccurrenceCount(null);
-                    }
-                  }}
-                  onWheel={preventScrollWheelChange}
-                  className="w-16 border border-gray-300 rounded-md px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                  次
-                </label>
-              </div>
-            )}
-          </div>
-
-          {/* Resource Selection */}
-          {selectedAppointmentTypeId && selectedPractitionerId && selectedDate && selectedTime && (
-            <ResourceSelection
-              appointmentTypeId={selectedAppointmentTypeId}
-              practitionerId={selectedPractitionerId}
-              date={selectedDate}
-              startTime={selectedTime}
-              durationMinutes={appointmentTypes.find(t => t.id === selectedAppointmentTypeId)?.duration_minutes || 30}
-              selectedResourceIds={selectedResourceIds}
-              onSelectionChange={setSelectedResourceIds}
-            />
+                onWheel={preventScrollWheelChange}
+                className="w-16 border border-gray-300 rounded-md px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">次</label>
+            </div>
           )}
+        </div>
 
-          {/* Clinic Notes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              診所備注
-            </label>
+        {selectedAppointmentTypeId && selectedPractitionerId && selectedDate && selectedTime && (
+          <ResourceSelection
+            appointmentTypeId={selectedAppointmentTypeId}
+            practitionerId={selectedPractitionerId}
+            date={selectedDate}
+            startTime={selectedTime}
+            durationMinutes={appointmentTypes.find(t => t.id === selectedAppointmentTypeId)?.duration_minutes || 30}
+            selectedResourceIds={selectedResourceIds}
+            onSelectionChange={setSelectedResourceIds}
+            skipInitialDebounce={isDuplication}
+          />
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">診所備註</label>
           <ClinicNotesTextarea
             value={clinicNotes}
             onChange={(e) => setClinicNotes(e.target.value)}
@@ -981,37 +744,16 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           />
         </div>
       </div>
-  );
+    );
+  };
 
-  // Render form step footer buttons
   const renderFormStepFooter = () => (
-    <div 
-      className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0"
-      onMouseDown={(e) => {
-        // Stop propagation to prevent DateTimePicker's click outside handler from collapsing
-        // This allows the button to work even when picker is expanded
-        e.stopPropagation();
-      }}
-    >
+    <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0" onMouseDown={(e) => e.stopPropagation()}>
       <button
         onClick={handleFormSubmit}
-        disabled={
-          !selectedPatientId ||
-          !selectedAppointmentTypeId ||
-          !selectedPractitionerId ||
-          !selectedDate ||
-          !selectedTime ||
-          isCheckingConflicts ||
-          (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1))
-        }
+        disabled={!isValid || isCheckingConflicts || (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1)) || isInitialLoading}
         className={`btn-primary ${
-          (!selectedPatientId ||
-            !selectedAppointmentTypeId ||
-            !selectedPractitionerId ||
-            !selectedDate ||
-            !selectedTime ||
-            isCheckingConflicts ||
-            (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1)))
+          (!isValid || isCheckingConflicts || (recurrenceEnabled && (!occurrenceCount || occurrenceCount < 1)) || isInitialLoading)
             ? 'opacity-50 cursor-not-allowed'
             : ''
         }`}
@@ -1021,294 +763,213 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     </div>
   );
 
-  // Render conflict resolution step content (without buttons)
-  const renderConflictResolutionStepContent = () => {
-    return (
-      <div className="space-y-4">
-          <div className="space-y-2">
-            {occurrences.map((occ, idx) => {
-              const dateMoment = moment.tz(`${occ.date}T${occ.time}`, 'Asia/Taipei');
-              const formattedDateTime = formatAppointmentDateTime(dateMoment.toDate());
-              const isEditing = editingOccurrenceId === occ.id;
-              
-              return (
-                <div key={occ.id} className="space-y-2">
-                  <div className="flex items-center justify-between gap-3 p-3 rounded-md bg-white border border-gray-200">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-700">
-                        {idx + 1}
-                      </div>
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="text-sm font-medium text-gray-900">
-                          {formattedDateTime}
-                        </span>
-                        {occ.hasConflict && occ.conflictInfo && (
-                          <ConflictIndicator
-                            conflictInfo={occ.conflictInfo}
-                            compact={true}
-                          />
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => {
-                          const updated = occurrences.filter(o => o.id !== occ.id);
-                          setOccurrences(updated);
-                        }}
-                        className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
-                        aria-label="刪除"
-                        title="刪除"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingOccurrenceId(occ.id);
-                        }}
-                        className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
-                        aria-label="修改"
-                        title="修改"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-                    </div>
+  const renderConflictResolutionStepContent = () => (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        {occurrences.map((occ, idx) => {
+          const dateMoment = moment.tz(`${occ.date}T${occ.time}`, 'Asia/Taipei');
+          const formattedDateTime = formatAppointmentDateTime(dateMoment.toDate());
+          const isEditing = editingOccurrenceId === occ.id;
+          
+          return (
+            <div key={occ.id} className="space-y-2">
+              <div className="flex items-center justify-between gap-3 p-3 rounded-md bg-white border border-gray-200">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-700">
+                    {idx + 1}
                   </div>
-                  
-                  {/* DateTimePicker for editing - appears right below the occurrence */}
-                  {isEditing && selectedAppointmentTypeId && selectedPractitionerId && (
-                    <div className="border-t border-gray-200 pt-3 space-y-3">
-                      <RecurrenceDateTimePickerWrapper
-                        initialDate={occ.date}
-                        initialTime={occ.time}
-                        selectedPractitionerId={selectedPractitionerId}
-                        appointmentTypeId={selectedAppointmentTypeId}
-                        onConfirm={async (date: string, time: string) => {
-                          // Check for duplicates (excluding current)
-                          const isDuplicate = occurrences.some(o => 
-                            o.id !== occ.id && o.date === date && o.time === time
-                          );
-                          if (isDuplicate) {
-                            setError('此時間已在列表中，請選擇其他時間');
-                            return;
-                          }
-                          
-                          // Real-time conflict detection - check conflicts immediately
-                          const occurrenceString = moment.tz(`${date}T${time}`, 'Asia/Taipei').toISOString();
-                          try {
-                            const conflictResult = await apiService.checkRecurringConflicts({
-                              practitioner_id: selectedPractitionerId!,
-                              appointment_type_id: selectedAppointmentTypeId!,
-                              occurrences: [occurrenceString],
-                            });
-                            
-                            const conflictStatus = conflictResult.occurrences[0];
-                            if (!conflictStatus) {
-                              setError('無法檢查衝突，請稍後再試');
-                              return;
-                            }
-                            
-                            // Convert to SchedulingConflictResponse format
-                            const conflictInfo = convertConflictStatusToResponse(conflictStatus);
-                            
-                            // Update occurrence immediately with new time and conflict status
-                            // Users can proceed with conflicts (override implicit for clinic users)
-                            const updated = occurrences.map(o => 
-                              o.id === occ.id
-                                ? {
-                                    ...o,
-                                    date,
-                                    time,
-                                    hasConflict: conflictStatus.has_conflict || false,
-                                    conflictInfo: conflictInfo?.has_conflict ? conflictInfo : null,
-                                  }
-                                : o
-                            );
-                            
-                            setOccurrences(updated);
-                            setEditingOccurrenceId(null);
-                            setError(null);
-                          } catch (err) {
-                            logger.error('Error checking conflict for edited occurrence:', err);
-                            setError('無法檢查衝突，請稍後再試');
-                          }
-                        }}
-                        onCancel={() => {
-                          setEditingOccurrenceId(null);
-                        }}
-                      />
-                      {/* Resource Selection for this occurrence */}
-                      <div className="border-t border-gray-200 pt-3">
-                        <ResourceSelection
-                          appointmentTypeId={selectedAppointmentTypeId}
-                          practitionerId={selectedPractitionerId}
-                          date={occ.date}
-                          startTime={occ.time}
-                          durationMinutes={appointmentTypes.find(t => t.id === selectedAppointmentTypeId)?.duration_minutes || 30}
-                          selectedResourceIds={occurrenceResourceIds[occ.id] || []}
-                          onSelectionChange={(resourceIds) => {
-                            setOccurrenceResourceIds({
-                              ...occurrenceResourceIds,
-                              [occ.id]: resourceIds,
-                            });
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Resource Selection for non-editing occurrences (collapsed) */}
-                  {!isEditing && selectedAppointmentTypeId && selectedPractitionerId && (
-                    <div className="border-t border-gray-200 pt-3">
-                      <ResourceSelection
-                        appointmentTypeId={selectedAppointmentTypeId}
-                        practitionerId={selectedPractitionerId}
-                        date={occ.date}
-                        startTime={occ.time}
-                        durationMinutes={appointmentTypes.find(t => t.id === selectedAppointmentTypeId)?.duration_minutes || 30}
-                        selectedResourceIds={occurrenceResourceIds[occ.id] || []}
-                        onSelectionChange={(resourceIds) => {
-                          setOccurrenceResourceIds({
-                            ...occurrenceResourceIds,
-                            [occ.id]: resourceIds,
-                          });
-                        }}
-                      />
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="text-sm font-medium text-gray-900">{formattedDateTime}</span>
+                    {occ.hasConflict && occ.conflictInfo && (
+                      <ConflictIndicator conflictInfo={occ.conflictInfo} compact={true} />
+                    )}
+                  </div>
                 </div>
-              );
-            })}
-            
-            {/* Add button - hidden when addingOccurrence is true */}
-            {!addingOccurrence && (
-              <button
-                onClick={() => {
-                  setAddingOccurrence(true);
-                }}
-                className="w-full flex items-center justify-center gap-2 p-3 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md border border-dashed border-blue-300 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span className="text-sm font-medium">新增</span>
-              </button>
-            )}
-            
-            {/* DateTimePicker for adding new occurrence - appears after the add button */}
-            {addingOccurrence && selectedAppointmentTypeId && selectedPractitionerId && (
-              <div className="border-t border-gray-200 pt-3">
-                <RecurrenceDateTimePickerWrapper
-                  initialDate={null}
-                  initialTime={''}
-                  selectedPractitionerId={selectedPractitionerId}
-                  appointmentTypeId={selectedAppointmentTypeId}
-                  onConfirm={async (date: string, time: string) => {
-                    // Add new occurrence - check for conflicts first
-                    const isDuplicate = occurrences.some(o => o.date === date && o.time === time);
-                    if (isDuplicate) {
-                      setError('此時間已在列表中，請選擇其他時間');
-                      return;
-                    }
-                    
-                    // Real-time conflict detection - check conflicts immediately
-                    const occurrenceString = moment.tz(`${date}T${time}`, 'Asia/Taipei').toISOString();
-                    try {
-                      const conflictResult = await apiService.checkRecurringConflicts({
-                        practitioner_id: selectedPractitionerId!,
-                        appointment_type_id: selectedAppointmentTypeId!,
-                        occurrences: [occurrenceString],
-                      });
-                      
-                      const conflictStatus = conflictResult.occurrences[0];
-                      if (!conflictStatus) {
-                        setError('無法檢查衝突，請稍後再試');
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => setOccurrences(occurrences.filter(o => o.id !== occ.id))}
+                    className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setEditingOccurrenceId(occ.id)}
+                    className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              
+              {isEditing && selectedAppointmentTypeId && selectedPractitionerId && (
+                <div className="border-t border-gray-200 pt-3 space-y-3">
+                  <RecurrenceDateTimePickerWrapper
+                    initialDate={occ.date}
+                    initialTime={occ.time}
+                    selectedPractitionerId={selectedPractitionerId}
+                    appointmentTypeId={selectedAppointmentTypeId}
+                    onConfirm={async (date, time) => {
+                      if (occurrences.some(o => o.id !== occ.id && o.date === date && o.time === time)) {
+                        setError('此時間已在列表中，請選擇其他時間');
                         return;
                       }
                       
-                      // Convert to SchedulingConflictResponse format
-                      const conflictInfo = convertConflictStatusToResponse(conflictStatus);
-                      
-                      // Add occurrence immediately (users can proceed with conflicts)
-                      const newOccId = `new-${Date.now()}`;
-                      const newOcc = {
-                        id: newOccId,
-                        date,
-                        time,
-                        hasConflict: conflictStatus.has_conflict || false,
-                        conflictInfo: conflictInfo?.has_conflict ? conflictInfo : null,
-                      };
-                      
-                      // Also propagate the currently selected resource IDs to the new occurrence
-                      setOccurrenceResourceIds({
-                        ...occurrenceResourceIds,
-                        [newOccId]: [...selectedResourceIds],
-                      });
-                      
-                      setOccurrences([...occurrences, newOcc]);
-                      // Close the picker and show the 新增 button again
-                      setAddingOccurrence(false);
-                      setError(null);
-                    } catch (err) {
-                      logger.error('Error checking conflict for new occurrence:', err);
-                      setError('無法檢查衝突，請稍後再試');
-                    }
-                  }}
-                  onCancel={() => {
-                    setAddingOccurrence(false);
-                  }}
-                />
-              </div>
-            )}
-          </div>
-          
-          {occurrences.length === 0 && (
-            <div className="text-center py-4 text-red-600 text-sm">
-              至少需要一個預約時段
+                      try {
+                        const occurrenceString = moment.tz(`${date}T${time}`, 'Asia/Taipei').toISOString();
+                        const conflictResult = await apiService.checkRecurringConflicts({
+                          practitioner_id: selectedPractitionerId!,
+                          appointment_type_id: selectedAppointmentTypeId!,
+                          occurrences: [occurrenceString],
+                        });
+                        
+                        const conflictStatus = conflictResult.occurrences[0];
+                        if (!conflictStatus) {
+                          setError('無法檢查衝突，請稍後再試');
+                          return;
+                        }
+                        
+                        const conflictInfo = convertConflictStatusToResponse(conflictStatus);
+                        setOccurrences(occurrences.map(o => o.id === occ.id ? {
+                          ...o, date, time, 
+                          hasConflict: conflictStatus.has_conflict || false,
+                          conflictInfo: conflictInfo?.has_conflict ? conflictInfo : null
+                        } : o));
+                        setEditingOccurrenceId(null);
+                        setError(null);
+                      } catch (err) {
+                        logger.error('Error checking conflict for edited occurrence:', err);
+                        setError('無法檢查衝突，請稍後再試');
+                      }
+                    }}
+                    onCancel={() => setEditingOccurrenceId(null)}
+                  />
+                  <div className="border-t border-gray-200 pt-3">
+                    <ResourceSelection
+                      appointmentTypeId={selectedAppointmentTypeId}
+                      practitionerId={selectedPractitionerId}
+                      date={occ.date}
+                      startTime={occ.time}
+                      durationMinutes={appointmentTypes.find(t => t.id === selectedAppointmentTypeId)?.duration_minutes || 30}
+                      selectedResourceIds={occurrenceResourceIds[occ.id] || []}
+                      onSelectionChange={(ids) => setOccurrenceResourceIds({ ...occurrenceResourceIds, [occ.id]: ids })}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {!isEditing && selectedAppointmentTypeId && selectedPractitionerId && (
+                <div className="border-t border-gray-200 pt-3">
+                  <ResourceSelection
+                    appointmentTypeId={selectedAppointmentTypeId}
+                    practitionerId={selectedPractitionerId}
+                    date={occ.date}
+                    startTime={occ.time}
+                    durationMinutes={appointmentTypes.find(t => t.id === selectedAppointmentTypeId)?.duration_minutes || 30}
+                    selectedResourceIds={occurrenceResourceIds[occ.id] || []}
+                    onSelectionChange={(ids) => setOccurrenceResourceIds({ ...occurrenceResourceIds, [occ.id]: ids })}
+                  />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-    );
-  };
-
-  // Render conflict resolution step footer buttons
-  const renderConflictResolutionStepFooter = () => {
-    const canProceed = occurrences.length > 0;
-    
-    return (
-      <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
-        <button
-          onClick={() => {
-            // Clear conflict resolution state when going back
-            setOccurrences([]);
-            setHasVisitedConflictResolution(false);
-            setStep('form');
-            setError(null);
-          }}
-          className="btn-secondary"
-        >
-          返回
-        </button>
-        <button
-          onClick={() => {
-            // Always enabled - users can proceed with conflicts
-            setHasVisitedConflictResolution(true);
-            setStep('confirm');
-          }}
-          disabled={!canProceed}
-          className={`btn-primary ${!canProceed ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          下一步
-        </button>
+          );
+        })}
+        
+        {!addingOccurrence && (
+          <button
+            onClick={() => setAddingOccurrence(true)}
+            className="w-full flex items-center justify-center gap-2 p-3 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md border border-dashed border-blue-300 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span className="text-sm font-medium">新增</span>
+          </button>
+        )}
+        
+        {addingOccurrence && selectedAppointmentTypeId && selectedPractitionerId && (
+          <div className="border-t border-gray-200 pt-3">
+            <RecurrenceDateTimePickerWrapper
+              initialDate={null}
+              initialTime={''}
+              selectedPractitionerId={selectedPractitionerId}
+              appointmentTypeId={selectedAppointmentTypeId}
+              onConfirm={async (date, time) => {
+                if (occurrences.some(o => o.date === date && o.time === time)) {
+                  setError('此時間已在列表中，請選擇其他時間');
+                  return;
+                }
+                
+                try {
+                  const occurrenceString = moment.tz(`${date}T${time}`, 'Asia/Taipei').toISOString();
+                  const conflictResult = await apiService.checkRecurringConflicts({
+                    practitioner_id: selectedPractitionerId!,
+                    appointment_type_id: selectedAppointmentTypeId!,
+                    occurrences: [occurrenceString],
+                  });
+                  
+                  const conflictStatus = conflictResult.occurrences[0];
+                  if (!conflictStatus) {
+                    setError('無法檢查衝突，請稍後再試');
+                    return;
+                  }
+                  
+                  const conflictInfo = convertConflictStatusToResponse(conflictStatus);
+                  const newOccId = `new-${Date.now()}`;
+                  setOccurrenceResourceIds({ ...occurrenceResourceIds, [newOccId]: [...selectedResourceIds] });
+                  setOccurrences([...occurrences, {
+                    id: newOccId, date, time,
+                    hasConflict: conflictStatus.has_conflict || false,
+                    conflictInfo: conflictInfo?.has_conflict ? conflictInfo : null
+                  }]);
+                  setAddingOccurrence(false);
+                  setError(null);
+                } catch (err) {
+                  logger.error('Error checking conflict for new occurrence:', err);
+                  setError('無法檢查衝突，請稍後再試');
+                }
+              }}
+              onCancel={() => setAddingOccurrence(false)}
+            />
+          </div>
+        )}
       </div>
-    );
-  };
+      
+      {occurrences.length === 0 && (
+        <div className="text-center py-4 text-red-600 text-sm">至少需要一個預約時段</div>
+      )}
+    </div>
+  );
 
-  // Render confirmation step content (without buttons)
+  const renderConflictResolutionStepFooter = () => (
+    <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
+      <button
+        onClick={() => {
+          setOccurrences([]);
+          setHasVisitedConflictResolution(false);
+          setStep('form');
+          setError(null);
+        }}
+        className="btn-secondary"
+      >
+        返回
+      </button>
+      <button
+        onClick={() => {
+          setHasVisitedConflictResolution(true);
+          setStep('confirm');
+        }}
+        disabled={occurrences.length === 0}
+        className={`btn-primary ${occurrences.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        下一步
+      </button>
+    </div>
+  );
+
   const renderConfirmStepContent = () => {
     const dateTime = selectedDate && selectedTime 
       ? moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toDate()
@@ -1317,97 +978,86 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
 
     return (
       <div className="space-y-4">
-          <div className="space-y-2">
-            <div>
-              <span className="text-sm text-gray-600">病患：</span>
-              <span className="text-sm text-gray-900 ml-2">
-                {selectedPatient?.full_name}
-                {selectedPatient && !selectedPatient.line_user_id && <span className="text-gray-500 ml-1">(無LINE帳號)</span>}
-              </span>
-            </div>
-            <div>
-              <span className="text-sm text-gray-600">預約類型：</span>
-              <span className="text-sm text-gray-900 ml-2">{selectedAppointmentType?.name}</span>
-            </div>
-            <div>
-              <span className="text-sm text-gray-600">治療師：</span>
-              <span className="text-sm text-gray-900 ml-2">
-                {availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || '未知'}
-              </span>
-            </div>
-            {recurrenceEnabled && occurrences.length > 0 ? (
-              <>
-                <div>
-                  <span className="text-sm text-gray-600">重複模式：</span>
-                  <span className="text-sm text-gray-900 ml-2">
-                    {hasVisitedConflictResolution
-                      ? `自定義, 共 ${occurrences.length} 次`
-                      : `每 ${weeksInterval} 週, 共 ${occurrenceCount} 次`}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-sm text-gray-600">將建立：</span>
-                  <span className="text-sm text-gray-900 ml-2">{occurrences.length} 個預約</span>
-                </div>
-                <div className="mt-3 max-h-48 overflow-y-auto border border-gray-200 rounded-md p-3">
-                  <div className="space-y-1">
-                    {occurrences.slice(0, 10).map((occ, idx) => {
-                      const dateMoment = moment.tz(`${occ.date}T${occ.time}`, 'Asia/Taipei');
-                      const formattedDateTime = formatAppointmentDateTime(dateMoment.toDate());
-                      return (
-                        <div key={occ.id} className="flex items-center gap-2 text-sm text-gray-700">
-                          <span>{idx + 1}. {formattedDateTime}</span>
-                          {occ.hasConflict && occ.conflictInfo && (
-                            <ConflictIndicator
-                              conflictInfo={occ.conflictInfo}
-                              compact={true}
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                    {occurrences.length > 10 && (
-                      <div className="text-sm text-gray-500">... 還有 {occurrences.length - 10} 個</div>
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="flex items-center gap-2">
-                <div>
-                  <span className="text-sm text-gray-600">日期時間：</span>
-                  <span className="text-sm text-gray-900 ml-2">{formattedDateTime}</span>
-                </div>
-                {singleAppointmentConflict && (
-                  <ConflictIndicator
-                    conflictInfo={singleAppointmentConflict}
-                    compact={true}
-                  />
-                )}
-              </div>
-            )}
-            {clinicNotes.trim() && (
-              <div>
-                <span className="text-sm text-gray-600">診所備注：</span>
-                <span className="text-sm text-gray-900 ml-2 whitespace-pre-wrap">{clinicNotes.trim()}</span>
-              </div>
-            )}
+        <div className="space-y-2">
+          <div>
+            <span className="text-sm text-gray-600">病患：</span>
+            <span className="text-sm text-gray-900 ml-2">
+              {selectedPatient?.full_name}
+              {selectedPatient && !selectedPatient.line_user_id && <span className="text-gray-500 ml-1">(無LINE帳號)</span>}
+            </span>
           </div>
+          <div>
+            <span className="text-sm text-gray-600">預約類型：</span>
+            <span className="text-sm text-gray-900 ml-2">{selectedAppointmentType?.name}</span>
+          </div>
+          <div>
+            <span className="text-sm text-gray-600">治療師：</span>
+            <span className="text-sm text-gray-900 ml-2">
+              {availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || '未知'}
+            </span>
+          </div>
+          {recurrenceEnabled && occurrences.length > 0 ? (
+            <>
+              <div>
+                <span className="text-sm text-gray-600">重複模式：</span>
+                <span className="text-sm text-gray-900 ml-2">
+                  {hasVisitedConflictResolution
+                    ? `自定義, 共 ${occurrences.length} 次`
+                    : `每 ${weeksInterval} 週, 共 ${occurrenceCount} 次`}
+                </span>
+              </div>
+              <div>
+                <span className="text-sm text-gray-600">將建立：</span>
+                <span className="text-sm text-gray-900 ml-2">{occurrences.length} 個預約</span>
+              </div>
+              <div className="mt-3 max-h-48 overflow-y-auto border border-gray-200 rounded-md p-3">
+                <div className="space-y-1">
+                  {occurrences.slice(0, 10).map((occ, idx) => {
+                    const dateMoment = moment.tz(`${occ.date}T${occ.time}`, 'Asia/Taipei');
+                    const formattedDateTime = formatAppointmentDateTime(dateMoment.toDate());
+                    return (
+                      <div key={occ.id} className="flex items-center gap-2 text-sm text-gray-700">
+                        <span>{idx + 1}. {formattedDateTime}</span>
+                        {occ.hasConflict && occ.conflictInfo && (
+                          <ConflictIndicator conflictInfo={occ.conflictInfo} compact={true} />
+                        )}
+                      </div>
+                    );
+                  })}
+                  {occurrences.length > 10 && (
+                    <div className="text-sm text-gray-500">... 還有 {occurrences.length - 10} 個</div>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div>
+                <span className="text-sm text-gray-600">日期時間：</span>
+                <span className="text-sm text-gray-900 ml-2">{formattedDateTime}</span>
+              </div>
+              {singleAppointmentConflict && (
+                <ConflictIndicator conflictInfo={singleAppointmentConflict} compact={true} />
+              )}
+            </div>
+          )}
+          {clinicNotes.trim() && (
+            <div>
+              <span className="text-sm text-gray-600">診所備注：</span>
+              <span className="text-sm text-gray-900 ml-2 whitespace-pre-wrap">{clinicNotes.trim()}</span>
+            </div>
+          )}
         </div>
+      </div>
     );
   };
 
-  // Render confirmation step footer buttons
   const renderConfirmStepFooter = () => (
     <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
       <button
         onClick={() => {
-          // If conflict resolution was visited, go back there; otherwise go to form
-          if (hasVisitedConflictResolution) {
-            setStep('conflict-resolution');
-          } else {
-            setStep('form');
-          }
+          if (hasVisitedConflictResolution) setStep('conflict-resolution');
+          else setStep('form');
           setError(null);
         }}
         className="btn-secondary"
@@ -1424,13 +1074,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     </div>
   );
 
-  // Handle patient creation success
-  const handlePatientCreated = useCallback((
-    patientId: number,
-    patientName: string,
-    phoneNumber: string | null,
-    birthday: string | null
-  ) => {
+  const handlePatientCreated = useCallback((patientId: number, patientName: string, phoneNumber: string | null, birthday: string | null) => {
     setCreatedPatientId(patientId);
     setCreatedPatientName(patientName);
     setCreatedPatientPhone(phoneNumber);
@@ -1439,7 +1083,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     setIsSuccessModalOpen(true);
   }, []);
 
-  // Handle success modal close - user chose to close without creating appointment
   const handleSuccessModalClose = useCallback(() => {
     setIsSuccessModalOpen(false);
     setCreatedPatientId(null);
@@ -1449,11 +1092,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     onClose();
   }, [onClose]);
 
-  // Handle "新增預約" button in success modal - select patient and continue appointment creation
   const handleCreateAppointmentFromSuccess = useCallback(() => {
     if (createdPatientId) {
       isCreatingPatientFromModal.current = true;
-      
       try {
         sessionStorage.setItem('preSelectedPatientData', JSON.stringify({
           id: createdPatientId,
@@ -1466,15 +1107,10 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       }
       
       const fallbackPatient: Patient = {
-        id: createdPatientId,
-        clinic_id: 0,
-        full_name: createdPatientName,
-        phone_number: createdPatientPhone,
-        created_at: new Date().toISOString(),
+        id: createdPatientId, clinic_id: 0, full_name: createdPatientName,
+        phone_number: createdPatientPhone, created_at: new Date().toISOString(),
       };
-      if (createdPatientBirthday) {
-        fallbackPatient.birthday = createdPatientBirthday;
-      }
+      if (createdPatientBirthday) fallbackPatient.birthday = createdPatientBirthday;
       
       flushSync(() => {
         setIsSuccessModalOpen(false);
@@ -1492,24 +1128,18 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         try {
           const response = await apiService.getPatients(1, 100);
           const fullPatientData = response.patients.find(p => p.id === createdPatientId);
-          
-          if (fullPatientData) {
-            setPreSelectedPatientData(fullPatientData);
-          }
-          
+          if (fullPatientData) setPreSelectedPatientData(fullPatientData);
           refetchPatients();
         } catch (err) {
           logger.warn('Failed to fetch full patient data, using fallback data:', err);
         }
       })();
     }
-  }, [createdPatientId, createdPatientName, createdPatientPhone, createdPatientBirthday, refetchPatients]);
+  }, [createdPatientId, createdPatientName, createdPatientPhone, createdPatientBirthday, refetchPatients, setSelectedPatientId]);
 
-  // Handle modal close with state reset
   const handleClose = useCallback(() => {
-    resetState();
     onClose();
-  }, [resetState, onClose]);
+  }, [onClose]);
 
   const modalTitle = step === 'form' ? '建立預約' : step === 'conflict-resolution' ? '解決衝突' : '確認預約';
 
@@ -1517,7 +1147,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     <>
       <BaseModal onClose={handleClose} aria-label={modalTitle} className="!p-0" fullScreen={isMobile}>
         <div className={`flex flex-col h-full ${isMobile ? 'px-4 pt-4 pb-0' : 'px-6 pt-6 pb-6'}`}>
-          {/* Header */}
           <div className="flex items-center mb-4 flex-shrink-0">
             <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2">
               <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
@@ -1527,34 +1156,24 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             <h3 className="text-base font-semibold text-blue-800">{modalTitle}</h3>
           </div>
           
-          {/* Error messages */}
-          {/* Only show error at top if DateTimePicker is not visible (to avoid duplicate error messages) */}
           {error && step === 'form' && (!selectedAppointmentTypeId || !selectedPractitionerId) && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3 flex-shrink-0">
               <p className="text-sm text-red-800">{error}</p>
             </div>
           )}
-          {/* Show error for other steps (conflict-resolution, confirm) */}
           {error && step !== 'form' && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3 flex-shrink-0">
               <p className="text-sm text-red-800">{error}</p>
             </div>
           )}
 
-          {/* Scrollable content area */}
           <div className={`flex-1 overflow-y-auto ${isMobile ? 'px-0' : ''}`}>
             {step === 'form' && renderFormStepContent()}
             {step === 'conflict-resolution' && renderConflictResolutionStepContent()}
             {step === 'confirm' && renderConfirmStepContent()}
           </div>
           
-          {/* Footer with buttons - always visible at bottom */}
-          <div 
-            className={`flex-shrink-0 ${isMobile ? 'px-4' : ''}`}
-            style={isMobile ? {
-              paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
-            } : undefined}
-          >
+          <div className={`flex-shrink-0 ${isMobile ? 'px-4' : ''}`} style={isMobile ? { paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' } : undefined}>
             {step === 'form' && renderFormStepFooter()}
             {step === 'conflict-resolution' && renderConflictResolutionStepFooter()}
             {step === 'confirm' && renderConfirmStepFooter()}
@@ -1562,28 +1181,11 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         </div>
       </BaseModal>
     
-      {/* Patient Creation Modal */}
-      <PatientCreationModal
-        isOpen={isCreatePatientModalOpen}
-        onClose={() => setIsCreatePatientModalOpen(false)}
-        onSuccess={handlePatientCreated}
-      />
+      <PatientCreationModal isOpen={isCreatePatientModalOpen} onClose={() => setIsCreatePatientModalOpen(false)} onSuccess={handlePatientCreated} />
     
-      {/* Patient Creation Success Modal */}
-      {createdPatientId && (
-        <PatientCreationSuccessModal
-          isOpen={isSuccessModalOpen}
-          onClose={handleSuccessModalClose}
-          patientId={createdPatientId}
-          patientName={createdPatientName}
-          phoneNumber={createdPatientPhone}
-          birthday={createdPatientBirthday}
-          onCreateAppointment={handleCreateAppointmentFromSuccess}
-        />
-      )}
+      {createdPatientId && <PatientCreationSuccessModal isOpen={isSuccessModalOpen} onClose={handleSuccessModalClose} patientId={createdPatientId} patientName={createdPatientName} phoneNumber={createdPatientPhone} birthday={createdPatientBirthday} onCreateAppointment={handleCreateAppointmentFromSuccess} />}
     </>
   );
 });
 
 CreateAppointmentModal.displayName = 'CreateAppointmentModal';
-

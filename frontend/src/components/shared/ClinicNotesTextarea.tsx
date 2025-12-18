@@ -10,13 +10,13 @@ export interface ClinicNotesTextareaProps {
 }
 
 /**
- * Shared textarea component for clinic notes (診所備注).
+ * Shared textarea component for clinic notes (診所備註).
  * Used consistently across CreateAppointmentModal, EditAppointmentModal, and EventModal.
  */
 export const ClinicNotesTextarea: React.FC<ClinicNotesTextareaProps> = ({
   value,
   onChange,
-  placeholder = '診所內部備注（僅診所人員可見）',
+  placeholder = '診所內部備註（僅診所人員可見）',
   rows = 4,
   disabled = false,
   className = '',

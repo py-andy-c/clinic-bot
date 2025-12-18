@@ -101,7 +101,9 @@ export const PatientAppointmentsList: React.FC<
     preSelectedPractitionerId?: number;
     preSelectedTime?: string;
     preSelectedClinicNotes?: string;
+    preSelectedResourceIds?: number[];
     initialDate?: string;
+    event?: CalendarEvent;
   } | null>(null);
 
   // Receipt viewing state
@@ -326,6 +328,7 @@ export const PatientAppointmentsList: React.FC<
       ...(initialTime && { preSelectedTime: initialTime }),
       ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
       preSelectedResourceIds,
+      event,
     });
     setCreateModalKey(prev => prev + 1); // Force remount to reset state
     setIsCreateModalOpen(true);
@@ -743,6 +746,8 @@ export const PatientAppointmentsList: React.FC<
           {...(duplicateData.preSelectedPractitionerId !== undefined && { preSelectedPractitionerId: duplicateData.preSelectedPractitionerId })}
           {...(duplicateData.preSelectedTime !== undefined && { preSelectedTime: duplicateData.preSelectedTime })}
           {...(duplicateData.preSelectedClinicNotes !== undefined && { preSelectedClinicNotes: duplicateData.preSelectedClinicNotes })}
+          preSelectedResourceIds={duplicateData.preSelectedResourceIds}
+          event={duplicateData.event}
           practitioners={practitioners}
           appointmentTypes={appointmentTypes}
           onClose={() => {

@@ -14,6 +14,7 @@ interface ResourceSelectionProps {
   excludeCalendarEventId?: number;
   selectedResourceIds: number[];
   onSelectionChange: (resourceIds: number[]) => void;
+  skipInitialDebounce?: boolean;
 }
 
 export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
@@ -25,6 +26,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   excludeCalendarEventId,
   selectedResourceIds,
   onSelectionChange,
+  skipInitialDebounce = false,
 }) => {
   const [loading, setLoading] = useState(false);
   const [availability, setAvailability] = useState<ResourceAvailabilityResponse | null>(null);
@@ -33,6 +35,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   const lastAutoSelectedSlotRef = useRef<string>('');
   const lastSelectedRef = useRef<number[]>([]);
   const isUpdatingSelectionRef = useRef(false);
+  const isInitialMountRef = useRef(true);
 
   // Helper function to check if a resource is available in the current availability response
   const isResourceAvailable = (resourceId: number, avail: ResourceAvailabilityResponse): boolean => {
@@ -77,7 +80,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
       return;
     }
 
-    const timer = setTimeout(async () => {
+    const fetchAvailability = async (signal?: AbortSignal) => {
       try {
         setLoading(true);
         setError(null);
@@ -92,7 +95,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
           start_time: startMoment.format('HH:mm'),
           end_time: endMoment.format('HH:mm'),
           ...(excludeCalendarEventId ? { exclude_calendar_event_id: excludeCalendarEventId } : {}),
-        });
+        }, signal);
         
         setCache(prev => ({ ...prev, [timeSlotKey]: response }));
         setAvailability(response);
@@ -114,11 +117,24 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
         // Keep previous availability if we have it, rather than clearing
       } finally {
         setLoading(false);
+        isInitialMountRef.current = false;
       }
-    }, 300); // 300ms debounce
+    };
 
-    return () => clearTimeout(timer);
-  }, [appointmentTypeId, practitionerId, date, startTime, durationMinutes, excludeCalendarEventId, cache]);
+    const abortController = new AbortController();
+
+    if (skipInitialDebounce && isInitialMountRef.current) {
+      fetchAvailability(abortController.signal);
+      return;
+    }
+
+    const timer = setTimeout(() => fetchAvailability(abortController.signal), 300); // 300ms debounce
+
+    return () => {
+      clearTimeout(timer);
+      abortController.abort();
+    };
+  }, [appointmentTypeId, practitionerId, date, startTime, durationMinutes, excludeCalendarEventId, cache, skipInitialDebounce]);
 
   // Extract auto-selection logic to a helper function
   const handleAutoSelection = (response: ResourceAvailabilityResponse) => {
@@ -208,8 +224,8 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
     }
   }, [selectedResourceIds]);
 
-  // Don't show if no requirements
-  if (!availability || availability.requirements.length === 0) {
+  // Don't show if no requirements and not loading
+  if ((!availability || availability.requirements.length === 0) && !loading) {
     return null;
   }
 
@@ -221,6 +237,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   };
 
   const getResourceById = (resourceId: number): Resource | null => {
+    if (!availability) return null;
     for (const req of availability.requirements) {
       const resource = req.available_resources.find(r => r.id === resourceId);
       if (resource) {
@@ -254,7 +271,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-h-[100px]">
       <div className="border-t border-gray-200 pt-4">
         <div className="flex items-center gap-2 mb-3">
           <h3 className="text-sm font-medium text-gray-900">資源選擇</h3>
@@ -267,6 +284,16 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
           <div className="text-sm text-red-600 mb-3">{error}</div>
         )}
         
+        {loading && !availability && (
+          <div className="space-y-4">
+            <div className="h-4 bg-gray-100 rounded w-1/3 animate-pulse"></div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              <div className="h-10 bg-gray-100 rounded animate-pulse"></div>
+              <div className="h-10 bg-gray-100 rounded animate-pulse"></div>
+            </div>
+          </div>
+        )}
+
         {availability && (
           <div className="space-y-4">
             {availability.requirements.map((req) => {

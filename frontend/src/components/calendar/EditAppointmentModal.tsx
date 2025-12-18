@@ -5,7 +5,7 @@
  * Handles all steps (form, note input, preview) within a single modal.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BaseModal } from './BaseModal';
 import { DateTimePicker } from './DateTimePicker';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
@@ -17,6 +17,13 @@ import moment from 'moment-timezone';
 import { ClinicNotesTextarea } from '../shared/ClinicNotesTextarea';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { ResourceSelection } from '../ResourceSelection';
+import { useAppointmentForm } from '../../hooks/useAppointmentForm';
+import { 
+  AppointmentReferenceHeader, 
+  AppointmentTypeSelector, 
+  PractitionerSelector, 
+  AppointmentFormSkeleton 
+} from './form';
 
 type EditStep = 'form' | 'review' | 'note' | 'preview';
 
@@ -47,119 +54,55 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   allowConfirmWithoutChanges = false,
 }) => {
   const isMobile = useIsMobile();
-  // Step state: 'form' | 'review' | 'note' | 'preview'
   const [step, setStep] = useState<EditStep>('form');
-  
-  // Form data
-  const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<number | null>(() => {
-    return event.resource.appointment_type_id || null;
-  });
-  const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(() => {
-    if (event.resource.practitioner_id) {
-      return event.resource.practitioner_id;
-    }
-    return practitioners.length > 0 && practitioners[0] ? practitioners[0].id : null;
-  });
-  const [selectedDate, setSelectedDate] = useState<string>(
-    moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD')
-  );
-  const [selectedTime, setSelectedTime] = useState<string>(
-    moment(event.start).tz('Asia/Taipei').format('HH:mm')
-  );
   const [, setOverrideMode] = useState<boolean>(false);
-  // Store original notes (from patient) - cannot be edited by clinic
-  const originalNotes = event.resource.notes || '';
-  const originalClinicNotes = event.resource.clinic_notes || '';
-  const [clinicNotes, setClinicNotes] = useState<string>(originalClinicNotes);
-  const [customNote, setCustomNote] = useState<string>(''); // Custom note for notification
-  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
-  const [isLoadingResources, setIsLoadingResources] = useState(true);
   
-  // Check if appointment was originally auto-assigned
-  const originallyAutoAssigned = event.resource.originally_auto_assigned ?? false;
-  
+  const {
+    selectedAppointmentTypeId,
+    setSelectedAppointmentTypeId,
+    selectedPractitionerId,
+    setSelectedPractitionerId,
+    selectedDate,
+    setSelectedDate,
+    selectedTime,
+    setSelectedTime,
+    clinicNotes,
+    setClinicNotes,
+    selectedResourceIds,
+    setSelectedResourceIds,
+    availablePractitioners,
+    isInitialLoading,
+    isLoadingPractitioners,
+    error,
+    setError,
+    isValid,
+    referenceDateTime,
+    hasChanges,
+    changeDetails,
+  } = useAppointmentForm({
+    mode: 'edit',
+    event,
+    appointmentTypes,
+    practitioners,
+  });
+
   // UI state
-  const [error, setError] = useState<string | null>(null);
   const [previewMessage, setPreviewMessage] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const appointmentType = appointmentTypes.find(
-    at => at.id === event.resource.appointment_type_id
-  );
-
+  // Store original notes (from patient) - cannot be edited by clinic
+  const originalNotes = event.resource.notes || '';
+  const originalClinicNotes = event.resource.clinic_notes || '';
+  
+  // Check if appointment was originally auto-assigned
+  const originallyAutoAssigned = event.resource.originally_auto_assigned ?? false;
+  
   // Determine if this appointment has an associated LINE user.
-  // If there's no LINE user, we should not ask for notification notes or show LINE preview.
   const hasLineUser = !!event.resource.line_display_name;
 
-  // Track whether the currently selected date has any available time slots
+  const [customNote, setCustomNote] = useState<string>(''); // Custom note for notification
   const [hasAvailableSlots, setHasAvailableSlots] = useState<boolean>(true);
-  
-  // Note: We no longer show practitioner errors - we just deselect the practitioner
-  
-  // Conditional practitioner fetching
-  const [availablePractitioners, setAvailablePractitioners] = useState<{ id: number; full_name: string }[]>(practitioners);
-  const [isLoadingPractitioners, setIsLoadingPractitioners] = useState(false);
-  
-  // Use selectedAppointmentTypeId, fallback to event's appointment_type_id
-  const appointmentTypeId = selectedAppointmentTypeId || event.resource.appointment_type_id || appointmentType?.id || null;
-
-  // Get original appointment details for DateTimePicker
-        const originalTime = moment(event.start).tz('Asia/Taipei').format('HH:mm');
-        const originalDate = moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD');
-  const originalPractitionerId = event.resource.practitioner_id ?? null;
-
-  // Get original appointment type ID
-  const originalAppointmentTypeId = event.resource.appointment_type_id || null;
-
-  // Check if any changes have been made
-  const hasChanges = useMemo(() => {
-    if (!selectedAppointmentTypeId || !selectedPractitionerId || !selectedTime) {
-      return false;
-    }
-    
-    const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
-    const originalStartTime = moment(event.start).tz('Asia/Taipei');
-    const timeChanged = !newStartTime.isSame(originalStartTime, 'minute');
-    const practitionerChanged = selectedPractitionerId !== originalPractitionerId;
-    const appointmentTypeChanged = selectedAppointmentTypeId !== originalAppointmentTypeId;
-    
-    return timeChanged || practitionerChanged || appointmentTypeChanged;
-  }, [selectedDate, selectedTime, selectedPractitionerId, selectedAppointmentTypeId, originalPractitionerId, originalAppointmentTypeId, event.start]);
-
-  // Check which specific fields changed
-  const changeDetails = useMemo(() => {
-    if (!selectedAppointmentTypeId || !selectedPractitionerId || !selectedTime) {
-      return { appointmentTypeChanged: false, practitionerChanged: false, timeChanged: false, dateChanged: false };
-    }
-
-    const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
-    const originalStartTime = moment(event.start).tz('Asia/Taipei');
-    const timeChanged = !newStartTime.isSame(originalStartTime, 'minute');
-    const dateChanged = !newStartTime.isSame(originalStartTime, 'day');
-    const practitionerChanged = selectedPractitionerId !== originalPractitionerId;
-    const appointmentTypeChanged = selectedAppointmentTypeId !== originalAppointmentTypeId;
-
-    return { appointmentTypeChanged, practitionerChanged, timeChanged, dateChanged };
-  }, [selectedDate, selectedTime, selectedPractitionerId, selectedAppointmentTypeId, originalPractitionerId, originalAppointmentTypeId, event.start]);
-
-  // Load existing resources when modal opens
-  useEffect(() => {
-    const loadResources = async () => {
-      setIsLoadingResources(true);
-      try {
-        const response = await apiService.getAppointmentResources(event.resource.calendar_event_id);
-        const resourceIds = response.resources.map(r => r.id);
-        setSelectedResourceIds(resourceIds);
-      } catch (err) {
-        logger.error('Failed to load appointment resources:', err);
-        // Don't show error - resources might not exist yet
-      } finally {
-        setIsLoadingResources(false);
-      }
-    };
-    loadResources();
-  }, [event.resource.calendar_event_id]);
 
   // Reset step when modal closes or error occurs
   useEffect(() => {
@@ -167,167 +110,48 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       setStep('form');
       setError(externalErrorMessage);
     }
-  }, [externalErrorMessage]);
-
-  // Fetch practitioners when appointment type is selected
-  useEffect(() => {
-    const fetchPractitioners = async () => {
-      if (!selectedAppointmentTypeId) {
-        // No appointment type selected - use all practitioners
-        setAvailablePractitioners(practitioners);
-        return;
-      }
-
-      setIsLoadingPractitioners(true);
-      try {
-        const fetchedPractitioners = await apiService.getPractitioners(selectedAppointmentTypeId);
-        // Sort alphabetically by name (supports Chinese)
-        const sorted = [...fetchedPractitioners].sort((a, b) => a.full_name.localeCompare(b.full_name, 'zh-TW'));
-        setAvailablePractitioners(sorted);
-        
-        // Auto-deselect practitioner if current selection is not in the filtered list
-        if (selectedPractitionerId && !sorted.find(p => p.id === selectedPractitionerId)) {
-          setSelectedPractitionerId(null);
-          setSelectedTime('');
-        }
-      } catch (err) {
-        logger.error('Failed to fetch practitioners:', err);
-        setError('無法載入治療師列表，請稍後再試');
-        setAvailablePractitioners([]);
-        // Clear selections
-        setSelectedPractitionerId(null);
-        setSelectedTime('');
-      } finally {
-        setIsLoadingPractitioners(false);
-      }
-    };
-
-    fetchPractitioners();
-  }, [selectedAppointmentTypeId, practitioners, selectedPractitionerId]);
-
-  // Auto-deselection: When appointment type changes, clear practitioner, date, time
-  useEffect(() => {
-    if (selectedAppointmentTypeId === null && (selectedPractitionerId !== null || selectedTime !== '')) {
-      // Appointment type was cleared - clear dependent fields
-      setSelectedPractitionerId(null);
-      setSelectedTime('');
-    }
-  }, [selectedAppointmentTypeId, selectedPractitionerId, selectedTime]);
-
-  // Auto-deselection: When practitioner changes, clear date, time
-  useEffect(() => {
-    if (selectedPractitionerId === null && selectedTime !== '') {
-      // Practitioner was cleared - clear dependent fields
-      setSelectedTime('');
-    }
-  }, [selectedPractitionerId, selectedTime]);
-
-  // Check practitioner status when practitioner is selected
-  useEffect(() => {
-    const checkPractitionerStatus = async () => {
-      // Don't clear selectedTime here - let it be auto-selected if available
-      setHasAvailableSlots(false); // Reset until availability is loaded
-      
-      if (!selectedPractitionerId || !appointmentTypeId) {
-        return;
-      }
-
-      try {
-        // Check if practitioner has availability configured
-        const status = await apiService.getPractitionerStatus(selectedPractitionerId);
-        
-        if (!status.has_availability) {
-          setHasAvailableSlots(false);
-          // Note: We used to clear selectedTime here, but that's too aggressive for edit mode.
-          // Clinic users can override availability anyway, and the appointment already exists.
-          return;
-        }
-        
-        // If has availability, DateTimePicker will make batch call automatically
-        // via its useEffect that depends on selectedPractitionerId
-      } catch (err) {
-        logger.error('Failed to check practitioner status:', err);
-        // Don't block user - let DateTimePicker try batch call anyway
-        // The batch call will handle 404 errors if practitioner doesn't offer appointment type
-      }
-    };
-
-    checkPractitionerStatus();
-  }, [selectedPractitionerId, appointmentTypeId]);
+  }, [externalErrorMessage, setError]);
 
   // Handle practitioner error from DateTimePicker (404 errors) - just deselect practitioner
   const handlePractitionerError = (_errorMessage: string) => {
-    // Simply deselect the practitioner - no error message needed
     setSelectedPractitionerId(null);
     setSelectedTime('');
     setHasAvailableSlots(false);
   };
 
-
-  // Handle appointment type change - clear dependent fields
-  const handleAppointmentTypeChange = (appointmentTypeId: number | null) => {
-    setSelectedAppointmentTypeId(appointmentTypeId);
-    // Auto-deselection handled by useEffect
-  };
-
-  // Handle practitioner change - clear dependent fields
-  const handlePractitionerChange = (practitionerId: number | null) => {
-    setSelectedPractitionerId(practitionerId);
-    // Auto-deselection handled by useEffect
-  };
-
   const handleFormSubmit = async () => {
-    // Validate appointment type is selected
-    if (!selectedAppointmentTypeId) {
-      setError('請選擇預約類型');
-      return;
-    }
-
-    // Validate practitioner is selected (required for edit)
-    if (!selectedPractitionerId) {
-      setError('請選擇治療師');
-      return;
-    }
-
-    // Validate time is selected
-    if (!selectedTime) {
-      setError('請選擇時間');
+    if (!isValid) {
+      if (!selectedAppointmentTypeId) setError('請選擇預約類型');
+      else if (!selectedPractitionerId) setError('請選擇治療師');
+      else if (!selectedTime) setError('請選擇時間');
       return;
     }
 
     // Check if any changes were made
     if (!hasChanges && !allowConfirmWithoutChanges) {
-      // No changes - just close (unless allowConfirmWithoutChanges is true)
       onClose();
       return;
     }
 
-    // Proceed to review step
     setError(null);
     setStep('review');
   };
 
   const handleReviewNext = async () => {
-    // Calculate new start time once for all code paths
     const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
     const newStartTimeISO = newStartTime.toISOString();
 
-    // If there is no LINE user attached to this appointment, skip the note/preview flow
-    // and just save the updated practitioner/time without sending any notification.
     if (!hasLineUser) {
-      const formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string; selected_resource_ids?: number[] } = {
+      const formData: any = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTimeISO,
       };
-      // Include appointment_type_id if it changed
       if (changeDetails.appointmentTypeChanged && selectedAppointmentTypeId) {
         formData.appointment_type_id = selectedAppointmentTypeId;
       }
-      // Always send clinic_notes if it has changed from original (allows clearing notes)
       if (clinicNotes.trim() !== originalClinicNotes.trim()) {
         formData.clinic_notes = clinicNotes.trim();
       }
-      // Include selected resources if any
       if (selectedResourceIds.length > 0) {
         formData.selected_resource_ids = selectedResourceIds;
       }
@@ -335,25 +159,17 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       return;
     }
 
-    // For originally auto-assigned appointments: only show note step if time changed
-    // (patients don't need to know about practitioner reassignment, only time changes)
     if (originallyAutoAssigned && !changeDetails.timeChanged) {
-      // Time didn't change - skip note step and go directly to save
-      // Don't send notes or notification_note to preserve original patient notes
-      // and avoid notifying the patient (omit properties instead of setting to undefined)
-      const formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string; selected_resource_ids?: number[] } = {
+      const formData: any = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTimeISO,
       };
-      // Include appointment_type_id if it changed
       if (changeDetails.appointmentTypeChanged && selectedAppointmentTypeId) {
         formData.appointment_type_id = selectedAppointmentTypeId;
       }
-      // Always send clinic_notes if it has changed from original (allows clearing notes)
       if (clinicNotes.trim() !== originalClinicNotes.trim()) {
         formData.clinic_notes = clinicNotes.trim();
       }
-      // Include selected resources if any
       if (selectedResourceIds.length > 0) {
         formData.selected_resource_ids = selectedResourceIds;
       }
@@ -361,12 +177,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       return;
     }
 
-    // Time changed (or not originally auto-assigned) - proceed to note step
     setStep('note');
   };
 
   const handleNoteSubmit = async () => {
-    // Generate preview
     setIsLoadingPreview(true);
     setError(null);
     
@@ -385,9 +199,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       setStep('preview');
     } catch (err) {
       logger.error('Error generating edit preview:', err);
-      const errorMessage = getErrorMessage(err);
-      setError(errorMessage);
-      // Stay on note step to show error
+      setError(getErrorMessage(err));
     } finally {
       setIsLoadingPreview(false);
     }
@@ -399,51 +211,42 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     
     try {
       const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toISOString();
-      const formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string; selected_resource_ids?: number[] } = {
+      const formData: any = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTime,
       };
-      // Include appointment_type_id if it changed
       if (changeDetails.appointmentTypeChanged && selectedAppointmentTypeId) {
         formData.appointment_type_id = selectedAppointmentTypeId;
       }
-      // Always send clinic_notes if it has changed from original (allows clearing notes)
       if (clinicNotes.trim() !== originalClinicNotes.trim()) {
         formData.clinic_notes = clinicNotes.trim();
       }
-      // Send customNote as notification_note for the one-time notification only
       if (customNote.trim()) {
         formData.notification_note = customNote.trim();
       }
-      // Include selected resources if any
       if (selectedResourceIds.length > 0) {
         formData.selected_resource_ids = selectedResourceIds;
       }
       await onConfirm(formData);
-      // onConfirm will handle closing the modal and refreshing data
     } catch (err) {
       logger.error('Error saving appointment:', err);
-      const errorMessage = getErrorMessage(err);
-      setError(errorMessage);
-      // Return to form step to show error
+      setError(getErrorMessage(err));
       setStep('form');
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Sort appointment types alphabetically
-  const sortedAppointmentTypes = useMemo(() => {
-    return [...appointmentTypes].sort((a, b) => a.name.localeCompare(b.name, 'zh-TW'));
-  }, [appointmentTypes]);
-
   // Render form step content (without buttons)
-  const renderFormStepContent = () => (
-    <div className="space-y-4">
-        {/* Read-only fields - only show if showReadOnlyFields is true */}
+  const renderFormStepContent = () => {
+    if (isInitialLoading) {
+      return <AppointmentFormSkeleton />;
+    }
+
+    return (
+      <div className="space-y-4">
         {showReadOnlyFields && (
           <>
-            {/* Patient name (read-only) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 病患姓名
@@ -456,7 +259,6 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
               />
             </div>
 
-            {/* Patient Notes - Read-only, only show if patient provided notes */}
             {originalNotes && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -470,73 +272,32 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           </>
         )}
 
-        {/* Appointment type selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            預約類型 <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={selectedAppointmentTypeId || ''}
-            onChange={(e) => handleAppointmentTypeChange(e.target.value ? parseInt(e.target.value) : null)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          >
-            <option value="">選擇預約類型</option>
-            {sortedAppointmentTypes.map((type) => (
-              <option key={type.id} value={type.id}>
-                {type.name} ({type.duration_minutes}分鐘){type.id === originalAppointmentTypeId ? ' (原)' : ''}
-              </option>
-            ))}
-          </select>
-        </div>
+        <AppointmentTypeSelector
+          value={selectedAppointmentTypeId}
+          options={appointmentTypes}
+          onChange={setSelectedAppointmentTypeId}
+          originalTypeId={event.resource.appointment_type_id}
+        />
 
-        {/* Practitioner selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            治療師 <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={selectedPractitionerId || ''}
-            onChange={(e) => handlePractitionerChange(e.target.value ? parseInt(e.target.value) : null)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-            required
-            disabled={!selectedAppointmentTypeId || isLoadingPractitioners}
-          >
-            <option value="">選擇治療師</option>
-            {isLoadingPractitioners ? (
-              <option value="" disabled>載入中...</option>
-            ) : (
-              availablePractitioners.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name}{p.id === originalPractitionerId ? ' (原)' : ''}
-                </option>
-              ))
-            )}
-          </select>
-          {selectedAppointmentTypeId && !isLoadingPractitioners && availablePractitioners.length === 0 && (
-            <p className="text-sm text-gray-500 mt-1">此預約類型目前沒有可用的治療師</p>
-          )}
-        </div>
+        <PractitionerSelector
+          value={selectedPractitionerId}
+          options={availablePractitioners}
+          onChange={setSelectedPractitionerId}
+          isLoading={isLoadingPractitioners}
+          originalPractitionerId={event.resource.practitioner_id}
+          appointmentTypeSelected={!!selectedAppointmentTypeId}
+        />
 
-        {/* Date/Time Picker */}
-        {/* Display original appointment time */}
-        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-md p-3">
-          <p className="text-sm font-medium text-blue-900">
-            <span className="font-semibold">原預約時間：</span>
-            {originalDate && originalTime ? formatAppointmentDateTime(moment.tz(`${originalDate}T${originalTime}`, 'Asia/Taipei').toDate()) : ''}
-          </p>
-        </div>
-        {appointmentTypeId && selectedPractitionerId && (
+        <AppointmentReferenceHeader referenceDateTime={referenceDateTime} />
+
+        {selectedAppointmentTypeId && selectedPractitionerId && (
           <DateTimePicker
             selectedDate={selectedDate}
             selectedTime={selectedTime}
             selectedPractitionerId={selectedPractitionerId}
-            appointmentTypeId={appointmentTypeId}
+            appointmentTypeId={selectedAppointmentTypeId}
             onDateSelect={(date) => {
-              // In edit mode, don't allow clearing the date - keep current date if null is passed
-              if (date !== null) {
-                setSelectedDate(date);
-              }
+              if (date !== null) setSelectedDate(date);
             }}
             onTimeSelect={setSelectedTime}
             excludeCalendarEventId={event.resource.calendar_event_id}
@@ -548,25 +309,24 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           />
         )}
 
-        {/* Resource Selection */}
-        {appointmentTypeId && selectedPractitionerId && selectedDate && selectedTime && !isLoadingResources && (
+        {selectedAppointmentTypeId && selectedPractitionerId && selectedDate && selectedTime && (
           <ResourceSelection
-            appointmentTypeId={appointmentTypeId}
+            appointmentTypeId={selectedAppointmentTypeId}
             practitionerId={selectedPractitionerId}
             date={selectedDate}
             startTime={selectedTime}
-            durationMinutes={appointmentTypes.find(t => t.id === appointmentTypeId)?.duration_minutes || 30}
+            durationMinutes={appointmentTypes.find(t => t.id === selectedAppointmentTypeId)?.duration_minutes || 30}
             excludeCalendarEventId={event.resource.calendar_event_id}
             selectedResourceIds={selectedResourceIds}
             onSelectionChange={setSelectedResourceIds}
+            skipInitialDebounce={true}
           />
         )}
 
-        {/* Clinic Notes - Editable, moved to bottom */}
         {showReadOnlyFields && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              診所備注
+              診所備註
             </label>
             <ClinicNotesTextarea
               value={clinicNotes}
@@ -576,26 +336,17 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           </div>
         )}
       </div>
-  );
+    );
+  };
 
   // Render form step footer buttons
   const renderFormStepFooter = () => (
     <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
       <button
         onClick={handleFormSubmit}
-        disabled={
-          !selectedAppointmentTypeId ||
-          !selectedPractitionerId ||
-          !selectedTime ||
-          (!hasChanges && !allowConfirmWithoutChanges) ||
-          !hasAvailableSlots
-        }
+        disabled={!isValid || (!hasChanges && !allowConfirmWithoutChanges) || !hasAvailableSlots || isInitialLoading}
         className={`btn-primary ${
-          (!selectedAppointmentTypeId ||
-            !selectedPractitionerId ||
-            !selectedTime ||
-            (!hasChanges && !allowConfirmWithoutChanges) ||
-            !hasAvailableSlots)
+          (!isValid || (!hasChanges && !allowConfirmWithoutChanges) || !hasAvailableSlots || isInitialLoading)
             ? 'opacity-50 cursor-not-allowed'
             : ''
         }`}
@@ -613,12 +364,11 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     const originalFormattedDateTime = formatAppointmentDateTime(originalStartTime.toDate());
     const showTimeWarning = changeDetails.timeChanged || changeDetails.dateChanged;
 
-    const originalAppointmentType = appointmentTypes.find(at => at.id === originalAppointmentTypeId);
+    const originalAppointmentType = appointmentTypes.find(at => at.id === event.resource.appointment_type_id);
     const newAppointmentType = appointmentTypes.find(at => at.id === selectedAppointmentTypeId);
 
     return (
       <div className="space-y-4">
-          {/* Original Appointment */}
           <div>
             <h4 className="text-sm font-semibold text-gray-700 mb-2">原預約</h4>
             <div className="bg-gray-50 border border-gray-200 rounded-md p-4 space-y-2">
@@ -631,7 +381,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
               <div>
                 <span className="text-sm text-gray-600">治療師：</span>
                 <span className="text-sm text-gray-900">
-                  {getPractitionerDisplayName(availablePractitioners, originalPractitionerId, originallyAutoAssigned)}
+                  {getPractitionerDisplayName(availablePractitioners, event.resource.practitioner_id ?? null, originallyAutoAssigned)}
                 </span>
               </div>
               <div>
@@ -641,7 +391,6 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             </div>
           </div>
 
-          {/* New Appointment */}
           <div>
             <h4 className="text-sm font-semibold text-gray-700 mb-2">新預約</h4>
             <div className="bg-gray-50 border border-gray-200 rounded-md p-4 space-y-2">
@@ -669,7 +418,6 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             </div>
           </div>
 
-          {/* Time Change Warning */}
           {showTimeWarning && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
               <div className="flex items-start">
@@ -688,7 +436,6 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
 
   // Render review step footer buttons
   const renderReviewStepFooter = () => {
-    // Determine if this is the final step (will go directly to save)
     const isFinalStep = !hasLineUser || (originallyAutoAssigned && !changeDetails.timeChanged);
     const reviewButtonText = isFinalStep ? saveButtonText : '下一步';
 
@@ -793,10 +540,12 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     </div>
   );
 
+  const modalTitle = step === 'form' ? '調整預約' : step === 'review' ? '確認變更' : step === 'note' ? '調整預約備註(選填)' : 'LINE訊息預覽';
+
   return (
     <BaseModal
       onClose={onClose}
-      aria-label="調整預約"
+      aria-label={modalTitle}
       className="!p-0"
       fullScreen={isMobile}
     >
@@ -809,10 +558,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             </svg>
           </div>
           <h3 className="text-base font-semibold text-blue-800">
-            {step === 'form' && '調整預約'}
-            {step === 'review' && '確認變更'}
-            {step === 'note' && '調整預約備註(選填)'}
-            {step === 'preview' && 'LINE訊息預覽'}
+            {modalTitle}
           </h3>
         </div>
         
@@ -847,3 +593,5 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     </BaseModal>
   );
 });
+
+EditAppointmentModal.displayName = 'EditAppointmentModal';

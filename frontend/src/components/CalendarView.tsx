@@ -1431,6 +1431,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         ...(initialTime && { preSelectedTime: initialTime }),
         ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
         preSelectedResourceIds,
+        event,
       } 
     });
   }, [modalState.data, isAdmin]);
@@ -1822,6 +1823,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           preSelectedPractitionerId={modalState.data.preSelectedPractitionerId}
           preSelectedTime={modalState.data.preSelectedTime}
           preSelectedClinicNotes={modalState.data.preSelectedClinicNotes}
+          event={modalState.data.event}
           practitioners={availablePractitioners}
           appointmentTypes={appointmentTypes}
           onClose={() => {

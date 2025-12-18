@@ -46,9 +46,15 @@ export interface DateTimePickerProps {
   onOverrideChange?: (enabled: boolean) => void;
   // Optional: force override mode state from parent
   isOverrideMode?: boolean;
+  // Optional: initial expanded state
+  initialExpanded?: boolean;
 }
 
 const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+
+// Cache batch availability data globally to avoid redundant API calls across component mounts
+const globalAvailabilityCache = new Map<string, { slots: any[]; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   selectedDate,
@@ -65,8 +71,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   allowOverride = false,
   onOverrideChange,
   isOverrideMode: parentOverrideMode,
+  initialExpanded = false,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(initialExpanded);
   const pickerRef = useRef<HTMLDivElement>(null);
   
   // Store initial values to ensure original time is always selectable in edit mode,
@@ -102,8 +109,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   const dateJustClickedRef = useRef(false);
 
   // Temp selection state for UI navigation (only used when expanded)
-  const [tempDate, setTempDate] = useState<string | null>(null);
-  const [tempTime, setTempTime] = useState<string>('');
+  const [tempDate, setTempDate] = useState<string | null>(selectedDate);
+  const [tempTime, setTempTime] = useState<string>(selectedTime);
   // Track last manually selected time (not auto-filled) to preserve when switching dates
   const [lastManuallySelectedTime, setLastManuallySelectedTime] = useState<string | null>(null);
 
@@ -165,32 +172,79 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   const prevPractitionerRef = useRef(selectedPractitionerId);
   const prevAppointmentTypeRef = useRef(appointmentTypeId);
 
+  // Track the last checked values to avoid redundant calls
+  const lastCheckedRef = useRef<{
+    practitionerId: number | null;
+    typeId: number | null;
+    date: string | null;
+    time: string | null;
+  }>({
+    practitionerId: null,
+    typeId: null,
+    date: null,
+    time: null
+  });
+
   // Conflict detection effect - always check conflicts when date/time/practitioner/appointment type changes
   useEffect(() => {
-    // Check if practitioner or appointment type changed
+    // Check if practitioner or appointment type changed (Immediate triggers)
     const practitionerOrTypeChanged = 
       prevPractitionerRef.current !== selectedPractitionerId || 
       prevAppointmentTypeRef.current !== appointmentTypeId;
     
-    // Update refs
+    // Determine which values to use for checking
+    // Use immediate values for practitioner/type changes, debounced for date/time changes
+    const checkDate = practitionerOrTypeChanged ? displayDate : debouncedDate;
+    const checkTime = practitionerOrTypeChanged ? displayTime : debouncedTime;
+
+    // Update refs for next run
     prevPractitionerRef.current = selectedPractitionerId;
     prevAppointmentTypeRef.current = appointmentTypeId;
-    
-    // Use debounced values for time/date changes, but immediate values when practitioner/appointment type changes
-    const conflictCheckDate = practitionerOrTypeChanged ? displayDate : debouncedDate;
-    const conflictCheckTime = practitionerOrTypeChanged ? displayTime : debouncedTime;
 
-    if (!conflictCheckDate || !conflictCheckTime || !selectedPractitionerId || !appointmentTypeId) {
+    // Skip if missing required values
+    if (!checkDate || !checkTime || !selectedPractitionerId || !appointmentTypeId) {
       setConflictInfo(null);
       setConflictCheckError(null);
       return;
     }
 
+    // Avoid redundant checks if values haven't changed from last checked
+    if (
+      lastCheckedRef.current.practitionerId === selectedPractitionerId &&
+      lastCheckedRef.current.typeId === appointmentTypeId &&
+      lastCheckedRef.current.date === checkDate &&
+      lastCheckedRef.current.time === checkTime
+    ) {
+      return;
+    }
+
+    // Update last checked ref
+    lastCheckedRef.current = {
+      practitionerId: selectedPractitionerId,
+      typeId: appointmentTypeId,
+      date: checkDate,
+      time: checkTime
+    };
+
+    // Skip initial conflict check for existing appointments (Stable Mount)
+    const isOriginalValue = 
+      checkDate === initialValuesRef.current.date && 
+      checkTime === initialValuesRef.current.time && 
+      selectedPractitionerId === initialValuesRef.current.practitionerId;
+    
+    if (isOriginalValue && excludeCalendarEventId) {
+      setConflictInfo(null);
+      setConflictCheckError(null);
+      return;
+    }
+
+    const abortController = new AbortController();
+
     const checkConflicts = async () => {
       // If the selected time is in our cached available slots, assume no conflict
       // This provides a snappy UX for standard slot selection.
       // Final validation still happens on the backend during save.
-      if (allTimeSlots.includes(conflictCheckTime)) {
+      if (allTimeSlots.includes(checkTime)) {
         setConflictInfo(null);
         setConflictCheckError(null);
         setIsCheckingConflict(false);
@@ -202,14 +256,16 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
       try {
         const response = await apiService.checkSchedulingConflicts(
           selectedPractitionerId,
-          conflictCheckDate,
-          conflictCheckTime,
+          checkDate,
+          checkTime,
           appointmentTypeId,
-          excludeCalendarEventId ?? undefined
+          excludeCalendarEventId ?? undefined,
+          abortController.signal
         );
         // Only update conflict info once we have the result to prevent UI flashing
         setConflictInfo(response);
-      } catch (error) {
+      } catch (error: any) {
+        if (error?.name === 'CanceledError' || error?.name === 'AbortError') return;
         logger.error('Failed to check scheduling conflicts:', error);
         // Show user-friendly error message per design doc
         setConflictCheckError('無法檢查時間衝突，請稍後再試');
@@ -221,6 +277,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     };
 
     checkConflicts();
+    return () => abortController.abort();
   }, [debouncedDate, debouncedTime, selectedPractitionerId, appointmentTypeId, excludeCalendarEventId, displayDate, displayTime, allTimeSlots]);
 
   // Update currentMonth when selectedDate changes (but only if it's a different month)
@@ -309,32 +366,55 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
 
   // Load month availability for calendar
   useEffect(() => {
-    if (!appointmentTypeId || !selectedPractitionerId) {
-      setDatesWithSlots(new Set());
-      setCachedAvailabilityData(new Map()); // Clear cache when dependencies are missing
-      batchInitiatedRef.current = false; // Reset batch initiated flag
+    // Defer loading until expanded, UNLESS a time is already selected (Create mode pre-fill)
+    const shouldLoad = isExpanded || (selectedDate && selectedTime && !excludeCalendarEventId);
+    
+    if (!shouldLoad || !appointmentTypeId || !selectedPractitionerId) {
+      if (!shouldLoad) {
+        setDatesWithSlots(new Set());
+        batchInitiatedRef.current = false;
+      }
       return;
     }
 
-    const loadMonthAvailability = async () => {
-      setLoadingAvailability(true); // Set loading first to prevent race condition
-      batchInitiatedRef.current = true; // Mark batch as initiated
-      try {
-        // Use shared utility to build dates array
-        const datesToCheck = buildDatesToCheckForMonth(currentMonth);
+    const abortController = new AbortController();
 
-        // Use batch endpoint to fetch availability for all dates in one request
+    const loadMonthAvailability = async () => {
+      setLoadingAvailability(true);
+      batchInitiatedRef.current = true;
+      try {
+        const datesToCheck = buildDatesToCheckForMonth(currentMonth);
         if (datesToCheck.length === 0) {
           setDatesWithSlots(new Set());
-          setCachedAvailabilityData(new Map()); // Clear cache when no dates to check
           setLoadingAvailability(false);
           return;
         }
 
-        // Validate we don't exceed the backend limit (31 dates)
-        if (datesToCheck.length > 31) {
-          logger.warn(`Too many dates to check (${datesToCheck.length}), limiting to 31`);
-          datesToCheck.splice(31);
+        const monthKey = `${currentMonth.getFullYear()}-${currentMonth.getMonth() + 1}`;
+        const cacheBaseKey = `${selectedPractitionerId}-${appointmentTypeId}-${monthKey}`;
+        
+        // Check global cache first
+        const now = Date.now();
+        const datesWithAvailableSlots = new Set<string>();
+        const newLocalCache = new Map<string, { slots: any[] }>();
+        let allInCache = true;
+
+        datesToCheck.forEach(date => {
+          const cacheKey = `${cacheBaseKey}-${date}`;
+          const cached = globalAvailabilityCache.get(cacheKey);
+          if (cached && (now - cached.timestamp < CACHE_TTL)) {
+            newLocalCache.set(`${selectedPractitionerId}-${date}`, { slots: cached.slots });
+            if (cached.slots.length > 0) datesWithAvailableSlots.add(date);
+          } else {
+            allInCache = false;
+          }
+        });
+
+        if (allInCache && datesToCheck.length > 0) {
+          setCachedAvailabilityData(newLocalCache);
+          setDatesWithSlots(datesWithAvailableSlots);
+          setLoadingAvailability(false);
+          return;
         }
 
         try {
@@ -342,72 +422,52 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
             selectedPractitionerId,
             datesToCheck,
             appointmentTypeId,
-            excludeCalendarEventId ?? undefined
+            excludeCalendarEventId ?? undefined,
+            abortController.signal
           );
 
-          // Cache batch results for reuse when dates are selected
-          // Cache key includes practitioner ID to ensure cache is practitioner-specific
-          const newCache = new Map<string, { slots: any[] }>();
-          const datesWithAvailableSlots = new Set<string>();
+          const finalDatesWithAvailableSlots = new Set<string>();
+          const finalLocalCache = new Map<string, { slots: any[] }>();
+
           batchResponse.results.forEach((result) => {
-            // Date is now included in response (unified format with LIFF endpoint)
             if (result.date) {
-              // Cache key includes practitioner ID to prevent cross-practitioner cache pollution
-              const cacheKey = `${selectedPractitionerId}-${result.date}`;
-              // Cache the slots data for this date
-              newCache.set(cacheKey, { slots: result.available_slots || [] });
+              const cacheKey = `${cacheBaseKey}-${result.date}`;
+              const slots = result.available_slots || [];
               
-              // Track dates with available slots
-              if (result.available_slots && result.available_slots.length > 0) {
-                datesWithAvailableSlots.add(result.date);
+              globalAvailabilityCache.set(cacheKey, { slots, timestamp: now });
+              finalLocalCache.set(`${selectedPractitionerId}-${result.date}`, { slots });
+              
+              if (slots.length > 0) {
+                finalDatesWithAvailableSlots.add(result.date);
               }
             }
           });
 
-          setCachedAvailabilityData(newCache);
-          setDatesWithSlots(datesWithAvailableSlots);
+          setCachedAvailabilityData(finalLocalCache);
+          setDatesWithSlots(finalDatesWithAvailableSlots);
         } catch (err: any) {
-          // Log error with details for debugging
-          // Note: This is for internal logging only, not user-facing
-          const errorMessage = err?.response?.data?.detail || err?.message || 'Unknown error';
+          if (err?.name === 'CanceledError' || err?.name === 'AbortError') return;
           const statusCode = err?.response?.status;
-          
-          // Don't retry on 400 errors (validation errors) - these are expected for dates beyond booking window
-          if (statusCode === 400) {
-            logger.log(`Some dates in month ${currentMonth.getFullYear()}-${currentMonth.getMonth() + 1} are beyond booking window:`, errorMessage);
-            // Set empty results but don't treat as error - backend now filters invalid dates
-            setDatesWithSlots(new Set());
-            setCachedAvailabilityData(new Map());
-          } else if (statusCode === 404) {
-            // Practitioner doesn't offer this appointment type
-            logger.warn(`Practitioner ${selectedPractitionerId} doesn't offer appointment type ${appointmentTypeId}:`, errorMessage);
+          if (statusCode === 404) {
             const practitionerErrorMessage = '此治療師不提供此預約類型';
-            if (onPractitionerError) {
-              onPractitionerError(practitionerErrorMessage);
-            }
+            if (onPractitionerError) onPractitionerError(practitionerErrorMessage);
             setDatesWithSlots(new Set());
-            setCachedAvailabilityData(new Map()); // Clear cache on error
-            // Clear available slots
-            if (onHasAvailableSlotsChange) {
-              onHasAvailableSlotsChange(false);
-            }
+            if (onHasAvailableSlotsChange) onHasAvailableSlotsChange(false);
           } else {
-            logger.warn(`Failed to load batch availability for month ${currentMonth.getFullYear()}-${currentMonth.getMonth() + 1}:`, errorMessage, err);
             setDatesWithSlots(new Set());
-            setCachedAvailabilityData(new Map()); // Clear cache on error
           }
-          // Don't throw - allow user to continue using the calendar
         }
       } catch (err) {
+        if ((err as any)?.name === 'CanceledError' || (err as any)?.name === 'AbortError') return;
         logger.error('Failed to load month availability:', err);
-        setCachedAvailabilityData(new Map()); // Clear cache on error
       } finally {
         setLoadingAvailability(false);
       }
     };
 
     loadMonthAvailability();
-  }, [currentMonth, appointmentTypeId, selectedPractitionerId, excludeCalendarEventId]);
+    return () => abortController.abort();
+  }, [currentMonth, appointmentTypeId, selectedPractitionerId, excludeCalendarEventId, isExpanded, onHasAvailableSlotsChange, onPractitionerError]);
 
   // Date/slot selection logic is now handled by useDateSlotSelection hook
 

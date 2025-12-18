@@ -12,7 +12,7 @@ describe('ClinicNotesTextarea', () => {
     const handleChange = vi.fn();
     render(<ClinicNotesTextarea value="" onChange={handleChange} />);
     
-    const textarea = screen.getByPlaceholderText('診所內部備注（僅診所人員可見）');
+    const textarea = screen.getByPlaceholderText('診所內部備註（僅診所人員可見）');
     expect(textarea).toBeInTheDocument();
     expect(textarea).toHaveValue('');
   });
@@ -21,7 +21,7 @@ describe('ClinicNotesTextarea', () => {
     const handleChange = vi.fn();
     render(<ClinicNotesTextarea value="Test notes" onChange={handleChange} />);
     
-    const textarea = screen.getByPlaceholderText('診所內部備注（僅診所人員可見）');
+    const textarea = screen.getByPlaceholderText('診所內部備註（僅診所人員可見）');
     expect(textarea).toHaveValue('Test notes');
   });
 
@@ -29,7 +29,7 @@ describe('ClinicNotesTextarea', () => {
     const handleChange = vi.fn();
     render(<ClinicNotesTextarea value="" onChange={handleChange} />);
     
-    const textarea = screen.getByPlaceholderText('診所內部備注（僅診所人員可見）');
+    const textarea = screen.getByPlaceholderText('診所內部備註（僅診所人員可見）');
     fireEvent.change(textarea, { target: { value: 'New notes' } });
     
     expect(handleChange).toHaveBeenCalledTimes(1);
@@ -53,7 +53,7 @@ describe('ClinicNotesTextarea', () => {
     const handleChange = vi.fn();
     render(<ClinicNotesTextarea value="" onChange={handleChange} />);
     
-    const textarea = screen.getByPlaceholderText('診所內部備注（僅診所人員可見）');
+    const textarea = screen.getByPlaceholderText('診所內部備註（僅診所人員可見）');
     expect(textarea).toHaveAttribute('maxLength', '1000');
   });
 
@@ -61,7 +61,7 @@ describe('ClinicNotesTextarea', () => {
     const handleChange = vi.fn();
     render(<ClinicNotesTextarea value="Test" onChange={handleChange} disabled />);
     
-    const textarea = screen.getByPlaceholderText('診所內部備注（僅診所人員可見）');
+    const textarea = screen.getByPlaceholderText('診所內部備註（僅診所人員可見）');
     expect(textarea).toBeDisabled();
   });
 
@@ -69,7 +69,7 @@ describe('ClinicNotesTextarea', () => {
     const handleChange = vi.fn();
     render(<ClinicNotesTextarea value="" onChange={handleChange} rows={6} />);
     
-    const textarea = screen.getByPlaceholderText('診所內部備注（僅診所人員可見）');
+    const textarea = screen.getByPlaceholderText('診所內部備註（僅診所人員可見）');
     expect(textarea).toHaveAttribute('rows', '6');
   });
 
@@ -83,7 +83,7 @@ describe('ClinicNotesTextarea', () => {
       />
     );
     
-    const textarea = screen.getByPlaceholderText('診所內部備注（僅診所人員可見）');
+    const textarea = screen.getByPlaceholderText('診所內部備註（僅診所人員可見）');
     expect(textarea).toHaveClass('custom-class');
   });
 });

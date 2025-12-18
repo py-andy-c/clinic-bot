@@ -664,8 +664,10 @@ export class ApiService {
     userId: number,
     dates: string[],
     appointmentTypeId: number,
-    excludeCalendarEventId?: number
+    excludeCalendarEventId?: number,
+    signal?: AbortSignal
   ): Promise<BatchAvailableSlotsResponse> {
+    const config = signal ? { signal } : {};
     const requestBody: {
       dates: string[];
       appointment_type_id: number;
@@ -679,7 +681,8 @@ export class ApiService {
     }
     const response = await this.client.post(
       `/clinic/practitioners/${userId}/availability/slots/batch`,
-      requestBody
+      requestBody,
+      config
     );
     return response.data;
   }
@@ -700,22 +703,23 @@ export class ApiService {
     date: string,
     startTime: string,
     appointmentTypeId: number,
-    excludeCalendarEventId?: number
+    excludeCalendarEventId?: number,
+    signal?: AbortSignal
   ): Promise<SchedulingConflictResponse> {
-    const params: {
-      date: string;
-      start_time: string;
-      appointment_type_id: number;
-      exclude_calendar_event_id?: number;
-    } = {
-      date,
-      start_time: startTime,
-      appointment_type_id: appointmentTypeId,
+    const config: any = {
+      params: {
+        date,
+        start_time: startTime,
+        appointment_type_id: appointmentTypeId,
+      }
     };
     if (excludeCalendarEventId !== undefined) {
-      params.exclude_calendar_event_id = excludeCalendarEventId;
+      config.params.exclude_calendar_event_id = excludeCalendarEventId;
     }
-    const response = await this.client.get(`/clinic/practitioners/${userId}/availability/conflicts`, { params });
+    if (signal) {
+      config.signal = signal;
+    }
+    const response = await this.client.get(`/clinic/practitioners/${userId}/availability/conflicts`, config);
     return response.data;
   }
 
@@ -1151,13 +1155,15 @@ export class ApiService {
     start_time: string;
     end_time: string;
     exclude_calendar_event_id?: number;
-  }): Promise<ResourceAvailabilityResponse> {
-    const response = await this.client.get('/clinic/appointments/resource-availability', { params });
+  }, signal?: AbortSignal): Promise<ResourceAvailabilityResponse> {
+    const config = signal ? { signal, params } : { params };
+    const response = await this.client.get('/clinic/appointments/resource-availability', config);
     return response.data;
   }
 
-  async getAppointmentResources(appointmentId: number): Promise<{ resources: Resource[] }> {
-    const response = await this.client.get(`/clinic/appointments/${appointmentId}/resources`);
+  async getAppointmentResources(appointmentId: number, signal?: AbortSignal): Promise<{ resources: Resource[] }> {
+    const config = signal ? { signal } : {};
+    const response = await this.client.get(`/clinic/appointments/${appointmentId}/resources`, config);
     return response.data;
   }
 

@@ -31,13 +31,19 @@ vi.mock('../../../services/api', () => ({
 vi.mock('../DateTimePicker', () => ({
   DateTimePicker: ({ onHasAvailableSlotsChange, onDateSelect, onTimeSelect, selectedPractitionerId }: any) => {
     React.useEffect(() => {
+      let isMounted = true;
       if (selectedPractitionerId) {
-        setTimeout(() => {
+        const timer = setTimeout(() => {
+          if (!isMounted) return;
           if (onHasAvailableSlotsChange) onHasAvailableSlotsChange(true);
           // Auto-select date/time for testing
           if (onDateSelect) onDateSelect('2024-01-15');
           if (onTimeSelect) onTimeSelect('09:00');
         }, 0);
+        return () => {
+          isMounted = false;
+          clearTimeout(timer);
+        };
       }
     }, [selectedPractitionerId, onHasAvailableSlotsChange, onDateSelect, onTimeSelect]);
     return <div data-testid="datetime-picker">DateTimePicker</div>;
@@ -100,7 +106,7 @@ describe('CreateAppointmentModal', () => {
     { id: 2, name: 'Another Type', duration_minutes: 60 },
   ];
 
-  it('should render form step by default', () => {
+  it('should render form step by default', async () => {
     render(
       <CreateAppointmentModal
         practitioners={mockPractitioners}
@@ -111,10 +117,13 @@ describe('CreateAppointmentModal', () => {
     );
 
     expect(screen.getByText('建立預約')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+    // Wait for form to load (skip skeleton)
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+    }, { timeout: 3000 });
   });
 
-  it('should show appointment type dropdown', () => {
+  it('should show appointment type dropdown', async () => {
     render(
       <CreateAppointmentModal
         practitioners={mockPractitioners}
@@ -124,6 +133,11 @@ describe('CreateAppointmentModal', () => {
       />
     );
 
+    // Wait for form to load (skip skeleton)
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+    });
+
     // Find appointment type dropdown by role (combobox)
     const selects = screen.getAllByRole('combobox');
     expect(selects.length).toBeGreaterThan(0);
@@ -132,7 +146,7 @@ describe('CreateAppointmentModal', () => {
     expect(appointmentTypeSelect).toHaveValue('');
   });
 
-  it('should accept duplicate props without crashing', () => {
+  it('should accept duplicate props without crashing', async () => {
     // Test that component accepts all pre-fill props for duplication feature
     // The actual pre-filling behavior is tested through integration tests
     render(
@@ -150,9 +164,10 @@ describe('CreateAppointmentModal', () => {
       />
     );
 
-    // Verify component renders successfully with duplicate props
-    expect(screen.getByText('建立預約')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/診所內部備注/i)).toBeInTheDocument();
+    // Wait for form to load (skip skeleton)
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText(/診所內部備註/i)).toBeInTheDocument();
+    });
   });
 
   it('should filter practitioners when appointment type is selected', async () => {
@@ -169,6 +184,11 @@ describe('CreateAppointmentModal', () => {
       />
     );
 
+    // Wait for form to load
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+    });
+
     // Select appointment type
     const selects = screen.getAllByRole('combobox');
     const appointmentTypeSelect = selects[0];
@@ -176,7 +196,7 @@ describe('CreateAppointmentModal', () => {
 
     // Wait for practitioners to be fetched
     await waitFor(() => {
-      expect(apiService.getPractitioners).toHaveBeenCalledWith(1);
+      expect(apiService.getPractitioners).toHaveBeenCalledWith(1, expect.any(AbortSignal));
     });
 
     // Verify practitioner dropdown is enabled
@@ -201,12 +221,17 @@ describe('CreateAppointmentModal', () => {
       />
     );
 
+    // Wait for form to load
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+    });
+
     // Select appointment type 1
     const selects = screen.getAllByRole('combobox');
     fireEvent.change(selects[0], { target: { value: '1' } });
 
     await waitFor(() => {
-      expect(apiService.getPractitioners).toHaveBeenCalledWith(1);
+      expect(apiService.getPractitioners).toHaveBeenCalledWith(1, expect.any(AbortSignal));
     });
 
     // Select practitioner 1
@@ -222,7 +247,7 @@ describe('CreateAppointmentModal', () => {
 
     // Wait for new fetch
     await waitFor(() => {
-      expect(apiService.getPractitioners).toHaveBeenCalledWith(2);
+      expect(apiService.getPractitioners).toHaveBeenCalledWith(2, expect.any(AbortSignal));
     });
 
     // Verify practitioner is cleared (practitioner 1 is not in the new list for type 2)
@@ -247,6 +272,11 @@ describe('CreateAppointmentModal', () => {
         onConfirm={mockOnConfirm}
       />
     );
+
+    // Wait for form to load
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+    });
 
     // Select appointment type
     const selects = screen.getAllByRole('combobox');
@@ -273,6 +303,11 @@ describe('CreateAppointmentModal', () => {
       />
     );
 
+    // Wait for form to load
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+    });
+
     // Select appointment type
     const selects = screen.getAllByRole('combobox');
     fireEvent.change(selects[0], { target: { value: '1' } });
@@ -283,7 +318,7 @@ describe('CreateAppointmentModal', () => {
     });
   });
 
-  it('should disable submit button when required fields are missing', () => {
+  it('should disable submit button when required fields are missing', async () => {
     render(
       <CreateAppointmentModal
         practitioners={mockPractitioners}
@@ -292,6 +327,11 @@ describe('CreateAppointmentModal', () => {
         onConfirm={mockOnConfirm}
       />
     );
+
+    // Wait for form to load
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+    });
 
     const submitButton = screen.getByText('下一步');
     expect(submitButton).toBeDisabled();
@@ -306,6 +346,11 @@ describe('CreateAppointmentModal', () => {
         onConfirm={mockOnConfirm}
       />
     );
+
+    // Wait for form to load
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+    });
 
     // Select patient (simulate clicking on patient from search results)
     const searchInput = screen.getByPlaceholderText(/搜尋病患/);
@@ -354,6 +399,11 @@ describe('CreateAppointmentModal', () => {
         onConfirm={mockOnConfirm}
       />
     );
+
+    // Wait for form to load
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+    });
 
     // Select patient
     const searchInput = screen.getByPlaceholderText(/搜尋病患/);
@@ -413,6 +463,11 @@ describe('CreateAppointmentModal', () => {
       />
     );
 
+    // Wait for form to load
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+    });
+
     // Select appointment type
     const selects = screen.getAllByRole('combobox');
     fireEvent.change(selects[0], { target: { value: '1' } });
@@ -432,6 +487,11 @@ describe('CreateAppointmentModal', () => {
         onConfirm={mockOnConfirm}
       />
     );
+
+    // Wait for form to load
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+    });
 
     // Select appointment type and practitioner
     const selects = screen.getAllByRole('combobox');
@@ -469,6 +529,11 @@ describe('CreateAppointmentModal', () => {
         />
       );
 
+      // Wait for form to load
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+      });
+
       // Find the recurrence toggle button
       const recurrenceButton = screen.getByRole('button', { name: '重複' });
       expect(recurrenceButton).toBeInTheDocument();
@@ -501,6 +566,11 @@ describe('CreateAppointmentModal', () => {
         />
       );
 
+      // Wait for form to load
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+      });
+
       const recurrenceButton = screen.getByRole('button', { name: '重複' });
       
       // Initially, recurrence inputs should not be visible
@@ -530,6 +600,11 @@ describe('CreateAppointmentModal', () => {
         />
       );
 
+      // Wait for form to load
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+      });
+
       const recurrenceButton = screen.getByRole('button', { name: '重複' });
       
       // Enable recurrence
@@ -558,6 +633,11 @@ describe('CreateAppointmentModal', () => {
           onConfirm={mockOnConfirm}
         />
       );
+
+      // Wait for form to load
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+      });
 
       const recurrenceButton = screen.getByRole('button', { name: '重複' });
       
