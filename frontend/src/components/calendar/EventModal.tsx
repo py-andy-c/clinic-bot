@@ -275,7 +275,12 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                   {event.resource.is_auto_assigned === true && ' (系統指派)'}
                 </p>
               )}
-              <p><strong>時間:</strong> {formatAppointmentTime(event.start, event.end)}</p>
+              <div className="flex items-center gap-2">
+                <p><strong>時間:</strong> {formatAppointmentTime(event.start, event.end)}</p>
+                {isCheckingResourceConflict && (
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+                )}
+              </div>
               {!hidePatientInfo && event.resource.patient_phone && (
                 <p><strong>電話:</strong> {event.resource.patient_phone}</p>
               )}

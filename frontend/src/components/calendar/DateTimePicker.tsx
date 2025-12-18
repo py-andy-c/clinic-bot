@@ -622,9 +622,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   if (!isExpanded) {
     return (
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          日期與時間 <span className="text-red-500">*</span>
-        </label>
+        <div className="flex items-center gap-2 mb-1">
+          <label className="block text-sm font-medium text-gray-700">
+            日期與時間 <span className="text-red-500">*</span>
+          </label>
+          {isCheckingConflict && (
+            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+          )}
+        </div>
         <button
           type="button"
           onClick={handleCollapsedClick}
@@ -673,9 +678,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   // Expanded view
   return (
     <div ref={pickerRef}>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        日期與時間 <span className="text-red-500">*</span>
-      </label>
+      <div className="flex items-center gap-2 mb-1">
+        <label className="block text-sm font-medium text-gray-700">
+          日期與時間 <span className="text-red-500">*</span>
+        </label>
+        {isCheckingConflict && (
+          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+        )}
+      </div>
       <div className="space-y-4 mt-2">
         {/* Calendar View */}
         <div>

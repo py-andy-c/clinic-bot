@@ -20,11 +20,7 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
   className = '',
 }) => {
   if (isLoading) {
-    return (
-      <div className={`flex items-center ${className}`}>
-        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
-      </div>
-    );
+    return null;
   }
 
   if (!conflictInfo || !conflictInfo.has_conflict) {
