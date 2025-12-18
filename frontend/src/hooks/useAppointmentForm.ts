@@ -41,6 +41,7 @@ export const useAppointmentForm = ({
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [clinicNotes, setClinicNotes] = useState<string>('');
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [initialResourceIds, setInitialResourceIds] = useState<number[]>([]);
   
   const [availablePractitioners, setAvailablePractitioners] = useState<{ id: number; full_name: string }[]>(allPractitioners);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -137,6 +138,7 @@ export const useAppointmentForm = ({
           if (resourcesResult && resourcesResult.status === 'fulfilled') {
             const ids = resourcesResult.value.resources.map((r: any) => r.id);
             setSelectedResourceIds(ids);
+            setInitialResourceIds(ids);
           } else if (resourcesResult && resourcesResult.status === 'rejected') {
             const reason = resourcesResult.reason;
             if (reason?.name !== 'CanceledError' && reason?.name !== 'AbortError') {
@@ -264,11 +266,16 @@ export const useAppointmentForm = ({
     const practitionerChanged = selectedPractitionerId !== event.resource.practitioner_id;
     const appointmentTypeChanged = selectedAppointmentTypeId !== event.resource.appointment_type_id;
 
-    return { appointmentTypeChanged, practitionerChanged, timeChanged, dateChanged };
-  }, [mode, event, selectedDate, selectedTime, selectedPractitionerId, selectedAppointmentTypeId]);
+    // Check if resources changed
+    const resourcesChanged = selectedResourceIds.length !== initialResourceIds.length ||
+      !selectedResourceIds.every(id => initialResourceIds.includes(id)) ||
+      !initialResourceIds.every(id => selectedResourceIds.includes(id));
+
+    return { appointmentTypeChanged, practitionerChanged, timeChanged, dateChanged, resourcesChanged };
+  }, [mode, event, selectedDate, selectedTime, selectedPractitionerId, selectedAppointmentTypeId, selectedResourceIds, initialResourceIds]);
 
   const hasChanges = useMemo(() => {
-    return changeDetails.appointmentTypeChanged || changeDetails.practitionerChanged || changeDetails.timeChanged || changeDetails.dateChanged;
+    return changeDetails.appointmentTypeChanged || changeDetails.practitionerChanged || changeDetails.timeChanged || changeDetails.dateChanged || changeDetails.resourcesChanged;
   }, [changeDetails]);
 
   return {

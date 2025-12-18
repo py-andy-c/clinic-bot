@@ -14,6 +14,7 @@ interface ResourceSelectionProps {
   excludeCalendarEventId?: number;
   selectedResourceIds: number[];
   onSelectionChange: (resourceIds: number[]) => void;
+  onResourcesFound?: (resources: Resource[]) => void;
   skipInitialDebounce?: boolean;
 }
 
@@ -26,6 +27,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   excludeCalendarEventId,
   selectedResourceIds,
   onSelectionChange,
+  onResourcesFound,
   skipInitialDebounce = false,
 }) => {
   const [loading, setLoading] = useState(false);
@@ -36,6 +38,24 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   const lastSelectedRef = useRef<number[]>([]);
   const isUpdatingSelectionRef = useRef(false);
   const isInitialMountRef = useRef(true);
+
+  // Notify parent about all resources found in this availability check
+  useEffect(() => {
+    if (availability && onResourcesFound) {
+      const allResources = availability.requirements.flatMap(req => 
+        req.available_resources.map(r => ({
+          id: r.id,
+          name: r.name,
+          resource_type_id: req.resource_type_id,
+          clinic_id: 0,
+          is_deleted: false,
+          created_at: '',
+          updated_at: '',
+        }))
+      );
+      onResourcesFound(allResources);
+    }
+  }, [availability, onResourcesFound]);
 
   // Helper function to check if a resource is available in the current availability response
   const isResourceAvailable = (resourceId: number, avail: ResourceAvailabilityResponse): boolean => {

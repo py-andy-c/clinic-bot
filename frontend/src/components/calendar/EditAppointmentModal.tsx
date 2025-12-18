@@ -5,11 +5,12 @@
  * Handles all steps (form, note input, preview) within a single modal.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BaseModal } from './BaseModal';
 import { DateTimePicker } from './DateTimePicker';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { apiService } from '../../services/api';
+import { Resource } from '../../types';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
 import { getPractitionerDisplayName, formatAppointmentDateTime } from '../../utils/calendarUtils';
@@ -103,6 +104,17 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
 
   const [customNote, setCustomNote] = useState<string>(''); // Custom note for notification
   const [hasAvailableSlots, setHasAvailableSlots] = useState<boolean>(true);
+  const [resourceNamesMap, setResourceNamesMap] = useState<Record<number, string>>({});
+
+  const handleResourcesFound = useCallback((resources: Resource[]) => {
+    setResourceNamesMap(prev => {
+      const newMap = { ...prev };
+      resources.forEach(r => {
+        newMap[r.id] = r.name;
+      });
+      return newMap;
+    });
+  }, []);
 
   // Reset step when modal closes or error occurs
   useEffect(() => {
@@ -127,12 +139,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       return;
     }
 
-    // Check if any changes were made
-    if (!hasChanges && !allowConfirmWithoutChanges) {
-      onClose();
-      return;
-    }
-
+    // We always allow proceeding to review step as long as form is valid
     setError(null);
     setStep('review');
   };
@@ -319,6 +326,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             excludeCalendarEventId={event.resource.calendar_event_id}
             selectedResourceIds={selectedResourceIds}
             onSelectionChange={setSelectedResourceIds}
+            onResourcesFound={handleResourcesFound}
             skipInitialDebounce={true}
           />
         )}
@@ -339,14 +347,13 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     );
   };
 
-  // Render form step footer buttons
   const renderFormStepFooter = () => (
     <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200 flex-shrink-0">
       <button
         onClick={handleFormSubmit}
-        disabled={!isValid || (!hasChanges && !allowConfirmWithoutChanges) || !hasAvailableSlots || isInitialLoading}
+        disabled={!isValid || !hasAvailableSlots || isInitialLoading}
         className={`btn-primary ${
-          (!isValid || (!hasChanges && !allowConfirmWithoutChanges) || !hasAvailableSlots || isInitialLoading)
+          (!isValid || !hasAvailableSlots || isInitialLoading)
             ? 'opacity-50 cursor-not-allowed'
             : ''
         }`}
@@ -388,6 +395,14 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
                 <span className="text-sm text-gray-600">日期時間：</span>
                 <span className="text-sm text-gray-900">{originalFormattedDateTime}</span>
               </div>
+              {event.resource.resource_names && event.resource.resource_names.length > 0 && (
+                <div>
+                  <span className="text-sm text-gray-600">資源：</span>
+                  <span className="text-sm text-gray-900">
+                    {event.resource.resource_names.join('、')}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -415,6 +430,15 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
                   {(changeDetails.timeChanged || changeDetails.dateChanged) && <span className="ml-2 text-blue-600">✏️</span>}
                 </span>
               </div>
+              {selectedResourceIds.length > 0 && (
+                <div>
+                  <span className="text-sm text-gray-600">資源：</span>
+                  <span className="text-sm text-gray-900">
+                    {selectedResourceIds.map(id => resourceNamesMap[id] || `資源 #${id}`).join('、')}
+                    {changeDetails.resourcesChanged && <span className="ml-2 text-blue-600">✏️</span>}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
