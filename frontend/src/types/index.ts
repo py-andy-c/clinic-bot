@@ -497,14 +497,13 @@ export interface AvailabilityFormData {
   end_time: string;
 }
 
-export interface ClinicSettings {
-  clinic_id: number;
-  clinic_name: string;
-  business_hours: Record<string, { start: string; end: string; enabled: boolean }>;
-  appointment_types: AppointmentType[];
-  notification_settings: {
-    reminder_hours_before: string | number;
-  };
+export interface BillingScenario {
+  id: number;
+  practitioner_appointment_type_id: number;
+  name: string;
+  amount: number;
+  revenue_share: number;
+  is_default: boolean;
 }
 
 export * from './api';

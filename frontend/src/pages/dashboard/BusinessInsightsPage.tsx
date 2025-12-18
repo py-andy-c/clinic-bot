@@ -11,6 +11,8 @@ import { formatCurrency } from '../../utils/currencyUtils';
 import { useAuth } from '../../hooks/useAuth';
 import DashboardBackButton from '../../components/DashboardBackButton';
 
+import { AppointmentType } from '../../types';
+
 const BusinessInsightsPage: React.FC = () => {
   const { user } = useAuth();
   const activeClinicId = user?.active_clinic_id ?? null;
@@ -125,7 +127,7 @@ const BusinessInsightsPage: React.FC = () => {
   const serviceItems = useMemo<ServiceItemOption[]>(() => {
     const predefinedItems: ServiceItemOption[] = [];
     if (settingsData?.appointment_types) {
-      predefinedItems.push(...settingsData.appointment_types.map(at => {
+      predefinedItems.push(...settingsData.appointment_types.map((at: AppointmentType) => {
         const item: ServiceItemOption = {
           id: at.id,
           name: at.name,
@@ -170,7 +172,7 @@ const BusinessInsightsPage: React.FC = () => {
   const serviceItemIdToName = useMemo(() => {
     const map = new Map<number, string>();
     if (settingsData?.appointment_types) {
-      settingsData.appointment_types.forEach(at => {
+      settingsData.appointment_types.forEach((at: AppointmentType) => {
         map.set(at.id, at.name);
       });
     }

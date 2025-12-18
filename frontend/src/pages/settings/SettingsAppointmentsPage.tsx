@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useModal } from '../../contexts/ModalContext';
@@ -11,128 +14,128 @@ import { LINE_THEME } from '../../constants/lineTheme';
 import { apiService } from '../../services/api';
 import { useApiData } from '../../hooks/useApiData';
 import { useUnsavedChangesDetection } from '../../hooks/useUnsavedChangesDetection';
+import { useFormErrorScroll } from '../../hooks/useFormErrorScroll';
+import { handleBackendError } from '../../utils/formErrors';
+import { AppointmentsSettingsFormSchema } from '../../schemas/api';
 
-interface PractitionerBookingSetting {
-  id: number;
-  full_name: string;
-  patient_booking_allowed: boolean;
-}
+export type AppointmentsSettingsFormData = z.infer<typeof AppointmentsSettingsFormSchema>;
 
 const SettingsAppointmentsPage: React.FC = () => {
-  const { settings, uiState, sectionChanges, saveData, updateData } = useSettings();
+  const { settings, uiState, saveData, updateData } = useSettings();
   const { isClinicAdmin } = useAuth();
   const { alert } = useModal();
+  const { onInvalid: scrollOnError } = useFormErrorScroll();
   const [showLiffInfoModal, setShowLiffInfoModal] = useState(false);
-  const [practitionerBookingSettings, setPractitionerBookingSettings] = useState<PractitionerBookingSetting[]>([]);
-  const [originalPractitionerBookingSettings, setOriginalPractitionerBookingSettings] = useState<PractitionerBookingSetting[]>([]);
   const [savingPractitionerSettings, setSavingPractitionerSettings] = useState(false);
 
-  // Scroll to top when component mounts
-  React.useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
-
-  // Fetch practitioners and their booking settings (available to all clinic users for read-only access)
-  const { data: membersData } = useApiData(
+  // Fetch practitioners and their booking settings
+  const { data: membersData, loading: membersLoading } = useApiData(
     () => apiService.getMembers(),
     {
-      enabled: true, // Allow all clinic users to fetch members
+      enabled: true,
       cacheTTL: 5 * 60 * 1000,
     }
   );
 
-  useEffect(() => {
-    const loadPractitionerSettings = async () => {
-      if (!membersData) return;
-
-      try {
-        const practitioners = membersData.filter(m => m.roles.includes('practitioner'));
-        const settings: PractitionerBookingSetting[] = [];
-
-        for (const practitioner of practitioners) {
-          settings.push({
-            id: practitioner.id,
-            full_name: practitioner.full_name,
-            // Use actual setting if available, otherwise default to true for backward compatibility
-            patient_booking_allowed: practitioner.patient_booking_allowed ?? true,
-          });
-        }
-
-        setPractitionerBookingSettings(settings);
-        setOriginalPractitionerBookingSettings(JSON.parse(JSON.stringify(settings))); // Deep copy
-      } catch (err) {
-        logger.error('Failed to load practitioners:', err);
-      }
-    };
-
-    loadPractitionerSettings();
-  }, [membersData]);
-
-  // Check if practitioner booking settings have changed
-  const hasPractitionerBookingSettingsChanged = React.useMemo(() => {
-    if (practitionerBookingSettings.length !== originalPractitionerBookingSettings.length) {
-      return false; // Length mismatch, not ready yet
-    }
-    return JSON.stringify(practitionerBookingSettings) !== JSON.stringify(originalPractitionerBookingSettings);
-  }, [practitionerBookingSettings, originalPractitionerBookingSettings]);
-
-  // Track unsaved changes for browser alert (includes both clinic settings and practitioner settings)
-  useUnsavedChangesDetection({
-    hasUnsavedChanges: () => {
-      return sectionChanges.appointmentSettings || hasPractitionerBookingSettingsChanged;
-    }
+  const methods = useForm<AppointmentsSettingsFormData>({
+    resolver: zodResolver(AppointmentsSettingsFormSchema),
+    defaultValues: {
+      clinic_info_settings: {
+        appointment_type_instructions: settings?.clinic_info_settings.appointment_type_instructions || '',
+        appointment_notes_instructions: settings?.clinic_info_settings.appointment_notes_instructions || '',
+        require_birthday: settings?.clinic_info_settings.require_birthday || false,
+      },
+      booking_restriction_settings: settings?.booking_restriction_settings as any || {},
+      practitioners: [],
+    },
+    mode: 'onBlur',
   });
 
-  const handlePractitionerBookingSettingChange = (practitionerId: number, patient_booking_allowed: boolean) => {
-    if (!isClinicAdmin) return;
+  const { reset, handleSubmit, formState: { isDirty } } = methods;
 
-    // Update local state only - don't save yet
-    setPractitionerBookingSettings(prev =>
-      prev.map(p =>
-        p.id === practitionerId
-          ? { ...p, patient_booking_allowed }
-          : p
-      )
-    );
+  // Setup navigation warnings for unsaved changes
+  useUnsavedChangesDetection({ hasUnsavedChanges: () => isDirty });
+
+  const onInvalid = (errors: any) => {
+    scrollOnError(errors, methods);
   };
 
-  const savePractitionerBookingSettings = async () => {
+  // Sync form with settings data when it loads
+  useEffect(() => {
+    if (settings && membersData) {
+      const practitioners = membersData
+        .filter(m => m.roles.includes('practitioner'))
+        .map(p => ({
+          id: p.id,
+          full_name: p.full_name,
+          patient_booking_allowed: p.patient_booking_allowed ?? true,
+        }));
+
+      reset({
+        clinic_info_settings: {
+          appointment_type_instructions: settings.clinic_info_settings.appointment_type_instructions || '',
+          appointment_notes_instructions: settings.clinic_info_settings.appointment_notes_instructions || '',
+          require_birthday: settings.clinic_info_settings.require_birthday || false,
+        },
+        booking_restriction_settings: settings.booking_restriction_settings as any,
+        practitioners,
+      });
+    }
+  }, [settings, membersData, reset]);
+
+  const onFormSubmit = async (data: AppointmentsSettingsFormData) => {
     if (!isClinicAdmin) return;
 
     setSavingPractitionerSettings(true);
     try {
-      // Find all changed practitioners by comparing IDs, not indices
-      const changedPractitioners = practitionerBookingSettings.filter(current => {
-        const original = originalPractitionerBookingSettings.find(o => o.id === current.id);
-        return original && current.patient_booking_allowed !== original.patient_booking_allowed;
+      // 1. Update clinic settings in context
+      updateData({
+        clinic_info_settings: {
+          ...settings?.clinic_info_settings,
+          ...data.clinic_info_settings,
+        } as any,
+        booking_restriction_settings: data.booking_restriction_settings as any,
       });
 
-      if (changedPractitioners.length === 0) {
-        return; // No changes to save
+      // 2. Save practitioner settings
+      const changedPractitioners = data.practitioners.filter(current => {
+        const member = membersData?.find(m => m.id === current.id);
+        const originalValue = member?.patient_booking_allowed ?? true;
+        return current.patient_booking_allowed !== originalValue;
+      });
+
+      if (changedPractitioners.length > 0) {
+        await Promise.all(
+          changedPractitioners.map(practitioner =>
+            apiService.updatePractitionerSettings(practitioner.id, {
+              patient_booking_allowed: practitioner.patient_booking_allowed,
+            })
+          )
+        );
       }
 
-      // Save all changes
-      await Promise.all(
-        changedPractitioners.map(practitioner =>
-          apiService.updatePractitionerSettings(practitioner.id, {
-            patient_booking_allowed: practitioner.patient_booking_allowed,
-          })
-        )
-      );
+      // 3. Save all via context
+      // Note: we use setTimeout to ensure updateData state is processed
+      setTimeout(async () => {
+        try {
+          await saveData();
+          alert('設定已成功儲存');
+        } catch (err) {
+          handleBackendError(err, methods);
+        }
+      }, 0);
 
-      // Update original settings after successful save
-      setOriginalPractitionerBookingSettings(JSON.parse(JSON.stringify(practitionerBookingSettings)));
     } catch (err: any) {
-      logger.error('Failed to update practitioner settings:', err);
-      const errorMessage = err.response?.data?.detail || '更新設定失敗';
-      await alert(errorMessage, '錯誤');
-      throw err; // Re-throw to let caller handle
+      logger.error('Failed to save appointment settings:', err);
+      if (!handleBackendError(err, methods)) {
+        alert(err.response?.data?.detail || '儲存設定失敗', '錯誤');
+      }
     } finally {
       setSavingPractitionerSettings(false);
     }
   };
 
-  if (uiState.loading) {
+  if (uiState.loading || membersLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner />
@@ -149,76 +152,24 @@ const SettingsAppointmentsPage: React.FC = () => {
   }
 
   return (
-    <>
+    <FormProvider {...methods}>
       <SettingsBackButton />
       <div className="flex justify-between items-center mb-6">
         <PageHeader title="預約設定" />
-        {(sectionChanges.appointmentSettings || hasPractitionerBookingSettingsChanged) && (
+        {isDirty && (
           <button
             type="button"
-            onClick={async () => {
-              try {
-                // Save both clinic settings and practitioner booking settings
-                const promises: Promise<void>[] = [];
-                if (sectionChanges.appointmentSettings) {
-                  promises.push(saveData());
-                }
-                if (hasPractitionerBookingSettingsChanged) {
-                  promises.push(savePractitionerBookingSettings());
-                }
-                await Promise.all(promises);
-                await alert('設定已更新', '成功');
-              } catch (err) {
-                // Error already handled in individual save functions
-              }
-            }}
+            onClick={handleSubmit(onFormSubmit, onInvalid)}
             disabled={uiState.saving || savingPractitionerSettings}
             className="btn-primary text-sm px-4 py-2"
           >
-            {(uiState.saving || savingPractitionerSettings) ? '儲存中...' : '儲存更變'}
+            {(uiState.saving || savingPractitionerSettings) ? '儲存中...' : '儲存變更'}
           </button>
         )}
       </div>
-      <form onSubmit={(e) => { e.preventDefault(); saveData(); }} className="space-y-4">
+      <form onSubmit={handleSubmit(onFormSubmit, onInvalid)} className="space-y-4">
         <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
-          <ClinicAppointmentSettings
-            appointmentTypeInstructions={settings.clinic_info_settings.appointment_type_instructions ?? null}
-            appointmentNotesInstructions={settings.clinic_info_settings.appointment_notes_instructions ?? null}
-            bookingRestrictionSettings={settings.booking_restriction_settings}
-            requireBirthday={settings.clinic_info_settings.require_birthday || false}
-            onAppointmentTypeInstructionsChange={(instructions) => {
-              updateData((prev) => ({
-                clinic_info_settings: {
-                  ...prev.clinic_info_settings,
-                  appointment_type_instructions: instructions
-                }
-              }));
-            }}
-            onAppointmentNotesInstructionsChange={(instructions) => {
-              updateData((prev) => ({
-                clinic_info_settings: {
-                  ...prev.clinic_info_settings,
-                  appointment_notes_instructions: instructions
-                }
-              }));
-            }}
-            onBookingRestrictionSettingsChange={(bookingSettings) => {
-              updateData({
-                booking_restriction_settings: bookingSettings
-              });
-            }}
-            onRequireBirthdayChange={(value) => {
-              updateData((prev) => ({
-                clinic_info_settings: {
-                  ...prev.clinic_info_settings,
-                  require_birthday: value
-                }
-              }));
-            }}
-            isClinicAdmin={isClinicAdmin}
-            practitioners={practitionerBookingSettings}
-            onPractitionerBookingSettingChange={handlePractitionerBookingSettingChange}
-          />
+          <ClinicAppointmentSettings isClinicAdmin={isClinicAdmin} />
 
           {/* 預約系統連結 Section */}
           {settings.liff_urls && Object.keys(settings.liff_urls).length > 0 && (
@@ -240,13 +191,13 @@ const SettingsAppointmentsPage: React.FC = () => {
                 請將以下連結加入您的 LINE 官方帳號圖文選單，讓病患可以透過選單使用各項功能：
               </p>
               <div className="space-y-2">
-                {Object.entries(settings.liff_urls).map(([mode, url]) => {
+                {Object.entries(settings.liff_urls as Record<string, string>).map(([mode, url]) => {
                   const modeInfo = {
                     book: { name: '預約', description: '病患可預約新的就診時間' },
                     query: { name: '預約管理', description: '病患可查詢、取消預約' },
                     settings: { name: '就診人管理', description: '病患可新增、刪除、修改就診人資訊' },
                     notifications: { name: '空位提醒', description: '病患可設定提醒，當有符合條件的空位時會收到通知' },
-                  }[mode] || { name: mode, description: '' };
+                  }[mode as 'book' | 'query' | 'settings' | 'notifications'] || { name: mode, description: '' };
 
                   return (
                     <div key={mode} className="bg-gray-50 rounded-lg p-2.5 border border-gray-200">
@@ -260,7 +211,7 @@ const SettingsAppointmentsPage: React.FC = () => {
                         <input
                           type="text"
                           readOnly
-                          value={url}
+                          value={url as string}
                           onFocus={(e) => e.target.select()}
                           className="flex-1 block w-full rounded-md border border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm font-mono text-xs bg-white px-2 py-1.5"
                         />
@@ -268,7 +219,7 @@ const SettingsAppointmentsPage: React.FC = () => {
                           type="button"
                           onClick={async () => {
                             try {
-                              await navigator.clipboard.writeText(url);
+                              await navigator.clipboard.writeText(url as string);
                               await alert(`${modeInfo.name}連結已複製到剪貼簿！`, '成功');
                             } catch (err) {
                               logger.error('Failed to copy to clipboard:', err);
@@ -430,9 +381,8 @@ const SettingsAppointmentsPage: React.FC = () => {
           </div>
         )}
       </form>
-    </>
+    </FormProvider>
   );
 };
 
 export default SettingsAppointmentsPage;
-

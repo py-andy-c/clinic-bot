@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useModal } from '../../contexts/ModalContext';
@@ -6,38 +9,50 @@ import { LoadingSpinner } from '../../components/shared';
 import ChatSettings from '../../components/ChatSettings';
 import SettingsBackButton from '../../components/SettingsBackButton';
 import PageHeader from '../../components/PageHeader';
+import { useUnsavedChangesDetection } from '../../hooks/useUnsavedChangesDetection';
+import { useFormErrorScroll } from '../../hooks/useFormErrorScroll';
+import { handleBackendError } from '../../utils/formErrors';
+import { ChatSettingsFormSchema } from '../../schemas/api';
+
+export type ChatSettingsFormData = z.infer<typeof ChatSettingsFormSchema>;
 
 const SettingsChatPage: React.FC = () => {
-  const { settings, originalData, uiState, sectionChanges, saveData, updateData } = useSettings();
+  const { settings, originalData, uiState, saveData, updateData } = useSettings();
   const { isClinicAdmin } = useAuth();
-  const { confirm } = useModal();
+  const { alert, confirm } = useModal();
+  const { onInvalid: scrollOnError } = useFormErrorScroll();
 
-  // Scroll to top when component mounts
-  React.useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  const methods = useForm<ChatSettingsFormData>({
+    resolver: zodResolver(ChatSettingsFormSchema),
+    defaultValues: {
+      chat_settings: settings?.chat_settings || { chat_enabled: false },
+    },
+    mode: 'onBlur',
+  });
 
-  if (uiState.loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <LoadingSpinner />
-      </div>
-    );
-  }
+  const { reset, handleSubmit, formState: { isDirty } } = methods;
 
-  if (!settings || !originalData) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-gray-600">無法載入設定</p>
-      </div>
-    );
-  }
+  // Setup navigation warnings for unsaved changes
+  useUnsavedChangesDetection({ hasUnsavedChanges: () => isDirty });
 
-  const handleChatSettingsSave = async () => {
-    if (!settings || !originalData) return;
+  // Sync form with settings data when it loads
+  useEffect(() => {
+    if (settings) {
+      reset({
+        chat_settings: settings.chat_settings,
+      });
+    }
+  }, [settings, reset]);
+
+  const onInvalid = (errors: any) => {
+    scrollOnError(errors, methods);
+  };
+
+  const onFormSubmit = async (data: ChatSettingsFormData) => {
+    if (!isClinicAdmin || !settings || !originalData) return;
 
     const wasEnabled = originalData.chat_settings.chat_enabled;
-    const isEnabled = settings.chat_settings.chat_enabled;
+    const isEnabled = data.chat_settings.chat_enabled;
 
     // Case 1: Off -> On
     if (!wasEnabled && isEnabled) {
@@ -64,12 +79,45 @@ const SettingsChatPage: React.FC = () => {
       if (!confirmed) return;
     }
 
-    // Proceed to save
-    saveData();
+    try {
+      updateData({
+        chat_settings: data.chat_settings,
+      });
+
+      // Use setTimeout to ensure updateData state is processed
+      setTimeout(async () => {
+        try {
+          await saveData();
+          alert('設定已成功儲存');
+        } catch (err) {
+          handleBackendError(err, methods);
+        }
+      }, 0);
+    } catch (err: any) {
+      if (!handleBackendError(err, methods)) {
+        alert(err.response?.data?.detail || '儲存設定失敗', '錯誤');
+      }
+    }
   };
 
+  if (uiState.loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (!settings || !originalData) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-600">無法載入設定</p>
+      </div>
+    );
+  }
+
   return (
-    <>
+    <FormProvider {...methods}>
       <SettingsBackButton />
       <div className="flex justify-between items-center mb-6">
         <PageHeader title="AI 聊天功能" />
@@ -77,7 +125,6 @@ const SettingsChatPage: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              // This will be handled by ChatSettings component
               const event = new CustomEvent('open-chat-test');
               window.dispatchEvent(event);
             }}
@@ -98,29 +145,21 @@ const SettingsChatPage: React.FC = () => {
             </svg>
             測試聊天機器人
           </button>
-          {sectionChanges.chatSettings && (
+          {isDirty && (
             <button
               type="button"
-              onClick={handleChatSettingsSave}
+              onClick={handleSubmit(onFormSubmit, onInvalid)}
               disabled={uiState.saving}
               className="btn-primary text-sm px-4 py-2"
             >
-              {uiState.saving ? '儲存中...' : '儲存更變'}
+              {uiState.saving ? '儲存中...' : '儲存變更'}
             </button>
           )}
         </div>
       </div>
-      <form onSubmit={(e) => { e.preventDefault(); handleChatSettingsSave(); }} className="space-y-4">
+      <form onSubmit={handleSubmit(onFormSubmit, onInvalid)} className="space-y-4">
         <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
-          <ChatSettings
-            chatSettings={settings.chat_settings}
-            onChatSettingsChange={(chatSettings) => {
-              updateData({
-                chat_settings: chatSettings
-              });
-            }}
-            isClinicAdmin={isClinicAdmin}
-          />
+          <ChatSettings isClinicAdmin={isClinicAdmin} />
         </div>
 
         {/* Error Display */}
@@ -144,9 +183,8 @@ const SettingsChatPage: React.FC = () => {
           </div>
         )}
       </form>
-    </>
+    </FormProvider>
   );
 };
 
 export default SettingsChatPage;
-

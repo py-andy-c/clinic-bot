@@ -1,19 +1,77 @@
 import React from 'react';
+import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useAuth } from '../../hooks/useAuth';
 import { LoadingSpinner } from '../../components/shared';
 import ClinicInfoSettings from '../../components/ClinicInfoSettings';
 import SettingsBackButton from '../../components/SettingsBackButton';
 import PageHeader from '../../components/PageHeader';
+import { useUnsavedChangesDetection } from '../../hooks/useUnsavedChangesDetection';
+import { useFormErrorScroll } from '../../hooks/useFormErrorScroll';
+import { ClinicInfoFormSchema } from '../../schemas/api';
+import { handleBackendError } from '../../utils/formErrors';
+import { useModal } from '../../contexts/ModalContext';
+
+type ClinicInfoFormData = z.infer<typeof ClinicInfoFormSchema>;
 
 const SettingsClinicInfoPage: React.FC = () => {
-  const { settings, uiState, sectionChanges, saveData, updateData } = useSettings();
+  const { settings, uiState, saveData, updateData } = useSettings();
   const { isClinicAdmin } = useAuth();
+  const { alert } = useModal();
+  const { onInvalid: scrollOnError } = useFormErrorScroll();
+
+  const methods = useForm<ClinicInfoFormData>({
+    resolver: zodResolver(ClinicInfoFormSchema),
+    defaultValues: settings?.clinic_info_settings || {},
+    mode: 'onBlur',
+  });
+
+  const {
+    handleSubmit,
+    reset,
+    formState: { isDirty },
+  } = methods;
+
+  // Setup navigation warnings for unsaved changes
+  useUnsavedChangesDetection({ hasUnsavedChanges: () => isDirty });
+
+  const onInvalid = (errors: any) => {
+    scrollOnError(errors, methods);
+  };
+
+  // Sync form with settings data when it loads
+  React.useEffect(() => {
+    if (settings?.clinic_info_settings) {
+      reset(settings.clinic_info_settings);
+    }
+  }, [settings?.clinic_info_settings, reset]);
 
   // Scroll to top when component mounts
   React.useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  const onFormSubmit = async (data: ClinicInfoFormData) => {
+    try {
+      updateData({ clinic_info_settings: data });
+      
+      // Use setTimeout to ensure updateData state is processed
+      setTimeout(async () => {
+        try {
+          await saveData();
+          alert('設定已成功儲存');
+        } catch (err) {
+          handleBackendError(err, methods, { stripPrefix: 'clinic_info_settings' });
+        }
+      }, 0);
+    } catch (err: any) {
+      if (!handleBackendError(err, methods, { stripPrefix: 'clinic_info_settings' })) {
+        alert(err.response?.data?.detail || '儲存設定失敗', '錯誤');
+      }
+    }
+  };
 
   if (uiState.loading) {
     return (
@@ -32,14 +90,14 @@ const SettingsClinicInfoPage: React.FC = () => {
   }
 
   return (
-    <>
+    <FormProvider {...methods}>
       <SettingsBackButton />
       <div className="flex justify-between items-center mb-6">
         <PageHeader title="診所資訊" />
-        {sectionChanges.clinicInfoSettings && (
+        {isDirty && (
           <button
             type="button"
-            onClick={saveData}
+            onClick={handleSubmit(onFormSubmit, onInvalid)}
             disabled={uiState.saving}
             className="btn-primary text-sm px-4 py-2"
           >
@@ -47,19 +105,10 @@ const SettingsClinicInfoPage: React.FC = () => {
           </button>
         )}
       </div>
-      <form onSubmit={(e) => { e.preventDefault(); saveData(); }} className="space-y-4">
+      <form onSubmit={handleSubmit(onFormSubmit, onInvalid)} className="space-y-4">
         <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
           <ClinicInfoSettings
-            clinicInfoSettings={settings.clinic_info_settings}
             clinicName={settings.clinic_name}
-            onClinicInfoSettingsChange={(clinicInfoSettings) => {
-              updateData((prev) => ({
-                clinic_info_settings: {
-                  ...prev.clinic_info_settings,
-                  ...clinicInfoSettings
-                }
-              }));
-            }}
             isClinicAdmin={isClinicAdmin}
           />
         </div>
@@ -85,7 +134,7 @@ const SettingsClinicInfoPage: React.FC = () => {
           </div>
         )}
       </form>
-    </>
+    </FormProvider>
   );
 };
 

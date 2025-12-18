@@ -46,6 +46,9 @@ interface ResourcesState {
   // Global Save
   saveAll: () => Promise<boolean>;
   
+  // Sync from RHF
+  syncFromRHF: (data: { resourceTypes: any[] }) => void;
+  
   // Reset/Clear
   reset: () => void;
   clear: () => void;
@@ -311,7 +314,7 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
         if (type.id > TEMPORARY_ID_THRESHOLD) {
           // New resource type
           try {
-            const created = await apiService.createResourceType({ name: type.name });
+            const created = await apiService.createResourceType({ name: type.name.trim() });
             realTypeId = created.id;
             typeIdMapping[type.id] = realTypeId;
           } catch (err) {
@@ -323,7 +326,7 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
           const original = state.originalResourceTypes.find(t => t.id === type.id);
           if (original && original.name !== type.name) {
             try {
-              await apiService.updateResourceType(type.id, { name: type.name });
+              await apiService.updateResourceType(type.id, { name: type.name.trim() });
             } catch (err) {
               errors.push(`更新資源類型「${type.name}」失敗: ${err instanceof Error ? err.message : '未知錯誤'}`);
             }
@@ -347,11 +350,6 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
 
         // 4. Handle Resource additions and updates
         for (const res of currentResources) {
-          if (!res.name.trim()) {
-            errors.push(`資源名稱不能為空`);
-            continue;
-          }
-
           if (res.id < 0) {
             // New resource (negative temp ID)
             try {
@@ -402,6 +400,22 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
       });
       return false;
     }
+  },
+
+  /**
+   * Sync data from RHF state to the store.
+   */
+  syncFromRHF: (data: { resourceTypes: any[] }) => {
+    const resourceTypes = data.resourceTypes.map(({ resources, ...type }) => type);
+    const resourcesByType: Record<number, Resource[]> = {};
+    data.resourceTypes.forEach(type => {
+      resourcesByType[type.id] = type.resources;
+    });
+
+    set({
+      resourceTypes,
+      resourcesByType,
+    });
   },
 
   /**

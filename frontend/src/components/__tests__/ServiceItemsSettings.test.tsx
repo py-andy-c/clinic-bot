@@ -5,11 +5,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
+import { useForm, FormProvider } from 'react-hook-form';
 import ServiceItemsSettings from '../ServiceItemsSettings';
 import { AppointmentType } from '../../types';
 import { apiService } from '../../services/api';
 import { useServiceItemsStore } from '../../stores/serviceItemsStore';
 import { ModalProvider } from '../../contexts/ModalContext';
+
+// Wrapper component to provide RHF context
+const FormWrapper: React.FC<{ children: React.ReactNode; defaultValues: any }> = ({ children, defaultValues }) => {
+  const methods = useForm({ defaultValues });
+  return <FormProvider {...methods}>{children}</FormProvider>;
+};
 
 // Mock apiService
 vi.mock('../../services/api', () => ({
@@ -109,17 +116,17 @@ describe('ServiceItemsSettings', () => {
   });
 
   const defaultProps = {
-    appointmentTypes: mockAppointmentTypes,
     onAddType: mockOnAddType,
-    onUpdateType: mockOnUpdateType,
     onRemoveType: mockOnRemoveType,
     isClinicAdmin: true,
   };
 
-  const renderWithProviders = (component: React.ReactElement) => {
+  const renderWithProviders = (component: React.ReactElement, defaultValues: any = { appointment_types: mockAppointmentTypes }) => {
     return render(
       <ModalProvider>
-        {component}
+        <FormWrapper defaultValues={defaultValues}>
+          {component}
+        </FormWrapper>
       </ModalProvider>
     );
   };

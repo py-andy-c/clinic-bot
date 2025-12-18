@@ -1,4 +1,7 @@
 import React from 'react';
+import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useModal } from '../../contexts/ModalContext';
@@ -11,22 +14,42 @@ import ServiceItemsSettings from '../../components/ServiceItemsSettings';
 import SettingsBackButton from '../../components/SettingsBackButton';
 import PageHeader from '../../components/PageHeader';
 import { useServiceItemsStore } from '../../stores/serviceItemsStore';
+import { useUnsavedChangesDetection } from '../../hooks/useUnsavedChangesDetection';
+import { useFormErrorScroll } from '../../hooks/useFormErrorScroll';
 import { sharedFetchFunctions } from '../../services/api';
+import { handleBackendError } from '../../utils/formErrors';
 
 // Temporary IDs are generated using Date.now(), which produces large timestamps
 // Real IDs from the backend are small integers, so we use this threshold to distinguish them
 const TEMPORARY_ID_THRESHOLD = 1000000000000;
 
+// Form Schema for Service Items
+const ServiceItemsFormSchema = z.object({
+  appointment_types: z.array(z.object({
+    id: z.number(),
+    clinic_id: z.number(),
+    name: z.string().min(1, '項目名稱不能為空'),
+    duration_minutes: z.coerce.number().min(15, '時長至少需 15 分鐘').max(480, '時長最多 480 分鐘'),
+    receipt_name: z.string().nullable().optional(),
+    allow_patient_booking: z.boolean().optional(),
+    allow_patient_practitioner_selection: z.boolean().optional(),
+    description: z.string().nullable().optional(),
+    scheduling_buffer_minutes: z.coerce.number().min(0).max(60).optional(),
+  })),
+});
+
+type ServiceItemsFormData = z.infer<typeof ServiceItemsFormSchema>;
+
 const SettingsServiceItemsPage: React.FC = () => {
   const { 
     settings, 
     uiState, 
-    sectionChanges, 
     saveData: saveSettingsData, 
     updateData,
   } = useSettings();
   const { isClinicAdmin } = useAuth();
   const { alert } = useModal();
+  const { onInvalid: scrollOnError } = useFormErrorScroll();
   const {
     loadPractitionerAssignments,
     savePractitionerAssignments,
@@ -34,6 +57,30 @@ const SettingsServiceItemsPage: React.FC = () => {
     saveResourceRequirements,
     hasUnsavedChanges: hasServiceItemsUnsavedChanges,
   } = useServiceItemsStore();
+
+  const methods = useForm<ServiceItemsFormData>({
+    resolver: zodResolver(ServiceItemsFormSchema),
+    defaultValues: {
+      appointment_types: settings?.appointment_types || [],
+    },
+    mode: 'onBlur',
+  });
+
+  const { reset, handleSubmit, formState: { isDirty }, getValues, setValue } = methods;
+
+  // Setup navigation warnings for unsaved changes
+  useUnsavedChangesDetection({ hasUnsavedChanges: () => isDirty || hasServiceItemsUnsavedChanges() });
+
+  const onInvalid = (errors: any) => {
+    scrollOnError(errors, methods, { expandType: 'appointmentType' });
+  };
+
+  // Sync form with settings data when it loads
+  React.useEffect(() => {
+    if (settings?.appointment_types) {
+      reset({ appointment_types: settings.appointment_types });
+    }
+  }, [settings?.appointment_types, reset]);
 
   // Scroll to top when component mounts
   React.useEffect(() => {
@@ -64,11 +111,10 @@ const SettingsServiceItemsPage: React.FC = () => {
   }
 
   const addAppointmentType = () => {
-    if (!settings) return;
-
+    const currentTypes = getValues('appointment_types');
     const newType: AppointmentType = {
       id: Date.now(), // Temporary ID for UI
-      clinic_id: settings.clinic_id || 0, // Use clinic_id from settings or default
+      clinic_id: settings.clinic_id || 0,
       name: '',
       duration_minutes: 30,
       receipt_name: undefined,
@@ -77,36 +123,16 @@ const SettingsServiceItemsPage: React.FC = () => {
       description: undefined,
       scheduling_buffer_minutes: 0,
     };
-
-    updateData({
-      appointment_types: [...settings.appointment_types, newType],
-    });
-  };
-
-  const updateAppointmentType = (index: number, field: keyof AppointmentType, value: string | number | boolean | null) => {
-    if (!settings) return;
-
-    const updatedTypes = [...settings.appointment_types];
-    updatedTypes[index] = {
-      ...updatedTypes[index],
-      [field]: value
-    } as AppointmentType;
-
-    updateData({
-      appointment_types: updatedTypes,
-    });
+    setValue('appointment_types', [...currentTypes, newType], { shouldDirty: true });
   };
 
   const removeAppointmentType = async (index: number) => {
-    if (!settings) return;
-
-    const appointmentType = settings.appointment_types[index];
-    if (!appointmentType || !appointmentType.id) {
-      // New appointment type (no ID yet), can remove immediately
-      const updatedTypes = settings.appointment_types.filter((_, i) => i !== index);
-      updateData({
-        appointment_types: updatedTypes,
-      });
+    const currentTypes = getValues('appointment_types');
+    const appointmentType = currentTypes[index];
+    
+    if (!appointmentType || appointmentType.id > TEMPORARY_ID_THRESHOLD) {
+      // New appointment type, can remove immediately
+      setValue('appointment_types', currentTypes.filter((_, i) => i !== index), { shouldDirty: true });
       return;
     }
 
@@ -115,24 +141,15 @@ const SettingsServiceItemsPage: React.FC = () => {
       const validation = await apiService.validateAppointmentTypeDeletion([appointmentType.id]);
 
       if (!validation.can_delete && validation.error) {
-        // Show error immediately
         const errorDetail = validation.error;
-        // For simplicity, show only the first blocked appointment type
-        // (in practice, only one type is being deleted at a time)
         const blockedType = errorDetail.appointment_types[0];
         const practitionerNames = blockedType.practitioners.join('、');
         const errorMessage = `「${blockedType.name}」正在被以下治療師使用：${practitionerNames}\n\n請先移除治療師的此服務設定後再刪除。`;
-
-        // Show error in popup modal
         await alert(errorMessage, '無法刪除預約類型');
-        return; // Don't remove from UI
+        return;
       }
 
-      // Validation passed, remove from UI
-      const updatedTypes = settings.appointment_types.filter((_, i) => i !== index);
-      updateData({
-        appointment_types: updatedTypes,
-      });
+      setValue('appointment_types', currentTypes.filter((_, i) => i !== index), { shouldDirty: true });
     } catch (error: any) {
       logger.error('Error validating appointment type deletion:', error);
       const errorMessage = getErrorMessage(error) || '驗證刪除失敗，請稍後再試';
@@ -141,20 +158,27 @@ const SettingsServiceItemsPage: React.FC = () => {
   };
 
   // Coordinated save function
-  const handleSave = async () => {
+  const onFormSubmit = async (formData: ServiceItemsFormData) => {
     try {
-      // 1. Save appointment types first (to get real IDs for new types)
+      // 1. Update the context data with form data
+      updateData({ appointment_types: formData.appointment_types });
+
+      // 2. Save appointment types first (to get real IDs for new types)
       let appointmentTypeIdMapping: Record<number, number> = {};
       
-      // Capture temporary IDs from current settings BEFORE saving
-      const currentSettingsSnapshot = settings ? JSON.parse(JSON.stringify(settings)) : null;
-      const allAppointmentTypes = currentSettingsSnapshot?.appointment_types || [];
-      const tempTypesBeforeSave = allAppointmentTypes.filter((at: AppointmentType) => 
+      const tempTypesBeforeSave = formData.appointment_types.filter((at: any) => 
         at.id > TEMPORARY_ID_THRESHOLD
       );
 
-      // Save appointment types
-      await saveSettingsData();
+      // Save appointment types via context
+      try {
+        await saveSettingsData();
+      } catch (err) {
+        if (handleBackendError(err, methods, { stripPrefix: 'appointment_types' })) {
+          return;
+        }
+        throw err;
+      }
 
       // Map temporary IDs to real IDs
       if (tempTypesBeforeSave.length > 0) {
@@ -173,24 +197,11 @@ const SettingsServiceItemsPage: React.FC = () => {
             }
           }
         } catch (fetchErr) {
-          logger.warn('Failed to fetch fresh settings after save, using current settings:', fetchErr);
-          if (settings && tempTypesBeforeSave.length > 0) {
-            const savedTypes = settings.appointment_types;
-            for (const tempType of tempTypesBeforeSave) {
-              const realType = savedTypes.find((at: AppointmentType) => 
-                at.name === tempType.name && 
-                at.duration_minutes === tempType.duration_minutes &&
-                at.id < TEMPORARY_ID_THRESHOLD
-              );
-              if (realType) {
-                appointmentTypeIdMapping[tempType.id] = realType.id;
-              }
-            }
-          }
+          logger.warn('Failed to fetch fresh settings after save', fetchErr);
         }
       }
 
-      // 2. Save practitioner assignments, billing scenarios, and resource requirements with ID mapping
+      // 3. Save associations
       const assignmentResult = await savePractitionerAssignments(
         Object.keys(appointmentTypeIdMapping).length > 0 ? appointmentTypeIdMapping : undefined
       );
@@ -201,17 +212,11 @@ const SettingsServiceItemsPage: React.FC = () => {
         Object.keys(appointmentTypeIdMapping).length > 0 ? appointmentTypeIdMapping : undefined
       );
 
-      // 3. Show results
+      // 4. Show results
       const errors: string[] = [];
-      if (!assignmentResult.success) {
-        errors.push(...assignmentResult.errors);
-      }
-      if (!scenarioResult.success) {
-        errors.push(...scenarioResult.errors);
-      }
-      if (!requirementsResult.success) {
-        errors.push(...requirementsResult.errors);
-      }
+      if (!assignmentResult.success) errors.push(...assignmentResult.errors);
+      if (!scenarioResult.success) errors.push(...scenarioResult.errors);
+      if (!requirementsResult.success) errors.push(...requirementsResult.errors);
 
       if (errors.length > 0) {
         await alert(errors.join('\n\n'), '部分設定儲存失敗');
@@ -225,31 +230,28 @@ const SettingsServiceItemsPage: React.FC = () => {
     }
   };
 
-  // Check if there are any unsaved changes
-  const hasUnsavedChanges = sectionChanges.serviceItemsSettings || hasServiceItemsUnsavedChanges();
+  const hasUnsavedChanges = isDirty || hasServiceItemsUnsavedChanges();
 
   return (
-    <>
+    <FormProvider {...methods}>
       <SettingsBackButton />
       <div className="flex justify-between items-center mb-6">
         <PageHeader title="服務項目設定" />
         {hasUnsavedChanges && (
           <button
             type="button"
-            onClick={handleSave}
+            onClick={handleSubmit(onFormSubmit, onInvalid)}
             disabled={uiState.saving}
             className="btn-primary text-sm px-4 py-2"
           >
-            {uiState.saving ? '儲存中...' : '儲存更變'}
+            {uiState.saving ? '儲存中...' : '儲存變更'}
           </button>
         )}
       </div>
-      <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} className="space-y-4">
+      <form onSubmit={handleSubmit(onFormSubmit, onInvalid)} className="space-y-4">
         <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
           <ServiceItemsSettings
-            appointmentTypes={settings.appointment_types}
             onAddType={addAppointmentType}
-            onUpdateType={updateAppointmentType}
             onRemoveType={removeAppointmentType}
             isClinicAdmin={isClinicAdmin}
           />
@@ -276,7 +278,7 @@ const SettingsServiceItemsPage: React.FC = () => {
           </div>
         )}
       </form>
-    </>
+    </FormProvider>
   );
 };
 

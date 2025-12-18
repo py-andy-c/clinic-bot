@@ -16,6 +16,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { logger } from '../../utils/logger';
 import DashboardBackButton from '../../components/DashboardBackButton';
 
+import { AppointmentType } from '../../types';
+
 const RevenueDistributionPage: React.FC = () => {
   const { user, isClinicUser } = useAuth();
   const activeClinicId = user?.active_clinic_id ?? null;
@@ -150,7 +152,7 @@ const RevenueDistributionPage: React.FC = () => {
   const serviceItems = useMemo<ServiceItemOption[]>(() => {
     const predefinedItems: ServiceItemOption[] = [];
     if (settingsData?.appointment_types) {
-      predefinedItems.push(...settingsData.appointment_types.map(at => {
+      predefinedItems.push(...settingsData.appointment_types.map((at: AppointmentType) => {
         const item: ServiceItemOption = {
           id: at.id,
           name: at.name,
@@ -195,7 +197,7 @@ const RevenueDistributionPage: React.FC = () => {
   const serviceItemIdToName = useMemo(() => {
     const map = new Map<number, string>();
     if (settingsData?.appointment_types) {
-      settingsData.appointment_types.forEach(at => {
+      settingsData.appointment_types.forEach((at: AppointmentType) => {
         map.set(at.id, at.name);
       });
     }
@@ -686,7 +688,7 @@ const RevenueDistributionPage: React.FC = () => {
             setSelectedAppointmentEvent(null);
           }}
           formatAppointmentTime={formatEventTimeRange}
-          appointmentTypes={settingsData?.appointment_types?.map(at => ({
+          appointmentTypes={settingsData?.appointment_types?.map((at: AppointmentType) => ({
             id: at.id,
             name: at.name,
             receipt_name: at.receipt_name ?? null,

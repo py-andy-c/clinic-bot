@@ -1,19 +1,76 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useAuth } from '../../hooks/useAuth';
 import { LoadingSpinner } from '../../components/shared';
 import ReceiptSettings from '../../components/ReceiptSettings';
 import SettingsBackButton from '../../components/SettingsBackButton';
 import PageHeader from '../../components/PageHeader';
+import { useUnsavedChangesDetection } from '../../hooks/useUnsavedChangesDetection';
+import { useFormErrorScroll } from '../../hooks/useFormErrorScroll';
+import { handleBackendError } from '../../utils/formErrors';
+import { ReceiptsSettingsFormSchema } from '../../schemas/api';
+import { useModal } from '../../contexts/ModalContext';
+
+export type ReceiptsSettingsFormData = z.infer<typeof ReceiptsSettingsFormSchema>;
 
 const SettingsReceiptsPage: React.FC = () => {
-  const { settings, uiState, sectionChanges, saveData, updateData } = useSettings();
+  const { settings, uiState, saveData, updateData } = useSettings();
   const { isClinicAdmin } = useAuth();
+  const { alert } = useModal();
+  const { onInvalid: scrollOnError } = useFormErrorScroll();
 
-  // Scroll to top when component mounts
-  React.useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  const methods = useForm<ReceiptsSettingsFormData>({
+    resolver: zodResolver(ReceiptsSettingsFormSchema),
+    defaultValues: {
+      receipt_settings: settings?.receipt_settings || { custom_notes: null, show_stamp: false },
+    },
+    mode: 'onBlur',
+  });
+
+  const { reset, handleSubmit, formState: { isDirty } } = methods;
+
+  // Setup navigation warnings for unsaved changes
+  useUnsavedChangesDetection({ hasUnsavedChanges: () => isDirty });
+
+  // Sync form with settings data when it loads
+  useEffect(() => {
+    if (settings) {
+      reset({
+        receipt_settings: settings.receipt_settings || { custom_notes: null, show_stamp: false },
+      });
+    }
+  }, [settings, reset]);
+
+  const onInvalid = (errors: any) => {
+    scrollOnError(errors, methods);
+  };
+
+  const onFormSubmit = async (data: ReceiptsSettingsFormData) => {
+    if (!isClinicAdmin) return;
+
+    try {
+      updateData({
+        receipt_settings: data.receipt_settings,
+      });
+
+      // Use setTimeout to ensure updateData state is processed
+      setTimeout(async () => {
+        try {
+          await saveData();
+          alert('設定已成功儲存');
+        } catch (err) {
+          handleBackendError(err, methods);
+        }
+      }, 0);
+    } catch (err: any) {
+      if (!handleBackendError(err, methods)) {
+        alert(err.response?.data?.detail || '儲存設定失敗', '錯誤');
+      }
+    }
+  };
 
   if (uiState.loading) {
     return (
@@ -40,33 +97,24 @@ const SettingsReceiptsPage: React.FC = () => {
   }
 
   return (
-    <>
+    <FormProvider {...methods}>
       <SettingsBackButton />
       <div className="flex justify-between items-center mb-6">
         <PageHeader title="收據設定" />
-        {sectionChanges.receiptSettings && (
+        {isDirty && (
           <button
             type="button"
-            onClick={saveData}
+            onClick={handleSubmit(onFormSubmit, onInvalid)}
             disabled={uiState.saving}
             className="btn-primary text-sm px-4 py-2"
           >
-            {uiState.saving ? '儲存中...' : '儲存更變'}
+            {uiState.saving ? '儲存中...' : '儲存變更'}
           </button>
         )}
       </div>
-      <form onSubmit={(e) => { e.preventDefault(); saveData(); }} className="space-y-4">
+      <form onSubmit={handleSubmit(onFormSubmit, onInvalid)} className="space-y-4">
         <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
-          <ReceiptSettings
-            receiptSettings={settings.receipt_settings || { custom_notes: null, show_stamp: false }}
-            onReceiptSettingsChange={(receiptSettings) => {
-              updateData((prev) => ({
-                ...prev,
-                receipt_settings: receiptSettings
-              }));
-            }}
-            isClinicAdmin={isClinicAdmin}
-          />
+          <ReceiptSettings isClinicAdmin={isClinicAdmin} />
         </div>
 
         {/* Error Display */}
@@ -90,9 +138,8 @@ const SettingsReceiptsPage: React.FC = () => {
           </div>
         )}
       </form>
-    </>
+    </FormProvider>
   );
 };
 
 export default SettingsReceiptsPage;
-

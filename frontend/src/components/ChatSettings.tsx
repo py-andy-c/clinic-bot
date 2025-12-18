@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useFormContext } from 'react-hook-form';
 import { ChatSettings as ChatSettingsType } from '../schemas/api';
 import { ChatTestModal } from './ChatTestModal';
 import { hasChatSettingsChanged } from '../utils/chatSettingsComparison';
 import { BaseModal } from './shared/BaseModal';
+import { FormField, FormTextarea } from './forms';
+import { ChatSettingsFormData } from '../pages/settings/SettingsChatPage';
 
 interface ChatSettingsProps {
-  chatSettings: ChatSettingsType;
-  onChatSettingsChange: (chatSettings: ChatSettingsType) => void;
   isClinicAdmin?: boolean;
 }
 
@@ -191,12 +192,14 @@ A: 是的，我們是健保特約診所。健保給付的項目包括：物理�
 };
 
 const ChatSettings: React.FC<ChatSettingsProps> = ({
-  chatSettings,
-  onChatSettingsChange,
   isClinicAdmin = false,
 }) => {
   const [showAiGuidancePopup, setShowAiGuidancePopup] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
+  
+  const { control, watch, setValue } = useFormContext<ChatSettingsFormData>();
+  const chatSettings = watch('chat_settings');
+  
   const previousChatSettingsRef = useRef<ChatSettingsType | null>(null);
   const isInitialMountRef = useRef(true);
 
@@ -237,26 +240,8 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
     previousChatSettingsRef.current = { ...chatSettings };
   }, [chatSettings, showTestModal]);
 
-
-  const handleToggle = (enabled: boolean) => {
-    onChatSettingsChange({
-      ...chatSettings,
-      chat_enabled: enabled,
-    });
-  };
-
-  const handleFieldChange = (field: keyof ChatSettingsType, value: string) => {
-    onChatSettingsChange({
-      ...chatSettings,
-      [field]: value || null,
-    });
-  };
-
   const handleLoadTemplate = (field: keyof typeof TEMPLATES) => {
-    onChatSettingsChange({
-      ...chatSettings,
-      [field]: TEMPLATES[field],
-    });
+    setValue(`chat_settings.${field}`, TEMPLATES[field], { shouldDirty: true });
   };
 
   const getCharacterCount = (value: string | null | undefined): number => {
@@ -273,7 +258,6 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
     hasTemplate: boolean = false
   ) => {
     const fieldValue = chatSettings[field];
-    const value = (fieldValue ?? '') as string;
     const charCount = getCharacterCount(fieldValue ?? null);
     const maxChars = 10000;
     const hasContent = charCount > 0;
@@ -296,15 +280,16 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
             </button>
           )}
         </div>
-        <textarea
-          value={value}
-          onChange={(e) => handleFieldChange(field, e.target.value)}
-          placeholder={placeholder}
-          disabled={!isClinicAdmin}
-          maxLength={maxChars}
-          rows={6}
-          className="input w-full resize-y"
-        />
+        <FormField name={`chat_settings.${field}`}>
+          <FormTextarea
+            name={`chat_settings.${field}`}
+            placeholder={placeholder}
+            disabled={!isClinicAdmin}
+            maxLength={maxChars}
+            rows={6}
+            className="w-full resize-y"
+          />
+        </FormField>
         <div className="flex justify-between mt-1">
           <p className="text-xs text-gray-500">
             最多 {maxChars.toLocaleString()} 字元
@@ -329,8 +314,7 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
-                checked={chatSettings.chat_enabled}
-                onChange={(e) => handleToggle(e.target.checked)}
+                {...control.register('chat_settings.chat_enabled')}
                 disabled={!isClinicAdmin}
                 className="sr-only peer"
               />
@@ -490,15 +474,16 @@ const ChatSettings: React.FC<ChatSettingsProps> = ({
                 )}
               </div>
             </div>
-            <textarea
-              value={chatSettings.ai_guidance ?? ''}
-              onChange={(e) => handleFieldChange('ai_guidance', e.target.value)}
-              placeholder="AI聊天機器人的指引和說明..."
-              disabled={!isClinicAdmin}
-              maxLength={10000}
-              rows={6}
-              className="input w-full resize-y"
-            />
+            <FormField name="chat_settings.ai_guidance">
+              <FormTextarea
+                name="chat_settings.ai_guidance"
+                placeholder="AI聊天機器人的指引和說明..."
+                disabled={!isClinicAdmin}
+                maxLength={10000}
+                rows={6}
+                className="w-full resize-y"
+              />
+            </FormField>
             <div className="flex justify-between mt-1">
               <p className="text-xs text-gray-500">
                 最多 10,000 字元

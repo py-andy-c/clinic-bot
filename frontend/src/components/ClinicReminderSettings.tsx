@@ -1,19 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { useFormContext } from 'react-hook-form';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
-import { preventScrollWheelChange } from '../utils/inputUtils';
 import { InfoButton, InfoModal } from './shared';
+import { FormField, FormInput } from './forms';
+import { RemindersSettingsFormData } from '../pages/settings/SettingsRemindersPage';
 
 interface ClinicReminderSettingsProps {
-  reminderHoursBefore: string | number;
-  onReminderHoursChange: (value: string) => void;
   isClinicAdmin?: boolean;
   refreshTrigger?: number;
 }
 
 const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
-  reminderHoursBefore,
-  onReminderHoursChange,
   isClinicAdmin = false,
   refreshTrigger = 0,
 }) => {
@@ -21,6 +19,8 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
   const [previewLoading, setPreviewLoading] = useState<boolean>(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [showReminderHoursModal, setShowReminderHoursModal] = useState(false);
+
+  useFormContext<RemindersSettingsFormData>();
 
   // Generate preview when settings are saved (refreshTrigger changes)
   useEffect(() => {
@@ -47,6 +47,7 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
 
     generatePreview();
   }, [refreshTrigger]);
+
   return (
     <div className="max-w-md">
         <div className="flex items-center gap-2 mb-2">
@@ -55,16 +56,15 @@ const ClinicReminderSettings: React.FC<ClinicReminderSettingsProps> = ({
           </label>
           <InfoButton onClick={() => setShowReminderHoursModal(true)} />
         </div>
-        <input
-          type="number"
-          value={reminderHoursBefore}
-          onChange={(e) => onReminderHoursChange(e.target.value)}
-          onWheel={preventScrollWheelChange}
-          className="input"
-          min="1"
-          max="168"
-          disabled={!isClinicAdmin}
-        />
+        <FormField name="notification_settings.reminder_hours_before">
+          <FormInput
+            name="notification_settings.reminder_hours_before"
+            type="number"
+            min="1"
+            max="168"
+            disabled={!isClinicAdmin}
+          />
+        </FormField>
 
         <div className="mt-6 pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
           <label className="block text-sm font-medium text-gray-700 mb-2">

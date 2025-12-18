@@ -1,40 +1,28 @@
 import React, { useState } from 'react';
-import { ReceiptSettings as ReceiptSettingsType } from '../schemas/api';
+import { useFormContext } from 'react-hook-form';
 import { InfoButton, InfoModal } from './shared';
 import { ReceiptPreviewModal } from './ReceiptPreviewModal';
+import { FormField, FormTextarea } from './forms';
+import { ReceiptsSettingsFormData } from '../pages/settings/SettingsReceiptsPage';
 
 interface ReceiptSettingsProps {
-  receiptSettings: ReceiptSettingsType;
-  onReceiptSettingsChange: (settings: ReceiptSettingsType) => void;
   isClinicAdmin: boolean;
 }
 
 const ReceiptSettings: React.FC<ReceiptSettingsProps> = ({
-  receiptSettings,
-  onReceiptSettingsChange,
   isClinicAdmin,
 }) => {
   const [showCustomNotesModal, setShowCustomNotesModal] = useState(false);
   const [showStampModal, setShowStampModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
 
+  const { control, watch } = useFormContext<ReceiptsSettingsFormData>();
+  const customNotes = watch('receipt_settings.custom_notes');
+  const showStamp = watch('receipt_settings.show_stamp');
+
   if (!isClinicAdmin) {
     return null; // Admin-only section
   }
-
-  const handleCustomNotesChange = (value: string) => {
-    onReceiptSettingsChange({
-      ...receiptSettings,
-      custom_notes: value || null,
-    });
-  };
-
-  const handleShowStampChange = (value: boolean) => {
-    onReceiptSettingsChange({
-      ...receiptSettings,
-      show_stamp: value,
-    });
-  };
 
   return (
     <div className="space-y-6">
@@ -46,14 +34,15 @@ const ReceiptSettings: React.FC<ReceiptSettingsProps> = ({
           </label>
           <InfoButton onClick={() => setShowCustomNotesModal(true)} />
         </div>
-        <textarea
-          value={receiptSettings.custom_notes || ''}
-          onChange={(e) => handleCustomNotesChange(e.target.value)}
-          className="input min-h-[120px] resize-vertical"
-          placeholder="例如：&#10;地址：台北市信義區信義路五段7號&#10;電話：02-1234-5678&#10;統一編號：12345678"
-          maxLength={2000}
-          rows={6}
-        />
+        <FormField name="receipt_settings.custom_notes">
+          <FormTextarea
+            name="receipt_settings.custom_notes"
+            className="min-h-[120px]"
+            placeholder="例如：&#10;地址：台北市信義區信義路五段7號&#10;電話：02-1234-5678&#10;統一編號：12345678"
+            maxLength={2000}
+            rows={6}
+          />
+        </FormField>
       </div>
 
       {/* Show Stamp Toggle */}
@@ -61,9 +50,8 @@ const ReceiptSettings: React.FC<ReceiptSettingsProps> = ({
         <label className="flex items-center">
           <input
             type="checkbox"
-            checked={receiptSettings.show_stamp || false}
-            onChange={(e) => handleShowStampChange(e.target.checked)}
-            className="mr-2"
+            {...control.register('receipt_settings.show_stamp')}
+            className="mr-2 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
           />
           <span className="text-sm font-medium text-gray-700">顯示收訖章</span>
           <InfoButton onClick={() => setShowStampModal(true)} />
@@ -126,13 +114,11 @@ const ReceiptSettings: React.FC<ReceiptSettingsProps> = ({
       <ReceiptPreviewModal
         isOpen={showPreviewModal}
         onClose={() => setShowPreviewModal(false)}
-        customNotes={receiptSettings.custom_notes ?? null}
-        showStamp={receiptSettings.show_stamp || false}
+        customNotes={customNotes ?? null}
+        showStamp={showStamp || false}
       />
     </div>
   );
 };
 
 export default ReceiptSettings;
-
-
