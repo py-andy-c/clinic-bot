@@ -29,6 +29,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   const [loading, setLoading] = useState(false);
   const [availability, setAvailability] = useState<ResourceAvailabilityResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cache, setCache] = useState<Record<string, ResourceAvailabilityResponse>>({});
   const lastTimeSlotRef = useRef<string>('');
   const lastSelectedRef = useRef<number[]>([]);
   const isUpdatingSelectionRef = useRef(false);
@@ -59,9 +60,22 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
       return;
     }
 
-    const timeSlotKey = `${date}_${startTime}_${durationMinutes}`;
+    const timeSlotKey = `${appointmentTypeId}_${practitionerId}_${date}_${startTime}_${durationMinutes}_${excludeCalendarEventId || 0}`;
     const timeSlotChanged = lastTimeSlotRef.current !== timeSlotKey;
     lastTimeSlotRef.current = timeSlotKey;
+
+    // Check cache first for immediate feedback
+    if (cache[timeSlotKey]) {
+      const cachedData = cache[timeSlotKey]!;
+      setAvailability(cachedData);
+      setLoading(false);
+      
+      // Still trigger selection logic if slot changed
+      if (timeSlotChanged) {
+        handleAutoSelection(cachedData);
+      }
+      return;
+    }
 
     const timer = setTimeout(async () => {
       try {
@@ -80,88 +94,13 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
           ...(excludeCalendarEventId ? { exclude_calendar_event_id: excludeCalendarEventId } : {}),
         });
         
+        setCache(prev => ({ ...prev, [timeSlotKey]: response }));
         setAvailability(response);
         
         // Smart resource selection logic: prefer keeping same resources if still available
         // Only run this logic when time slot changes (not when selection changes due to user action)
         if (timeSlotChanged && !isUpdatingSelectionRef.current) {
-          // Use the ref to get the selection at the time the effect was triggered
-          const currentSelection = lastSelectedRef.current.length > 0 ? lastSelectedRef.current : selectedResourceIds;
-          
-          if (currentSelection.length > 0) {
-            // Check which selected resources are still available
-            const availableSelected: number[] = [];
-            
-            currentSelection.forEach(resourceId => {
-              if (isResourceAvailable(resourceId, response)) {
-                availableSelected.push(resourceId);
-              }
-            });
-            
-            // Group available selected resources by type
-            const availableByType: Record<number, number[]> = {};
-            availableSelected.forEach(id => {
-              for (const req of response.requirements) {
-                const resource = req.available_resources.find(r => r.id === id);
-                if (resource) {
-                  if (!availableByType[req.resource_type_id]) {
-                    availableByType[req.resource_type_id] = [];
-                  }
-                  const typeArray = availableByType[req.resource_type_id];
-                  if (typeArray) {
-                    typeArray.push(id);
-                  }
-                }
-              }
-            });
-            
-            // Build new selection: keep available ones, replace unavailable ones
-            const newSelection: number[] = [...availableSelected];
-            
-            // For each resource type, ensure we have the required quantity
-            response.requirements.forEach(req => {
-              const currentCount = availableByType[req.resource_type_id]?.length || 0;
-              const needed = req.required_quantity - currentCount;
-              
-              if (needed > 0) {
-                // Get available resources for this type that aren't already selected
-                const availableForType = getAvailableResourcesForType(req.resource_type_id, response);
-                const notSelected = availableForType.filter(id => !newSelection.includes(id));
-                
-                // Add needed resources from available ones
-                const toAdd = notSelected.slice(0, needed);
-                newSelection.push(...toAdd);
-              }
-            });
-            
-            // Only update if selection changed (to avoid infinite loops)
-            const selectionChanged = newSelection.length !== currentSelection.length || 
-                !newSelection.every(id => currentSelection.includes(id)) ||
-                !currentSelection.every(id => newSelection.includes(id));
-            
-            if (selectionChanged) {
-              isUpdatingSelectionRef.current = true;
-              onSelectionChange(newSelection);
-              lastSelectedRef.current = newSelection;
-              // Reset flag after a short delay to allow state to update
-              setTimeout(() => {
-                isUpdatingSelectionRef.current = false;
-              }, 100);
-            } else {
-              lastSelectedRef.current = currentSelection;
-            }
-          } else {
-            // Auto-select suggested resources if none selected
-            if (response.suggested_allocation.length > 0) {
-              isUpdatingSelectionRef.current = true;
-              const suggestedIds = response.suggested_allocation.map(r => r.id);
-              onSelectionChange(suggestedIds);
-              lastSelectedRef.current = suggestedIds;
-              setTimeout(() => {
-                isUpdatingSelectionRef.current = false;
-              }, 100);
-            }
-          }
+          handleAutoSelection(response);
         } else {
           // Update ref when selection changes due to user action (not time slot change)
           if (!timeSlotChanged) {
@@ -171,14 +110,95 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
       } catch (err) {
         logger.error('Failed to fetch resource availability:', err);
         setError(getErrorMessage(err) || '無法取得資源可用性');
-        setAvailability(null);
+        // Keep previous availability if we have it, rather than clearing
       } finally {
         setLoading(false);
       }
     }, 300); // 300ms debounce
 
     return () => clearTimeout(timer);
-  }, [appointmentTypeId, practitionerId, date, startTime, durationMinutes, excludeCalendarEventId]);
+  }, [appointmentTypeId, practitionerId, date, startTime, durationMinutes, excludeCalendarEventId, cache]);
+
+  // Extract auto-selection logic to a helper function
+  const handleAutoSelection = (response: ResourceAvailabilityResponse) => {
+    // Use the ref to get the selection at the time the effect was triggered
+    const currentSelection = lastSelectedRef.current.length > 0 ? lastSelectedRef.current : selectedResourceIds;
+    
+    if (currentSelection.length > 0) {
+      // Check which selected resources are still available
+      const availableSelected: number[] = [];
+      
+      currentSelection.forEach(resourceId => {
+        if (isResourceAvailable(resourceId, response)) {
+          availableSelected.push(resourceId);
+        }
+      });
+      
+      // Group available selected resources by type
+      const availableByType: Record<number, number[]> = {};
+      availableSelected.forEach(id => {
+        for (const req of response.requirements) {
+          const resource = req.available_resources.find(r => r.id === id);
+          if (resource) {
+            if (!availableByType[req.resource_type_id]) {
+              availableByType[req.resource_type_id] = [];
+            }
+            const typeArray = availableByType[req.resource_type_id];
+            if (typeArray) {
+              typeArray.push(id);
+            }
+          }
+        }
+      });
+      
+      // Build new selection: keep available ones, replace unavailable ones
+      const newSelection: number[] = [...availableSelected];
+      
+      // For each resource type, ensure we have the required quantity
+      response.requirements.forEach(req => {
+        const currentCount = availableByType[req.resource_type_id]?.length || 0;
+        const needed = req.required_quantity - currentCount;
+        
+        if (needed > 0) {
+          // Get available resources for this type that aren't already selected
+          const availableForType = getAvailableResourcesForType(req.resource_type_id, response);
+          const notSelected = availableForType.filter(id => !newSelection.includes(id));
+          
+          // Add needed resources from available ones
+          const toAdd = notSelected.slice(0, needed);
+          newSelection.push(...toAdd);
+        }
+      });
+      
+      // Only update if selection changed (to avoid infinite loops)
+      const selectionChanged = newSelection.length !== currentSelection.length || 
+          !newSelection.every(id => currentSelection.includes(id)) ||
+          !currentSelection.every(id => newSelection.includes(id));
+      
+      if (selectionChanged) {
+        isUpdatingSelectionRef.current = true;
+        onSelectionChange(newSelection);
+        lastSelectedRef.current = newSelection;
+        // Reset flag after a short delay to allow state to update
+        setTimeout(() => {
+          isUpdatingSelectionRef.current = false;
+        }, 100);
+      } else {
+        lastSelectedRef.current = currentSelection;
+      }
+    } else {
+      // Auto-select suggested resources if none selected
+      if (response.suggested_allocation.length > 0) {
+        isUpdatingSelectionRef.current = true;
+        const suggestedIds = response.suggested_allocation.map(r => r.id);
+        onSelectionChange(suggestedIds);
+        lastSelectedRef.current = suggestedIds;
+        setTimeout(() => {
+          isUpdatingSelectionRef.current = false;
+        }, 100);
+      }
+    }
+  };
 
   // Track selection changes from user actions (not from our auto-updates)
   useEffect(() => {
@@ -235,11 +255,12 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   return (
     <div className="space-y-4">
       <div className="border-t border-gray-200 pt-4">
-        <h3 className="text-sm font-medium text-gray-900 mb-3">資源選擇</h3>
-        
-        {loading && (
-          <div className="text-sm text-gray-500">載入資源可用性中...</div>
-        )}
+        <div className="flex items-center gap-2 mb-3">
+          <h3 className="text-sm font-medium text-gray-900">資源選擇</h3>
+          {loading && (
+            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+          )}
+        </div>
         
         {error && (
           <div className="text-sm text-red-600 mb-3">{error}</div>

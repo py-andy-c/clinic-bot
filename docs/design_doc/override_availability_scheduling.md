@@ -179,7 +179,7 @@ Allow clinic users (admins and practitioners) to schedule appointments at any ti
 - Check conflicts in real-time as user types/selects time
 - **Cache-first validation**: Before making an API call, check if the selected time exists in the locally cached `availableSlots` list. If it exists, immediately set `conflictInfo` to `null` and skip the network request.
 - Debounce conflict checks (300ms) for times not in the cache to avoid excessive API calls
-- **Silent Background Check**: No loading text or spinner is shown during the conflict check. Warnings appear automatically once the data is received, providing a smoother experience.
+- **Silent Background Check**: A tiny spinner is shown during the conflict check, but no loading text is displayed. Warnings appear automatically once the data is received, providing a smoother experience.
 - Cache conflict results for recently checked times
 
 ### Past Dates/Times

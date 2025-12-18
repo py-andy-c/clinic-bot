@@ -218,7 +218,10 @@ All conflicts are detected and returned to the frontend. The priority below dete
   - Selected resource(s) highlighted
   - Unavailable resources grayed out with indicator (but still selectable)
   - System auto-selects required quantity (no quantity selector needed)
-- Real-time updates as time changes (debounced ~300ms)
+- **Snappy Updates**: 
+  - Updates in real-time as time changes (debounced ~300ms)
+  - **Caching**: Local caching of resource availability responses to ensure instant switching between previously checked times.
+  - **Silent Loading**: Previous selection remains visible during background updates, with a tiny spinner indicating activity. No layout-shifting loading text is shown.
 - Warning displayed if:
   - Selected resources are unavailable
   - Selected quantity is below required quantity
