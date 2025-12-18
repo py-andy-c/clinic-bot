@@ -570,6 +570,27 @@ class AvailabilityService:
             )
             return filtered_slots
 
+        # For clinic users (apply_booking_restrictions=False), we still filter out past slots 
+        # by default to keep the UI clean, while bypassing other restrictions like minimum 
+        # booking hours or max booking window.
+        now = taiwan_now()
+        
+        # If requested_date is in the past, return empty list
+        if requested_date < now.date():
+            return []
+            
+        # If requested_date is today, filter slots by time
+        if requested_date == now.date():
+            from utils.datetime_utils import ensure_taiwan
+            filtered_slots: List[Dict[str, Any]] = []
+            for slot in available_slots:
+                h, m = map(int, slot['start_time'].split(':'))
+                slot_dt = datetime.combine(requested_date, time(h, m))
+                slot_dt_tz = ensure_taiwan(slot_dt)
+                if slot_dt_tz and slot_dt_tz >= now:
+                    filtered_slots.append(slot)
+            return filtered_slots
+
         return available_slots
 
     @staticmethod

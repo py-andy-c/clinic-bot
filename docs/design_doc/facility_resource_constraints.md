@@ -66,12 +66,9 @@ Extend the appointment system to consider facility resource constraints (e.g., t
 - **New**: Also check resource availability
 - For each time slot:
   1. Check if practitioner is available (existing logic)
-  2. Check if required resources are available:
-     - Get all resource requirements for the appointment type (from service item settings)
-     - For each required resource type:
-       - Count how many resources of this type are already allocated during this time slot
-       - Check if available quantity >= required quantity
+  2. Check if required resources are available
   3. Slot is only available if both practitioner AND resources are available
+- **Past Time Filtering**: For all users (including clinic admins), past dates and today's past times are filtered out from available slots by default. Admins can bypass this via Override Mode.
 
 #### Resource Availability Check
 - For a given time slot (start_time, end_time):

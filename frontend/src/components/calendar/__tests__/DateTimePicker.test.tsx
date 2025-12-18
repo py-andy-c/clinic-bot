@@ -504,11 +504,30 @@ describe('DateTimePicker', () => {
       });
     });
 
-    it('should check conflicts when date and time are selected', async () => {
+    it('should NOT check conflicts when selected time is in available slots', async () => {
       render(
         <DateTimePicker
           selectedDate="2024-01-15"
           selectedTime="09:00"
+          selectedPractitionerId={1}
+          appointmentTypeId={1}
+          onDateSelect={mockOnDateSelect}
+          onTimeSelect={mockOnTimeSelect}
+          allowOverride={true}
+        />
+      );
+
+      // Wait a bit to ensure no conflict check happens
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      expect(apiService.checkSchedulingConflicts).not.toHaveBeenCalled();
+    });
+
+    it('should check conflicts when selected time is NOT in available slots', async () => {
+      render(
+        <DateTimePicker
+          selectedDate="2024-01-15"
+          selectedTime="11:00" // Not in availableSlots ['09:00', '10:00', '15:00', '16:00']
           selectedPractitionerId={1}
           appointmentTypeId={1}
           onDateSelect={mockOnDateSelect}
@@ -523,7 +542,7 @@ describe('DateTimePicker', () => {
           expect(apiService.checkSchedulingConflicts).toHaveBeenCalledWith(
             1,
             '2024-01-15',
-            '09:00',
+            '11:00',
             1,
             undefined
           );
@@ -532,11 +551,11 @@ describe('DateTimePicker', () => {
       );
     });
 
-    it('should check conflicts immediately when practitioner changes', async () => {
+    it('should check conflicts immediately when practitioner changes and time is not in slots', async () => {
       const { rerender } = render(
         <DateTimePicker
           selectedDate="2024-01-15"
-          selectedTime="09:00"
+          selectedTime="11:00"
           selectedPractitionerId={1}
           appointmentTypeId={1}
           onDateSelect={mockOnDateSelect}
@@ -552,7 +571,7 @@ describe('DateTimePicker', () => {
       rerender(
         <DateTimePicker
           selectedDate="2024-01-15"
-          selectedTime="09:00"
+          selectedTime="11:00"
           selectedPractitionerId={2}
           appointmentTypeId={1}
           onDateSelect={mockOnDateSelect}
@@ -566,18 +585,18 @@ describe('DateTimePicker', () => {
         expect(apiService.checkSchedulingConflicts).toHaveBeenCalledWith(
           2,
           '2024-01-15',
-          '09:00',
+          '11:00',
           1,
           undefined
         );
       });
     });
 
-    it('should check conflicts immediately when appointment type changes', async () => {
+    it('should check conflicts immediately when appointment type changes and time is not in slots', async () => {
       const { rerender } = render(
         <DateTimePicker
           selectedDate="2024-01-15"
-          selectedTime="09:00"
+          selectedTime="11:00"
           selectedPractitionerId={1}
           appointmentTypeId={1}
           onDateSelect={mockOnDateSelect}
@@ -593,7 +612,7 @@ describe('DateTimePicker', () => {
       rerender(
         <DateTimePicker
           selectedDate="2024-01-15"
-          selectedTime="09:00"
+          selectedTime="11:00"
           selectedPractitionerId={1}
           appointmentTypeId={2}
           onDateSelect={mockOnDateSelect}
@@ -607,14 +626,14 @@ describe('DateTimePicker', () => {
         expect(apiService.checkSchedulingConflicts).toHaveBeenCalledWith(
           1,
           '2024-01-15',
-          '09:00',
+          '11:00',
           2,
           undefined
         );
       });
     });
 
-    it('should display conflict warning when conflict exists', async () => {
+    it('should display conflict warning when conflict exists and time is not in slots', async () => {
       vi.mocked(apiService.checkSchedulingConflicts).mockResolvedValue({
         has_conflict: true,
         conflict_type: 'availability',
@@ -629,7 +648,7 @@ describe('DateTimePicker', () => {
       render(
         <DateTimePicker
           selectedDate="2024-01-15"
-          selectedTime="09:00"
+          selectedTime="11:00"
           selectedPractitionerId={1}
           appointmentTypeId={1}
           onDateSelect={mockOnDateSelect}
@@ -647,7 +666,7 @@ describe('DateTimePicker', () => {
       );
     });
 
-    it('should display conflict warning in collapsed view', async () => {
+    it('should display conflict warning in collapsed view and time is not in slots', async () => {
       vi.mocked(apiService.checkSchedulingConflicts).mockResolvedValue({
         has_conflict: true,
         conflict_type: 'availability',
@@ -662,7 +681,7 @@ describe('DateTimePicker', () => {
       render(
         <DateTimePicker
           selectedDate="2024-01-15"
-          selectedTime="09:00"
+          selectedTime="11:00"
           selectedPractitionerId={1}
           appointmentTypeId={1}
           onDateSelect={mockOnDateSelect}
@@ -680,11 +699,11 @@ describe('DateTimePicker', () => {
       );
     });
 
-    it('should exclude calendar event ID in edit mode', async () => {
+    it('should exclude calendar event ID in edit mode and time is not in slots', async () => {
       render(
         <DateTimePicker
           selectedDate="2024-01-15"
-          selectedTime="09:00"
+          selectedTime="11:00"
           selectedPractitionerId={1}
           appointmentTypeId={1}
           onDateSelect={mockOnDateSelect}
@@ -700,7 +719,7 @@ describe('DateTimePicker', () => {
           expect(apiService.checkSchedulingConflicts).toHaveBeenCalledWith(
             1,
             '2024-01-15',
-            '09:00',
+            '11:00',
             1,
             123
           );

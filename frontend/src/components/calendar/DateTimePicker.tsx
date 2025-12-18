@@ -124,6 +124,19 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     batchInitiatedRef,
   });
 
+  // Build time slots list - backend already includes original time when excludeCalendarEventId is provided
+  // Use tempDate when expanded, selectedDate when collapsed
+  const allTimeSlots = useMemo(() => {
+    // If there's a practitioner error, don't show any slots
+    if (practitionerError) {
+      return [];
+    }
+    
+    // Backend already includes original time in availableSlots when excludeCalendarEventId is provided
+    // No need to manually add it
+    return [...availableSlots];
+  }, [availableSlots, practitionerError]);
+
   // Debounced conflict checking - debounce time/date changes, but check immediately when practitioner/appointment type changes
   const debouncedTime = useDebounce(displayTime, 300);
   const debouncedDate = useDebounce(displayDate, 300);
@@ -154,6 +167,16 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     }
 
     const checkConflicts = async () => {
+      // If the selected time is in our cached available slots, assume no conflict
+      // This provides a snappy UX for standard slot selection.
+      // Final validation still happens on the backend during save.
+      if (allTimeSlots.includes(conflictCheckTime)) {
+        setConflictInfo(null);
+        setConflictCheckError(null);
+        setIsCheckingConflict(false);
+        return;
+      }
+
       setIsCheckingConflict(true);
       setConflictCheckError(null);
       try {
@@ -177,7 +200,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     };
 
     checkConflicts();
-  }, [debouncedDate, debouncedTime, selectedPractitionerId, appointmentTypeId, excludeCalendarEventId, displayDate, displayTime]);
+  }, [debouncedDate, debouncedTime, selectedPractitionerId, appointmentTypeId, excludeCalendarEventId, displayDate, displayTime, allTimeSlots]);
 
   // Update currentMonth when selectedDate changes (but only if it's a different month)
   // Don't reset if user manually navigated to a different month
@@ -445,19 +468,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   const handleNextMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
-
-  // Build time slots list - backend already includes original time when excludeCalendarEventId is provided
-  // Use tempDate when expanded, selectedDate when collapsed
-  const allTimeSlots = useMemo(() => {
-    // If there's a practitioner error, don't show any slots
-    if (practitionerError) {
-      return [];
-    }
-    
-    // Backend already includes original time in availableSlots when excludeCalendarEventId is provided
-    // No need to manually add it
-    return [...availableSlots];
-  }, [availableSlots, practitionerError]);
 
   // Group time slots
   const { amSlots, pmSlots } = useMemo(() => {

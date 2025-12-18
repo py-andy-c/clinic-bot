@@ -20,12 +20,7 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
   className = '',
 }) => {
   if (isLoading) {
-    return (
-      <div className={`flex items-center gap-2 text-sm text-gray-500 ${className}`}>
-        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
-        檢查時間衝突中...
-      </div>
-    );
+    return null;
   }
 
   if (!conflictInfo || !conflictInfo.has_conflict) {

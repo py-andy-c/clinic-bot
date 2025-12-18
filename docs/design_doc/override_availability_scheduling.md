@@ -19,12 +19,14 @@ Allow clinic users (admins and practitioners) to schedule appointments at any ti
 - Shows only available time slots within practitioner's default availability
 - Dates without availability are disabled
 - Time dropdown shows filtered slots only
+- **Past times are automatically filtered out** for all users (including clinic admins) to keep the UI clean. Admins can use Override Mode to schedule in the past.
 
 **Override Mode (Toggle ON)**:
 - All dates become selectable (even if no normal availability)
 - Time selection changes to **free-form time input** (12-hour format: H:MM AM/PM or 24-hour: HH:MM)
-- Allows any time selection regardless of availability
+- Allows any time selection regardless of availability, including **past dates/times**.
 - Real-time conflict detection and display (see Conflict Display section)
+- **Snappy Validation**: If the selected time is found in the locally cached "available slots" list, the system skips the network call and assumes no conflict. A network call is only made if the time is NOT in the suggested list (e.g., manual entry or past time).
 
 **Override Toggle**:
 - Checkbox labeled "允許預約在非可用時間" (Allow scheduling outside availability)
@@ -175,16 +177,18 @@ Allow clinic users (admins and practitioners) to schedule appointments at any ti
 
 ### Conflict Detection Timing
 - Check conflicts in real-time as user types/selects time
-- Debounce conflict checks (300ms) to avoid excessive API calls
-- Show loading state while checking conflicts
+- **Cache-first validation**: Before making an API call, check if the selected time exists in the locally cached `availableSlots` list. If it exists, immediately set `conflictInfo` to `null` and skip the network request.
+- Debounce conflict checks (300ms) for times not in the cache to avoid excessive API calls
+- **Silent Background Check**: No loading text or spinner is shown during the conflict check. Warnings appear automatically once the data is received, providing a smoother experience.
 - Cache conflict results for recently checked times
 
 ### Past Dates/Times
-- **Clinic users can schedule appointments in the past** (with warning)
+- **Candidate slots filter past times**: Even for clinic users, past times are filtered out from the suggested slots list by default.
+- **Back-filling support**: Clinic users can still schedule appointments in the past by enabling **Override Mode** and manually entering the time.
 - Past appointments are detected and shown as highest priority conflict type
 - Past appointments are **not filtered out** on conflict resolution or review pages
 - Backend returns `conflict_type: "past_appointment"` for appointments scheduled before current Taiwan time
-- Patient bookings (non-clinic users) are still prevented from scheduling in the past
+- Patient bookings (non-clinic users) are still prevented from scheduling in the past via strict booking restrictions.
 
 ### Invalid Time Format
 - If user enters invalid time format:
@@ -322,7 +326,8 @@ async checkSchedulingConflicts(
 
 **Conflict Detection**:
 - Real-time detection with 300ms debounce
-- Show loading state while checking
+- **Frontend Optimization**: Skip API call if selected time is present in `availableSlots` (cache hit).
+- Silent background updates (no spinner or loading text)
 - Cache results per (date, time, practitioner) combination
 - Update conflict status immediately when editing occurrences
 
