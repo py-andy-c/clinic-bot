@@ -30,7 +30,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   const [availability, setAvailability] = useState<ResourceAvailabilityResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cache, setCache] = useState<Record<string, ResourceAvailabilityResponse>>({});
-  const lastTimeSlotRef = useRef<string>('');
+  const lastAutoSelectedSlotRef = useRef<string>('');
   const lastSelectedRef = useRef<number[]>([]);
   const isUpdatingSelectionRef = useRef(false);
 
@@ -56,13 +56,12 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   useEffect(() => {
     if (!appointmentTypeId || !practitionerId || !date || !startTime) {
       setAvailability(null);
-      lastTimeSlotRef.current = '';
+      lastAutoSelectedSlotRef.current = '';
       return;
     }
 
     const timeSlotKey = `${appointmentTypeId}_${practitionerId}_${date}_${startTime}_${durationMinutes}_${excludeCalendarEventId || 0}`;
-    const timeSlotChanged = lastTimeSlotRef.current !== timeSlotKey;
-    lastTimeSlotRef.current = timeSlotKey;
+    const needsAutoSelection = lastAutoSelectedSlotRef.current !== timeSlotKey;
 
     // Check cache first for immediate feedback
     if (cache[timeSlotKey]) {
@@ -70,9 +69,10 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
       setAvailability(cachedData);
       setLoading(false);
       
-      // Still trigger selection logic if slot changed
-      if (timeSlotChanged) {
+      // Still trigger selection logic if slot hasn't been auto-selected yet
+      if (needsAutoSelection) {
         handleAutoSelection(cachedData);
+        lastAutoSelectedSlotRef.current = timeSlotKey;
       }
       return;
     }
@@ -98,12 +98,13 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
         setAvailability(response);
         
         // Smart resource selection logic: prefer keeping same resources if still available
-        // Only run this logic when time slot changes (not when selection changes due to user action)
-        if (timeSlotChanged && !isUpdatingSelectionRef.current) {
+        // Only run this logic when time slot changed and hasn't been auto-selected yet
+        if (needsAutoSelection && !isUpdatingSelectionRef.current) {
           handleAutoSelection(response);
+          lastAutoSelectedSlotRef.current = timeSlotKey;
         } else {
           // Update ref when selection changes due to user action (not time slot change)
-          if (!timeSlotChanged) {
+          if (!needsAutoSelection) {
             lastSelectedRef.current = selectedResourceIds;
           }
         }

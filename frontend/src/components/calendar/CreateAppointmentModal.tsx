@@ -585,6 +585,14 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         
         setOccurrences(updatedOccurrences);
         
+        // Initialize resource IDs map for occurrences
+        // Propagate current selection to all generated occurrences as a starting point
+        const initialOccurrenceResources: Record<string, number[]> = {};
+        updatedOccurrences.forEach(occ => {
+          initialOccurrenceResources[occ.id] = [...selectedResourceIds];
+        });
+        setOccurrenceResourceIds(initialOccurrenceResources);
+        
         // Always show conflict resolution if any conflicts exist (simplified logic)
         const hasConflicts = updatedOccurrences.some(occ => occ.hasConflict);
         
