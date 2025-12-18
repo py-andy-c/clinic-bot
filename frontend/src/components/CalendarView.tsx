@@ -834,65 +834,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         }
       }
 
-      // Resource calendars should show events separately from practitioner calendars
-      // Even if they share the same calendar_event_id, we want to show both
-      // Strategy: Keep all practitioner events, keep all resource events for selected resources
-      // Use composite keys for React to avoid duplicate key warnings
-      const practitionerEvents: ApiCalendarEvent[] = [];
-      const resourceEvents: ApiCalendarEvent[] = [];
-
-      // Separate practitioner and resource events
-      for (const event of events) {
-        const eventAny = event as any;
-        if (eventAny.is_resource_event) {
-          // Only keep resource events for selected resources
-          if (eventAny.resource_id && resourceIds.includes(eventAny.resource_id)) {
-            resourceEvents.push(event);
-          }
-        } else {
-          practitionerEvents.push(event);
-        }
-      }
-
-      // Merge resource information into practitioner events for display
-      // (so practitioner events show which resources they use)
-      const practitionerEventMap = new Map<number, ApiCalendarEvent>();
-      for (const event of practitionerEvents) {
-        const eventId = event.calendar_event_id;
-        if (!practitionerEventMap.has(eventId)) {
-          practitionerEventMap.set(eventId, event);
-        }
-      }
-
-      // Collect resource info from resource events to merge into practitioner events
-      const resourceInfoByEventId = new Map<number, { resourceIds: Set<number>; resourceNames: Set<string> }>();
-      for (const resourceEvent of resourceEvents) {
-        const eventAny = resourceEvent as any;
-        const eventId = resourceEvent.calendar_event_id;
-        if (!resourceInfoByEventId.has(eventId)) {
-          resourceInfoByEventId.set(eventId, { resourceIds: new Set(), resourceNames: new Set() });
-        }
-        const info = resourceInfoByEventId.get(eventId)!;
-        if (eventAny.resource_id) {
-          info.resourceIds.add(eventAny.resource_id);
-        }
-        if (eventAny.resource_name) {
-          info.resourceNames.add(eventAny.resource_name);
-        }
-      }
-
-      // Merge resource info into practitioner events
-      for (const [eventId, info] of resourceInfoByEventId.entries()) {
-        const practitionerEvent = practitionerEventMap.get(eventId);
-        if (practitionerEvent) {
-          (practitionerEvent as any).resource_ids = Array.from(info.resourceIds);
-          (practitionerEvent as any).resource_names = Array.from(info.resourceNames);
-        }
-      }
-
-      // Combine all events: practitioner events + resource events
+      // Combined events: practitioner events + resource events
       // Resource events will be displayed separately with unique keys
-      const allEvents = [...Array.from(practitionerEventMap.values()), ...resourceEvents];
+      // Practitioner events already have resource info from the backend
+      const allEvents = [...events];
 
       // Cache the data
       cachedCalendarDataRef.current.set(cacheKey, {

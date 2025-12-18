@@ -522,6 +522,17 @@ class AppointmentService:
             joinedload(Appointment.patient).joinedload(Patient.line_user)  # Load line_user for display_name
         ).order_by(CalendarEvent.date, CalendarEvent.start_time).all()
 
+        # Collect appointment IDs for bulk data fetching (optimized)
+        appointment_ids = [a.calendar_event_id for a in appointments]
+        
+        # Bulk load all receipts for all appointments (optimized)
+        from services.receipt_service import ReceiptService
+        all_receipts_map = ReceiptService.get_all_receipts_for_appointments(db, appointment_ids)
+
+        # Bulk load all resources for all appointments (optimized)
+        from services.resource_service import ResourceService
+        all_resources_map = ResourceService.get_all_resources_for_appointments(db, appointment_ids)
+
         # Format response
         result: List[Dict[str, Any]] = []
 
@@ -571,21 +582,21 @@ class AppointmentService:
                 appointment_type_name = get_appointment_type_name_safe(appointment.appointment_type_id, db)
                 event_name = f"{patient.full_name} - {appointment_type_name or '未設定'}"
 
-            # Get receipt status (optimized single query)
-            from services.receipt_service import ReceiptService
-            from models.receipt import Receipt
-            receipts = db.query(Receipt).filter(
-                Receipt.appointment_id == appointment.calendar_event_id
-            ).all()
-            
+            # Get receipt status from bulk-loaded map (all receipts)
+            receipts = all_receipts_map.get(appointment.calendar_event_id, [])
             receipt_fields = ReceiptService.compute_receipt_fields(receipts)
+            
+            # Get resources from bulk-loaded map
+            allocated_resources = all_resources_map.get(appointment.calendar_event_id, [])
+            resource_names = [r.name for r in allocated_resources]
+            resource_ids = [r.id for r in allocated_resources]
 
             result.append({
                 "id": appointment.calendar_event_id,  # Keep for backward compatibility
                 "calendar_event_id": appointment.calendar_event_id,  # Explicit field
                 "patient_id": appointment.patient_id,
                 "patient_name": patient.full_name,
-                "practitioner_id": appointment.calendar_event.user_id,
+                "practitioner_id": practitioner.id,
                 "practitioner_name": practitioner_name,
                 "appointment_type_id": appointment.appointment_type_id,
                 "appointment_type_name": get_appointment_type_name_safe(appointment.appointment_type_id, db),
@@ -597,6 +608,9 @@ class AppointmentService:
                 "clinic_notes": None,  # Not exposed to LINE users
                 "line_display_name": line_display_name,
                 "originally_auto_assigned": appointment.originally_auto_assigned,
+                "is_auto_assigned": appointment.is_auto_assigned,
+                "resource_names": resource_names,
+                "resource_ids": resource_ids,
                 "has_active_receipt": receipt_fields["has_active_receipt"],
                 "has_any_receipt": receipt_fields["has_any_receipt"],
                 "receipt_id": receipt_fields["receipt_id"],
@@ -666,6 +680,17 @@ class AppointmentService:
             joinedload(Appointment.patient).joinedload(Patient.line_user)  # Load line_user for display_name
         ).order_by(CalendarEvent.date.desc(), CalendarEvent.start_time.desc()).all()
 
+        # Collect appointment IDs for bulk data fetching (optimized)
+        appointment_ids = [a.calendar_event_id for a in appointments]
+        
+        # Bulk load all receipts for all appointments (optimized)
+        from services.receipt_service import ReceiptService
+        all_receipts_map = ReceiptService.get_all_receipts_for_appointments(db, appointment_ids)
+
+        # Bulk load all resources for all appointments (optimized)
+        from services.resource_service import ResourceService
+        all_resources_map = ResourceService.get_all_resources_for_appointments(db, appointment_ids)
+
         # Format response
         result: List[Dict[str, Any]] = []
 
@@ -720,14 +745,14 @@ class AppointmentService:
             if hide_auto_assigned_practitioner_id and appointment.is_auto_assigned:
                 practitioner_id = None
 
-            # Get receipt status (optimized single query)
-            from services.receipt_service import ReceiptService
-            from models.receipt import Receipt
-            receipts = db.query(Receipt).filter(
-                Receipt.appointment_id == appointment.calendar_event_id
-            ).all()
-            
+            # Get receipt status from bulk-loaded map (all receipts)
+            receipts = all_receipts_map.get(appointment.calendar_event_id, [])
             receipt_fields = ReceiptService.compute_receipt_fields(receipts)
+            
+            # Get resources from bulk-loaded map
+            allocated_resources = all_resources_map.get(appointment.calendar_event_id, [])
+            resource_names = [r.name for r in allocated_resources]
+            resource_ids = [r.id for r in allocated_resources]
 
             result.append({
                 "id": appointment.calendar_event_id,  # Keep for backward compatibility
@@ -747,6 +772,8 @@ class AppointmentService:
                 "line_display_name": line_display_name,
                 "originally_auto_assigned": appointment.originally_auto_assigned,
                 "is_auto_assigned": appointment.is_auto_assigned,
+                "resource_names": resource_names,
+                "resource_ids": resource_ids,
                 "has_active_receipt": receipt_fields["has_active_receipt"],
                 "has_any_receipt": receipt_fields["has_any_receipt"],
                 "receipt_id": receipt_fields["receipt_id"],

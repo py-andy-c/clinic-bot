@@ -3210,6 +3210,11 @@ async def get_appointment_details(
         receipt_id = receipt.id if receipt and not receipt.is_voided else None
         receipt_ids = [receipt.id] if receipt else []
 
+        # Get resource info
+        allocated_resources = ResourceService.get_all_resources_for_appointments(db, [appointment_id]).get(appointment_id, [])
+        resource_names = [r.name for r in allocated_resources]
+        resource_ids = [r.id for r in allocated_resources]
+
         # Handle practitioner_id visibility for auto-assigned appointments
         practitioner_id = calendar_event.user_id
         if hide_auto_assigned_practitioner_id and appointment.is_auto_assigned:
@@ -3233,6 +3238,8 @@ async def get_appointment_details(
             line_display_name=appointment.patient.line_user.display_name if appointment.patient.line_user else None,
             originally_auto_assigned=appointment.is_auto_assigned,
             is_auto_assigned=appointment.is_auto_assigned,
+            resource_names=resource_names,
+            resource_ids=resource_ids,
             has_active_receipt=has_active_receipt,
             has_any_receipt=has_any_receipt,
             receipt_id=receipt_id,
@@ -3767,6 +3774,8 @@ class CalendarEventResponse(BaseModel):
     practitioner_name: Optional[str] = None  # Practitioner full name for cancellation preview
     appointment_type_name: Optional[str] = None  # Appointment type name for cancellation preview
     is_auto_assigned: Optional[bool] = None  # Whether appointment is auto-assigned by system
+    resource_names: List[str] = []  # Names of allocated resources
+    resource_ids: List[int] = []  # IDs of allocated resources
     has_active_receipt: bool = False  # Whether appointment has an active (non-voided) receipt
     has_any_receipt: bool = False  # Whether appointment has any receipt (active or voided)
     receipt_id: Optional[int] = None  # ID of active receipt (null if no active receipt)
@@ -4233,6 +4242,9 @@ async def get_calendar_data(
             # Bulk load all receipts for all appointments (optimized)
             all_receipts_map = ReceiptService.get_all_receipts_for_appointments(db, appointment_ids)
             
+            # Bulk load all resources for all appointments (optimized)
+            all_resources_map = ResourceService.get_all_resources_for_appointments(db, appointment_ids)
+            
             event_responses: List[CalendarEventResponse] = []
             for event in events:
                 if event.event_type == 'appointment':
@@ -4259,6 +4271,11 @@ async def get_calendar_data(
                         receipts = all_receipts_map.get(appointment.calendar_event_id, [])
                         receipt_fields = ReceiptService.compute_receipt_fields(receipts)
                         
+                        # Get resources from bulk-loaded map
+                        allocated_resources = all_resources_map.get(appointment.calendar_event_id, [])
+                        resource_names = [r.name for r in allocated_resources]
+                        resource_ids = [r.id for r in allocated_resources]
+                        
                         event_responses.append(CalendarEventResponse(
                             calendar_event_id=event.id,
                             type='appointment',
@@ -4278,6 +4295,8 @@ async def get_calendar_data(
                             practitioner_name=practitioner_name,
                             appointment_type_name=appointment_type_name,
                             is_auto_assigned=appointment.is_auto_assigned,
+                            resource_names=resource_names,
+                            resource_ids=resource_ids,
                             has_active_receipt=receipt_fields["has_active_receipt"],
                             has_any_receipt=receipt_fields["has_any_receipt"],
                             receipt_id=receipt_fields["receipt_id"],
@@ -4475,6 +4494,9 @@ async def get_batch_calendar(
         # Bulk load all receipts for all appointments (optimized)
         all_receipts_map = ReceiptService.get_all_receipts_for_appointments(db, appointment_ids)
         
+        # Bulk load all resources for all appointments (optimized)
+        all_resources_map = ResourceService.get_all_resources_for_appointments(db, appointment_ids)
+        
         # Build response for each practitioner and date
         results: List[BatchCalendarDayResponse] = []
         current_date = start_date
@@ -4514,6 +4536,11 @@ async def get_batch_calendar(
                             receipts = all_receipts_map.get(appointment.calendar_event_id, [])
                             receipt_fields = ReceiptService.compute_receipt_fields(receipts)
                             
+                            # Get resources from bulk-loaded map
+                            allocated_resources = all_resources_map.get(appointment.calendar_event_id, [])
+                            resource_names = [r.name for r in allocated_resources]
+                            resource_ids = [r.id for r in allocated_resources]
+                            
                             event_responses.append(CalendarEventResponse(
                                 calendar_event_id=event.id,
                                 type='appointment',
@@ -4533,6 +4560,8 @@ async def get_batch_calendar(
                                 practitioner_name=practitioner_name,
                                 appointment_type_name=appointment_type_name,
                                 is_auto_assigned=appointment.is_auto_assigned,
+                                resource_names=resource_names,
+                                resource_ids=resource_ids,
                                 has_active_receipt=receipt_fields["has_active_receipt"],
                                 has_any_receipt=receipt_fields["has_any_receipt"],
                                 receipt_id=receipt_fields["receipt_id"],
@@ -4641,6 +4670,9 @@ async def get_resource_calendar_data(
         # Bulk load all receipts for all appointments
         all_receipts_map = ReceiptService.get_all_receipts_for_appointments(db, appointment_ids)
         
+        # Bulk load all resources for all appointments (optimized)
+        all_resources_map = ResourceService.get_all_resources_for_appointments(db, appointment_ids)
+        
         # Helper function to format time
         def _format_time(t: Optional[time]) -> Optional[str]:
             if t is None:
@@ -4682,6 +4714,11 @@ async def get_resource_calendar_data(
                 receipts = all_receipts_map.get(appointment.calendar_event_id, [])
                 receipt_fields = ReceiptService.compute_receipt_fields(receipts)
                 
+                # Get resources from bulk-loaded map
+                allocated_resources = all_resources_map.get(appointment.calendar_event_id, [])
+                resource_names = [r.name for r in allocated_resources]
+                resource_ids = [r.id for r in allocated_resources]
+                
                 event_responses.append(CalendarEventResponse(
                     calendar_event_id=event.id,
                     type='appointment',
@@ -4701,6 +4738,8 @@ async def get_resource_calendar_data(
                     practitioner_name=practitioner_name,
                     appointment_type_name=appointment_type_name,
                     is_auto_assigned=appointment.is_auto_assigned,
+                    resource_names=resource_names,
+                    resource_ids=resource_ids,
                     has_active_receipt=receipt_fields["has_active_receipt"],
                     has_any_receipt=receipt_fields["has_any_receipt"],
                     receipt_id=receipt_fields["receipt_id"],
@@ -4829,6 +4868,9 @@ async def get_batch_resource_calendar(
         # Bulk load all receipts for all appointments
         all_receipts_map = ReceiptService.get_all_receipts_for_appointments(db, appointment_ids)
         
+        # Bulk load all resources for all appointments (optimized)
+        all_resources_map = ResourceService.get_all_resources_for_appointments(db, appointment_ids)
+        
         # Helper functions
         def _format_time(t: Optional[time]) -> Optional[str]:
             if t is None:
@@ -4877,6 +4919,11 @@ async def get_batch_resource_calendar(
                         receipts = all_receipts_map.get(appointment.calendar_event_id, [])
                         receipt_fields = ReceiptService.compute_receipt_fields(receipts)
                         
+                        # Get resources from bulk-loaded map
+                        allocated_resources = all_resources_map.get(appointment.calendar_event_id, [])
+                        resource_names = [r.name for r in allocated_resources]
+                        resource_ids = [r.id for r in allocated_resources]
+                        
                         event_responses.append(CalendarEventResponse(
                             calendar_event_id=event.id,
                             type='appointment',
@@ -4896,6 +4943,8 @@ async def get_batch_resource_calendar(
                             practitioner_name=practitioner_name,
                             appointment_type_name=appointment_type_name,
                             is_auto_assigned=appointment.is_auto_assigned,
+                            resource_names=resource_names,
+                            resource_ids=resource_ids,
                             has_active_receipt=receipt_fields["has_active_receipt"],
                             has_any_receipt=receipt_fields["has_any_receipt"],
                             receipt_id=receipt_fields["receipt_id"],

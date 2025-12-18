@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from main import app
 from utils.datetime_utils import taiwan_now
-from models import User, Clinic, AppointmentType, Patient, PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment
+from models import User, Clinic, AppointmentType, Patient, PractitionerAvailability, CalendarEvent, AvailabilityException, Appointment, ResourceType, Resource, AppointmentResourceAllocation
 from core.database import get_db
 from tests.conftest import (
     create_user_with_clinic_association,
@@ -1206,6 +1206,14 @@ class TestPractitionerCalendarAPI:
         )
         db_session.flush()
         
+        # Create a resource type and resource
+        resource_type = ResourceType(clinic_id=clinic.id, name="Test Room")
+        db_session.add(resource_type)
+        db_session.flush()
+        resource = Resource(resource_type_id=resource_type.id, clinic_id=clinic.id, name="Room 1")
+        db_session.add(resource)
+        db_session.flush()
+        
         # Create appointments for both practitioners on different dates
         target_date1 = taiwan_now().date() + timedelta(days=1)
         target_date2 = taiwan_now().date() + timedelta(days=2)
@@ -1260,6 +1268,14 @@ class TestPractitionerCalendarAPI:
             status='confirmed'
         )
         db_session.add(appointment2)
+        
+        # Allocate resource to appointment1
+        allocation = AppointmentResourceAllocation(
+            appointment_id=appointment1.calendar_event_id,
+            resource_id=resource.id
+        )
+        db_session.add(allocation)
+        
         db_session.commit()
         
         # Get authentication token
@@ -1288,6 +1304,9 @@ class TestPractitionerCalendarAPI:
         assert (practitioner1.id, target_date1.strftime('%Y-%m-%d')) in result_dict
         result1 = result_dict[(practitioner1.id, target_date1.strftime('%Y-%m-%d'))]
         assert len(result1["events"]) == 1
+        event = result1["events"][0]
+        assert event["resource_names"] == ["Room 1"]
+        assert event["resource_ids"] == [resource.id]
         assert result1["events"][0]["type"] == "appointment"
         
         # Check practitioner2 on date2

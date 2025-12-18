@@ -119,6 +119,8 @@ class AppointmentListItem(BaseModel):
     line_display_name: Optional[str] = None
     originally_auto_assigned: bool = False
     is_auto_assigned: bool = False
+    resource_names: List[str] = []  # Names of allocated resources
+    resource_ids: List[int] = []  # IDs of allocated resources
     has_active_receipt: bool = False  # Whether appointment has an active (non-voided) receipt
     has_any_receipt: bool = False  # Whether appointment has any receipt (active or voided)
     receipt_id: Optional[int] = None  # ID of active receipt (null if no active receipt)

@@ -425,8 +425,8 @@ class ResourceService:
                 Appointment, CalendarEvent.id == Appointment.calendar_event_id
             ).filter(
                 AppointmentResourceAllocation.resource_id.in_([r.id for r in all_resources]),
-            CalendarEvent.clinic_id == clinic_id,
-            CalendarEvent.date == start_time.date(),
+                CalendarEvent.clinic_id == clinic_id,
+                CalendarEvent.date == start_time.date(),
                 CalendarEvent.start_time < end_time.time(),
                 CalendarEvent.end_time > start_time.time(),
                 Appointment.status == 'confirmed'
@@ -483,4 +483,32 @@ class ResourceService:
             "suggested_allocation": suggested_allocation,
             "conflicts": conflicts
         }
+
+    @staticmethod
+    def get_all_resources_for_appointments(
+        db: Session,
+        appointment_ids: List[int]
+    ) -> Dict[int, List[Resource]]:
+        """
+        Bulk fetch resources for multiple appointments in a single query.
+
+        Returns a dictionary mapping appointment_id to a list of Resource objects.
+        """
+        if not appointment_ids:
+            return {}
+
+        # Join allocations with resources to get all info in one go
+        allocations = db.query(AppointmentResourceAllocation, Resource).join(
+            Resource, AppointmentResourceAllocation.resource_id == Resource.id
+        ).filter(
+            AppointmentResourceAllocation.appointment_id.in_(appointment_ids)
+        ).all()
+
+        result: Dict[int, List[Resource]] = {}
+        for allocation, resource in allocations:
+            if allocation.appointment_id not in result:
+                result[allocation.appointment_id] = []
+            result[allocation.appointment_id].append(resource)
+
+        return result
 
