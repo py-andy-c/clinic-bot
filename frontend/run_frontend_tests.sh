@@ -54,7 +54,7 @@ fi
 
 # Run TypeScript type checking
 print_status "Running TypeScript type checking..."
-if npx tsc --noEmit; then
+if ./node_modules/.bin/tsc --noEmit; then
     print_success "TypeScript type checking passed!"
 else
     print_error "TypeScript type checking failed!"
