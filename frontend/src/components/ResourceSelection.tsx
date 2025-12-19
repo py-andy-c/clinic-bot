@@ -57,17 +57,6 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
     }
   }, [availability, onResourcesFound]);
 
-  // Helper function to check if a resource is available in the current availability response
-  const isResourceAvailable = (resourceId: number, avail: ResourceAvailabilityResponse): boolean => {
-    for (const req of avail.requirements) {
-      const resource = req.available_resources.find(r => r.id === resourceId && r.is_available);
-      if (resource) {
-        return true;
-      }
-    }
-    return false;
-  };
-
   // Helper function to get available resources for a resource type
   const getAvailableResourcesForType = (resourceTypeId: number, avail: ResourceAvailabilityResponse): number[] => {
     const req = avail.requirements.find(r => r.resource_type_id === resourceTypeId);
@@ -163,25 +152,17 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
     const currentSelection = lastSelectedRef.current.length > 0 ? lastSelectedRef.current : selectedResourceIds;
     
     if (currentSelection.length > 0) {
-      // Check which selected resources are still available
-      const availableSelected: number[] = [];
-      
-      currentSelection.forEach(resourceId => {
-        if (isResourceAvailable(resourceId, response)) {
-          availableSelected.push(resourceId);
-        }
-      });
-      
-      // Group available selected resources by type
-      const availableByType: Record<number, number[]> = {};
-      availableSelected.forEach(id => {
+      // Keep all originally selected resources (even if unavailable)
+      // Group selected resources by type (both available and unavailable)
+      const selectedByType: Record<number, number[]> = {};
+      currentSelection.forEach(id => {
         for (const req of response.requirements) {
           const resource = req.available_resources.find(r => r.id === id);
           if (resource) {
-            if (!availableByType[req.resource_type_id]) {
-              availableByType[req.resource_type_id] = [];
+            if (!selectedByType[req.resource_type_id]) {
+              selectedByType[req.resource_type_id] = [];
             }
-            const typeArray = availableByType[req.resource_type_id];
+            const typeArray = selectedByType[req.resource_type_id];
             if (typeArray) {
               typeArray.push(id);
             }
@@ -189,12 +170,12 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
         }
       });
       
-      // Build new selection: keep available ones, replace unavailable ones
-      const newSelection: number[] = [...availableSelected];
+      // Build new selection: keep all original selections, only add if needed to meet requirements
+      const newSelection: number[] = [...currentSelection];
       
-      // For each resource type, ensure we have the required quantity
+      // For each resource type, check if we need to add more resources to meet requirements
       response.requirements.forEach(req => {
-        const currentCount = availableByType[req.resource_type_id]?.length || 0;
+        const currentCount = selectedByType[req.resource_type_id]?.length || 0;
         const needed = req.required_quantity - currentCount;
         
         if (needed > 0) {
@@ -202,7 +183,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
           const availableForType = getAvailableResourcesForType(req.resource_type_id, response);
           const notSelected = availableForType.filter(id => !newSelection.includes(id));
           
-          // Add needed resources from available ones
+          // Add needed resources from available ones (only if we need more to meet requirements)
           const toAdd = notSelected.slice(0, needed);
           newSelection.push(...toAdd);
         }
