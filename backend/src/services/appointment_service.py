@@ -1952,15 +1952,31 @@ class AppointmentService:
             allow_override=not apply_booking_constraints  # Allow override for clinic edits
         )
 
-        # Re-allocate resources if time or appointment type changed
-        if time_actually_changed or appointment_type_actually_changed:
+        # Check if resources changed by comparing current allocations with selected_resource_ids
+        resources_changed = False
+        from models.appointment_resource_allocation import AppointmentResourceAllocation
+        
+        if selected_resource_ids is not None:
+            # Get current resource allocations
+            current_allocations = db.query(AppointmentResourceAllocation).filter(
+                AppointmentResourceAllocation.appointment_id == appointment_id
+            ).all()
+            current_resource_ids = sorted([alloc.resource_id for alloc in current_allocations])
+            new_resource_ids = sorted(selected_resource_ids) if selected_resource_ids else []
+            
+            # Check if resources actually changed
+            resources_changed = current_resource_ids != new_resource_ids
+        
+        # Re-allocate resources if time, appointment type, or resources changed
+        if time_actually_changed or appointment_type_actually_changed or resources_changed:
             from services.resource_service import ResourceService
-            from models.appointment_resource_allocation import AppointmentResourceAllocation
             
             # Delete old allocations
             db.query(AppointmentResourceAllocation).filter(
                 AppointmentResourceAllocation.appointment_id == appointment_id
             ).delete()
+            # Flush to ensure deletions are visible to subsequent queries
+            db.flush()
             
             # Calculate new end time
             new_end_time = normalized_start_time + timedelta(minutes=duration_minutes)
@@ -1977,6 +1993,8 @@ class AppointmentService:
                     selected_resource_ids=selected_resource_ids,  # Use provided selection or auto-allocate
                     exclude_calendar_event_id=appointment_id  # Exclude current appointment from availability checks
                 )
+                # Flush to ensure new allocations are visible to subsequent queries
+                db.flush()
             except Exception as e:
                 logger.warning(f"Failed to re-allocate resources for appointment {appointment_id}: {e}")
                 # Continue without resource allocation (graceful degradation)

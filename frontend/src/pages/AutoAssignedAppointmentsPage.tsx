@@ -244,6 +244,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
     start_time: string;
     clinic_notes?: string;
     notification_note?: string;
+    selected_resource_ids?: number[];
   }) => {
     if (!selectedAppointment) return;
 
@@ -256,6 +257,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
         start_time?: string | null;
         clinic_notes?: string;
         notification_note?: string;
+        selected_resource_ids?: number[];
       } = {
         practitioner_id: formData.practitioner_id,
         start_time: formData.start_time,
@@ -271,6 +273,10 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
       
       if (formData.notification_note !== undefined) {
         updateData.notification_note = formData.notification_note;
+      }
+      
+      if (formData.selected_resource_ids !== undefined) {
+        updateData.selected_resource_ids = formData.selected_resource_ids;
       }
       
       await apiService.editClinicAppointment(selectedAppointment.appointment_id, updateData);

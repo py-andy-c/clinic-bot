@@ -341,6 +341,7 @@ export const PatientAppointmentsList: React.FC<
     start_time: string;
     clinic_notes?: string;
     notification_note?: string;
+    selected_resource_ids?: number[];
   }) => {
     if (!editingAppointment) return;
 

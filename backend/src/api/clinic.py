@@ -3128,6 +3128,9 @@ async def edit_clinic_appointment(
             selected_resource_ids=request.selected_resource_ids
         )
         
+        # Commit the transaction to ensure changes are visible to subsequent requests
+        db.commit()
+        
         return result
         
     except HTTPException:

@@ -1388,6 +1388,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     start_time: string;
     clinic_notes?: string;
     notification_note?: string;
+    selected_resource_ids?: number[];
   };
 
   // Handle appointment edit confirmation (called from EditAppointmentModal)
@@ -1409,6 +1410,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           start_time: formData.start_time,
           ...(formData.clinic_notes !== undefined ? { clinic_notes: formData.clinic_notes } : {}),
           ...(formData.notification_note ? { notification_note: formData.notification_note } : {}),
+          ...(formData.selected_resource_ids !== undefined ? { selected_resource_ids: formData.selected_resource_ids } : {}),
         }
       );
 
