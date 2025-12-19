@@ -71,31 +71,28 @@ const BusinessInsightsPage: React.FC = () => {
       .map(m => ({ id: m.id, full_name: m.full_name }));
   }, [membersData]);
 
-  // Fetch business insights data for custom items extraction (unfiltered by service_item_id)
-  // This ensures all custom items always appear in the dropdown, even when filtering
+  // Fetch business insights data for custom items extraction (unfiltered by service_item_id and practitioner_id)
+  // This ensures all custom items and null practitioners always appear in the dropdown, even when filtering
   const fetchBusinessInsightsForCustomItems = useCallback(() => {
     return apiService.getBusinessInsights({
       start_date: startDate,
       end_date: endDate,
-      practitioner_id: typeof selectedPractitionerId === 'number' 
-        ? selectedPractitionerId 
-        : selectedPractitionerId === 'null' 
-          ? 'null' 
-          : null,
+      practitioner_id: null, // Always fetch without practitioner_id filter to get all practitioners (including null)
       service_item_id: null, // Always fetch without service_item_id filter to get all custom items
     });
-  }, [startDate, endDate, selectedPractitionerId]);
+  }, [startDate, endDate]);
 
   // Fetch business insights data with filters for display
   const fetchBusinessInsights = useCallback(() => {
+    const practitionerParam = typeof selectedPractitionerId === 'number' 
+      ? selectedPractitionerId 
+      : selectedPractitionerId === 'null' 
+        ? 'null' 
+        : null;
     return apiService.getBusinessInsights({
       start_date: startDate,
       end_date: endDate,
-      practitioner_id: typeof selectedPractitionerId === 'number' 
-        ? selectedPractitionerId 
-        : selectedPractitionerId === 'null' 
-          ? 'null' 
-          : null,
+      practitioner_id: practitionerParam,
       service_item_id: selectedServiceItemId || null,
     });
   }, [startDate, endDate, selectedPractitionerId, selectedServiceItemId]);
@@ -103,7 +100,7 @@ const BusinessInsightsPage: React.FC = () => {
   // Fetch unfiltered data for custom items extraction
   const { data: customItemsData } = useApiData(fetchBusinessInsightsForCustomItems, {
     cacheTTL: 2 * 60 * 1000, // 2 minutes cache
-    dependencies: [startDate, endDate, selectedPractitionerId, activeClinicId], // Note: no selectedServiceItemId
+    dependencies: [startDate, endDate, activeClinicId], // Note: no selectedPractitionerId or selectedServiceItemId
   });
 
   // Fetch filtered data for display
@@ -222,9 +219,11 @@ const BusinessInsightsPage: React.FC = () => {
   }, [data?.by_practitioner]);
 
   // Check if data contains null practitioners (for showing "無" option in dropdown)
+  // Use unfiltered data (customItemsData) to check if null practitioners exist in the dataset,
+  // not the filtered data, so the option remains available even when filtering by a specific practitioner
   const hasNullPractitionerInData = useMemo(() => {
-    return data?.by_practitioner?.some(item => item.practitioner_id === null) ?? false;
-  }, [data?.by_practitioner]);
+    return customItemsData?.by_practitioner?.some(item => item.practitioner_id === null) ?? false;
+  }, [customItemsData?.by_practitioner]);
 
   // Early returns AFTER all hooks
   if (loading && !data) {

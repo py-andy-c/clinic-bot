@@ -128,9 +128,9 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
             <option
               key={item.id}
               value={`custom:${item.receipt_name || item.name}`}
-              style={{ fontStyle: 'italic' }}
+              style={{ fontStyle: 'italic', color: '#6b7280' }}
             >
-              {item.receipt_name || item.name} <span style={{ color: '#9ca3af', fontStyle: 'normal' }}>(自訂)</span>
+              {item.receipt_name || item.name} (自訂)
             </option>
           ))}
         </>

@@ -1060,22 +1060,24 @@ class TestPatientBookingAllowedRestriction:
         """Test that availability shows all slots for clinic admin (restrictions bypassed)."""
         clinic, practitioner, appt_type = clinic_with_restrictions
 
-        # Request availability for today (within 24 hours) as clinic admin
-        today = taiwan_now().date()
-        today_iso = today.isoformat()
+        # Request availability for tomorrow (within 24 hours restriction) as clinic admin
+        # Using tomorrow ensures we have availability regardless of current time
+        tomorrow = (taiwan_now() + timedelta(days=1)).date()
+        tomorrow_iso = tomorrow.isoformat()
 
         # For clinic admin (apply_booking_restrictions=False), all slots should be shown
+        # even though tomorrow is within the 24-hour restriction window
         slots = AvailabilityService.get_available_slots_for_practitioner(
             db=db_session,
             practitioner_id=practitioner.id,
-            date=today_iso,
+            date=tomorrow_iso,
             appointment_type_id=appt_type.id,
             clinic_id=clinic.id,
             apply_booking_restrictions=False  # Clinic admin - bypass restrictions
         )
 
         # Should show all available slots regardless of booking restrictions
-        assert len(slots) > 0, "Clinic admin should see all available slots"
+        assert len(slots) > 0, "Clinic admin should see all available slots even within restriction window"
 
     def test_booking_restriction_not_enforced_for_clinic_admin(
         self, db_session: Session, clinic_with_restrictions

@@ -476,6 +476,7 @@ export function useApiData<T>(
       }
     }
 
+    // No cache hit and no in-flight request - perform new fetch
     try {
       // Only show loading if we don't have cached data
       if (!hasCachedData) {

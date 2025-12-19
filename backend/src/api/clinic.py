@@ -92,6 +92,42 @@ def _parse_service_item_id(service_item_id: Optional[str]) -> Optional[Union[int
         )
 
 
+def _parse_practitioner_id(practitioner_id: Optional[Union[int, str]]) -> Optional[Union[int, str]]:
+    """
+    Parse practitioner_id parameter from query param.
+
+    FastAPI Query parameters come as strings by default, so we need to convert
+    numeric strings to int. Can be:
+    - None: No filter
+    - Integer: Practitioner ID
+    - String 'null': Filter for items without practitioners
+    - String numeric: Practitioner ID as string (will be converted to int)
+
+    Returns:
+        Parsed practitioner ID (int, str 'null', or None)
+
+    Raises:
+        HTTPException: If format is invalid
+    """
+    if practitioner_id is None:
+        return None
+    if isinstance(practitioner_id, str):
+        if practitioner_id == 'null':
+            return 'null'
+        else:
+            # Try to convert string to int (FastAPI Query params are strings by default)
+            try:
+                return int(practitioner_id)
+            except ValueError:
+                raise HTTPException(
+                    status_code=http_status.HTTP_400_BAD_REQUEST,
+                    detail=f"無效的治療師ID: {practitioner_id}"
+                )
+    else:
+        # Must be int at this point (type is Optional[Union[int, str]])
+        return practitioner_id
+
+
 class MemberInviteRequest(BaseModel):
     """Request model for inviting a new team member."""
     default_roles: List[str]  # e.g., ["practitioner"] or ["admin", "practitioner"]
@@ -6060,13 +6096,8 @@ async def get_business_insights(
         # Parse service_item_id
         parsed_service_item_id = _parse_service_item_id(service_item_id)
 
-        # Parse practitioner_id - handle 'null' string to filter for null practitioners
-        parsed_practitioner_id: Optional[Union[int, str]] = None
-        if practitioner_id is not None:
-            if practitioner_id == 'null':
-                parsed_practitioner_id = 'null'
-            elif isinstance(practitioner_id, int):
-                parsed_practitioner_id = practitioner_id
+        # Parse practitioner_id
+        parsed_practitioner_id = _parse_practitioner_id(practitioner_id)
 
         # Get business insights
         insights = BusinessInsightsService.get_business_insights(
@@ -6121,13 +6152,8 @@ async def get_revenue_distribution(
         # Parse service_item_id
         parsed_service_item_id = _parse_service_item_id(service_item_id)
 
-        # Parse practitioner_id - handle 'null' string to filter for null practitioners
-        parsed_practitioner_id: Optional[Union[int, str]] = None
-        if practitioner_id is not None:
-            if practitioner_id == 'null':
-                parsed_practitioner_id = 'null'
-            elif isinstance(practitioner_id, int):
-                parsed_practitioner_id = practitioner_id
+        # Parse practitioner_id
+        parsed_practitioner_id = _parse_practitioner_id(practitioner_id)
 
         # Get revenue distribution
         distribution = RevenueDistributionService.get_revenue_distribution(

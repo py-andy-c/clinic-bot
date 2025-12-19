@@ -85,21 +85,17 @@ const RevenueDistributionPage: React.FC = () => {
     return pracs;
   }, [membersData]);
 
-  // Fetch business insights data for custom items extraction (unfiltered by service_item_id)
-  // This ensures all custom items always appear in the dropdown, even when filtering
+  // Fetch business insights data for custom items extraction (unfiltered by service_item_id and practitioner_id)
+  // This ensures all custom items and null practitioners always appear in the dropdown, even when filtering
   // We use business insights API instead of revenue distribution because it returns all items in by_service
   const fetchBusinessInsightsForCustomItems = useCallback(() => {
     return apiService.getBusinessInsights({
       start_date: startDate,
       end_date: endDate,
-      practitioner_id: typeof selectedPractitionerId === 'number' 
-        ? selectedPractitionerId 
-        : selectedPractitionerId === 'null' 
-          ? 'null' 
-          : null,
+      practitioner_id: null, // Always fetch without practitioner_id filter to get all practitioners (including null)
       service_item_id: null, // Always fetch without service_item_id filter to get all custom items
     });
-  }, [startDate, endDate, selectedPractitionerId]);
+  }, [startDate, endDate]);
 
   // Fetch revenue distribution data with filters for display
   const fetchRevenueDistribution = useCallback(() => {
@@ -128,7 +124,7 @@ const RevenueDistributionPage: React.FC = () => {
   // Fetch unfiltered business insights data for custom items extraction
   const { data: customItemsData } = useApiData(fetchBusinessInsightsForCustomItems, {
     cacheTTL: 2 * 60 * 1000, // 2 minutes cache
-    dependencies: [startDate, endDate, selectedPractitionerId, activeClinicId], // Note: no selectedServiceItemId
+    dependencies: [startDate, endDate, activeClinicId], // Note: no selectedPractitionerId or selectedServiceItemId
   });
 
   // Fetch filtered revenue distribution data for display
@@ -205,9 +201,11 @@ const RevenueDistributionPage: React.FC = () => {
   }, [settingsData]);
 
   // Check if data contains null practitioners (for showing "無" option in dropdown)
+  // Use unfiltered data (customItemsData) to check if null practitioners exist in the dataset,
+  // not the filtered data, so the option remains available even when filtering by a specific practitioner
   const hasNullPractitionerInData = useMemo(() => {
-    return data?.items?.some(item => item.practitioner_id === null) ?? false;
-  }, [data?.items]);
+    return customItemsData?.by_practitioner?.some(item => item.practitioner_id === null) ?? false;
+  }, [customItemsData?.by_practitioner]);
 
   const handleSort = (column: string) => {
     setCurrentSort(prev => {

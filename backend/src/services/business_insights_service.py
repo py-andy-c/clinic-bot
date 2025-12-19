@@ -335,13 +335,64 @@ class BusinessInsightsService:
         average_transaction = float((total_revenue / valid_receipt_count).quantize(Decimal('0.01'))) if valid_receipt_count > 0 else 0.0
         
         # Sort breakdowns
+        # Filter service items: if a service_item_id filter is active, only include service items that match
+        # Also filter out service items with zero revenue (they shouldn't appear in results)
+        service_item_stats_filtered = service_item_stats.values()
+        if service_item_id:
+            if isinstance(service_item_id, str) and service_item_id.startswith('custom:'):
+                # Only include the specific custom item
+                custom_name = service_item_id[7:]
+                service_item_stats_filtered = [
+                    v for v in service_item_stats.values()
+                    if v['is_custom'] and v['receipt_name'] == custom_name and v['total_revenue'] > 0
+                ]
+            else:
+                # Only include the specific service item
+                target_id = int(service_item_id) if isinstance(service_item_id, str) else service_item_id
+                service_item_stats_filtered = [
+                    v for v in service_item_stats.values()
+                    if not v['is_custom'] and v['service_item_id'] == target_id and v['total_revenue'] > 0
+                ]
+        else:
+            # No filter: include all service items with revenue > 0
+            service_item_stats_filtered = [
+                v for v in service_item_stats.values()
+                if v['total_revenue'] > 0
+            ]
+        
         by_service = sorted(
-            [v for v in service_item_stats.values()],
+            service_item_stats_filtered,
             key=lambda x: x['total_revenue'],
             reverse=True
         )
+        
+        # Filter practitioners: if a practitioner filter is active, only include practitioners that match
+        # Also filter out practitioners with zero revenue (they shouldn't appear in results)
+        practitioner_stats_filtered = practitioner_stats.values()
+        if practitioner_id is not None:
+            if practitioner_id == PRACTITIONER_NULL_FILTER:
+                # Only include null practitioners
+                practitioner_stats_filtered = [
+                    v for v in practitioner_stats.values()
+                    if v['practitioner_id'] is None and v['total_revenue'] > 0
+                ]
+            else:
+                # Only include the specific practitioner
+                # Ensure type consistency for comparison
+                target_id = int(practitioner_id) if isinstance(practitioner_id, str) else practitioner_id
+                practitioner_stats_filtered = [
+                    v for v in practitioner_stats.values()
+                    if v['practitioner_id'] == target_id and v['total_revenue'] > 0
+                ]
+        else:
+            # No filter: include all practitioners with revenue > 0
+            practitioner_stats_filtered = [
+                v for v in practitioner_stats.values()
+                if v['total_revenue'] > 0
+            ]
+        
         by_practitioner = sorted(
-            [v for v in practitioner_stats.values()],
+            practitioner_stats_filtered,
             key=lambda x: x['total_revenue'],
             reverse=True
         )
@@ -519,7 +570,9 @@ class RevenueDistributionService:
                             continue
                     else:
                         # Filter for specific practitioner ID
-                        if not item_practitioner or item_practitioner.get('id') != practitioner_id:
+                        # Ensure type consistency for comparison
+                        target_id = int(practitioner_id) if isinstance(practitioner_id, str) else practitioner_id
+                        if not item_practitioner or item_practitioner.get('id') != target_id:
                             continue
                 
                 if service_item_id:
