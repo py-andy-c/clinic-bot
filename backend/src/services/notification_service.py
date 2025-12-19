@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum
 from sqlalchemy.orm import Session
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Dict, Any
 from models import Appointment, User, Clinic
 from utils.datetime_utils import format_datetime
 
@@ -20,124 +20,6 @@ class CancellationSource(Enum):
 
 class NotificationService:
     """Service for sending LINE notifications to patients."""
-
-    @staticmethod
-    def send_appointment_cancellation(
-        db: Session,
-        appointment: Appointment,
-        practitioner: User,
-        source: CancellationSource,
-        note: str | None = None
-    ) -> bool:
-        """
-        Send appointment cancellation notification to patient.
-
-        Args:
-            db: Database session
-            appointment: Cancelled appointment
-            practitioner: Practitioner who had the appointment
-            source: Source of cancellation (clinic/patient)
-
-        Returns:
-            True if notification sent successfully, False otherwise
-        """
-        try:
-            patient = appointment.patient
-            if not patient.line_user:
-                logger.info(f"Patient {patient.id} has no LINE user, skipping notification")
-                return False
-
-            clinic = patient.clinic
-
-            # Get practitioner name from association
-            from utils.practitioner_helpers import get_practitioner_display_name_with_title
-            practitioner_name = get_practitioner_display_name_with_title(
-                db, practitioner.id, clinic.id
-            )
-
-            # Format datetime - combine date and start_time (Taiwan timezone)
-            start_datetime = datetime.combine(
-                appointment.calendar_event.date,
-                appointment.calendar_event.start_time
-            )
-            formatted_datetime = format_datetime(start_datetime)
-
-            # Get appointment type name
-            appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else None
-
-            # Generate message based on source
-            message = NotificationService._get_cancellation_message(
-                formatted_datetime,
-                practitioner_name,
-                appointment_type_name,
-                patient.full_name,
-                source,
-                note
-            )
-
-            # Send notification with labels for tracking
-            line_service = NotificationService._get_line_service(clinic)
-            trigger_source = 'clinic_triggered' if source == CancellationSource.CLINIC else 'patient_triggered'
-            labels = {
-                'recipient_type': 'patient',
-                'event_type': 'appointment_cancellation',
-                'trigger_source': trigger_source,
-                'appointment_context': 'cancellation'
-            }
-            line_service.send_text_message(
-                patient.line_user.line_user_id, 
-                message,
-                db=db,
-                clinic_id=clinic.id,
-                labels=labels
-            )
-
-            logger.info(
-                f"Sent {source.value} cancellation notification to patient {patient.id} "
-                f"for appointment {appointment.calendar_event_id}"
-            )
-            return True
-
-        except Exception as e:
-            logger.exception(f"Failed to send cancellation notification: {e}")
-            return False
-
-    @staticmethod
-    def generate_cancellation_preview(
-        appointment_type: str,
-        appointment_time: str,
-        therapist_name: str,
-        patient_name: str,
-        source: CancellationSource,
-        clinic: "Clinic",
-        note: str | None = None
-    ) -> str:
-        """
-        Generate a preview of what a LINE cancellation message would look like.
-
-        This method can be used by API endpoints to show users what their
-        cancellation messages will look like before they are sent.
-
-        Args:
-            appointment_type: Name of the appointment type
-            appointment_time: Formatted appointment time (e.g., "12/25 (三) 1:30 PM")
-            therapist_name: Name of the therapist/practitioner
-            patient_name: Name of the patient
-            source: Source of cancellation (clinic/patient)
-            clinic: Clinic object with display information
-            note: Optional note to include in the message
-
-        Returns:
-            Formatted cancellation message string
-        """
-        return NotificationService._get_cancellation_message(
-            appointment_time,
-            therapist_name,
-            appointment_type,
-            patient_name,
-            source,
-            note
-        )
 
     @staticmethod
     def _get_cancellation_message(
@@ -205,64 +87,83 @@ class NotificationService:
         return message
 
     @staticmethod
-    def send_appointment_edit_notification(
+    def get_action_preview(
         db: Session,
         appointment: Appointment,
-        old_practitioner: User | None,
-        new_practitioner: User | None,
-        old_start_time: datetime,
-        new_start_time: datetime,
-        note: str | None = None,
-        trigger_source: str = "clinic_triggered"
-    ) -> bool:
+        action_type: str,  # 'create', 'edit', 'cancel'
+        **kwargs: Any
+    ) -> Optional[Dict[str, Any]]:
         """
-        Send appointment edit notification to patient.
-
-        Args:
-            db: Database session
-            appointment: Edited appointment
-            old_practitioner: Old practitioner (None if was auto-assigned)
-            new_practitioner: New practitioner (None if now auto-assigned)
-            old_start_time: Old appointment start time
-            new_start_time: New appointment start time
-            note: Optional custom note
-            trigger_source: 'clinic_triggered' or 'patient_triggered' (default: 'clinic_triggered')
-
-        Returns:
-            True if notification sent successfully, False otherwise
+        Generate a patient-facing notification preview for an action.
+        
+        Returns None if no notification is recommended or possible (e.g. no LINE user).
         """
-        try:
-            patient = appointment.patient
-            if not patient.line_user:
-                logger.info(f"Patient {patient.id} has no LINE user, skipping notification")
-                return False
+        patient = appointment.patient
+        if not patient:
+            logger.info(f"get_action_preview: No patient found for appointment {appointment.calendar_event_id}")
+            return None
+        if not patient.line_user:
+            logger.info(f"get_action_preview: Patient {patient.id} has no LINE user, skipping notification preview")
+            return None
 
-            clinic = patient.clinic
+        clinic = patient.clinic
+        logger.info(f"get_action_preview: Generating preview for appointment {appointment.calendar_event_id}, action_type={action_type}, patient_id={patient.id}")
+        from utils.practitioner_helpers import get_practitioner_display_name_with_title, AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
 
-            # Get practitioner names from associations
+        if action_type == 'create':
+            # Format appointment time
+            start_datetime = datetime.combine(
+                appointment.calendar_event.date,
+                appointment.calendar_event.start_time
+            )
+            formatted_datetime = format_datetime(start_datetime)
+            appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
+            
+            practitioner_display_name = AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
+            if not appointment.is_auto_assigned and appointment.calendar_event.user_id:
+                practitioner_display_name = get_practitioner_display_name_with_title(
+                    db, appointment.calendar_event.user_id, clinic.id
+                )
 
-            from utils.practitioner_helpers import get_practitioner_display_name_with_title
+            message = f"{patient.full_name}，您的預約已建立：\n\n"
+            message += f"{formatted_datetime} - 【{appointment_type_name}】{practitioner_display_name}"
+            if appointment.notes:
+                message += f"\n\n備註：{appointment.notes}"
+            message += "\n\n期待為您服務！"
+            
+            return {
+                "message": message,
+                "patient_id": patient.id,
+                "event_type": "appointment_confirmation"
+            }
 
-            old_practitioner_name: str | None = None
-            if old_practitioner:
+        elif action_type == 'edit':
+            old_practitioner: Optional[User] = kwargs.get('old_practitioner')
+            new_practitioner: Optional[User] = kwargs.get('new_practitioner')
+            old_start_time: Optional[datetime] = kwargs.get('old_start_time')
+            new_start_time: Optional[datetime] = kwargs.get('new_start_time')
+            note: Optional[str] = kwargs.get('note')
+            
+            if old_start_time is None or new_start_time is None:
+                return None
+
+            # Privacy Rule: if originally auto-assigned, mask old practitioner
+            old_practitioner_name = AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
+            if not appointment.originally_auto_assigned and old_practitioner:
                 old_practitioner_name = get_practitioner_display_name_with_title(
                     db, old_practitioner.id, clinic.id
                 )
-
-            new_practitioner_name: str | None = None
-            if new_practitioner:
+            
+            new_practitioner_name = AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
+            if not appointment.is_auto_assigned and new_practitioner:
                 new_practitioner_name = get_practitioner_display_name_with_title(
                     db, new_practitioner.id, clinic.id
                 )
 
-            # Format datetimes
             old_formatted = format_datetime(old_start_time)
             new_formatted = format_datetime(new_start_time)
-
-            # Get appointment type name
             appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
 
-            # Generate message
             message = NotificationService.generate_edit_notification(
                 old_datetime=old_formatted,
                 old_practitioner=old_practitioner_name,
@@ -272,185 +173,144 @@ class NotificationService:
                 patient_name=patient.full_name,
                 note=note
             )
-
-            # Send notification with labels for tracking
-            line_service = NotificationService._get_line_service(clinic)
-            logger.debug(
-                f"Sending edit notification to LINE user {patient.line_user.line_user_id} "
-                f"for patient {patient.id} ({patient.full_name}), appointment {appointment.calendar_event_id}"
-            )
-            labels = {
-                'recipient_type': 'patient',
-                'event_type': 'appointment_edit',
-                'trigger_source': trigger_source,
-                'appointment_context': 'reschedule'
+            
+            return {
+                "message": message,
+                "patient_id": patient.id,
+                "event_type": "appointment_edit"
             }
-            line_service.send_text_message(
-                patient.line_user.line_user_id, 
-                message,
-                db=db,
-                clinic_id=clinic.id,
-                labels=labels
+
+        elif action_type == 'cancel':
+            practitioner: Optional[User] = kwargs.get('practitioner')
+            note: Optional[str] = kwargs.get('note')
+            
+            if not practitioner:
+                return None
+
+            practitioner_name = get_practitioner_display_name_with_title(
+                db, practitioner.id, clinic.id
             )
-
-            logger.info(
-                f"Sent edit notification to patient {patient.id} ({patient.full_name}) "
-                f"for appointment {appointment.calendar_event_id}"
-            )
-            return True
-
-        except Exception as e:
-            logger.exception(f"Failed to send edit notification: {e}")
-            return False
-
-    @staticmethod
-    def generate_edit_preview(
-        db: Session,
-        appointment: Appointment,
-        old_practitioner: User | None,
-        new_practitioner: User | None,
-        old_start_time: datetime,
-        new_start_time: datetime,
-        note: str | None = None
-    ) -> str:
-        """
-        Generate preview of edit notification message.
-
-        Args:
-            db: Database session
-            appointment: Appointment being edited
-            old_practitioner: Old practitioner (None if was auto-assigned)
-            new_practitioner: New practitioner (None if now auto-assigned)
-            old_start_time: Old appointment start time
-            new_start_time: New appointment start time
-            note: Optional custom note
-
-        Returns:
-            Preview message string
-        """
-        clinic = appointment.patient.clinic
-
-        # Get practitioner names from associations
-        from models.user_clinic_association import UserClinicAssociation
-
-        old_practitioner_name: str | None = None
-        if old_practitioner:
-            association = db.query(UserClinicAssociation).filter(
-                UserClinicAssociation.user_id == old_practitioner.id,
-                UserClinicAssociation.clinic_id == clinic.id,
-                UserClinicAssociation.is_active == True
-            ).first()
-            old_practitioner_name = association.full_name if association else old_practitioner.email
-
-        new_practitioner_name: str | None = None
-        if new_practitioner:
-            association = db.query(UserClinicAssociation).filter(
-                UserClinicAssociation.user_id == new_practitioner.id,
-                UserClinicAssociation.clinic_id == clinic.id,
-                UserClinicAssociation.is_active == True
-            ).first()
-            new_practitioner_name = association.full_name if association else new_practitioner.email
-
-        # Format datetimes
-        old_formatted = format_datetime(old_start_time)
-        new_formatted = format_datetime(new_start_time)
-
-        # Get appointment type name
-        appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
-
-        return NotificationService.generate_edit_notification(
-            old_datetime=old_formatted,
-            old_practitioner=old_practitioner_name,
-            new_datetime=new_formatted,
-            new_practitioner=new_practitioner_name,
-            appointment_type=appointment_type_name,
-            patient_name=appointment.patient.full_name,
-            note=note
-        )
-
-    @staticmethod
-    def send_appointment_confirmation(
-        db: Session,
-        appointment: Appointment,
-        practitioner_name: str,
-        clinic: Clinic,
-        trigger_source: str = "clinic_triggered"
-    ) -> bool:
-        """
-        Send appointment confirmation notification to patient.
-
-        Args:
-            db: Database session
-            appointment: New appointment
-            practitioner_name: Practitioner name to display (can be "不指定" for auto-assigned)
-            clinic: Clinic object
-            trigger_source: 'clinic_triggered' or 'patient_triggered' (default: 'clinic_triggered')
-
-        Returns:
-            True if notification sent successfully, False otherwise
-        """
-        try:
-            patient = appointment.patient
-            if not patient.line_user:
-                logger.info(f"Patient {patient.id} has no LINE user, skipping notification")
-                return False
-
-            # Format appointment time
             start_datetime = datetime.combine(
                 appointment.calendar_event.date,
                 appointment.calendar_event.start_time
             )
             formatted_datetime = format_datetime(start_datetime)
+            appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else None
 
-            # Get appointment type name
-            appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
-
-            # Build message
-            # Get practitioner name with title for external display
-            # If practitioner_name is "不指定", use it as-is (for auto-assigned appointments)
-            from utils.practitioner_helpers import get_practitioner_display_name_with_title, AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
-            if practitioner_name == AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME:
-                practitioner_display_name = practitioner_name
-            elif appointment.calendar_event and appointment.calendar_event.user_id:
-                practitioner_display_name = get_practitioner_display_name_with_title(
-                    db, appointment.calendar_event.user_id, clinic.id
-                )
-            else:
-                practitioner_display_name = practitioner_name
+            message = NotificationService._get_cancellation_message(
+                formatted_datetime,
+                practitioner_name,
+                appointment_type_name,
+                patient.full_name,
+                CancellationSource.CLINIC,
+                note
+            )
             
-            message = f"{patient.full_name}，您的預約已建立：\n\n"
-            message += f"{formatted_datetime} - 【{appointment_type_name}】{practitioner_display_name}"
-            
-            if appointment.notes:
-                message += f"\n\n備註：{appointment.notes}"
-            
-            message += "\n\n期待為您服務！"
-
-            # Send notification with labels for tracking
-            line_service = NotificationService._get_line_service(clinic)
-            labels = {
-                'recipient_type': 'patient',
-                'event_type': 'appointment_confirmation',
-                'trigger_source': trigger_source,
-                'appointment_context': 'new_appointment'
+            return {
+                "message": message,
+                "patient_id": patient.id,
+                "event_type": "appointment_cancellation"
             }
-            line_service.send_text_message(
-                patient.line_user.line_user_id, 
-                message,
-                db=db,
-                clinic_id=clinic.id,
-                labels=labels
-            )
 
-            logger.info(
-                f"Sent appointment confirmation to patient {patient.id} ({patient.full_name}) "
-                f"for appointment {appointment.calendar_event_id}"
-            )
-            return True
+        return None
 
-        except Exception as e:
-            logger.exception(f"Failed to send appointment confirmation: {e}")
+    @staticmethod
+    def send_appointment_confirmation(
+        db: Session, 
+        appointment: Appointment, 
+        practitioner_name: str,
+        clinic: Clinic,
+        trigger_source: str = 'clinic_triggered'
+    ) -> bool:
+        """
+        Send appointment confirmation notification to patient via LINE.
+        
+        This is used for immediate notifications, e.g. when patient books via LIFF.
+        """
+        preview = NotificationService.get_action_preview(db, appointment, 'create')
+        if preview:
+            return NotificationService.send_custom_notification(
+                db, 
+                preview['patient_id'], 
+                preview['message'], 
+                preview['event_type'], 
+                clinic.id
+            )
+        return False
+
+    @staticmethod
+    def send_appointment_edit_notification(
+        db: Session,
+        appointment: Appointment,
+        practitioner_name: str,
+        clinic: Clinic,
+        old_practitioner: Optional[User] = None,
+        new_practitioner: Optional[User] = None,
+        old_start_time: Optional[datetime] = None,
+        new_start_time: Optional[datetime] = None,
+        note: Optional[str] = None
+    ) -> bool:
+        """
+        Send appointment edit notification to patient via LINE.
+        
+        This is used for immediate notifications.
+        """
+        # Ensure times are provided (required for get_action_preview)
+        # If not provided, we can't send notification using new logic
+        if old_start_time is None or new_start_time is None:
+            logger.warning("Missing times for appointment edit notification, skipping")
             return False
+
+        preview = NotificationService.get_action_preview(
+            db=db,
+            appointment=appointment,
+            action_type='edit',
+            old_practitioner=old_practitioner,
+            new_practitioner=new_practitioner,
+            old_start_time=old_start_time,
+            new_start_time=new_start_time,
+            note=note
+        )
+        if preview:
+            return NotificationService.send_custom_notification(
+                db, 
+                preview['patient_id'], 
+                preview['message'], 
+                preview['event_type'], 
+                clinic.id
+            )
+        return False
+
+    @staticmethod
+    def send_appointment_cancellation(
+        db: Session,
+        appointment: Appointment,
+        practitioner_name: str,
+        clinic: Clinic,
+        practitioner: User,
+        note: Optional[str] = None
+    ) -> bool:
+        """
+        Send appointment cancellation notification to patient via LINE.
+        
+        This is used for immediate notifications.
+        """
+        preview = NotificationService.get_action_preview(
+            db=db,
+            appointment=appointment,
+            action_type='cancel',
+            practitioner=practitioner,
+            note=note
+        )
+        if preview:
+            return NotificationService.send_custom_notification(
+                db, 
+                preview['patient_id'], 
+                preview['message'], 
+                preview['event_type'], 
+                clinic.id
+            )
+        return False
 
     @staticmethod
     def send_practitioner_appointment_notification(
@@ -777,6 +637,58 @@ class NotificationService:
             logger.exception(f"Failed to send reassignment notification to new practitioner: {e}")
 
         return success
+
+    @staticmethod
+    def send_custom_notification(
+        db: Session,
+        patient_id: int,
+        message: str,
+        event_type: str,
+        clinic_id: int
+    ) -> bool:
+        """
+        Send a custom LINE notification to a patient.
+
+        Args:
+            db: Database session
+            patient_id: ID of the patient to send the message to.
+            message: The custom message content.
+            event_type: The event type for tracking (e.g., 'appointment_confirmation').
+            clinic_id: The ID of the clinic.
+
+        Returns:
+            True if notification sent successfully, False otherwise.
+        """
+        try:
+            from models import Patient
+            patient = db.query(Patient).filter(Patient.id == patient_id, Patient.clinic_id == clinic_id).first()
+            if not patient or not patient.line_user:
+                logger.info(f"Patient {patient_id} has no LINE user or not found in clinic {clinic_id}, skipping custom notification")
+                return False
+
+            clinic = db.query(Clinic).get(clinic_id)
+            if not clinic or not clinic.line_channel_secret or not clinic.line_channel_access_token:
+                logger.warning(f"Clinic {clinic_id} has no LINE credentials, skipping custom notification")
+                return False
+
+            line_service = NotificationService._get_line_service(clinic)
+            labels = {
+                'recipient_type': 'patient',
+                'event_type': event_type,
+                'trigger_source': 'clinic_triggered'
+            }
+            line_service.send_text_message(
+                patient.line_user.line_user_id,
+                message,
+                db=db,
+                clinic_id=clinic.id,
+                labels=labels
+            )
+            logger.info(f"Sent custom notification to patient {patient_id} for event type {event_type}")
+            return True
+        except Exception as e:
+            logger.exception(f"Failed to send custom notification to patient {patient_id}: {e}")
+            return False
 
     @staticmethod
     def _get_line_service(clinic: Clinic):

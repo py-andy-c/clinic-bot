@@ -24,12 +24,11 @@ import {
   EventModal,
   ExceptionModal,
   ConflictModal,
-  CancellationNoteModal,
-  CancellationPreviewModal,
   DeleteConfirmationModal,
   EditAppointmentModal,
   CreateAppointmentModal,
 } from './calendar';
+import NotificationModal from './calendar/NotificationModal';
 import {
   getDateString,
   formatAppointmentTimeRange,
@@ -78,6 +77,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   // Default schedule was removed - no longer needed (availability background events were removed)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Notification Modal state
+  const [notificationPreview, setNotificationPreview] = useState<any | null>(null);
+  const [isNotificationModalVisible, setIsNotificationModalVisible] = useState(false);
+  
   // Track if we've loaded persisted state to avoid overwriting with defaults
   const hasLoadedPersistedStateRef = useRef(false);
   // Cache batch calendar data to avoid redundant API calls when navigating between dates
@@ -135,18 +139,18 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     inFlightKeysToDelete.forEach(key => inFlightBatchRequestsRef.current.delete(key));
   }, []);
   const [modalState, setModalState] = useState<{
-    type: 'event' | 'exception' | 'conflict' | 'delete_confirmation' | 'cancellation_note' | 'cancellation_preview' | 'edit_appointment' | 'create_appointment' | null;
+    type: 'event' | 'exception' | 'conflict' | 'delete_confirmation' | 'edit_appointment' | 'create_appointment' | null;
     data: any;
   }>({ type: null, data: null });
   const [createModalKey, setCreateModalKey] = useState(0);
+  const justClosedCreateModalRef = useRef(false);
+  const handledPreSelectedPatientIdRef = useRef<number | null>(null);
+  
   const [exceptionData, setExceptionData] = useState({
     date: '',
     startTime: '',
     endTime: ''
   });
-  const [cancellationNote, setCancellationNote] = useState('');
-  const [cancellationPreviewMessage, setCancellationPreviewMessage] = useState('');
-  const [cancellationPreviewLoading, setCancellationPreviewLoading] = useState(false);
   const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
   const [isFullDay, setIsFullDay] = useState(false);
   const scrollYRef = useRef(0);
@@ -1227,34 +1231,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       return;
     }
     
-    // Reset cancellation note and show note input modal
-    setCancellationNote('');
-    setCancellationPreviewMessage('');
-    setModalState({ type: 'cancellation_note', data: modalState.data });
-  };
-
-  // Handle cancellation note submission and generate preview
-  const handleCancellationNoteSubmit = async () => {
-    if (!modalState.data) return;
-
-    setCancellationPreviewLoading(true);
-    try {
-      const response = await apiService.generateCancellationPreview({
-        appointment_type: modalState.data.resource.appointment_type_name,
-        appointment_time: formatAppointmentTimeRange(modalState.data.start, modalState.data.end),
-        therapist_name: modalState.data.resource.practitioner_name,
-        patient_name: modalState.data.resource.patient_name,
-        ...(cancellationNote.trim() && { note: cancellationNote.trim() }),
-      });
-
-      setCancellationPreviewMessage(response.preview_message);
-      setModalState({ type: 'cancellation_preview', data: modalState.data });
-    } catch (error) {
-      logger.error('Error generating cancellation preview:', error);
-      await alert('無法產生預覽訊息，請稍後再試');
-    } finally {
-      setCancellationPreviewLoading(false);
-    }
+    setModalState({ type: 'delete_confirmation', data: modalState.data });
   };
 
   // Confirm and perform appointment deletion
@@ -1267,7 +1244,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
 
     try {
-      await apiService.cancelClinicAppointment(modalState.data.resource.appointment_id, cancellationNote.trim() || undefined);
+      const result = await apiService.cancelClinicAppointment(modalState.data.resource.appointment_id, true);
 
       // Invalidate cache for the appointment's date
       const appointmentDate = modalState.data.resource.date || getDateString(modalState.data.start);
@@ -1275,12 +1252,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
       // Refresh data (force refresh to ensure fresh data after mutation)
       await fetchCalendarData(true);
-      setModalState({ type: null, data: null });
-      setCancellationNote('');
-      setCancellationPreviewMessage('');
+      
+      return result;
     } catch (error) {
       logger.error('Error deleting appointment:', error);
       await alert('取消預約失敗，請稍後再試');
+      throw error;
     }
   };
 
@@ -1401,7 +1378,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     }
 
     try {
-      await apiService.editClinicAppointment(
+      const result = await apiService.editClinicAppointment(
         modalState.data.resource.calendar_event_id,
         {
           ...(formData.appointment_type_id !== undefined ? { appointment_type_id: formData.appointment_type_id } : {}),
@@ -1409,6 +1386,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           start_time: formData.start_time,
           ...(formData.clinic_notes !== undefined ? { clinic_notes: formData.clinic_notes } : {}),
           ...(formData.notification_note ? { notification_note: formData.notification_note } : {}),
+          skip_notifications: true,
         }
       );
 
@@ -1422,9 +1400,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
       // Refresh data (force refresh to ensure fresh data after mutation)
       await fetchCalendarData(true);
-      setModalState({ type: null, data: null });
+      
+      // Clear error message
       setEditErrorMessage(null);
-      await alert('預約已更新');
+      
+      return result;
     } catch (error) {
       logger.error('Error editing appointment:', error);
       // Extract error message from backend response
@@ -1437,12 +1417,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Handle create appointment button click
   const handleCreateAppointment = useCallback((patientId?: number) => {
+    // Prevent opening if we just closed the create modal or notification modal is visible
+    if (justClosedCreateModalRef.current || isNotificationModalVisible) {
+      return;
+    }
+    
     setCreateModalKey(prev => prev + 1); // Force remount to reset state
     // Format current date as YYYY-MM-DD for initial date selection
     const currentDateString = getDateString(currentDate);
     // Use null to explicitly mean "no patient" (button click), undefined means "use prop" (URL-based)
     setModalState({ type: 'create_appointment', data: { patientId: patientId ?? null, initialDate: currentDateString } });
-  }, [currentDate]);
+  }, [currentDate, isNotificationModalVisible]);
 
   // Expose create appointment handler to parent
   useEffect(() => {
@@ -1454,12 +1439,38 @@ const CalendarView: React.FC<CalendarViewProps> = ({
   }, [handleCreateAppointment]);
 
   // Open create appointment modal if preSelectedPatientId is provided
+  // Only open if modal is not already open and we're not showing notification modal
+  // Also check if we just closed a create modal (to prevent immediate reopening)
   useEffect(() => {
+    const justClosed = justClosedCreateModalRef.current;
+    const isNotificationOpen = isNotificationModalVisible;
+    const alreadyHandled = handledPreSelectedPatientIdRef.current === preSelectedPatientId;
+    
+    console.log('[CalendarView] preSelectedPatientId useEffect running', {
+      preSelectedPatientId,
+      modalStateType: modalState.type,
+      isNotificationModalVisible: isNotificationOpen,
+      justClosed,
+      alreadyHandled,
+      handledPatientId: handledPreSelectedPatientIdRef.current,
+      willOpen: !justClosed && !isNotificationOpen && !alreadyHandled && !!preSelectedPatientId && modalState.type === null
+    });
+    
+    // Don't open if we just closed the create modal, if notification modal is visible, or if we already handled this patient ID
+    if (justClosed || isNotificationOpen || alreadyHandled) {
+      console.log('[CalendarView] Skipping create modal open', {
+        reason: justClosed ? 'justClosed flag' : isNotificationOpen ? 'notification modal visible' : 'already handled this patient ID'
+      });
+      return;
+    }
+    
     if (preSelectedPatientId && modalState.type === null) {
+      // Mark this patient ID as handled
+      handledPreSelectedPatientIdRef.current = preSelectedPatientId;
       handleCreateAppointment(preSelectedPatientId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preSelectedPatientId]);
+  }, [preSelectedPatientId, isNotificationModalVisible, modalState.type]);
 
   // Handle create appointment confirmation
   const handleConfirmCreateAppointment = async (formData: {
@@ -1470,7 +1481,22 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     clinic_notes?: string;
   }) => {
     try {
-      await apiService.createClinicAppointment(formData);
+      logger.log('CalendarView: handleConfirmCreateAppointment called', { formData });
+      const result = await apiService.createClinicAppointment({
+        ...formData,
+        skip_notifications: true,
+      });
+      logger.log('CalendarView: handleConfirmCreateAppointment result', { 
+        hasNotificationPreview: !!result?.notification_preview,
+        notificationPreview: result?.notification_preview,
+        fullResult: result
+      });
+
+      // Store the notification preview in parent state so it persists across modal remounts
+      if (result?.notification_preview) {
+        logger.log('CalendarView: Storing notification preview in parent state');
+        setNotificationPreview(result.notification_preview);
+      }
 
       // Invalidate cache for the appointment's date
       const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD'); // Extract date from ISO datetime string
@@ -1478,8 +1504,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
       // Refresh data (force refresh to ensure fresh data after mutation)
       await fetchCalendarData(true);
-      setModalState({ type: null, data: null });
-      await alert('預約已建立');
       
       // Clear query parameter if it exists
       if (window.location.search.includes('createAppointment=')) {
@@ -1487,6 +1511,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         url.searchParams.delete('createAppointment');
         window.history.replaceState({}, '', url.toString());
       }
+
+      return result;
     } catch (error) {
       logger.error('Error creating appointment:', error);
       const errorMessage = getErrorMessage(error);
@@ -1706,26 +1732,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         />
       )}
 
-      {/* Cancellation Note Input Modal */}
-      {modalState.type === 'cancellation_note' && modalState.data && (
-        <CancellationNoteModal
-          cancellationNote={cancellationNote}
-          isLoading={cancellationPreviewLoading}
-          onNoteChange={setCancellationNote}
-          onBack={() => setModalState({ type: 'event', data: modalState.data })}
-          onSubmit={handleCancellationNoteSubmit}
-        />
-      )}
-
-      {/* Cancellation Preview Modal */}
-      {modalState.type === 'cancellation_preview' && modalState.data && (
-        <CancellationPreviewModal
-          previewMessage={cancellationPreviewMessage}
-          onBack={() => setModalState({ type: 'cancellation_note', data: modalState.data })}
-          onConfirm={handleConfirmDeleteAppointment}
-        />
-      )}
-
       {/* Delete Confirmation Modal */}
       {modalState.type === 'delete_confirmation' && modalState.data && canEditEvent(modalState.data) && (
         <DeleteConfirmationModal
@@ -1734,6 +1740,13 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           onConfirm={modalState.data.resource.type === 'appointment' 
             ? handleConfirmDeleteAppointment 
             : handleConfirmDeleteException}
+          onClose={(preview) => {
+            setModalState({ type: null, data: null });
+            if (preview) {
+              setNotificationPreview(preview);
+              setIsNotificationModalVisible(true);
+            }
+          }}
         />
       )}
 
@@ -1743,9 +1756,14 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           event={modalState.data}
           practitioners={availablePractitioners}
           appointmentTypes={appointmentTypes}
-          onClose={() => {
+          onClose={(preview) => {
             setEditErrorMessage(null); // Clear error when closing
-            setModalState({ type: 'event', data: modalState.data });
+            setModalState({ type: null, data: null });
+            
+            if (preview) {
+              setNotificationPreview(preview);
+              setIsNotificationModalVisible(true);
+            }
           }}
           onConfirm={handleConfirmEditAppointment}
           formatAppointmentTime={formatAppointmentTimeRange}
@@ -1754,7 +1772,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       )}
 
       {/* Create Appointment Modal */}
-      {modalState.type === 'create_appointment' && modalState.data && (
+      {modalState.type === 'create_appointment' && modalState.data && !justClosedCreateModalRef.current && !isNotificationModalVisible && (
         <CreateAppointmentModal
           key={`create-${createModalKey}`}
           // null from button click → undefined (no patient), number from URL → use it, undefined → fall back to prop
@@ -1771,18 +1789,72 @@ const CalendarView: React.FC<CalendarViewProps> = ({
           event={modalState.data.event}
           practitioners={availablePractitioners}
           appointmentTypes={appointmentTypes}
-          onClose={() => {
+          onClose={(preview) => {
+            logger.log('CalendarView: CreateAppointmentModal onClose called', { 
+              hasPreview: !!preview,
+              preview,
+              storedPreview: notificationPreview,
+              currentModalState: modalState.type
+            });
+            
+            // Close the create modal first
             setModalState({ type: null, data: null });
+            
+            // Mark that we just closed the create modal to prevent immediate reopening
+            justClosedCreateModalRef.current = true;
+            // Reset the flag after a delay to prevent reopening during notification flow
+            setTimeout(() => {
+              justClosedCreateModalRef.current = false;
+            }, 3000);
+            
             // Clear query parameter if it exists
             if (window.location.search.includes('createAppointment=')) {
               const url = new URL(window.location.href);
               url.searchParams.delete('createAppointment');
               window.history.replaceState({}, '', url.toString());
             }
+            
+            // Use preview from parameter if available, otherwise use stored preview from parent
+            const previewToUse = preview || notificationPreview;
+            
+            // Open notification modal after a brief delay to ensure create modal is closed
+            if (previewToUse) {
+              logger.log('CalendarView: Opening notification modal with preview');
+              // Use setTimeout to ensure the create modal closes first
+              setTimeout(() => {
+                setNotificationPreview(previewToUse);
+                setIsNotificationModalVisible(true);
+              }, 100);
+            } else {
+              logger.log('CalendarView: No notification preview, skipping notification modal');
+              // Clear stored preview if no preview available
+              setNotificationPreview(null);
+            }
           }}
           onConfirm={handleConfirmCreateAppointment}
         />
       )}
+
+      {/* Notification Modal */}
+      <NotificationModal
+        visible={isNotificationModalVisible}
+        onClose={() => {
+          logger.log('CalendarView: NotificationModal onClose called', {
+            wasVisible: isNotificationModalVisible,
+            hadPreview: !!notificationPreview
+          });
+          setIsNotificationModalVisible(false);
+          setNotificationPreview(null);
+          // Ensure create modal doesn't reopen immediately after notification modal closes
+          // Also clear the handled patient ID so we don't prevent legitimate reopenings later
+          justClosedCreateModalRef.current = true;
+          handledPreSelectedPatientIdRef.current = null; // Clear so we can handle new appointments
+          setTimeout(() => {
+            justClosedCreateModalRef.current = false;
+          }, 3000);
+        }}
+        preview={notificationPreview}
+      />
     </>
   );
 };

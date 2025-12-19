@@ -225,10 +225,24 @@ class AppointmentService:
             practitioner = db.query(User).get(assigned_practitioner_id)
             patient = db.query(Patient).get(patient_id)
 
+            logger.info(f"Created appointment {appointment.calendar_event_id} for patient {patient_id}")
+
+            # Get practitioner name from association with title for patient-facing display
+            # For auto-assigned appointments, return "不指定" instead of actual practitioner name
+            from utils.practitioner_helpers import get_practitioner_display_name_with_title, AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
+            practitioner_name = ''
+            if practitioner:
+                if was_auto_assigned:
+                    # Return "不指定" for auto-assigned appointments (patient doesn't see practitioner name)
+                    practitioner_name = AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
+                else:
+                    # Use display name with title for patient-facing displays (LIFF)
+                    practitioner_name = get_practitioner_display_name_with_title(db, practitioner.id, clinic_id)
+
             # Send LINE notifications (unless skipped for consolidated notifications)
+            notification_preview = None
             if not skip_notifications:
                 from services.notification_service import NotificationService
-                from utils.practitioner_helpers import get_practitioner_name_for_notification
                 from models.user_clinic_association import UserClinicAssociation
                 
                 # Send practitioner notification if NOT auto-assigned (practitioners shouldn't see auto-assigned appointments)
@@ -244,44 +258,23 @@ class AppointmentService:
                             db, association, appointment, clinic
                         )
 
-                # Send patient confirmation notification
-                # Skip if: (1) patient triggered the creation (they already see confirmation in UI), OR (2) auto-assigned (will get reminder anyway)
-                should_send_confirmation = (
-                    patient and 
-                    patient.line_user and 
-                    line_user_id is None and  # Only send if clinic triggered (not patient)
-                    not was_auto_assigned  # Skip for auto-assigned appointments
+                # Get notification preview if patient has LINE
+                notification_preview = NotificationService.get_action_preview(
+                    db=db,
+                    appointment=appointment,
+                    action_type='create'
                 )
                 
-                if should_send_confirmation:
-                    # Get practitioner name for notification with fallback logic
-                    practitioner_name_for_notification = get_practitioner_name_for_notification(
-                        db=db,
-                        practitioner_id=assigned_practitioner_id,
-                        clinic_id=clinic_id,
-                        was_auto_assigned=was_auto_assigned,
-                        practitioner=practitioner
-                    )
-                    
-                    # Send notification (practitioner_name_for_notification is guaranteed to be str at this point)
-                    # Clinic-triggered (line_user_id is None means clinic admin created it)
+                # If not skip_notifications, actually send the notification immediately
+                # This is used by non-clinic actions (e.g. LIFF booking) and tests
+                # Skip if: (1) patient triggered the creation (they already see confirmation in UI), OR (2) was auto-assigned (handled by reminders)
+                if notification_preview and line_user_id is None and not was_auto_assigned:
                     NotificationService.send_appointment_confirmation(
-                        db, appointment, practitioner_name_for_notification, clinic, trigger_source='clinic_triggered'
+                        db=db,
+                        appointment=appointment,
+                        practitioner_name=practitioner_name,
+                        clinic=clinic
                     )
-
-            logger.info(f"Created appointment {appointment.calendar_event_id} for patient {patient_id}")
-
-            # Get practitioner name from association with title for patient-facing display
-            # For auto-assigned appointments, return "不指定" instead of actual practitioner name
-            from utils.practitioner_helpers import get_practitioner_display_name_with_title, AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
-            practitioner_name = ''
-            if practitioner:
-                if was_auto_assigned:
-                    # Return "不指定" for auto-assigned appointments (patient doesn't see practitioner name)
-                    practitioner_name = AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
-                else:
-                    # Use display name with title for patient-facing displays (LIFF)
-                    practitioner_name = get_practitioner_display_name_with_title(db, practitioner.id, clinic_id)
 
             return {
                 'appointment_id': appointment.calendar_event_id,
@@ -295,7 +288,8 @@ class AppointmentService:
                 'notes': appointment.notes,
                 'clinic_notes': appointment.clinic_notes,
                 'practitioner_id': assigned_practitioner_id,
-                'is_auto_assigned': was_auto_assigned
+                'is_auto_assigned': was_auto_assigned,
+                'notification_preview': notification_preview
             }
 
         except HTTPException:
@@ -788,7 +782,8 @@ class AppointmentService:
         appointment_id: int,
         cancelled_by: str,
         return_details: bool = False,
-        note: Optional[str] = None
+        note: Optional[str] = None,
+        skip_notifications: bool = False
     ) -> Dict[str, Any]:
         """
         Cancel an appointment by patient or clinic admin.
@@ -802,6 +797,7 @@ class AppointmentService:
             cancelled_by: Who is cancelling - 'patient' or 'clinic'
             return_details: If True, return appointment and practitioner objects (for clinic notifications)
             note: Optional note to include in the cancellation notification
+            skip_notifications: If True, skip sending notifications
 
         Returns:
             Dict with success message. If return_details=True, also includes 'appointment' and 'practitioner'.
@@ -925,9 +921,10 @@ class AppointmentService:
 
         # Send notifications to both practitioner and patient if they have LINE accounts linked
         # Only send if appointment was not already cancelled (idempotent check)
+        notification_preview = None
         if practitioner and clinic:
             try:
-                from services.notification_service import NotificationService, CancellationSource
+                from services.notification_service import NotificationService
                 from models.user_clinic_association import UserClinicAssociation
                 
                 # Get association for this practitioner and clinic
@@ -943,25 +940,45 @@ class AppointmentService:
                         db, association, appointment, clinic, cancelled_by
                     )
                 
-                # Send patient cancellation notification
+                # Get patient cancellation notification preview
                 # Skip if patient cancelled themselves (they already know they cancelled)
-                if cancelled_by == 'clinic':
-                    cancellation_source = CancellationSource.CLINIC
-                    NotificationService.send_appointment_cancellation(
-                        db, appointment, practitioner, cancellation_source, note=note
+                if not skip_notifications and cancelled_by == 'clinic':
+                    notification_preview = NotificationService.get_action_preview(
+                        db=db,
+                        appointment=appointment,
+                        action_type='cancel',
+                        practitioner=practitioner,
+                        note=note
                     )
+                    
+                    # Actually send the notification immediately if not skipping
+                    if notification_preview:
+                        NotificationService.send_appointment_cancellation(
+                            db=db,
+                            appointment=appointment,
+                            practitioner_name="",  # Not used by new logic
+                            clinic=clinic,
+                            practitioner=practitioner,
+                            note=note
+                        )
             except Exception as e:
                 # Log but don't fail - notification failure shouldn't block cancellation
-                logger.warning(f"Failed to send cancellation notifications: {e}")
+                logger.exception(f"Failed to handle cancellation notifications: {e}")
+
         # Return response
+        result: Dict[str, Any] = {"success": True, "message": "預約已取消"}
+        if notification_preview:
+            result["notification_preview"] = notification_preview
+            
         if return_details:
             calendar_event = appointment.calendar_event
             practitioner = calendar_event.user if calendar_event else None
-            return {
+            result.update({
                 'appointment': appointment,
                 'practitioner': practitioner
-            }
-        return {"success": True, "message": "預約已取消"}
+            })
+            
+        return result
 
     @staticmethod
     def check_appointment_edit_conflicts(
@@ -1130,8 +1147,9 @@ class AppointmentService:
         time_actually_changed: Optional[bool] = None,
         originally_auto_assigned: Optional[bool] = None,
         new_appointment_type_id: Optional[int] = None,
-        allow_override: bool = False
-    ) -> None:
+        allow_override: bool = False,
+        skip_notifications: bool = False
+    ) -> Optional[Dict[str, Any]]:
         """
         Core shared logic for updating an appointment.
 
@@ -1157,6 +1175,7 @@ class AppointmentService:
             notification_note: Optional custom note for patient notification
             time_actually_changed: Whether time actually changed (if None, will be calculated)
             originally_auto_assigned: Whether appointment was originally created as auto-assigned (for special handling)
+            skip_notifications: If True, skip sending notifications
         """
         # Calculate if practitioner actually changed
         practitioner_actually_changed = (practitioner_id_to_use != old_practitioner_id)
@@ -1168,7 +1187,7 @@ class AppointmentService:
         # Determine if notification should be sent (reuse shared logic)
         # Use old_start_time if new_start_time is None (no time change)
         new_start_time_for_check = new_start_time if new_start_time is not None else old_start_time
-        should_send_notification = send_patient_notification and AppointmentService._has_appointment_changes(
+        should_send_notification = not skip_notifications and send_patient_notification and AppointmentService._has_appointment_changes(
             old_practitioner_id, practitioner_id_to_use, old_start_time, new_start_time_for_check
         )
 
@@ -1292,6 +1311,7 @@ class AppointmentService:
         db.refresh(appointment)
 
         # Send notifications
+        notification_preview = None
         try:
             # Get practitioners for notification
             # For old_practitioner: include if appointment was manually assigned (was visible to practitioner)
@@ -1317,7 +1337,7 @@ class AppointmentService:
             # EXCEPTION: If we kept the old practitioner (they were still available), don't send cancellation
             # This happens when: originally_auto_assigned=True, old_is_auto_assigned=False, 
             # patient requested auto-assignment, but old practitioner was kept
-            if (old_practitioner and not old_is_auto_assigned and is_auto_assign and 
+            if not skip_notifications and (old_practitioner and not old_is_auto_assigned and is_auto_assign and 
                 practitioner_actually_changed):
                 # Only send cancellation if practitioner actually changed
                 from services.notification_service import NotificationService
@@ -1332,25 +1352,47 @@ class AppointmentService:
                         db, old_association, appointment, clinic, cancelled_by='patient'
                     )
 
-            # Send patient edit notification if requested
+            # Prepare result
+            result: Dict[str, Any] = {
+                "success": True,
+                "appointment_id": appointment.calendar_event_id,
+                "message": "預約已成功調整"
+            }
+
+            # Get notification preview if requested and patient-facing changes occurred
             # Skip if patient triggered the edit (they already see confirmation in UI)
-            if should_send_notification and reassigned_by_user_id is not None:
+            if not skip_notifications and should_send_notification and reassigned_by_user_id is not None:
                 from services.notification_service import NotificationService
-                # Only send if clinic triggered (reassigned_by_user_id is not None)
-                NotificationService.send_appointment_edit_notification(
+                notification_preview = NotificationService.get_action_preview(
                     db=db,
                     appointment=appointment,
+                    action_type='edit',
                     old_practitioner=old_practitioner,
                     new_practitioner=new_practitioner,
                     old_start_time=old_start_time,
                     new_start_time=new_start_time if new_start_time is not None else old_start_time,
-                    note=notification_note,
-                    trigger_source='clinic_triggered'
+                    note=notification_note
                 )
+                if notification_preview:
+                    result["notification_preview"] = notification_preview
+                    
+                    # Actually send the notification immediately if not skipping
+                    # This is used by non-clinic actions (e.g. LIFF rescheduling) and tests
+                    NotificationService.send_appointment_edit_notification(
+                        db=db,
+                        appointment=appointment,
+                        practitioner_name="",  # Not used by new logic
+                        clinic=clinic,
+                        old_practitioner=old_practitioner,
+                        new_practitioner=new_practitioner,
+                        old_start_time=old_start_time,
+                        new_start_time=new_start_time if new_start_time is not None else old_start_time,
+                        note=notification_note
+                    )
 
             # Send practitioner notifications
             # Case 1: Practitioner changed (from specific to specific)
-            if practitioner_actually_changed and not old_is_auto_assigned and not is_auto_assign:
+            if not skip_notifications and practitioner_actually_changed and not old_is_auto_assigned and not is_auto_assign:
                 # Changing from specific practitioner to specific practitioner
                 from services.notification_service import NotificationService
                 if reassigned_by_user_id is not None:
@@ -1386,13 +1428,13 @@ class AppointmentService:
                                 db, new_association, appointment, clinic
                             )
             # Case 2: Auto-assigned becomes visible (due to recency limit being reached during reschedule)
-            elif old_is_auto_assigned and not appointment.is_auto_assigned and new_practitioner is not None:
+            elif not skip_notifications and old_is_auto_assigned and not appointment.is_auto_assigned and new_practitioner is not None:
                 # Was auto-assigned: use standard appointment notification (as if patient booked directly)
                 from services.notification_service import NotificationService
                 from models.user_clinic_association import UserClinicAssociation
                 new_association = db.query(UserClinicAssociation).filter(
                     UserClinicAssociation.user_id == new_practitioner.id,
-                    UserClinicAssociation.clinic_id == clinic.id,
+                    UserClinicAssociation.clinic_id == clinic_id,
                     UserClinicAssociation.is_active == True
                 ).first()
                 if new_association:
@@ -1411,6 +1453,8 @@ class AppointmentService:
         except Exception as e:
             # Log but don't fail - notification failure shouldn't block update
             logger.warning(f"Failed to send appointment update notification: {e}")
+        
+        return notification_preview
 
     @staticmethod
     def _get_and_validate_appointment_for_update(
@@ -1738,7 +1782,8 @@ class AppointmentService:
         success_message: str = '預約已更新',
         appointment: Optional[Appointment] = None,
         new_appointment_type_id: Optional[int] = None,
-        selected_resource_ids: Optional[List[int]] = None
+        selected_resource_ids: Optional[List[int]] = None,
+        skip_notifications: bool = False
     ) -> Dict[str, Any]:
         """
         Update an appointment (time, practitioner, and/or appointment type).
@@ -1761,6 +1806,7 @@ class AppointmentService:
             appointment: Optional pre-fetched appointment to avoid duplicate query
             new_appointment_type_id: New appointment type ID (None = keep current)
             selected_resource_ids: Optional list of resource IDs to allocate (None = auto-allocate)
+            skip_notifications: If True, skip sending notifications (patient and practitioner)
 
         Returns:
             Dict with updated appointment details
@@ -1925,7 +1971,7 @@ class AppointmentService:
         
         # Update appointment using shared core method
         # Allow override (skip availability interval checks) for clinic edits (when apply_booking_constraints=False)
-        AppointmentService._update_appointment_core(
+        notification_preview = AppointmentService._update_appointment_core(
             db=db,
             appointment=appointment,
             calendar_event=calendar_event,
@@ -1949,7 +1995,8 @@ class AppointmentService:
             time_actually_changed=time_actually_changed,  # Pass pre-calculated value to avoid recalculation
             originally_auto_assigned=originally_auto_assigned,  # Pass for special handling
             new_appointment_type_id=appointment_type_id_to_use if appointment_type_actually_changed else None,
-            allow_override=not apply_booking_constraints  # Allow override for clinic edits
+            allow_override=not apply_booking_constraints,  # Allow override for clinic edits
+            skip_notifications=skip_notifications
         )
 
         # Re-allocate resources if time or appointment type changed
@@ -1983,9 +2030,13 @@ class AppointmentService:
 
         logger.info(f"Updated appointment {appointment_id}")
 
-        return {
+        result: Dict[str, Any] = {
             'success': True,
             'appointment_id': appointment_id,
             'message': success_message
         }
+        if notification_preview:
+            result['notification_preview'] = notification_preview
+            
+        return result
 

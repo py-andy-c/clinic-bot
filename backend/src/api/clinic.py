@@ -92,6 +92,73 @@ def _parse_service_item_id(service_item_id: Optional[str]) -> Optional[Union[int
         )
 
 
+class CustomNotificationRequest(BaseModel):
+    """Request model for sending a custom notification."""
+    patient_id: int
+    message: str
+    event_type: str  # e.g., 'appointment_confirmation', 'appointment_edit', 'appointment_cancellation'
+
+
+@router.post("/appointments/send-custom-notification", summary="Send custom LINE notification")
+async def send_custom_notification(
+    request: CustomNotificationRequest,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Send a custom LINE notification to a patient.
+    
+    This is used as a follow-up step after an appointment action is confirmed.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Verify patient belongs to clinic
+        patient = db.query(Patient).filter(
+            Patient.id == request.patient_id,
+            Patient.clinic_id == clinic_id
+        ).first()
+        
+        if not patient:
+            raise HTTPException(status_code=404, detail="病患不存在")
+            
+        if not patient.line_user:
+            raise HTTPException(status_code=400, detail="病患未連結 LINE")
+
+        clinic = patient.clinic
+        if not clinic.line_channel_secret or not clinic.line_channel_access_token:
+            raise HTTPException(status_code=400, detail="診所未設定 LINE 憑證")
+
+        # Send notification
+        from services.line_service import LINEService
+        line_service = LINEService(
+            channel_secret=clinic.line_channel_secret,
+            channel_access_token=clinic.line_channel_access_token
+        )
+        
+        labels = {
+            'recipient_type': 'patient',
+            'event_type': request.event_type,
+            'trigger_source': 'clinic_triggered'
+        }
+        
+        line_service.send_text_message(
+            patient.line_user.line_user_id,
+            request.message,
+            db=db,
+            clinic_id=clinic.id,
+            labels=labels
+        )
+        
+        return {"success": True, "message": "訊息已傳送"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to send custom notification: {e}")
+        raise HTTPException(status_code=500, detail="傳送訊息失敗")
+
+
 class MemberInviteRequest(BaseModel):
     """Request model for inviting a new team member."""
     default_roles: List[str]  # e.g., ["practitioner"] or ["admin", "practitioner"]
@@ -1254,15 +1321,6 @@ class ReminderPreviewRequest(BaseModel):
     therapist_name: str
 
 
-class CancellationPreviewRequest(BaseModel):
-    """Request model for generating cancellation message preview."""
-    appointment_type: str
-    appointment_time: str
-    therapist_name: str
-    patient_name: str
-    note: str | None = None
-
-
 class ReceiptPreviewRequest(BaseModel):
     """Request model for receipt preview."""
     custom_notes: Optional[str] = None
@@ -1316,56 +1374,6 @@ async def generate_reminder_preview(
             detail="無法產生預覽訊息"
         )
 
-
-@router.post("/cancellation-preview", summary="Generate cancellation message preview")
-async def generate_cancellation_preview(
-    request: CancellationPreviewRequest,
-    current_user: UserContext = Depends(require_authenticated),
-    db: Session = Depends(get_db)
-) -> Dict[str, str]:
-    """
-    Generate a preview of what a LINE cancellation message would look like.
-
-    This endpoint allows clinic admins to see exactly how their cancellation
-    messages will appear to patients before they are sent.
-    """
-    try:
-        clinic_id = ensure_clinic_access(current_user)
-        if not clinic_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="使用者不屬於任何診所"
-            )
-
-        clinic = db.query(Clinic).get(clinic_id)
-        if not clinic:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="診所不存在"
-            )
-
-        # Generate preview using the same service that sends actual cancellations
-        from services.notification_service import NotificationService, CancellationSource
-        preview_message = NotificationService.generate_cancellation_preview(
-            appointment_type=request.appointment_type,
-            appointment_time=request.appointment_time,
-            therapist_name=request.therapist_name,
-            patient_name=request.patient_name,
-            source=CancellationSource.CLINIC,  # Always clinic-initiated for preview
-            clinic=clinic,
-            note=request.note
-        )
-
-        return {"preview_message": preview_message}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Error generating cancellation preview: {e}")
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="無法產生取消預覽訊息"
-        )
 
 
 @router.post("/settings/receipts/preview", response_class=HTMLResponse, summary="Generate receipt preview")
@@ -2186,34 +2194,38 @@ async def cancel_clinic_appointment(
                         detail="您無法取消系統自動指派的預約"
                     )
         
-        # Cancel appointment using service
-        # Note: Permission validation is already done above (practitioners can only cancel their own, admins can cancel any)
-        # The service method handles sending notifications to both practitioner and patient
+        # Cancel appointment using service (skip automatic notifications)
         result = AppointmentService.cancel_appointment(
             db=db,
             appointment_id=appointment_id,
             cancelled_by='clinic',
             return_details=True,
-            note=note
+            note=note,
+            skip_notifications=True
         )
 
+        appointment = result.get('appointment')
+        practitioner = result.get('practitioner')
         already_cancelled = result.get('already_cancelled', False)
+
+        notification_preview = None
+        if not already_cancelled and appointment and practitioner:
+            notification_preview = NotificationService.get_action_preview(
+                db=db,
+                appointment=appointment,
+                action_type='cancel',
+                practitioner=practitioner,
+                note=note
+            )
 
         db.commit()
 
-        # Return appropriate message based on whether it was already cancelled
-        if already_cancelled:
-            return {
-                "success": True,
-                "message": "預約已被取消",
-                "appointment_id": appointment_id
-            }
-        else:
-            return {
-                "success": True,
-                "message": "預約已取消，已通知患者",
-                "appointment_id": appointment_id
-            }
+        return {
+            "success": True,
+            "message": "預約已取消" if not already_cancelled else "預約已被取消",
+            "appointment_id": appointment_id,
+            "notification_preview": notification_preview
+        }
 
     except HTTPException:
         raise
@@ -2306,19 +2318,6 @@ class UpdateEventNameRequest(BaseModel):
         return v
 
 
-class AppointmentEditPreviewRequest(BaseModel):
-    """Request model for previewing edit notification."""
-    new_practitioner_id: Optional[int] = None
-    new_start_time: Optional[datetime] = None
-    note: Optional[str] = None
-
-    @model_validator(mode='before')
-    @classmethod
-    def parse_datetime_fields(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        """Parse datetime strings before validation, converting to Taiwan timezone."""
-        return datetime_validator('new_start_time')(cls, values)
-
-
 @router.post("/appointments", summary="Create appointment on behalf of patient")
 async def create_clinic_appointment(
     request: ClinicAppointmentCreateRequest,
@@ -2341,9 +2340,7 @@ async def create_clinic_appointment(
                 detail="您沒有權限建立預約"
             )
         
-        # Create appointment (no LINE user validation for clinic users)
-        # The AppointmentService.create_appointment() method already handles sending
-        # LINE notifications to patients, so we don't need to send them here.
+        # Create appointment (skip automatic notifications)
         result = AppointmentService.create_appointment(
             db=db,
             clinic_id=clinic_id,
@@ -2351,16 +2348,34 @@ async def create_clinic_appointment(
             appointment_type_id=request.appointment_type_id,
             start_time=request.start_time,
             practitioner_id=request.practitioner_id,
-            notes=None,  # Clinic users cannot set patient notes
+            notes=None,
             clinic_notes=request.clinic_notes,
-            line_user_id=None,  # No LINE validation for clinic users
-            selected_resource_ids=request.selected_resource_ids
+            line_user_id=None,
+            selected_resource_ids=request.selected_resource_ids,
+            skip_notifications=True
         )
+        
+        # Get appointment object for preview
+        appointment = db.query(Appointment).filter(
+            Appointment.calendar_event_id == result['appointment_id']
+        ).first()
+        
+        notification_preview = None
+        if appointment:
+            notification_preview = NotificationService.get_action_preview(
+                db=db,
+                appointment=appointment,
+                action_type='create'
+            )
+            logger.info(f"Create appointment: appointment_id={result['appointment_id']}, patient_id={appointment.patient_id}, has_line_user={appointment.patient.line_user is not None if appointment.patient else False}, notification_preview={'present' if notification_preview else 'null'}")
+        else:
+            logger.warning(f"Create appointment: appointment_id={result['appointment_id']} not found after creation")
         
         return {
             "success": True,
             "appointment_id": result['appointment_id'],
-            "message": "預約已建立"
+            "message": "預約已建立",
+            "notification_preview": notification_preview
         }
         
     except HTTPException:
@@ -2609,6 +2624,7 @@ class RecurringAppointmentCreateResponse(BaseModel):
     failed_count: int
     created_appointments: List[Dict[str, Any]]
     failed_occurrences: List[FailedOccurrence]
+    notification_preview: Optional[Dict[str, Any]] = None
 
 
 @router.post("/appointments/recurring", summary="Create recurring appointments")
@@ -2709,208 +2725,88 @@ async def create_recurring_appointments(
                     error_message="建立預約失敗"
                 ))
         
-        # Send notifications based on count
-        # If only 1 appointment created, send normal individual notification
-        # If > 1 appointment created, send consolidated notifications
+        # Notification preview generation
+        notification_preview = None
         if created_appointments:
-            if len(created_appointments) == 1:
-                # Single appointment - send normal individual notification
-                # Re-fetch the appointment to send notification
-                try:
-                    appointment_id = created_appointments[0]['appointment_id']
-                    appointment = db.query(Appointment).join(
-                        CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
-                    ).filter(
-                        Appointment.calendar_event_id == appointment_id,
-                        CalendarEvent.clinic_id == clinic_id
-                    ).first()
+            try:
+                # Multiple appointments - generate consolidated preview
+                patient = db.query(Patient).filter(
+                    Patient.id == request.patient_id,
+                    Patient.clinic_id == clinic_id
+                ).first()
+                
+                clinic = db.query(Clinic).get(clinic_id)
+                
+                if patient and patient.line_user and clinic:
+                    from utils.practitioner_helpers import get_practitioner_name_for_notification, get_practitioner_display_name_with_title
+                    from utils.datetime_utils import format_datetime
                     
-                    if appointment:
-                        from services.notification_service import NotificationService
-                        from utils.practitioner_helpers import get_practitioner_name_for_notification
-                        from models.user_clinic_association import UserClinicAssociation
-                        
-                        clinic = db.query(Clinic).get(clinic_id)
-                        if not clinic:
-                            logger.warning(f"Clinic {clinic_id} not found, skipping notifications")
-                        else:
-                            practitioner = db.query(User).get(request.practitioner_id)
-                            
-                            # Send practitioner notification
-                            if practitioner:
-                                association = db.query(UserClinicAssociation).filter(
-                                    UserClinicAssociation.user_id == practitioner.id,
-                                    UserClinicAssociation.clinic_id == clinic_id,
-                                    UserClinicAssociation.is_active == True
-                                ).first()
-                                if association:
-                                    NotificationService.send_practitioner_appointment_notification(
-                                        db, association, appointment, clinic
-                                    )
-                            
-                            # Send patient notification
-                            if appointment.patient and appointment.patient.line_user:
-                                practitioner_name = get_practitioner_name_for_notification(
-                                    db=db,
-                                    practitioner_id=request.practitioner_id,
-                                    clinic_id=clinic_id,
-                                    was_auto_assigned=False,
-                                    practitioner=practitioner
-                                )
-                                NotificationService.send_appointment_confirmation(
-                                    db, appointment, practitioner_name, clinic, trigger_source='clinic_triggered'
-                                )
-                except Exception as e:
-                    logger.exception(f"Failed to send individual notification: {e}")
-                    # Don't fail the request if notification fails
-            else:
-                # Multiple appointments - send consolidated notifications
-                try:
-                    # Get patient
-                    patient = db.query(Patient).filter(
-                        Patient.id == request.patient_id,
-                        Patient.clinic_id == clinic_id
-                    ).first()
+                    practitioner = db.query(User).get(request.practitioner_id)
+                    practitioner_name = get_practitioner_name_for_notification(
+                        db=db,
+                        practitioner_id=request.practitioner_id,
+                        clinic_id=clinic_id,
+                        was_auto_assigned=False,
+                        practitioner=practitioner
+                    )
                     
-                    clinic = db.query(Clinic).get(clinic_id)
+                    # Get appointment type name
+                    appointment_type_obj = db.query(AppointmentType).get(request.appointment_type_id)
+                    appointment_type_name = appointment_type_obj.name if appointment_type_obj else "預約"
                     
-                    if clinic and clinic.line_channel_secret and clinic.line_channel_access_token:
-                        from services.line_service import LINEService
-                        from utils.practitioner_helpers import get_practitioner_name_for_notification
-                        from utils.datetime_utils import format_datetime
-                        from models.user_clinic_association import UserClinicAssociation
-                        
-                        practitioner = db.query(User).get(request.practitioner_id)
-                        practitioner_name = get_practitioner_name_for_notification(
-                            db=db,
-                            practitioner_id=request.practitioner_id,
-                            clinic_id=clinic_id,
-                            was_auto_assigned=False,
-                            practitioner=practitioner
+                    # Format date range
+                    date_range = ""
+                    dates = sorted([appt['start_time'] for appt in created_appointments])
+                    first_date = dates[0][:10]
+                    last_date = dates[-1][:10]
+                    if first_date != last_date:
+                        date_range = f"預約時間：{first_date} 至 {last_date}\n"
+                    
+                    # Format appointment times
+                    appointment_list = created_appointments[:10]
+                    from utils.datetime_utils import parse_datetime_to_taiwan as parse_dt
+                    appointment_text = "\n".join([
+                        f"• {format_datetime(parse_dt(appt['start_time']))}" 
+                        for appt in appointment_list
+                    ])
+                    
+                    if len(created_appointments) > 10:
+                        appointment_text += f"\n... 還有 {len(created_appointments) - 10} 個"
+                    
+                    # Get practitioner display name
+                    if practitioner:
+                        practitioner_display_name = get_practitioner_display_name_with_title(
+                            db, practitioner.id, clinic_id
                         )
-                        
-                        # Get appointment type name
-                        appointment_type_obj = AppointmentTypeService.get_appointment_type_by_id(
-                            db, request.appointment_type_id, clinic_id=clinic_id
-                        )
-                        appointment_type_name = appointment_type_obj.name if appointment_type_obj else "預約"
-                        
-                        # Create consolidated notification message for patient
-                        if patient and patient.line_user:
-                            date_range = ""
-                            dates = sorted([appt['start_time'] for appt in created_appointments])
-                            first_date = dates[0][:10]  # Extract date part
-                            last_date = dates[-1][:10]
-                            if first_date != last_date:
-                                date_range = f"預約時間：{first_date} 至 {last_date}\n"
-                            
-                            # Format appointment times
-                            appointment_list = created_appointments[:10]
-                            from utils.datetime_utils import parse_datetime_to_taiwan as parse_dt
-                            appointment_text = "\n".join([
-                                f"• {format_datetime(parse_dt(appt['start_time']))}" 
-                                for appt in appointment_list
-                            ])
-                            
-                            if len(created_appointments) > 10:
-                                appointment_text += f"\n... 還有 {len(created_appointments) - 10} 個"
-                            
-                            # Get practitioner name with title for external display
-                            from utils.practitioner_helpers import get_practitioner_display_name_with_title
-                            if practitioner:
-                                practitioner_display_name = get_practitioner_display_name_with_title(
-                                    db, practitioner.id, clinic_id
-                                )
-                            else:
-                                practitioner_display_name = practitioner_name
-                            
-                            message = f"{patient.full_name}，已為您建立 {len(created_appointments)} 個預約：\n\n"
-                            message += date_range
-                            message += appointment_text
-                            message += f"\n\n【{appointment_type_name}】{practitioner_display_name}"
-                            message += "\n\n期待為您服務！"
-                            
-                            # Send notification using LINE service directly
-                            line_service = LINEService(
-                                channel_secret=clinic.line_channel_secret,
-                                channel_access_token=clinic.line_channel_access_token
-                            )
-                            labels = {
-                                'recipient_type': 'patient',
-                                'event_type': 'appointment_confirmation',
-                                'trigger_source': 'clinic_triggered',
-                                'appointment_context': 'recurring_appointments'
-                            }
-                            line_service.send_text_message(
-                                patient.line_user.line_user_id,
-                                message,
-                                db=db,
-                                clinic_id=clinic_id,
-                                labels=labels
-                            )
-                            
-                            logger.info(
-                                f"Sent consolidated appointment confirmation to patient {patient.id} "
-                                f"for {len(created_appointments)} appointments"
-                            )
-                        
-                        # Send consolidated notification for practitioner
-                        if practitioner:
-                            association = db.query(UserClinicAssociation).filter(
-                                UserClinicAssociation.user_id == practitioner.id,
-                                UserClinicAssociation.clinic_id == clinic_id,
-                                UserClinicAssociation.is_active == True
-                            ).first()
-                            
-                            if association and association.line_user_id:
-                                # Format appointment times for practitioner
-                                appointment_list = created_appointments[:10]
-                                from utils.datetime_utils import parse_datetime_to_taiwan as parse_dt
-                                appointment_text = "\n".join([
-                                    f"• {format_datetime(parse_dt(appt['start_time']))}" 
-                                    for appt in appointment_list
-                                ])
-                                
-                                if len(created_appointments) > 10:
-                                    appointment_text += f"\n... 還有 {len(created_appointments) - 10} 個"
-                                
-                                practitioner_message = f"📅 新預約通知（{len(created_appointments)} 個）\n\n"
-                                practitioner_message += f"病患：{patient.full_name if patient else '未知'}\n"
-                                practitioner_message += f"類型：{appointment_type_name}\n\n"
-                                practitioner_message += appointment_text
-                                
-                                line_service = LINEService(
-                                    channel_secret=clinic.line_channel_secret,
-                                    channel_access_token=clinic.line_channel_access_token
-                                )
-                                labels = {
-                                    'recipient_type': 'practitioner',
-                                    'event_type': 'new_appointment_notification',
-                                    'trigger_source': 'clinic_triggered',
-                                    'appointment_context': 'recurring_appointments'
-                                }
-                                line_service.send_text_message(
-                                    association.line_user_id,
-                                    practitioner_message,
-                                    db=db,
-                                    clinic_id=clinic_id,
-                                    labels=labels
-                                )
-                                
-                                logger.info(
-                                    f"Sent consolidated appointment notification to practitioner {practitioner.id} "
-                                    f"for {len(created_appointments)} appointments"
-                                )
-                except Exception as e:
-                    logger.exception(f"Failed to send consolidated notification: {e}")
-                    # Don't fail the request if notification fails
-        
+                    else:
+                        practitioner_display_name = practitioner_name
+                    
+                    if len(created_appointments) == 1:
+                        message = f"{patient.full_name}，您的預約已建立：\n\n"
+                        message += f"{format_datetime(parse_dt(created_appointments[0]['start_time']))} - 【{appointment_type_name}】{practitioner_display_name}"
+                        message += "\n\n期待為您服務！"
+                    else:
+                        message = f"{patient.full_name}，已為您建立 {len(created_appointments)} 個預約：\n\n"
+                        message += date_range
+                        message += appointment_text
+                        message += f"\n\n【{appointment_type_name}】{practitioner_display_name}"
+                        message += "\n\n期待為您服務！"
+                    
+                    notification_preview = {
+                        "message": message,
+                        "patient_id": patient.id,
+                        "event_type": "appointment_confirmation"
+                    }
+            except Exception as e:
+                logger.exception(f"Failed to generate recurring preview: {e}")
+
         return RecurringAppointmentCreateResponse(
             success=len(failed_occurrences) == 0,
             created_count=len(created_appointments),
             failed_count=len(failed_occurrences),
             created_appointments=created_appointments,
-            failed_occurrences=failed_occurrences
+            failed_occurrences=failed_occurrences,
+            notification_preview=notification_preview
         )
         
     except HTTPException:
@@ -2923,126 +2819,6 @@ async def create_recurring_appointments(
             detail="建立預約失敗"
         )
 
-
-@router.post("/appointments/{appointment_id}/edit-preview", summary="Preview edit notification")
-async def preview_edit_notification(
-    appointment_id: int,
-    request: AppointmentEditPreviewRequest,
-    current_user: UserContext = Depends(require_practitioner_or_admin),
-    db: Session = Depends(get_db)
-):
-    """
-    Preview edit notification message before confirming edit.
-    
-    Also validates conflicts and returns whether notification will be sent.
-    """
-    try:
-        clinic_id = ensure_clinic_access(current_user)
-        
-        # Get appointment
-        appointment = db.query(Appointment).join(
-            CalendarEvent, Appointment.calendar_event_id == CalendarEvent.id
-        ).filter(
-            Appointment.calendar_event_id == appointment_id,
-            CalendarEvent.clinic_id == clinic_id
-        ).first()
-        
-        if not appointment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="預約不存在"
-            )
-        
-        # Check if appointment is cancelled
-        if appointment.status in ['canceled_by_patient', 'canceled_by_clinic']:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="此預約已取消，無法編輯"
-            )
-        
-        # Check permissions before preview
-        calendar_event = appointment.calendar_event
-        is_admin = current_user.has_role('admin')
-        if not is_admin:
-            # Practitioners can only preview their own appointments
-            if calendar_event.user_id != current_user.user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="您只能預覽自己的預約"
-                )
-            # Non-admin practitioners cannot preview auto-assigned appointments
-            # (even if they are the assigned practitioner, they shouldn't know about it)
-            if appointment.is_auto_assigned:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="您無法預覽系統自動指派的預約"
-                )
-        
-        # Check conflicts (after permission check)
-        # Allow override for clinic users (skip availability interval checks)
-        is_valid, _, conflicts = AppointmentService.check_appointment_edit_conflicts(
-            db, appointment_id, request.new_practitioner_id, request.new_start_time,
-            appointment.appointment_type_id, clinic_id, allow_override=True
-        )
-        
-        # Determine if notification will be sent
-        from utils.datetime_utils import TAIWAN_TZ
-        old_start_time_for_preview = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
-        old_practitioner_id_for_preview = calendar_event.user_id
-        new_start_time = request.new_start_time if request.new_start_time else old_start_time_for_preview
-        new_practitioner_id = request.new_practitioner_id if request.new_practitioner_id else old_practitioner_id_for_preview
-        
-        will_send_notification = AppointmentService.should_send_edit_notification(
-            old_appointment=appointment,
-            new_practitioner_id=new_practitioner_id,
-            new_start_time=new_start_time
-        )
-        
-        # Generate preview message if notification will be sent
-        preview_message: Optional[str] = None
-        if will_send_notification:
-            old_practitioner = None
-            if not appointment.is_auto_assigned:
-                old_practitioner = db.query(User).get(calendar_event.user_id)
-            
-            new_practitioner = None
-            if request.new_practitioner_id:
-                new_practitioner = db.query(User).get(request.new_practitioner_id)
-            
-            preview_message = NotificationService.generate_edit_preview(
-                db=db,
-                appointment=appointment,
-                old_practitioner=old_practitioner,
-                new_practitioner=new_practitioner,
-                old_start_time=old_start_time_for_preview,
-                new_start_time=new_start_time,
-                note=request.note
-            )
-        
-        return {
-            "preview_message": preview_message,
-            "old_appointment_details": {
-                "practitioner_id": calendar_event.user_id,
-                "start_time": old_start_time_for_preview.isoformat(),
-                "is_auto_assigned": appointment.is_auto_assigned
-            },
-            "new_appointment_details": {
-                "practitioner_id": request.new_practitioner_id if request.new_practitioner_id else calendar_event.user_id,
-                "start_time": new_start_time.isoformat()
-            },
-            "conflicts": conflicts,
-            "is_valid": is_valid,
-            "will_send_notification": will_send_notification
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Failed to preview edit notification: {e}")
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="預覽失敗"
-        )
 
 
 @router.put("/appointments/{appointment_id}", summary="Edit appointment")
@@ -3108,27 +2884,62 @@ async def edit_clinic_appointment(
                 detail="未授權"
             )
         
-        # Edit appointment (service handles business logic, notifications, and permissions)
-        # Pass pre-fetched appointment to avoid duplicate query (already fetched for authorization check)
-        # Clinic users cannot update patient notes, only clinic notes
+        # Store old values for preview before editing
+        old_practitioner = None
+        if not appointment.is_auto_assigned:
+            old_practitioner = db.query(User).get(calendar_event.user_id)
+        
+        current_start_time = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
+
+        # Edit appointment (skip automatic notifications)
         result = AppointmentService.update_appointment(
             db=db,
             appointment_id=appointment_id,
             new_appointment_type_id=request.appointment_type_id,
             new_practitioner_id=request.practitioner_id,
             new_start_time=request.start_time,
-            new_notes=None,  # Clinic users cannot update patient notes
+            new_notes=None,
             new_clinic_notes=request.clinic_notes,
-            apply_booking_constraints=False,  # Clinic edits bypass constraints
-            allow_auto_assignment=False,  # Clinic edits don't support auto-assignment
+            apply_booking_constraints=False,
+            allow_auto_assignment=False,
             reassigned_by_user_id=current_user.user_id,
             notification_note=request.notification_note,
             success_message='預約已更新',
-            appointment=appointment,  # Pass pre-fetched appointment to avoid duplicate query
-            selected_resource_ids=request.selected_resource_ids
+            appointment=appointment,
+            selected_resource_ids=request.selected_resource_ids,
+            skip_notifications=True
         )
         
-        return result
+        # Determine if patient-facing changes occurred
+        # (These rules should match the design doc's Scenario A)
+        practitioner_changed = (request.practitioner_id is not None and request.practitioner_id != calendar_event.user_id)
+        time_changed = (request.start_time is not None and request.start_time != current_start_time)
+        type_changed = (request.appointment_type_id is not None and request.appointment_type_id != appointment.appointment_type_id)
+        
+        patient_facing_changes = practitioner_changed or time_changed or type_changed
+        
+        notification_preview = None
+        if patient_facing_changes:
+            # Resolve new practitioner object
+            new_practitioner = db.query(User).get(request.practitioner_id) if request.practitioner_id else old_practitioner
+            
+            notification_preview = NotificationService.get_action_preview(
+                db=db,
+                appointment=appointment,
+                action_type='edit',
+                old_practitioner=old_practitioner,
+                new_practitioner=new_practitioner,
+                old_start_time=current_start_time,
+                new_start_time=request.start_time if request.start_time else current_start_time,
+                note=request.notification_note
+            )
+        
+        return {
+            "success": True,
+            "appointment_id": result['appointment_id'],
+            "message": "預約已更新",
+            "notification_preview": notification_preview
+        }
         
     except HTTPException:
         raise

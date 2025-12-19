@@ -504,6 +504,17 @@ class TestPatientPerspectiveOnAutoAssignment:
             db_session
         )
 
+        # Create LINE user for patient
+        line_user = LineUser(
+            line_user_id="U_test_patient",
+            clinic_id=clinic.id,
+            display_name="Test Patient"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        patient.line_user_id = line_user.id
+        db_session.commit()
+
         # Create auto-assigned appointment
         start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=1)
         result = AppointmentService.create_appointment(
@@ -986,6 +997,17 @@ class TestAdditionalScenarios:
         clinic, practitioner1, practitioner2, appointment_type, patient = self._setup_clinic_with_practitioners(
             db_session
         )
+
+        # Create LINE user for patient
+        line_user = LineUser(
+            line_user_id="U_test_patient",
+            clinic_id=clinic.id,
+            display_name="Test Patient"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        patient.line_user_id = line_user.id
+        db_session.commit()
 
         # Create auto-assigned appointment (more than 24 hours ahead)
         start_time = taiwan_now().replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=2)
@@ -1991,6 +2013,17 @@ class TestPatientCancellationNotifications:
             db_session
         )
 
+        # Create LINE user for patient
+        line_user = LineUser(
+            line_user_id="U_test_patient",
+            clinic_id=clinic.id,
+            display_name="Test Patient"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+        patient.line_user_id = line_user.id
+        db_session.commit()
+
         # Create availability for day 2
         target_date = (taiwan_now() + timedelta(days=2)).date()
         day_of_week = target_date.weekday()
@@ -2031,11 +2064,9 @@ class TestPatientCancellationNotifications:
 
             # Verify patient notification was sent with correct source
             mock_patient_notify.assert_called_once()
-            call_args = mock_patient_notify.call_args
-            appointment = db_session.query(Appointment).filter(
-                Appointment.calendar_event_id == appointment_id
-            ).first()
-            assert call_args[0][3] == CancellationSource.CLINIC  # Fourth arg is CancellationSource
+            call_kwargs = mock_patient_notify.call_args.kwargs
+            assert call_kwargs['clinic'] == clinic
+            assert call_kwargs['practitioner'] == practitioner
 
         # Verify appointment status is canceled
         appointment = db_session.query(Appointment).filter(

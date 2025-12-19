@@ -129,7 +129,7 @@ const RecurrenceDateTimePickerWrapper: React.FC<{
   );
 };
 
-type CreateStep = 'form' | 'conflict-resolution' | 'confirm';
+type CreateStep = 'form' | 'conflict-resolution' | 'confirm' | 'success';
 
 export interface CreateAppointmentModalProps {
   preSelectedPatientId?: number;
@@ -142,7 +142,7 @@ export interface CreateAppointmentModalProps {
   preSelectedResourceIds?: number[] | null | undefined; // Initial selected resource IDs
   practitioners: { id: number; full_name: string }[];
   appointmentTypes: { id: number; name: string; duration_minutes: number }[];
-  onClose: () => void;
+  onClose: (preview?: any) => void;
   onConfirm: (formData: {
     patient_id: number;
     appointment_type_id: number;
@@ -150,7 +150,7 @@ export interface CreateAppointmentModalProps {
     start_time: string;
     clinic_notes?: string;
     selected_resource_ids?: number[];
-  }) => Promise<void>;
+  }) => Promise<any>;
   onRecurringAppointmentsCreated?: () => Promise<void>;
   event?: CalendarEvent | null | undefined; // Optional original event for duplication reference
 }
@@ -496,6 +496,18 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     }
   };
 
+  const [notificationPreview, setNotificationPreview] = useState<any | null>(null);
+  const notificationPreviewRef = useRef<any | null>(null);
+  const componentInstanceId = useRef(Math.random().toString(36).substring(7));
+  
+  // Log component mount/unmount
+  useEffect(() => {
+    logger.log('CreateAppointmentModal: Component mounted', { instanceId: componentInstanceId.current });
+    return () => {
+      logger.log('CreateAppointmentModal: Component unmounting', { instanceId: componentInstanceId.current, refValue: notificationPreviewRef.current });
+    };
+  }, []);
+
   const handleSave = async () => {
     if (!isValid) {
       setError('請填寫所有必填欄位');
@@ -537,7 +549,21 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           if (onRecurringAppointmentsCreated) {
             await onRecurringAppointmentsCreated();
           }
-          onClose();
+          const preview = (result as any).notification_preview || null;
+          // Update both state and ref immediately - use flushSync to ensure synchronous update
+          notificationPreviewRef.current = preview;
+          logger.log('CreateAppointmentModal: Setting preview for recurring appointments', { 
+            refValue: notificationPreviewRef.current,
+            preview
+          });
+          // Store preview and close immediately - skip success step to avoid brief flash
+          // The notification modal will show success, so we don't need to show it here
+          flushSync(() => {
+            setNotificationPreview(preview);
+            // Don't set step to 'success' - just close immediately
+          });
+          // Close immediately without showing success step to prevent brief flash
+          handleClose();
         }
       } else {
         const startTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toISOString();
@@ -550,7 +576,35 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         if (clinicNotes.trim()) formData.clinic_notes = clinicNotes.trim();
         if (selectedResourceIds.length > 0) formData.selected_resource_ids = selectedResourceIds;
         
-        await onConfirm(formData);
+        const result = await onConfirm(formData);
+        const preview = result?.notification_preview || null;
+        logger.log('CreateAppointmentModal: Received result from onConfirm:', { 
+          hasNotificationPreview: !!preview,
+          notificationPreview: preview 
+        });
+        // Update both state and ref immediately - use flushSync to ensure synchronous update
+        notificationPreviewRef.current = preview;
+        logger.log('CreateAppointmentModal: Setting preview before step change', { 
+          instanceId: componentInstanceId.current,
+          refValue: notificationPreviewRef.current,
+          preview,
+          currentStep: step
+        });
+        // Store preview and close immediately - skip success step to avoid brief flash
+        // The notification modal will show success, so we don't need to show it here
+        flushSync(() => {
+          setNotificationPreview(preview);
+          // Don't set step to 'success' - just close immediately
+        });
+        // Verify ref is still set after flushSync
+        logger.log('CreateAppointmentModal: After flushSync', { 
+          instanceId: componentInstanceId.current,
+          refValue: notificationPreviewRef.current,
+          stateValue: notificationPreview,
+          previewStillSet: notificationPreviewRef.current === preview
+        });
+        // Close immediately without showing success step to prevent brief flash
+        handleClose();
       }
     } catch (err) {
       logger.error('Error creating appointment:', err);
@@ -1145,11 +1199,35 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     }
   }, [createdPatientId, createdPatientName, createdPatientPhone, createdPatientBirthday, refetchPatients, setSelectedPatientId]);
 
+  // Create a stable close handler that always reads from ref
   const handleClose = useCallback(() => {
-    onClose();
+    // Always read from ref to get the latest value
+    const latestPreview = notificationPreviewRef.current;
+    logger.log('CreateAppointmentModal: handleClose called', { 
+      instanceId: componentInstanceId.current,
+      hasNotificationPreview: !!latestPreview,
+      notificationPreview: latestPreview,
+      stateValue: notificationPreview,
+      refValue: notificationPreviewRef.current,
+      step
+    });
+    // Always call onClose, even if preview is null (let parent decide)
+    onClose(latestPreview);
   }, [onClose]);
 
-  const modalTitle = step === 'form' ? '建立預約' : step === 'conflict-resolution' ? '解決衝突' : '確認預約';
+
+  const renderSuccessStepContent = () => (
+    <div className="flex flex-col items-center justify-center py-8 space-y-4">
+      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+        <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <h3 className="text-xl font-medium text-gray-900">預約已成功建立！</h3>
+    </div>
+  );
+
+  const modalTitle = step === 'form' ? '建立預約' : step === 'conflict-resolution' ? '解決衝突' : step === 'confirm' ? '確認預約' : '成功';
 
   return (
     <>
@@ -1179,6 +1257,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
             {step === 'form' && renderFormStepContent()}
             {step === 'conflict-resolution' && renderConflictResolutionStepContent()}
             {step === 'confirm' && renderConfirmStepContent()}
+            {step === 'success' && renderSuccessStepContent()}
           </div>
           
           <div className={`flex-shrink-0 ${isMobile ? 'px-4' : ''}`} style={isMobile ? { paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' } : undefined}>

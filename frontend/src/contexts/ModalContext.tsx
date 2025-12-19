@@ -37,6 +37,13 @@ export const ModalProvider: React.FC<ModalProviderProps> = ({ children }) => {
   const [modal, setModal] = useState<ModalState | null>(null);
 
   const alert = (message: string, title?: string): Promise<void> => {
+    const stackTrace = new Error().stack;
+    console.log('[ModalContext] alert called', {
+      message,
+      title,
+      timestamp: Date.now(),
+      stackTrace: stackTrace?.split('\n').slice(0, 8).join('\n')
+    });
     return new Promise((resolve) => {
       setModal({
         isOpen: true,
@@ -44,6 +51,9 @@ export const ModalProvider: React.FC<ModalProviderProps> = ({ children }) => {
         message,
         type: 'alert',
         onConfirm: () => {
+          console.log('[ModalContext] alert onConfirm called', {
+            timestamp: Date.now()
+          });
           setModal(null);
           resolve();
         },
@@ -97,12 +107,24 @@ interface ModalDialogProps {
 const ModalDialog: React.FC<ModalDialogProps> = ({ modal, onClose }) => {
   const { t } = useTranslation();
   const handleClose = () => {
+    const stackTrace = new Error().stack;
+    console.log('[ModalContext] ModalDialog handleClose called', {
+      modalType: modal.type,
+      timestamp: Date.now(),
+      stackTrace: stackTrace?.split('\n').slice(0, 8).join('\n')
+    });
     if (modal.onCancel) {
       modal.onCancel();
     } else {
       onClose();
     }
   };
+
+  console.log('[ModalContext] ModalDialog rendering', {
+    modalType: modal.type,
+    isOpen: modal.isOpen,
+    timestamp: Date.now()
+  });
 
   return (
     <BaseModal
