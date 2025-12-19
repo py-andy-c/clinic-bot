@@ -7,7 +7,7 @@ between different API endpoints (LIFF, clinic admin, etc.).
 
 import logging
 from datetime import datetime, timedelta, time
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, TypedDict
 
 from fastapi import HTTPException, status
 from fastapi import status as http_status
@@ -26,6 +26,13 @@ from utils.appointment_type_queries import get_appointment_type_by_id_with_soft_
 from utils.appointment_queries import filter_future_appointments
 
 logger = logging.getLogger(__name__)
+
+
+class NotificationRequirements(TypedDict):
+    """Type definition for notification requirements return value."""
+    will_send_notification: bool
+    requires_notification_note: bool
+    should_show_preview: bool
 
 
 def get_appointment_type_name_safe(appointment_type_id: int, db: Session) -> str:
@@ -1077,6 +1084,101 @@ class AppointmentService:
         return False
 
     @staticmethod
+    def get_notification_requirements(
+        old_appointment: Appointment,
+        new_practitioner_id: int,
+        new_start_time: datetime,
+        originally_auto_assigned: Optional[bool] = None,
+        time_actually_changed: Optional[bool] = None
+    ) -> NotificationRequirements:
+        """
+        Determine notification requirements for appointment edit.
+        
+        This is the single source of truth for determining:
+        - Whether to prompt user for notification note
+        - Whether to show preview message step
+        - Whether to generate LINE message template (implicit: same as will_send_notification)
+        - Whether to send notification
+        
+        Rules:
+        - Notify patient when either the practitioner OR time changes
+        - Exception: For originally auto-assigned appointments, only notify if time changed OR changing to specific practitioner
+        - Resource changes, appointment type changes, etc. do NOT trigger notifications
+        
+        Note: Currently all three return values are identical, but kept separate for future extensibility
+        (e.g., might want to show preview without requiring note, or require note without sending).
+
+        Args:
+            old_appointment: Current appointment state (must be unmodified)
+            new_practitioner_id: New practitioner ID (must be the actual value, not None)
+            new_start_time: New start time (must be the actual value, not None)
+            originally_auto_assigned: Whether appointment was originally auto-assigned (optional, will be read from appointment if not provided)
+            time_actually_changed: Whether time actually changed (optional, will be calculated if not provided)
+
+        Returns:
+            NotificationRequirements dict with:
+                - will_send_notification: Whether notification will be sent
+                - requires_notification_note: Whether to prompt for notification note (currently same as will_send_notification)
+                - should_show_preview: Whether to show preview step (currently same as will_send_notification)
+        
+        Example:
+            >>> requirements = AppointmentService.get_notification_requirements(
+            ...     old_appointment=appointment,
+            ...     new_practitioner_id=123,
+            ...     new_start_time=new_time
+            ... )
+            >>> if requirements["will_send_notification"]:
+            ...     show_note_step()
+        """
+        # Read old values from appointment (must be called before appointment is updated)
+        old_start_time = datetime.combine(
+            old_appointment.calendar_event.date,
+            old_appointment.calendar_event.start_time
+        ).replace(tzinfo=TAIWAN_TZ)
+        old_practitioner_id = old_appointment.calendar_event.user_id
+
+        # Check if practitioner or time changed
+        has_changes = AppointmentService._has_appointment_changes(
+            old_practitioner_id, new_practitioner_id, old_start_time, new_start_time
+        )
+        
+        # Determine if originally auto-assigned (use provided value or read from appointment)
+        if originally_auto_assigned is None:
+            originally_auto_assigned = old_appointment.is_auto_assigned
+        
+        # Determine if time actually changed (use provided value or calculate)
+        if time_actually_changed is None:
+            time_actually_changed = (new_start_time != old_start_time)
+        
+        # Check if practitioner actually changed
+        practitioner_changed = (old_practitioner_id != new_practitioner_id)
+        
+        # For originally auto-assigned appointments:
+        # - Notify if time changed (always)
+        # - Notify if changing to a specific practitioner (even without time change)
+        # - Don't notify if only confirming/changing between auto-assigned practitioners without time change
+        if originally_auto_assigned and not time_actually_changed:
+            # Only notify if changing to a specific practitioner (not auto-assigned)
+            # Note: new_practitioner_id is guaranteed to be a valid practitioner ID (> 0)
+            # because this function is called after _resolve_practitioner_id() has resolved
+            # any auto-assignment requests to actual practitioner IDs
+            if practitioner_changed and new_practitioner_id > 0:
+                # Changing from auto-assigned to specific practitioner - notify
+                will_send = True
+            else:
+                # Only confirming/changing auto-assignment without time change - don't notify
+                will_send = False
+        else:
+            # Not originally auto-assigned, or time changed - use standard logic
+            will_send = has_changes
+        
+        return {
+            "will_send_notification": will_send,
+            "requires_notification_note": will_send,
+            "should_show_preview": will_send
+        }
+
+    @staticmethod
     def should_send_edit_notification(
         old_appointment: Appointment,
         new_practitioner_id: int,
@@ -1085,9 +1187,8 @@ class AppointmentService:
         """
         Determine if LINE notification should be sent for appointment edit.
 
-        Rules:
-        - Notify patient when either the practitioner OR time changes
-        - This applies to both auto-assigned and non-auto-assigned appointments
+        This is a convenience method that uses get_notification_requirements().
+        Kept for backward compatibility.
 
         Args:
             old_appointment: Current appointment state (must be unmodified)
@@ -1097,16 +1198,10 @@ class AppointmentService:
         Returns:
             True if notification should be sent, False otherwise
         """
-        # Read old values from appointment (must be called before appointment is updated)
-        old_start_time = datetime.combine(
-            old_appointment.calendar_event.date,
-            old_appointment.calendar_event.start_time
-        ).replace(tzinfo=TAIWAN_TZ)
-        old_practitioner_id = old_appointment.calendar_event.user_id
-
-        return AppointmentService._has_appointment_changes(
-            old_practitioner_id, new_practitioner_id, old_start_time, new_start_time
+        requirements = AppointmentService.get_notification_requirements(
+            old_appointment, new_practitioner_id, new_start_time
         )
+        return requirements["will_send_notification"]
 
     @staticmethod
     def _update_appointment_core(
@@ -1916,12 +2011,18 @@ class AppointmentService:
         # Determine if auto-assignment was requested (for tracking)
         is_auto_assign_requested = (allow_auto_assignment and new_practitioner_id == -1)
 
-        # For originally auto-assigned appointments: only send patient notification if time changed
-        # (patients don't need to know about practitioner reassignment, only time changes)
-        should_send_patient_notification = True
-        if originally_auto_assigned and not time_actually_changed:
-            # Originally auto-assigned and time didn't change - don't notify patient
-            should_send_patient_notification = False
+        # Determine notification requirements using centralized logic
+        # Calculate new start time for notification check (use normalized time if changed, otherwise current)
+        new_start_time_for_notification = normalized_start_time if time_actually_changed else current_start_time
+        
+        notification_requirements = AppointmentService.get_notification_requirements(
+            old_appointment=appointment,
+            new_practitioner_id=practitioner_id_to_use,
+            new_start_time=new_start_time_for_notification,
+            originally_auto_assigned=originally_auto_assigned,
+            time_actually_changed=time_actually_changed
+        )
+        should_send_patient_notification = notification_requirements["will_send_notification"]
         
         # Update appointment using shared core method
         # Allow override (skip availability interval checks) for clinic edits (when apply_booking_constraints=False)

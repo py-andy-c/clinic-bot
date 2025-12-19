@@ -105,6 +105,10 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const [customNote, setCustomNote] = useState<string>(''); // Custom note for notification
   const [hasAvailableSlots, setHasAvailableSlots] = useState<boolean>(true);
   const [resourceNamesMap, setResourceNamesMap] = useState<Record<number, string>>({});
+  const [cachedPreviewResponse, setCachedPreviewResponse] = useState<{
+    will_send_notification: boolean;
+    preview_message: string | null;
+  } | null>(null);
 
   const handleResourcesFound = useCallback((resources: Resource[]) => {
     setResourceNamesMap(prev => {
@@ -123,6 +127,11 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       setError(externalErrorMessage);
     }
   }, [externalErrorMessage, setError]);
+
+  // Clear cached preview response when form changes
+  useEffect(() => {
+    setCachedPreviewResponse(null);
+  }, [selectedPractitionerId, selectedDate, selectedTime]);
 
   // Handle practitioner error from DateTimePicker (404 errors) - just deselect practitioner
   const handlePractitionerError = (_errorMessage: string) => {
@@ -148,6 +157,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei');
     const newStartTimeISO = newStartTime.toISOString();
 
+    // No LINE user - skip notification flow entirely
     if (!hasLineUser) {
       const formData: any = {
         practitioner_id: selectedPractitionerId,
@@ -166,7 +176,50 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       return;
     }
 
-    if (originallyAutoAssigned && !changeDetails.timeChanged) {
+    // Check with backend if notification will be sent (single source of truth)
+    try {
+      const previewResponse = await apiService.previewEditNotification(
+        event.resource.calendar_event_id,
+        {
+          new_practitioner_id: selectedPractitionerId,
+          new_start_time: newStartTimeISO,
+          // No note yet - just checking if notification will be sent
+        }
+      );
+
+      // Cache the preview response for reuse in handleNoteSubmit
+      setCachedPreviewResponse({
+        will_send_notification: previewResponse.will_send_notification,
+        preview_message: previewResponse.preview_message || null
+      });
+
+      // Backend decides: only show note/preview if notification will be sent
+      if (!previewResponse.will_send_notification) {
+        // No notification needed - save directly without note/preview steps
+        const formData: any = {
+          practitioner_id: selectedPractitionerId,
+          start_time: newStartTimeISO,
+        };
+        if (changeDetails.appointmentTypeChanged && selectedAppointmentTypeId) {
+          formData.appointment_type_id = selectedAppointmentTypeId;
+        }
+        if (clinicNotes.trim() !== originalClinicNotes.trim()) {
+          formData.clinic_notes = clinicNotes.trim();
+        }
+        if (selectedResourceIds.length > 0) {
+          formData.selected_resource_ids = selectedResourceIds;
+        }
+        await onConfirm(formData);
+        return;
+      }
+
+      // Notification will be sent - show note step
+      setStep('note');
+    } catch (err) {
+      logger.error('Error checking notification requirements:', err);
+      // If preview check fails, allow direct save without notification as fallback
+      // This prevents blocking the user from saving their changes
+      logger.warn('Preview check failed, proceeding with direct save (no notification)');
       const formData: any = {
         practitioner_id: selectedPractitionerId,
         start_time: newStartTimeISO,
@@ -181,10 +234,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         formData.selected_resource_ids = selectedResourceIds;
       }
       await onConfirm(formData);
-      return;
     }
-
-    setStep('note');
   };
 
   const handleNoteSubmit = async () => {
@@ -193,17 +243,39 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     
     try {
       const newStartTime = moment.tz(`${selectedDate}T${selectedTime}`, 'Asia/Taipei').toISOString();
-      const response = await apiService.previewEditNotification(
-        event.resource.calendar_event_id,
-        {
-          new_practitioner_id: selectedPractitionerId,
-          new_start_time: newStartTime,
-          ...(customNote.trim() ? { note: customNote.trim() } : {}),
-        }
-      );
+      
+      // Reuse cached preview response if available and no note was added
+      // Otherwise, fetch fresh preview with the custom note
+      let response;
+      if (cachedPreviewResponse && !customNote.trim()) {
+        // Reuse cached response (no note added, so preview should be the same)
+        response = {
+          preview_message: cachedPreviewResponse.preview_message,
+          will_send_notification: cachedPreviewResponse.will_send_notification
+        };
+      } else {
+        // Fetch fresh preview with custom note
+        response = await apiService.previewEditNotification(
+          event.resource.calendar_event_id,
+          {
+            new_practitioner_id: selectedPractitionerId,
+            new_start_time: newStartTime,
+            ...(customNote.trim() ? { note: customNote.trim() } : {}),
+          }
+        );
+      }
 
-      setPreviewMessage(response.preview_message || '');
-      setStep('preview');
+      // Only show preview step if there's a preview message
+      // (should always be true if will_send_notification is true, but check for safety)
+      if (response.preview_message) {
+        setPreviewMessage(response.preview_message);
+        setStep('preview');
+      } else {
+        // No preview message - this shouldn't happen if will_send_notification is true,
+        // but if it does, skip preview and save directly
+        logger.warn('Preview response has no message but will_send_notification was true');
+        await handleSave();
+      }
     } catch (err) {
       logger.error('Error generating edit preview:', err);
       setError(getErrorMessage(err));

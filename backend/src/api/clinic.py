@@ -2985,18 +2985,24 @@ async def preview_edit_notification(
             appointment.appointment_type_id, clinic_id, allow_override=True
         )
         
-        # Determine if notification will be sent
+        # Determine if notification will be sent using centralized logic
         from utils.datetime_utils import TAIWAN_TZ
         old_start_time_for_preview = datetime.combine(calendar_event.date, calendar_event.start_time).replace(tzinfo=TAIWAN_TZ)
         old_practitioner_id_for_preview = calendar_event.user_id
         new_start_time = request.new_start_time if request.new_start_time else old_start_time_for_preview
         new_practitioner_id = request.new_practitioner_id if request.new_practitioner_id else old_practitioner_id_for_preview
         
-        will_send_notification = AppointmentService.should_send_edit_notification(
+        # Calculate if time actually changed for the notification requirements check
+        time_actually_changed = (new_start_time != old_start_time_for_preview)
+        
+        notification_requirements = AppointmentService.get_notification_requirements(
             old_appointment=appointment,
             new_practitioner_id=new_practitioner_id,
-            new_start_time=new_start_time
+            new_start_time=new_start_time,
+            originally_auto_assigned=appointment.is_auto_assigned,
+            time_actually_changed=time_actually_changed
         )
+        will_send_notification = notification_requirements["will_send_notification"]
         
         # Generate preview message if notification will be sent
         preview_message: Optional[str] = None

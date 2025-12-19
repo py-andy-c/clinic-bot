@@ -460,10 +460,10 @@ class TestPatientPerspectiveOnAutoAssignment:
         assert result['practitioner_name'] == AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
         assert result['is_auto_assigned'] is True
 
-    def test_patient_not_notified_when_admin_reassigns_practitioner_only(
+    def test_patient_notified_when_admin_reassigns_practitioner_only(
         self, db_session: Session
     ):
-        """Test that patient is NOT notified when admin only changes practitioner (not time)."""
+        """Test that patient IS notified when admin changes from auto-assigned to specific practitioner (even without time change)."""
         clinic, practitioner1, practitioner2, appointment_type, patient = self._setup_clinic_with_practitioners(
             db_session
         )
@@ -481,7 +481,8 @@ class TestPatientPerspectiveOnAutoAssignment:
         )
         appointment_id = result['appointment_id']
 
-        # Admin reassigns to different practitioner (no time change)
+        # Admin reassigns from auto-assigned to specific practitioner (no time change)
+        # This should notify because changing from "不指定" to a specific practitioner is significant
         with patch.object(NotificationService, 'send_appointment_edit_notification') as mock_patient_notify:
             AppointmentService.update_appointment(
                 db=db_session,
@@ -493,8 +494,8 @@ class TestPatientPerspectiveOnAutoAssignment:
                 reassigned_by_user_id=practitioner1.id
             )
 
-            # Verify patient was NOT notified (still sees auto-assigned display name)
-            mock_patient_notify.assert_not_called()
+            # Verify patient WAS notified (changing from auto-assigned to specific practitioner)
+            mock_patient_notify.assert_called_once()
 
     def test_patient_notified_when_admin_changes_time(
         self, db_session: Session

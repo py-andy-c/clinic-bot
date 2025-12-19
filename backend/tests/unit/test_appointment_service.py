@@ -6,12 +6,13 @@ Comprehensive tests for appointment operations including:
 - Load balancing optimization
 - Appointment listing with relationships
 - Edge cases
+- Notification requirements logic
 """
 
 import pytest
 from datetime import datetime, timedelta, time, timezone
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from models import (
     Clinic, User, Patient, AppointmentType, Appointment, CalendarEvent,
@@ -780,4 +781,606 @@ class TestAppointmentServiceTaiwanTimezone:
         assert db_appointment is not None
         assert db_appointment.calendar_event.date == start_time.date()
         assert db_appointment.calendar_event.start_time == start_time.time()
+
+
+class TestAppointmentServiceNotificationRequirements:
+    """Test notification requirements logic for appointment edits."""
+
+    def test_get_notification_requirements_time_changed(self, db_session: Session):
+        """Test that time change triggers notification."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner@test.com",
+            google_subject_id="practitioner_123",
+            full_name="Dr. Practitioner",
+            roles=["practitioner"]
+        )
+
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=30
+        )
+        db_session.add(appt_type)
+        
+        # Associate practitioner with appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type.id
+        )
+        db_session.add(pat)
+        
+        # Create availability
+        tomorrow = (taiwan_now() + timedelta(days=1)).date()
+        availability = PractitionerAvailability(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            day_of_week=tomorrow.weekday(),
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.add(availability)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Create appointment
+        start_time = taiwan_now() + timedelta(days=1)
+        start_time = start_time.replace(hour=14, minute=0, second=0, microsecond=0)
+
+        result = AppointmentService.create_appointment(
+            db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type.id,
+            start_time=start_time,
+            practitioner_id=practitioner.id,
+            notes="Test"
+        )
+
+        appointment = db_session.query(Appointment).options(
+            joinedload(Appointment.calendar_event)
+        ).filter_by(
+            calendar_event_id=result["calendar_event_id"]
+        ).first()
+
+        # New time (1 hour later)
+        new_start_time = start_time + timedelta(hours=1)
+
+        requirements = AppointmentService.get_notification_requirements(
+            old_appointment=appointment,
+            new_practitioner_id=practitioner.id,
+            new_start_time=new_start_time,
+            originally_auto_assigned=False,
+            time_actually_changed=True
+        )
+
+        assert requirements["will_send_notification"] is True
+        assert requirements["requires_notification_note"] is True
+        assert requirements["should_show_preview"] is True
+
+    def test_get_notification_requirements_practitioner_changed(self, db_session: Session):
+        """Test that practitioner change triggers notification."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        practitioner1, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner1@test.com",
+            google_subject_id="practitioner1_123",
+            full_name="Dr. Practitioner 1",
+            roles=["practitioner"]
+        )
+
+        practitioner2, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner2@test.com",
+            google_subject_id="practitioner2_123",
+            full_name="Dr. Practitioner 2",
+            roles=["practitioner"]
+        )
+
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=30
+        )
+        db_session.add(appt_type)
+        
+        # Associate both practitioners with appointment type
+        pat1 = PractitionerAppointmentTypes(
+            user_id=practitioner1.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type.id
+        )
+        pat2 = PractitionerAppointmentTypes(
+            user_id=practitioner2.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type.id
+        )
+        db_session.add(pat1)
+        db_session.add(pat2)
+        
+        # Create availability for both practitioners
+        tomorrow = (taiwan_now() + timedelta(days=1)).date()
+        day_of_week = tomorrow.weekday()
+        avail1 = PractitionerAvailability(
+            user_id=practitioner1.id,
+            clinic_id=clinic.id,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        avail2 = PractitionerAvailability(
+            user_id=practitioner2.id,
+            clinic_id=clinic.id,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.add(avail1)
+        db_session.add(avail2)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Create appointment with practitioner1
+        start_time = taiwan_now() + timedelta(days=1)
+        start_time = start_time.replace(hour=14, minute=0, second=0, microsecond=0)
+
+        result = AppointmentService.create_appointment(
+            db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type.id,
+            start_time=start_time,
+            practitioner_id=practitioner1.id,
+            notes="Test"
+        )
+
+        appointment = db_session.query(Appointment).options(
+            joinedload(Appointment.calendar_event)
+        ).filter_by(
+            calendar_event_id=result["calendar_event_id"]
+        ).first()
+
+        # Change to practitioner2, same time
+        requirements = AppointmentService.get_notification_requirements(
+            old_appointment=appointment,
+            new_practitioner_id=practitioner2.id,
+            new_start_time=start_time,
+            originally_auto_assigned=False,
+            time_actually_changed=False
+        )
+
+        assert requirements["will_send_notification"] is True
+        assert requirements["requires_notification_note"] is True
+        assert requirements["should_show_preview"] is True
+
+    def test_get_notification_requirements_no_changes(self, db_session: Session):
+        """Test that no changes means no notification."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner@test.com",
+            google_subject_id="practitioner_123",
+            full_name="Dr. Practitioner",
+            roles=["practitioner"]
+        )
+
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=30
+        )
+        db_session.add(appt_type)
+        
+        # Associate practitioner with appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type.id
+        )
+        db_session.add(pat)
+        
+        # Create availability
+        tomorrow = (taiwan_now() + timedelta(days=1)).date()
+        availability = PractitionerAvailability(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            day_of_week=tomorrow.weekday(),
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.add(availability)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Create appointment
+        start_time = taiwan_now() + timedelta(days=1)
+        start_time = start_time.replace(hour=14, minute=0, second=0, microsecond=0)
+
+        result = AppointmentService.create_appointment(
+            db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type.id,
+            start_time=start_time,
+            practitioner_id=practitioner.id,
+            notes="Test"
+        )
+
+        appointment = db_session.query(Appointment).options(
+            joinedload(Appointment.calendar_event)
+        ).filter_by(
+            calendar_event_id=result["calendar_event_id"]
+        ).first()
+
+        # No changes
+        requirements = AppointmentService.get_notification_requirements(
+            old_appointment=appointment,
+            new_practitioner_id=practitioner.id,
+            new_start_time=start_time,
+            originally_auto_assigned=False,
+            time_actually_changed=False
+        )
+
+        assert requirements["will_send_notification"] is False
+        assert requirements["requires_notification_note"] is False
+        assert requirements["should_show_preview"] is False
+
+    def test_get_notification_requirements_auto_assigned_no_time_change(self, db_session: Session):
+        """Test that auto-assigned appointments notify when changing to specific practitioner, even without time change."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        practitioner1, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner1@test.com",
+            google_subject_id="practitioner1_123",
+            full_name="Dr. Practitioner 1",
+            roles=["practitioner"]
+        )
+
+        practitioner2, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner2@test.com",
+            google_subject_id="practitioner2_123",
+            full_name="Dr. Practitioner 2",
+            roles=["practitioner"]
+        )
+
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=30
+        )
+        db_session.add(appt_type)
+        
+        # Associate both practitioners with appointment type
+        pat1 = PractitionerAppointmentTypes(
+            user_id=practitioner1.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type.id
+        )
+        pat2 = PractitionerAppointmentTypes(
+            user_id=practitioner2.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type.id
+        )
+        db_session.add(pat1)
+        db_session.add(pat2)
+        
+        # Create availability for both practitioners
+        tomorrow = (taiwan_now() + timedelta(days=1)).date()
+        day_of_week = tomorrow.weekday()
+        avail1 = PractitionerAvailability(
+            user_id=practitioner1.id,
+            clinic_id=clinic.id,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        avail2 = PractitionerAvailability(
+            user_id=practitioner2.id,
+            clinic_id=clinic.id,
+            day_of_week=day_of_week,
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.add(avail1)
+        db_session.add(avail2)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Create auto-assigned appointment (will be assigned to practitioner1 or practitioner2)
+        start_time = taiwan_now() + timedelta(days=1)
+        start_time = start_time.replace(hour=14, minute=0, second=0, microsecond=0)
+
+        result = AppointmentService.create_appointment(
+            db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type.id,
+            start_time=start_time,
+            practitioner_id=None,  # Auto-assigned (None instead of -1)
+            notes="Test"
+        )
+
+        appointment = db_session.query(Appointment).options(
+            joinedload(Appointment.calendar_event)
+        ).filter_by(
+            calendar_event_id=result["calendar_event_id"]
+        ).first()
+        appointment.is_auto_assigned = True
+        appointment.originally_auto_assigned = True
+        db_session.commit()
+
+        # Get the auto-assigned practitioner ID
+        auto_assigned_practitioner_id = appointment.calendar_event.user_id
+        
+        # Change from auto-assigned to a different specific practitioner but not time (originally auto-assigned)
+        # This should notify because changing from auto-assigned to a specific practitioner is significant
+        # Use the practitioner that's different from the auto-assigned one
+        new_practitioner_id = practitioner2.id if auto_assigned_practitioner_id != practitioner2.id else practitioner1.id
+        
+        requirements = AppointmentService.get_notification_requirements(
+            old_appointment=appointment,
+            new_practitioner_id=new_practitioner_id,
+            new_start_time=start_time,
+            originally_auto_assigned=True,
+            time_actually_changed=False
+        )
+
+        assert requirements["will_send_notification"] is True
+        assert requirements["requires_notification_note"] is True
+        assert requirements["should_show_preview"] is True
+
+    def test_get_notification_requirements_auto_assigned_time_changed(self, db_session: Session):
+        """Test that auto-assigned appointments notify if time changes."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner@test.com",
+            google_subject_id="practitioner_123",
+            full_name="Dr. Practitioner",
+            roles=["practitioner"]
+        )
+
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=30
+        )
+        db_session.add(appt_type)
+        
+        # Associate practitioner with appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type.id
+        )
+        db_session.add(pat)
+        
+        # Create availability
+        tomorrow = (taiwan_now() + timedelta(days=1)).date()
+        availability = PractitionerAvailability(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            day_of_week=tomorrow.weekday(),
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.add(availability)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Create auto-assigned appointment (will be assigned to practitioner automatically)
+        start_time = taiwan_now() + timedelta(days=1)
+        start_time = start_time.replace(hour=14, minute=0, second=0, microsecond=0)
+
+        result = AppointmentService.create_appointment(
+            db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type.id,
+            start_time=start_time,
+            practitioner_id=None,  # Auto-assigned
+            notes="Test"
+        )
+
+        appointment = db_session.query(Appointment).options(
+            joinedload(Appointment.calendar_event)
+        ).filter_by(
+            calendar_event_id=result["calendar_event_id"]
+        ).first()
+        appointment.is_auto_assigned = True
+        appointment.originally_auto_assigned = True
+        db_session.commit()
+
+        # Change time (originally auto-assigned)
+        new_start_time = start_time + timedelta(hours=1)
+        requirements = AppointmentService.get_notification_requirements(
+            old_appointment=appointment,
+            new_practitioner_id=practitioner.id,
+            new_start_time=new_start_time,
+            originally_auto_assigned=True,
+            time_actually_changed=True
+        )
+
+        assert requirements["will_send_notification"] is True
+        assert requirements["requires_notification_note"] is True
+        assert requirements["should_show_preview"] is True
+
+    def test_get_notification_requirements_auto_assigned_no_changes(self, db_session: Session):
+        """Test that confirming auto-assignment without changes doesn't notify."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        practitioner, _ = create_user_with_clinic_association(
+            db_session,
+            clinic=clinic,
+            email="practitioner@test.com",
+            google_subject_id="practitioner_123",
+            full_name="Dr. Practitioner",
+            roles=["practitioner"]
+        )
+
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=30
+        )
+        db_session.add(appt_type)
+        
+        # Associate practitioner with appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type.id
+        )
+        db_session.add(pat)
+        
+        # Create availability
+        tomorrow = (taiwan_now() + timedelta(days=1)).date()
+        availability = PractitionerAvailability(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            day_of_week=tomorrow.weekday(),
+            start_time=time(9, 0),
+            end_time=time(17, 0)
+        )
+        db_session.add(availability)
+        db_session.commit()
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="0912345678"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Create auto-assigned appointment
+        start_time = taiwan_now() + timedelta(days=1)
+        start_time = start_time.replace(hour=14, minute=0, second=0, microsecond=0)
+
+        result = AppointmentService.create_appointment(
+            db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appt_type.id,
+            start_time=start_time,
+            practitioner_id=None,  # Auto-assigned
+            notes="Test"
+        )
+
+        appointment = db_session.query(Appointment).options(
+            joinedload(Appointment.calendar_event)
+        ).filter_by(
+            calendar_event_id=result["calendar_event_id"]
+        ).first()
+        appointment.is_auto_assigned = True
+        appointment.originally_auto_assigned = True
+        db_session.commit()
+
+        # Get the auto-assigned practitioner ID
+        auto_assigned_practitioner_id = appointment.calendar_event.user_id
+        
+        # Confirm auto-assignment without changes (same practitioner, same time)
+        requirements = AppointmentService.get_notification_requirements(
+            old_appointment=appointment,
+            new_practitioner_id=auto_assigned_practitioner_id,
+            new_start_time=start_time,
+            originally_auto_assigned=True,
+            time_actually_changed=False
+        )
+
+        assert requirements["will_send_notification"] is False
+        assert requirements["requires_notification_note"] is False
+        assert requirements["should_show_preview"] is False
 
