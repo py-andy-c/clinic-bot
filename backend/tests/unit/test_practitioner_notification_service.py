@@ -251,9 +251,7 @@ def test_send_appointment_confirmation_with_title(
     mock_line_user = Mock()
     mock_line_user.line_user_id = "U1234567890"
     mock_patient.line_user = mock_line_user
-    mock_patient.clinic = mock_clinic
     mock_appointment.patient = mock_patient
-    mock_appointment.is_auto_assigned = False
     
     # Mock calendar event with user_id
     mock_calendar_event = Mock()
@@ -264,10 +262,6 @@ def test_send_appointment_confirmation_with_title(
     
     mock_line_service = Mock()
     mock_line_service_class.return_value = mock_line_service
-    
-    # Setup mock DB to return patient
-    mock_db.query.return_value.filter.return_value.first.return_value = mock_patient
-    mock_db.query.return_value.get.return_value = mock_clinic
     
     # Execute
     result = NotificationService.send_appointment_confirmation(

@@ -7,60 +7,19 @@
 import React from 'react';
 import { BaseModal } from './BaseModal';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
-import { logger } from '../../utils/logger';
 
 export interface DeleteConfirmationModalProps {
   event: CalendarEvent;
   onCancel: () => void;
-  onConfirm: () => Promise<any>;
-  onClose: (preview?: any) => void;
+  onConfirm: () => void;
 }
 
 export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = React.memo(({
   event,
   onCancel,
   onConfirm,
-  onClose,
 }) => {
   const isAppointment = event.resource.type === 'appointment';
-  const [step, setStep] = React.useState<'confirm' | 'success'>('confirm');
-  const [isDeleting, setIsDeleting] = React.useState(false);
-  const [notificationPreview, setNotificationPreview] = React.useState<any | null>(null);
-
-  const handleConfirm = async () => {
-    setIsDeleting(true);
-    try {
-      const result = await onConfirm();
-      if (isAppointment) {
-        setNotificationPreview(result?.notification_preview || null);
-        setStep('success');
-      } else {
-        onClose();
-      }
-    } catch (err) {
-      logger.error('Failed to delete:', err);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  if (step === 'success') {
-    return (
-      <BaseModal
-        onClose={() => onClose(notificationPreview)}
-        aria-label="成功"
-      >
-        <div className="flex flex-col items-center justify-center py-8 space-y-4">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-            <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h3 className="text-xl font-medium text-gray-900">預約已成功取消！</h3>
-        </div>
-      </BaseModal>
-    );
-  }
 
   return (
     <BaseModal
@@ -83,21 +42,26 @@ export const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = R
               ? '您確定要取消此預約嗎？'
               : '您確定要刪除此休診時段嗎？'}
           </p>
+          {isAppointment && (
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+              <p className="text-sm text-blue-800">
+                <strong>提醒：</strong>取消預約後，系統將會自動通知患者此預約已被取消。
+              </p>
+            </div>
+          )}
         </div>
         <div className="flex justify-end space-x-2">
           <button 
             onClick={onCancel}
             className="btn-secondary"
-            disabled={isDeleting}
           >
-            返回
+            取消
           </button>
           <button 
-            onClick={handleConfirm}
+            onClick={onConfirm}
             className="btn-primary bg-red-600 hover:bg-red-700"
-            disabled={isDeleting}
           >
-            {isDeleting ? '處理中...' : (isAppointment ? '確認取消' : '確認刪除')}
+            {isAppointment ? '確認取消' : '確認刪除'}
           </button>
         </div>
     </BaseModal>

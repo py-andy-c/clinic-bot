@@ -724,8 +724,8 @@ export class ApiService {
   }
 
   // Appointment Management APIs
-  async cancelClinicAppointment(appointmentId: number, skipNotifications: boolean = false): Promise<{ success: boolean; message: string; appointment_id: number; notification_preview?: any }> {
-    const params = { skip_notifications: skipNotifications };
+  async cancelClinicAppointment(appointmentId: number, note?: string): Promise<{ success: boolean; message: string; appointment_id: number }> {
+    const params = note ? { note } : {};
     const response = await this.client.delete(`/clinic/appointments/${appointmentId}`, { params });
     return response.data;
   }
@@ -737,14 +737,8 @@ export class ApiService {
     practitioner_id?: number | null;
     clinic_notes?: string;
     selected_resource_ids?: number[];
-    skip_notifications?: boolean;
-  }): Promise<{ success: boolean; appointment_id: number; message: string; notification_preview?: any }> {
+  }): Promise<{ success: boolean; appointment_id: number; message: string }> {
     const response = await this.client.post('/clinic/appointments', data);
-    logger.log('apiService.createClinicAppointment: Response received', { 
-      hasNotificationPreview: !!response.data?.notification_preview,
-      notificationPreview: response.data?.notification_preview,
-      fullResponse: response.data
-    });
     return response.data;
   }
 
@@ -789,7 +783,6 @@ export class ApiService {
     practitioner_id: number;
     clinic_notes?: string;
     occurrences: Array<{ start_time: string; selected_resource_ids?: number[] }>;
-    skip_notifications?: boolean;
   }): Promise<{
     success: boolean;
     created_count: number;
@@ -804,7 +797,6 @@ export class ApiService {
       error_code: string;
       error_message: string;
     }>;
-    notification_preview?: any;
   }> {
     const response = await this.client.post('/clinic/appointments/recurring', data);
     return response.data;
@@ -840,18 +832,8 @@ export class ApiService {
     clinic_notes?: string;
     notification_note?: string; // Optional note for notification (does not update appointment.notes)
     selected_resource_ids?: number[];
-    skip_notifications?: boolean;
-  }): Promise<{ success: boolean; appointment_id: number; message: string; notification_preview?: any }> {
+  }): Promise<{ success: boolean; appointment_id: number; message: string }> {
     const response = await this.client.put(`/clinic/appointments/${appointmentId}`, data);
-    return response.data;
-  }
-
-  async sendCustomNotification(data: {
-    patient_id: number;
-    message: string;
-    event_type: string;
-  }): Promise<{ success: boolean; message: string }> {
-    const response = await this.client.post('/clinic/appointments/send-custom-notification', data);
     return response.data;
   }
 

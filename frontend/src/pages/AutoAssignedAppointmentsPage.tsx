@@ -499,21 +499,16 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
           event={calendarEvent}
           practitioners={practitioners}
           appointmentTypes={appointmentTypes}
-          onClose={(preview) => {
+          onClose={() => {
             setIsEditModalOpen(false);
             setSelectedAppointment(null);
             setCalendarEvent(null);
-            
-            if (preview) {
-              // We don't have notification modal here yet, but we should at least close this one
-              // and potentially show a message or open the notification flow if needed.
-              // For now, just refresh.
-            }
           }}
           onConfirm={handleEditConfirm}
           formatAppointmentTime={formatAppointmentTimeRange}
           formSubmitButtonText="下一步"
           saveButtonText="確認指派"
+          allowConfirmWithoutChanges={true}
         />
       )}
 

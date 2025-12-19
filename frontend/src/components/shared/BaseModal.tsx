@@ -39,11 +39,6 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     // Only close if clicking the overlay itself, not the modal content, and if enabled
     if (closeOnOverlayClick && e.target === e.currentTarget && onClose) {
-      console.log('[BaseModal] Overlay clicked - calling onClose', {
-        fullScreen,
-        ariaLabel,
-        closeOnOverlayClick
-      });
       onClose();
     }
   };
@@ -81,11 +76,6 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        console.log('[BaseModal] Escape key pressed - calling onClose', {
-          fullScreen,
-          ariaLabel,
-          historyState: window.history.state
-        });
         onClose();
       }
     };
@@ -94,22 +84,13 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
     return () => {
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [onClose, fullScreen, ariaLabel]);
+  }, [onClose]);
 
   // Handle browser back button for full-screen modals
   // Push history entry when modal opens and listen for popstate to close modal
   useEffect(() => {
-    console.log('[BaseModal] History handler effect running', {
-      fullScreen,
-      hasOnClose: !!onClose,
-      ariaLabel,
-      currentHistoryState: window.history.state,
-      historyPushedRef: historyPushedRef.current
-    });
-
     // Only handle back button for full-screen modals with onClose
     if (!fullScreen || !onClose) {
-      console.log('[BaseModal] Skipping history handler - not full-screen or no onClose');
       return;
     }
 
@@ -118,16 +99,9 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
     const currentState = window.history.state as { fullScreenModal?: boolean } | null;
     const alreadyHasHistoryEntry = currentState?.fullScreenModal === true;
 
-    console.log('[BaseModal] History state check', {
-      currentState,
-      alreadyHasHistoryEntry,
-      historyPushedRef: historyPushedRef.current
-    });
-
     // Edge case: We tracked pushing a state, but current state doesn't have it
     // This means user went back while component was unmounted - close the modal
     if (historyPushedRef.current && !alreadyHasHistoryEntry) {
-      console.log('[BaseModal] Edge case detected - closing modal due to history mismatch');
       historyPushedRef.current = false;
       onClose();
       return;
@@ -137,33 +111,19 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
     if (!historyPushedRef.current) {
       if (alreadyHasHistoryEntry) {
         // History entry already exists from previous mount - just track it
-        console.log('[BaseModal] History entry already exists, tracking it');
         historyPushedRef.current = true;
       } else {
         // Push new history entry
         const state = { fullScreenModal: true };
-        console.log('[BaseModal] Pushing new history entry', { state });
         window.history.pushState(state, '');
         historyPushedRef.current = true;
       }
-    } else {
-      console.log('[BaseModal] History entry already pushed, skipping');
     }
 
     // Handle popstate event (browser back button)
-    const handlePopState = (event: PopStateEvent) => {
-      console.log('[BaseModal] popstate event received', {
-        fullScreen,
-        ariaLabel,
-        currentHistoryState: window.history.state,
-        historyPushedRef: historyPushedRef.current,
-        isHandlingBack: isHandlingBackRef.current,
-        eventState: event.state
-      });
-
+    const handlePopState = (_event: PopStateEvent) => {
       // Prevent race conditions
       if (isHandlingBackRef.current) {
-        console.log('[BaseModal] Already handling back, ignoring popstate');
         return;
       }
 
@@ -173,15 +133,8 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
       const weTrackedPushingState = historyPushedRef.current;
       const isCurrentlyOnModalState = currentHistoryState?.fullScreenModal === true;
       
-      console.log('[BaseModal] popstate analysis', {
-        weTrackedPushingState,
-        isCurrentlyOnModalState,
-        willClose: weTrackedPushingState && !isCurrentlyOnModalState
-      });
-      
       // Close if we tracked pushing a state and we're no longer on the modal state
       if (weTrackedPushingState && !isCurrentlyOnModalState) {
-        console.log('[BaseModal] Closing modal due to popstate - user went back');
         isHandlingBackRef.current = true;
         historyPushedRef.current = false;
         onClose();
@@ -237,14 +190,7 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
         {/* Close button (X) in top-right corner */}
         {showCloseButton && onClose && (
           <button
-            onClick={() => {
-              console.log('[BaseModal] Close button (X) clicked', {
-                fullScreen,
-                ariaLabel,
-                historyState: window.history.state
-              });
-              onClose();
-            }}
+            onClick={onClose}
             className="absolute top-4 right-4 z-20 bg-white rounded-full p-1.5 shadow-md text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
             aria-label="關閉"
             type="button"

@@ -11,11 +11,11 @@ import { formatAppointmentTimeRange } from "../../utils/calendarUtils";
 import { renderStatusBadge } from "../../utils/appointmentStatus";
 import { EditAppointmentModal } from "../calendar/EditAppointmentModal";
 import { CreateAppointmentModal } from "../calendar/CreateAppointmentModal";
-import { DeleteConfirmationModal } from "../calendar/DeleteConfirmationModal";
+import { CancellationNoteModal } from "../calendar/CancellationNoteModal";
+import { CancellationPreviewModal } from "../calendar/CancellationPreviewModal";
 import { EventModal } from "../calendar/EventModal";
 import { ReceiptViewModal } from "../calendar/ReceiptViewModal";
 import { ReceiptListModal } from "../calendar/ReceiptListModal";
-import NotificationModal from "../calendar/NotificationModal";
 import {
   CalendarEvent,
   formatEventTimeRange,
@@ -86,10 +86,12 @@ export const PatientAppointmentsList: React.FC<
   // Delete appointment state
   const [deletingAppointment, setDeletingAppointment] =
     useState<CalendarEvent | null>(null);
-
-  // Notification Modal state
-  const [notificationPreview, setNotificationPreview] = useState<any | null>(null);
-  const [isNotificationModalVisible, setIsNotificationModalVisible] = useState(false);
+  const [cancellationNote, setCancellationNote] = useState<string>("");
+  const [cancellationPreviewMessage, setCancellationPreviewMessage] =
+    useState<string>("");
+  const [cancellationPreviewLoading, setCancellationPreviewLoading] =
+    useState(false);
+  const [deleteStep, setDeleteStep] = useState<"note" | "preview" | null>(null);
 
   // Duplicate appointment state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -283,7 +285,11 @@ export const PatientAppointmentsList: React.FC<
       return;
     }
 
+    // Reset cancellation note and show note input modal
+    setCancellationNote("");
+    setCancellationPreviewMessage("");
     setDeletingAppointment(selectedEvent);
+    setDeleteStep("note");
     setSelectedEvent(null); // Close EventModal
   }, [selectedEvent, canEditEvent]);
 
@@ -329,6 +335,35 @@ export const PatientAppointmentsList: React.FC<
     setSelectedEvent(null); // Close EventModal
   }, [selectedEvent, isAdmin]);
 
+  // Edit appointment handler
+  const handleEditConfirm = async (formData: {
+    practitioner_id: number | null;
+    start_time: string;
+    clinic_notes?: string;
+    notification_note?: string;
+  }) => {
+    if (!editingAppointment) return;
+
+    try {
+      await apiService.editClinicAppointment(
+        editingAppointment.resource.calendar_event_id,
+        formData,
+      );
+
+      // Refresh appointments list
+      await refreshAppointmentsList();
+
+      setEditingAppointment(null);
+      setEditErrorMessage(null);
+      await alert("預約已更新");
+    } catch (error) {
+      logger.error("Error editing appointment:", error);
+      const errorMessage = getErrorMessage(error);
+      setEditErrorMessage(errorMessage);
+      // Don't throw - let the modal handle the error display
+    }
+  };
+
   // Handle event name update from EventModal
   const handleEventNameUpdated = useCallback(
     async (_newName: string | null) => {
@@ -339,36 +374,33 @@ export const PatientAppointmentsList: React.FC<
     [refreshAppointmentsList],
   );
 
-  // Edit appointment handler
-  const handleEditConfirm = async (formData: {
-    appointment_type_id?: number | null;
-    practitioner_id: number | null;
-    start_time: string;
-    clinic_notes?: string;
-    notification_note?: string;
-    selected_resource_ids?: number[];
-  }) => {
-    if (!editingAppointment) return;
+  // Delete appointment handlers
+  const handleCancellationNoteSubmit = async () => {
+    if (!deletingAppointment) return;
 
+    setCancellationPreviewLoading(true);
     try {
-      const result = await apiService.editClinicAppointment(
-        editingAppointment.resource.calendar_event_id,
-        {
-          ...formData,
-          skip_notifications: true,
-        },
-      );
+      const response = await apiService.generateCancellationPreview({
+        appointment_type:
+          deletingAppointment.resource.appointment_type_name || "",
+        appointment_time: formatAppointmentTimeRange(
+          deletingAppointment.start,
+          deletingAppointment.end,
+        ),
+        therapist_name: deletingAppointment.resource.practitioner_name || "",
+        patient_name: deletingAppointment.resource.patient_name || "",
+        ...(cancellationNote.trim() && { note: cancellationNote.trim() }),
+      });
 
-      // Refresh appointments list
-      await refreshAppointmentsList();
-
-      setEditErrorMessage(null);
-      return result;
+      setCancellationPreviewMessage(response.preview_message);
+      setDeleteStep("preview");
     } catch (error) {
-      logger.error("Error editing appointment:", error);
+      logger.error("Error generating cancellation preview:", error);
       const errorMessage = getErrorMessage(error);
-      setEditErrorMessage(errorMessage);
-      throw error;
+      await alert(`無法產生預覽訊息：${errorMessage}`, "錯誤");
+      // Stay on note step so user can retry
+    } finally {
+      setCancellationPreviewLoading(false);
     }
   };
 
@@ -379,16 +411,13 @@ export const PatientAppointmentsList: React.FC<
     practitioner_id: number;
     start_time: string;
     clinic_notes?: string;
-    selected_resource_ids?: number[];
   }) => {
     try {
-      const result = await apiService.createClinicAppointment({
-        ...formData,
-        skip_notifications: true,
-      });
+      await apiService.createClinicAppointment(formData);
       await refreshAppointmentsList();
+      setIsCreateModalOpen(false);
       setDuplicateData(null);
-      return result;
+      await alert("預約已建立");
     } catch (error) {
       logger.error("Error creating appointment:", error);
       const errorMessage = getErrorMessage(error);
@@ -401,20 +430,25 @@ export const PatientAppointmentsList: React.FC<
       return;
 
     try {
-      const result = await apiService.cancelClinicAppointment(
+      // Note: cancelClinicAppointment API uses calendar_event_id despite parameter name
+      await apiService.cancelClinicAppointment(
         deletingAppointment.resource.calendar_event_id,
-        true, // skip_notifications
+        cancellationNote.trim() || undefined,
       );
 
       // Refresh appointments list
       await refreshAppointmentsList();
 
-      return result;
+      setDeletingAppointment(null);
+      setCancellationNote("");
+      setCancellationPreviewMessage("");
+      setDeleteStep(null);
+      await alert("預約已取消");
     } catch (error) {
       logger.error("Error deleting appointment:", error);
       const errorMessage = getErrorMessage(error);
       await alert(`取消預約失敗：${errorMessage}`, "錯誤");
-      throw error;
+      // Stay on preview step so user can retry or go back
     }
   };
 
@@ -668,13 +702,9 @@ export const PatientAppointmentsList: React.FC<
           event={editingAppointment}
           practitioners={practitioners}
           appointmentTypes={appointmentTypes}
-          onClose={(preview) => {
+          onClose={() => {
             setEditingAppointment(null);
             setEditErrorMessage(null);
-            if (preview) {
-              setNotificationPreview(preview);
-              setIsNotificationModalVisible(true);
-            }
           }}
           onConfirm={handleEditConfirm}
           formatAppointmentTime={formatAppointmentTimeRange}
@@ -682,19 +712,27 @@ export const PatientAppointmentsList: React.FC<
         />
       )}
 
-      {/* Delete Confirmation Modal */}
-      {deletingAppointment && (
-        <DeleteConfirmationModal
-          event={deletingAppointment}
-          onCancel={() => setDeletingAppointment(null)}
-          onConfirm={handleConfirmDelete}
-          onClose={(preview) => {
+      {/* Cancellation Note Modal */}
+      {deletingAppointment && deleteStep === "note" && (
+        <CancellationNoteModal
+          cancellationNote={cancellationNote}
+          isLoading={cancellationPreviewLoading}
+          onNoteChange={setCancellationNote}
+          onBack={() => {
             setDeletingAppointment(null);
-            if (preview) {
-              setNotificationPreview(preview);
-              setIsNotificationModalVisible(true);
-            }
+            setDeleteStep(null);
+            setCancellationNote("");
           }}
+          onSubmit={handleCancellationNoteSubmit}
+        />
+      )}
+
+      {/* Cancellation Preview Modal */}
+      {deletingAppointment && deleteStep === "preview" && (
+        <CancellationPreviewModal
+          previewMessage={cancellationPreviewMessage}
+          onBack={() => setDeleteStep("note")}
+          onConfirm={handleConfirmDelete}
         />
       )}
 
@@ -712,13 +750,9 @@ export const PatientAppointmentsList: React.FC<
           event={duplicateData.event}
           practitioners={practitioners}
           appointmentTypes={appointmentTypes}
-          onClose={(preview) => {
+          onClose={() => {
             setIsCreateModalOpen(false);
             setDuplicateData(null);
-            if (preview) {
-              setNotificationPreview(preview);
-              setIsNotificationModalVisible(true);
-            }
           }}
           onConfirm={handleCreateAppointmentConfirm}
           onRecurringAppointmentsCreated={async () => {
@@ -726,16 +760,6 @@ export const PatientAppointmentsList: React.FC<
           }}
         />
       )}
-
-      {/* Notification Modal */}
-      <NotificationModal
-        visible={isNotificationModalVisible}
-        onClose={() => {
-          setIsNotificationModalVisible(false);
-          setNotificationPreview(null);
-        }}
-        preview={notificationPreview}
-      />
     </div>
   );
 };
