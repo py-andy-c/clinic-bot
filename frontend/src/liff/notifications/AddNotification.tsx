@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import moment from 'moment-timezone';
@@ -41,25 +41,30 @@ const AddNotification: React.FC = () => {
     afternoon: t('notifications.add.timeWindow.afternoonDesc'),
     evening: t('notifications.add.timeWindow.eveningDesc'),
   };
-  const { clinicId, appointmentTypeId, practitionerId } = useAppointmentStore();
+  const { clinicId, appointmentTypeId } = useAppointmentStore();
   
   // Pre-fill from URL params (when redirected from appointment flow)
   const urlAppointmentTypeId = searchParams.get('appointment_type_id');
-  const urlPractitionerId = searchParams.get('practitioner_id');
 
   const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
   const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
   const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<number | null>(
     appointmentTypeId || (urlAppointmentTypeId ? parseInt(urlAppointmentTypeId, 10) : null)
   );
-  const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(
-    practitionerId || (urlPractitionerId ? parseInt(urlPractitionerId, 10) : null)
-  );
+  // Don't auto-select practitioner from URL/store - let user choose
+  const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(null);
+  const [hasSelectedPractitioner, setHasSelectedPractitioner] = useState(false);
   const [selectedDates, setSelectedDates] = useState<DateTimeWindowEntry[]>([]);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const initialAppointmentTypeId = appointmentTypeId || (urlAppointmentTypeId ? parseInt(urlAppointmentTypeId, 10) : null);
   const [error, setError] = useState<string | null>(null);
+  const [isAppointmentTypeCollapsed, setIsAppointmentTypeCollapsed] = useState(!!initialAppointmentTypeId);
+  const [previousAppointmentTypeId, setPreviousAppointmentTypeId] = useState<number | null>(initialAppointmentTypeId);
+  const [previousPractitionerId, setPreviousPractitionerId] = useState<number | null>(null);
+  const practitionerSectionRef = useRef<HTMLDivElement>(null);
+  const dateTimeSectionRef = useRef<HTMLDivElement>(null);
 
   // Generate calendar days
   const calendarDays = generateCalendarDays(currentMonth);
@@ -94,6 +99,58 @@ const AddNotification: React.FC = () => {
   const activeAppointmentTypes = appointmentTypes.filter(
     type => type.allow_patient_booking !== false
   );
+
+  // Auto-scroll to practitioner section when appointment type is selected
+  useEffect(() => {
+    // Only scroll when transitioning from no selection to a selection
+    // or when changing selection (but not when just expanding/collapsing)
+    const isNewSelection = previousAppointmentTypeId === null && selectedAppointmentTypeId !== null;
+    const isChangingSelection = previousAppointmentTypeId !== null && 
+                                 selectedAppointmentTypeId !== null && 
+                                 previousAppointmentTypeId !== selectedAppointmentTypeId;
+
+    if ((isNewSelection || isChangingSelection) && practitionerSectionRef.current) {
+      setIsAppointmentTypeCollapsed(true);
+      
+      // Scroll to practitioner section after a short delay
+      setTimeout(() => {
+        practitionerSectionRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+      }, 100);
+
+      setPreviousAppointmentTypeId(selectedAppointmentTypeId);
+    } else if (selectedAppointmentTypeId !== null) {
+      // Update previous ID even if we don't scroll
+      setPreviousAppointmentTypeId(selectedAppointmentTypeId);
+    }
+  }, [selectedAppointmentTypeId, previousAppointmentTypeId]);
+
+  // Auto-scroll to date/time section when practitioner is selected
+  useEffect(() => {
+    // Only scroll when transitioning from no selection to a selection
+    // or when changing selection
+    const isNewSelection = previousPractitionerId === null && selectedPractitionerId !== null;
+    const isChangingSelection = previousPractitionerId !== null && 
+                                 selectedPractitionerId !== null && 
+                                 previousPractitionerId !== selectedPractitionerId;
+
+    if ((isNewSelection || isChangingSelection) && dateTimeSectionRef.current) {
+      // Scroll to date/time section after a short delay
+      setTimeout(() => {
+        dateTimeSectionRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+      }, 100);
+
+      setPreviousPractitionerId(selectedPractitionerId);
+    } else if (selectedPractitionerId !== null) {
+      // Update previous ID even if we don't scroll
+      setPreviousPractitionerId(selectedPractitionerId);
+    }
+  }, [selectedPractitionerId, previousPractitionerId]);
 
   // Load practitioners when appointment type is selected
   useEffect(() => {
@@ -283,55 +340,85 @@ const AddNotification: React.FC = () => {
     );
   }
 
+  const selectedAppointmentType = activeAppointmentTypes.find(type => type.id === selectedAppointmentTypeId);
+
   return (
     <div className="px-4 py-6">
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">{t('notifications.add.title')}</h2>
-        <p className="text-sm text-gray-500">{t('notifications.add.description')}</p>
-      </div>
 
       {/* Appointment Type Selection */}
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {t('notifications.add.appointmentType')} <span className="text-red-500">{t('notifications.add.required')}</span>
-        </label>
-        <div className="space-y-2">
-          {activeAppointmentTypes.map(type => (
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-medium text-gray-700">
+            {t('notifications.add.appointmentType')} <span className="text-red-500">{t('notifications.add.required')}</span>
+          </label>
+          {selectedAppointmentTypeId && isAppointmentTypeCollapsed && (
             <button
-              key={type.id}
-              onClick={() => {
-                setSelectedAppointmentTypeId(type.id);
-                setSelectedPractitionerId(null); // Reset practitioner when type changes
-                setSelectedDates([]); // Reset dates when type changes
-              }}
-              className={`w-full text-left p-3 rounded-lg border transition-colors ${
-                selectedAppointmentTypeId === type.id
-                  ? 'border-primary-500 bg-primary-50'
-                  : 'border-gray-200 bg-white hover:border-gray-300'
-              }`}
+              onClick={() => setIsAppointmentTypeCollapsed(false)}
+              className="text-sm text-primary-600 hover:text-primary-700"
             >
-              <div className="font-medium text-gray-900">{type.name}</div>
-              <div className="text-sm text-gray-500">{t('notifications.add.minutes', { minutes: type.duration_minutes })}</div>
-              {type.description && (
-                <div className="text-sm text-gray-600 mt-1">{type.description}</div>
-              )}
+              更改
             </button>
-          ))}
+          )}
         </div>
+        
+        {isAppointmentTypeCollapsed && selectedAppointmentType ? (
+          <div className="border border-primary-500 bg-primary-50 rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="font-medium text-gray-900">{selectedAppointmentType.name}</div>
+                <div className="text-sm text-gray-500">{t('notifications.add.minutes', { minutes: selectedAppointmentType.duration_minutes })}</div>
+                {selectedAppointmentType.description && (
+                  <div className="text-sm text-gray-600 mt-1">{selectedAppointmentType.description}</div>
+                )}
+              </div>
+              <svg className="w-5 h-5 text-primary-600 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {activeAppointmentTypes.map(type => (
+              <button
+                key={type.id}
+                onClick={() => {
+                  setSelectedAppointmentTypeId(type.id);
+                  setSelectedPractitionerId(null); // Reset practitioner when type changes
+                  setHasSelectedPractitioner(false); // Reset selection tracking
+                  setSelectedDates([]); // Reset dates when type changes
+                }}
+                className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                  selectedAppointmentTypeId === type.id
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <div className="font-medium text-gray-900">{type.name}</div>
+                <div className="text-sm text-gray-500">{t('notifications.add.minutes', { minutes: type.duration_minutes })}</div>
+                {type.description && (
+                  <div className="text-sm text-gray-600 mt-1">{type.description}</div>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Practitioner Selection */}
       {selectedAppointmentTypeId && (
-        <div className="mb-6">
+        <div ref={practitionerSectionRef} className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             {t('notifications.add.practitioner')}
           </label>
           <div className="space-y-2">
             {practitioners.length > 1 && (
               <button
-                onClick={() => setSelectedPractitionerId(null)}
+                onClick={() => {
+                  setSelectedPractitionerId(null);
+                  setHasSelectedPractitioner(true);
+                }}
                 className={`w-full text-left p-3 rounded-lg border transition-colors ${
-                  selectedPractitionerId === null
+                  selectedPractitionerId === null && hasSelectedPractitioner
                     ? 'border-primary-500 bg-primary-50'
                     : 'border-gray-200 bg-white hover:border-gray-300'
                 }`}
@@ -343,7 +430,10 @@ const AddNotification: React.FC = () => {
             {practitioners.map(practitioner => (
               <button
                 key={practitioner.id}
-                onClick={() => setSelectedPractitionerId(practitioner.id)}
+                onClick={() => {
+                  setSelectedPractitionerId(practitioner.id);
+                  setHasSelectedPractitioner(true);
+                }}
                 className={`w-full text-left p-3 rounded-lg border transition-colors ${
                   selectedPractitionerId === practitioner.id
                     ? 'border-primary-500 bg-primary-50'
@@ -359,7 +449,7 @@ const AddNotification: React.FC = () => {
 
       {/* Date Picker and Time Windows Selection */}
       {selectedAppointmentTypeId && (
-        <div className="mb-6">
+        <div ref={dateTimeSectionRef} className="mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             {t('notifications.add.selectDateTime')} <span className="text-red-500">{t('notifications.add.required')}</span>
             <span className="text-sm font-normal text-gray-500 ml-2">
