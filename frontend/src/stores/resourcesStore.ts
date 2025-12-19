@@ -39,7 +39,7 @@ interface ResourcesState {
   updateResourceTypeLocal: (typeId: number, name: string) => void;
   removeResourceTypeLocal: (typeId: number) => void;
   
-  addResourceLocal: (typeId: number) => void;
+  addResourceLocal: (typeId: number, typeName?: string) => void;
   updateResourceLocal: (resourceId: number, name: string, description?: string) => void;
   removeResourceLocal: (typeId: number, resourceId: number) => void;
   
@@ -217,17 +217,17 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
   /**
    * Local actions for Resources
    */
-  addResourceLocal: (typeId: number) => {
+  addResourceLocal: (typeId: number, typeName?: string) => {
     const state = get();
-    const type = state.resourceTypes.find(t => t.id === typeId);
-    const typeName = type?.name || '資源';
+    // Use provided typeName, or fall back to store, or default to '資源'
+    const resolvedTypeName = typeName?.trim() || state.resourceTypes.find(t => t.id === typeId)?.name || '資源';
     
     // Auto-generate name: {TypeName}{Number}
     const existingResources = state.resourcesByType[typeId] || [];
     
-    // Find the highest number used in names starting with typeName
+    // Find the highest number used in names starting with resolvedTypeName
     let maxNum = 0;
-    const escapedTypeName = typeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedTypeName = resolvedTypeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const namePattern = new RegExp(`^${escapedTypeName}(\\d+)$`);
     
     existingResources.forEach(r => {
@@ -238,7 +238,7 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
       }
     });
     
-    const newName = `${typeName}${maxNum + 1}`;
+    const newName = `${resolvedTypeName}${maxNum + 1}`;
 
     const newResource: Resource = {
       id: -Date.now() - Math.floor(Math.random() * 1000), // More unique temp ID

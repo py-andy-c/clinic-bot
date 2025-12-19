@@ -87,8 +87,9 @@ export const ResourceTypeField: React.FC<ResourceTypeFieldProps> = ({
   const handleAddResource = () => {
     // We still call the store because it has the naming logic
     // but we'll also update the form state
+    // Pass the current typeName from form state to ensure correct naming
     const currentResources = fields.length;
-    addResourceLocal(typeId);
+    addResourceLocal(typeId, typeName);
     
     // Get the new resource from the store (it was just added)
     setTimeout(() => {
