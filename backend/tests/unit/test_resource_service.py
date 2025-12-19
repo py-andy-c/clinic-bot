@@ -185,7 +185,8 @@ class TestResourceService:
         assert len(result['conflicts']) == 1
         assert result['conflicts'][0]['resource_type_id'] == resource_type.id
         assert result['conflicts'][0]['required_quantity'] == 2
-        assert result['conflicts'][0]['available_quantity'] == 1
+        assert result['conflicts'][0]['total_resources'] == 1
+        assert result['conflicts'][0]['allocated_count'] == 0
 
     def test_check_resource_availability_with_existing_appointment(self, db_session: Session):
         """Test resource availability check when resources are already allocated."""

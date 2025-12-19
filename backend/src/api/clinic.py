@@ -2526,7 +2526,8 @@ async def check_recurring_conflicts(
                             resource_type_id=rc["resource_type_id"],
                             resource_type_name=rc["resource_type_name"],
                             required_quantity=rc["required_quantity"],
-                            available_quantity=rc["available_quantity"]
+                            total_resources=rc["total_resources"],
+                            allocated_count=rc["allocated_count"]
                         )
                         for rc in conflict_data["resource_conflicts"]
                     ]
@@ -5135,7 +5136,8 @@ async def check_scheduling_conflicts(
                     resource_type_id=rc["resource_type_id"],
                     resource_type_name=rc["resource_type_name"],
                     required_quantity=rc["required_quantity"],
-                    available_quantity=rc["available_quantity"]
+                    total_resources=rc["total_resources"],
+                    allocated_count=rc["allocated_count"]
                 )
                 for rc in conflict_data["resource_conflicts"]
             ]

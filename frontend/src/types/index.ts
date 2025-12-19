@@ -230,7 +230,8 @@ export interface ResourceAvailabilityResponse {
     resource_type_id: number;
     resource_type_name: string;
     required_quantity: number;
-    available_quantity: number;
+    total_resources: number;
+    allocated_count: number;
   }>;
 }
 

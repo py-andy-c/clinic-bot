@@ -406,7 +406,8 @@ class ResourceConflictDetail(BaseModel):
     resource_type_id: int
     resource_type_name: str
     required_quantity: int
-    available_quantity: int
+    total_resources: int
+    allocated_count: int
 
 
 class DefaultAvailabilityInfo(BaseModel):

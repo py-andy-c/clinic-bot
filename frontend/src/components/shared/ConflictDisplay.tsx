@@ -77,11 +77,17 @@ export const ConflictDisplay: React.FC<ConflictDisplayProps> = ({
       case 'resource':
         if (!conflictInfo.resource_conflicts || conflictInfo.resource_conflicts.length === 0) return null;
         const resourceDetails = conflictInfo.resource_conflicts.map((conflict: any) => {
-          // Format per design doc: ⚠️ 資源不足：{ResourceTypeName}
+          // Format: ⚠️ 資源不足：{ResourceTypeName}
           //   需要數量：{RequiredQuantity}
-          //   可用數量：{AvailableQuantity}
+          //   總數：{TotalResources} 個，已分配：{AllocatedCount} 個
           // Note: Date/time is not in conflictInfo, but is shown in the context where this is displayed
-          return `資源不足：${conflict.resource_type_name}\n   需要數量：${conflict.required_quantity}\n   可用數量：${conflict.available_quantity}`;
+          // Support both old format (available_quantity) and new format (total_resources, allocated_count)
+          if ('total_resources' in conflict && 'allocated_count' in conflict) {
+            return `資源不足：${conflict.resource_type_name}\n   需要數量：${conflict.required_quantity}\n   總數：${conflict.total_resources} 個，已分配：${conflict.allocated_count} 個`;
+          } else {
+            // Fallback for old format (backward compatibility)
+            return `資源不足：${conflict.resource_type_name}\n   需要數量：${conflict.required_quantity}\n   可用數量：${conflict.available_quantity}`;
+          }
         });
         return {
           icon: '⚠️',

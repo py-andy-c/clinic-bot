@@ -55,7 +55,8 @@ class ResourceService:
                     'resource_type_id': int,
                     'resource_type_name': str,
                     'required_quantity': int,
-                    'available_quantity': int
+                    'total_resources': int,
+                    'allocated_count': int
                 }]
             }
         """
@@ -117,7 +118,8 @@ class ResourceService:
                     'resource_type_id': req.resource_type_id,
                     'resource_type_name': resource_type.name if resource_type else 'Unknown',
                     'required_quantity': req.quantity,
-                    'available_quantity': available_quantity
+                    'total_resources': total_resources,
+                    'allocated_count': allocated_count
                 }
                 conflicts.append(conflict_dict)  # type: ignore[reportUnknownMemberType]
 
@@ -384,7 +386,15 @@ class ResourceService:
                 "suggested_allocation": [
                     {"id": int, "name": str}
                 ],
-                "conflicts": []
+                "conflicts": [
+                    {
+                        "resource_type_id": int,
+                        "resource_type_name": str,
+                        "required_quantity": int,
+                        "total_resources": int,
+                        "allocated_count": int
+                    }
+                ]
             }
         """
         # Get resource requirements for appointment type
@@ -458,7 +468,8 @@ class ResourceService:
                     'resource_type_id': req.resource_type_id,
                     'resource_type_name': resource_type.name,
                     'required_quantity': req.quantity,
-                    'available_quantity': available_quantity
+                    'total_resources': len(all_resources),
+                    'allocated_count': len(allocated_resource_ids)
                 })
 
             result_requirements.append({
