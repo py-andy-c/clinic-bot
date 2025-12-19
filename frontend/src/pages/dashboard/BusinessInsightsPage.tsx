@@ -203,7 +203,7 @@ const BusinessInsightsPage: React.FC = () => {
       // Use name for standard items, receipt_name for custom items
       names[key] = item.is_custom 
         ? item.receipt_name 
-        : (item.service_item_id ? (serviceItemIdToName.get(item.service_item_id) || item.receipt_name) : item.receipt_name);
+        : (serviceItemIdToName.get(item.service_item_id!) || item.service_item_name);
     });
     return names;
   }, [data?.by_service, serviceItemIdToName]);
@@ -444,7 +444,7 @@ const BusinessInsightsPage: React.FC = () => {
                           <span className="text-xs text-gray-400 ml-1">(自訂)</span>
                         </>
                       ) : (
-                        item.service_item_id ? (serviceItemIdToName.get(item.service_item_id) || item.receipt_name) : item.receipt_name
+                        serviceItemIdToName.get(item.service_item_id!) || item.service_item_name
                       )}
                     </td>
                     <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-right">

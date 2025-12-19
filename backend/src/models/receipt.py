@@ -54,6 +54,9 @@ class Receipt(Base):
     issue_date: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
     """Receipt issue date (when receipt was created)."""
 
+    visit_date: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    """Visit date (appointment/service date) extracted from receipt_data for efficient querying."""
+
     total_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     """Total amount charged to patient."""
 
@@ -168,6 +171,7 @@ class Receipt(Base):
         # Indexes for performance
         Index('idx_receipts_receipt_number', 'receipt_number'),
         Index('idx_receipts_issue_date', 'issue_date'),
+        Index('idx_receipts_visit_date', 'visit_date'),
         Index('idx_receipts_appointment', 'appointment_id'),
         Index('idx_receipts_clinic', 'clinic_id'),
         Index('idx_receipts_voided', 'is_voided'),

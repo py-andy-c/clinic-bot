@@ -327,6 +327,7 @@ class ReceiptService:
             clinic_id=clinic_id,
             receipt_number=receipt_number,
             issue_date=issue_datetime,
+            visit_date=visit_datetime,  # Populate visit_date column for efficient querying
             total_amount=total_amount,
             total_revenue_share=total_revenue_share,
             receipt_data=receipt_data

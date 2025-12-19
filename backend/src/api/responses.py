@@ -309,6 +309,8 @@ class BusinessInsightsSummaryResponse(BaseModel):
     service_item_count: int
     active_patients: int
     average_transaction_amount: float
+    total_clinic_share: float
+    receipt_item_count: int
 
 
 class RevenueTrendPointResponse(BaseModel):

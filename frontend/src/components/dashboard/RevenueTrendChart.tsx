@@ -28,23 +28,45 @@ function getGranularity(startDate: string, endDate: string): Granularity {
   const end = moment(endDate);
   const days = end.diff(start, 'days') + 1;
 
+  // Match backend logic: daily <= 31, weekly <= 130, monthly > 130
   if (days <= 31) return 'daily';
-  if (days <= 90) return 'weekly';
+  if (days <= 130) return 'weekly';
   return 'monthly';
 }
 
-function formatDateLabel(date: string, granularity: Granularity): string {
+// Format label for x-axis (simple, compact)
+function formatAxisLabel(date: string, granularity: Granularity): string {
   const m = moment(date);
   switch (granularity) {
     case 'daily':
       return `${m.date()}日`;
     case 'weekly':
-      // Calculate week start (Monday) and end (Sunday)
-      const weekStart = m.clone().startOf('isoWeek'); // Monday
-      const weekEnd = m.clone().endOf('isoWeek'); // Sunday
-      return `${weekStart.format('MM/DD')}-${weekEnd.format('MM/DD')}`;
+      // Just show start date on x-axis: "10/7"
+      return m.format('M/D');
     case 'monthly':
       return `${m.month() + 1}月`;
+  }
+}
+
+// Format label for tooltip (detailed, full date range)
+function formatTooltipLabel(date: string, granularity: Granularity): string {
+  const m = moment(date);
+  switch (granularity) {
+    case 'daily':
+      return m.format('M/D');
+    case 'weekly':
+      // Show full date range in tooltip using m/d format
+      const weekStart = m.clone(); // Already Monday from backend
+      const weekEnd = weekStart.clone().endOf('isoWeek'); // Sunday
+      
+      // If week spans two months: "10/28-11/3"
+      if (weekStart.month() !== weekEnd.month()) {
+        return `${weekStart.format('M/D')}-${weekEnd.format('M/D')}`;
+      }
+      // Same month: "10/7-13"
+      return `${weekStart.format('M/D')}-${weekEnd.format('D')}`;
+    case 'monthly':
+      return m.format('M月');
   }
 }
 
@@ -73,7 +95,8 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
     return data.map((point) => {
       const base = {
         date: point.date,
-        label: formatDateLabel(point.date, granularity),
+        label: formatAxisLabel(point.date, granularity), // For x-axis (simple)
+        tooltipLabel: formatTooltipLabel(point.date, granularity), // For tooltip (detailed)
       };
       if (view === 'total') {
         return { ...base, total: point.total || 0 };
@@ -104,7 +127,11 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
     }
     // Recharts' stackId automatically handles stacking, so we use raw values
     return chartData.map((point) => {
-      const result: any = { date: point.date, label: point.label };
+      const result: any = { 
+        date: point.date, 
+        label: point.label, // For x-axis
+        tooltipLabel: point.tooltipLabel // For tooltip
+      };
       keys.forEach((key) => {
         let value = 0;
         if (view === 'stacked-service') {
@@ -153,6 +180,11 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
                 />
                 <Tooltip
                   formatter={(value: number) => formatCurrency(value)}
+                  labelFormatter={(label, payload) => {
+                    // Use tooltipLabel if available, otherwise fall back to label
+                    const dataPoint = payload?.[0]?.payload;
+                    return dataPoint?.tooltipLabel || label;
+                  }}
                   labelStyle={{ color: '#374151', fontWeight: 500 }}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '0.375rem' }}
                 />
@@ -199,9 +231,13 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
                 content={({ active, payload, label }) => {
                   if (!active || !payload || !payload.length) return null;
                   
+                  // Use tooltipLabel if available, otherwise fall back to label
+                  const dataPoint = payload[0]?.payload;
+                  const displayLabel = dataPoint?.tooltipLabel || label;
+                  
                   return (
                     <div className="bg-white border border-gray-200 rounded-md p-3 shadow-lg">
-                      <p className="text-sm font-medium text-gray-900 mb-2">{label}</p>
+                      <p className="text-sm font-medium text-gray-900 mb-2">{displayLabel}</p>
                       <div className="space-y-1">
                         {payload.map((entry: any, index: number) => {
                           const dataKey = entry.dataKey || entry.name;

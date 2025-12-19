@@ -53,3 +53,7 @@ JWT_REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 LIFF_ID = os.getenv("LIFF_ID", "")  # LINE LIFF ID for availability notification URLs
 
+# Environment setting (development, test, production)
+# Defaults to 'development' if not set (for local development)
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+
