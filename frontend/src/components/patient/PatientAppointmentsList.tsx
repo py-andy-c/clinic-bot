@@ -26,6 +26,8 @@ import { useModal } from "../../contexts/ModalContext";
 import { useAuth } from "../../hooks/useAuth";
 import { getErrorMessage } from "../../types/api";
 import { logger } from "../../utils/logger";
+import { invalidateCacheForDate } from "../../utils/availabilityCache";
+import { invalidateResourceCacheForDate } from "../../utils/resourceAvailabilityCache";
 
 const TAIWAN_TIMEZONE = "Asia/Taipei";
 
@@ -354,6 +356,20 @@ export const PatientAppointmentsList: React.FC<
       // Refresh appointments list
       await refreshAppointmentsList();
 
+      // Invalidate availability cache for both old and new dates
+      const oldDate = moment(editingAppointment.start).format('YYYY-MM-DD');
+      const newDate = moment(formData.start_time).format('YYYY-MM-DD');
+      const practitionerId = formData.practitioner_id ?? editingAppointment.resource.practitioner_id;
+      const appointmentTypeId = editingAppointment.resource.appointment_type_id;
+      if (practitionerId && appointmentTypeId) {
+        invalidateCacheForDate(practitionerId, appointmentTypeId, oldDate);
+        invalidateResourceCacheForDate(practitionerId, appointmentTypeId, oldDate);
+        if (newDate !== oldDate) {
+          invalidateCacheForDate(practitionerId, appointmentTypeId, newDate);
+          invalidateResourceCacheForDate(practitionerId, appointmentTypeId, newDate);
+        }
+      }
+
       setEditingAppointment(null);
       setEditErrorMessage(null);
       await alert("預約已更新");
@@ -415,6 +431,14 @@ export const PatientAppointmentsList: React.FC<
   }) => {
     try {
       await apiService.createClinicAppointment(formData);
+      
+      // Invalidate availability cache for the appointment's date, practitioner, and appointment type
+      const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD');
+      invalidateCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
+      
+      // Invalidate resource availability cache for the appointment's date, practitioner, and appointment type
+      invalidateResourceCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
+      
       await refreshAppointmentsList();
       setIsCreateModalOpen(false);
       setDuplicateData(null);
@@ -439,6 +463,15 @@ export const PatientAppointmentsList: React.FC<
 
       // Refresh appointments list
       await refreshAppointmentsList();
+
+      // Invalidate availability cache for the appointment's date
+      const appointmentDate = moment(deletingAppointment.start).format('YYYY-MM-DD');
+      const practitionerId = deletingAppointment.resource.practitioner_id;
+      const appointmentTypeId = deletingAppointment.resource.appointment_type_id;
+      if (practitionerId && appointmentTypeId) {
+        invalidateCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
+        invalidateResourceCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
+      }
 
       setDeletingAppointment(null);
       setCancellationNote("");

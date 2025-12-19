@@ -22,6 +22,11 @@ import {
   buildDatesToCheckForMonth,
   formatAppointmentDateTime,
 } from '../../utils/calendarUtils';
+import {
+  getCacheKey,
+  getCachedSlots,
+  setCachedSlots,
+} from '../../utils/availabilityCache';
 import moment from 'moment-timezone';
 
 export interface DateTimePickerProps {
@@ -51,10 +56,6 @@ export interface DateTimePickerProps {
 }
 
 const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
-
-// Cache batch availability data globally to avoid redundant API calls across component mounts
-const globalAvailabilityCache = new Map<string, { slots: any[]; timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
   selectedDate,
@@ -391,20 +392,18 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
         }
 
         const monthKey = `${currentMonth.getFullYear()}-${currentMonth.getMonth() + 1}`;
-        const cacheBaseKey = `${selectedPractitionerId}-${appointmentTypeId}-${monthKey}`;
         
         // Check global cache first
-        const now = Date.now();
         const datesWithAvailableSlots = new Set<string>();
         const newLocalCache = new Map<string, { slots: any[] }>();
         let allInCache = true;
 
         datesToCheck.forEach(date => {
-          const cacheKey = `${cacheBaseKey}-${date}`;
-          const cached = globalAvailabilityCache.get(cacheKey);
-          if (cached && (now - cached.timestamp < CACHE_TTL)) {
-            newLocalCache.set(`${selectedPractitionerId}-${date}`, { slots: cached.slots });
-            if (cached.slots.length > 0) datesWithAvailableSlots.add(date);
+          const cacheKey = getCacheKey(selectedPractitionerId, appointmentTypeId, monthKey, date);
+          const cachedSlots = getCachedSlots(cacheKey);
+          if (cachedSlots !== null) {
+            newLocalCache.set(`${selectedPractitionerId}-${date}`, { slots: cachedSlots });
+            if (cachedSlots.length > 0) datesWithAvailableSlots.add(date);
           } else {
             allInCache = false;
           }
@@ -431,10 +430,10 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
 
           batchResponse.results.forEach((result) => {
             if (result.date) {
-              const cacheKey = `${cacheBaseKey}-${result.date}`;
+              const cacheKey = getCacheKey(selectedPractitionerId, appointmentTypeId, monthKey, result.date);
               const slots = result.available_slots || [];
               
-              globalAvailabilityCache.set(cacheKey, { slots, timestamp: now });
+              setCachedSlots(cacheKey, slots);
               finalLocalCache.set(`${selectedPractitionerId}-${result.date}`, { slots });
               
               if (slots.length > 0) {

@@ -11,6 +11,8 @@ import moment from 'moment-timezone';
 import { CalendarEvent } from '../utils/calendarDataAdapter';
 import { formatAppointmentDateTime, formatAppointmentTimeRange } from '../utils/calendarUtils';
 import { appointmentToCalendarEvent } from '../components/patient/appointmentUtils';
+import { invalidateCacheForDate } from '../utils/availabilityCache';
+import { invalidateResourceCacheForDate } from '../utils/resourceAvailabilityCache';
 
 interface AutoAssignedAppointment {
   appointment_id: number;
@@ -280,6 +282,20 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
       }
       
       await apiService.editClinicAppointment(selectedAppointment.appointment_id, updateData);
+
+      // Invalidate availability cache for both old and new dates
+      const oldDate = moment(selectedAppointment.start_time).format('YYYY-MM-DD');
+      const newDate = moment(formData.start_time).format('YYYY-MM-DD');
+      const practitionerId = formData.practitioner_id ?? selectedAppointment.practitioner_id;
+      const appointmentTypeId = formData.appointment_type_id ?? selectedAppointment.appointment_type_id;
+      if (practitionerId && appointmentTypeId) {
+        invalidateCacheForDate(practitionerId, appointmentTypeId, oldDate);
+        invalidateResourceCacheForDate(practitionerId, appointmentTypeId, oldDate);
+        if (newDate !== oldDate) {
+          invalidateCacheForDate(practitionerId, appointmentTypeId, newDate);
+          invalidateResourceCacheForDate(practitionerId, appointmentTypeId, newDate);
+        }
+      }
 
       // Close modal and refresh list
       setIsEditModalOpen(false);

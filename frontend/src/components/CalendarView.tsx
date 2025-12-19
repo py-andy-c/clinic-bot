@@ -39,6 +39,8 @@ import {
   getWeekdayNames,
 } from '../utils/calendarUtils';
 import { calendarStorage } from '../utils/storage';
+import { invalidateCacheForDate } from '../utils/availabilityCache';
+import { invalidateResourceCacheForDate } from '../utils/resourceAvailabilityCache';
 
 // Configure moment for Taiwan timezone
 moment.locale('zh-tw');
@@ -1204,6 +1206,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
       // Invalidate cache for this date
       invalidateCacheForDateRange(dateStr, dateStr);
+      
+      // Invalidate availability cache for this date (for all practitioners and appointment types)
+      // Exceptions affect availability for all practitioners and appointment types
+      invalidateCacheForDate(null, null, dateStr);
 
       // Refresh data (force refresh to ensure fresh data after mutation)
       await fetchCalendarData(true);
@@ -1272,6 +1278,18 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       // Invalidate cache for the appointment's date
       const appointmentDate = modalState.data.resource.date || getDateString(modalState.data.start);
       invalidateCacheForDateRange(appointmentDate, appointmentDate);
+      
+      // Invalidate availability cache for the appointment's date, practitioner, and appointment type
+      const practitionerId = modalState.data.resource.practitioner_id;
+      const appointmentTypeId = modalState.data.resource.appointment_type_id;
+      if (practitionerId && appointmentTypeId) {
+        invalidateCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
+        invalidateResourceCacheForDate(practitionerId, appointmentTypeId, appointmentDate);
+      } else {
+        // If IDs are missing, invalidate for all practitioners/types to be safe
+        invalidateCacheForDate(null, null, appointmentDate);
+        invalidateResourceCacheForDate(null, null, appointmentDate);
+      }
 
       // Refresh data (force refresh to ensure fresh data after mutation)
       await fetchCalendarData(true);
@@ -1312,6 +1330,10 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       // Invalidate cache for the exception's date
       const exceptionDate = modalState.data.resource.date || getDateString(modalState.data.start);
       invalidateCacheForDateRange(exceptionDate, exceptionDate);
+      
+      // Invalidate availability cache for this date (for all practitioners and appointment types)
+      // Exceptions affect availability for all practitioners and appointment types
+      invalidateCacheForDate(null, null, exceptionDate);
       
       // Refresh data (force refresh to ensure fresh data after mutation)
       await fetchCalendarData(true);
@@ -1421,6 +1443,19 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       if (newDate !== oldDate) {
         invalidateCacheForDateRange(newDate, newDate);
       }
+      
+      // Invalidate availability cache for both old and new dates
+      // Use the practitioner_id and appointment_type_id from formData (new values) or modalState (old values)
+      const practitionerId = formData.practitioner_id ?? modalState.data.resource.practitioner_id;
+      const appointmentTypeId = formData.appointment_type_id ?? modalState.data.resource.appointment_type_id;
+      if (practitionerId && appointmentTypeId) {
+        invalidateCacheForDate(practitionerId, appointmentTypeId, oldDate);
+        invalidateResourceCacheForDate(practitionerId, appointmentTypeId, oldDate);
+        if (newDate !== oldDate) {
+          invalidateCacheForDate(practitionerId, appointmentTypeId, newDate);
+          invalidateResourceCacheForDate(practitionerId, appointmentTypeId, newDate);
+        }
+      }
 
       // Refresh data (force refresh to ensure fresh data after mutation)
       await fetchCalendarData(true);
@@ -1477,6 +1512,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({
       // Invalidate cache for the appointment's date
       const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD'); // Extract date from ISO datetime string
       invalidateCacheForDateRange(appointmentDate, appointmentDate);
+      
+      // Invalidate availability cache for the appointment's date, practitioner, and appointment type
+      invalidateCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
+      
+      // Invalidate resource availability cache for the appointment's date, practitioner, and appointment type
+      invalidateResourceCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
 
       // Refresh data (force refresh to ensure fresh data after mutation)
       await fetchCalendarData(true);

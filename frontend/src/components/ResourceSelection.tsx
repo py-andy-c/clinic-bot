@@ -3,6 +3,11 @@ import { ResourceAvailabilityResponse, Resource, ResourceType } from '../types';
 import { apiService } from '../services/api';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
+import {
+  getResourceCacheKey,
+  getCachedResourceAvailability,
+  setCachedResourceAvailability,
+} from '../utils/resourceAvailabilityCache';
 import moment from 'moment-timezone';
 
 interface ResourceSelectionProps {
@@ -33,7 +38,6 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   const [loading, setLoading] = useState(false);
   const [availability, setAvailability] = useState<ResourceAvailabilityResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [cache, setCache] = useState<Record<string, ResourceAvailabilityResponse>>({});
   const lastAutoSelectedSlotRef = useRef<string>('');
   const lastSelectedRef = useRef<number[]>([]);
   const isUpdatingSelectionRef = useRef(false);
@@ -114,12 +118,19 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
       return;
     }
 
-    const timeSlotKey = `${appointmentTypeId}_${practitionerId}_${date}_${startTime}_${durationMinutes}_${excludeCalendarEventId || 0}`;
+    const timeSlotKey = getResourceCacheKey(
+      appointmentTypeId,
+      practitionerId,
+      date,
+      startTime,
+      durationMinutes,
+      excludeCalendarEventId
+    );
     const needsAutoSelection = lastAutoSelectedSlotRef.current !== timeSlotKey;
 
     // Check cache first for immediate feedback
-    if (cache[timeSlotKey]) {
-      const cachedData = cache[timeSlotKey]!;
+    const cachedData = getCachedResourceAvailability(timeSlotKey);
+    if (cachedData !== null) {
       setAvailability(cachedData);
       setLoading(false);
       
@@ -148,7 +159,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
           ...(excludeCalendarEventId ? { exclude_calendar_event_id: excludeCalendarEventId } : {}),
         }, signal);
         
-        setCache(prev => ({ ...prev, [timeSlotKey]: response }));
+        setCachedResourceAvailability(timeSlotKey, response);
         setAvailability(response);
         
         // Smart resource selection logic: prefer keeping same resources if still available
@@ -186,7 +197,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
       clearTimeout(timer);
       abortController.abort();
     };
-  }, [appointmentTypeId, practitionerId, date, startTime, durationMinutes, excludeCalendarEventId, cache, skipInitialDebounce]);
+  }, [appointmentTypeId, practitionerId, date, startTime, durationMinutes, excludeCalendarEventId, skipInitialDebounce]);
 
   // Extract auto-selection logic to a helper function
   const handleAutoSelection = (response: ResourceAvailabilityResponse) => {

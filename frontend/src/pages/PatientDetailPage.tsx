@@ -7,6 +7,9 @@ import { useAuth } from '../hooks/useAuth';
 import { useApiData, invalidateCacheForFunction, invalidateCacheByPattern } from '../hooks/useApiData';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
+import { invalidateCacheForDate } from '../utils/availabilityCache';
+import { invalidateResourceCacheForDate } from '../utils/resourceAvailabilityCache';
+import moment from 'moment-timezone';
 import { useModal } from '../contexts/ModalContext';
 import PageHeader from '../components/PageHeader';
 import { PatientInfoSection } from '../components/patient/PatientInfoSection';
@@ -212,6 +215,13 @@ const PatientDetailPage: React.FC = () => {
               
               // Invalidate appointments cache to refresh the list
               invalidateCacheByPattern('api_getPatientAppointments');
+              
+              // Invalidate availability cache for the appointment's date, practitioner, and appointment type
+              const appointmentDate = moment(formData.start_time).format('YYYY-MM-DD');
+              invalidateCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
+              
+              // Invalidate resource availability cache for the appointment's date, practitioner, and appointment type
+              invalidateResourceCacheForDate(formData.practitioner_id, formData.appointment_type_id, appointmentDate);
               
               // Trigger refetch of appointments list if available
               if (appointmentsListRefetchRef.current) {
