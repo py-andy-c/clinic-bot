@@ -10,6 +10,7 @@ import { BaseModal } from '../components/shared/BaseModal';
 import moment from 'moment-timezone';
 import { CalendarEvent } from '../utils/calendarDataAdapter';
 import { formatAppointmentDateTime, formatAppointmentTimeRange } from '../utils/calendarUtils';
+import { appointmentToCalendarEvent } from '../components/patient/appointmentUtils';
 
 interface AutoAssignedAppointment {
   appointment_id: number;
@@ -24,6 +25,8 @@ interface AutoAssignedAppointment {
   end_time: string;
   notes?: string | null;
   originally_auto_assigned: boolean;
+  resource_names: string[];
+  resource_ids: number[];
 }
 
 const AutoAssignedAppointmentsPage: React.FC = () => {
@@ -206,37 +209,25 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
         setAppointmentTypes(settings.appointment_types);
       }
       
-      // Fetch appointment details to create CalendarEvent
-      const startMoment = moment.tz(appointment.start_time, 'Asia/Taipei');
-      const endMoment = moment.tz(appointment.end_time, 'Asia/Taipei');
-      
-      const resource: CalendarEvent['resource'] = {
-        type: 'appointment',
+      // Use shared utility to create CalendarEvent from appointment data
+      const event = appointmentToCalendarEvent({
+        id: appointment.appointment_id,
         calendar_event_id: appointment.calendar_event_id,
-        appointment_id: appointment.appointment_id,
         patient_id: appointment.patient_id,
         patient_name: appointment.patient_name,
         practitioner_id: appointment.practitioner_id,
         practitioner_name: appointment.practitioner_name,
         appointment_type_id: appointment.appointment_type_id,
         appointment_type_name: appointment.appointment_type_name,
+        start_time: appointment.start_time,
+        end_time: appointment.end_time,
         status: 'confirmed',
-        is_auto_assigned: true, // All appointments from this page are currently auto-assigned
+        notes: appointment.notes ?? null,
         originally_auto_assigned: appointment.originally_auto_assigned,
-      };
-      
-      // Only include notes if it's not null/undefined (for exactOptionalPropertyTypes)
-      if (appointment.notes != null) {
-        resource.notes = appointment.notes;
-      }
-      
-      const event: CalendarEvent = {
-        id: appointment.calendar_event_id,
-        title: `${appointment.patient_name} - ${appointment.appointment_type_name}`,
-        start: startMoment.toDate(),
-        end: endMoment.toDate(),
-        resource: resource,
-      };
+        is_auto_assigned: true, // All appointments from this page are currently auto-assigned
+        resource_names: appointment.resource_names,
+        resource_ids: appointment.resource_ids,
+      });
       
       setSelectedAppointment(appointment);
       setCalendarEvent(event);
@@ -479,6 +470,14 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
                     {appointment.notes && (
                       <div className="mt-1 text-sm text-gray-500">
                         備註: {appointment.notes}
+                      </div>
+                    )}
+                    {appointment.resource_names && appointment.resource_names.length > 0 && (
+                      <div className="mt-1 flex items-center text-sm text-gray-500">
+                        <svg className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        資源: {appointment.resource_names.join(', ')}
                       </div>
                     )}
                   </div>

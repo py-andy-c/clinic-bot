@@ -5803,6 +5803,8 @@ class AutoAssignedAppointmentItem(BaseModel):
     end_time: str
     notes: Optional[str] = None
     originally_auto_assigned: bool
+    resource_names: List[str] = []  # Names of allocated resources
+    resource_ids: List[int] = []  # IDs of allocated resources
 
 
 class AutoAssignedAppointmentsResponse(BaseModel):
@@ -5877,6 +5879,10 @@ async def list_auto_assigned_appointments(
             db, practitioner_ids, clinic_id
         )
         
+        # Bulk load all resources for all appointments (optimized)
+        appointment_ids = [appt.calendar_event_id for appt in appointments]
+        all_resources_map = ResourceService.get_all_resources_for_appointments(db, appointment_ids)
+        
         # Format response
         result: List[AutoAssignedAppointmentItem] = []
         
@@ -5903,6 +5909,11 @@ async def list_auto_assigned_appointments(
             else:
                 end_datetime = None
             
+            # Get resources from bulk-loaded map
+            allocated_resources = all_resources_map.get(appointment.calendar_event_id, [])
+            resource_names = [r.name for r in allocated_resources]
+            resource_ids = [r.id for r in allocated_resources]
+            
             result.append(AutoAssignedAppointmentItem(
                 appointment_id=appointment.calendar_event_id,
                 calendar_event_id=appointment.calendar_event_id,
@@ -5915,7 +5926,9 @@ async def list_auto_assigned_appointments(
                 start_time=start_datetime.isoformat() if start_datetime else "",
                 end_time=end_datetime.isoformat() if end_datetime else "",
                 notes=appointment.notes,
-                originally_auto_assigned=appointment.originally_auto_assigned
+                originally_auto_assigned=appointment.originally_auto_assigned,
+                resource_names=resource_names,
+                resource_ids=resource_ids
             ))
         
         return AutoAssignedAppointmentsResponse(appointments=result)

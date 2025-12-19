@@ -19,6 +19,8 @@ interface Appointment {
   line_display_name?: string | null;
   originally_auto_assigned?: boolean;
   is_auto_assigned?: boolean;
+  resource_names?: string[]; // Names of allocated resources
+  resource_ids?: number[]; // IDs of allocated resources
 }
 
 /**
@@ -83,6 +85,12 @@ export function appointmentToCalendarEvent(
   }
   if (appointment.line_display_name) {
     resource.line_display_name = appointment.line_display_name;
+  }
+  if (appointment.resource_names && appointment.resource_names.length > 0) {
+    resource.resource_names = appointment.resource_names;
+  }
+  if (appointment.resource_ids && appointment.resource_ids.length > 0) {
+    resource.resource_ids = appointment.resource_ids;
   }
 
   // Use event_name if available (custom event name), otherwise use default format

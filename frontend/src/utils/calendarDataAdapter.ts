@@ -32,6 +32,7 @@ export interface CalendarEvent {
     receipt_id?: number | null; // ID of active receipt (null if no active receipt)
     receipt_ids?: number[]; // List of all receipt IDs (always included, empty if none)
         resource_names?: string[]; // Names of allocated resources
+        resource_ids?: number[]; // IDs of allocated resources
         is_resource_event?: boolean; // Whether this is a resource calendar event
         resource_id?: number; // Resource ID for resource calendar events
         resource_name?: string; // Resource name for resource calendar events
@@ -93,6 +94,7 @@ export const transformToCalendarEvents = (apiEvents: (ApiCalendarEvent | any)[])
         receipt_id: (event as any).receipt_id || null, // Active receipt ID
         receipt_ids: (event as any).receipt_ids || [], // All receipt IDs
         resource_names: (event as any).resource_names || [], // Allocated resource names
+        resource_ids: (event as any).resource_ids || [], // Allocated resource IDs
         is_resource_event: (event as any).is_resource_event || false, // Whether this is a resource calendar event
         resource_id: (event as any).resource_id, // Resource ID for resource calendar events
         resource_name: (event as any).resource_name, // Resource name for resource calendar events

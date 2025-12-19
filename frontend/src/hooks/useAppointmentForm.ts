@@ -70,13 +70,26 @@ export const useAppointmentForm = ({
       if (abortControllerRef.current) abortControllerRef.current.abort();
       abortControllerRef.current = new AbortController();
 
+      // Optimization: Check if we have event data with resources before starting async operations
+      // This allows us to show the form immediately and prevent flickering.
+      // Strategy: If we have all necessary data from the event (appointment type, practitioner, resources),
+      // we can render the form immediately while fetching fresh data in the background.
+      // This provides instant UI feedback while ensuring data freshness.
+      const hasEventData = mode === 'edit' && event && (
+        event.resource.appointment_type_id &&
+        event.resource.practitioner_id &&
+        ((event.resource.resource_ids && event.resource.resource_ids.length > 0) || (preSelectedResourceIds && preSelectedResourceIds.length > 0))
+      );
+
       try {
         let typeId = preSelectedAppointmentTypeId || event?.resource.appointment_type_id || null;
         let pracId = preSelectedPractitionerId || event?.resource.practitioner_id || null;
         let date = initialDate || (event ? moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD') : null);
         let time = preSelectedTime || (event ? moment(event.start).tz('Asia/Taipei').format('HH:mm') : '');
         let notes = preSelectedClinicNotes || event?.resource.clinic_notes || '';
-        let resourceIds = preSelectedResourceIds || [];
+        // Hybrid approach: use preSelectedResourceIds if provided, otherwise use event.resource.resource_ids for instant UI
+        // API fetch will update this if data is fresher
+        let resourceIds = preSelectedResourceIds || event?.resource.resource_ids || [];
 
         // Special handling for duplication mode: clear time to avoid immediate conflict
         if (mode === 'duplicate') {
@@ -93,6 +106,11 @@ export const useAppointmentForm = ({
         // Track the initial type ID as "fetched"
         lastFetchedTypeIdRef.current = typeId;
 
+        // For edit mode with event data, set initial resource IDs immediately
+        if (hasEventData && resourceIds.length > 0) {
+          setInitialResourceIds(resourceIds);
+        }
+
         // Parallel data fetching: Practitioners filtered by type and Original Resources
         const fetchTasks: Promise<any>[] = [];
         const signal = abortControllerRef.current?.signal;
@@ -108,6 +126,12 @@ export const useAppointmentForm = ({
         const shouldFetchResources = (mode === 'edit' || mode === 'duplicate') && event?.resource.calendar_event_id;
         if (shouldFetchResources) {
           fetchTasks.push(apiService.getAppointmentResources(event.resource.calendar_event_id, signal));
+        }
+
+        // If we have event data with resources, show form immediately (no flicker)
+        // Continue fetching in background for freshness
+        if (hasEventData) {
+          setIsInitialLoading(false);
         }
 
         const results = await Promise.allSettled(fetchTasks);
@@ -136,16 +160,25 @@ export const useAppointmentForm = ({
         if (shouldFetchResources && results[1]) {
           const resourcesResult = results[1];
           if (resourcesResult && resourcesResult.status === 'fulfilled') {
+            // Use fetched resources (more fresh) - this updates the initial state if it changed
             const ids = resourcesResult.value.resources.map((r: any) => r.id);
             setSelectedResourceIds(ids);
             setInitialResourceIds(ids);
           } else if (resourcesResult && resourcesResult.status === 'rejected') {
             const reason = resourcesResult.reason;
             if (reason?.name !== 'CanceledError' && reason?.name !== 'AbortError') {
-              logger.error('Failed to load appointment resources:', reason);
+              logger.error('Failed to load appointment resources, falling back to event data:', reason);
               // Don't block the form if resources fail to load
+              // Keep using event.resource.resource_ids that were set initially (graceful degradation)
+              if (resourceIds.length > 0) {
+                logger.info(`Using ${resourceIds.length} resource(s) from event data as fallback`);
+              }
             }
           }
+        } else if (shouldFetchResources && resourceIds.length > 0 && !hasEventData) {
+          // If we have resourceIds from event but fetch didn't happen (shouldn't occur, but defensive),
+          // set them as initial state (only if we didn't already set it above)
+          setInitialResourceIds(resourceIds);
         }
 
       } catch (err: any) {
@@ -154,7 +187,11 @@ export const useAppointmentForm = ({
           setError(getErrorMessage(err));
         }
       } finally {
-        setIsInitialLoading(false);
+        // Only set to false here if we didn't already set it earlier (for hasEventData case)
+        // This ensures we don't show skeleton when we have event data
+        if (!hasEventData) {
+          setIsInitialLoading(false);
+        }
         isInitialMountRef.current = false;
       }
     };

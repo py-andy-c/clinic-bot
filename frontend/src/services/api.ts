@@ -353,6 +353,8 @@ export class ApiService {
       end_time: string;
       notes?: string | null;
       originally_auto_assigned: boolean;
+      resource_names: string[];
+      resource_ids: number[];
     }>;
   }> {
     const response = await this.client.get('/clinic/pending-review-appointments');
@@ -1173,6 +1175,15 @@ export class ApiService {
   ): Promise<{ success: boolean; message: string }> {
     const response = await this.client.put(`/clinic/appointments/${appointmentId}/resources`, resourceIds);
     return response.data;
+  }
+
+  async sendCustomNotification(_data: {
+    patient_id: number;
+    message: string;
+    event_type: string;
+  }): Promise<{ success: boolean }> {
+    // TODO: Implement custom notification endpoint in backend
+    throw new Error('Custom notification feature is not yet implemented');
   }
 }
 

@@ -52,7 +52,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   showReadOnlyFields = true,
   formSubmitButtonText = '下一步',
   saveButtonText = '確認更動',
-  allowConfirmWithoutChanges = false,
+  allowConfirmWithoutChanges: _allowConfirmWithoutChanges = false,
 }) => {
   const isMobile = useIsMobile();
   const [step, setStep] = useState<EditStep>('form');
@@ -78,7 +78,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     setError,
     isValid,
     referenceDateTime,
-    hasChanges,
+    hasChanges: _hasChanges,
     changeDetails,
   } = useAppointmentForm({
     mode: 'edit',
