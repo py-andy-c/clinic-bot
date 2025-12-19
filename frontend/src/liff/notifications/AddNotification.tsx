@@ -89,6 +89,12 @@ const AddNotification: React.FC = () => {
     loadAppointmentTypes();
   }, [clinicId]);
 
+  // Filter by allow_patient_booking (default to true if not set)
+  // Reuse the same filtering logic as Step1SelectType
+  const activeAppointmentTypes = appointmentTypes.filter(
+    type => type.allow_patient_booking !== false
+  );
+
   // Load practitioners when appointment type is selected
   useEffect(() => {
     const loadPractitioners = async () => {
@@ -290,7 +296,7 @@ const AddNotification: React.FC = () => {
           {t('notifications.add.appointmentType')} <span className="text-red-500">{t('notifications.add.required')}</span>
         </label>
         <div className="space-y-2">
-          {appointmentTypes.map(type => (
+          {activeAppointmentTypes.map(type => (
             <button
               key={type.id}
               onClick={() => {
@@ -306,6 +312,9 @@ const AddNotification: React.FC = () => {
             >
               <div className="font-medium text-gray-900">{type.name}</div>
               <div className="text-sm text-gray-500">{t('notifications.add.minutes', { minutes: type.duration_minutes })}</div>
+              {type.description && (
+                <div className="text-sm text-gray-600 mt-1">{type.description}</div>
+              )}
             </button>
           ))}
         </div>
