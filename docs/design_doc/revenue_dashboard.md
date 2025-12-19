@@ -19,7 +19,7 @@ Both dashboards calculate revenue based on **valid (non-voided) receipts** filte
 - **Rationale**: Revenue should be attributed to the date when service was provided, not when payment was received
 - **Implementation**: 
   - `visit_date` column in `receipts` table (indexed for performance)
-  - Falls back to `issue_date` if `visit_date` is missing (edge cases)
+  - **Fallback chain**: `visit_date` column → `receipt_data->>'visit_date'` → `issue_date` (if column is NULL, try JSONB field, then use checkout date)
   - All date filtering uses Taiwan timezone
 
 ### Service Item Name Display
