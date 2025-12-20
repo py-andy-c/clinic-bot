@@ -6,7 +6,7 @@ import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { InfoButton, InfoModal } from '../../components/shared';
 import { RevenueTrendChart, ChartView } from '../../components/dashboard/RevenueTrendChart';
 import { TimeRangePresets, TimeRangePreset, getDateRangeForPreset, detectPresetFromDates } from '../../components/dashboard/TimeRangePresets';
-import { FilterDropdown, PractitionerOption, ServiceItemOption } from '../../components/dashboard/FilterDropdown';
+import { FilterDropdown, PractitionerOption, ServiceItemOption, ServiceTypeGroupOption } from '../../components/dashboard/FilterDropdown';
 import { formatCurrency } from '../../utils/currencyUtils';
 import { useAuth } from '../../hooks/useAuth';
 import DashboardBackButton from '../../components/DashboardBackButton';
@@ -22,12 +22,14 @@ const BusinessInsightsPage: React.FC = () => {
   const [endDate, setEndDate] = useState<string>(moment().endOf('month').format('YYYY-MM-DD'));
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | string | null>(null);
   const [selectedServiceItemId, setSelectedServiceItemId] = useState<number | string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | string | null>(null);
   
   // Pending filter state (for UI inputs, not applied until button clicked)
   const [pendingStartDate, setPendingStartDate] = useState<string>(moment().startOf('month').format('YYYY-MM-DD'));
   const [pendingEndDate, setPendingEndDate] = useState<string>(moment().endOf('month').format('YYYY-MM-DD'));
   const [pendingPractitionerId, setPendingPractitionerId] = useState<number | string | null>(null);
   const [pendingServiceItemId, setPendingServiceItemId] = useState<number | string | null>(null);
+  const [pendingGroupId, setPendingGroupId] = useState<number | string | null>(null);
   
   // Reset filters to default when clinic changes
   useEffect(() => {
@@ -38,10 +40,12 @@ const BusinessInsightsPage: React.FC = () => {
     setEndDate(defaultEndDate);
     setSelectedPractitionerId(null);
     setSelectedServiceItemId(null);
+    setSelectedGroupId(null);
     setPendingStartDate(defaultStartDate);
     setPendingEndDate(defaultEndDate);
     setPendingPractitionerId(null);
     setPendingServiceItemId(null);
+    setPendingGroupId(null);
   }, [activeClinicId]);
   
   const [chartView, setChartView] = useState<ChartView>('total');
@@ -62,6 +66,10 @@ const BusinessInsightsPage: React.FC = () => {
   const { data: settingsData } = useApiData(() => apiService.getClinicSettings(), { 
     cacheTTL: 5 * 60 * 1000,
     dependencies: [activeClinicId], // Include activeClinicId to prevent cross-clinic cache reuse
+  });
+  const { data: groupsData } = useApiData(() => apiService.getServiceTypeGroups(), {
+    cacheTTL: 5 * 60 * 1000,
+    dependencies: [activeClinicId],
   });
 
   const practitioners = useMemo<PractitionerOption[]>(() => {
@@ -89,13 +97,19 @@ const BusinessInsightsPage: React.FC = () => {
       : selectedPractitionerId === 'null' 
         ? 'null' 
         : null;
+    const groupParam = typeof selectedGroupId === 'number'
+      ? selectedGroupId
+      : selectedGroupId === '-1'
+        ? '-1'
+        : null;
     return apiService.getBusinessInsights({
       start_date: startDate,
       end_date: endDate,
       practitioner_id: practitionerParam,
       service_item_id: selectedServiceItemId || null,
+      service_type_group_id: groupParam,
     });
-  }, [startDate, endDate, selectedPractitionerId, selectedServiceItemId]);
+  }, [startDate, endDate, selectedPractitionerId, selectedServiceItemId, selectedGroupId]);
 
   // Fetch unfiltered data for custom items extraction
   const { data: customItemsData } = useApiData(fetchBusinessInsightsForCustomItems, {
@@ -106,8 +120,15 @@ const BusinessInsightsPage: React.FC = () => {
   // Fetch filtered data for display
   const { data, loading, error } = useApiData(fetchBusinessInsights, {
     cacheTTL: 2 * 60 * 1000, // 2 minutes cache
-    dependencies: [startDate, endDate, selectedPractitionerId, selectedServiceItemId, activeClinicId], // Include activeClinicId to prevent cross-clinic cache reuse
+    dependencies: [startDate, endDate, selectedPractitionerId, selectedServiceItemId, selectedGroupId, activeClinicId], // Include activeClinicId to prevent cross-clinic cache reuse
   });
+
+  const groups = useMemo<ServiceTypeGroupOption[]>(() => {
+    if (!groupsData?.groups) return [];
+    return groupsData.groups
+      .sort((a, b) => a.display_order - b.display_order)
+      .map(g => ({ id: g.id, name: g.name }));
+  }, [groupsData]);
 
   // Helper function to generate a consistent numeric ID from a string
   const stringToId = (str: string): number => {
@@ -158,8 +179,9 @@ const BusinessInsightsPage: React.FC = () => {
     }
 
     // Combine predefined and custom items
+    // Note: Custom items are always shown (they're ungrouped)
     return [...predefinedItems, ...Array.from(customItemsMap.values())];
-  }, [settingsData, customItemsData?.by_service]);
+  }, [settingsData, customItemsData?.by_service, selectedGroupId]);
 
   const standardServiceItemIds = useMemo(() => {
     return new Set(serviceItems.filter(si => !si.is_custom).map(si => si.id));
@@ -191,6 +213,12 @@ const BusinessInsightsPage: React.FC = () => {
     setEndDate(pendingEndDate);
     setSelectedPractitionerId(pendingPractitionerId);
     setSelectedServiceItemId(pendingServiceItemId);
+    setSelectedGroupId(pendingGroupId);
+    // Clear service filter when group is cleared
+    if (!pendingGroupId) {
+      setPendingServiceItemId(null);
+      setSelectedServiceItemId(null);
+    }
   };
 
   // Prepare service names and practitioner names for chart
@@ -218,6 +246,16 @@ const BusinessInsightsPage: React.FC = () => {
     return names;
   }, [data?.by_practitioner]);
 
+  const groupNames = useMemo(() => {
+    if (!data?.by_group) return {};
+    const names: Record<string, string> = {};
+    data.by_group.forEach(item => {
+      const key = item.service_type_group_id === null ? 'null' : String(item.service_type_group_id);
+      names[key] = item.group_name || '未分類';
+    });
+    return names;
+  }, [data?.by_group]);
+
   // Check if data contains null practitioners (for showing "無" option in dropdown)
   // Use unfiltered data (customItemsData) to check if null practitioners exist in the dataset,
   // not the filtered data, so the option remains available even when filtering by a specific practitioner
@@ -242,7 +280,11 @@ const BusinessInsightsPage: React.FC = () => {
     return null;
   }
 
-  const { summary, revenue_trend, by_service, by_practitioner } = data;
+  const { summary, revenue_trend, by_service, by_practitioner, by_group } = data;
+  
+  // Determine breakdown context: by service when group filtered, by group when not
+  const showServiceBreakdown = selectedGroupId !== null;
+  const showGroupBreakdown = selectedGroupId === null && by_group !== undefined && by_group.length > 0;
 
   // Prepare chart data
   const chartData = revenue_trend.map(point => ({
@@ -250,6 +292,7 @@ const BusinessInsightsPage: React.FC = () => {
     total: point.total,
     byService: point.by_service || {},
     byPractitioner: point.by_practitioner || {},
+    byGroup: point.by_group || {},
   }));
 
   return (
@@ -267,7 +310,7 @@ const BusinessInsightsPage: React.FC = () => {
 
       {/* Filters */}
       <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-4 md:py-4 mb-4 md:mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 md:gap-4">
+        <div className={`grid grid-cols-1 gap-3 md:gap-4 ${pendingGroupId ? 'md:grid-cols-6' : 'md:grid-cols-5'}`}>
           <div>
             <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">開始日期</label>
             <input
@@ -297,15 +340,31 @@ const BusinessInsightsPage: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">服務項目</label>
+            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">群組</label>
             <FilterDropdown
-              type="service"
-              value={pendingServiceItemId}
-              onChange={setPendingServiceItemId}
-              serviceItems={serviceItems}
-              standardServiceItemIds={standardServiceItemIds}
+              type="group"
+              value={pendingGroupId}
+              onChange={(value) => {
+                setPendingGroupId(value);
+                if (!value) {
+                  setPendingServiceItemId(null);
+                }
+              }}
+              groups={groups}
             />
           </div>
+          {pendingGroupId && (
+            <div>
+              <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">服務項目</label>
+              <FilterDropdown
+                type="service"
+                value={pendingServiceItemId}
+                onChange={setPendingServiceItemId}
+                serviceItems={serviceItems}
+                standardServiceItemIds={standardServiceItemIds}
+              />
+            </div>
+          )}
           <div className="flex items-end">
             <button
               onClick={handleApplyFilters}
@@ -397,7 +456,11 @@ const BusinessInsightsPage: React.FC = () => {
               className="px-3 py-1 border border-gray-300 rounded-md text-sm"
             >
               <option value="total">總營收</option>
-              <option value="stacked-service">依服務項目</option>
+              {showServiceBreakdown ? (
+                <option value="stacked-service">依服務項目</option>
+              ) : showGroupBreakdown ? (
+                <option value="stacked-group">依群組</option>
+              ) : null}
               <option value="stacked-practitioner">依治療師</option>
             </select>
           </div>
@@ -409,14 +472,16 @@ const BusinessInsightsPage: React.FC = () => {
           endDate={endDate}
           serviceNames={serviceNames}
           practitionerNames={practitionerNames}
+          groupNames={groupNames}
         />
       </div>
 
       {/* Breakdown Tables */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* By Service Type */}
-        <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-6 md:py-6">
-          <h2 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">依服務項目</h2>
+        {/* By Service Type - Only show when group is selected */}
+        {showServiceBreakdown && (
+          <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-6 md:py-6">
+            <h2 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">依服務項目</h2>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -462,7 +527,53 @@ const BusinessInsightsPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-        </div>
+          </div>
+        )}
+
+        {/* By Group - Only show when no group filter is applied */}
+        {showGroupBreakdown && (
+          <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-6 md:py-6">
+            <h2 className="text-base md:text-lg font-semibold text-gray-900 mb-3 md:mb-4">依群組</h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-2 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase">群組</th>
+                    <th className="px-2 md:px-4 py-2 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">營收</th>
+                    <th className="px-2 md:px-4 py-2 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">項目數</th>
+                    <th className="px-2 md:px-4 py-2 md:py-3 text-right text-xs font-medium text-gray-500 uppercase">占比</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {by_group!.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-2 md:px-4 py-2 md:py-3 text-center text-xs md:text-sm text-gray-500">
+                        目前沒有符合條件的資料
+                      </td>
+                    </tr>
+                  ) : (
+                    by_group!.map((item: { service_type_group_id: number | null; group_name: string; total_revenue: number; item_count: number; percentage: number }) => (
+                      <tr key={item.service_type_group_id || 'ungrouped'}>
+                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium text-gray-900">
+                          {item.group_name || '未分類'}
+                        </td>
+                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 text-right">
+                          {formatCurrency(item.total_revenue)}
+                        </td>
+                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-500 text-right">
+                          {item.item_count}
+                        </td>
+                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-500 text-right">
+                          {Math.round(item.percentage)}%
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* By Practitioner */}
         <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-6 md:py-6">

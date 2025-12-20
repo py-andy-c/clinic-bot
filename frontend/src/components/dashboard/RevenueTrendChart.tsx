@@ -3,7 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, Cart
 import moment from 'moment-timezone';
 import { formatCurrency } from '../../utils/currencyUtils';
 
-export type ChartView = 'total' | 'stacked-service' | 'stacked-practitioner';
+export type ChartView = 'total' | 'stacked-service' | 'stacked-practitioner' | 'stacked-group';
 
 export interface RevenueDataPoint {
   date: string; // YYYY-MM-DD
@@ -19,6 +19,7 @@ export interface RevenueTrendChartProps {
   endDate: string;
   serviceNames?: Record<string, string>;
   practitionerNames?: Record<string, string>;
+  groupNames?: Record<string, string>;
 }
 
 type Granularity = 'daily' | 'weekly' | 'monthly';
@@ -88,6 +89,7 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
   endDate,
   serviceNames = {},
   practitionerNames = {},
+  groupNames = {},
 }) => {
   const granularity = useMemo(() => getGranularity(startDate, endDate), [startDate, endDate]);
 
@@ -104,6 +106,10 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
       if (view === 'stacked-service') {
         return { ...base, ...(point.byService || {}) };
       }
+      if (view === 'stacked-group') {
+        // Note: Backend doesn't provide by_group in revenue_trend, so show total
+        return { ...base, total: point.total || 0 };
+      }
       return { ...base, ...(point.byPractitioner || {}) };
     });
   }, [data, view, granularity]);
@@ -117,8 +123,10 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
   // This must be called before any early returns to maintain hook order
   const keys = view === 'stacked-service'
     ? Object.keys(serviceNames)
+    : view === 'stacked-group'
+    ? Object.keys(groupNames)
     : Object.keys(practitionerNames);
-  const colorPalette = view === 'stacked-service' ? colors.service : colors.practitioner;
+  const colorPalette = view === 'stacked-service' ? colors.service : view === 'stacked-group' ? colors.service : colors.practitioner;
 
   const stackedData = useMemo(() => {
     if (view === 'total') {
@@ -137,6 +145,10 @@ export const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
         if (view === 'stacked-service') {
           // For stacked-service, the point already has the byService keys spread into it
           value = (point as any)[key] || 0;
+        } else if (view === 'stacked-group') {
+          // For stacked-group, backend doesn't provide by_group in revenue_trend, so use 0
+          // The group breakdown is shown in the table instead
+          value = 0;
         } else if (view === 'stacked-practitioner') {
           // For stacked-practitioner, the point already has the byPractitioner keys spread into it
           value = (point as any)[key] || 0;

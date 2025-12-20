@@ -28,6 +28,7 @@ vi.mock('../../../services/api', () => ({
     getMembers: vi.fn(),
     getClinicSettings: vi.fn(),
     getBusinessInsights: vi.fn(),
+    getServiceTypeGroups: vi.fn(() => Promise.resolve({ groups: [] })),
   },
 }));
 
@@ -114,8 +115,8 @@ describe('BusinessInsightsPage', () => {
       average_transaction_amount: 2000,
     },
     revenue_trend: [
-      { date: '2024-01-01', total: 50000, by_service: {}, by_practitioner: {} },
-      { date: '2024-01-02', total: 50000, by_service: {}, by_practitioner: {} },
+      { date: '2024-01-01', total: 50000, by_service: {}, by_practitioner: {}, by_group: {} },
+      { date: '2024-01-02', total: 50000, by_service: {}, by_practitioner: {}, by_group: {} },
     ],
     by_service: [
       {
@@ -135,6 +136,15 @@ describe('BusinessInsightsPage', () => {
         total_revenue: 70000,
         item_count: 35,
         percentage: 70,
+      },
+    ],
+    by_group: [
+      {
+        service_type_group_id: 1,
+        group_name: '治療群組',
+        total_revenue: 80000,
+        item_count: 40,
+        percentage: 80,
       },
     ],
   };
@@ -164,6 +174,17 @@ describe('BusinessInsightsPage', () => {
         };
       }
       if (callIndex === 3) {
+        // getServiceTypeGroups
+        return {
+          data: { groups: [] },
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+          clearError: vi.fn(),
+          setData: vi.fn(),
+        };
+      }
+      if (callIndex === 4) {
         // Unfiltered business insights for custom items extraction
         return {
           data: mockBusinessInsights,
@@ -174,7 +195,7 @@ describe('BusinessInsightsPage', () => {
           setData: vi.fn(),
         };
       }
-      // Filtered business insights for display (callIndex === 4)
+      // Filtered business insights for display (callIndex === 5)
       return {
         data: mockBusinessInsights,
         loading: false,
@@ -195,7 +216,7 @@ describe('BusinessInsightsPage', () => {
     let callCount = 0;
     mockUseApiData.mockImplementation(() => {
       callCount++;
-      if (callCount <= 3) {
+      if (callCount <= 4) {
         return {
           data: null,
           loading: false,
@@ -223,7 +244,7 @@ describe('BusinessInsightsPage', () => {
     let callIndex = 0;
     mockUseApiData.mockImplementation(() => {
       callIndex++;
-      if (callIndex <= 3) {
+      if (callIndex <= 4) {
         return {
           data: null,
           loading: false,
@@ -266,8 +287,9 @@ describe('BusinessInsightsPage', () => {
     expect(screen.getByTestId('revenue-trend-chart')).toBeInTheDocument();
 
     // Check breakdown tables
-    // Both "依服務項目" and "依治療師" appear in both dropdown options and table headers
-    expect(screen.getAllByText('依服務項目').length).toBeGreaterThan(0);
+    // When no group is selected, "依群組" appears in chart view selector and breakdown table
+    // "依治療師" always appears
+    expect(screen.getAllByText('依群組').length).toBeGreaterThan(0);
     expect(screen.getAllByText('依治療師').length).toBeGreaterThan(0);
   });
 
@@ -352,7 +374,7 @@ describe('BusinessInsightsPage', () => {
       callIndex++;
       return {
         data: null,
-        loading: callIndex === 4, // Only fourth call (filtered business insights) is loading
+        loading: callIndex === 5, // Only fifth call (filtered business insights) is loading
         error: null,
         refetch: vi.fn(),
         clearError: vi.fn(),

@@ -12,7 +12,12 @@ export interface ServiceItemOption {
   is_custom?: boolean; // If true, this is a custom service item
 }
 
-export type FilterDropdownType = 'practitioner' | 'service';
+export interface ServiceTypeGroupOption {
+  id: number;
+  name: string;
+}
+
+export type FilterDropdownType = 'practitioner' | 'service' | 'group';
 
 export interface FilterDropdownProps {
   type: FilterDropdownType;
@@ -20,6 +25,7 @@ export interface FilterDropdownProps {
   onChange: (value: string | number | null) => void;
   practitioners?: PractitionerOption[];
   serviceItems?: ServiceItemOption[];
+  groups?: ServiceTypeGroupOption[];
   standardServiceItemIds?: Set<number>; // IDs of standard service items (for detecting custom items)
   hasNullPractitionerInData?: boolean; // Indicates if data contains null practitioners (for showing "無" option)
   className?: string;
@@ -31,6 +37,7 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
   onChange,
   practitioners = [],
   serviceItems = [],
+  groups = [],
   standardServiceItemIds,
   hasNullPractitionerInData = false,
   className = '',
@@ -41,6 +48,8 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
       onChange(null);
     } else if (newValue === 'null') {
       onChange('null');
+    } else if (newValue === '-1') {
+      onChange('-1'); // Ungrouped
     } else if (newValue.startsWith('custom:')) {
       onChange(newValue);
     } else {
@@ -137,4 +146,37 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
       )}
     </select>
   );
+
+  // Group dropdown
+  if (type === 'group') {
+    return (
+      <select
+        value={value === null ? '' : value === '-1' ? '-1' : String(value)}
+        onChange={handleChange}
+        className={`w-full px-3 py-2 border border-gray-300 rounded-md text-sm ${className}`}
+      >
+        <option value="">全部</option>
+        {groups.length > 0 && (
+          <>
+            <option disabled style={{ backgroundColor: '#f3f4f6', color: '#9ca3af' }}>
+              ─────────────
+            </option>
+            {groups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+            <option disabled style={{ backgroundColor: '#f3f4f6', color: '#9ca3af' }}>
+              ─────────────
+            </option>
+            <option value="-1" style={{ color: '#6b7280' }}>
+              未分類
+            </option>
+          </>
+        )}
+      </select>
+    );
+  }
+
+  return null;
 };

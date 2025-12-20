@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,6 +11,7 @@ import { getErrorMessage } from '../../types/api';
 import { AppointmentType } from '../../types';
 import { LoadingSpinner } from '../../components/shared';
 import ServiceItemsSettings from '../../components/ServiceItemsSettings';
+import { ServiceTypeGroupManagement } from '../../components/ServiceTypeGroupManagement';
 import SettingsBackButton from '../../components/SettingsBackButton';
 import PageHeader from '../../components/PageHeader';
 import { useServiceItemsStore } from '../../stores/serviceItemsStore';
@@ -22,6 +23,8 @@ import { handleBackendError } from '../../utils/formErrors';
 // Temporary IDs are generated using Date.now(), which produces large timestamps
 // Real IDs from the backend are small integers, so we use this threshold to distinguish them
 const TEMPORARY_ID_THRESHOLD = 1000000000000;
+
+type TabType = 'service-items' | 'group-management';
 
 // Form Schema for Service Items
 const ServiceItemsFormSchema = z.object({
@@ -35,12 +38,15 @@ const ServiceItemsFormSchema = z.object({
     allow_patient_practitioner_selection: z.boolean().optional(),
     description: z.string().nullable().optional(),
     scheduling_buffer_minutes: z.coerce.number().min(0).max(60).optional(),
+    service_type_group_id: z.number().nullable().optional(),
+    display_order: z.number().optional(),
   })),
 });
 
 type ServiceItemsFormData = z.infer<typeof ServiceItemsFormSchema>;
 
 const SettingsServiceItemsPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<TabType>('service-items');
   const { 
     settings, 
     uiState, 
@@ -112,6 +118,10 @@ const SettingsServiceItemsPage: React.FC = () => {
 
   const addAppointmentType = () => {
     const currentTypes = getValues('appointment_types');
+    const maxOrder = currentTypes.length > 0 
+      ? Math.max(...currentTypes.map((at: AppointmentType) => at.display_order || 0))
+      : -1;
+    
     const newType: AppointmentType = {
       id: Date.now(), // Temporary ID for UI
       clinic_id: settings.clinic_id || 0,
@@ -122,6 +132,8 @@ const SettingsServiceItemsPage: React.FC = () => {
       allow_patient_practitioner_selection: true,
       description: undefined,
       scheduling_buffer_minutes: 0,
+      service_type_group_id: undefined,
+      display_order: maxOrder + 1,
     };
     setValue('appointment_types', [...currentTypes, newType], { shouldDirty: true });
   };
@@ -230,6 +242,19 @@ const SettingsServiceItemsPage: React.FC = () => {
     }
   };
 
+  const handleGroupChange = async () => {
+    // Reload settings to get updated groups
+    try {
+      const freshSettings = await sharedFetchFunctions.getClinicSettings();
+      if (freshSettings?.appointment_types) {
+        reset({ appointment_types: freshSettings.appointment_types });
+        updateData({ appointment_types: freshSettings.appointment_types });
+      }
+    } catch (err) {
+      logger.warn('Failed to reload settings after group change', err);
+    }
+  };
+
   const hasUnsavedChanges = isDirty || hasServiceItemsUnsavedChanges();
 
   return (
@@ -237,7 +262,7 @@ const SettingsServiceItemsPage: React.FC = () => {
       <SettingsBackButton />
       <div className="flex justify-between items-center mb-6">
         <PageHeader title="服務項目設定" />
-        {hasUnsavedChanges && (
+        {activeTab === 'service-items' && hasUnsavedChanges && (
           <button
             type="button"
             onClick={handleSubmit(onFormSubmit, onInvalid)}
@@ -248,39 +273,80 @@ const SettingsServiceItemsPage: React.FC = () => {
           </button>
         )}
       </div>
-      <form onSubmit={handleSubmit(onFormSubmit, onInvalid)} className="space-y-4">
-        <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
-          <ServiceItemsSettings
-            onAddType={addAppointmentType}
-            onRemoveType={removeAppointmentType}
-            isClinicAdmin={isClinicAdmin}
-          />
-        </div>
 
-        {/* Error Display */}
-        {uiState.error && (
-          <div className="bg-white rounded-lg border border-red-200 shadow-sm p-4 md:p-6">
-            <div className="p-4 bg-red-50 border border-red-200 rounded-md">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">錯誤</h3>
-                  <div className="mt-2 text-sm text-red-700 whitespace-pre-line">
-                    {uiState.error}
+      {/* Tab Switcher */}
+      <div className="mb-6 border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            type="button"
+            onClick={() => setActiveTab('service-items')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'service-items'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            服務項目
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('group-management')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'group-management'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            群組管理
+          </button>
+        </nav>
+      </div>
+
+      {activeTab === 'service-items' ? (
+        <form onSubmit={handleSubmit(onFormSubmit, onInvalid)} className="space-y-4">
+          <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
+            <ServiceItemsSettings
+              onAddType={addAppointmentType}
+              onRemoveType={removeAppointmentType}
+              isClinicAdmin={isClinicAdmin}
+            />
+          </div>
+
+          {/* Error Display */}
+          {uiState.error && (
+            <div className="bg-white rounded-lg border border-red-200 shadow-sm p-4 md:p-6">
+              <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800">錯誤</h3>
+                    <div className="mt-2 text-sm text-red-700 whitespace-pre-line">
+                      {uiState.error}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-      </form>
+          )}
+        </form>
+      ) : (
+        <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
+          <ServiceTypeGroupManagement
+            isClinicAdmin={isClinicAdmin}
+            onGroupChange={handleGroupChange}
+            appointmentTypes={getValues('appointment_types').map(at => ({
+              id: at.id,
+              service_type_group_id: at.service_type_group_id ?? null,
+            }))}
+          />
+        </div>
+      )}
     </FormProvider>
   );
 };
 
 export default SettingsServiceItemsPage;
-

@@ -16,7 +16,8 @@ import {
   ClinicsListResponse,
   SwitchClinicResponse,
   PractitionerWithDetails,
-  LineUserWithStatus
+  LineUserWithStatus,
+  ServiceTypeGroup
 } from '../types';
 import {
   validateClinicSettings,
@@ -992,6 +993,7 @@ export class ApiService {
     end_date: string;
     practitioner_id?: number | string | null; // Can be number, 'null' string, or null
     service_item_id?: number | string | null; // Can be number or 'custom:name'
+    service_type_group_id?: number | string | null; // Can be number, '-1' for ungrouped, or null
   }): Promise<{
     summary: {
       total_revenue: number;
@@ -1005,6 +1007,7 @@ export class ApiService {
       total: number;
       by_service: Record<string, number>;
       by_practitioner: Record<string, number>;
+      by_group?: Record<string, number>;
     }>;
     by_service: Array<{
       service_item_id: number | null;
@@ -1018,6 +1021,13 @@ export class ApiService {
     by_practitioner: Array<{
       practitioner_id: number | null;
       practitioner_name: string;
+      total_revenue: number;
+      item_count: number;
+      percentage: number;
+    }>;
+    by_group?: Array<{
+      service_type_group_id: number | null;
+      group_name: string;
       total_revenue: number;
       item_count: number;
       percentage: number;
@@ -1184,6 +1194,37 @@ export class ApiService {
   }): Promise<{ success: boolean }> {
     // TODO: Implement custom notification endpoint in backend
     throw new Error('Custom notification feature is not yet implemented');
+  }
+
+  // Service Type Group Management
+  async getServiceTypeGroups(): Promise<{ groups: ServiceTypeGroup[] }> {
+    const response = await this.client.get('/clinic/service-type-groups');
+    return response.data;
+  }
+
+  async createServiceTypeGroup(data: { name: string; display_order?: number }): Promise<ServiceTypeGroup> {
+    const response = await this.client.post('/clinic/service-type-groups', data);
+    return response.data;
+  }
+
+  async updateServiceTypeGroup(groupId: number, data: { name?: string; display_order?: number }): Promise<ServiceTypeGroup> {
+    const response = await this.client.put(`/clinic/service-type-groups/${groupId}`, data);
+    return response.data;
+  }
+
+  async deleteServiceTypeGroup(groupId: number): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(`/clinic/service-type-groups/${groupId}`);
+    return response.data;
+  }
+
+  async bulkUpdateGroupOrder(groupOrders: Array<{ id: number; display_order: number }>): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.put('/clinic/service-type-groups/bulk-order', { group_orders: groupOrders });
+    return response.data;
+  }
+
+  async bulkUpdateAppointmentTypeOrder(serviceOrders: Array<{ id: number; display_order: number }>): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.put('/clinic/appointment-types/bulk-order', { service_orders: serviceOrders });
+    return response.data;
   }
 }
 

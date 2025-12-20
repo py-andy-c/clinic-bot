@@ -168,8 +168,19 @@ export interface AppointmentType {
   allow_patient_practitioner_selection?: boolean | undefined;
   description?: string | null | undefined;
   scheduling_buffer_minutes?: number | undefined;
+  service_type_group_id?: number | null | undefined;
+  display_order?: number | undefined;
   is_deleted?: boolean;
   resource_requirements?: ResourceRequirement[];
+}
+
+export interface ServiceTypeGroup {
+  id: number;
+  clinic_id: number;
+  name: string;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ResourceType {

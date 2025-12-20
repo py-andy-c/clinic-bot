@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useFormContext } from 'react-hook-form';
-import { Member, BillingScenario } from '../types';
+import { Member, BillingScenario, ServiceTypeGroup } from '../types';
 import { preventScrollWheelChange } from '../utils/inputUtils';
 import { formatCurrency } from '../utils/currencyUtils';
 import { BaseModal } from './shared/BaseModal';
@@ -8,6 +8,8 @@ import { InfoButton, InfoModal } from './shared';
 import { useServiceItemsStore } from '../stores/serviceItemsStore';
 import { ResourceRequirementsSection } from './ResourceRequirementsSection';
 import { FormField, FormInput, FormTextarea } from './forms';
+import { apiService } from '../services/api';
+import { logger } from '../utils/logger';
 
 interface AppointmentTypeFieldProps {
   index: number;
@@ -26,7 +28,7 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
   loadingScenarios,
   onLoadBillingScenarios,
 }) => {
-  const { watch, register } = useFormContext();
+  const { watch, register, setValue } = useFormContext();
   const appointmentType = watch(`appointment_types.${index}`);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -57,8 +59,49 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
   
   const [editingScenario, setEditingScenario] = useState<{ practitionerId: number; scenarioId?: number } | null>(null);
   const [scenarioForm, setScenarioForm] = useState({ name: '', amount: '', revenue_share: '', is_default: false });
+  const [groups, setGroups] = useState<ServiceTypeGroup[]>([]);
+  const [showCreateGroupInput, setShowCreateGroupInput] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
 
   const assignedPractitionerIds = practitionerAssignments[appointmentType.id] || [];
+
+  // Load groups when component mounts
+  useEffect(() => {
+    loadGroups();
+  }, []);
+
+  const loadGroups = async () => {
+    try {
+      const response = await apiService.getServiceTypeGroups();
+      const sortedGroups = response.groups.sort((a, b) => a.display_order - b.display_order);
+      setGroups(sortedGroups);
+    } catch (err) {
+      logger.error('Error loading service type groups:', err);
+    }
+  };
+
+  const handleGroupChange = async (groupId: number | null) => {
+    setValue(`appointment_types.${index}.service_type_group_id`, groupId, { shouldDirty: true });
+  };
+
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim()) return;
+
+    try {
+      const maxOrder = groups.length > 0 ? Math.max(...groups.map(g => g.display_order)) : -1;
+      const newGroup = await apiService.createServiceTypeGroup({
+        name: newGroupName.trim(),
+        display_order: maxOrder + 1,
+      });
+      await loadGroups();
+      setValue(`appointment_types.${index}.service_type_group_id`, newGroup.id, { shouldDirty: true });
+      setShowCreateGroupInput(false);
+      setNewGroupName('');
+    } catch (err: any) {
+      logger.error('Error creating group:', err);
+      alert(err?.response?.data?.detail || err?.message || '建立群組失敗');
+    }
+  };
 
   // Load scenarios when expanded and practitioners are assigned
   useEffect(() => {
@@ -139,6 +182,11 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-gray-900">{appointmentType.name || <span className="text-gray-400 italic">未命名服務項目</span>}</span>
                   {appointmentType.allow_patient_booking === false && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">不開放預約</span>}
+                  {appointmentType.service_type_group_id && groups.find(g => g.id === appointmentType.service_type_group_id) && (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                      {groups.find(g => g.id === appointmentType.service_type_group_id)?.name}
+                    </span>
+                  )}
                 </div>
                 <div className="text-sm text-gray-500 mt-1">
                   時長: {appointmentType.duration_minutes} 分鐘 • {assignedPractitionerIds.length} 位治療師
@@ -175,6 +223,75 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
                 <InfoButton onClick={() => setShowReceiptNameModal(true)} />
               </div>
             </FormField>
+
+            {isClinicAdmin && (
+              <FormField name={`appointment_types.${index}.service_type_group_id`} label="群組">
+                <div className="space-y-2">
+                  <select
+                    value={appointmentType.service_type_group_id || ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '') {
+                        handleGroupChange(null);
+                      } else if (value === 'create-new') {
+                        setShowCreateGroupInput(true);
+                      } else {
+                        handleGroupChange(Number(value));
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    disabled={!isClinicAdmin}
+                  >
+                    <option value="">未分類</option>
+                    {groups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                    <option value="create-new" className="text-blue-600 font-medium">
+                      + 建立新群組
+                    </option>
+                  </select>
+                  {showCreateGroupInput && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={newGroupName}
+                        onChange={(e) => setNewGroupName(e.target.value)}
+                        placeholder="輸入群組名稱"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleCreateGroup();
+                          } else if (e.key === 'Escape') {
+                            setShowCreateGroupInput(false);
+                            setNewGroupName('');
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCreateGroup}
+                        className="px-3 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+                      >
+                        建立
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCreateGroupInput(false);
+                          setNewGroupName('');
+                        }}
+                        className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </FormField>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <FormField name={`appointment_types.${index}.duration_minutes`} label="服務時長 (分鐘)">

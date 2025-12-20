@@ -82,14 +82,10 @@ def upgrade() -> None:
                 'appointment_types',
                 ['service_type_group_id']
             )
-            # Composite index for filtered ordering queries
-            op.create_index(
-                'idx_appointment_types_clinic_group_order',
-                'appointment_types',
-                ['clinic_id', 'service_type_group_id', 'display_order']
-            )
         
         # Step 3: Add display_order to appointment_types
+        # Refresh columns list to get updated state after Step 2
+        columns = [col['name'] for col in inspector.get_columns('appointment_types')]
         if 'display_order' not in columns:
             op.add_column(
                 'appointment_types',
@@ -106,6 +102,19 @@ def upgrade() -> None:
                 'idx_appointment_types_clinic_order',
                 'appointment_types',
                 ['clinic_id', 'display_order']
+            )
+        
+        # Step 4: Create composite index if both columns exist
+        # Refresh columns list again to ensure both columns are present
+        columns = [col['name'] for col in inspector.get_columns('appointment_types')]
+        indexes = [idx['name'] for idx in inspector.get_indexes('appointment_types')]
+        if ('service_type_group_id' in columns and 
+            'display_order' in columns and 
+            'idx_appointment_types_clinic_group_order' not in indexes):
+            op.create_index(
+                'idx_appointment_types_clinic_group_order',
+                'appointment_types',
+                ['clinic_id', 'service_type_group_id', 'display_order']
             )
 
 
