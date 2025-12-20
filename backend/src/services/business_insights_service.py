@@ -31,7 +31,8 @@ class BusinessInsightsService:
         start_date: date,
         end_date: date,
         practitioner_id: Optional[Union[int, str]] = None,
-        service_item_id: Optional[Union[int, str]] = None
+        service_item_id: Optional[Union[int, str]] = None,
+        service_type_group_id: Optional[Union[int, str]] = None
     ) -> Dict[str, Any]:
         """
         Get business insights data for a date range.
@@ -106,8 +107,18 @@ class BusinessInsightsService:
                 filters['service_item_id'] = int(service_item_id) if isinstance(service_item_id, str) else service_item_id
         # else: filters['service_item_id'] remains None (no filter)
         
-        # Use the new calculation engine
-        engine = BusinessInsightsEngine()
+        # Parse service_type_group_id
+        if service_type_group_id is not None:
+            # -1 means "ungrouped" (None in filters)
+            if isinstance(service_type_group_id, str) and service_type_group_id == '-1':
+                filters['service_type_group_id'] = None  # None means "ungrouped"
+            elif service_type_group_id == -1:
+                filters['service_type_group_id'] = None  # None means "ungrouped"
+            else:
+                filters['service_type_group_id'] = int(service_type_group_id) if isinstance(service_type_group_id, str) else service_type_group_id
+        
+        # Use the new calculation engine (pass db for group lookups)
+        engine = BusinessInsightsEngine(db=db)
         return engine.compute(receipts, filters)
 
 
@@ -122,6 +133,7 @@ class RevenueDistributionService:
         end_date: date,
         practitioner_id: Optional[Union[int, str]] = None,
         service_item_id: Optional[Union[int, str]] = None,
+        service_type_group_id: Optional[Union[int, str]] = None,
         show_overwritten_only: bool = False,
         page: int = 1,
         page_size: int = 20,
@@ -138,6 +150,7 @@ class RevenueDistributionService:
             end_date: End date for the range
             practitioner_id: Optional practitioner ID to filter by
             service_item_id: Optional service item ID or 'custom:name' to filter by
+            service_type_group_id: Optional service type group ID to filter by, or '-1' for ungrouped
             show_overwritten_only: If True, only show items with billing_scenario = "其他"
             page: Page number (1-indexed)
             page_size: Items per page
@@ -195,6 +208,16 @@ class RevenueDistributionService:
             else:
                 filters['service_item_id'] = int(service_item_id) if isinstance(service_item_id, str) else service_item_id
         
-        # Use the revenue distribution engine
-        engine = RevenueDistributionEngine()
+        # Parse service_type_group_id
+        if service_type_group_id is not None:
+            # -1 means "ungrouped" (None in filters)
+            if isinstance(service_type_group_id, str) and service_type_group_id == '-1':
+                filters['service_type_group_id'] = None  # None means "ungrouped"
+            elif service_type_group_id == -1:
+                filters['service_type_group_id'] = None  # None means "ungrouped"
+            else:
+                filters['service_type_group_id'] = int(service_type_group_id) if isinstance(service_type_group_id, str) else service_type_group_id
+        
+        # Use the revenue distribution engine (pass db for group filtering)
+        engine = RevenueDistributionEngine(db=db)
         return engine.compute(receipts, filters, page, page_size, sort_by, sort_order)

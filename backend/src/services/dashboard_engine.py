@@ -3,7 +3,7 @@ Calculation engine for dashboard calculations.
 
 Orchestrates all calculations using the extractor, filters, and calculators.
 """
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import date, timedelta
 from decimal import Decimal
 import logging
@@ -25,6 +25,7 @@ from services.dashboard_calculators import (
     ServiceItemBreakdownCalculator,
     PractitionerBreakdownCalculator
 )
+from services.dashboard_calculators_group import GroupBreakdownCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -49,13 +50,15 @@ class BusinessInsightsEngine:
     4. Result validation
     """
     
-    def __init__(self):
+    def __init__(self, db: Optional[Any] = None):
         self.extractor = ReceiptItemExtractor()
         self.filter_applicator = FilterApplicator()
         self.summary_calculator = SummaryMetricsCalculator()
         self.trend_calculator = RevenueTrendCalculator()
         self.service_item_calculator = ServiceItemBreakdownCalculator()
         self.practitioner_calculator = PractitionerBreakdownCalculator()
+        self.group_calculator = GroupBreakdownCalculator()
+        self.db = db  # Database session for group lookups
     
     def compute(
         self,
@@ -86,8 +89,8 @@ class BusinessInsightsEngine:
         
         logger.debug(f"Extracted {len(items)} items before applying filters")
         
-        # Apply filters (practitioner, service item)
-        filtered_items = self.filter_applicator.apply_filters(items, filters)
+        # Apply filters (practitioner, service item, group)
+        filtered_items = self.filter_applicator.apply_filters(items, filters, self.db)
         
         logger.debug(f"After applying filters: {len(filtered_items)} items")
         
@@ -114,6 +117,7 @@ class BusinessInsightsEngine:
         # Calculate breakdowns
         by_service = self.service_item_calculator.calculate(filtered_items, filters)
         by_practitioner = self.practitioner_calculator.calculate(filtered_items, filters)
+        by_group = self.group_calculator.calculate(filtered_items, filters, self.db) if self.db else []
         
         # Add percentages and format breakdowns
         total_revenue = summary['total_revenue']
@@ -141,13 +145,25 @@ class BusinessInsightsEngine:
                 'percentage': percentage
             })
         
+        formatted_by_group: List[Dict[str, Any]] = []
+        for stat in by_group:
+            percentage = round(float(stat['total_revenue'] / total_revenue * 100)) if total_revenue > 0 else 0
+            formatted_by_group.append({
+                'service_type_group_id': stat['service_type_group_id'],
+                'group_name': stat['group_name'],
+                'total_revenue': float(stat['total_revenue'].quantize(Decimal('0.01'))),
+                'item_count': stat['item_count'],
+                'percentage': percentage
+            })
+        
         # Validate results for accounting accuracy
         self._validate_results(
             summary,
             formatted_by_service,
             formatted_by_practitioner,
             filtered_items,
-            revenue_trend
+            revenue_trend,
+            formatted_by_group
         )
         
         # Convert Decimal to float for JSON serialization
@@ -163,7 +179,8 @@ class BusinessInsightsEngine:
             },
             'revenue_trend': revenue_trend,
             'by_service': formatted_by_service,
-            'by_practitioner': formatted_by_practitioner
+            'by_practitioner': formatted_by_practitioner,
+            'by_group': formatted_by_group
         }
     
     def _calculate_revenue_trend_with_breakdowns(
@@ -308,7 +325,8 @@ class BusinessInsightsEngine:
         by_service: List[Dict[str, Any]],
         by_practitioner: List[Dict[str, Any]],
         items: List[ReceiptItem],
-        revenue_trend: List[Dict[str, Any]]
+        revenue_trend: List[Dict[str, Any]],
+        by_group: Optional[List[Dict[str, Any]]] = None
     ) -> None:
         """
         Validate calculation results for accounting accuracy.
@@ -394,6 +412,30 @@ class BusinessInsightsEngine:
                     errors.append(error_msg)
                 else:
                     warnings.append(error_msg)
+            
+            # Validate group breakdown if provided
+            if by_group:
+                group_total = Decimal('0')
+                for stat in by_group:
+                    group_total += Decimal(str(stat['total_revenue']))
+                
+                if summary['total_revenue'] > 0 and abs(summary['total_revenue'] - group_total) > CALCULATION_TOLERANCE:
+                    error_msg = (
+                        f"Group breakdown total mismatch: summary={summary['total_revenue']}, "
+                        f"breakdown={group_total}, diff={abs(summary['total_revenue'] - group_total)}"
+                    )
+                    if is_dev_or_test:
+                        errors.append(error_msg)
+                    else:
+                        warnings.append(error_msg)
+                
+                group_pct_total = sum(stat['percentage'] for stat in by_group)
+                if abs(group_pct_total - 100) > PERCENTAGE_ROUNDING_TOLERANCE:
+                    error_msg = f"Group percentages sum to {group_pct_total}, expected 100"
+                    if is_dev_or_test:
+                        errors.append(error_msg)
+                    else:
+                        warnings.append(error_msg)
         
         # Check 4: Receipt count matches unique receipt IDs
         # Required field - use direct access
@@ -445,10 +487,11 @@ class RevenueDistributionEngine:
     4. Item formatting, sorting, and pagination
     """
     
-    def __init__(self):
+    def __init__(self, db: Optional[Any] = None):
         self.extractor = ReceiptItemExtractor()
         self.filter_applicator = FilterApplicator()
         self.summary_calculator = SummaryMetricsCalculator()
+        self.db = db  # Database session for group filtering
     
     def compute(
         self,
@@ -487,8 +530,8 @@ class RevenueDistributionEngine:
         
         logger.debug(f"Extracted {len(items)} items before applying filters")
         
-        # Apply filters (practitioner, service item, show_overwritten_only)
-        filtered_items = self.filter_applicator.apply_filters(items, filters)
+        # Apply filters (practitioner, service item, group, show_overwritten_only)
+        filtered_items = self.filter_applicator.apply_filters(items, filters, self.db)
         
         logger.debug(f"After applying filters: {len(filtered_items)} items")
         

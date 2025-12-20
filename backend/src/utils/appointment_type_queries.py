@@ -30,17 +30,19 @@ def get_active_appointment_types_for_clinic(
     clinic_id: int
 ) -> List[AppointmentType]:
     """
-    Get all active (non-deleted) appointment types for a clinic.
+    Get all active (non-deleted) appointment types for a clinic, ordered by display_order.
 
     Args:
         db: Database session
         clinic_id: Clinic ID
 
     Returns:
-        List of active AppointmentType objects
+        List of active AppointmentType objects ordered by display_order
     """
     query = db.query(AppointmentType).filter_by(clinic_id=clinic_id)
-    return filter_active_appointment_types(query).all()
+    query = filter_active_appointment_types(query)
+    query = query.order_by(AppointmentType.display_order.asc(), AppointmentType.id.asc())
+    return query.all()
 
 
 def get_appointment_type_by_id_with_soft_delete_check(
@@ -134,7 +136,9 @@ def get_active_appointment_types_for_practitioner(
         PractitionerAppointmentTypes.clinic_id == clinic_id
     )
 
-    return filter_active_appointment_types(query).all()
+    query = filter_active_appointment_types(query)
+    query = query.order_by(AppointmentType.display_order.asc(), AppointmentType.id.asc())
+    return query.all()
 
 
 def count_active_appointment_types_for_practitioner(
@@ -206,4 +210,6 @@ def get_active_appointment_types_for_clinic_with_active_practitioners(
         AppointmentType.id.in_(subquery)
     )
 
-    return filter_active_appointment_types(query).all()
+    query = filter_active_appointment_types(query)
+    query = query.order_by(AppointmentType.display_order.asc(), AppointmentType.id.asc())
+    return query.all()

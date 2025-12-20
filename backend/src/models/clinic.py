@@ -324,6 +324,9 @@ class Clinic(Base):
     resources = relationship("Resource", back_populates="clinic", cascade="all, delete-orphan")
     """Resources owned by this clinic."""
 
+    service_type_groups = relationship("ServiceTypeGroup", back_populates="clinic", cascade="all, delete-orphan")
+    """Service type groups owned by this clinic."""
+
     signup_tokens = relationship("SignupToken", back_populates="clinic")
     """Active signup tokens for inviting new users"""
 

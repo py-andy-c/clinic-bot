@@ -3,7 +3,7 @@ Filter applicator for dashboard calculations.
 
 Applies filters to receipt items based on practitioner, service item, etc.
 """
-from typing import List, Set, Optional
+from typing import List, Set, Optional, Any
 
 from services.dashboard_types import ReceiptItem, DashboardFilters
 
@@ -21,7 +21,8 @@ class FilterApplicator:
     @staticmethod
     def apply_filters(
         items: List[ReceiptItem],
-        filters: DashboardFilters
+        filters: DashboardFilters,
+        db: Optional[Any] = None  # Database session for group lookups
     ) -> List[ReceiptItem]:
         """
         Apply all filters to receipt items.
@@ -29,6 +30,7 @@ class FilterApplicator:
         Args:
             items: List of receipt items to filter
             filters: Filter criteria
+            db: Optional database session for group filtering
             
         Returns:
             Filtered list of receipt items
@@ -47,6 +49,12 @@ class FilterApplicator:
                 filtered,
                 filters.get('service_item_id'),
                 filters.get('service_item_custom_name')
+            )
+        
+        # Filter by service type group (requires db lookup)
+        if 'service_type_group_id' in filters and db is not None:
+            filtered = FilterApplicator._filter_by_service_type_group(
+                filtered, filters['service_type_group_id'], filters.get('clinic_id'), db
             )
         
         # Filter by billing scenario (for show_overwritten_only)
@@ -152,6 +160,62 @@ class FilterApplicator:
         Used to determine if "無治療師" option should be shown in dropdown.
         """
         return any(item.get('practitioner_id') is None for item in items)
+    
+    @staticmethod
+    def _filter_by_service_type_group(
+        items: List[ReceiptItem],
+        group_id: Optional[int],
+        clinic_id: Optional[int],
+        db: Any
+    ) -> List[ReceiptItem]:
+        """
+        Filter items by service type group.
+        
+        Args:
+            items: List of receipt items
+            group_id: Group ID to filter by, or None for ungrouped items
+            clinic_id: Clinic ID for validation
+            db: Database session for lookups
+            
+        Returns:
+            Filtered list of items
+        """
+        if clinic_id is None:
+            return items
+        
+        from models import AppointmentType
+        
+        # Get all service item IDs in the selected group
+        if group_id is None:
+            # Filter for ungrouped items (service_type_group_id IS NULL)
+            query = db.query(AppointmentType.id).filter(
+                AppointmentType.clinic_id == clinic_id,
+                AppointmentType.service_type_group_id.is_(None),
+                AppointmentType.is_deleted == False
+            )
+        else:
+            # Filter for items in the selected group
+            query = db.query(AppointmentType.id).filter(
+                AppointmentType.clinic_id == clinic_id,
+                AppointmentType.service_type_group_id == group_id,
+                AppointmentType.is_deleted == False
+            )
+        
+        service_item_ids_in_group = {row[0] for row in query.all()}
+        
+        # Filter items: keep service items in the group, and custom items if filtering for ungrouped
+        filtered: List[ReceiptItem] = []
+        for item in items:
+            if item.get('item_type') == 'service_item':
+                service_item_id = item.get('service_item_id')
+                if service_item_id in service_item_ids_in_group:
+                    filtered.append(item)
+            elif item.get('item_type') == 'other':
+                # Custom items are always ungrouped, so include them only if filtering for ungrouped
+                if group_id is None:
+                    filtered.append(item)
+        
+        return filtered
     
     @staticmethod
     def _filter_by_billing_scenario(

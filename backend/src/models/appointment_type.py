@@ -8,7 +8,7 @@ Each type has a specific duration and belongs to a particular clinic.
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, ForeignKey, TIMESTAMP, Text
+from sqlalchemy import String, ForeignKey, TIMESTAMP, Text, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -52,6 +52,12 @@ class AppointmentType(Base):
     scheduling_buffer_minutes: Mapped[int] = mapped_column(default=0)
     """Additional minutes added to duration for scheduling. Default: 0."""
 
+    service_type_group_id: Mapped[Optional[int]] = mapped_column(ForeignKey("service_type_groups.id", ondelete="SET NULL"), nullable=True, index=True)
+    """Reference to the service type group this appointment type belongs to. NULL if ungrouped."""
+
+    display_order: Mapped[int] = mapped_column(Integer, default=0)
+    """Display order for this appointment type (global ordering across all services)."""
+
     is_deleted: Mapped[bool] = mapped_column(default=False)
     """Soft delete flag. True if this appointment type has been deleted."""
 
@@ -74,3 +80,6 @@ class AppointmentType(Base):
         cascade="all, delete-orphan"
     )
     """Relationship to resource requirements for this appointment type."""
+
+    service_type_group = relationship("ServiceTypeGroup", back_populates="appointment_types")
+    """Relationship to the ServiceTypeGroup entity this appointment type belongs to."""

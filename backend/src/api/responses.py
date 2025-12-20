@@ -49,12 +49,29 @@ class AppointmentTypeResponse(BaseModel):
     allow_patient_practitioner_selection: bool = True
     description: Optional[str] = None
     scheduling_buffer_minutes: int = 0
+    service_type_group_id: Optional[int] = None
+    display_order: int = 0
 
 
 class AppointmentTypeListResponse(BaseModel):
     """Response model for listing appointment types."""
     appointment_types: List[AppointmentTypeResponse]
     appointment_type_instructions: Optional[str] = None
+
+
+class ServiceTypeGroupResponse(BaseModel):
+    """Response model for service type group."""
+    id: int
+    clinic_id: int
+    name: str
+    display_order: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class ServiceTypeGroupListResponse(BaseModel):
+    """Response model for list of service type groups."""
+    groups: List[ServiceTypeGroupResponse]
 
 
 class PractitionerResponse(BaseModel):
@@ -341,12 +358,22 @@ class PractitionerBreakdownResponse(BaseModel):
     percentage: float
 
 
+class GroupBreakdownResponse(BaseModel):
+    """Breakdown by service type group."""
+    service_type_group_id: Optional[int]
+    group_name: str
+    total_revenue: float
+    item_count: int
+    percentage: float
+
+
 class BusinessInsightsResponse(BaseModel):
     """Response model for business insights dashboard."""
     summary: BusinessInsightsSummaryResponse
     revenue_trend: List[RevenueTrendPointResponse]
     by_service: List[ServiceItemBreakdownResponse]
     by_practitioner: List[PractitionerBreakdownResponse]
+    by_group: Optional[List[GroupBreakdownResponse]] = None
 
 
 # Revenue Distribution Response Models

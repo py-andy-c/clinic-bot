@@ -24,6 +24,7 @@ from .resource_type import ResourceType
 from .resource import Resource
 from .appointment_resource_requirement import AppointmentResourceRequirement
 from .appointment_resource_allocation import AppointmentResourceAllocation
+from .service_type_group import ServiceTypeGroup
 
 __all__ = [
     "Clinic",
@@ -50,4 +51,5 @@ __all__ = [
     "Resource",
     "AppointmentResourceRequirement",
     "AppointmentResourceAllocation",
+    "ServiceTypeGroup",
 ]

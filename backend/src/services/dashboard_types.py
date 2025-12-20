@@ -56,6 +56,7 @@ class DashboardFilters(TypedDict, total=False):
     practitioner_id: Optional[int]  # None means "no practitioner", int means specific practitioner
     service_item_id: Optional[int]  # None means all items, int means specific service item
     service_item_custom_name: Optional[str]  # For custom items (item_type == "other")
+    service_type_group_id: Optional[int]  # None means all groups, int means specific group, -1 means ungrouped
     show_overwritten_only: bool  # For revenue distribution only
 
 
@@ -91,6 +92,15 @@ class PractitionerBreakdown(TypedDict):
     """Breakdown by practitioner."""
     practitioner_id: Optional[int]  # None for "無治療師"
     practitioner_name: str
+    total_revenue: Decimal
+    receipt_count: int
+    item_count: int  # Total quantity of items
+
+
+class GroupBreakdown(TypedDict):
+    """Breakdown by service type group."""
+    service_type_group_id: Optional[int]  # None for "未分類" (ungrouped)
+    group_name: str
     total_revenue: Decimal
     receipt_count: int
     item_count: int  # Total quantity of items
