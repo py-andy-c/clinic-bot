@@ -12,7 +12,7 @@ interface ServiceTypeGroupsTableProps {
   draggedGroupId: number | null;
   onDragStart: (e: React.DragEvent, groupId: number) => void;
   onDragOver: (e: React.DragEvent) => void;
-  onDrop: (e: React.DragEvent, targetGroupId: number) => void;
+  onDrop: (e: React.DragEvent, targetGroupId: number, position?: 'above' | 'below') => void;
   onDragEnd: () => void;
   addingNewGroup?: boolean;
   onCancelAdd?: () => void;
@@ -38,6 +38,7 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
   const [editingName, setEditingName] = useState('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const [dropIndicator, setDropIndicator] = useState<{ groupId: number; position: 'above' | 'below' } | null>(null);
 
   // Auto-focus input when editing starts
   useEffect(() => {
@@ -106,23 +107,54 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
     }
   };
 
+  const handleDragOver = (e: React.DragEvent, groupId: number) => {
+    // Call parent's onDragOver first
+    onDragOver(e);
+    
+    // Update drop indicator based on current mouse position
+    if (!draggedGroupId || draggedGroupId === groupId) {
+      setDropIndicator(null);
+      return;
+    }
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const mouseY = e.clientY;
+    const rowCenter = rect.top + rect.height / 2;
+    
+    // Determine if drop should be above or below based on mouse position
+    const position = mouseY < rowCenter ? 'above' : 'below';
+    setDropIndicator({ groupId, position });
+  };
+
   const renderGroupRow = (group: ServiceTypeGroup) => {
     const isEditing = editingGroupId === group.id;
     const serviceCount = getGroupCount(group.id);
 
     if (isMobile) {
       return (
-        <div
-          key={group.id}
-          draggable={isClinicAdmin && !isEditing}
-          onDragStart={(e) => onDragStart(e, group.id)}
-          onDragOver={onDragOver}
-          onDrop={(e) => onDrop(e, group.id)}
-          onDragEnd={onDragEnd}
-          className={`bg-white border border-gray-200 rounded-lg p-4 shadow-sm ${
-            draggedGroupId === group.id ? 'opacity-50' : ''
-          } ${isClinicAdmin && !isEditing ? 'cursor-move' : ''}`}
-        >
+        <React.Fragment key={group.id}>
+          {/* Drop indicator line above */}
+          {dropIndicator?.groupId === group.id && dropIndicator.position === 'above' && (
+            <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 mx-2 my-1 rounded-full" />
+          )}
+          
+          <div
+            draggable={isClinicAdmin && !isEditing}
+            onDragStart={(e) => onDragStart(e, group.id)}
+            onDragOver={(e) => handleDragOver(e, group.id)}
+            onDrop={(e) => {
+              const position = dropIndicator?.groupId === group.id ? dropIndicator.position : undefined;
+              setDropIndicator(null);
+              onDrop(e, group.id, position);
+            }}
+            onDragEnd={() => {
+              setDropIndicator(null);
+              onDragEnd();
+            }}
+            className={`bg-white border border-gray-200 rounded-lg p-4 shadow-sm ${
+              draggedGroupId === group.id ? 'opacity-30' : ''
+            } ${isClinicAdmin && !isEditing ? 'cursor-move' : ''}`}
+          >
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
@@ -204,22 +236,44 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
             )}
           </div>
         </div>
+        
+        {/* Drop indicator line below */}
+        {dropIndicator?.groupId === group.id && dropIndicator.position === 'below' && (
+          <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 mx-2 my-1 rounded-full" />
+        )}
+      </React.Fragment>
       );
     }
 
     // Desktop row
     return (
-      <tr
-        key={group.id}
-        draggable={isClinicAdmin && !isEditing}
-        onDragStart={(e) => onDragStart(e, group.id)}
-        onDragOver={onDragOver}
-        onDrop={(e) => onDrop(e, group.id)}
-        onDragEnd={onDragEnd}
-        className={`hover:bg-gray-50 transition-colors ${
-          draggedGroupId === group.id ? 'opacity-50' : ''
-        } ${isClinicAdmin && !isEditing ? 'cursor-move' : ''} ${isEditing ? 'bg-blue-50/30' : ''}`}
-      >
+      <React.Fragment key={group.id}>
+        {/* Drop indicator line above */}
+        {dropIndicator?.groupId === group.id && dropIndicator.position === 'above' && (
+          <tr>
+            <td colSpan={isClinicAdmin ? 3 : 2} className="px-0 py-0">
+              <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 w-full" />
+            </td>
+          </tr>
+        )}
+        
+        <tr
+          draggable={isClinicAdmin && !isEditing}
+          onDragStart={(e) => onDragStart(e, group.id)}
+          onDragOver={(e) => handleDragOver(e, group.id)}
+          onDrop={(e) => {
+            const position = dropIndicator?.groupId === group.id ? dropIndicator.position : undefined;
+            setDropIndicator(null);
+            onDrop(e, group.id, position);
+          }}
+          onDragEnd={() => {
+            setDropIndicator(null);
+            onDragEnd();
+          }}
+          className={`hover:bg-gray-50 transition-colors ${
+            draggedGroupId === group.id ? 'opacity-30' : ''
+          } ${isClinicAdmin && !isEditing ? 'cursor-move' : ''} ${isEditing ? 'bg-blue-50/30' : ''}`}
+        >
         <td className="px-6 py-4 whitespace-nowrap">
           <div className="flex items-center gap-2">
             <div className="w-6 flex-shrink-0">
@@ -312,6 +366,16 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
           </td>
         )}
       </tr>
+      
+      {/* Drop indicator line below */}
+      {dropIndicator?.groupId === group.id && dropIndicator.position === 'below' && (
+        <tr>
+          <td colSpan={isClinicAdmin ? 3 : 2} className="px-0 py-0">
+            <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 w-full" />
+          </td>
+        </tr>
+      )}
+    </React.Fragment>
     );
   };
 

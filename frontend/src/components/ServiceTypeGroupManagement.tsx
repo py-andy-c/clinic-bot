@@ -82,18 +82,30 @@ export const ServiceTypeGroupManagement: React.FC<ServiceTypeGroupManagementProp
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDrop = (e: React.DragEvent, targetGroupId: number) => {
+  const handleDrop = (e: React.DragEvent, targetGroupId: number, position?: 'above' | 'below') => {
     e.preventDefault();
     if (!draggedGroupId || draggedGroupId === targetGroupId) return;
 
     const draggedIndex = availableGroups.findIndex(g => g.id === draggedGroupId);
-    const targetIndex = availableGroups.findIndex(g => g.id === targetGroupId);
+    let targetIndex = availableGroups.findIndex(g => g.id === targetGroupId);
     if (draggedIndex === -1 || targetIndex === -1) return;
+
+    // Calculate final insertion index based on position indicator
+    // If dropping "below", insert after the target (targetIndex + 1)
+    // If dropping "above" or no position specified, insert at targetIndex
+    let insertIndex = position === 'below' ? targetIndex + 1 : targetIndex;
 
     const newGroups = [...availableGroups];
     const [removed] = newGroups.splice(draggedIndex, 1);
     if (!removed) return;
-    newGroups.splice(targetIndex, 0, removed);
+    
+    // Adjust insertion index if dragged item was before the insertion point
+    // (removing the dragged item shifts indices down by 1)
+    if (draggedIndex < insertIndex) {
+      insertIndex -= 1;
+    }
+    
+    newGroups.splice(insertIndex, 0, removed);
 
     // Get ordered IDs
     const orderedIds = newGroups.map(g => g.id);
