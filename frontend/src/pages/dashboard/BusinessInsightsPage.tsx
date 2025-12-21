@@ -13,6 +13,11 @@ import { useAuth } from '../../hooks/useAuth';
 import DashboardBackButton from '../../components/DashboardBackButton';
 
 import { AppointmentType } from '../../types';
+import {
+  filterAppointmentTypesByGroup,
+  shouldShowCustomItems,
+  appointmentTypesToServiceItemOptions,
+} from '../../utils/dashboardServiceItems';
 
 const BusinessInsightsPage: React.FC = () => {
   const { user } = useAuth();
@@ -159,24 +164,22 @@ const BusinessInsightsPage: React.FC = () => {
   const serviceItems = useMemo<ServiceItemOption[]>(() => {
     const predefinedItems: ServiceItemOption[] = [];
     if (settingsData?.appointment_types) {
-      predefinedItems.push(...settingsData.appointment_types.map((at: AppointmentType) => {
-        const item: ServiceItemOption = {
-          id: at.id,
-          name: at.name,
-          is_custom: false,
-        };
-        if (at.receipt_name !== undefined && at.receipt_name !== null) {
-          item.receipt_name = at.receipt_name;
-        }
-        return item;
-      }));
+      // Filter by group if a group is selected
+      const filteredAppointmentTypes = filterAppointmentTypesByGroup(
+        settingsData.appointment_types,
+        pendingGroupId,
+        hasGroups
+      );
+      
+      predefinedItems.push(...appointmentTypesToServiceItemOptions(filteredAppointmentTypes));
     }
 
     // Extract custom items from unfiltered business insights data
     // Use customItemsData (unfiltered) instead of data (filtered) to ensure all custom items
     // always appear in the dropdown, even when a service_item_id filter is applied
     const customItemsMap = new Map<string, ServiceItemOption>();
-    if (customItemsData?.by_service) {
+    
+    if (shouldShowCustomItems(hasGroups, pendingGroupId) && customItemsData?.by_service) {
       customItemsData.by_service.forEach(item => {
         if (item.is_custom && item.receipt_name) {
           // Use receipt_name as the key to avoid duplicates
@@ -193,9 +196,9 @@ const BusinessInsightsPage: React.FC = () => {
     }
 
     // Combine predefined and custom items
-    // Note: Custom items are always shown (they're ungrouped)
+    // Note: Custom items are only shown when appropriate (ungrouped or no groups)
     return [...predefinedItems, ...Array.from(customItemsMap.values())];
-  }, [settingsData, customItemsData?.by_service, selectedGroupId]);
+  }, [settingsData, customItemsData?.by_service, pendingGroupId, hasGroups]);
 
   const standardServiceItemIds = useMemo(() => {
     return new Set(serviceItems.filter(si => !si.is_custom).map(si => si.id));

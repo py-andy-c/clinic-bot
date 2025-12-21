@@ -95,6 +95,36 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
     );
   }
 
+  if (type === 'group') {
+    return (
+      <select
+        value={value === null ? '' : value === '-1' ? '-1' : String(value)}
+        onChange={handleChange}
+        className={`w-full px-3 py-2 border border-gray-300 rounded-md text-sm ${className}`}
+      >
+        <option value="">全部</option>
+        {groups.length > 0 && (
+          <>
+            <option disabled style={{ backgroundColor: '#f3f4f6', color: '#9ca3af' }}>
+              ─────────────
+            </option>
+            {groups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+            <option disabled style={{ backgroundColor: '#f3f4f6', color: '#9ca3af' }}>
+              ─────────────
+            </option>
+            <option value="-1" style={{ color: '#6b7280' }}>
+              未分類
+            </option>
+          </>
+        )}
+      </select>
+    );
+  }
+
   // Service item dropdown
   const standardItems = serviceItems.filter(item => {
     if (standardServiceItemIds) {
@@ -146,37 +176,4 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
       )}
     </select>
   );
-
-  // Group dropdown
-  if (type === 'group') {
-    return (
-      <select
-        value={value === null ? '' : value === '-1' ? '-1' : String(value)}
-        onChange={handleChange}
-        className={`w-full px-3 py-2 border border-gray-300 rounded-md text-sm ${className}`}
-      >
-        <option value="">全部</option>
-        {groups.length > 0 && (
-          <>
-            <option disabled style={{ backgroundColor: '#f3f4f6', color: '#9ca3af' }}>
-              ─────────────
-            </option>
-            {groups.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-              </option>
-            ))}
-            <option disabled style={{ backgroundColor: '#f3f4f6', color: '#9ca3af' }}>
-              ─────────────
-            </option>
-            <option value="-1" style={{ color: '#6b7280' }}>
-              未分類
-            </option>
-          </>
-        )}
-      </select>
-    );
-  }
-
-  return null;
 };
