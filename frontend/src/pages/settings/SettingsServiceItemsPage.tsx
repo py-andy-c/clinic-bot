@@ -44,6 +44,7 @@ const SettingsServiceItemsPage: React.FC = () => {
     billingScenarios,
     resourceRequirements,
     initialize,
+    initializePractitionerAssignments,
     addServiceItem,
     updateServiceItem,
     deleteServiceItem,
@@ -93,6 +94,10 @@ const SettingsServiceItemsPage: React.FC = () => {
         // Load original practitioner assignments
         if (settingsData?.appointment_types && settingsData.appointment_types.length > 0) {
           await loadOriginalAssignments(settingsData.appointment_types);
+          
+          // Copy practitioner assignments from serviceItemsStore to staging store
+          const { practitionerAssignments: loadedAssignments } = useServiceItemsStore.getState();
+          initializePractitionerAssignments(loadedAssignments);
         }
       } catch (err) {
         logger.error('Error loading settings:', err);

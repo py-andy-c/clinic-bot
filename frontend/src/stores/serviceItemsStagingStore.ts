@@ -37,6 +37,7 @@ interface ServiceItemsStagingState {
   
   // Actions
   initialize: (serviceItems: AppointmentType[], groups: ServiceTypeGroup[]) => void;
+  initializePractitionerAssignments: (assignments: Record<number, number[]>) => void;
   
   // Service items
   addServiceItem: (item: AppointmentType) => void;
@@ -94,6 +95,16 @@ export const useServiceItemsStagingStore = create<ServiceItemsStagingState>((set
       originalPractitionerAssignments: {},
       originalBillingScenarios: {},
       originalResourceRequirements: {},
+    });
+  },
+
+  /**
+   * Initialize practitioner assignments (both current and original)
+   */
+  initializePractitionerAssignments: (assignments) => {
+    set({
+      practitionerAssignments: JSON.parse(JSON.stringify(assignments)), // Deep clone
+      originalPractitionerAssignments: JSON.parse(JSON.stringify(assignments)), // Deep clone
     });
   },
 
