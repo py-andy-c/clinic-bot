@@ -43,6 +43,7 @@ interface ServiceItemsStagingState {
   addServiceItem: (item: AppointmentType) => void;
   updateServiceItem: (id: number, updates: Partial<AppointmentType>) => void;
   deleteServiceItem: (id: number) => void;
+  reorderServiceItems: (orderedIds: number[]) => void;
   
   // Groups
   addGroup: (group: ServiceTypeGroup) => void;
@@ -168,6 +169,28 @@ export const useServiceItemsStagingStore = create<ServiceItemsStagingState>((set
       practitionerAssignments: newPractitionerAssignments,
       billingScenarios: newBillingScenarios,
       resourceRequirements: newResourceRequirements,
+    });
+  },
+
+  /**
+   * Reorder service items
+   */
+  reorderServiceItems: (orderedIds) => {
+    const state = get();
+    const orderedItems = orderedIds.map((id, index) => {
+      const item = state.serviceItems.find(item => item.id === id);
+      return item ? { ...item, display_order: index } : null;
+    }).filter((item): item is AppointmentType => item !== null);
+    
+    // Keep items not in orderedIds at the end
+    const remainingItems = state.serviceItems
+      .filter(item => !orderedIds.includes(item.id))
+      .map((item, index) => ({ ...item, display_order: orderedIds.length + index }));
+    
+    set({
+      serviceItems: [...orderedItems, ...remainingItems].sort((a, b) => 
+        (a.display_order || 0) - (b.display_order || 0)
+      ),
     });
   },
 

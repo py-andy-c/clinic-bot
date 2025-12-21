@@ -40,6 +40,9 @@ const SettingsServiceItemsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isComposing, setIsComposing] = useState(false);
   
+  // Drag and drop state
+  const [draggedItemId, setDraggedItemId] = useState<number | null>(null);
+  
   const { isClinicAdmin } = useAuth();
   const { alert, confirm } = useModal();
   
@@ -58,6 +61,7 @@ const SettingsServiceItemsPage: React.FC = () => {
     addServiceItem,
     updateServiceItem,
     deleteServiceItem,
+    reorderServiceItems,
     addGroup,
     updateGroup,
     deleteGroup,
@@ -83,7 +87,9 @@ const SettingsServiceItemsPage: React.FC = () => {
 
   // Filter service items based on group and search
   const filteredItems = useMemo(() => {
-    let filtered = [...serviceItems];
+    // Start with sorted service items (by display_order)
+    const sortedItems = [...serviceItems].sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    let filtered = sortedItems;
 
     // Apply group filter
     if (selectedGroupId !== null) {
@@ -257,6 +263,57 @@ const SettingsServiceItemsPage: React.FC = () => {
   const handleUpdateServiceItem = React.useCallback((updatedItem: AppointmentType) => {
     updateServiceItem(updatedItem.id, updatedItem);
   }, [updateServiceItem]);
+
+  // Drag and drop handlers for service items
+  const handleDragStart = (e: React.DragEvent, itemId: number) => {
+    setDraggedItemId(itemId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, targetItemId: number, position?: 'above' | 'below') => {
+    e.preventDefault();
+    if (!draggedItemId || draggedItemId === targetItemId) return;
+
+    // Find indices in the full service items list (not filtered)
+    const allItems = [...serviceItems];
+    const draggedIndex = allItems.findIndex(item => item.id === draggedItemId);
+    let targetIndex = allItems.findIndex(item => item.id === targetItemId);
+    
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    // Calculate final insertion index based on position indicator
+    // If dropping "below", insert after the target (targetIndex + 1)
+    // If dropping "above" or no position specified, insert at targetIndex
+    let insertIndex = position === 'below' ? targetIndex + 1 : targetIndex;
+
+    // Reorder in the full list
+    const newItems = [...allItems];
+    const [removed] = newItems.splice(draggedIndex, 1);
+    if (!removed) return;
+    
+    // Adjust insertion index if dragged item was before the insertion point
+    // (removing the dragged item shifts indices down by 1)
+    if (draggedIndex < insertIndex) {
+      insertIndex -= 1;
+    }
+    
+    newItems.splice(insertIndex, 0, removed);
+
+    // Get ordered IDs
+    const orderedIds = newItems.map(item => item.id);
+    reorderServiceItems(orderedIds);
+    
+    setDraggedItemId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItemId(null);
+  };
 
   // Validate all staged changes
   const validateAllChanges = (): ValidationError[] => {
@@ -479,6 +536,25 @@ const SettingsServiceItemsPage: React.FC = () => {
       // Reload settings to get real IDs
       const freshSettings = await sharedFetchFunctions.getClinicSettings();
       const savedServiceItems = freshSettings?.appointment_types || [];
+      
+      // Update order using bulk update API if we have multiple items
+      if (savedServiceItems.length > 1) {
+        try {
+          const orderedIds = savedServiceItems
+            .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+            .map(item => item.id)
+            .filter((id): id is number => isRealId(id));
+          
+          if (orderedIds.length > 1) {
+            await apiService.bulkUpdateAppointmentTypeOrder(
+              orderedIds.map((id, index) => ({ id, display_order: index }))
+            );
+          }
+        } catch (err: any) {
+          logger.error('Error updating service item order:', err);
+          // Don't add to errors - order update is not critical, order is already saved in main update
+        }
+      }
       
       return { savedServiceItems, errors };
     } catch (err: any) {
@@ -841,6 +917,11 @@ const SettingsServiceItemsPage: React.FC = () => {
               resultCountText={hasActiveFilters
                 ? `服務項目 (共 ${totalCount} 項，顯示 ${filteredCount} 項)`
                 : `服務項目 (共 ${totalCount} 項)`}
+              draggedItemId={draggedItemId}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onDragEnd={handleDragEnd}
             />
           )}
           </div>

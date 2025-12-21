@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AppointmentType, ServiceTypeGroup } from '../types';
 import { useIsMobile } from '../hooks/useIsMobile';
 
@@ -9,6 +9,11 @@ interface ServiceItemsTableProps {
   onEdit: (appointmentType: AppointmentType) => void;
   isClinicAdmin: boolean;
   resultCountText?: string; // Optional text to display in first column header
+  draggedItemId?: number | null;
+  onDragStart?: (e: React.DragEvent, itemId: number) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent, targetItemId: number, position?: 'above' | 'below') => void;
+  onDragEnd?: () => void;
 }
 
 export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
@@ -18,8 +23,14 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
   onEdit,
   isClinicAdmin,
   resultCountText,
+  draggedItemId = null,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
 }) => {
   const isMobile = useIsMobile();
+  const [dropIndicator, setDropIndicator] = useState<{ itemId: number; position: 'above' | 'below' } | null>(null);
 
   const getGroupName = (groupId: number | null | undefined): string => {
     if (!groupId) return '未分類';
@@ -34,6 +45,27 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
     return `${duration} 分`;
   };
 
+  const handleDragOver = (e: React.DragEvent, itemId: number) => {
+    // Call parent's onDragOver if provided
+    if (onDragOver) {
+      onDragOver(e);
+    }
+    
+    // Update drop indicator based on current mouse position
+    if (!draggedItemId || draggedItemId === itemId) {
+      setDropIndicator(null);
+      return;
+    }
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const mouseY = e.clientY;
+    const rowCenter = rect.top + rect.height / 2;
+    
+    // Determine if drop should be above or below based on mouse position
+    const position = mouseY < rowCenter ? 'above' : 'below';
+    setDropIndicator({ itemId, position });
+  };
+
   if (isMobile) {
     // Mobile: Card list view
     return (
@@ -43,14 +75,40 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
           const practitionerCount = practitionerAssignments[appointmentType.id]?.length || 0;
 
           return (
-            <div
-              key={appointmentType.id}
-              onClick={isClinicAdmin ? () => onEdit(appointmentType) : undefined}
-              className={`bg-white border border-gray-200 rounded-lg p-4 shadow-sm ${isClinicAdmin ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
-            >
+            <React.Fragment key={appointmentType.id}>
+              {/* Drop indicator line above */}
+              {dropIndicator?.itemId === appointmentType.id && dropIndicator.position === 'above' && (
+                <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 mx-2 my-1 rounded-full" />
+              )}
+              
+              <div
+                draggable={isClinicAdmin}
+                onDragStart={isClinicAdmin && onDragStart ? (e) => onDragStart(e, appointmentType.id) : undefined}
+                onDragOver={isClinicAdmin ? (e) => handleDragOver(e, appointmentType.id) : undefined}
+                onDrop={isClinicAdmin && onDrop ? (e) => {
+                  const position = dropIndicator?.itemId === appointmentType.id ? dropIndicator.position : undefined;
+                  setDropIndicator(null);
+                  onDrop(e, appointmentType.id, position);
+                } : undefined}
+                onDragEnd={isClinicAdmin ? () => {
+                  setDropIndicator(null);
+                  if (onDragEnd) onDragEnd();
+                } : undefined}
+                onClick={isClinicAdmin ? () => onEdit(appointmentType) : undefined}
+                className={`bg-white border border-gray-200 rounded-lg p-4 shadow-sm ${
+                  draggedItemId === appointmentType.id ? 'opacity-30' : ''
+                } ${isClinicAdmin ? 'cursor-move hover:shadow-md transition-shadow' : ''}`}
+              >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
+                    {isClinicAdmin && (
+                      <div className="text-gray-400 cursor-move">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                        </svg>
+                      </div>
+                    )}
                     <h3 className="font-medium text-gray-900 text-sm">
                       {appointmentType.name || '未命名服務項目'}
                     </h3>
@@ -72,7 +130,13 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
                   </div>
                 </div>
               </div>
-            </div>
+              </div>
+              
+              {/* Drop indicator line below */}
+              {dropIndicator?.itemId === appointmentType.id && dropIndicator.position === 'below' && (
+                <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 mx-2 my-1 rounded-full" />
+              )}
+            </React.Fragment>
           );
         })}
       </div>
@@ -105,13 +169,45 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
             const practitionerCount = practitionerAssignments[appointmentType.id]?.length || 0;
 
             return (
-              <tr
-                key={appointmentType.id}
-                onClick={isClinicAdmin ? () => onEdit(appointmentType) : undefined}
-                className={isClinicAdmin ? "hover:bg-gray-50 cursor-pointer" : "hover:bg-gray-50"}
-              >
+              <React.Fragment key={appointmentType.id}>
+                {/* Drop indicator line above */}
+                {dropIndicator?.itemId === appointmentType.id && dropIndicator.position === 'above' && (
+                  <tr>
+                    <td colSpan={4} className="px-0 py-0">
+                      <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 w-full" />
+                    </td>
+                  </tr>
+                )}
+                
+                <tr
+                  draggable={isClinicAdmin}
+                  onDragStart={isClinicAdmin && onDragStart ? (e) => onDragStart(e, appointmentType.id) : undefined}
+                  onDragOver={isClinicAdmin ? (e) => handleDragOver(e, appointmentType.id) : undefined}
+                  onDrop={isClinicAdmin && onDrop ? (e) => {
+                    const position = dropIndicator?.itemId === appointmentType.id ? dropIndicator.position : undefined;
+                    setDropIndicator(null);
+                    onDrop(e, appointmentType.id, position);
+                  } : undefined}
+                  onDragEnd={isClinicAdmin ? () => {
+                    setDropIndicator(null);
+                    if (onDragEnd) onDragEnd();
+                  } : undefined}
+                  onClick={isClinicAdmin ? () => onEdit(appointmentType) : undefined}
+                  className={`hover:bg-gray-50 transition-colors ${
+                    draggedItemId === appointmentType.id ? 'opacity-30' : ''
+                  } ${isClinicAdmin ? 'cursor-move' : ''}`}
+                >
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
+                    {isClinicAdmin && (
+                      <div className="w-6 flex-shrink-0">
+                        <div className="text-gray-400 cursor-move">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                          </svg>
+                        </div>
+                      </div>
+                    )}
                     <span className="text-sm font-medium text-gray-900">
                       {appointmentType.name || '未命名服務項目'}
                     </span>
@@ -138,6 +234,16 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
                   {practitionerCount} 位
                 </td>
               </tr>
+              
+              {/* Drop indicator line below */}
+              {dropIndicator?.itemId === appointmentType.id && dropIndicator.position === 'below' && (
+                <tr>
+                  <td colSpan={4} className="px-0 py-0">
+                    <div className="h-1.5 bg-blue-600 shadow-md shadow-blue-500/30 w-full" />
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
             );
           })}
         </tbody>
