@@ -724,11 +724,10 @@ const SettingsServiceItemsPage: React.FC = () => {
             appointmentTypes={serviceItems}
             groups={availableGroups}
             practitionerAssignments={practitionerAssignments}
-            billingScenarios={billingScenarios}
             onEdit={handleEditServiceItem}
             onDelete={handleDeleteServiceItem}
-              isClinicAdmin={isClinicAdmin}
-            />
+            isClinicAdmin={isClinicAdmin}
+          />
           </div>
       ) : (
         <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">

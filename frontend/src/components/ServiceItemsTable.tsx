@@ -1,13 +1,11 @@
 import React from 'react';
 import { AppointmentType, ServiceTypeGroup } from '../types';
-import { formatCurrency } from '../utils/currencyUtils';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 interface ServiceItemsTableProps {
   appointmentTypes: AppointmentType[];
   groups: ServiceTypeGroup[];
   practitionerAssignments: Record<number, number[]>; // appointmentTypeId -> practitionerIds[]
-  billingScenarios: Record<string, any[]>; // key: `${appointmentTypeId}-${practitionerId}`
   onEdit: (appointmentType: AppointmentType) => void;
   onDelete: (appointmentType: AppointmentType, index: number) => void;
   isClinicAdmin: boolean;
@@ -17,7 +15,6 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
   appointmentTypes,
   groups,
   practitionerAssignments,
-  billingScenarios,
   onEdit,
   onDelete,
   isClinicAdmin,
@@ -28,33 +25,6 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
     if (!groupId) return '未分類';
     const group = groups.find(g => g.id === groupId);
     return group?.name || '未分類';
-  };
-
-  const getPriceDisplay = (appointmentType: AppointmentType): string => {
-    const practitionerIds = practitionerAssignments[appointmentType.id] || [];
-    if (practitionerIds.length === 0) return '-';
-
-    // Get all default scenarios for this service
-    const defaultScenarios: number[] = [];
-    practitionerIds.forEach(practitionerId => {
-      const key = `${appointmentType.id}-${practitionerId}`;
-      const scenarios = billingScenarios[key] || [];
-      const defaultScenario = scenarios.find((s: any) => s.is_default);
-      if (defaultScenario) {
-        defaultScenarios.push(defaultScenario.amount);
-      }
-    });
-
-    if (defaultScenarios.length === 0) return '-';
-
-    // Show range if prices differ, otherwise show single price
-    const minPrice = Math.min(...defaultScenarios);
-    const maxPrice = Math.max(...defaultScenarios);
-    
-    if (minPrice === maxPrice) {
-      return formatCurrency(minPrice);
-    }
-    return `${formatCurrency(minPrice)} - ${formatCurrency(maxPrice)}`;
   };
 
   const formatDuration = (duration: number, buffer?: number): string => {
@@ -71,7 +41,6 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
         {appointmentTypes.map((appointmentType, index) => {
           const groupName = getGroupName(appointmentType.service_type_group_id);
           const practitionerCount = practitionerAssignments[appointmentType.id]?.length || 0;
-          const price = getPriceDisplay(appointmentType);
 
           return (
             <div
@@ -99,12 +68,6 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
                     <span>時長: {formatDuration(appointmentType.duration_minutes, appointmentType.scheduling_buffer_minutes)}</span>
                     <span>•</span>
                     <span>{practitionerCount} 位治療師</span>
-                    {price !== '-' && (
-                      <>
-                        <span>•</span>
-                        <span className="font-medium text-gray-700">{price}</span>
-                      </>
-                    )}
                   </div>
                 </div>
                 {isClinicAdmin && (
@@ -151,9 +114,6 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               治療師
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              價格
-            </th>
             {isClinicAdmin && (
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 操作
@@ -165,7 +125,6 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
           {appointmentTypes.map((appointmentType, index) => {
             const groupName = getGroupName(appointmentType.service_type_group_id);
             const practitionerCount = practitionerAssignments[appointmentType.id]?.length || 0;
-            const price = getPriceDisplay(appointmentType);
 
             return (
               <tr key={appointmentType.id} className="hover:bg-gray-50">
@@ -195,9 +154,6 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {practitionerCount} 位
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {price}
                 </td>
                 {isClinicAdmin && (
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
