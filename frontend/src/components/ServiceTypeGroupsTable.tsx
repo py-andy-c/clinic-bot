@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ServiceTypeGroup } from '../types';
 import { useIsMobile } from '../hooks/useIsMobile';
-import { useModal } from '../contexts/ModalContext';
 
 interface ServiceTypeGroupsTableProps {
   groups: ServiceTypeGroup[];
@@ -35,9 +34,9 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
   onCancelAdd,
 }) => {
   const isMobile = useIsMobile();
-  const { alert } = useModal();
   const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Auto-focus input when editing starts
@@ -52,6 +51,7 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
     if (addingNewGroup) {
       setEditingGroupId(-1); // Use -1 to represent "new group" row
       setEditingName('');
+      setErrorMessage('');
     } else if (editingGroupId === -1) {
       setEditingGroupId(null);
     }
@@ -60,12 +60,15 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
   const handleStartEdit = (group: ServiceTypeGroup) => {
     setEditingGroupId(group.id);
     setEditingName(group.name);
+    setErrorMessage('');
   };
 
-  const handleSave = (group: ServiceTypeGroup | { id: number; name: string }) => {
+  const handleConfirm = (group: ServiceTypeGroup | { id: number; name: string }) => {
     const trimmedName = editingName.trim();
+    setErrorMessage(''); // Clear previous errors
+    
     if (!trimmedName) {
-      alert('群組名稱不能為空', '錯誤');
+      setErrorMessage('群組名稱不能為空');
       return;
     }
 
@@ -75,13 +78,15 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
     );
     
     if (duplicateGroup) {
-      alert('此群組名稱已存在', '錯誤');
+      setErrorMessage('群組名稱已存在');
       return;
     }
 
+    // Validation passed - save and exit edit mode
     onSave(group as ServiceTypeGroup, trimmedName);
     setEditingGroupId(null);
     setEditingName('');
+    setErrorMessage('');
   };
 
   const handleCancel = () => {
@@ -90,11 +95,12 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
     }
     setEditingGroupId(null);
     setEditingName('');
+    setErrorMessage('');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, group: ServiceTypeGroup | { id: number; name: string }) => {
     if (e.key === 'Enter') {
-      handleSave(group);
+      handleConfirm(group);
     } else if (e.key === 'Escape') {
       handleCancel();
     }
@@ -129,16 +135,22 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
                 )}
                 
                 {isEditing ? (
-                  <div className="flex-1 flex gap-2">
+                  <div className="flex-1">
                     <input
                       ref={inputRef}
                       type="text"
                       value={editingName}
-                      onChange={(e) => setEditingName(e.target.value)}
+                      onChange={(e) => {
+                        setEditingName(e.target.value);
+                        setErrorMessage(''); // Clear error on input change
+                      }}
                       onKeyDown={(e) => handleKeyDown(e, group)}
-                      className="input py-1 text-sm flex-1"
+                      className={`input py-1 text-sm flex-1 ${errorMessage ? 'border-red-500' : ''}`}
                       placeholder="群組名稱"
                     />
+                    {errorMessage && (
+                      <p className="text-red-600 text-xs mt-1">{errorMessage}</p>
+                    )}
                   </div>
                 ) : (
                   <h3 className="font-medium text-gray-900 text-sm">{group.name}</h3>
@@ -157,10 +169,10 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
                   <>
                     <button
                       type="button"
-                      onClick={() => handleSave(group)}
+                      onClick={() => handleConfirm(group)}
                       className="text-blue-600 hover:text-blue-800 text-xs font-medium px-2 py-1"
                     >
-                      儲存
+                      確認
                     </button>
                     <button
                       type="button"
@@ -221,15 +233,25 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
             </div>
             
             {isEditing ? (
-              <input
-                ref={inputRef}
-                type="text"
-                value={editingName}
-                onChange={(e) => setEditingName(e.target.value)}
-                onKeyDown={(e) => handleKeyDown(e, group)}
-                className="block w-full px-3 py-1.5 text-sm text-gray-900 bg-white border border-blue-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm"
-                placeholder="群組名稱"
-              />
+              <div>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={editingName}
+                  onChange={(e) => {
+                    setEditingName(e.target.value);
+                    setErrorMessage(''); // Clear error on input change
+                  }}
+                  onKeyDown={(e) => handleKeyDown(e, group)}
+                  className={`block w-full px-3 py-1.5 text-sm text-gray-900 bg-white border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm ${
+                    errorMessage ? 'border-red-500' : 'border-blue-300'
+                  }`}
+                  placeholder="群組名稱"
+                />
+                {errorMessage && (
+                  <p className="text-red-600 text-xs mt-1">{errorMessage}</p>
+                )}
+              </div>
             ) : (
               <span className="text-sm font-medium text-gray-900">{group.name}</span>
             )}
@@ -251,10 +273,10 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
                 <>
                   <button
                     type="button"
-                    onClick={() => handleSave(group)}
+                    onClick={() => handleConfirm(group)}
                     className="text-blue-600 hover:text-blue-800 font-semibold transition-colors"
                   >
-                    儲存
+                    確認
                   </button>
                   <button
                     type="button"
@@ -306,18 +328,26 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
               ref={inputRef}
               type="text"
               value={editingName}
-              onChange={(e) => setEditingName(e.target.value)}
+              onChange={(e) => {
+                setEditingName(e.target.value);
+                setErrorMessage(''); // Clear error on input change
+              }}
               onKeyDown={(e) => handleKeyDown(e, dummyGroup)}
-              className="block w-full px-3 py-2 text-sm text-gray-900 bg-white border border-blue-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+              className={`block w-full px-3 py-2 text-sm text-gray-900 bg-white border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none ${
+                errorMessage ? 'border-red-500' : 'border-blue-300'
+              }`}
               placeholder="輸入新群組名稱"
             />
+            {errorMessage && (
+              <p className="text-red-600 text-xs mt-1">{errorMessage}</p>
+            )}
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => handleSave(dummyGroup)}
+                onClick={() => handleConfirm(dummyGroup)}
                 className="text-blue-600 hover:text-blue-800 font-semibold text-sm"
               >
-                儲存
+                確認
               </button>
               <button
                 type="button"
@@ -343,15 +373,25 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
                 </svg>
               </div>
             </div>
-            <input
-              ref={inputRef}
-              type="text"
-              value={editingName}
-              onChange={(e) => setEditingName(e.target.value)}
-              onKeyDown={(e) => handleKeyDown(e, dummyGroup)}
-              className="block w-full px-3 py-1.5 text-sm text-gray-900 bg-white border border-blue-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm max-w-xs"
-              placeholder="輸入新群組名稱"
-            />
+            <div>
+              <input
+                ref={inputRef}
+                type="text"
+                value={editingName}
+                onChange={(e) => {
+                  setEditingName(e.target.value);
+                  setErrorMessage(''); // Clear error on input change
+                }}
+                onKeyDown={(e) => handleKeyDown(e, dummyGroup)}
+                className={`block w-full px-3 py-1.5 text-sm text-gray-900 bg-white border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all shadow-sm max-w-xs ${
+                  errorMessage ? 'border-red-500' : 'border-blue-300'
+                }`}
+                placeholder="輸入新群組名稱"
+              />
+              {errorMessage && (
+                <p className="text-red-600 text-xs mt-1">{errorMessage}</p>
+              )}
+            </div>
           </div>
         </td>
         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
@@ -361,10 +401,10 @@ export const ServiceTypeGroupsTable: React.FC<ServiceTypeGroupsTableProps> = ({
           <div className="flex items-center justify-end gap-3">
             <button
               type="button"
-              onClick={() => handleSave(dummyGroup)}
+              onClick={() => handleConfirm(dummyGroup)}
               className="text-blue-600 hover:text-blue-800 font-semibold"
             >
-              儲存
+              確認
             </button>
             <button
               type="button"

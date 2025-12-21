@@ -10,7 +10,6 @@ import { InfoButton, InfoModal } from './shared';
 import { useServiceItemsStore } from '../stores/serviceItemsStore';
 import { ResourceRequirementsSection } from './ResourceRequirementsSection';
 import { FormField, FormInput, FormTextarea } from './forms';
-import { useModal } from '../contexts/ModalContext';
 
 // Schema for single appointment type
 const ServiceItemFormSchema = z.object({
@@ -22,7 +21,7 @@ const ServiceItemFormSchema = z.object({
   allow_patient_booking: z.boolean().optional(),
   allow_patient_practitioner_selection: z.boolean().optional(),
   description: z.string().nullable().optional(),
-  scheduling_buffer_minutes: z.coerce.number().min(0).max(60).optional(),
+  scheduling_buffer_minutes: z.coerce.number().min(0, '排程緩衝時間不能小於 0').max(60, '排程緩衝時間不能超過 60 分鐘').optional(),
   service_type_group_id: z.number().nullable().optional(),
   display_order: z.number().optional(),
 });
@@ -60,8 +59,6 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   onUpdateBillingScenarios,
   onUpdateResourceRequirements: _onUpdateResourceRequirements,
 }) => {
-  const { alert } = useModal();
-
   const {
     loadBillingScenarios,
     loadingScenarios,
@@ -94,7 +91,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     mode: 'onBlur',
   });
 
-  const { watch, register, setValue, formState: { isDirty }, reset } = methods;
+  const { watch, register, setValue, formState: { isDirty, errors }, reset, trigger, getValues } = methods;
   
   // Watch specific fields to avoid infinite loops from watch() returning new object references
   const name = watch('name');
@@ -150,10 +147,12 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   // Billing scenario editing
   const [editingScenario, setEditingScenario] = useState<{ practitionerId: number; scenarioId?: number } | null>(null);
   const [scenarioForm, setScenarioForm] = useState({ name: '', amount: '', revenue_share: '', is_default: false });
+  const [scenarioErrors, setScenarioErrors] = useState<{ name?: string; amount?: string; revenue_share?: string }>({});
 
   const handleAddScenario = (practitionerId: number) => {
     setEditingScenario({ practitionerId });
     setScenarioForm({ name: '', amount: '', revenue_share: '', is_default: false });
+    setScenarioErrors({});
   };
 
   const handleEditScenario = (practitionerId: number, scenario: BillingScenario) => {
@@ -166,22 +165,62 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       revenue_share: isNaN(normalizedRevenueShare) ? '' : normalizedRevenueShare.toString(),
       is_default: scenario.is_default,
     });
+    setScenarioErrors({});
   };
 
-  const handleSaveScenario = async () => {
+  const handleConfirmScenario = () => {
     if (!editingScenario) return;
     const { practitionerId, scenarioId } = editingScenario;
+    
+    // Clear previous errors
+    const errors: { name?: string; amount?: string; revenue_share?: string } = {};
+    
+    // Validate name
+    if (!scenarioForm.name || scenarioForm.name.trim() === '') {
+      errors.name = '方案名稱不能為空';
+    }
+    
+    // Validate amount
+    if (!scenarioForm.amount || scenarioForm.amount.trim() === '') {
+      errors.amount = '金額不能為空';
+    } else {
+      const amount = parseFloat(scenarioForm.amount);
+      if (isNaN(amount) || amount <= 0) {
+        errors.amount = '金額必須大於 0';
+      }
+    }
+    
+    // Validate revenue_share
+    if (!scenarioForm.revenue_share || scenarioForm.revenue_share.trim() === '') {
+      errors.revenue_share = '診所分潤不能為空';
+    } else {
+      const revenue_share = parseFloat(scenarioForm.revenue_share);
+      const amount = parseFloat(scenarioForm.amount);
+      if (isNaN(revenue_share) || revenue_share < 0) {
+        errors.revenue_share = '診所分潤不能小於 0';
+      } else if (!isNaN(amount) && revenue_share > amount) {
+        errors.revenue_share = '診所分潤不能大於金額';
+      }
+    }
+    
+    // If there are errors, show them and scroll to first error
+    if (Object.keys(errors).length > 0) {
+      setScenarioErrors(errors);
+      // Scroll to first error field
+      const firstErrorField = Object.keys(errors)[0];
+      const errorElement = document.querySelector(`[name="scenario_${firstErrorField}"]`);
+      if (errorElement) {
+        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        (errorElement as HTMLElement).focus();
+      }
+      return;
+    }
+    
+    // Clear errors if validation passes
+    setScenarioErrors({});
+    
     const amount = parseFloat(scenarioForm.amount);
     const revenue_share = parseFloat(scenarioForm.revenue_share);
-
-    if (!scenarioForm.name || !scenarioForm.amount || !scenarioForm.revenue_share) {
-      await alert('請填寫所有欄位', '錯誤');
-      return;
-    }
-    if (amount <= 0 || revenue_share < 0 || revenue_share > amount) {
-      await alert('無效的金額或分潤設定', '錯誤');
-      return;
-    }
 
     const key = `${appointmentType.id}-${practitionerId}`;
     const currentScenarios = allBillingScenarios[key] || [];
@@ -209,6 +248,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     }
     setEditingScenario(null);
     setScenarioForm({ name: '', amount: '', revenue_share: '', is_default: false });
+    setScenarioErrors({});
   };
 
   // Update staging store when form changes - use refs to prevent infinite loops
@@ -260,10 +300,44 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       allow_patient_practitioner_selection, description, scheduling_buffer_minutes,
       service_type_group_id, display_order, isDirty, appointmentType, onUpdate]);
 
-  const handleClose = () => {
-    // Ensure any pending changes are saved before closing
+  const handleCancel = () => {
+    // Reset form to original values
+    reset({
+      id: appointmentType.id,
+      clinic_id: appointmentType.clinic_id,
+      name: appointmentType.name || '',
+      duration_minutes: appointmentType.duration_minutes || 30,
+      receipt_name: appointmentType.receipt_name || null,
+      allow_patient_booking: appointmentType.allow_patient_booking ?? true,
+      allow_patient_practitioner_selection: appointmentType.allow_patient_practitioner_selection ?? true,
+      description: appointmentType.description || null,
+      scheduling_buffer_minutes: appointmentType.scheduling_buffer_minutes || 0,
+      service_type_group_id: appointmentType.service_type_group_id || null,
+      display_order: appointmentType.display_order || 0,
+    });
+    onClose();
+  };
+
+  const handleConfirm = async () => {
+    // Validate all fields
+    const isValid = await trigger();
+    
+    if (!isValid) {
+      // Find first error field and scroll to it
+      const errorFields = Object.keys(errors);
+      if (errorFields.length > 0) {
+        const firstErrorField = errorFields[0];
+        const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
+        if (errorElement) {
+          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          (errorElement as HTMLElement).focus();
+        }
+      }
+      return;
+    }
+
     // Get current form values and update staging store
-    const currentValues = watch();
+    const currentValues = getValues();
     const updatedItem: AppointmentType = {
       ...appointmentType,
       name: currentValues.name || '',
@@ -280,7 +354,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     // Update staging store with final values
     onUpdate(updatedItem);
     
-    // No confirmation needed - changes are staged, not saved
+    // Close modal after successful validation
     onClose();
   };
 
@@ -289,7 +363,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   return (
     <FormProvider {...methods}>
       <BaseModal
-        onClose={handleClose}
+        onClose={handleCancel}
         aria-label="編輯服務項目"
         fullScreen={true}
         showCloseButton={false}
@@ -300,28 +374,23 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
           <div className="bg-white border-b border-gray-200 px-4 py-4 md:px-6">
             <div className="max-w-7xl mx-auto">
               <div className="flex justify-between items-center mb-2 md:mb-8">
-                <div className="flex items-center gap-4">
-                  <button
-                    type="button"
-                    onClick={handleClose}
-                    className="text-gray-500 hover:text-gray-700 transition-colors -ml-2 p-2"
-                    aria-label="返回"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                    </svg>
-                  </button>
-                  <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                    {name || '編輯服務項目'}
-                  </h1>
-                </div>
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                  {name || '編輯服務項目'}
+                </h1>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={handleClose}
-                    className="hidden sm:inline-flex btn-secondary text-sm px-4 py-2"
+                    onClick={handleCancel}
+                    className="btn-secondary text-sm px-4 py-2"
                   >
                     取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirm}
+                    className="btn-primary text-sm px-4 py-2"
+                  >
+                    確認
                   </button>
                 </div>
               </div>
@@ -523,7 +592,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleClose}
+                onClick={handleCancel}
                 className="btn-secondary flex-1 text-sm px-4 py-2"
               >
                 取消
@@ -535,22 +604,83 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
 
       {/* Billing Scenario Edit Modal */}
       {editingScenario && (
-        <BaseModal onClose={() => setEditingScenario(null)} aria-label="編輯計費方案">
+        <BaseModal onClose={() => {
+          setEditingScenario(null);
+          setScenarioErrors({});
+        }} aria-label="編輯計費方案">
           <div className="p-6">
             <h3 className="text-lg font-semibold mb-4">{editingScenario.scenarioId ? '編輯' : '新增'}計費方案</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">方案名稱</label>
-                <input type="text" value={scenarioForm.name} onChange={(e) => setScenarioForm(prev => ({ ...prev, name: e.target.value }))} className="input" placeholder="例如：原價、九折、會員價" />
+                <input
+                  name="scenario_name"
+                  type="text"
+                  value={scenarioForm.name}
+                  onChange={(e) => {
+                    setScenarioForm(prev => ({ ...prev, name: e.target.value }));
+                    if (scenarioErrors.name) {
+                      setScenarioErrors(prev => {
+                        const { name, ...rest } = prev;
+                        return rest;
+                      });
+                    }
+                  }}
+                  className={`input ${scenarioErrors.name ? 'border-red-500' : ''}`}
+                  placeholder="例如：原價、九折、會員價"
+                />
+                {scenarioErrors.name && (
+                  <p className="text-red-600 text-xs mt-1">{scenarioErrors.name}</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">金額</label>
-                  <input type="number" value={scenarioForm.amount} onChange={(e) => setScenarioForm(prev => ({ ...prev, amount: e.target.value }))} className="input" min="0" placeholder="0" onWheel={preventScrollWheelChange} />
+                  <input
+                    name="scenario_amount"
+                    type="number"
+                    value={scenarioForm.amount}
+                    onChange={(e) => {
+                      setScenarioForm(prev => ({ ...prev, amount: e.target.value }));
+                      if (scenarioErrors.amount) {
+                        setScenarioErrors(prev => {
+                          const { amount, ...rest } = prev;
+                          return rest;
+                        });
+                      }
+                    }}
+                    className={`input ${scenarioErrors.amount ? 'border-red-500' : ''}`}
+                    min="0"
+                    placeholder="0"
+                    onWheel={preventScrollWheelChange}
+                  />
+                  {scenarioErrors.amount && (
+                    <p className="text-red-600 text-xs mt-1">{scenarioErrors.amount}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">診所分潤</label>
-                  <input type="number" value={scenarioForm.revenue_share} onChange={(e) => setScenarioForm(prev => ({ ...prev, revenue_share: e.target.value }))} className="input" min="0" placeholder="0" onWheel={preventScrollWheelChange} />
+                  <input
+                    name="scenario_revenue_share"
+                    type="number"
+                    value={scenarioForm.revenue_share}
+                    onChange={(e) => {
+                      setScenarioForm(prev => ({ ...prev, revenue_share: e.target.value }));
+                      if (scenarioErrors.revenue_share) {
+                        setScenarioErrors(prev => {
+                          const { revenue_share, ...rest } = prev;
+                          return rest;
+                        });
+                      }
+                    }}
+                    className={`input ${scenarioErrors.revenue_share ? 'border-red-500' : ''}`}
+                    min="0"
+                    placeholder="0"
+                    onWheel={preventScrollWheelChange}
+                  />
+                  {scenarioErrors.revenue_share && (
+                    <p className="text-red-600 text-xs mt-1">{scenarioErrors.revenue_share}</p>
+                  )}
                 </div>
               </div>
               <label className="flex items-center">
@@ -559,8 +689,23 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
               </label>
             </div>
             <div className="mt-6 flex justify-end space-x-3">
-              <button type="button" onClick={() => setEditingScenario(null)} className="btn-secondary">取消</button>
-              <button type="button" onClick={handleSaveScenario} className="btn-primary">儲存</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingScenario(null);
+                  setScenarioErrors({});
+                }}
+                className="btn-secondary"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmScenario}
+                className="btn-primary"
+              >
+                確認
+              </button>
             </div>
           </div>
         </BaseModal>
