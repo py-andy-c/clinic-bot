@@ -7,7 +7,6 @@ interface ServiceItemsTableProps {
   groups: ServiceTypeGroup[];
   practitionerAssignments: Record<number, number[]>; // appointmentTypeId -> practitionerIds[]
   onEdit: (appointmentType: AppointmentType) => void;
-  onDelete: (appointmentType: AppointmentType, index: number) => void;
   isClinicAdmin: boolean;
 }
 
@@ -16,7 +15,6 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
   groups,
   practitionerAssignments,
   onEdit,
-  onDelete,
   isClinicAdmin,
 }) => {
   const isMobile = useIsMobile();
@@ -71,22 +69,13 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
                   </div>
                 </div>
                 {isClinicAdmin && (
-                  <div className="flex items-center gap-2 ml-2">
-                    <button
-                      type="button"
-                      onClick={() => onEdit(appointmentType)}
-                      className="text-blue-600 hover:text-blue-800 text-sm px-3 py-1.5 rounded border border-blue-200 hover:border-blue-300"
-                    >
-                      編輯
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDelete(appointmentType, index)}
-                      className="text-red-600 hover:text-red-800 text-sm px-3 py-1.5 rounded border border-red-200 hover:border-red-300"
-                    >
-                      刪除
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onEdit(appointmentType)}
+                    className="text-blue-600 hover:text-blue-800 text-sm px-3 py-1.5 rounded border border-blue-200 hover:border-blue-300"
+                  >
+                    編輯
+                  </button>
                 )}
               </div>
             </div>
@@ -157,22 +146,13 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
                 </td>
                 {isClinicAdmin && (
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onEdit(appointmentType)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        編輯
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(appointmentType, index)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        刪除
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onEdit(appointmentType)}
+                      className="text-blue-600 hover:text-blue-900"
+                    >
+                      編輯
+                    </button>
                   </td>
                 )}
               </tr>

@@ -178,14 +178,7 @@ const SettingsServiceItemsPage: React.FC = () => {
         return;
       }
 
-      // Confirm deletion
-      const confirmed = await confirm(
-        `確定要刪除「${appointmentType.name}」嗎？`,
-        '刪除服務項目'
-      );
-      
-      if (!confirmed) return;
-
+      // Confirmation is handled in the modal, just delete
       deleteServiceItem(appointmentType.id);
     } catch (error: any) {
       logger.error('Error validating appointment type deletion:', error);
@@ -725,7 +718,6 @@ const SettingsServiceItemsPage: React.FC = () => {
             groups={availableGroups}
             practitionerAssignments={practitionerAssignments}
             onEdit={handleEditServiceItem}
-            onDelete={handleDeleteServiceItem}
             isClinicAdmin={isClinicAdmin}
           />
           </div>
@@ -754,6 +746,7 @@ const SettingsServiceItemsPage: React.FC = () => {
           isOpen={!!editingItem}
           onClose={handleCloseEditModal}
           onUpdate={handleUpdateServiceItem}
+          onDelete={handleDeleteServiceItem}
           members={members}
           isClinicAdmin={isClinicAdmin}
           availableGroups={availableGroups}

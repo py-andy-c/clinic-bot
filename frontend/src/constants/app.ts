@@ -8,13 +8,13 @@
  * Z-index scale for consistent layering
  * 
  * - MODAL: Highest priority modals (calendar modals, important dialogs)
- * - DIALOG: Standard dialogs (ModalContext alerts/confirms)
+ * - DIALOG: Standard dialogs (ModalContext alerts/confirms) - must be higher than MODAL for nested dialogs
  * - DROPDOWN: Dropdown menus, tooltips
  * - TOOLTIP: Info popups, positioned modals
  */
 export const Z_INDEX = {
   MODAL: 9999,
-  DIALOG: 50,
+  DIALOG: 10000, // Higher than MODAL to appear above modals (e.g., confirmation dialogs)
   DROPDOWN: 50,
   TOOLTIP: 50,
 } as const;

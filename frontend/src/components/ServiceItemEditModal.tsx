@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { AppointmentType, Member, BillingScenario, ServiceTypeGroup, ResourceRequirement } from '../types';
 import { preventScrollWheelChange } from '../utils/inputUtils';
 import { formatCurrency } from '../utils/currencyUtils';
+import { isTemporaryServiceItemId } from '../utils/idUtils';
+import { useModal } from '../contexts/ModalContext';
 import { BaseModal } from './shared/BaseModal';
 import { InfoButton, InfoModal } from './shared';
 import { useServiceItemsStore } from '../stores/serviceItemsStore';
@@ -33,6 +35,7 @@ interface ServiceItemEditModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdate: (updatedItem: AppointmentType) => void; // Synchronous update to staging store
+  onDelete?: (appointmentType: AppointmentType) => void; // Delete handler
   members: Member[];
   isClinicAdmin: boolean;
   availableGroups: ServiceTypeGroup[]; // Groups from staging store (includes temporary ones)
@@ -49,6 +52,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   isOpen,
   onClose,
   onUpdate,
+  onDelete,
   members,
   isClinicAdmin,
   availableGroups,
@@ -63,6 +67,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     loadBillingScenarios,
     loadingScenarios,
   } = useServiceItemsStore();
+  
+  const { confirm } = useModal();
   
   // Get billing scenarios for current item
   const getBillingScenariosForItem = (practitionerId: number) => {
@@ -318,6 +324,20 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     onClose();
   };
 
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    
+    // Confirm deletion using custom modal
+    const confirmed = await confirm(
+      `確定要刪除「${appointmentType.name}」嗎？`,
+      '刪除服務項目'
+    );
+    if (!confirmed) return;
+    
+    await onDelete(appointmentType);
+    onClose();
+  };
+
   const handleConfirm = async () => {
     // Validate all fields
     const isValid = await trigger();
@@ -374,23 +394,42 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
           <div className="bg-white border-b border-gray-200 px-4 py-4 md:px-6">
             <div className="max-w-7xl mx-auto">
               <div className="flex justify-between items-center mb-2 md:mb-8">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                  {name || '編輯服務項目'}
-                </h1>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <button
                     type="button"
                     onClick={handleCancel}
-                    className="btn-secondary text-sm px-4 py-2"
+                    className="inline-flex items-center justify-center w-8 h-8 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+                    aria-label="返回"
                   >
-                    取消
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
                   </button>
+                  <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                    {name || '編輯服務項目'}
+                  </h1>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isClinicAdmin && onDelete && !isTemporaryServiceItemId(appointmentType.id) && (
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      className="text-red-600 hover:text-red-800 text-sm px-4 py-2 rounded border border-red-200 hover:border-red-300"
+                    >
+                      刪除項目
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handleConfirm}
                     className="btn-primary text-sm px-4 py-2"
                   >
-                    確認
+                    確認編輯
                   </button>
                 </div>
               </div>
