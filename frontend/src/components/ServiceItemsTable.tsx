@@ -43,7 +43,8 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
           return (
             <div
               key={appointmentType.id}
-              className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
+              onClick={isClinicAdmin ? () => onEdit(appointmentType) : undefined}
+              className={`bg-white border border-gray-200 rounded-lg p-4 shadow-sm ${isClinicAdmin ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
             >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
@@ -68,15 +69,6 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
                     <span>{practitionerCount} 位治療師</span>
                   </div>
                 </div>
-                {isClinicAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => onEdit(appointmentType)}
-                    className="text-blue-600 hover:text-blue-800 text-sm px-3 py-1.5 rounded border border-blue-200 hover:border-blue-300"
-                  >
-                    編輯
-                  </button>
-                )}
               </div>
             </div>
           );
@@ -103,11 +95,6 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               治療師
             </th>
-            {isClinicAdmin && (
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                操作
-              </th>
-            )}
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
@@ -116,7 +103,11 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
             const practitionerCount = practitionerAssignments[appointmentType.id]?.length || 0;
 
             return (
-              <tr key={appointmentType.id} className="hover:bg-gray-50">
+              <tr
+                key={appointmentType.id}
+                onClick={isClinicAdmin ? () => onEdit(appointmentType) : undefined}
+                className={isClinicAdmin ? "hover:bg-gray-50 cursor-pointer" : "hover:bg-gray-50"}
+              >
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-gray-900">
@@ -144,17 +135,6 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {practitionerCount} 位
                 </td>
-                {isClinicAdmin && (
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      type="button"
-                      onClick={() => onEdit(appointmentType)}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      編輯
-                    </button>
-                  </td>
-                )}
               </tr>
             );
           })}
