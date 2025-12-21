@@ -177,20 +177,32 @@ export const useServiceItemsStagingStore = create<ServiceItemsStagingState>((set
    */
   reorderServiceItems: (orderedIds) => {
     const state = get();
-    const orderedItems = orderedIds.map((id, index) => {
+    const orderedItems: AppointmentType[] = [];
+    orderedIds.forEach((id, index) => {
       const item = state.serviceItems.find(item => item.id === id);
-      return item ? { ...item, display_order: index } : null;
-    }).filter((item): item is AppointmentType => item !== null);
+      if (item) {
+        const updatedItem: AppointmentType = {
+          ...item,
+          display_order: index,
+        };
+        orderedItems.push(updatedItem);
+      }
+    });
     
     // Keep items not in orderedIds at the end
-    const remainingItems = state.serviceItems
+    const remainingItems: AppointmentType[] = state.serviceItems
       .filter(item => !orderedIds.includes(item.id))
-      .map((item, index) => ({ ...item, display_order: orderedIds.length + index }));
+      .map((item, index): AppointmentType => ({
+        ...item,
+        display_order: orderedIds.length + index,
+      }));
     
     set({
-      serviceItems: [...orderedItems, ...remainingItems].sort((a, b) => 
-        (a.display_order || 0) - (b.display_order || 0)
-      ),
+      serviceItems: [...orderedItems, ...remainingItems].sort((a, b) => {
+        const orderA = a.display_order ?? 0;
+        const orderB = b.display_order ?? 0;
+        return orderA - orderB;
+      }),
     });
   },
 

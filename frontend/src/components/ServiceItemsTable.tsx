@@ -246,7 +246,7 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
     // Mobile: Card list view
     return (
       <div className="space-y-3">
-        {appointmentTypes.map((appointmentType, index) => {
+        {appointmentTypes.map((appointmentType) => {
           const groupName = getGroupName(appointmentType.service_type_group_id);
           const practitionerCount = practitionerAssignments[appointmentType.id]?.length || 0;
 
@@ -350,7 +350,7 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {appointmentTypes.map((appointmentType, index) => {
+          {appointmentTypes.map((appointmentType) => {
             const groupName = getGroupName(appointmentType.service_type_group_id);
             const practitionerCount = practitionerAssignments[appointmentType.id]?.length || 0;
 
