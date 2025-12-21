@@ -139,6 +139,8 @@ export const AppointmentTypeSchema = z.object({
   allow_patient_practitioner_selection: z.boolean().optional(),
   description: z.string().nullable().optional(),
   scheduling_buffer_minutes: z.number().optional(),
+  service_type_group_id: z.number().nullable().optional(),
+  display_order: z.number().optional(),
 });
 
 export const ClinicSettingsSchema = z.object({

@@ -1112,6 +1112,12 @@ async def update_settings(
                 processed_combinations.add((existing_type.name, existing_type.duration_minutes))
             elif (existing_type.name, existing_type.duration_minutes) in incoming_by_name_duration:
                 # Type is being kept (matched by name+duration, no ID in incoming)
+                incoming_data = incoming_by_name_duration[(existing_type.name, existing_type.duration_minutes)]
+                # Update grouping and ordering if provided
+                if "service_type_group_id" in incoming_data:
+                    existing_type.service_type_group_id = incoming_data.get("service_type_group_id")
+                if "display_order" in incoming_data:
+                    existing_type.display_order = incoming_data.get("display_order", 0)
                 if existing_type.is_deleted:
                     existing_type.is_deleted = False
                     existing_type.deleted_at = None
