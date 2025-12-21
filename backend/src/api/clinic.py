@@ -1192,6 +1192,11 @@ async def update_settings(
                     display_order=at_data.get("display_order", default_display_order)
                 )
                 db.add(appointment_type)
+                # Log appointment type creation for debugging (only in development)
+                import os
+                if os.getenv('ENVIRONMENT') == 'development':
+                    logger.debug("Creating new appointment type: name=%s, duration=%s, clinic_id=%s, temp_id=%s", 
+                                name, duration, clinic_id, at_data.get('id'))
 
         # Get clinic and update settings with validation
         clinic = db.query(Clinic).get(clinic_id)
@@ -7309,6 +7314,38 @@ async def create_service_type_group(
         )
 
 
+@router.put("/service-type-groups/bulk-order", summary="Bulk update group display order")
+async def bulk_update_group_order(
+    request: ServiceTypeGroupBulkOrderRequest,
+    current_user: UserContext = Depends(require_admin_role),
+    db: Session = Depends(get_db)
+):
+    """
+    Bulk update display order for multiple groups.
+    
+    Admin-only.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        ServiceTypeGroupService.bulk_update_group_order(
+            db=db,
+            clinic_id=clinic_id,
+            group_orders=request.group_orders
+        )
+        
+        db.commit()
+        return {"success": True, "message": "群組順序已更新"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to bulk update group order: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法更新群組順序"
+        )
+
+
 @router.put("/service-type-groups/{group_id}", summary="Update a service type group", response_model=ServiceTypeGroupResponse)
 async def update_service_type_group(
     group_id: int,
@@ -7379,38 +7416,6 @@ async def delete_service_type_group(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法刪除服務類型群組"
-        )
-
-
-@router.put("/service-type-groups/bulk-order", summary="Bulk update group display order")
-async def bulk_update_group_order(
-    request: ServiceTypeGroupBulkOrderRequest,
-    current_user: UserContext = Depends(require_admin_role),
-    db: Session = Depends(get_db)
-):
-    """
-    Bulk update display order for multiple groups.
-    
-    Admin-only.
-    """
-    try:
-        clinic_id = ensure_clinic_access(current_user)
-        ServiceTypeGroupService.bulk_update_group_order(
-            db=db,
-            clinic_id=clinic_id,
-            group_orders=request.group_orders
-        )
-        
-        db.commit()
-        return {"success": True, "message": "群組順序已更新"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Failed to bulk update group order: {e}")
-        db.rollback()
-        raise HTTPException(
-            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="無法更新群組順序"
         )
 
 

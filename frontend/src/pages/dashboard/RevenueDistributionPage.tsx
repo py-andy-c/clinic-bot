@@ -5,8 +5,9 @@ import { apiService } from '../../services/api';
 import { LoadingSpinner, ErrorMessage } from '../../components/shared';
 import { InfoButton, InfoModal } from '../../components/shared';
 import { SortableTableHeader, SortDirection } from '../../components/dashboard/SortableTableHeader';
-import { TimeRangePresets, TimeRangePreset, getDateRangeForPreset, detectPresetFromDates } from '../../components/dashboard/TimeRangePresets';
-import { FilterDropdown, PractitionerOption, ServiceItemOption } from '../../components/dashboard/FilterDropdown';
+import { TimeRangePreset, getDateRangeForPreset, detectPresetFromDates } from '../../components/dashboard/TimeRangePresets';
+import { PractitionerOption, ServiceItemOption, ServiceTypeGroupOption } from '../../components/dashboard/FilterDropdown';
+import { DashboardFilters } from '../../components/dashboard/DashboardFilters';
 import { formatCurrency } from '../../utils/currencyUtils';
 import { ReceiptViewModal } from '../../components/calendar/ReceiptViewModal';
 import { EventModal } from '../../components/calendar/EventModal';
@@ -27,6 +28,7 @@ const RevenueDistributionPage: React.FC = () => {
   const [endDate, setEndDate] = useState<string>(moment().endOf('month').format('YYYY-MM-DD'));
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | string | null>(null);
   const [selectedServiceItemId, setSelectedServiceItemId] = useState<number | string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | string | null>(null);
   const [showOverwrittenOnly, setShowOverwrittenOnly] = useState(false);
   
   // Pending filter state (for UI inputs, not applied until button clicked)
@@ -34,6 +36,7 @@ const RevenueDistributionPage: React.FC = () => {
   const [pendingEndDate, setPendingEndDate] = useState<string>(moment().endOf('month').format('YYYY-MM-DD'));
   const [pendingPractitionerId, setPendingPractitionerId] = useState<number | string | null>(null);
   const [pendingServiceItemId, setPendingServiceItemId] = useState<number | string | null>(null);
+  const [pendingGroupId, setPendingGroupId] = useState<number | string | null>(null);
   const [pendingShowOverwrittenOnly, setPendingShowOverwrittenOnly] = useState(false);
   const [currentSort, setCurrentSort] = useState<{ column: string; direction: SortDirection }>({
     column: 'date',
@@ -50,11 +53,13 @@ const RevenueDistributionPage: React.FC = () => {
     setEndDate(defaultEndDate);
     setSelectedPractitionerId(null);
     setSelectedServiceItemId(null);
+    setSelectedGroupId(null);
     setShowOverwrittenOnly(false);
     setPendingStartDate(defaultStartDate);
     setPendingEndDate(defaultEndDate);
     setPendingPractitionerId(null);
     setPendingServiceItemId(null);
+    setPendingGroupId(null);
     setPendingShowOverwrittenOnly(false);
     setPage(1);
   }, [activeClinicId]);
@@ -75,6 +80,10 @@ const RevenueDistributionPage: React.FC = () => {
     cacheTTL: 5 * 60 * 1000,
     dependencies: [activeClinicId], // Include activeClinicId to prevent cross-clinic cache reuse
   });
+  const { data: groupsData } = useApiData(() => apiService.getServiceTypeGroups(), {
+    cacheTTL: 5 * 60 * 1000,
+    dependencies: [activeClinicId],
+  });
 
   const practitioners = useMemo<PractitionerOption[]>(() => {
     if (!membersData || !Array.isArray(membersData)) return [];
@@ -84,6 +93,16 @@ const RevenueDistributionPage: React.FC = () => {
     // Add null practitioner option if there are receipts with null practitioners
     return pracs;
   }, [membersData]);
+
+  const groups = useMemo<ServiceTypeGroupOption[]>(() => {
+    if (!groupsData?.groups) return [];
+    return groupsData.groups
+      .sort((a, b) => a.display_order - b.display_order)
+      .map(g => ({ id: g.id, name: g.name }));
+  }, [groupsData]);
+
+  // Check if clinic has groups configured
+  const hasGroups = groups.length > 0;
 
   // Fetch business insights data for custom items extraction (unfiltered by service_item_id and practitioner_id)
   // This ensures all custom items and null practitioners always appear in the dropdown, even when filtering
@@ -118,8 +137,18 @@ const RevenueDistributionPage: React.FC = () => {
     if (selectedServiceItemId) {
       params.service_item_id = selectedServiceItemId;
     }
+    if (selectedGroupId !== null) {
+      const groupParam = typeof selectedGroupId === 'number'
+        ? selectedGroupId
+        : selectedGroupId === '-1'
+          ? '-1'
+          : null;
+      if (groupParam !== null) {
+        params.service_type_group_id = groupParam;
+      }
+    }
     return apiService.getRevenueDistribution(params);
-  }, [startDate, endDate, selectedPractitionerId, selectedServiceItemId, showOverwrittenOnly, page, currentSort]);
+  }, [startDate, endDate, selectedPractitionerId, selectedServiceItemId, selectedGroupId, showOverwrittenOnly, page, currentSort]);
 
   // Fetch unfiltered business insights data for custom items extraction
   const { data: customItemsData } = useApiData(fetchBusinessInsightsForCustomItems, {
@@ -130,7 +159,7 @@ const RevenueDistributionPage: React.FC = () => {
   // Fetch filtered revenue distribution data for display
   const { data, loading, error } = useApiData(fetchRevenueDistribution, {
     cacheTTL: 2 * 60 * 1000, // 2 minutes cache
-    dependencies: [startDate, endDate, selectedPractitionerId, selectedServiceItemId, showOverwrittenOnly, page, currentSort, activeClinicId], // Include activeClinicId to prevent cross-clinic cache reuse
+    dependencies: [startDate, endDate, selectedPractitionerId, selectedServiceItemId, selectedGroupId, showOverwrittenOnly, page, currentSort, activeClinicId], // Include activeClinicId to prevent cross-clinic cache reuse
   });
 
   // Helper function to generate a consistent numeric ID from a string
@@ -232,13 +261,29 @@ const RevenueDistributionPage: React.FC = () => {
     setEndDate(newEndDate);
   };
 
+  // Clear group filter when groups become empty (clinic doesn't use grouping)
+  useEffect(() => {
+    if (!hasGroups) {
+      setSelectedGroupId(null);
+      setPendingGroupId(null);
+      setSelectedServiceItemId(null);
+      setPendingServiceItemId(null);
+    }
+  }, [hasGroups]);
+
   const handleApplyFilters = () => {
     // Apply pending filters to active filters (triggers API call)
     setStartDate(pendingStartDate);
     setEndDate(pendingEndDate);
     setSelectedPractitionerId(pendingPractitionerId);
     setSelectedServiceItemId(pendingServiceItemId);
+    setSelectedGroupId(pendingGroupId);
     setShowOverwrittenOnly(pendingShowOverwrittenOnly);
+    // Clear service filter when group is cleared (only if grouping is enabled)
+    if (hasGroups && !pendingGroupId) {
+      setPendingServiceItemId(null);
+      setSelectedServiceItemId(null);
+    }
     // Reset to page 1 when filters change
     setPage(1);
   };
@@ -338,77 +383,36 @@ const RevenueDistributionPage: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white md:rounded-lg md:border md:border-gray-200 md:shadow-sm px-3 py-2 md:px-4 md:py-4 mb-4 md:mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 md:gap-4">
-          <div>
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">開始日期</label>
-            <input
-              type="date"
-              value={pendingStartDate}
-              onChange={(e) => setPendingStartDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">結束日期</label>
-            <input
-              type="date"
-              value={pendingEndDate}
-              onChange={(e) => setPendingEndDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">治療師</label>
-            <FilterDropdown
-              type="practitioner"
-              value={pendingPractitionerId}
-              onChange={setPendingPractitionerId}
-              practitioners={practitioners}
-              hasNullPractitionerInData={hasNullPractitionerInData}
-            />
-          </div>
-          <div>
-            <label className="block text-xs md:text-sm font-medium text-gray-700 mb-1">服務項目</label>
-            <FilterDropdown
-              type="service"
-              value={pendingServiceItemId}
-              onChange={setPendingServiceItemId}
-              serviceItems={serviceItems}
-              standardServiceItemIds={standardServiceItemIds}
-            />
-          </div>
-          <div className="flex items-end gap-2">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={pendingShowOverwrittenOnly}
-                onChange={(e) => setPendingShowOverwrittenOnly(e.target.checked)}
-                className="mr-2"
-              />
-              <span className="text-xs md:text-sm text-gray-700">僅顯示覆寫計費方案</span>
-              <InfoButton
-                onClick={() => setShowOverwrittenFilterInfoModal(true)}
-                ariaLabel="查看覆寫計費方案說明"
-              />
-            </label>
-          </div>
-        </div>
-        <div className="mt-3 md:mt-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
-          <div className="flex flex-wrap gap-2">
-            <TimeRangePresets 
-              onSelect={handleTimeRangePreset} 
-              activePreset={detectPresetFromDates(startDate, endDate)}
-            />
-          </div>
-          <button
-            onClick={handleApplyFilters}
-            className="px-3 md:px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-xs md:text-sm font-medium"
-          >
-            套用篩選
-          </button>
-        </div>
-      </div>
+      <DashboardFilters
+        startDate={pendingStartDate}
+        endDate={pendingEndDate}
+        onStartDateChange={setPendingStartDate}
+        onEndDateChange={setPendingEndDate}
+        practitionerId={pendingPractitionerId}
+        onPractitionerChange={setPendingPractitionerId}
+        practitioners={practitioners}
+        hasNullPractitionerInData={hasNullPractitionerInData}
+        hasGroups={hasGroups}
+        groupId={pendingGroupId}
+        onGroupChange={setPendingGroupId}
+        groups={groups}
+        serviceItemId={pendingServiceItemId}
+        onServiceItemChange={setPendingServiceItemId}
+        serviceItems={serviceItems}
+        standardServiceItemIds={standardServiceItemIds}
+        onApplyFilters={handleApplyFilters}
+        onTimeRangePreset={handleTimeRangePreset}
+        activePreset={detectPresetFromDates(startDate, endDate)}
+        checkbox={{
+          checked: pendingShowOverwrittenOnly,
+          onChange: setPendingShowOverwrittenOnly,
+          label: '僅顯示覆寫計費方案',
+          infoButton: {
+            onClick: () => setShowOverwrittenFilterInfoModal(true),
+            ariaLabel: '查看覆寫計費方案說明',
+          },
+        }}
+      />
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 mb-4 md:mb-6">

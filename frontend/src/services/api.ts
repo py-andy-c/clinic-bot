@@ -1043,6 +1043,7 @@ export class ApiService {
     end_date: string;
     practitioner_id?: number | string | null; // Can be number, 'null' string, or null
     service_item_id?: number | string | null;
+    service_type_group_id?: number | string | null; // Can be number, '-1' for ungrouped, or null
     show_overwritten_only?: boolean;
     page?: number;
     page_size?: number;

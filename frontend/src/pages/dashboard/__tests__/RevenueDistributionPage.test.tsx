@@ -19,6 +19,8 @@ vi.mock('../../../services/api', () => ({
     getMembers: vi.fn(),
     getClinicSettings: vi.fn(),
     getRevenueDistribution: vi.fn(),
+    getBusinessInsights: vi.fn(),
+    getServiceTypeGroups: vi.fn(() => Promise.resolve({ groups: [] })),
     getBatchCalendar: vi.fn(),
   },
 }));
@@ -69,6 +71,63 @@ vi.mock('../../../components/dashboard/FilterDropdown', () => ({
       <option value="">全部</option>
       <option value="1">Option 1</option>
     </select>
+  ),
+}));
+
+// Mock DashboardFilters
+vi.mock('../../../components/dashboard/DashboardFilters', () => ({
+  DashboardFilters: ({ 
+    practitionerId, 
+    hasGroups,
+    groupId, 
+    serviceItemId, 
+    onPractitionerChange, 
+    onGroupChange, 
+    onServiceItemChange,
+    onApplyFilters,
+    checkbox,
+  }: any) => (
+    <div data-testid="dashboard-filters">
+      <select
+        data-testid="filter-practitioner"
+        value={practitionerId || ''}
+        onChange={(e) => onPractitionerChange(e.target.value || null)}
+      >
+        <option value="">全部</option>
+        <option value="1">Option 1</option>
+      </select>
+      {hasGroups && (
+        <select
+          data-testid="filter-group"
+          value={groupId || ''}
+          onChange={(e) => onGroupChange(e.target.value || null)}
+        >
+          <option value="">全部</option>
+          <option value="1">Option 1</option>
+        </select>
+      )}
+      {(!hasGroups || groupId) && (
+        <select
+          data-testid="filter-service"
+          value={serviceItemId || ''}
+          onChange={(e) => onServiceItemChange(e.target.value || null)}
+        >
+          <option value="">全部</option>
+          <option value="1">Option 1</option>
+        </select>
+      )}
+      {checkbox && (
+        <input
+          type="checkbox"
+          data-testid="filter-checkbox"
+          checked={checkbox.checked}
+          onChange={(e) => checkbox.onChange(e.target.checked)}
+        />
+      )}
+      <button data-testid="apply-filters-button" onClick={onApplyFilters}>
+        套用篩選
+      </button>
+    </div>
   ),
 }));
 
@@ -203,7 +262,7 @@ describe('RevenueDistributionPage', () => {
     by_practitioner: [],
   };
 
-  const setupDefaultMocks = () => {
+  const setupDefaultMocks = (groups: any[] = []) => {
     let callIndex = 0;
     mockUseApiData.mockImplementation(() => {
       callIndex++;
@@ -228,6 +287,17 @@ describe('RevenueDistributionPage', () => {
         };
       }
       if (callIndex === 3) {
+        // getServiceTypeGroups
+        return {
+          data: { groups },
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+          clearError: vi.fn(),
+          setData: vi.fn(),
+        };
+      }
+      if (callIndex === 4) {
         // Unfiltered business insights for custom items extraction
         return {
           data: mockBusinessInsights,
@@ -238,7 +308,7 @@ describe('RevenueDistributionPage', () => {
           setData: vi.fn(),
         };
       }
-      // Filtered revenue distribution for display (callIndex === 4)
+      // Filtered revenue distribution for display (callIndex === 5)
       return {
         data: mockRevenueDistribution,
         loading: false,
@@ -259,7 +329,7 @@ describe('RevenueDistributionPage', () => {
     let callIndex = 0;
     mockUseApiData.mockImplementation(() => {
       callIndex++;
-      if (callIndex <= 3) {
+      if (callIndex <= 4) {
         return {
           data: null,
           loading: false,
@@ -287,7 +357,7 @@ describe('RevenueDistributionPage', () => {
     let callIndex = 0;
     mockUseApiData.mockImplementation(() => {
       callIndex++;
-      if (callIndex <= 3) {
+      if (callIndex <= 4) {
         return {
           data: null,
           loading: false,
@@ -383,6 +453,17 @@ describe('RevenueDistributionPage', () => {
         };
       }
       if (callIndex === 3) {
+        // getServiceTypeGroups
+        return {
+          data: { groups: [] },
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+          clearError: vi.fn(),
+          setData: vi.fn(),
+        };
+      }
+      if (callIndex === 4) {
         // Unfiltered business insights for custom items extraction
         return {
           data: mockBusinessInsights,
@@ -393,7 +474,7 @@ describe('RevenueDistributionPage', () => {
           setData: vi.fn(),
         };
       }
-      // Filtered revenue distribution for display (callIndex === 4)
+      // Filtered revenue distribution for display (callIndex === 5)
       return {
         data: emptyData,
         loading: false,
@@ -443,6 +524,17 @@ describe('RevenueDistributionPage', () => {
         };
       }
       if (callIndex === 3) {
+        // getServiceTypeGroups
+        return {
+          data: { groups: [] },
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+          clearError: vi.fn(),
+          setData: vi.fn(),
+        };
+      }
+      if (callIndex === 4) {
         // Unfiltered business insights for custom items extraction
         return {
           data: mockBusinessInsights,
@@ -453,7 +545,7 @@ describe('RevenueDistributionPage', () => {
           setData: vi.fn(),
         };
       }
-      // Filtered revenue distribution for display (callIndex === 4)
+      // Filtered revenue distribution for display (callIndex === 5)
       return {
         data: paginatedData,
         loading: false,
@@ -519,6 +611,17 @@ describe('RevenueDistributionPage', () => {
         };
       }
       if (callIndex === 3) {
+        // getServiceTypeGroups
+        return {
+          data: { groups: [] },
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+          clearError: vi.fn(),
+          setData: vi.fn(),
+        };
+      }
+      if (callIndex === 4) {
         // Unfiltered business insights for custom items extraction
         return {
           data: mockBusinessInsights,
@@ -529,7 +632,7 @@ describe('RevenueDistributionPage', () => {
           setData: vi.fn(),
         };
       }
-      // Filtered revenue distribution for display (callIndex === 4)
+      // Filtered revenue distribution for display (callIndex === 5)
       return {
         data: dataWithNullPractitioner,
         loading: false,
@@ -544,6 +647,59 @@ describe('RevenueDistributionPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('無')).toBeInTheDocument();
+    });
+  });
+
+  it('hides group filter when no groups exist', async () => {
+    setupDefaultMocks([]); // No groups
+    renderWithRouter(<RevenueDistributionPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('診所分潤審核')).toBeInTheDocument();
+    });
+
+    // Group filter should not be visible
+    expect(screen.queryByTestId('filter-group')).not.toBeInTheDocument();
+    // Service item filter should be visible (always shown when no groups)
+    expect(screen.getByTestId('filter-service')).toBeInTheDocument();
+  });
+
+  it('shows group filter when groups exist', async () => {
+    const mockGroups = [
+      { id: 1, name: '治療群組', display_order: 0 },
+      { id: 2, name: '檢查群組', display_order: 1 },
+    ];
+    setupDefaultMocks(mockGroups);
+    renderWithRouter(<RevenueDistributionPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('診所分潤審核')).toBeInTheDocument();
+    });
+
+    // Group filter should be visible
+    expect(screen.getByTestId('filter-group')).toBeInTheDocument();
+    // Service item filter should not be visible initially (only when group is selected)
+    expect(screen.queryByTestId('filter-service')).not.toBeInTheDocument();
+  });
+
+  it('shows service item filter when group is selected', async () => {
+    const mockGroups = [
+      { id: 1, name: '治療群組', display_order: 0 },
+    ];
+    setupDefaultMocks(mockGroups);
+    renderWithRouter(<RevenueDistributionPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('診所分潤審核')).toBeInTheDocument();
+    });
+
+    // Select a group
+    const groupFilter = screen.getByTestId('filter-group');
+    fireEvent.change(groupFilter, { target: { value: '1' } });
+
+    await waitFor(() => {
+      // Service item filter should appear when group is selected
+      expect(screen.getByTestId('filter-service')).toBeInTheDocument();
     });
   });
 });

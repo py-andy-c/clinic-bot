@@ -35,6 +35,7 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
 }) => {
   const historyPushedRef = useRef(false);
   const isHandlingBackRef = useRef(false);
+  const popStateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     // Only close if clicking the overlay itself, not the modal content, and if enabled
@@ -46,6 +47,11 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
   // Prevent body scroll when modal is open (especially important for fullScreen)
   // For iOS Safari, we need to use position: fixed instead of overflow: hidden
   useEffect(() => {
+    // Check if document exists (for test environments)
+    if (typeof document === 'undefined') {
+      return;
+    }
+
     const originalOverflow = document.body.style.overflow;
     const originalPosition = document.body.style.position;
     const originalTop = document.body.style.top;
@@ -58,15 +64,47 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
     document.body.style.width = '100%';
     document.body.style.overflow = 'hidden';
 
-    return () => {
-      // Restore original styles
-      document.body.style.position = originalPosition;
-      document.body.style.top = originalTop;
-      document.body.style.width = originalWidth;
-      document.body.style.overflow = originalOverflow;
+    // Store timeout IDs so we can clear them on cleanup
+    const timeoutIds: NodeJS.Timeout[] = [];
 
-      // Restore scroll position
-      window.scrollTo(0, scrollY);
+    const restoreStyles = () => {
+      // Check if document exists (for test environments)
+      if (typeof document === 'undefined') {
+        return;
+      }
+
+      const currentPosition = document.body.style.position;
+      
+      // Only restore if still fixed (might have been restored by another cleanup)
+      if (currentPosition === 'fixed') {
+        document.body.style.position = originalPosition || '';
+        document.body.style.top = originalTop || '';
+        document.body.style.width = originalWidth || '';
+        document.body.style.overflow = originalOverflow || '';
+
+        // Restore scroll position
+        if (scrollY !== undefined && scrollY !== null && typeof window !== 'undefined') {
+          window.scrollTo(0, scrollY);
+        }
+      }
+    };
+
+    // Immediate cleanup
+    const immediateCleanup = restoreStyles;
+    
+    // Fallback cleanup with delay to catch any race conditions
+    // Store timeout IDs so we can clear them if needed
+    timeoutIds.push(setTimeout(restoreStyles, 0));
+    timeoutIds.push(setTimeout(restoreStyles, 50));
+    timeoutIds.push(setTimeout(restoreStyles, 100));
+
+    return () => {
+      // Immediate cleanup
+      immediateCleanup();
+      
+      // Clear all timeouts when component unmounts (for test environments)
+      // This ensures timeouts don't run after test environment is torn down
+      timeoutIds.forEach(id => clearTimeout(id));
     };
   }, []);
 
@@ -140,8 +178,13 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
         onClose();
         // Reset flag after a delay to allow onClose to complete and prevent race conditions
         // This delay is necessary because onClose may trigger component unmount/remount
-        setTimeout(() => {
+        // Clear any existing timeout first
+        if (popStateTimeoutRef.current) {
+          clearTimeout(popStateTimeoutRef.current);
+        }
+        popStateTimeoutRef.current = setTimeout(() => {
           isHandlingBackRef.current = false;
+          popStateTimeoutRef.current = null;
         }, 100);
       }
     };
@@ -150,6 +193,11 @@ export const BaseModal: React.FC<BaseModalProps> = React.memo(({
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
+      // Clear any pending timeout
+      if (popStateTimeoutRef.current) {
+        clearTimeout(popStateTimeoutRef.current);
+        popStateTimeoutRef.current = null;
+      }
       // Note: We intentionally don't clean up the history entry on normal close.
       // Reasons:
       // 1. History entries are harmless and naturally replaced by subsequent navigation

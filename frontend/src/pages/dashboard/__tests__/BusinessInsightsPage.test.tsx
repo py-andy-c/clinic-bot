@@ -69,6 +69,63 @@ vi.mock('../../../components/dashboard/FilterDropdown', () => ({
   ),
 }));
 
+// Mock DashboardFilters
+vi.mock('../../../components/dashboard/DashboardFilters', () => ({
+  DashboardFilters: ({ 
+    practitionerId, 
+    hasGroups,
+    groupId, 
+    serviceItemId, 
+    onPractitionerChange, 
+    onGroupChange, 
+    onServiceItemChange,
+    onApplyFilters,
+    checkbox,
+  }: any) => (
+    <div data-testid="dashboard-filters">
+      <select
+        data-testid="filter-practitioner"
+        value={practitionerId || ''}
+        onChange={(e) => onPractitionerChange(e.target.value || null)}
+      >
+        <option value="">全部</option>
+        <option value="1">Option 1</option>
+      </select>
+      {hasGroups && (
+        <select
+          data-testid="filter-group"
+          value={groupId || ''}
+          onChange={(e) => onGroupChange(e.target.value || null)}
+        >
+          <option value="">全部</option>
+          <option value="1">Option 1</option>
+        </select>
+      )}
+      {(!hasGroups || groupId) && (
+        <select
+          data-testid="filter-service"
+          value={serviceItemId || ''}
+          onChange={(e) => onServiceItemChange(e.target.value || null)}
+        >
+          <option value="">全部</option>
+          <option value="1">Option 1</option>
+        </select>
+      )}
+      {checkbox && (
+        <input
+          type="checkbox"
+          data-testid="filter-checkbox"
+          checked={checkbox.checked}
+          onChange={(e) => checkbox.onChange(e.target.checked)}
+        />
+      )}
+      <button data-testid="apply-filters-button" onClick={onApplyFilters}>
+        套用篩選
+      </button>
+    </div>
+  ),
+}));
+
 // Mock shared components
 vi.mock('../../../components/shared', () => ({
   LoadingSpinner: ({ size }: any) => <div data-testid="loading-spinner">Loading {size}</div>,
@@ -149,7 +206,7 @@ describe('BusinessInsightsPage', () => {
     ],
   };
 
-  const setupDefaultMocks = () => {
+  const setupDefaultMocks = (groups: any[] = []) => {
     let callIndex = 0;
     mockUseApiData.mockImplementation(() => {
       callIndex++;
@@ -176,7 +233,7 @@ describe('BusinessInsightsPage', () => {
       if (callIndex === 3) {
         // getServiceTypeGroups
         return {
-          data: { groups: [] },
+          data: { groups },
           loading: false,
           error: null,
           refetch: vi.fn(),
@@ -287,9 +344,9 @@ describe('BusinessInsightsPage', () => {
     expect(screen.getByTestId('revenue-trend-chart')).toBeInTheDocument();
 
     // Check breakdown tables
-    // When no group is selected, "依群組" appears in chart view selector and breakdown table
+    // When no groups exist, "依服務項目" should appear instead of "依群組"
     // "依治療師" always appears
-    expect(screen.getAllByText('依群組').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('依服務項目').length).toBeGreaterThan(0);
     expect(screen.getAllByText('依治療師').length).toBeGreaterThan(0);
   });
 
@@ -324,6 +381,17 @@ describe('BusinessInsightsPage', () => {
         };
       }
       if (callIndex === 3) {
+        // getServiceTypeGroups
+        return {
+          data: { groups: [] },
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+          clearError: vi.fn(),
+          setData: vi.fn(),
+        };
+      }
+      if (callIndex === 4) {
         // Unfiltered business insights for custom items extraction
         return {
           data: emptyData,
@@ -334,7 +402,7 @@ describe('BusinessInsightsPage', () => {
           setData: vi.fn(),
         };
       }
-      // Filtered business insights for display (callIndex === 4)
+      // Filtered business insights for display (callIndex === 5)
       return {
         data: emptyData,
         loading: false,
@@ -410,6 +478,17 @@ describe('BusinessInsightsPage', () => {
         };
       }
       if (callIndex === 3) {
+        // getServiceTypeGroups
+        return {
+          data: { groups: [] },
+          loading: false,
+          error: null,
+          refetch: vi.fn(),
+          clearError: vi.fn(),
+          setData: vi.fn(),
+        };
+      }
+      if (callIndex === 4) {
         // Unfiltered business insights for custom items extraction
         return {
           data: mockBusinessInsights,
@@ -420,7 +499,7 @@ describe('BusinessInsightsPage', () => {
           setData: vi.fn(),
         };
       }
-      // Filtered business insights for display (callIndex === 4)
+      // Filtered business insights for display (callIndex === 5)
       return {
         data: mockBusinessInsights,
         loading: false,
@@ -437,5 +516,95 @@ describe('BusinessInsightsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('業務洞察')).toBeInTheDocument();
     });
+  });
+
+  it('hides group filter when no groups exist', async () => {
+    setupDefaultMocks([]); // No groups
+    renderWithRouter(<BusinessInsightsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('業務洞察')).toBeInTheDocument();
+    });
+
+    // Group filter should not be visible
+    expect(screen.queryByTestId('filter-group')).not.toBeInTheDocument();
+    // Service item filter should be visible (always shown when no groups)
+    expect(screen.getByTestId('filter-service')).toBeInTheDocument();
+  });
+
+  it('shows group filter when groups exist', async () => {
+    const mockGroups = [
+      { id: 1, name: '治療群組', display_order: 0 },
+      { id: 2, name: '檢查群組', display_order: 1 },
+    ];
+    setupDefaultMocks(mockGroups);
+    renderWithRouter(<BusinessInsightsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('業務洞察')).toBeInTheDocument();
+    });
+
+    // Group filter should be visible
+    expect(screen.getByTestId('filter-group')).toBeInTheDocument();
+    // Service item filter should not be visible initially (only when group is selected)
+    expect(screen.queryByTestId('filter-service')).not.toBeInTheDocument();
+  });
+
+  it('shows service item filter when group is selected', async () => {
+    const mockGroups = [
+      { id: 1, name: '治療群組', display_order: 0 },
+    ];
+    setupDefaultMocks(mockGroups);
+    renderWithRouter(<BusinessInsightsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('業務洞察')).toBeInTheDocument();
+    });
+
+    // Select a group
+    const groupFilter = screen.getByTestId('filter-group');
+    fireEvent.change(groupFilter, { target: { value: '1' } });
+
+    await waitFor(() => {
+      // Service item filter should appear when group is selected
+      expect(screen.getByTestId('filter-service')).toBeInTheDocument();
+    });
+  });
+
+  it('shows service breakdown when no groups exist', async () => {
+    setupDefaultMocks([]); // No groups
+    renderWithRouter(<BusinessInsightsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('業務洞察')).toBeInTheDocument();
+    });
+
+    // Service breakdown table should be visible (check for table header, not dropdown option)
+    const serviceBreakdownHeaders = screen.getAllByText('依服務項目');
+    expect(serviceBreakdownHeaders.length).toBeGreaterThan(0);
+    // Group breakdown should not be visible
+    expect(screen.queryByText('依群組')).not.toBeInTheDocument();
+  });
+
+  it('shows group breakdown when groups exist and no group is selected', async () => {
+    const mockGroups = [
+      { id: 1, name: '治療群組', display_order: 0 },
+    ];
+    setupDefaultMocks(mockGroups);
+    renderWithRouter(<BusinessInsightsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('業務洞察')).toBeInTheDocument();
+    });
+
+    // Group breakdown table should be visible (check for table header, not dropdown option)
+    const groupBreakdownHeaders = screen.getAllByText('依群組');
+    expect(groupBreakdownHeaders.length).toBeGreaterThan(0);
+    // Service breakdown should not be visible (only when group is selected)
+    // Note: "依服務項目" may appear in chart dropdown, so check for table header specifically
+    const serviceBreakdownTables = screen.queryAllByText('依服務項目').filter(
+      el => el.tagName === 'H2'
+    );
+    expect(serviceBreakdownTables.length).toBe(0);
   });
 });
