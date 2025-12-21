@@ -190,6 +190,10 @@ const SettingsServiceItemsPage: React.FC = () => {
   };
 
   const handleCloseEditModal = () => {
+    // If closing a temporary (new) item, delete it from staging store
+    if (editingItem && isTemporaryServiceItemId(editingItem.id)) {
+      deleteServiceItem(editingItem.id);
+    }
     setEditingItem(null);
   };
 

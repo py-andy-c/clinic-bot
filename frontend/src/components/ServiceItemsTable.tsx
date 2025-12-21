@@ -59,7 +59,7 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
 
   const formatDuration = (duration: number, buffer?: number): string => {
     if (buffer && buffer > 0) {
-      return `${duration} 分 (+${buffer} 分)`;
+      return `${duration} (+${buffer}) 分`;
     }
     return `${duration} 分`;
   };
