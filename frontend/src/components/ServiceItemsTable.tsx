@@ -8,6 +8,7 @@ interface ServiceItemsTableProps {
   practitionerAssignments: Record<number, number[]>; // appointmentTypeId -> practitionerIds[]
   onEdit: (appointmentType: AppointmentType) => void;
   isClinicAdmin: boolean;
+  resultCountText?: string; // Optional text to display in first column header
 }
 
 export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
@@ -16,6 +17,7 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
   practitionerAssignments,
   onEdit,
   isClinicAdmin,
+  resultCountText,
 }) => {
   const isMobile = useIsMobile();
 
@@ -84,7 +86,7 @@ export const ServiceItemsTable: React.FC<ServiceItemsTableProps> = ({
         <thead className="bg-gray-50">
           <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              服務項目
+              {resultCountText || '服務項目'}
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               群組

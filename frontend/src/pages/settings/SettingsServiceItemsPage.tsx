@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useModal } from '../../contexts/ModalContext';
 import { apiService } from '../../services/api';
@@ -7,6 +7,7 @@ import { getErrorMessage } from '../../types/api';
 import { AppointmentType, Member, ResourceRequirement } from '../../types';
 import { ClinicSettings } from '../../schemas/api';
 import { LoadingSpinner } from '../../components/shared';
+import { SearchInput } from '../../components/shared/SearchInput';
 import { ServiceItemsTable } from '../../components/ServiceItemsTable';
 import { ServiceItemEditModal } from '../../components/ServiceItemEditModal';
 import { ServiceTypeGroupManagement } from '../../components/ServiceTypeGroupManagement';
@@ -19,6 +20,7 @@ import { useUnsavedChangesDetection } from '../../hooks/useUnsavedChangesDetecti
 import { sharedFetchFunctions } from '../../services/api';
 import { isTemporaryServiceItemId, isTemporaryGroupId, isRealId } from '../../utils/idUtils';
 import { mapTemporaryIds } from '../../utils/idMappingUtils';
+import { useDebouncedSearch } from '../../utils/searchUtils';
 
 type TabType = 'service-items' | 'group-management';
 
@@ -33,8 +35,16 @@ const SettingsServiceItemsPage: React.FC = () => {
   const [settings, setSettings] = useState<ClinicSettings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
   
+  // Filter states
+  const [selectedGroupId, setSelectedGroupId] = useState<number | string | null>(null); // null = "全部", -1 = "未分類", number = specific group
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isComposing, setIsComposing] = useState(false);
+  
   const { isClinicAdmin } = useAuth();
   const { alert, confirm } = useModal();
+  
+  // Debounced search
+  const debouncedSearchQuery = useDebouncedSearch(searchQuery, 400, isComposing);
   
   const {
     serviceItems,
@@ -67,6 +77,55 @@ const SettingsServiceItemsPage: React.FC = () => {
     saveBillingScenarios,
     saveResourceRequirements,
   } = useServiceItemsStore();
+
+  // Get available groups
+  const availableGroups = getAvailableGroups();
+
+  // Filter service items based on group and search
+  const filteredItems = useMemo(() => {
+    let filtered = [...serviceItems];
+
+    // Apply group filter
+    if (selectedGroupId !== null) {
+      if (selectedGroupId === -1) {
+        // "未分類" - items with no group
+        filtered = filtered.filter(item => !item.service_type_group_id);
+      } else {
+        // Specific group
+        filtered = filtered.filter(item => item.service_type_group_id === selectedGroupId);
+      }
+    }
+
+    // Apply search filter
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.toLowerCase().trim();
+      const practitioners = members.filter(m => m.roles.includes('practitioner'));
+      
+      filtered = filtered.filter(item => {
+        // Search in service item name
+        const itemNameMatch = item.name?.toLowerCase().includes(query);
+        
+        // Search in group name
+        const group = availableGroups.find(g => g.id === item.service_type_group_id);
+        const groupNameMatch = group?.name?.toLowerCase().includes(query);
+        
+        // Search in practitioner names
+        const assignedPractitionerIds = practitionerAssignments[item.id] || [];
+        const assignedPractitioners = practitioners.filter(p => assignedPractitionerIds.includes(p.id));
+        const practitionerNameMatch = assignedPractitioners.some(p => 
+          p.full_name?.toLowerCase().includes(query)
+        );
+        
+        return itemNameMatch || groupNameMatch || practitionerNameMatch;
+      });
+    }
+
+    return filtered;
+  }, [serviceItems, selectedGroupId, debouncedSearchQuery, availableGroups, members, practitionerAssignments]);
+
+  const hasActiveFilters = selectedGroupId !== null || debouncedSearchQuery.trim() !== '';
+  const totalCount = serviceItems.length;
+  const filteredCount = filteredItems.length;
 
   // Setup navigation warnings for unsaved changes
   useUnsavedChangesDetection({ 
@@ -639,7 +698,6 @@ const SettingsServiceItemsPage: React.FC = () => {
   }
 
   const hasChanges = hasUnsavedChanges();
-  const availableGroups = getAvailableGroups();
 
   return (
     <>
@@ -698,28 +756,93 @@ const SettingsServiceItemsPage: React.FC = () => {
 
       {activeTab === 'service-items' ? (
         <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-4 md:p-6">
-          <div className="mb-4 flex justify-between items-center">
-            <h3 className="text-sm font-medium text-gray-700">
-              服務項目 (共 {serviceItems.length} 項)
-            </h3>
-            {isClinicAdmin && (
-              <button
-                type="button"
-                onClick={handleAddServiceItem}
-                className="btn-primary text-sm px-4 py-2"
+          {/* Filters */}
+          <div className="mb-4 flex flex-col md:flex-row gap-3 md:gap-4 md:items-center">
+            {/* Group Filter */}
+            <div className="flex-shrink-0">
+              <select
+                value={selectedGroupId === null ? 'placeholder' : selectedGroupId === -1 ? '-1' : String(selectedGroupId)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === 'placeholder' || value === '') {
+                    setSelectedGroupId(null);
+                  } else if (value === '-1') {
+                    setSelectedGroupId(-1);
+                  } else {
+                    setSelectedGroupId(Number(value));
+                  }
+                }}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                + 新增服務
-              </button>
+                <option value="placeholder" disabled>群組</option>
+                <option value="">全部</option>
+                {availableGroups.length > 0 && (
+                  <>
+                    <option disabled style={{ backgroundColor: '#f3f4f6', color: '#9ca3af' }}>
+                      ─────────────
+                    </option>
+                    {availableGroups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                    <option disabled style={{ backgroundColor: '#f3f4f6', color: '#9ca3af' }}>
+                      ─────────────
+                    </option>
+                    <option value="-1" style={{ color: '#6b7280' }}>
+                      未分類
+                    </option>
+                  </>
+                )}
+              </select>
+            </div>
+            
+            {/* Search Input */}
+            <div className="flex-1 min-w-0">
+              <SearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                onCompositionStart={() => setIsComposing(true)}
+                onCompositionEnd={() => setIsComposing(false)}
+                placeholder="搜尋服務、群組、人員"
+              />
+            </div>
+            
+            {/* Add Service Button */}
+            {isClinicAdmin && (
+              <div className="flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={handleAddServiceItem}
+                  className="btn-primary text-sm px-4 py-2 w-full md:w-auto"
+                >
+                  + 新增服務
+                </button>
+              </div>
             )}
           </div>
 
-          <ServiceItemsTable
-            appointmentTypes={serviceItems}
-            groups={availableGroups}
-            practitionerAssignments={practitionerAssignments}
-            onEdit={handleEditServiceItem}
-            isClinicAdmin={isClinicAdmin}
-          />
+          {/* Empty States */}
+          {totalCount === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500">尚未建立服務項目</p>
+            </div>
+          ) : filteredCount === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500">沒有符合條件的服務項目</p>
+            </div>
+          ) : (
+            <ServiceItemsTable
+              appointmentTypes={filteredItems}
+              groups={availableGroups}
+              practitionerAssignments={practitionerAssignments}
+              onEdit={handleEditServiceItem}
+              isClinicAdmin={isClinicAdmin}
+              resultCountText={hasActiveFilters
+                ? `服務項目 (共 ${totalCount} 項，顯示 ${filteredCount} 項)`
+                : `服務項目 (共 ${totalCount} 項)`}
+            />
+          )}
           </div>
       ) : (
         <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">

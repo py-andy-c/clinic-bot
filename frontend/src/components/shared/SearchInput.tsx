@@ -141,6 +141,21 @@ const SearchInputComponent = forwardRef<HTMLInputElement, SearchInputProps>(({
 
   return (
     <div className={`relative ${className}`}>
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
+        <svg
+          className="h-5 w-5 text-gray-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
+      </div>
       <input
         ref={setRef}
         type="text"
@@ -159,7 +174,7 @@ const SearchInputComponent = forwardRef<HTMLInputElement, SearchInputProps>(({
         }}
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
-        className="w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full border border-gray-300 rounded-md pl-10 pr-10 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       {hasValue && (
         <button
