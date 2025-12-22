@@ -395,36 +395,35 @@ class NotificationService:
                 logger.info(f"Patient {patient.id} has no LINE user, skipping notification")
                 return False
 
-            # Format appointment time
-            start_datetime = datetime.combine(
-                appointment.calendar_event.date,
-                appointment.calendar_event.start_time
-            )
-            formatted_datetime = format_datetime(start_datetime)
+            # Get appointment type
+            appointment_type = appointment.appointment_type
+            if not appointment_type:
+                logger.warning(f"Appointment {appointment.calendar_event_id} has no appointment type")
+                return False
 
-            # Get appointment type name
-            appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
-
-            # Build message
-            # Get practitioner name with title for external display
-            # If practitioner_name is "不指定", use it as-is (for auto-assigned appointments)
-            from utils.practitioner_helpers import get_practitioner_display_name_with_title, AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME
-            if practitioner_name == AUTO_ASSIGNED_PRACTITIONER_DISPLAY_NAME:
-                practitioner_display_name = practitioner_name
-            elif appointment.calendar_event and appointment.calendar_event.user_id:
-                practitioner_display_name = get_practitioner_display_name_with_title(
-                    db, appointment.calendar_event.user_id, clinic.id
-                )
+            # Check toggle based on trigger_source
+            if trigger_source == 'patient_triggered':
+                if not appointment_type.send_patient_confirmation:
+                    logger.info(f"Patient confirmation disabled for appointment type {appointment_type.id}, skipping")
+                    return False
+                template = appointment_type.patient_confirmation_message
+            elif trigger_source == 'clinic_triggered':
+                if not appointment_type.send_clinic_confirmation:
+                    logger.info(f"Clinic confirmation disabled for appointment type {appointment_type.id}, skipping")
+                    return False
+                template = appointment_type.clinic_confirmation_message
             else:
-                practitioner_display_name = practitioner_name
-            
-            message = f"{patient.full_name}，您的預約已建立：\n\n"
-            message += f"{formatted_datetime} - 【{appointment_type_name}】{practitioner_display_name}"
-            
-            if appointment.notes:
-                message += f"\n\n備註：{appointment.notes}"
-            
-            message += "\n\n期待為您服務！"
+                logger.warning(f"Unknown trigger_source: {trigger_source}, using clinic_triggered")
+                if not appointment_type.send_clinic_confirmation:
+                    return False
+                template = appointment_type.clinic_confirmation_message
+
+            # Render message using template
+            from services.message_template_service import MessageTemplateService
+            context = MessageTemplateService.build_confirmation_context(
+                appointment, patient, practitioner_name, clinic
+            )
+            message = MessageTemplateService.render_message(template, context)
 
             # Send notification with labels for tracking
             line_service = NotificationService._get_line_service(clinic)

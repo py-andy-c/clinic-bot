@@ -24,7 +24,7 @@ from models.calendar_event import CalendarEvent
 from models.clinic import Clinic
 from models.user_clinic_association import UserClinicAssociation
 from services.line_service import LINEService
-from utils.datetime_utils import taiwan_now, ensure_taiwan, format_datetime, TAIWAN_TZ
+from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -334,7 +334,20 @@ class ReminderService:
                     db.commit()
                     return False
 
-            # Format reminder message - get practitioner name with title for external display
+            # Check if reminder is enabled for this appointment type
+            appointment_type = appointment.appointment_type
+            if not appointment_type:
+                logger.warning(f"Appointment {appointment.calendar_event_id} has no appointment type")
+                return False
+            
+            if not appointment_type.send_reminder:
+                logger.info(f"Reminder disabled for appointment type {appointment_type.id}, skipping")
+                # Mark as sent to prevent retry
+                appointment.reminder_sent_at = taiwan_now()
+                db.commit()
+                return False
+            
+            # Get practitioner name with title for external display
             # Show "不指定" if appointment is auto-assigned
             if appointment.is_auto_assigned:
                 therapist_name = "不指定"
@@ -344,22 +357,14 @@ class ReminderService:
                 therapist_name = get_practitioner_display_name_with_title(
                     db, user.id, clinic.id
                 )
-            appointment_datetime = ensure_taiwan(datetime.combine(
-                appointment.calendar_event.date,
-                appointment.calendar_event.start_time
-            ))
-            if not appointment_datetime:
-                logger.error(f"Invalid appointment datetime for appointment {appointment.calendar_event_id}")
-                return False
-            appointment_time = format_datetime(appointment_datetime)
-            appointment_type = appointment.appointment_type.name
-
-            message = self.format_reminder_message(
-                appointment_type=appointment_type,
-                appointment_time=appointment_time,
-                therapist_name=therapist_name,
-                clinic=clinic
+            
+            # Render message using template
+            from services.message_template_service import MessageTemplateService
+            template = appointment_type.reminder_message
+            context = MessageTemplateService.build_reminder_context(
+                appointment, appointment.patient, therapist_name, clinic
             )
+            message = MessageTemplateService.render_message(template, context)
 
             # Send reminder via LINE with labels for tracking
             labels = {

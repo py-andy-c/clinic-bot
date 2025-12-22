@@ -168,11 +168,22 @@ class TestAutoAssignmentVisibilityPrinciple:
             db_session, clinic, "practitioner2@test.com", "p2_google", "Dr. Two", ["practitioner"]
         )
 
+        from core.message_template_constants import (
+            DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            DEFAULT_REMINDER_MESSAGE
+        )
         appointment_type = AppointmentType(
             clinic_id=clinic.id,
             name="Test Service",
             duration_minutes=30,
-            is_deleted=False
+            is_deleted=False,
+            send_patient_confirmation=False,  # Disabled to match old behavior for existing tests
+            send_clinic_confirmation=True,
+            send_reminder=True,
+            patient_confirmation_message=DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            clinic_confirmation_message=DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            reminder_message=DEFAULT_REMINDER_MESSAGE
         )
         db_session.add(appointment_type)
         db_session.commit()
@@ -341,11 +352,22 @@ class TestPatientNotificationsOnCreation:
             db_session, clinic, "practitioner2@test.com", "p2_google", "Dr. Two", ["practitioner"]
         )
 
+        from core.message_template_constants import (
+            DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            DEFAULT_REMINDER_MESSAGE
+        )
         appointment_type = AppointmentType(
             clinic_id=clinic.id,
             name="Test Service",
             duration_minutes=30,
-            is_deleted=False
+            is_deleted=False,
+            send_patient_confirmation=False,  # Disabled to match old behavior for existing tests
+            send_clinic_confirmation=True,
+            send_reminder=True,
+            patient_confirmation_message=DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            clinic_confirmation_message=DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            reminder_message=DEFAULT_REMINDER_MESSAGE
         )
         db_session.add(appointment_type)
         db_session.commit()
@@ -400,11 +422,22 @@ class TestPatientPerspectiveOnAutoAssignment:
             db_session, clinic, "practitioner2@test.com", "p2_google", "Dr. Two", ["practitioner"]
         )
 
+        from core.message_template_constants import (
+            DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            DEFAULT_REMINDER_MESSAGE
+        )
         appointment_type = AppointmentType(
             clinic_id=clinic.id,
             name="Test Service",
             duration_minutes=30,
-            is_deleted=False
+            is_deleted=False,
+            send_patient_confirmation=False,  # Disabled to match old behavior for existing tests
+            send_clinic_confirmation=True,
+            send_reminder=True,
+            patient_confirmation_message=DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            clinic_confirmation_message=DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            reminder_message=DEFAULT_REMINDER_MESSAGE
         )
         db_session.add(appointment_type)
         db_session.commit()
@@ -692,11 +725,22 @@ class TestPatientEditingScenarios:
             db_session, clinic, "practitioner2@test.com", "p2_google", "Dr. Two", ["practitioner"]
         )
 
+        from core.message_template_constants import (
+            DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            DEFAULT_REMINDER_MESSAGE
+        )
         appointment_type = AppointmentType(
             clinic_id=clinic.id,
             name="Test Service",
             duration_minutes=30,
-            is_deleted=False
+            is_deleted=False,
+            send_patient_confirmation=False,  # Disabled to match old behavior for existing tests
+            send_clinic_confirmation=True,
+            send_reminder=True,
+            patient_confirmation_message=DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            clinic_confirmation_message=DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            reminder_message=DEFAULT_REMINDER_MESSAGE
         )
         db_session.add(appointment_type)
         db_session.commit()
@@ -849,11 +893,22 @@ class TestEdgeCases:
             db_session, clinic, "practitioner2@test.com", "p2_google", "Dr. Two", ["practitioner"]
         )
 
+        from core.message_template_constants import (
+            DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            DEFAULT_REMINDER_MESSAGE
+        )
         appointment_type = AppointmentType(
             clinic_id=clinic.id,
             name="Test Service",
             duration_minutes=30,
-            is_deleted=False
+            is_deleted=False,
+            send_patient_confirmation=False,  # Disabled to match old behavior for existing tests
+            send_clinic_confirmation=True,
+            send_reminder=True,
+            patient_confirmation_message=DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            clinic_confirmation_message=DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            reminder_message=DEFAULT_REMINDER_MESSAGE
         )
         db_session.add(appointment_type)
         db_session.commit()
@@ -1230,11 +1285,22 @@ class TestAdditionalScenarios:
             db_session, clinic, "practitioner2@test.com", "p2_google", "Dr. Two", ["practitioner"]
         )
 
+        from core.message_template_constants import (
+            DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            DEFAULT_REMINDER_MESSAGE
+        )
         appointment_type = AppointmentType(
             clinic_id=clinic.id,
             name="Test Service",
             duration_minutes=30,
-            is_deleted=False
+            is_deleted=False,
+            send_patient_confirmation=False,  # Disabled to match old behavior for existing tests
+            send_clinic_confirmation=True,
+            send_reminder=True,
+            patient_confirmation_message=DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            clinic_confirmation_message=DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            reminder_message=DEFAULT_REMINDER_MESSAGE
         )
         db_session.add(appointment_type)
         db_session.commit()
@@ -1468,11 +1534,22 @@ class TestAdminEditingManuallyAssignedAppointments:
             db_session, clinic, "practitioner2@test.com", "p2_google", "Dr. Two", ["practitioner"]
         )
 
+        from core.message_template_constants import (
+            DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            DEFAULT_REMINDER_MESSAGE
+        )
         appointment_type = AppointmentType(
             clinic_id=clinic.id,
             name="Test Service",
             duration_minutes=30,
-            is_deleted=False
+            is_deleted=False,
+            send_patient_confirmation=False,  # Disabled to match old behavior for existing tests
+            send_clinic_confirmation=True,
+            send_reminder=True,
+            patient_confirmation_message=DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            clinic_confirmation_message=DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            reminder_message=DEFAULT_REMINDER_MESSAGE
         )
         db_session.add(appointment_type)
         db_session.commit()
@@ -1590,11 +1667,22 @@ class TestAdminEditingAutoAssignedBothChanges:
             db_session, clinic, "practitioner2@test.com", "p2_google", "Dr. Two", ["practitioner"]
         )
 
+        from core.message_template_constants import (
+            DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            DEFAULT_REMINDER_MESSAGE
+        )
         appointment_type = AppointmentType(
             clinic_id=clinic.id,
             name="Test Service",
             duration_minutes=30,
-            is_deleted=False
+            is_deleted=False,
+            send_patient_confirmation=False,  # Disabled to match old behavior for existing tests
+            send_clinic_confirmation=True,
+            send_reminder=True,
+            patient_confirmation_message=DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            clinic_confirmation_message=DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            reminder_message=DEFAULT_REMINDER_MESSAGE
         )
         db_session.add(appointment_type)
         db_session.commit()
@@ -2063,11 +2151,22 @@ class TestPatientCancellationNotifications:
             db_session, clinic, "practitioner2@test.com", "p2_google", "Dr. Two", ["practitioner"]
         )
 
+        from core.message_template_constants import (
+            DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            DEFAULT_REMINDER_MESSAGE
+        )
         appointment_type = AppointmentType(
             clinic_id=clinic.id,
             name="Test Service",
             duration_minutes=30,
-            is_deleted=False
+            is_deleted=False,
+            send_patient_confirmation=False,  # Disabled to match old behavior for existing tests
+            send_clinic_confirmation=True,
+            send_reminder=True,
+            patient_confirmation_message=DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            clinic_confirmation_message=DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            reminder_message=DEFAULT_REMINDER_MESSAGE
         )
         db_session.add(appointment_type)
         db_session.commit()
@@ -2199,11 +2298,22 @@ class TestClinicAdminMustSpecifyPractitioner:
             db_session, clinic, "practitioner2@test.com", "p2_google", "Dr. Two", ["practitioner"]
         )
 
+        from core.message_template_constants import (
+            DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            DEFAULT_REMINDER_MESSAGE
+        )
         appointment_type = AppointmentType(
             clinic_id=clinic.id,
             name="Test Service",
             duration_minutes=30,
-            is_deleted=False
+            is_deleted=False,
+            send_patient_confirmation=False,  # Disabled to match old behavior for existing tests
+            send_clinic_confirmation=True,
+            send_reminder=True,
+            patient_confirmation_message=DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+            clinic_confirmation_message=DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+            reminder_message=DEFAULT_REMINDER_MESSAGE
         )
         db_session.add(appointment_type)
         db_session.commit()

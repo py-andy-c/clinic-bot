@@ -51,6 +51,13 @@ class AppointmentTypeResponse(BaseModel):
     scheduling_buffer_minutes: int = 0
     service_type_group_id: Optional[int] = None
     display_order: int = 0
+    # Message customization fields
+    send_patient_confirmation: bool = True
+    send_clinic_confirmation: bool = True
+    send_reminder: bool = True
+    patient_confirmation_message: str
+    clinic_confirmation_message: str
+    reminder_message: str
 
 
 class AppointmentTypeListResponse(BaseModel):

@@ -283,15 +283,16 @@ class AppointmentService:
                         )
 
                 # Send patient confirmation notification
-                # Skip if: (1) patient triggered the creation (they already see confirmation in UI), OR (2) auto-assigned (will get reminder anyway)
-                should_send_confirmation = (
+                # For clinic-triggered: send if not auto-assigned (will get reminder anyway)
+                # For patient-triggered: send if appointment type allows it (check toggle)
+                should_send_clinic_confirmation = (
                     patient and 
                     patient.line_user and 
                     line_user_id is None and  # Only send if clinic triggered (not patient)
                     not was_auto_assigned  # Skip for auto-assigned appointments
                 )
                 
-                if should_send_confirmation:
+                if should_send_clinic_confirmation:
                     # Get practitioner name for notification with fallback logic
                     practitioner_name_for_notification = get_practitioner_name_for_notification(
                         db=db,
@@ -306,6 +307,23 @@ class AppointmentService:
                     NotificationService.send_appointment_confirmation(
                         db, appointment, practitioner_name_for_notification, clinic, trigger_source='clinic_triggered'
                     )
+                
+                # Send patient-triggered confirmation if enabled (when line_user_id is provided)
+                if line_user_id and patient and patient.line_user and appointment.appointment_type:
+                    if appointment.appointment_type.send_patient_confirmation:
+                        # Get practitioner name for notification with fallback logic
+                        practitioner_name_for_notification = get_practitioner_name_for_notification(
+                            db=db,
+                            practitioner_id=assigned_practitioner_id,
+                            clinic_id=clinic_id,
+                            was_auto_assigned=was_auto_assigned,
+                            practitioner=practitioner
+                        )
+                        
+                        # Send patient-triggered confirmation
+                        NotificationService.send_appointment_confirmation(
+                            db, appointment, practitioner_name_for_notification, clinic, trigger_source='patient_triggered'
+                        )
 
             logger.info(f"Created appointment {appointment.calendar_event_id} for patient {patient_id}")
 

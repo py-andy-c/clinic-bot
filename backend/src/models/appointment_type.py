@@ -14,6 +14,24 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from core.database import Base
 
 
+def _get_default_patient_confirmation_message() -> str:
+    """Get default patient confirmation message."""
+    from core.message_template_constants import DEFAULT_PATIENT_CONFIRMATION_MESSAGE
+    return DEFAULT_PATIENT_CONFIRMATION_MESSAGE
+
+
+def _get_default_clinic_confirmation_message() -> str:
+    """Get default clinic confirmation message."""
+    from core.message_template_constants import DEFAULT_CLINIC_CONFIRMATION_MESSAGE
+    return DEFAULT_CLINIC_CONFIRMATION_MESSAGE
+
+
+def _get_default_reminder_message() -> str:
+    """Get default reminder message."""
+    from core.message_template_constants import DEFAULT_REMINDER_MESSAGE
+    return DEFAULT_REMINDER_MESSAGE
+
+
 class AppointmentType(Base):
     """
     Appointment type entity representing a service or treatment offered by a clinic.
@@ -63,6 +81,25 @@ class AppointmentType(Base):
 
     deleted_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     """Timestamp when the appointment type was soft deleted (if applicable)."""
+
+    # Message customization fields
+    send_patient_confirmation: Mapped[bool] = mapped_column(default=True)
+    """Whether to send confirmation message when patient books via LIFF. Default: true for new items."""
+    
+    send_clinic_confirmation: Mapped[bool] = mapped_column(default=True)
+    """Whether to send confirmation message when clinic creates appointment. Default: true."""
+    
+    send_reminder: Mapped[bool] = mapped_column(default=True)
+    """Whether to send reminder message before appointment. Default: true."""
+    
+    patient_confirmation_message: Mapped[str] = mapped_column(Text, nullable=False, default=_get_default_patient_confirmation_message)
+    """Message template for patient-triggered confirmation. Always populated with text."""
+    
+    clinic_confirmation_message: Mapped[str] = mapped_column(Text, nullable=False, default=_get_default_clinic_confirmation_message)
+    """Message template for clinic-triggered confirmation. Always populated with text."""
+    
+    reminder_message: Mapped[str] = mapped_column(Text, nullable=False, default=_get_default_reminder_message)
+    """Message template for reminder. Always populated with text."""
 
     # Relationships
     clinic = relationship("Clinic", back_populates="appointment_types")

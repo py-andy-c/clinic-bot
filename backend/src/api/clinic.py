@@ -11,7 +11,7 @@ import math
 import re
 import secrets
 from datetime import datetime, timedelta, date as date_type, time
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any, Union, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi import status as http_status
@@ -753,7 +753,13 @@ async def get_settings(
                 description=at.description,
                 scheduling_buffer_minutes=at.scheduling_buffer_minutes,
                 service_type_group_id=at.service_type_group_id,
-                display_order=at.display_order
+                display_order=at.display_order,
+                send_patient_confirmation=at.send_patient_confirmation,
+                send_clinic_confirmation=at.send_clinic_confirmation,
+                send_reminder=at.send_reminder,
+                patient_confirmation_message=at.patient_confirmation_message,
+                clinic_confirmation_message=at.clinic_confirmation_message,
+                reminder_message=at.reminder_message
             )
             for at in appointment_types
         ]
@@ -1173,6 +1179,19 @@ async def update_settings(
                     existing.service_type_group_id = at_data.get("service_type_group_id")
                 if "display_order" in at_data:
                     existing.display_order = at_data.get("display_order", 0)
+                # Update message settings if provided
+                if "send_patient_confirmation" in at_data:
+                    existing.send_patient_confirmation = at_data.get("send_patient_confirmation", True)
+                if "send_clinic_confirmation" in at_data:
+                    existing.send_clinic_confirmation = at_data.get("send_clinic_confirmation", True)
+                if "send_reminder" in at_data:
+                    existing.send_reminder = at_data.get("send_reminder", True)
+                if "patient_confirmation_message" in at_data:
+                    existing.patient_confirmation_message = at_data.get("patient_confirmation_message")
+                if "clinic_confirmation_message" in at_data:
+                    existing.clinic_confirmation_message = at_data.get("clinic_confirmation_message")
+                if "reminder_message" in at_data:
+                    existing.reminder_message = at_data.get("reminder_message")
             else:
                 # Create new
                 # Handle None as missing value (default to True)
@@ -1185,6 +1204,21 @@ async def update_settings(
                 ).scalar()
                 default_display_order = (max_order + 1) if max_order is not None else 0
                 
+                # Import default message constants
+                from core.message_template_constants import (
+                    DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+                    DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+                    DEFAULT_REMINDER_MESSAGE
+                )
+                
+                # Get message settings from request or use defaults
+                send_patient_confirmation = at_data.get("send_patient_confirmation", True)
+                send_clinic_confirmation = at_data.get("send_clinic_confirmation", True)
+                send_reminder = at_data.get("send_reminder", True)
+                patient_confirmation_message = at_data.get("patient_confirmation_message", DEFAULT_PATIENT_CONFIRMATION_MESSAGE)
+                clinic_confirmation_message = at_data.get("clinic_confirmation_message", DEFAULT_CLINIC_CONFIRMATION_MESSAGE)
+                reminder_message = at_data.get("reminder_message", DEFAULT_REMINDER_MESSAGE)
+                
                 appointment_type = AppointmentType(
                     clinic_id=clinic_id,
                     name=name,
@@ -1195,7 +1229,13 @@ async def update_settings(
                     description=at_data.get("description"),
                     scheduling_buffer_minutes=at_data.get("scheduling_buffer_minutes", 0),
                     service_type_group_id=at_data.get("service_type_group_id"),
-                    display_order=at_data.get("display_order", default_display_order)
+                    display_order=at_data.get("display_order", default_display_order),
+                    send_patient_confirmation=send_patient_confirmation,
+                    send_clinic_confirmation=send_clinic_confirmation,
+                    send_reminder=send_reminder,
+                    patient_confirmation_message=patient_confirmation_message,
+                    clinic_confirmation_message=clinic_confirmation_message,
+                    reminder_message=reminder_message
                 )
                 db.add(appointment_type)
                 # Log appointment type creation for debugging (only in development)
@@ -1225,6 +1265,45 @@ async def update_settings(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid settings format: {str(e)}"
                 )
+
+        # Validate message fields: if toggle is ON, message must be non-empty and within character limit
+        all_appointment_types = db.query(AppointmentType).filter(
+            AppointmentType.clinic_id == clinic_id
+        ).all()
+        for at in all_appointment_types:
+            if at.send_patient_confirmation:
+                if not at.patient_confirmation_message or not at.patient_confirmation_message.strip():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"服務項目「{at.name}」：啟用病患確認訊息時，訊息範本為必填"
+                    )
+                if len(at.patient_confirmation_message) > 3500:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"服務項目「{at.name}」：病患確認訊息範本長度超過限制（3500字元）"
+                    )
+            if at.send_clinic_confirmation:
+                if not at.clinic_confirmation_message or not at.clinic_confirmation_message.strip():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"服務項目「{at.name}」：啟用診所確認訊息時，訊息範本為必填"
+                    )
+                if len(at.clinic_confirmation_message) > 3500:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"服務項目「{at.name}」：診所確認訊息範本長度超過限制（3500字元）"
+                    )
+            if at.send_reminder:
+                if not at.reminder_message or not at.reminder_message.strip():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"服務項目「{at.name}」：啟用提醒訊息時，訊息範本為必填"
+                    )
+                if len(at.reminder_message) > 3500:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"服務項目「{at.name}」：提醒訊息範本長度超過限制（3500字元）"
+                    )
 
         db.commit()
 
@@ -1440,6 +1519,110 @@ async def generate_cancellation_preview(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法產生取消預覽訊息"
+        )
+
+
+class MessagePreviewRequest(BaseModel):
+    """Request model for appointment message preview."""
+    appointment_type_id: int
+    message_type: Literal["patient_confirmation", "clinic_confirmation", "reminder"] = Field(..., description="Message type")
+    template: Optional[str] = Field(None, description="Optional template to preview (if not provided, uses stored template from appointment_type)")
+
+
+@router.post("/appointment-message-preview", summary="Preview appointment message")
+async def preview_appointment_message(
+    request: MessagePreviewRequest,
+    current_user: UserContext = Depends(require_authenticated),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Preview appointment message with actual context data.
+    
+    Uses actual context: current user as practitioner, actual service item name, real clinic data.
+    Returns preview message, used placeholders, and completeness warnings.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        if not clinic_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="使用者不屬於任何診所"
+            )
+        
+        # Validate appointment_type_id belongs to clinic
+        appointment_type = db.query(AppointmentType).filter(
+            AppointmentType.id == request.appointment_type_id,
+            AppointmentType.clinic_id == clinic_id
+        ).first()
+        if not appointment_type:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="服務項目不存在"
+            )
+        
+        clinic = db.query(Clinic).get(clinic_id)
+        if not clinic:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="診所不存在"
+            )
+        
+        # Get message template from request or from appointment_type
+        if request.template is not None:
+            template = request.template
+            # Validate template length
+            if len(template) > 3500:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="訊息範本長度超過限制"
+                )
+        else:
+            # Get template from appointment_type based on message_type
+            if request.message_type == "patient_confirmation":
+                template = appointment_type.patient_confirmation_message
+            elif request.message_type == "clinic_confirmation":
+                template = appointment_type.clinic_confirmation_message
+            elif request.message_type == "reminder":
+                template = appointment_type.reminder_message
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="無效的訊息類型"
+                )
+        
+        # Build preview context using actual data
+        from services.message_template_service import MessageTemplateService
+        context = MessageTemplateService.build_preview_context(
+            appointment_type=appointment_type,
+            current_user=current_user,
+            clinic=clinic,
+            db=db
+        )
+        
+        # Render message
+        preview_message = MessageTemplateService.render_message(template, context)
+        
+        # Extract used placeholders
+        used_placeholders = MessageTemplateService.extract_used_placeholders(template, context)
+        
+        # Validate placeholder completeness
+        completeness_warnings = MessageTemplateService.validate_placeholder_completeness(
+            template, context, clinic
+        )
+        
+        return {
+            "preview_message": preview_message,
+            "used_placeholders": used_placeholders,
+            "completeness_warnings": completeness_warnings
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error generating appointment message preview: {e}")
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="無法產生預覽訊息"
         )
 
 
