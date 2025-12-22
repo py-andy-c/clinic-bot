@@ -961,6 +961,15 @@ async def update_settings(
     try:
         # Ensure clinic_id is set
         clinic_id = ensure_clinic_access(current_user)
+        
+        # Helper function to get message or default value
+        def get_message_or_default(raw_message: str | None, default_message: str, toggle_on: bool) -> str:
+            """Get message from request or use default if empty/whitespace."""
+            if toggle_on:
+                if not raw_message or (isinstance(raw_message, str) and not raw_message.strip()):
+                    return default_message
+                return raw_message
+            return raw_message if raw_message else default_message
 
         # Update appointment types
         appointment_types_data = settings.get("appointment_types", [])
@@ -1057,6 +1066,22 @@ async def update_settings(
         # Track which (name, duration) combinations we've processed
         processed_combinations: set[tuple[str, int]] = set()
         
+        # Helper function to update message customization fields
+        def update_message_fields(appointment_type: AppointmentType, incoming_data: Dict[str, Any]) -> None:
+            """Update message customization fields from incoming data if provided."""
+            if "send_patient_confirmation" in incoming_data:
+                appointment_type.send_patient_confirmation = incoming_data.get("send_patient_confirmation", True)
+            if "send_clinic_confirmation" in incoming_data:
+                appointment_type.send_clinic_confirmation = incoming_data.get("send_clinic_confirmation", True)
+            if "send_reminder" in incoming_data:
+                appointment_type.send_reminder = incoming_data.get("send_reminder", True)
+            if "patient_confirmation_message" in incoming_data:
+                appointment_type.patient_confirmation_message = incoming_data.get("patient_confirmation_message")
+            if "clinic_confirmation_message" in incoming_data:
+                appointment_type.clinic_confirmation_message = incoming_data.get("clinic_confirmation_message")
+            if "reminder_message" in incoming_data:
+                appointment_type.reminder_message = incoming_data.get("reminder_message")
+        
         # First, update existing types that are matched by ID
         for existing_type in existing_appointment_types:
             if existing_type.id in types_being_updated:
@@ -1086,6 +1111,8 @@ async def update_settings(
                     existing_type.service_type_group_id = incoming_data.get("service_type_group_id")
                 if "display_order" in incoming_data:
                     existing_type.display_order = incoming_data.get("display_order", 0)
+                # Update message customization fields if provided
+                update_message_fields(existing_type, incoming_data)
                 if existing_type.is_deleted:
                     existing_type.is_deleted = False
                     existing_type.deleted_at = None
@@ -1112,6 +1139,8 @@ async def update_settings(
                     existing_type.service_type_group_id = incoming_data.get("service_type_group_id")
                 if "display_order" in incoming_data:
                     existing_type.display_order = incoming_data.get("display_order", 0)
+                # Update message customization fields if provided
+                update_message_fields(existing_type, incoming_data)
                 if existing_type.is_deleted:
                     existing_type.is_deleted = False
                     existing_type.deleted_at = None
@@ -1124,6 +1153,8 @@ async def update_settings(
                     existing_type.service_type_group_id = incoming_data.get("service_type_group_id")
                 if "display_order" in incoming_data:
                     existing_type.display_order = incoming_data.get("display_order", 0)
+                # Update message customization fields if provided
+                update_message_fields(existing_type, incoming_data)
                 if existing_type.is_deleted:
                     existing_type.is_deleted = False
                     existing_type.deleted_at = None
@@ -1215,9 +1246,24 @@ async def update_settings(
                 send_patient_confirmation = at_data.get("send_patient_confirmation", True)
                 send_clinic_confirmation = at_data.get("send_clinic_confirmation", True)
                 send_reminder = at_data.get("send_reminder", True)
-                patient_confirmation_message = at_data.get("patient_confirmation_message", DEFAULT_PATIENT_CONFIRMATION_MESSAGE)
-                clinic_confirmation_message = at_data.get("clinic_confirmation_message", DEFAULT_CLINIC_CONFIRMATION_MESSAGE)
-                reminder_message = at_data.get("reminder_message", DEFAULT_REMINDER_MESSAGE)
+                
+                # For messages: use default if not provided, empty, or whitespace
+                # This handles cases where frontend sends empty string '' or None
+                patient_confirmation_message = get_message_or_default(
+                    at_data.get("patient_confirmation_message"),
+                    DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+                    send_patient_confirmation
+                )
+                clinic_confirmation_message = get_message_or_default(
+                    at_data.get("clinic_confirmation_message"),
+                    DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+                    send_clinic_confirmation
+                )
+                reminder_message = get_message_or_default(
+                    at_data.get("reminder_message"),
+                    DEFAULT_REMINDER_MESSAGE,
+                    send_reminder
+                )
                 
                 appointment_type = AppointmentType(
                     clinic_id=clinic_id,
@@ -1267,8 +1313,10 @@ async def update_settings(
                 )
 
         # Validate message fields: if toggle is ON, message must be non-empty and within character limit
+        # Only validate active (non-deleted) appointment types
         all_appointment_types = db.query(AppointmentType).filter(
-            AppointmentType.clinic_id == clinic_id
+            AppointmentType.clinic_id == clinic_id,
+            AppointmentType.is_deleted == False
         ).all()
         for at in all_appointment_types:
             if at.send_patient_confirmation:
@@ -1549,10 +1597,11 @@ async def preview_appointment_message(
                 detail="使用者不屬於任何診所"
             )
         
-        # Validate appointment_type_id belongs to clinic
+        # Validate appointment_type_id belongs to clinic (exclude soft-deleted)
         appointment_type = db.query(AppointmentType).filter(
             AppointmentType.id == request.appointment_type_id,
-            AppointmentType.clinic_id == clinic_id
+            AppointmentType.clinic_id == clinic_id,
+            AppointmentType.is_deleted == False
         ).first()
         if not appointment_type:
             raise HTTPException(
@@ -7035,10 +7084,11 @@ async def get_resource_requirements(
     try:
         clinic_id = ensure_clinic_access(current_user)
         
-        # Verify appointment type belongs to clinic
+        # Verify appointment type belongs to clinic (exclude soft-deleted)
         appointment_type = db.query(AppointmentType).filter(
             AppointmentType.id == appointment_type_id,
-            AppointmentType.clinic_id == clinic_id
+            AppointmentType.clinic_id == clinic_id,
+            AppointmentType.is_deleted == False
         ).first()
         
         if not appointment_type:
@@ -7088,10 +7138,11 @@ async def create_resource_requirement(
     try:
         clinic_id = ensure_clinic_access(current_user)
         
-        # Verify appointment type belongs to clinic
+        # Verify appointment type belongs to clinic (exclude soft-deleted)
         appointment_type = db.query(AppointmentType).filter(
             AppointmentType.id == appointment_type_id,
-            AppointmentType.clinic_id == clinic_id
+            AppointmentType.clinic_id == clinic_id,
+            AppointmentType.is_deleted == False
         ).first()
         
         if not appointment_type:
@@ -7660,7 +7711,8 @@ async def bulk_update_appointment_type_order(
             
             service = db.query(AppointmentType).filter(
                 AppointmentType.id == service_id,
-                AppointmentType.clinic_id == clinic_id
+                AppointmentType.clinic_id == clinic_id,
+                AppointmentType.is_deleted == False
             ).first()
             
             if service:

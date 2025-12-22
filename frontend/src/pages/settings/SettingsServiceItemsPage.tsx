@@ -21,6 +21,11 @@ import { sharedFetchFunctions } from '../../services/api';
 import { isTemporaryServiceItemId, isTemporaryGroupId, isRealId } from '../../utils/idUtils';
 import { mapTemporaryIds } from '../../utils/idMappingUtils';
 import { useDebouncedSearch } from '../../utils/searchUtils';
+import {
+  DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+  DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+  DEFAULT_REMINDER_MESSAGE,
+} from '../../constants/messageTemplates';
 
 type TabType = 'service-items' | 'group-management';
 
@@ -213,6 +218,13 @@ const SettingsServiceItemsPage: React.FC = () => {
       scheduling_buffer_minutes: 0,
       service_type_group_id: undefined,
       display_order: maxOrder + 1,
+      // Set default message customization values (matches backend defaults)
+      send_patient_confirmation: true,
+      send_clinic_confirmation: true,
+      send_reminder: true,
+      patient_confirmation_message: DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
+      clinic_confirmation_message: DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
+      reminder_message: DEFAULT_REMINDER_MESSAGE,
     };
     
     addServiceItem(newType);
@@ -501,6 +513,26 @@ const SettingsServiceItemsPage: React.FC = () => {
     // For new items (temporary IDs), omit id so backend assigns it
     // For existing items, include id
     const serviceItemsToSave = serviceItemsWithMappedGroups.map(item => {
+      // Ensure messages are set to defaults if toggle is ON and message is empty
+      const sendPatientConfirmation = item.send_patient_confirmation ?? true;
+      const sendClinicConfirmation = item.send_clinic_confirmation ?? true;
+      const sendReminder = item.send_reminder ?? true;
+      
+      let patientConfirmationMessage = item.patient_confirmation_message || '';
+      if (sendPatientConfirmation && (!patientConfirmationMessage || !patientConfirmationMessage.trim())) {
+        patientConfirmationMessage = DEFAULT_PATIENT_CONFIRMATION_MESSAGE;
+      }
+      
+      let clinicConfirmationMessage = item.clinic_confirmation_message || '';
+      if (sendClinicConfirmation && (!clinicConfirmationMessage || !clinicConfirmationMessage.trim())) {
+        clinicConfirmationMessage = DEFAULT_CLINIC_CONFIRMATION_MESSAGE;
+      }
+      
+      let reminderMessage = item.reminder_message || '';
+      if (sendReminder && (!reminderMessage || !reminderMessage.trim())) {
+        reminderMessage = DEFAULT_REMINDER_MESSAGE;
+      }
+      
       const baseItem = {
         clinic_id: item.clinic_id,
         name: item.name,
@@ -513,12 +545,12 @@ const SettingsServiceItemsPage: React.FC = () => {
         service_type_group_id: item.service_type_group_id || null,
         display_order: item.display_order || 0,
         // Message customization fields
-        send_patient_confirmation: item.send_patient_confirmation ?? true,
-        send_clinic_confirmation: item.send_clinic_confirmation ?? true,
-        send_reminder: item.send_reminder ?? true,
-        patient_confirmation_message: item.patient_confirmation_message || '',
-        clinic_confirmation_message: item.clinic_confirmation_message || '',
-        reminder_message: item.reminder_message || '',
+        send_patient_confirmation: sendPatientConfirmation,
+        send_clinic_confirmation: sendClinicConfirmation,
+        send_reminder: sendReminder,
+        patient_confirmation_message: patientConfirmationMessage,
+        clinic_confirmation_message: clinicConfirmationMessage,
+        reminder_message: reminderMessage,
       };
       
       // Only include id for existing items

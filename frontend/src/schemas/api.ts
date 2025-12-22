@@ -141,6 +141,13 @@ export const AppointmentTypeSchema = z.object({
   scheduling_buffer_minutes: z.number().optional(),
   service_type_group_id: z.number().nullable().optional(),
   display_order: z.number().optional(),
+  // Message customization fields
+  send_patient_confirmation: z.boolean().optional(),
+  send_clinic_confirmation: z.boolean().optional(),
+  send_reminder: z.boolean().optional(),
+  patient_confirmation_message: z.string().optional(),
+  clinic_confirmation_message: z.string().optional(),
+  reminder_message: z.string().optional(),
 });
 
 export const ClinicSettingsSchema = z.object({

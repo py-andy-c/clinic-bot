@@ -52,14 +52,24 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
     const toggleKey = `send_${type}` as keyof AppointmentType;
     const messageKey = `${type}_message` as keyof AppointmentType;
     
-    // For new items: patient_confirmation defaults to true (database default)
-    // For existing items: patient_confirmation defaults to false (migration behavior)
-    const defaultToggle = type === 'patient_confirmation' 
-      ? (isNewItem ? true : false)
-      : true;
-    
+    // Get raw toggle value from appointmentType
+    // Check both the direct property and if it exists in the object
     const rawToggle = appointmentType[toggleKey] as boolean | undefined;
-    const toggle = rawToggle ?? defaultToggle;
+    
+    // Default logic: only use defaults if value is actually undefined
+    // For patient_confirmation on existing items, migration set it to false, but if user changed it to true, respect that
+    let defaultToggle: boolean;
+    if (type === 'patient_confirmation' && !isNewItem) {
+      // For existing items, if value is undefined, default to false (migration behavior)
+      // But if value is explicitly set (true or false), use that value
+      defaultToggle = false;
+    } else {
+      defaultToggle = true;
+    }
+    
+    // Use raw value if present (including false), otherwise use default
+    // This ensures that if database has true, we use true, not the default
+    const toggle = rawToggle !== undefined ? rawToggle : defaultToggle;
     let message = appointmentType[messageKey] as string | undefined;
     
     if (!message || message.trim() === '') {
@@ -88,6 +98,28 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
     
     if (field === 'toggle') {
       (updated as any)[`send_${type}`] = value as boolean;
+      
+      // Safety net: If toggle is turned ON and message is empty, auto-set default
+      if (value === true) {
+        const messageKey = `${type}_message` as keyof AppointmentType;
+        const currentMessage = updated[messageKey] as string | undefined;
+        
+        if (!currentMessage || currentMessage.trim() === '') {
+          let defaultMessage = '';
+          switch (type) {
+            case 'patient_confirmation':
+              defaultMessage = DEFAULT_PATIENT_CONFIRMATION_MESSAGE;
+              break;
+            case 'clinic_confirmation':
+              defaultMessage = DEFAULT_CLINIC_CONFIRMATION_MESSAGE;
+              break;
+            case 'reminder':
+              defaultMessage = DEFAULT_REMINDER_MESSAGE;
+              break;
+          }
+          (updated as any)[messageKey] = defaultMessage;
+        }
+      }
     } else {
       (updated as any)[`${type}_message`] = value as string;
     }
