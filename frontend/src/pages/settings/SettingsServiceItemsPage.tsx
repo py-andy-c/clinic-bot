@@ -262,7 +262,11 @@ const SettingsServiceItemsPage: React.FC = () => {
 
   const handleUpdateServiceItem = React.useCallback((updatedItem: AppointmentType) => {
     updateServiceItem(updatedItem.id, updatedItem);
-  }, [updateServiceItem]);
+    // Sync editingItem with the updated value immediately
+    if (editingItem && editingItem.id === updatedItem.id) {
+      setEditingItem(updatedItem);
+    }
+  }, [updateServiceItem, editingItem]);
 
   // Drag and drop handlers for service items
   const handleDragStart = (e: React.DragEvent, itemId: number) => {

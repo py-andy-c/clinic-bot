@@ -3642,7 +3642,13 @@ async def get_practitioner_appointment_types(
                     receipt_name=at.receipt_name,
                     allow_patient_booking=at.allow_patient_booking,
                     description=at.description,
-                    scheduling_buffer_minutes=at.scheduling_buffer_minutes
+                    scheduling_buffer_minutes=at.scheduling_buffer_minutes,
+                    send_patient_confirmation=at.send_patient_confirmation,
+                    send_clinic_confirmation=at.send_clinic_confirmation,
+                    send_reminder=at.send_reminder,
+                    patient_confirmation_message=at.patient_confirmation_message,
+                    clinic_confirmation_message=at.clinic_confirmation_message,
+                    reminder_message=at.reminder_message
                 ) for at in appointment_types
             ]
         )

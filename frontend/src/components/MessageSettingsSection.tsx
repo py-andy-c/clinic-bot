@@ -58,7 +58,8 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
       ? (isNewItem ? true : false)
       : true;
     
-    const toggle = appointmentType[toggleKey] as boolean | undefined ?? defaultToggle;
+    const rawToggle = appointmentType[toggleKey] as boolean | undefined;
+    const toggle = rawToggle ?? defaultToggle;
     let message = appointmentType[messageKey] as string | undefined;
     
     if (!message || message.trim() === '') {
@@ -159,13 +160,13 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
     return (
       <div key={type} className="border border-gray-200 rounded-lg overflow-hidden" data-message-type={type}>
         {/* Section Header */}
-        <button
-          type="button"
-          onClick={() => toggleSection(type)}
-          className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between"
-          disabled={disabled}
-        >
-          <div className="flex items-center gap-3">
+        <div className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => toggleSection(type)}
+            className="flex items-center gap-3 flex-1 text-left"
+            disabled={disabled}
+          >
             <svg
               className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
               fill="none"
@@ -182,17 +183,24 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
                 {MESSAGE_TYPE_DESCRIPTIONS[type]}
               </div>
             </div>
-          </div>
-          <label className="flex items-center cursor-pointer" onClick={(e) => e.stopPropagation()}>
+          </button>
+          <div 
+            className="flex items-center cursor-pointer ml-4" 
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <input
               type="checkbox"
               checked={field.toggle}
               onChange={(e) => updateMessageField(type, 'toggle', e.target.checked)}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
               disabled={disabled}
-              className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+              className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed"
+              aria-label={`${MESSAGE_TYPE_LABELS[type]} 開關`}
             />
-          </label>
-        </button>
+          </div>
+        </div>
 
         {/* Section Content */}
         {isExpanded && (
