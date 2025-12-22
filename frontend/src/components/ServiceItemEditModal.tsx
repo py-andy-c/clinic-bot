@@ -11,6 +11,7 @@ import { BaseModal } from './shared/BaseModal';
 import { InfoButton, InfoModal } from './shared';
 import { useServiceItemsStore } from '../stores/serviceItemsStore';
 import { ResourceRequirementsSection } from './ResourceRequirementsSection';
+import { MessageSettingsSection } from './MessageSettingsSection';
 import { FormField, FormInput, FormTextarea } from './forms';
 
 // Schema for single appointment type
@@ -26,6 +27,13 @@ const ServiceItemFormSchema = z.object({
   scheduling_buffer_minutes: z.coerce.number().min(0, '排程緩衝時間不能小於 0').max(60, '排程緩衝時間不能超過 60 分鐘').optional(),
   service_type_group_id: z.number().nullable().optional(),
   display_order: z.number().optional(),
+  // Message customization fields (for schema completeness, but validation is done separately)
+  send_patient_confirmation: z.boolean().optional(),
+  send_clinic_confirmation: z.boolean().optional(),
+  send_reminder: z.boolean().optional(),
+  patient_confirmation_message: z.string().optional(),
+  clinic_confirmation_message: z.string().optional(),
+  reminder_message: z.string().optional(),
 });
 
 type ServiceItemFormData = z.infer<typeof ServiceItemFormSchema>;
@@ -338,6 +346,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     onClose();
   };
 
+  const [messageValidationErrors, setMessageValidationErrors] = useState<string[]>([]);
+
   const handleConfirm = async () => {
     // Validate all fields
     const isValid = await trigger();
@@ -356,6 +366,76 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       return;
     }
 
+    // Validate message fields (managed outside form)
+    const messageErrors: string[] = [];
+    if (appointmentType.send_patient_confirmation && (!appointmentType.patient_confirmation_message || !appointmentType.patient_confirmation_message.trim())) {
+      messageErrors.push('病患確認訊息：當開關開啟時，訊息範本為必填');
+    }
+    if (appointmentType.send_patient_confirmation && appointmentType.patient_confirmation_message && appointmentType.patient_confirmation_message.length > 3500) {
+      messageErrors.push('病患確認訊息：訊息範本長度不能超過 3500 字元');
+    }
+    if (appointmentType.send_clinic_confirmation && (!appointmentType.clinic_confirmation_message || !appointmentType.clinic_confirmation_message.trim())) {
+      messageErrors.push('診所確認訊息：當開關開啟時，訊息範本為必填');
+    }
+    if (appointmentType.send_clinic_confirmation && appointmentType.clinic_confirmation_message && appointmentType.clinic_confirmation_message.length > 3500) {
+      messageErrors.push('診所確認訊息：訊息範本長度不能超過 3500 字元');
+    }
+    if (appointmentType.send_reminder && (!appointmentType.reminder_message || !appointmentType.reminder_message.trim())) {
+      messageErrors.push('提醒訊息：當開關開啟時，訊息範本為必填');
+    }
+    if (appointmentType.send_reminder && appointmentType.reminder_message && appointmentType.reminder_message.length > 3500) {
+      messageErrors.push('提醒訊息：訊息範本長度不能超過 3500 字元');
+    }
+
+    if (messageErrors.length > 0) {
+      setMessageValidationErrors(messageErrors);
+      // Scroll to message settings section and expand it
+      const messageSection = document.querySelector('[data-message-settings]');
+      if (messageSection) {
+        messageSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Try to expand the section with the first error
+        // Parse error message to find which message type has the error
+        const firstError = messageErrors[0];
+        if (firstError) {
+          let targetType: string | null = null;
+          if (firstError.includes('病患確認訊息')) {
+            targetType = 'patient_confirmation';
+          } else if (firstError.includes('診所確認訊息')) {
+            targetType = 'clinic_confirmation';
+          } else if (firstError.includes('提醒訊息')) {
+            targetType = 'reminder';
+          }
+          
+          if (targetType) {
+            const errorSection = messageSection.querySelector(`[data-message-type="${targetType}"]`);
+            if (errorSection) {
+              // Find the button to expand the section
+              const sectionButton = errorSection.querySelector('button');
+              if (sectionButton) {
+                // Check if section is collapsed by checking if content is hidden
+                const sectionContent = errorSection.querySelector('[class*="p-4"]');
+                if (!sectionContent || !sectionContent.parentElement?.classList.contains('block')) {
+                  (sectionButton as HTMLElement).click();
+                }
+              }
+            }
+          } else {
+            // Fallback: expand first section
+            const firstErrorSection = messageSection.querySelector('[data-message-type]');
+            if (firstErrorSection) {
+              const sectionButton = firstErrorSection.querySelector('button');
+              if (sectionButton) {
+                (sectionButton as HTMLElement).click();
+              }
+            }
+          }
+        }
+      }
+      return;
+    }
+
+    setMessageValidationErrors([]);
+
     // Get current form values and update staging store
     const currentValues = getValues();
     const updatedItem: AppointmentType = {
@@ -369,6 +449,13 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       scheduling_buffer_minutes: currentValues.scheduling_buffer_minutes || 0,
       service_type_group_id: currentValues.service_type_group_id || null,
       display_order: currentValues.display_order || 0,
+      // Include message fields from appointmentType (updated by MessageSettingsSection)
+      send_patient_confirmation: appointmentType.send_patient_confirmation,
+      send_clinic_confirmation: appointmentType.send_clinic_confirmation,
+      send_reminder: appointmentType.send_reminder,
+      patient_confirmation_message: appointmentType.patient_confirmation_message,
+      clinic_confirmation_message: appointmentType.clinic_confirmation_message,
+      reminder_message: appointmentType.reminder_message,
     };
     
     // Update staging store with final values
@@ -538,6 +625,24 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
 
                 {/* Right Column: Practitioners & Billing */}
                 <div className="space-y-4 md:space-y-6">
+                  {isClinicAdmin && (
+                    <MessageSettingsSection
+                      appointmentType={appointmentType}
+                      onUpdate={onUpdate}
+                      disabled={!isClinicAdmin}
+                    />
+                  )}
+                  {messageValidationErrors.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <div className="text-sm font-medium text-red-800 mb-2">請修正以下錯誤：</div>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-red-700">
+                        {messageValidationErrors.map((error, index) => (
+                          <li key={index}>{error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
                   <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
                       <div className="px-4 py-4 md:px-0 md:py-0">
                         <p className="text-sm text-gray-600 mb-4">

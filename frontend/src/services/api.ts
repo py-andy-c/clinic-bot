@@ -828,6 +828,21 @@ export class ApiService {
     return response.data;
   }
 
+  async previewAppointmentMessage(data: {
+    appointment_type_id: number;
+    message_type: 'patient_confirmation' | 'clinic_confirmation' | 'reminder';
+    template?: string;
+    sample_patient_name?: string;
+    sample_appointment_time?: string;
+  }): Promise<{
+    preview_message: string;
+    used_placeholders: Record<string, string>;
+    completeness_warnings?: string[];
+  }> {
+    const response = await this.client.post('/clinic/appointment-message-preview', data);
+    return response.data;
+  }
+
   async editClinicAppointment(appointmentId: number, data: {
     appointment_type_id?: number | null;
     practitioner_id?: number | null;

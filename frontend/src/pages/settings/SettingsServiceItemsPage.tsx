@@ -508,6 +508,13 @@ const SettingsServiceItemsPage: React.FC = () => {
         scheduling_buffer_minutes: item.scheduling_buffer_minutes || 0,
         service_type_group_id: item.service_type_group_id || null,
         display_order: item.display_order || 0,
+        // Message customization fields
+        send_patient_confirmation: item.send_patient_confirmation ?? true,
+        send_clinic_confirmation: item.send_clinic_confirmation ?? true,
+        send_reminder: item.send_reminder ?? true,
+        patient_confirmation_message: item.patient_confirmation_message || '',
+        clinic_confirmation_message: item.clinic_confirmation_message || '',
+        reminder_message: item.reminder_message || '',
       };
       
       // Only include id for existing items

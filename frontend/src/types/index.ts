@@ -172,6 +172,13 @@ export interface AppointmentType {
   display_order?: number | undefined;
   is_deleted?: boolean;
   resource_requirements?: ResourceRequirement[];
+  // Message customization fields
+  send_patient_confirmation?: boolean | undefined;
+  send_clinic_confirmation?: boolean | undefined;
+  send_reminder?: boolean | undefined;
+  patient_confirmation_message?: string | undefined;
+  clinic_confirmation_message?: string | undefined;
+  reminder_message?: string | undefined;
 }
 
 export interface ServiceTypeGroup {
