@@ -21,6 +21,8 @@ const SettingsChatPage: React.FC = () => {
   const { isClinicAdmin } = useAuth();
   const { alert, confirm } = useModal();
   const { onInvalid: scrollOnError } = useFormErrorScroll();
+  const isSavingRef = React.useRef(false);
+  const pendingFormDataRef = React.useRef<ChatSettingsFormData | null>(null);
 
   const methods = useForm<ChatSettingsFormData>({
     resolver: zodResolver(ChatSettingsFormSchema),
@@ -36,13 +38,46 @@ const SettingsChatPage: React.FC = () => {
   useUnsavedChangesDetection({ hasUnsavedChanges: () => isDirty });
 
   // Sync form with settings data when it loads
+  // Skip reset during save to prevent race condition
   useEffect(() => {
+    if (isSavingRef.current) {
+      return;
+    }
     if (settings) {
       reset({
         chat_settings: settings.chat_settings,
       });
     }
   }, [settings, reset]);
+
+  // Watch for settings update after updateData, then trigger save
+  useEffect(() => {
+    if (pendingFormDataRef.current && isSavingRef.current && settings?.chat_settings) {
+      // Check if settings match what we're trying to save
+      const pendingStr = JSON.stringify(pendingFormDataRef.current.chat_settings);
+      const currentStr = JSON.stringify(settings.chat_settings);
+      
+      if (pendingStr === currentStr) {
+        // Settings have been updated, now save
+        const performSave = async () => {
+          try {
+            await saveData();
+            // Reset form with saved data to clear isDirty flag
+            reset(pendingFormDataRef.current!);
+            pendingFormDataRef.current = null;
+            isSavingRef.current = false;
+            alert('設定已成功儲存');
+          } catch (err) {
+            isSavingRef.current = false;
+            pendingFormDataRef.current = null;
+            handleBackendError(err, methods);
+          }
+        };
+        performSave();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings?.chat_settings]);
 
   const onInvalid = (errors: any) => {
     scrollOnError(errors, methods);
@@ -79,21 +114,16 @@ const SettingsChatPage: React.FC = () => {
       if (!confirmed) return;
     }
 
+    isSavingRef.current = true;
+    pendingFormDataRef.current = data;
     try {
+      // Update context - this will trigger the useEffect above to save once state is updated
       updateData({
         chat_settings: data.chat_settings,
       });
-
-      // Use setTimeout to ensure updateData state is processed
-      setTimeout(async () => {
-        try {
-          await saveData();
-          alert('設定已成功儲存');
-        } catch (err) {
-          handleBackendError(err, methods);
-        }
-      }, 0);
     } catch (err: any) {
+      isSavingRef.current = false;
+      pendingFormDataRef.current = null;
       if (!handleBackendError(err, methods)) {
         alert(err.response?.data?.detail || '儲存設定失敗', '錯誤');
       }

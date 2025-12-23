@@ -27,6 +27,8 @@ const SettingsAppointmentsPage: React.FC = () => {
   const { onInvalid: scrollOnError } = useFormErrorScroll();
   const [showLiffInfoModal, setShowLiffInfoModal] = useState(false);
   const [savingPractitionerSettings, setSavingPractitionerSettings] = useState(false);
+  const isSavingRef = React.useRef(false);
+  const pendingFormDataRef = React.useRef<AppointmentsSettingsFormData | null>(null);
 
   // Fetch practitioners and their booking settings
   const { data: membersData, loading: membersLoading } = useApiData(
@@ -61,7 +63,11 @@ const SettingsAppointmentsPage: React.FC = () => {
   };
 
   // Sync form with settings data when it loads
+  // Skip reset during save to prevent race condition
   useEffect(() => {
+    if (isSavingRef.current) {
+      return;
+    }
     if (settings && membersData) {
       const practitioners = membersData
         .filter(m => m.roles.includes('practitioner'))
@@ -83,10 +89,50 @@ const SettingsAppointmentsPage: React.FC = () => {
     }
   }, [settings, membersData, reset]);
 
+  // Watch for settings update after updateData, then trigger save
+  useEffect(() => {
+    if (pendingFormDataRef.current && isSavingRef.current && settings) {
+      // Check if both settings sections match what we're trying to save
+      const pendingClinicInfoStr = JSON.stringify(pendingFormDataRef.current.clinic_info_settings);
+      const currentClinicInfoStr = JSON.stringify({
+        appointment_type_instructions: settings.clinic_info_settings.appointment_type_instructions || '',
+        appointment_notes_instructions: settings.clinic_info_settings.appointment_notes_instructions || '',
+        require_birthday: settings.clinic_info_settings.require_birthday || false,
+      });
+      
+      const pendingBookingStr = JSON.stringify(pendingFormDataRef.current.booking_restriction_settings);
+      const currentBookingStr = JSON.stringify(settings.booking_restriction_settings);
+      
+      if (pendingClinicInfoStr === currentClinicInfoStr && pendingBookingStr === currentBookingStr) {
+        // Settings have been updated, now save
+        const performSave = async () => {
+          try {
+            await saveData();
+            // Reset form with saved data to clear isDirty flag
+            reset(pendingFormDataRef.current!);
+            pendingFormDataRef.current = null;
+            isSavingRef.current = false;
+            setSavingPractitionerSettings(false);
+            alert('設定已成功儲存');
+          } catch (err) {
+            isSavingRef.current = false;
+            pendingFormDataRef.current = null;
+            setSavingPractitionerSettings(false);
+            handleBackendError(err, methods);
+          }
+        };
+        performSave();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings?.clinic_info_settings, settings?.booking_restriction_settings]);
+
   const onFormSubmit = async (data: AppointmentsSettingsFormData) => {
     if (!isClinicAdmin) return;
 
     setSavingPractitionerSettings(true);
+    isSavingRef.current = true;
+    pendingFormDataRef.current = data;
     try {
       // 1. Update clinic settings in context
       updateData({
@@ -114,24 +160,16 @@ const SettingsAppointmentsPage: React.FC = () => {
         );
       }
 
-      // 3. Save all via context
-      // Note: we use setTimeout to ensure updateData state is processed
-      setTimeout(async () => {
-        try {
-          await saveData();
-          alert('設定已成功儲存');
-        } catch (err) {
-          handleBackendError(err, methods);
-        }
-      }, 0);
+      // 3. Save all via context - the useEffect above will trigger save once state is updated
 
     } catch (err: any) {
       logger.error('Failed to save appointment settings:', err);
+      isSavingRef.current = false;
+      pendingFormDataRef.current = null;
+      setSavingPractitionerSettings(false);
       if (!handleBackendError(err, methods)) {
         alert(err.response?.data?.detail || '儲存設定失敗', '錯誤');
       }
-    } finally {
-      setSavingPractitionerSettings(false);
     }
   };
 

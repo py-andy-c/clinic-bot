@@ -21,6 +21,8 @@ const SettingsReceiptsPage: React.FC = () => {
   const { isClinicAdmin } = useAuth();
   const { alert } = useModal();
   const { onInvalid: scrollOnError } = useFormErrorScroll();
+  const isSavingRef = React.useRef(false);
+  const pendingFormDataRef = React.useRef<ReceiptsSettingsFormData | null>(null);
 
   const methods = useForm<ReceiptsSettingsFormData>({
     resolver: zodResolver(ReceiptsSettingsFormSchema),
@@ -36,13 +38,46 @@ const SettingsReceiptsPage: React.FC = () => {
   useUnsavedChangesDetection({ hasUnsavedChanges: () => isDirty });
 
   // Sync form with settings data when it loads
+  // Skip reset during save to prevent race condition
   useEffect(() => {
+    if (isSavingRef.current) {
+      return;
+    }
     if (settings) {
       reset({
         receipt_settings: settings.receipt_settings || { custom_notes: null, show_stamp: false },
       });
     }
   }, [settings, reset]);
+
+  // Watch for settings update after updateData, then trigger save
+  useEffect(() => {
+    if (pendingFormDataRef.current && isSavingRef.current && settings?.receipt_settings) {
+      // Check if settings match what we're trying to save
+      const pendingStr = JSON.stringify(pendingFormDataRef.current.receipt_settings);
+      const currentStr = JSON.stringify(settings.receipt_settings);
+      
+      if (pendingStr === currentStr) {
+        // Settings have been updated, now save
+        const performSave = async () => {
+          try {
+            await saveData();
+            // Reset form with saved data to clear isDirty flag
+            reset(pendingFormDataRef.current!);
+            pendingFormDataRef.current = null;
+            isSavingRef.current = false;
+            alert('設定已成功儲存');
+          } catch (err) {
+            isSavingRef.current = false;
+            pendingFormDataRef.current = null;
+            handleBackendError(err, methods);
+          }
+        };
+        performSave();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings?.receipt_settings]);
 
   const onInvalid = (errors: any) => {
     scrollOnError(errors, methods);
@@ -51,21 +86,16 @@ const SettingsReceiptsPage: React.FC = () => {
   const onFormSubmit = async (data: ReceiptsSettingsFormData) => {
     if (!isClinicAdmin) return;
 
+    isSavingRef.current = true;
+    pendingFormDataRef.current = data;
     try {
+      // Update context - this will trigger the useEffect above to save once state is updated
       updateData({
         receipt_settings: data.receipt_settings,
       });
-
-      // Use setTimeout to ensure updateData state is processed
-      setTimeout(async () => {
-        try {
-          await saveData();
-          alert('設定已成功儲存');
-        } catch (err) {
-          handleBackendError(err, methods);
-        }
-      }, 0);
     } catch (err: any) {
+      isSavingRef.current = false;
+      pendingFormDataRef.current = null;
       if (!handleBackendError(err, methods)) {
         alert(err.response?.data?.detail || '儲存設定失敗', '錯誤');
       }

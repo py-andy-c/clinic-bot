@@ -21,6 +21,8 @@ const SettingsClinicInfoPage: React.FC = () => {
   const { isClinicAdmin } = useAuth();
   const { alert } = useModal();
   const { onInvalid: scrollOnError } = useFormErrorScroll();
+  const isSavingRef = React.useRef(false);
+  const pendingFormDataRef = React.useRef<ClinicInfoFormData | null>(null);
 
   const methods = useForm<ClinicInfoFormData>({
     resolver: zodResolver(ClinicInfoFormSchema),
@@ -42,11 +44,44 @@ const SettingsClinicInfoPage: React.FC = () => {
   };
 
   // Sync form with settings data when it loads
+  // Skip reset during save to prevent race condition
   React.useEffect(() => {
+    if (isSavingRef.current) {
+      return;
+    }
     if (settings?.clinic_info_settings) {
       reset(settings.clinic_info_settings);
     }
   }, [settings?.clinic_info_settings, reset]);
+
+  // Watch for settings update after updateData, then trigger save
+  React.useEffect(() => {
+    if (pendingFormDataRef.current && isSavingRef.current && settings?.clinic_info_settings) {
+      // Check if settings match what we're trying to save
+      const pendingStr = JSON.stringify(pendingFormDataRef.current);
+      const currentStr = JSON.stringify(settings.clinic_info_settings);
+      
+      if (pendingStr === currentStr) {
+        // Settings have been updated, now save
+        const performSave = async () => {
+          try {
+            await saveData();
+            // Reset form with saved data to clear isDirty flag
+            reset(pendingFormDataRef.current!);
+            pendingFormDataRef.current = null;
+            isSavingRef.current = false;
+            alert('設定已成功儲存');
+          } catch (err) {
+            isSavingRef.current = false;
+            pendingFormDataRef.current = null;
+            handleBackendError(err, methods, { stripPrefix: 'clinic_info_settings' });
+          }
+        };
+        performSave();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings?.clinic_info_settings]);
 
   // Scroll to top when component mounts
   React.useEffect(() => {
@@ -54,19 +89,14 @@ const SettingsClinicInfoPage: React.FC = () => {
   }, []);
 
   const onFormSubmit = async (data: ClinicInfoFormData) => {
+    isSavingRef.current = true;
+    pendingFormDataRef.current = data;
     try {
+      // Update context - this will trigger the useEffect above to save once state is updated
       updateData({ clinic_info_settings: data });
-      
-      // Use setTimeout to ensure updateData state is processed
-      setTimeout(async () => {
-        try {
-          await saveData();
-          alert('設定已成功儲存');
-        } catch (err) {
-          handleBackendError(err, methods, { stripPrefix: 'clinic_info_settings' });
-        }
-      }, 0);
     } catch (err: any) {
+      isSavingRef.current = false;
+      pendingFormDataRef.current = null;
       if (!handleBackendError(err, methods, { stripPrefix: 'clinic_info_settings' })) {
         alert(err.response?.data?.detail || '儲存設定失敗', '錯誤');
       }
@@ -101,7 +131,7 @@ const SettingsClinicInfoPage: React.FC = () => {
             disabled={uiState.saving}
             className="btn-primary text-sm px-4 py-2"
           >
-            {uiState.saving ? '儲存中...' : '儲存更變'}
+            {uiState.saving ? '儲存中...' : '儲存變更'}
           </button>
         )}
       </div>
