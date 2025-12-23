@@ -10,7 +10,6 @@ can edit them per appointment type.
 DEFAULT_PATIENT_CONFIRMATION_MESSAGE = """{病患姓名}，您的預約已建立：
 
 {預約時間} - 【{服務項目}】{治療師姓名}
-{病患備註}
 
 期待為您服務！"""
 
@@ -18,16 +17,11 @@ DEFAULT_PATIENT_CONFIRMATION_MESSAGE = """{病患姓名}，您的預約已建立
 DEFAULT_CLINIC_CONFIRMATION_MESSAGE = """{病患姓名}，您的預約已建立：
 
 {預約時間} - 【{服務項目}】{治療師姓名}
-{病患備註}
 
 期待為您服務！"""
 
 # Reminder message (sent before appointment)
 DEFAULT_REMINDER_MESSAGE = """提醒您，您預約的【{服務項目}】預計於【{預約時間}】開始，由【{治療師姓名}】為您服務。
-
-診所：{診所名稱}
-地址：{診所地址}
-電話：{診所電話}
 
 請準時前往診所，期待為您服務！"""
 

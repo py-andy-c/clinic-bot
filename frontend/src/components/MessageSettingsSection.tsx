@@ -16,6 +16,10 @@ interface MessageSettingsSectionProps {
   appointmentType: AppointmentType;
   onUpdate: (updated: AppointmentType) => void;
   disabled?: boolean;
+  clinicInfoAvailability?: {
+    has_address?: boolean;
+    has_phone?: boolean;
+  };
 }
 
 interface MessageFieldState {
@@ -27,6 +31,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
   appointmentType,
   onUpdate,
   disabled = false,
+  clinicInfoAvailability,
 }) => {
   const [expandedSections, setExpandedSections] = useState<Set<MessageType>>(
     new Set(['patient_confirmation', 'clinic_confirmation', 'reminder'])
@@ -247,13 +252,13 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
                     messageType={type}
                     onInsert={(placeholder) => handleInsertPlaceholder(type, placeholder)}
                     disabled={disabled}
+                    clinicInfoAvailability={clinicInfoAvailability}
                   />
                   <button
                     type="button"
                     onClick={() => handlePreview(type)}
-                    disabled={disabled || isNewItem}
+                    disabled={disabled}
                     className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-400"
-                    title={isNewItem ? "請先儲存服務項目後再預覽訊息" : undefined}
                   >
                     預覽訊息
                   </button>
@@ -309,13 +314,14 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
         </div>
       </div>
 
-      <MessagePreviewModal
-        isOpen={previewModal.isOpen}
-        onClose={() => setPreviewModal({ ...previewModal, isOpen: false })}
-        appointmentTypeId={appointmentType.id}
-        messageType={previewModal.messageType}
-        template={previewModal.template}
-      />
+        <MessagePreviewModal
+          isOpen={previewModal.isOpen}
+          onClose={() => setPreviewModal({ ...previewModal, isOpen: false })}
+          appointmentTypeId={isNewItem ? undefined : appointmentType.id}
+          appointmentTypeName={isNewItem ? appointmentType.name : undefined}
+          messageType={previewModal.messageType}
+          template={previewModal.template}
+        />
     </>
   );
 };

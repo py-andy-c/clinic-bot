@@ -1009,6 +1009,10 @@ const SettingsServiceItemsPage: React.FC = () => {
           onUpdateResourceRequirements={(requirements: ResourceRequirement[]) =>
             updateResourceRequirements(editingItem.id, requirements)
           }
+          clinicInfoAvailability={{
+            has_address: !!settings?.clinic_info_settings?.address,
+            has_phone: !!settings?.clinic_info_settings?.phone_number,
+          }}
         />
       )}
 

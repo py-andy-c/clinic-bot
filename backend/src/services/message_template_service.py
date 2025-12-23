@@ -108,11 +108,9 @@ class MessageTemplateService:
         clinic_address = clinic.address or ""
         clinic_phone = clinic.phone_number or ""
         
-        # Get patient notes - format with newline and label if notes exist
-        if appointment.notes and appointment.notes.strip():
-            patient_notes = f"\n\n備註：{appointment.notes}"
-        else:
-            patient_notes = ""
+        # Patient notes removed from available placeholders - no longer included in context
+        # (keeping for backward compatibility if templates still reference it, but it will be empty)
+        patient_notes = ""
         
         return {
             "病患姓名": patient.full_name,
@@ -124,7 +122,7 @@ class MessageTemplateService:
             "診所名稱": clinic_name,
             "診所地址": clinic_address,
             "診所電話": clinic_phone,
-            "病患備註": patient_notes,
+            "病患備註": patient_notes,  # Deprecated - always empty, kept for backward compatibility
         }
     
     @staticmethod
@@ -155,12 +153,13 @@ class MessageTemplateService:
     
     @staticmethod
     def build_preview_context(
-        appointment_type: AppointmentType,
+        appointment_type: Optional[AppointmentType],
         current_user: Optional[Any],
         clinic: Clinic,
         db: Any,
         sample_patient_name: str = "王小明",
-        sample_appointment_time: Optional[datetime] = None
+        sample_appointment_time: Optional[datetime] = None,
+        sample_appointment_type_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Build context dict for message preview.
@@ -235,7 +234,12 @@ class MessageTemplateService:
         formatted_time = f"{time_obj.hour:02d}:{time_obj.minute:02d}"
         
         # Get appointment type name
-        appointment_type_name = appointment_type.name
+        if appointment_type:
+            appointment_type_name = appointment_type.name
+        elif sample_appointment_type_name:
+            appointment_type_name = sample_appointment_type_name
+        else:
+            appointment_type_name = "服務項目"
         
         # Get clinic info
         clinic_name = clinic.effective_display_name or ""

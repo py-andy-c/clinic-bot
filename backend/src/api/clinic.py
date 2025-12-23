@@ -1572,9 +1572,10 @@ async def generate_cancellation_preview(
 
 class MessagePreviewRequest(BaseModel):
     """Request model for appointment message preview."""
-    appointment_type_id: int
+    appointment_type_id: Optional[int] = Field(None, description="Appointment type ID (optional for new items)")
     message_type: Literal["patient_confirmation", "clinic_confirmation", "reminder"] = Field(..., description="Message type")
-    template: Optional[str] = Field(None, description="Optional template to preview (if not provided, uses stored template from appointment_type)")
+    template: str = Field(..., description="Template to preview")
+    appointment_type_name: Optional[str] = Field(None, description="Appointment type name (required if appointment_type_id is not provided)")
 
 
 @router.post("/appointment-message-preview", summary="Preview appointment message")
@@ -1597,18 +1598,6 @@ async def preview_appointment_message(
                 detail="使用者不屬於任何診所"
             )
         
-        # Validate appointment_type_id belongs to clinic (exclude soft-deleted)
-        appointment_type = db.query(AppointmentType).filter(
-            AppointmentType.id == request.appointment_type_id,
-            AppointmentType.clinic_id == clinic_id,
-            AppointmentType.is_deleted == False
-        ).first()
-        if not appointment_type:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="服務項目不存在"
-            )
-        
         clinic = db.query(Clinic).get(clinic_id)
         if not clinic:
             raise HTTPException(
@@ -1616,37 +1605,54 @@ async def preview_appointment_message(
                 detail="診所不存在"
             )
         
-        # Get message template from request or from appointment_type
-        if request.template is not None:
-            template = request.template
-            # Validate template length
-            if len(template) > 3500:
+        # Validate template length
+        if len(request.template) > 3500:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="訊息範本長度超過限制"
+            )
+        
+        template = request.template
+        
+        # Get appointment type if ID is provided, otherwise use provided name
+        appointment_type = None
+        appointment_type_name = None
+        if request.appointment_type_id:
+            # Validate appointment_type_id belongs to clinic (exclude soft-deleted)
+            appointment_type = db.query(AppointmentType).filter(
+                AppointmentType.id == request.appointment_type_id,
+                AppointmentType.clinic_id == clinic_id,
+                AppointmentType.is_deleted == False
+            ).first()
+            if not appointment_type:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="訊息範本長度超過限制"
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="服務項目不存在"
                 )
+            appointment_type_name = appointment_type.name
         else:
-            # Get template from appointment_type based on message_type
-            if request.message_type == "patient_confirmation":
-                template = appointment_type.patient_confirmation_message
-            elif request.message_type == "clinic_confirmation":
-                template = appointment_type.clinic_confirmation_message
-            elif request.message_type == "reminder":
-                template = appointment_type.reminder_message
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="無效的訊息類型"
-                )
+            # For new items, use provided name or default
+            appointment_type_name = request.appointment_type_name or "服務項目"
         
         # Build preview context using actual data
         from services.message_template_service import MessageTemplateService
-        context = MessageTemplateService.build_preview_context(
-            appointment_type=appointment_type,
-            current_user=current_user,
-            clinic=clinic,
-            db=db
-        )
+        if appointment_type:
+            # Use existing appointment type
+            context = MessageTemplateService.build_preview_context(
+                appointment_type=appointment_type,
+                current_user=current_user,
+                clinic=clinic,
+                db=db
+            )
+        else:
+            # For new items, build context with provided name
+            context = MessageTemplateService.build_preview_context(
+                appointment_type=None,
+                current_user=current_user,
+                clinic=clinic,
+                db=db,
+                sample_appointment_type_name=appointment_type_name
+            )
         
         # Render message
         preview_message = MessageTemplateService.render_message(template, context)
@@ -1659,10 +1665,17 @@ async def preview_appointment_message(
             template, context, clinic
         )
         
+        # Return clinic info availability for frontend UI
+        clinic_info_availability = {
+            "has_address": bool(clinic.address),
+            "has_phone": bool(clinic.phone_number),
+        }
+        
         return {
             "preview_message": preview_message,
             "used_placeholders": used_placeholders,
-            "completeness_warnings": completeness_warnings
+            "completeness_warnings": completeness_warnings,
+            "clinic_info_availability": clinic_info_availability
         }
     
     except HTTPException:

@@ -829,15 +829,20 @@ export class ApiService {
   }
 
   async previewAppointmentMessage(data: {
-    appointment_type_id: number;
+    appointment_type_id?: number;
     message_type: 'patient_confirmation' | 'clinic_confirmation' | 'reminder';
-    template?: string;
+    template: string;
     sample_patient_name?: string;
     sample_appointment_time?: string;
+    sample_appointment_type_name?: string;
   }): Promise<{
     preview_message: string;
     used_placeholders: Record<string, string>;
     completeness_warnings?: string[];
+    clinic_info_availability?: {
+      has_address?: boolean;
+      has_phone?: boolean;
+    };
   }> {
     const response = await this.client.post('/clinic/appointment-message-preview', data);
     return response.data;

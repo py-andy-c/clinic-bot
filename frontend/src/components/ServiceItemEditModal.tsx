@@ -53,6 +53,10 @@ interface ServiceItemEditModalProps {
   onUpdatePractitionerAssignments: (practitionerIds: number[]) => void;
   onUpdateBillingScenarios: (key: string, scenarios: BillingScenario[]) => void;
   onUpdateResourceRequirements: (requirements: ResourceRequirement[]) => void;
+  clinicInfoAvailability?: {
+    has_address?: boolean;
+    has_phone?: boolean;
+  };
 }
 
 export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
@@ -67,6 +71,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   practitionerAssignments: currentPractitionerAssignments,
   billingScenarios: allBillingScenarios,
   resourceRequirements: _currentResourceRequirements,
+  clinicInfoAvailability,
   onUpdatePractitionerAssignments,
   onUpdateBillingScenarios,
   onUpdateResourceRequirements: _onUpdateResourceRequirements,
@@ -630,6 +635,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       appointmentType={appointmentType}
                       onUpdate={onUpdate}
                       disabled={!isClinicAdmin}
+                      clinicInfoAvailability={clinicInfoAvailability}
                     />
                   )}
                   {messageValidationErrors.length > 0 && (

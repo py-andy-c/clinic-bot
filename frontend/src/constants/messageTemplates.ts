@@ -6,22 +6,16 @@
 export const DEFAULT_PATIENT_CONFIRMATION_MESSAGE = `{病患姓名}，您的預約已建立：
 
 {預約時間} - 【{服務項目}】{治療師姓名}
-{病患備註}
 
 期待為您服務！`;
 
 export const DEFAULT_CLINIC_CONFIRMATION_MESSAGE = `{病患姓名}，您的預約已建立：
 
 {預約時間} - 【{服務項目}】{治療師姓名}
-{病患備註}
 
 期待為您服務！`;
 
 export const DEFAULT_REMINDER_MESSAGE = `提醒您，您預約的【{服務項目}】預計於【{預約時間}】開始，由【{治療師姓名}】為您服務。
-
-診所：{診所名稱}
-地址：{診所地址}
-電話：{診所電話}
 
 請準時前往診所，期待為您服務！`;
 
@@ -38,13 +32,11 @@ export const PLACEHOLDERS = {
     { key: '{預約時段}', label: '預約時段', description: '時間（例如：14:30）' },
     { key: '{治療師姓名}', label: '治療師姓名', description: '治療師姓名（或「不指定」）' },
     { key: '{診所名稱}', label: '診所名稱', description: '診所顯示名稱' },
-    { key: '{診所地址}', label: '診所地址', description: '診所地址（如果已設定）' },
-    { key: '{診所電話}', label: '診所電話', description: '診所電話（如果已設定）' },
+    { key: '{診所地址}', label: '診所地址', description: '診所地址（如果已設定）', optional: true },
+    { key: '{診所電話}', label: '診所電話', description: '診所電話（如果已設定）', optional: true },
   ],
-  // Confirmation-specific
-  confirmation: [
-    { key: '{病患備註}', label: '病患備註', description: '病患的備註（如果有的話）' },
-  ],
+  // Confirmation-specific (none now)
+  confirmation: [],
   // Reminder uses same placeholders as confirmation
   reminder: [],
 } as const;

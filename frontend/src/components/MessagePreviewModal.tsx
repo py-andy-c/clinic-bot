@@ -7,7 +7,8 @@ import { MessageType } from '../constants/messageTemplates';
 interface MessagePreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  appointmentTypeId: number;
+  appointmentTypeId?: number;
+  appointmentTypeName?: string;
   messageType: MessageType;
   template: string;
 }
@@ -16,6 +17,7 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
   isOpen,
   onClose,
   appointmentTypeId,
+  appointmentTypeName,
   messageType,
   template,
 }) => {
@@ -23,6 +25,10 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
     preview_message: string;
     used_placeholders: Record<string, string>;
     completeness_warnings?: string[];
+    clinic_info_availability?: {
+      has_address?: boolean;
+      has_phone?: boolean;
+    };
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +47,8 @@ export const MessagePreviewModal: React.FC<MessagePreviewModalProps> = ({
     setError(null);
     try {
       const result = await apiService.previewAppointmentMessage({
-        appointment_type_id: appointmentTypeId,
+        ...(appointmentTypeId ? { appointment_type_id: appointmentTypeId } : {}),
+        ...(appointmentTypeName ? { appointment_type_name: appointmentTypeName } : {}),
         message_type: messageType,
         template,
       });
