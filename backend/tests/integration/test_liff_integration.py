@@ -424,6 +424,102 @@ class TestLiffDatabaseOperations:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
+    def test_patient_creation_requires_gender_when_setting_enabled(self, db_session: Session, test_clinic_with_liff):
+        """Test that patient creation requires gender when clinic setting is enabled."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Enable require_gender setting
+        clinic_settings = clinic.get_validated_settings()
+        clinic_settings.clinic_info_settings.require_gender = True
+        clinic.set_validated_settings(clinic_settings)
+        db_session.commit()
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_require_gender",
+            clinic_id=clinic.id,
+            display_name="Require Gender Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Create primary patient
+        primary_patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Primary Patient",
+            phone_number="0912345678",
+            line_user_id=line_user.id
+        )
+        db_session.add(primary_patient)
+        db_session.commit()
+
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Test creating patient without gender (should fail)
+            patient_data = {
+                "full_name": "Patient Without Gender",
+                "phone_number": "0912345679"
+            }
+
+            response = client.post("/api/liff/patients", json=patient_data)
+            assert response.status_code == 400
+            assert "生理性別" in response.json()["detail"]
+
+            # Test creating patient with gender (should succeed)
+            patient_data["gender"] = "male"
+            response = client.post("/api/liff/patients", json=patient_data)
+            assert response.status_code == 200
+
+            data = response.json()
+            assert data["gender"] == "male"
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_patient_creation_with_gender_validation(self, db_session: Session, test_clinic_with_liff):
+        """Test gender validation in LIFF patient creation."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_gender_validation",
+            clinic_id=clinic.id,
+            display_name="Gender Validation Test User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Test invalid gender value
+            response = client.post("/api/liff/patients", json={
+                "full_name": "Test Patient",
+                "phone_number": "0912345678",
+                "gender": "invalid"
+            })
+            assert response.status_code == 422
+            detail = str(response.json())
+            assert "性別" in detail or "gender" in detail.lower()
+
+            # Test valid gender values (case-insensitive)
+            for gender_value, expected in [("male", "male"), ("FEMALE", "female"), ("Other", "other")]:
+                response = client.post("/api/liff/patients", json={
+                    "full_name": f"Test Patient {gender_value}",
+                    "phone_number": "0912345678",
+                    "gender": gender_value
+                })
+                assert response.status_code == 200
+                assert response.json()["gender"] == expected
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
     def test_patient_update_with_birthday(self, db_session: Session, test_clinic_with_liff):
         """Test patient update with birthday."""
         clinic, practitioner, appt_types, _ = test_clinic_with_liff

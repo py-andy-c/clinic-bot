@@ -5,16 +5,19 @@ import { NameWarning, DateInput } from '../../components/shared';
 import { validateLiffPatientForm } from '../../utils/patientFormValidation';
 import { formatDateForApi, convertApiDateToDisplay } from '../../utils/dateFormat';
 import { liffApiService } from '../../services/liffApi';
+import { GENDER_OPTIONS } from '../../utils/genderUtils';
 
 export interface PatientFormData {
   full_name: string;
   phone_number: string;
   birthday?: string;
+  gender?: string;
 }
 
 export interface PatientFormProps {
   clinicId: number | null;
   requireBirthday?: boolean;
+  requireGender?: boolean;
   onSubmit: (data: PatientFormData) => Promise<void>;
   onCancel?: () => void;
   initialData?: Partial<PatientFormData>;
@@ -28,6 +31,7 @@ export interface PatientFormProps {
 export const PatientForm: React.FC<PatientFormProps> = ({
   clinicId,
   requireBirthday: requireBirthdayProp,
+  requireGender: requireGenderProp,
   onSubmit,
   onCancel,
   initialData,
@@ -41,27 +45,34 @@ export const PatientForm: React.FC<PatientFormProps> = ({
   const [fullName, setFullName] = useState(initialData?.full_name || '');
   const [phoneNumber, setPhoneNumber] = useState(initialData?.phone_number || '');
   const [birthday, setBirthday] = useState(initialData?.birthday || '');
+  const [gender, setGender] = useState(initialData?.gender || '');
   const [requireBirthday, setRequireBirthday] = useState(requireBirthdayProp || false);
+  const [requireGender, setRequireGender] = useState(requireGenderProp || false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const defaultSubmitText = submitButtonText || t('common.confirm');
   const defaultCancelText = cancelButtonText || t('common.cancel');
 
-  // Fetch clinic settings if requireBirthday is not provided
+  // Fetch clinic settings if requireBirthday or requireGender is not provided
   useEffect(() => {
     const fetchClinicSettings = async () => {
-      if (requireBirthdayProp !== undefined || !clinicId) return;
+      if ((requireBirthdayProp !== undefined && requireGenderProp !== undefined) || !clinicId) return;
       try {
         const clinicInfo = await liffApiService.getClinicInfo();
-        setRequireBirthday(clinicInfo.require_birthday || false);
+        if (requireBirthdayProp === undefined) {
+          setRequireBirthday(clinicInfo.require_birthday || false);
+        }
+        if (requireGenderProp === undefined) {
+          setRequireGender(clinicInfo.require_gender || false);
+        }
       } catch (err) {
         logger.error('Failed to fetch clinic settings:', err);
         // Don't block if we can't fetch settings
       }
     };
     fetchClinicSettings();
-  }, [clinicId, requireBirthdayProp]);
+  }, [clinicId, requireBirthdayProp, requireGenderProp]);
 
   // Update form when initialData changes
   useEffect(() => {
@@ -72,6 +83,9 @@ export const PatientForm: React.FC<PatientFormProps> = ({
         // Convert API format (YYYY-MM-DD) to display format (YYYY/MM/DD) for DateInput
         setBirthday(convertApiDateToDisplay(initialData.birthday));
       }
+      if (initialData.gender !== undefined) {
+        setGender(initialData.gender || '');
+      }
     }
   }, [initialData]);
 
@@ -79,7 +93,7 @@ export const PatientForm: React.FC<PatientFormProps> = ({
     if (!fullName.trim() || !clinicId) return;
 
     // Validate using shared validation utility
-    const validation = validateLiffPatientForm(fullName, phoneNumber, birthday, requireBirthday);
+    const validation = validateLiffPatientForm(fullName, phoneNumber, birthday, requireBirthday, gender, requireGender);
     if (!validation.isValid) {
       setError(validation.error || t('patient.form.error.generic'));
       return;
@@ -95,6 +109,9 @@ export const PatientForm: React.FC<PatientFormProps> = ({
       if (validation.normalizedData!.birthday) {
         formData.birthday = formatDateForApi(validation.normalizedData!.birthday);
       }
+      if (validation.normalizedData!.gender) {
+        formData.gender = validation.normalizedData!.gender;
+      }
       await onSubmit(formData);
     } catch (err) {
       logger.error('Failed to submit patient form:', err);
@@ -108,12 +125,13 @@ export const PatientForm: React.FC<PatientFormProps> = ({
     setFullName('');
     setPhoneNumber('');
     setBirthday('');
+    setGender('');
     setError(null);
     onCancel?.();
   };
 
   const displayError = externalError || error;
-  const isDisabled = isLoading || isSubmitting || !fullName.trim() || !phoneNumber.trim() || (requireBirthday && !birthday.trim());
+  const isDisabled = isLoading || isSubmitting || !fullName.trim() || !phoneNumber.trim() || (requireBirthday && !birthday.trim()) || (requireGender && !gender.trim());
 
   return (
     <div>
@@ -144,6 +162,25 @@ export const PatientForm: React.FC<PatientFormProps> = ({
             onChange={setBirthday}
             className="w-full"
           />
+        </div>
+      )}
+      {requireGender && (
+        <div className="mb-3">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            生理性別 {requireGender && <span className="text-red-500">*</span>}
+          </label>
+          <select
+            value={gender}
+            onChange={(e) => setGender(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">請選擇生理性別</option>
+            {GENDER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
       )}
       {displayError && (

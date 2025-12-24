@@ -9,6 +9,9 @@ import { apiService } from '../services/api';
 import { useDebounce } from '../hooks/useDebounce';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
+import { GENDER_OPTIONS } from '../utils/genderUtils';
+import { useAuth } from '../hooks/useAuth';
+import { useApiData } from '../hooks/useApiData';
 
 export interface PatientCreationModalProps {
   isOpen: boolean;
@@ -22,12 +25,31 @@ export const PatientCreationModal: React.FC<PatientCreationModalProps> = ({
   onSuccess,
 }) => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [birthday, setBirthday] = useState('');
+  const [gender, setGender] = useState('');
+  const [requireGender, setRequireGender] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [duplicateCount, setDuplicateCount] = useState<number | null>(null);
+
+  // Fetch clinic settings to check if gender is required
+  const fetchClinicSettings = React.useCallback(() => apiService.getClinicSettings(), []);
+  const { data: clinicSettings } = useApiData(
+    fetchClinicSettings,
+    {
+      enabled: !!user?.active_clinic_id && isOpen,
+      dependencies: [user?.active_clinic_id, isOpen],
+    }
+  );
+
+  useEffect(() => {
+    if (clinicSettings) {
+      setRequireGender(clinicSettings.clinic_info_settings?.require_gender || false);
+    }
+  }, [clinicSettings]);
 
   // Debounce name for duplicate checking (400ms delay)
   const debouncedName = useDebounce(fullName.trim(), 400);
@@ -66,6 +88,7 @@ export const PatientCreationModal: React.FC<PatientCreationModalProps> = ({
       setFullName('');
       setPhoneNumber('');
       setBirthday('');
+      setGender('');
       setError(null);
       setDuplicateCount(null);
     }
@@ -73,7 +96,7 @@ export const PatientCreationModal: React.FC<PatientCreationModalProps> = ({
 
   const handleSubmit = async () => {
     // Validate using shared validation utility
-    const validation = validateClinicPatientForm(fullName, phoneNumber, birthday);
+    const validation = validateClinicPatientForm(fullName, phoneNumber, birthday, gender, requireGender);
     if (!validation.isValid) {
       setError(validation.error || '驗證失敗');
       return;
@@ -89,11 +112,12 @@ export const PatientCreationModal: React.FC<PatientCreationModalProps> = ({
       setIsSubmitting(true);
       setError(null);
 
-      const { full_name, phone_number, birthday: normalizedBirthday } = validation.normalizedData;
+      const { full_name, phone_number, birthday: normalizedBirthday, gender: normalizedGender } = validation.normalizedData;
       const response = await apiService.createPatient({
         full_name,
         phone_number,
         ...(normalizedBirthday ? { birthday: formatDateForApi(normalizedBirthday) } : {}),
+        ...(normalizedGender ? { gender: normalizedGender } : {}),
       });
 
       // Success - call onSuccess callback with all form data
@@ -174,6 +198,25 @@ export const PatientCreationModal: React.FC<PatientCreationModalProps> = ({
             onChange={setBirthday}
             className="w-full"
           />
+        </div>
+
+        {/* Gender Field */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            生理性別 {requireGender && <span className="text-red-500">*</span>}
+          </label>
+          <select
+            value={gender}
+            onChange={(e) => setGender(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">{requireGender ? '請選擇生理性別' : '請選擇'}</option>
+            {GENDER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Error Message */}

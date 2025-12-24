@@ -28,6 +28,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
   const [showAllowPatientDeletionModal, setShowAllowPatientDeletionModal] = useState(false);
   const [showCancellationLimitModal, setShowCancellationLimitModal] = useState(false);
   const [showRequireBirthdayModal, setShowRequireBirthdayModal] = useState(false);
+  const [showRequireGenderModal, setShowRequireGenderModal] = useState(false);
   const [showPatientBookingModal, setShowPatientBookingModal] = useState(false);
 
   // Get current deadline value for dropdown (format: "前一天_08:00" or "當天_08:00")
@@ -350,6 +351,32 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
           </div>
         </div>
 
+        {/* 要求填寫生理性別 */}
+        <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
+          <div className="flex items-center gap-2 mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              要求填寫生理性別
+            </label>
+            <InfoButton onClick={() => setShowRequireGenderModal(true)} />
+          </div>
+          <div className="flex items-center justify-between max-w-2xl">
+            <div>
+              <p className="text-sm text-gray-500">
+                啟用後，病患註冊時必須填寫生理性別
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                {...control.register('clinic_info_settings.require_gender')}
+                className="sr-only peer"
+                disabled={!isClinicAdmin}
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"></div>
+            </label>
+          </div>
+        </div>
+
         {/* Info Modals */}
         <InfoModal
           isOpen={showStepSizePopup}
@@ -423,6 +450,15 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
           ariaLabel="要求填寫生日說明"
         >
           <p>啟用後，病患在註冊或新增就診人時必須填寫生日。未填寫生日將無法完成註冊或新增就診人。</p>
+        </InfoModal>
+
+        <InfoModal
+          isOpen={showRequireGenderModal}
+          onClose={() => setShowRequireGenderModal(false)}
+          title="要求填寫生理性別"
+          ariaLabel="要求填寫生理性別說明"
+        >
+          <p>啟用後，病患在註冊或新增就診人時必須填寫生理性別。未填寫生理性別將無法完成註冊或新增就診人。</p>
         </InfoModal>
 
         <InfoModal

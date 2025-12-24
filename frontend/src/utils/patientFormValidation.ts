@@ -4,6 +4,7 @@
 
 import { validatePhoneNumber, validateOptionalPhoneNumber } from './phoneValidation';
 import { validateAndNormalizeDate } from './dateFormat';
+import { isValidGenderValue, GenderValue } from './genderUtils';
 
 export interface PatientFormValidationResult {
   isValid: boolean;
@@ -12,16 +13,19 @@ export interface PatientFormValidationResult {
     full_name: string;
     phone_number: string | null;
     birthday?: string | undefined;
+    gender?: string | undefined;
   } | undefined;
 }
 
 /**
- * Validate patient form data for clinic-side creation (optional phone/birthday).
+ * Validate patient form data for clinic-side creation (optional phone/birthday/gender).
  */
 export const validateClinicPatientForm = (
   fullName: string,
   phoneNumber: string,
-  birthday: string
+  birthday: string,
+  gender?: string,
+  requireGender?: boolean
 ): PatientFormValidationResult => {
   // Validate name
   const trimmedName = fullName.trim();
@@ -53,10 +57,25 @@ export const validateClinicPatientForm = (
     normalizedBirthday = dateValidation.normalized;
   }
   
+  // Validate required gender
+  if (requireGender && (!gender || !gender.trim())) {
+    return { isValid: false, error: '請選擇生理性別' };
+  }
+  
+  // Validate gender value if provided
+  let normalizedGender: string | undefined;
+  if (gender && gender.trim()) {
+    if (!isValidGenderValue(gender)) {
+      return { isValid: false, error: '性別值無效' };
+    }
+    normalizedGender = gender.trim().toLowerCase() as GenderValue;
+  }
+  
   const normalizedData: {
     full_name: string;
     phone_number: string | null;
     birthday?: string;
+    gender?: string;
   } = {
     full_name: trimmedName,
     phone_number: normalizedPhone,
@@ -66,6 +85,10 @@ export const validateClinicPatientForm = (
     normalizedData.birthday = normalizedBirthday;
   }
   
+  if (normalizedGender) {
+    normalizedData.gender = normalizedGender;
+  }
+  
   return {
     isValid: true,
     normalizedData,
@@ -73,13 +96,15 @@ export const validateClinicPatientForm = (
 };
 
 /**
- * Validate patient form data for LIFF creation (required phone, optional birthday).
+ * Validate patient form data for LIFF creation (required phone, optional birthday/gender).
  */
 export const validateLiffPatientForm = (
   fullName: string,
   phoneNumber: string,
   birthday: string,
-  requireBirthday: boolean
+  requireBirthday: boolean,
+  gender?: string,
+  requireGender?: boolean
 ): PatientFormValidationResult => {
   // Validate name
   const trimmedName = fullName.trim();
@@ -112,10 +137,25 @@ export const validateLiffPatientForm = (
     normalizedBirthday = dateValidation.normalized;
   }
   
+  // Validate required gender
+  if (requireGender && (!gender || !gender.trim())) {
+    return { isValid: false, error: '請選擇生理性別' };
+  }
+  
+  // Validate gender value if provided
+  let normalizedGender: string | undefined;
+  if (gender && gender.trim()) {
+    if (!isValidGenderValue(gender)) {
+      return { isValid: false, error: '性別值無效' };
+    }
+    normalizedGender = gender.trim().toLowerCase() as GenderValue;
+  }
+  
   const normalizedData: {
     full_name: string;
     phone_number: string;
     birthday?: string;
+    gender?: string;
   } = {
     full_name: trimmedName,
     phone_number: phoneNumber.replace(/[\s\-\(\)]/g, ''),
@@ -125,12 +165,17 @@ export const validateLiffPatientForm = (
     normalizedData.birthday = normalizedBirthday;
   }
   
+  if (normalizedGender) {
+    normalizedData.gender = normalizedGender;
+  }
+  
   return {
     isValid: true,
     normalizedData: normalizedData as {
       full_name: string;
       phone_number: string | null;
       birthday?: string;
+      gender?: string;
     },
   };
 };

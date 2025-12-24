@@ -17,6 +17,7 @@ class PatientResponse(BaseModel):
     full_name: str
     phone_number: Optional[str] = None  # Optional for clinic-created patients
     birthday: Optional[date] = None  # Python date object (serialized to YYYY-MM-DD in JSON)
+    gender: Optional[str] = None  # Patient gender (生理性別): 'male', 'female', 'other', or None
     notes: Optional[str] = None  # Optional notes/remarks about the patient (備注)
     created_at: datetime
     future_appointments_count: Optional[int] = None  # Number of future appointments for this patient
@@ -29,6 +30,7 @@ class PatientCreateResponse(BaseModel):
     full_name: str
     phone_number: Optional[str] = None  # Optional for clinic-created patients
     birthday: Optional[date] = None
+    gender: Optional[str] = None  # Patient gender (生理性別): 'male', 'female', 'other', or None
     notes: Optional[str] = None  # Optional notes/remarks about the patient (備注)
     created_at: datetime
 

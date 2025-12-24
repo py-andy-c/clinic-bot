@@ -42,6 +42,9 @@ class Patient(Base):
     birthday: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     """Optional birthday of the patient (date only, no time)."""
 
+    gender: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    """Optional gender of the patient (生理性別). Valid values: 'male', 'female', 'other'."""
+
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     """Optional notes/remarks about the patient (備注)."""
 

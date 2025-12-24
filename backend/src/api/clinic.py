@@ -47,6 +47,7 @@ from services.line_user_ai_disabled_service import (
 )
 from utils.appointment_type_queries import count_active_appointment_types_for_practitioner
 from utils.datetime_utils import taiwan_now, TAIWAN_TZ
+from utils.patient_validators import validate_gender_field
 from api.responses import (
     ClinicPatientResponse, ClinicPatientListResponse,
     AppointmentTypeResponse, PractitionerAppointmentTypesResponse, PractitionerStatusResponse,
@@ -225,6 +226,7 @@ class ClinicInfoSettings(BaseModel):
     appointment_type_instructions: Optional[str] = None
     appointment_notes_instructions: Optional[str] = None
     require_birthday: bool = False
+    require_gender: bool = False
 
 
 class ChatSettings(BaseModel):
@@ -972,7 +974,7 @@ async def update_settings(
             return raw_message if raw_message else default_message
 
         # Helper function to update notes customization fields
-        def update_notes_fields(appointment_type: AppointmentType, data: dict) -> None:
+        def update_notes_fields(appointment_type: AppointmentType, data: Dict[str, Any]) -> None:
             """Update notes customization fields from incoming data."""
             if "require_notes" in data:
                 appointment_type.require_notes = data.get("require_notes", False)
@@ -1071,8 +1073,6 @@ async def update_settings(
             )
 
         # Process appointment types: update existing, create new, soft delete removed ones
-        from models import AppointmentType
-        
         # Track which (name, duration) combinations we've processed
         processed_combinations: set[tuple[str, int]] = set()
         
@@ -2034,6 +2034,7 @@ class ClinicPatientCreateRequest(BaseModel):
     full_name: str
     phone_number: Optional[str] = None
     birthday: Optional[date_type] = None
+    gender: Optional[str] = None
 
     @field_validator('full_name')
     @classmethod
@@ -2087,6 +2088,12 @@ class ClinicPatientCreateRequest(BaseModel):
             # For parsing errors, provide clear message
             raise ValueError('生日格式錯誤，請使用 YYYY-MM-DD 格式') from e
 
+    @field_validator('gender', mode='before')
+    @classmethod
+    def validate_gender(cls, v: Union[str, None]) -> Optional[str]:
+        """Validate gender value."""
+        return validate_gender_field(v)
+
 
 class DuplicateCheckResponse(BaseModel):
     """Response model for duplicate name check."""
@@ -2110,6 +2117,29 @@ async def create_patient(
     try:
         clinic_id = ensure_clinic_access(current_user)
         
+        # Check if clinic requires birthday or gender
+        clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
+        if not clinic:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="診所不存在")
+        
+        clinic_settings = clinic.get_validated_settings()
+        require_birthday = clinic_settings.clinic_info_settings.require_birthday
+        require_gender = clinic_settings.clinic_info_settings.require_gender
+
+        # Validate birthday is provided if required
+        if require_birthday and not request.birthday:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="此診所要求填寫生日"
+            )
+
+        # Validate gender is provided if required
+        if require_gender and not request.gender:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="此診所要求填寫生理性別"
+            )
+        
         # Create patient with clinic_user as created_by_type
         patient = PatientService.create_patient(
             db=db,
@@ -2118,6 +2148,7 @@ async def create_patient(
             phone_number=request.phone_number,  # Can be None
             line_user_id=None,  # Clinic-created patients are not linked to LINE users
             birthday=request.birthday,
+            gender=request.gender,
             created_by_type='clinic_user'
         )
 
@@ -2126,6 +2157,7 @@ async def create_patient(
             full_name=patient.full_name,
             phone_number=patient.phone_number,
             birthday=patient.birthday,
+            gender=patient.gender,
             created_at=patient.created_at
         )
 
@@ -2189,6 +2221,7 @@ class ClinicPatientUpdateRequest(BaseModel):
     full_name: Optional[str] = None
     phone_number: Optional[str] = None
     birthday: Optional[date_type] = None
+    gender: Optional[str] = None
     notes: Optional[str] = None
 
     @field_validator('full_name')
@@ -2237,6 +2270,12 @@ class ClinicPatientUpdateRequest(BaseModel):
                 raise
             raise ValueError('生日格式錯誤，請使用 YYYY-MM-DD 格式') from e
 
+    @field_validator('gender', mode='before')
+    @classmethod
+    def validate_gender(cls, v: Union[str, None]) -> Optional[str]:
+        """Validate gender value."""
+        return validate_gender_field(v)
+
     @field_validator('notes')
     @classmethod
     def validate_notes(cls, v: Optional[str]) -> Optional[str]:
@@ -2261,7 +2300,7 @@ class ClinicPatientUpdateRequest(BaseModel):
             return self
         
         # Otherwise, require at least one non-None field
-        if self.full_name is None and self.phone_number is None and self.birthday is None:
+        if self.full_name is None and self.phone_number is None and self.birthday is None and self.gender is None:
             raise ValueError('至少需提供一個欄位進行更新')
         return self
 
@@ -2291,6 +2330,7 @@ async def get_patient(
             full_name=patient.full_name,
             phone_number=patient.phone_number,
             birthday=patient.birthday,
+            gender=patient.gender,
             notes=patient.notes,
             line_user_id=patient.line_user.line_user_id if patient.line_user else None,
             line_user_display_name=patient.line_user.effective_display_name if patient.line_user else None,
@@ -2332,6 +2372,7 @@ async def update_patient(
             full_name=request.full_name,
             phone_number=request.phone_number,
             birthday=request.birthday,
+            gender=request.gender,
             notes=request.notes
         )
 
@@ -2340,6 +2381,7 @@ async def update_patient(
             full_name=patient.full_name,
             phone_number=patient.phone_number,
             birthday=patient.birthday,
+            gender=patient.gender,
             notes=patient.notes,
             line_user_id=patient.line_user.line_user_id if patient.line_user else None,
             line_user_display_name=patient.line_user.effective_display_name if patient.line_user else None,

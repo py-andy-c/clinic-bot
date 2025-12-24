@@ -87,6 +87,7 @@ const PatientDetailPage: React.FC = () => {
     full_name?: string;
     phone_number?: string | null;
     birthday?: string;
+    gender?: string;
     notes?: string | null;
   }) => {
     if (!patientId) return;

@@ -41,6 +41,7 @@ export interface PatientSummary {
   full_name: string;
   phone_number: string;
   birthday?: string; // YYYY-MM-DD format
+  gender?: string | null; // Patient gender (生理性別): 'male', 'female', 'other', or null
   created_at: string;
   future_appointments_count?: number;
   max_future_appointments?: number;
@@ -112,6 +113,7 @@ export interface ClinicInfoResponse {
   address: string | null;
   phone_number: string | null;
   require_birthday?: boolean;
+  require_gender?: boolean;
   minimum_cancellation_hours_before?: number;
   appointment_notes_instructions?: string | null;
   allow_patient_deletion?: boolean;
@@ -172,12 +174,12 @@ class LiffApiService {
     return response.data;
   }
 
-  async createPatient(request: { full_name: string; phone_number: string; birthday?: string }): Promise<{ patient_id: number; full_name: string }> {
+  async createPatient(request: { full_name: string; phone_number: string; birthday?: string; gender?: string }): Promise<{ patient_id: number; full_name: string }> {
     const response = await this.client.post('/liff/patients', request);
     return response.data;
   }
 
-  async updatePatient(patientId: number, request: { full_name?: string; phone_number?: string; birthday?: string }): Promise<{ patient_id: number; full_name: string; phone_number: string }> {
+  async updatePatient(patientId: number, request: { full_name?: string; phone_number?: string; birthday?: string; gender?: string }): Promise<{ patient_id: number; full_name: string; phone_number: string }> {
     const response = await this.client.put(`/liff/patients/${patientId}`, request);
     return response.data;
   }

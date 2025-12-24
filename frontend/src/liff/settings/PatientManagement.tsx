@@ -12,20 +12,14 @@ import { useModal } from '../../contexts/ModalContext';
 import { PatientForm, PatientFormData } from '../components/PatientForm';
 import { useLiffBackButton } from '../../hooks/useLiffBackButton';
 import { LanguageSelector } from '../components/LanguageSelector';
-
-interface Patient {
-  id: number;
-  full_name: string;
-  phone_number: string;
-  birthday?: string;
-  created_at: string;
-}
+import { GENDER_OPTIONS, getGenderLabel } from '../../utils/genderUtils';
+import { PatientSummary } from '../../services/liffApi';
 
 const PatientManagement: React.FC = () => {
   const { t } = useTranslation();
   const { clinicId } = useAppointmentStore();
   const { alert: showAlert, confirm: showConfirm } = useModal();
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -34,8 +28,10 @@ const PatientManagement: React.FC = () => {
   const [editPatientName, setEditPatientName] = useState('');
   const [editPatientPhone, setEditPatientPhone] = useState('');
   const [editPatientBirthday, setEditPatientBirthday] = useState('');
+  const [editPatientGender, setEditPatientGender] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [requireBirthday, setRequireBirthday] = useState(false);
+  const [requireGender, setRequireGender] = useState(false);
 
   // Enable back button navigation - always goes back to home
   useLiffBackButton('settings');
@@ -44,13 +40,14 @@ const PatientManagement: React.FC = () => {
     loadPatients();
   }, [clinicId]);
 
-  // Fetch clinic settings to check if birthday is required
+  // Fetch clinic settings to check if birthday or gender is required
   useEffect(() => {
     const fetchClinicSettings = async () => {
       if (!clinicId) return;
       try {
         const clinicInfo = await liffApiService.getClinicInfo();
         setRequireBirthday(clinicInfo.require_birthday || false);
+        setRequireGender(clinicInfo.require_gender || false);
       } catch (err) {
         logger.error('Failed to fetch clinic settings:', err);
         // Don't block if we can't fetch settings
@@ -92,12 +89,13 @@ const PatientManagement: React.FC = () => {
     }
   };
 
-  const handleStartEdit = (patient: Patient) => {
+  const handleStartEdit = (patient: PatientSummary) => {
     setEditingPatientId(patient.id);
     setEditPatientName(patient.full_name);
-    setEditPatientPhone(patient.phone_number);
+    setEditPatientPhone(patient.phone_number || '');
     // Convert API format (YYYY-MM-DD) to display format (YYYY/MM/DD) for DateInput
     setEditPatientBirthday(convertApiDateToDisplay(patient.birthday));
+    setEditPatientGender(patient.gender || '');
     setError(null);
   };
 
@@ -106,6 +104,7 @@ const PatientManagement: React.FC = () => {
     setEditPatientName('');
     setEditPatientPhone('');
     setEditPatientBirthday('');
+    setEditPatientGender('');
     setError(null);
   };
 
@@ -129,12 +128,15 @@ const PatientManagement: React.FC = () => {
     try {
       setIsUpdating(true);
       setError(null);
-      const updateData: { full_name?: string; phone_number?: string; birthday?: string } = {
+      const updateData: { full_name?: string; phone_number?: string; birthday?: string; gender?: string } = {
         full_name: editPatientName.trim(),
         phone_number: editPatientPhone.replace(/[\s\-\(\)]/g, ''),
       };
       if (editPatientBirthday.trim()) {
         updateData.birthday = formatDateForApi(editPatientBirthday.trim());
+      }
+      if (editPatientGender.trim()) {
+        updateData.gender = editPatientGender.trim().toLowerCase();
       }
       await liffApiService.updatePatient(patientId, updateData);
 
@@ -299,6 +301,23 @@ const PatientManagement: React.FC = () => {
                         />
                       </div>
                     )}
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        生理性別
+                      </label>
+                      <select
+                        value={editPatientGender}
+                        onChange={(e) => setEditPatientGender(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      >
+                        <option value="">請選擇</option>
+                        {GENDER_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     {error && (
                       <div className="bg-red-50 border border-red-200 rounded-md p-2 mb-3">
                         <p className="text-sm text-red-600">{error}</p>
@@ -328,6 +347,11 @@ const PatientManagement: React.FC = () => {
                       {patient.birthday && (
                         <div className="text-sm text-gray-500 mt-1">
                           {t('patient.management.birthday', { date: moment(patient.birthday).format('YYYY/MM/DD') })}
+                        </div>
+                      )}
+                      {patient.gender && (
+                        <div className="text-sm text-gray-500 mt-1">
+                          生理性別: {getGenderLabel(patient.gender)}
                         </div>
                       )}
                     </div>
@@ -371,6 +395,7 @@ const PatientManagement: React.FC = () => {
               <PatientForm
                 clinicId={clinicId}
                 requireBirthday={requireBirthday}
+                requireGender={requireGender}
                 onSubmit={handleAddPatient}
                 onCancel={() => {
                     setShowAddForm(false);

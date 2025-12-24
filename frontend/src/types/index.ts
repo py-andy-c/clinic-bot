@@ -122,6 +122,7 @@ export interface Patient {
   full_name: string;
   phone_number: string | null; // Can be null for clinic-created patients
   birthday?: string; // YYYY-MM-DD format
+  gender?: string | null; // Patient gender (生理性別): 'male', 'female', 'other', or null
   notes?: string | null; // Optional notes/remarks about the patient (備注)
   created_at: string;
   line_user_id?: string;

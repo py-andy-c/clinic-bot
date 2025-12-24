@@ -274,6 +274,7 @@ export class ApiService {
     full_name?: string;
     phone_number?: string | null;
     birthday?: string;
+    gender?: string;
     notes?: string | null;
   }): Promise<Patient> {
     const response = await this.client.put(`/clinic/patients/${patientId}`, data);
@@ -318,17 +319,20 @@ export class ApiService {
     full_name: string;
     phone_number?: string | null;
     birthday?: string;
+    gender?: string;
   }): Promise<{
     patient_id: number;
     full_name: string;
     phone_number: string | null;
     birthday?: string | null;
+    gender?: string | null;
     created_at: string;
   }> {
     const response = await this.client.post('/clinic/patients', {
       full_name: data.full_name.trim(),
       phone_number: data.phone_number?.trim() || null,
       birthday: data.birthday || undefined,
+      gender: data.gender || undefined,
     });
     return response.data;
   }

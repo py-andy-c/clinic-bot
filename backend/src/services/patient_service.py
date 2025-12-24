@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from models import Patient, LineUser
 from utils.datetime_utils import taiwan_now
+from utils.patient_validators import validate_gender_field
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class PatientService:
         phone_number: Optional[str] = None,
         line_user_id: Optional[int] = None,
         birthday: Optional[date] = None,
+        gender: Optional[str] = None,
         created_by_type: str = 'line_user'
     ) -> Patient:
         """
@@ -46,6 +48,7 @@ class PatientService:
             phone_number: Optional phone number (can be None for clinic-created patients)
             line_user_id: Optional LINE user ID for association
             birthday: Optional patient birthday
+            gender: Optional patient gender ('male', 'female', 'other')
             created_by_type: Source of creation - 'line_user' or 'clinic_user' (default: 'line_user')
 
         Returns:
@@ -63,6 +66,16 @@ class PatientService:
                     detail="無效的 LINE 使用者 ID"
                 )
 
+        # Validate gender value if provided
+        if gender is not None:
+            try:
+                gender = validate_gender_field(gender)
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(e)
+                )
+
         try:
             patient = Patient(
                 clinic_id=clinic_id,
@@ -70,6 +83,7 @@ class PatientService:
                 phone_number=phone_number,  # Can be None
                 line_user_id=line_user_id,
                 birthday=birthday,
+                gender=gender,
                 created_by_type=created_by_type,
                 created_at=taiwan_now()  # Use Taiwan timezone to match rest of codebase
             )
@@ -246,7 +260,8 @@ class PatientService:
         clinic_id: int,
         full_name: Optional[str] = None,
         phone_number: Optional[str] = None,
-        birthday: Optional[date] = None
+        birthday: Optional[date] = None,
+        gender: Optional[str] = None
     ) -> Patient:
         """
         Update a patient record for a LINE user.
@@ -259,6 +274,7 @@ class PatientService:
             full_name: Optional new full name
             phone_number: Optional new phone number
             birthday: Optional new birthday
+            gender: Optional new gender
 
         Returns:
             Updated Patient object
@@ -281,6 +297,16 @@ class PatientService:
                 patient.phone_number = phone_number
             if birthday is not None:
                 patient.birthday = birthday
+            if gender is not None:
+                # Validate gender value before updating
+                try:
+                    validated_gender = validate_gender_field(gender)
+                    patient.gender = validated_gender
+                except ValueError as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=str(e)
+                    )
 
             db.commit()
             db.refresh(patient)
@@ -368,6 +394,7 @@ class PatientService:
         full_name: Optional[str] = None,
         phone_number: Optional[str] = None,
         birthday: Optional[date] = None,
+        gender: Optional[str] = None,
         notes: Optional[str] = None
     ) -> Patient:
         """
@@ -380,6 +407,7 @@ class PatientService:
             full_name: Optional new full name
             phone_number: Optional new phone number
             birthday: Optional new birthday
+            gender: Optional new gender
             notes: Optional new notes
 
         Returns:
@@ -399,6 +427,16 @@ class PatientService:
                 patient.phone_number = phone_number
             if birthday is not None:
                 patient.birthday = birthday
+            if gender is not None:
+                # Validate gender value before updating
+                try:
+                    validated_gender = validate_gender_field(gender)
+                    patient.gender = validated_gender
+                except ValueError as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=str(e)
+                    )
             if notes is not None:
                 patient.notes = notes
 

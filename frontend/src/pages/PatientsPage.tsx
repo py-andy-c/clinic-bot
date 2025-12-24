@@ -15,7 +15,6 @@ import { CreateAppointmentModal } from '../components/calendar/CreateAppointment
 import { useModal } from '../contexts/ModalContext';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
-import { formatDateOnly } from '../utils/calendarUtils';
 
 // Component to handle profile picture with fallback on error
 const ProfilePictureWithFallback: React.FC<{
@@ -168,7 +167,7 @@ const PatientsPage: React.FC = () => {
     }
   );
 
-  const requireBirthday = clinicSettings?.clinic_info_settings?.require_birthday || false;
+  // Birthday column removed - no longer shown in patient list
   const hasHandledQueryRef = useRef(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { alert } = useModal();
@@ -362,11 +361,6 @@ const PatientsPage: React.FC = () => {
                       <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '90px' }}>
                         手機號碼
                       </th>
-                      {requireBirthday && (
-                        <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '85px' }}>
-                          生日
-                        </th>
-                      )}
                       <th className="px-2 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{ minWidth: '100px' }}>
                         LINE 使用者
                       </th>
@@ -407,11 +401,6 @@ const PatientsPage: React.FC = () => {
                         <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-gray-500" style={{ minWidth: '90px' }}>
                           {patient.phone_number || '-'}
                         </td>
-                        {requireBirthday && (
-                          <td className="px-2 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-gray-500" style={{ minWidth: '85px' }}>
-                            {patient.birthday ? formatDateOnly(patient.birthday) : '-'}
-                          </td>
-                        )}
                         <td className="px-2 py-2 md:px-6 md:py-4 text-sm" style={{ minWidth: '100px' }}>
                           {patient.line_user_id ? (
                             <button

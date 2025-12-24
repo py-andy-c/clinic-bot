@@ -92,6 +92,7 @@ class ClinicInfoSettings(BaseModel):
     appointment_type_instructions: Optional[str] = Field(default=None, description="Instructions to guide patients when selecting appointment types")
     appointment_notes_instructions: Optional[str] = Field(default=None, description="Instructions to guide patients when adding notes to appointments")
     require_birthday: bool = Field(default=False, description="Whether to require birthday during patient registration")
+    require_gender: bool = Field(default=False, description="Whether to require gender (生理性別) during patient registration")
 
 
 class ChatSettings(BaseModel):

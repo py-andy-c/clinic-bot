@@ -8,6 +8,7 @@ import { DateInput } from '../shared/DateInput';
 import { formatDateForApi, convertApiDateToDisplay } from '../../utils/dateFormat';
 import { validateClinicPatientForm } from '../../utils/patientFormValidation';
 import { formatDateOnly } from '../../utils/calendarUtils';
+import { GENDER_OPTIONS, getGenderLabel } from '../../utils/genderUtils';
 
 interface PatientInfoSectionProps {
   patient: Patient;
@@ -18,6 +19,7 @@ interface PatientInfoSectionProps {
     full_name?: string;
     phone_number?: string | null;
     birthday?: string;
+    gender?: string;
   }) => Promise<void>;
   canEdit: boolean;
 }
@@ -35,6 +37,7 @@ export const PatientInfoSection: React.FC<PatientInfoSectionProps> = ({
   const [fullName, setFullName] = useState(patient.full_name);
   const [phoneNumber, setPhoneNumber] = useState(patient.phone_number || '');
   const [birthday, setBirthday] = useState(patient.birthday || '');
+  const [gender, setGender] = useState(patient.gender || '');
   const [requireBirthday, setRequireBirthday] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,13 +64,14 @@ export const PatientInfoSection: React.FC<PatientInfoSectionProps> = ({
     setPhoneNumber(patient.phone_number || '');
     // Convert API format (YYYY-MM-DD) to display format (YYYY/MM/DD) for DateInput
     setBirthday(convertApiDateToDisplay(patient.birthday));
+    setGender(patient.gender || '');
   }, [patient]);
 
   const handleSave = async () => {
     setError(null);
 
     // Validate using shared validation utility (same as patient creation modal)
-    const validation = validateClinicPatientForm(fullName, phoneNumber, birthday);
+    const validation = validateClinicPatientForm(fullName, phoneNumber, birthday, gender);
     if (!validation.isValid) {
       setError(validation.error || '驗證失敗');
       return;
@@ -81,11 +85,12 @@ export const PatientInfoSection: React.FC<PatientInfoSectionProps> = ({
 
     try {
       setIsSaving(true);
-      const { full_name, phone_number, birthday: normalizedBirthday } = validation.normalizedData;
+      const { full_name, phone_number, birthday: normalizedBirthday, gender: normalizedGender } = validation.normalizedData;
       await onUpdate({
         full_name,
         phone_number,
         ...(normalizedBirthday ? { birthday: formatDateForApi(normalizedBirthday) } : {}),
+        ...(normalizedGender ? { gender: normalizedGender } : {}),
       });
     } catch (err) {
       // Error is handled by parent component
@@ -145,6 +150,24 @@ export const PatientInfoSection: React.FC<PatientInfoSectionProps> = ({
             </div>
           )}
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              生理性別
+            </label>
+            <select
+              value={gender}
+              onChange={(e) => setGender(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">請選擇</option>
+              {GENDER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex space-x-3 pt-4">
             <button
               onClick={handleSave}
@@ -200,6 +223,15 @@ export const PatientInfoSection: React.FC<PatientInfoSectionProps> = ({
               {patient.birthday
                 ? formatDateOnly(patient.birthday)
                 : '-'}
+            </dd>
+          </div>
+        )}
+
+        {patient.gender && (
+          <div>
+            <dt className="text-sm font-medium text-gray-500">生理性別</dt>
+            <dd className="mt-1 text-sm text-gray-900">
+              {getGenderLabel(patient.gender)}
             </dd>
           </div>
         )}

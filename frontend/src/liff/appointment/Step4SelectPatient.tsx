@@ -17,6 +17,7 @@ const Step4SelectPatient: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [requireBirthday, setRequireBirthday] = useState(false);
+  const [requireGender, setRequireGender] = useState(false);
 
   useEffect(() => {
     loadPatients();
@@ -29,13 +30,14 @@ const Step4SelectPatient: React.FC = () => {
     }
   }, [isLoading, patients.length, showAddForm]);
 
-  // Fetch clinic settings to check if birthday is required
+  // Fetch clinic settings to check if birthday or gender is required
   useEffect(() => {
     const fetchClinicSettings = async () => {
       if (!clinicId) return;
       try {
         const clinicInfo = await liffApiService.getClinicInfo();
         setRequireBirthday(clinicInfo.require_birthday || false);
+        setRequireGender(clinicInfo.require_gender || false);
       } catch (err) {
         logger.error('Failed to fetch clinic settings:', err);
         // Don't block if we can't fetch settings
@@ -185,6 +187,7 @@ const Step4SelectPatient: React.FC = () => {
             <PatientForm
               clinicId={clinicId}
               requireBirthday={requireBirthday}
+              requireGender={requireGender}
               onSubmit={handleAddPatient}
               onCancel={() => {
                   setShowAddForm(false);

@@ -401,6 +401,107 @@ class TestClinicPatientCreation:
         # Phone should be cleaned (no dashes)
         assert response.json()["phone_number"] == "0912345678"
 
+    def test_create_patient_with_gender(self, db_session, auth_headers_admin, clinic_admin):
+        """Test creating patient with gender field."""
+        _, clinic = clinic_admin
+        
+        response = client.post(
+            "/api/clinic/patients",
+            json={
+                "full_name": "測試病患",
+                "gender": "male"
+            },
+            headers=auth_headers_admin
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["gender"] == "male"
+        
+        # Verify in database
+        patient = db_session.query(Patient).filter(Patient.id == data["patient_id"]).first()
+        assert patient.gender == "male"
+
+    def test_create_patient_with_gender_case_insensitive(self, db_session, auth_headers_admin, clinic_admin):
+        """Test gender validation is case-insensitive."""
+        _, clinic = clinic_admin
+        
+        # Test uppercase
+        response = client.post(
+            "/api/clinic/patients",
+            json={
+                "full_name": "測試病患",
+                "gender": "FEMALE"
+            },
+            headers=auth_headers_admin
+        )
+        
+        assert response.status_code == 200
+        assert response.json()["gender"] == "female"
+        
+        # Test mixed case
+        response = client.post(
+            "/api/clinic/patients",
+            json={
+                "full_name": "測試病患2",
+                "gender": "Other"
+            },
+            headers=auth_headers_admin
+        )
+        
+        assert response.status_code == 200
+        assert response.json()["gender"] == "other"
+
+    def test_create_patient_invalid_gender(self, db_session, auth_headers_admin):
+        """Test invalid gender value is rejected."""
+        response = client.post(
+            "/api/clinic/patients",
+            json={
+                "full_name": "測試病患",
+                "gender": "invalid"
+            },
+            headers=auth_headers_admin
+        )
+        
+        assert response.status_code == 422  # Validation error
+        detail = str(response.json())
+        assert "性別" in detail or "gender" in detail.lower()
+
+    def test_create_patient_required_gender(self, db_session, auth_headers_admin, clinic_admin):
+        """Test that gender is required when clinic setting requires it."""
+        _, clinic = clinic_admin
+        
+        # Set clinic to require gender
+        clinic_settings = clinic.get_validated_settings()
+        clinic_settings.clinic_info_settings.require_gender = True
+        clinic.set_validated_settings(clinic_settings)
+        db_session.commit()
+        
+        # Try to create patient without gender
+        response = client.post(
+            "/api/clinic/patients",
+            json={
+                "full_name": "測試病患"
+            },
+            headers=auth_headers_admin
+        )
+        
+        assert response.status_code == 400
+        detail = response.json().get("detail", "")
+        assert "生理性別" in detail or "gender" in detail.lower()
+        
+        # Create patient with gender should succeed
+        response = client.post(
+            "/api/clinic/patients",
+            json={
+                "full_name": "測試病患2",
+                "gender": "male"
+            },
+            headers=auth_headers_admin
+        )
+        
+        assert response.status_code == 200
+
 
 class TestDuplicateDetection:
     """Tests for GET /clinic/patients/check-duplicate endpoint."""

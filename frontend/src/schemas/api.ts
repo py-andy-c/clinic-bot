@@ -31,6 +31,7 @@ export const ClinicInfoSettingsSchema = z.object({
   appointment_type_instructions: z.string().nullable().optional(),
   appointment_notes_instructions: z.string().nullable().optional(),
   require_birthday: z.boolean().optional(),
+  require_gender: z.boolean().optional(),
 });
 
 // Strict schemas for forms
@@ -41,6 +42,7 @@ export const ClinicInfoFormSchema = z.object({
   appointment_type_instructions: z.string().nullable().optional(),
   appointment_notes_instructions: z.string().nullable().optional(),
   require_birthday: z.boolean().optional(),
+  require_gender: z.boolean().optional(),
 });
 
 export const BookingRestrictionFormSchema = z.object({
@@ -93,6 +95,7 @@ export const AppointmentsSettingsFormSchema = z.object({
     appointment_type_instructions: z.string().nullable().optional(),
     appointment_notes_instructions: z.string().nullable().optional(),
     require_birthday: z.boolean().optional(),
+    require_gender: z.boolean().optional(),
   }),
   booking_restriction_settings: BookingRestrictionFormSchema,
   practitioners: z.array(z.object({

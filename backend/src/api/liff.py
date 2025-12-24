@@ -33,6 +33,7 @@ from models.receipt import Receipt
 from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
 from utils.datetime_utils import TAIWAN_TZ, taiwan_now, parse_datetime_to_taiwan, parse_date_string
+from utils.patient_validators import validate_gender_field
 # get_practitioner_display_name removed - use get_practitioner_display_name_with_title for patient-facing displays
 from utils.liff_token import validate_token_format, validate_liff_id_format
 from api.responses import (
@@ -220,6 +221,7 @@ class PatientCreateRequest(BaseModel):
     full_name: str
     phone_number: str
     birthday: Optional[date] = None
+    gender: Optional[str] = None
 
     @field_validator('full_name')
     @classmethod
@@ -245,12 +247,19 @@ class PatientCreateRequest(BaseModel):
         """Validate birthday format (YYYY-MM-DD) and reasonable range."""
         return validate_birthday_field(v)
 
+    @field_validator('gender', mode='before')
+    @classmethod
+    def validate_gender(cls, v: Union[str, None]) -> Optional[str]:
+        """Validate gender value."""
+        return validate_gender_field(v)
+
 
 class PatientUpdateRequest(BaseModel):
     """Request model for updating patient."""
     full_name: Optional[str] = None
     phone_number: Optional[str] = None
     birthday: Optional[date] = None
+    gender: Optional[str] = None
 
     @field_validator('full_name')
     @classmethod
@@ -278,10 +287,16 @@ class PatientUpdateRequest(BaseModel):
         """Validate birthday format (YYYY-MM-DD) and reasonable range."""
         return validate_birthday_field(v)
 
+    @field_validator('gender', mode='before')
+    @classmethod
+    def validate_gender(cls, v: Union[str, None]) -> Optional[str]:
+        """Validate gender value."""
+        return validate_gender_field(v)
+
     @model_validator(mode='after')
     def validate_at_least_one_field(self):
         """Ensure at least one field is provided for update."""
-        if self.full_name is None and self.phone_number is None and self.birthday is None:
+        if self.full_name is None and self.phone_number is None and self.birthday is None and self.gender is None:
             raise ValueError('至少需提供一個欄位進行更新')
         return self
 
@@ -543,15 +558,23 @@ async def create_patient(
     line_user, clinic = line_user_clinic
 
     try:
-        # Check if clinic requires birthday
+        # Check if clinic requires birthday or gender
         clinic_settings = clinic.get_validated_settings()
         require_birthday = clinic_settings.clinic_info_settings.require_birthday
+        require_gender = clinic_settings.clinic_info_settings.require_gender
 
         # Validate birthday is provided if required
         if require_birthday and not request.birthday:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="此診所要求填寫生日"
+            )
+
+        # Validate gender is provided if required
+        if require_gender and not request.gender:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="此診所要求填寫生理性別"
             )
 
         patient = PatientService.create_patient(
@@ -561,6 +584,7 @@ async def create_patient(
             phone_number=request.phone_number,
             line_user_id=line_user.id,
             birthday=request.birthday,
+            gender=request.gender,
             created_by_type='line_user'  # Explicit: patients created via LINE
         )
 
@@ -569,6 +593,7 @@ async def create_patient(
             full_name=patient.full_name,
             phone_number=patient.phone_number,
             birthday=patient.birthday,
+            gender=patient.gender,
             created_at=patient.created_at
         )
 
@@ -625,6 +650,7 @@ async def list_patients(
                     full_name=p.full_name,
                     phone_number=p.phone_number,
                     birthday=p.birthday,
+                    gender=p.gender,
                     notes=None,  # Notes are clinic-internal, not exposed to LINE users
                     created_at=p.created_at,
                     future_appointments_count=future_count,
@@ -666,7 +692,8 @@ async def update_patient(
             clinic_id=clinic.id,
             full_name=request.full_name,
             phone_number=request.phone_number,
-            birthday=request.birthday
+            birthday=request.birthday,
+            gender=request.gender
         )
 
         return PatientCreateResponse(
@@ -1467,6 +1494,7 @@ async def get_clinic_info(
             "address": clinic.address,
             "phone_number": clinic.phone_number,
             "require_birthday": clinic_settings.clinic_info_settings.require_birthday,
+            "require_gender": clinic_settings.clinic_info_settings.require_gender,
             "minimum_cancellation_hours_before": clinic_settings.booking_restriction_settings.minimum_cancellation_hours_before,
             "appointment_notes_instructions": clinic_settings.clinic_info_settings.appointment_notes_instructions,
             "allow_patient_deletion": clinic_settings.booking_restriction_settings.allow_patient_deletion,
