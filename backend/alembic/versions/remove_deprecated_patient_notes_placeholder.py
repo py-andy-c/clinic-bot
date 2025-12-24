@@ -1,6 +1,6 @@
 """remove_deprecated_patient_notes_placeholder
 
-Revision ID: remove_deprecated_patient_notes_placeholder
+Revision ID: remove_deprecated_placeholder
 Revises: add_gender_to_patients
 Create Date: 2025-01-31 12:00:00.000000
 
@@ -15,7 +15,7 @@ from sqlalchemy import text
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'remove_deprecated_patient_notes_placeholder'
+revision: str = 'remove_deprecated_placeholder'
 down_revision: Union[str, None] = 'add_gender_to_patients'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
