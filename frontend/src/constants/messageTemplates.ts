@@ -28,6 +28,7 @@ export const PLACEHOLDERS = {
     { key: '{病患姓名}', label: '病患姓名', description: '病患的完整姓名' },
     { key: '{服務項目}', label: '服務項目', description: '服務項目名稱' },
     { key: '{預約時間}', label: '預約時間', description: '格式化的日期時間（例如：12/25 (三) 1:30 PM）' },
+    { key: '{預約結束時間}', label: '預約結束時間', description: '格式化的結束日期時間（例如：12/25 (三) 2:30 PM）' },
     { key: '{治療師姓名}', label: '治療師姓名', description: '治療師姓名（或「不指定」）' },
     { key: '{診所名稱}', label: '診所名稱', description: '診所顯示名稱' },
     { key: '{診所地址}', label: '診所地址', description: '診所地址（如果已設定）', optional: true },

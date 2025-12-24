@@ -1251,6 +1251,104 @@ export class ApiService {
     const response = await this.client.put('/clinic/appointment-types/bulk-order', { service_orders: serviceOrders });
     return response.data;
   }
+
+  // Follow-Up Message Management APIs
+  async getFollowUpMessages(appointmentTypeId: number): Promise<{ follow_up_messages: Array<{
+    id: number;
+    appointment_type_id: number;
+    clinic_id: number;
+    timing_mode: 'hours_after' | 'specific_time';
+    hours_after?: number | null;
+    days_after?: number | null;
+    time_of_day?: string | null;
+    message_template: string;
+    is_enabled: boolean;
+    display_order: number;
+    created_at: string;
+    updated_at: string;
+  }> }> {
+    const response = await this.client.get(`/clinic/appointment-types/${appointmentTypeId}/follow-up-messages`);
+    return response.data;
+  }
+
+  async createFollowUpMessage(appointmentTypeId: number, data: {
+    timing_mode: 'hours_after' | 'specific_time';
+    hours_after?: number;
+    days_after?: number;
+    time_of_day?: string;
+    message_template: string;
+    is_enabled?: boolean;
+    display_order?: number;
+  }): Promise<{
+    id: number;
+    appointment_type_id: number;
+    clinic_id: number;
+    timing_mode: 'hours_after' | 'specific_time';
+    hours_after?: number | null;
+    days_after?: number | null;
+    time_of_day?: string | null;
+    message_template: string;
+    is_enabled: boolean;
+    display_order: number;
+    created_at: string;
+    updated_at: string;
+  }> {
+    const response = await this.client.post(`/clinic/appointment-types/${appointmentTypeId}/follow-up-messages`, data);
+    return response.data;
+  }
+
+  async updateFollowUpMessage(
+    appointmentTypeId: number,
+    messageId: number,
+    data: {
+      timing_mode?: 'hours_after' | 'specific_time';
+      hours_after?: number;
+      days_after?: number;
+      time_of_day?: string;
+      message_template?: string;
+      is_enabled?: boolean;
+      display_order?: number;
+    }
+  ): Promise<{
+    id: number;
+    appointment_type_id: number;
+    clinic_id: number;
+    timing_mode: 'hours_after' | 'specific_time';
+    hours_after?: number | null;
+    days_after?: number | null;
+    time_of_day?: string | null;
+    message_template: string;
+    is_enabled: boolean;
+    display_order: number;
+    created_at: string;
+    updated_at: string;
+  }> {
+    const response = await this.client.put(`/clinic/appointment-types/${appointmentTypeId}/follow-up-messages/${messageId}`, data);
+    return response.data;
+  }
+
+  async deleteFollowUpMessage(appointmentTypeId: number, messageId: number): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(`/clinic/appointment-types/${appointmentTypeId}/follow-up-messages/${messageId}`);
+    return response.data;
+  }
+
+  async previewFollowUpMessage(data: {
+    appointment_type_id: number;
+    timing_mode: 'hours_after' | 'specific_time';
+    hours_after?: number;
+    days_after?: number;
+    time_of_day?: string;
+    message_template: string;
+    sample_appointment_end_time?: string;
+  }): Promise<{
+    preview_message: string;
+    calculated_send_time: string;
+    used_placeholders: Record<string, string>;
+    completeness_warnings?: string[];
+  }> {
+    const response = await this.client.post('/clinic/follow-up-message-preview', data);
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();

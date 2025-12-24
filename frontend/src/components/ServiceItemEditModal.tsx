@@ -12,6 +12,7 @@ import { InfoButton, InfoModal } from './shared';
 import { useServiceItemsStore } from '../stores/serviceItemsStore';
 import { ResourceRequirementsSection } from './ResourceRequirementsSection';
 import { MessageSettingsSection } from './MessageSettingsSection';
+import { FollowUpMessagesSection } from './FollowUpMessagesSection';
 import { FormField, FormInput, FormTextarea } from './forms';
 import { WarningPopover } from './shared/WarningPopover';
 
@@ -718,6 +719,14 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         ))}
                       </ul>
                     </div>
+                  )}
+                  
+                  {isClinicAdmin && (
+                    <FollowUpMessagesSection
+                      appointmentType={appointmentType}
+                      disabled={!isClinicAdmin}
+                      {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
+                    />
                   )}
                   
                   <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">

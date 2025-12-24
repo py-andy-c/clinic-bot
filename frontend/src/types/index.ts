@@ -185,6 +185,21 @@ export interface AppointmentType {
   notes_instructions?: string | null | undefined;
 }
 
+export interface FollowUpMessage {
+  id: number;
+  appointment_type_id: number;
+  clinic_id: number;
+  timing_mode: 'hours_after' | 'specific_time';
+  hours_after?: number | null;
+  days_after?: number | null;
+  time_of_day?: string | null; // HH:MM format
+  message_template: string;
+  is_enabled: boolean;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ServiceTypeGroup {
   id: number;
   clinic_id: number;
