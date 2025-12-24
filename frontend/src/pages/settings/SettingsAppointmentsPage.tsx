@@ -46,6 +46,7 @@ const SettingsAppointmentsPage: React.FC = () => {
         appointment_type_instructions: settings?.clinic_info_settings.appointment_type_instructions || '',
         appointment_notes_instructions: settings?.clinic_info_settings.appointment_notes_instructions || '',
         require_birthday: settings?.clinic_info_settings.require_birthday || false,
+        require_gender: settings?.clinic_info_settings.require_gender || false,
       },
       booking_restriction_settings: settings?.booking_restriction_settings as any || {},
       practitioners: [],
@@ -82,6 +83,7 @@ const SettingsAppointmentsPage: React.FC = () => {
           appointment_type_instructions: settings.clinic_info_settings.appointment_type_instructions || '',
           appointment_notes_instructions: settings.clinic_info_settings.appointment_notes_instructions || '',
           require_birthday: settings.clinic_info_settings.require_birthday || false,
+          require_gender: settings.clinic_info_settings.require_gender || false,
         },
         booking_restriction_settings: settings.booking_restriction_settings as any,
         practitioners,
@@ -98,6 +100,7 @@ const SettingsAppointmentsPage: React.FC = () => {
         appointment_type_instructions: settings.clinic_info_settings.appointment_type_instructions || '',
         appointment_notes_instructions: settings.clinic_info_settings.appointment_notes_instructions || '',
         require_birthday: settings.clinic_info_settings.require_birthday || false,
+        require_gender: settings.clinic_info_settings.require_gender || false,
       });
       
       const pendingBookingStr = JSON.stringify(pendingFormDataRef.current.booking_restriction_settings);
