@@ -635,7 +635,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       appointmentType={appointmentType}
                       onUpdate={onUpdate}
                       disabled={!isClinicAdmin}
-                      clinicInfoAvailability={clinicInfoAvailability}
+                      {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
                     />
                   )}
                   {messageValidationErrors.length > 0 && (

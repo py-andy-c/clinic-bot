@@ -46,6 +46,25 @@ if [ ! -d "node_modules" ]; then
     exit 1
 fi
 
+# Create minimal .env file for tests if it doesn't exist (to avoid permission errors)
+# Vite will try to load .env during config initialization, so we need it to exist and be readable
+if [ ! -f ".env" ]; then
+    print_status "Creating minimal .env file for tests..."
+    if (echo "VITE_API_BASE_URL=/api" > .env && echo "VITE_LIFF_ID=test-liff-id" >> .env) 2>/dev/null; then
+        print_success "Created .env file for tests"
+    else
+        print_warning "Could not create .env file - tests may fail if file cannot be read"
+    fi
+elif [ ! -r ".env" ]; then
+    # File exists but may not be readable - try to recreate it
+    print_warning ".env file exists but may not be readable, attempting to recreate..."
+    if (echo "VITE_API_BASE_URL=/api" > .env && echo "VITE_LIFF_ID=test-liff-id" >> .env) 2>/dev/null; then
+        print_success "Recreated .env file for tests"
+    else
+        print_warning "Could not recreate .env file - tests may fail"
+    fi
+fi
+
 # Check if package.json exists
 if [ ! -f "package.json" ]; then
     print_error "package.json not found!"
@@ -62,6 +81,10 @@ else
 fi
 
 # Run frontend unit tests
+# Set environment variables for tests (in case .env file can't be read)
+export VITE_API_BASE_URL="${VITE_API_BASE_URL:-/api}"
+export VITE_LIFF_ID="${VITE_LIFF_ID:-test-liff-id}"
+
 print_status "Running frontend unit tests..."
 if npm test -- --run; then
     print_success "Frontend unit tests passed!"

@@ -252,7 +252,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
                     messageType={type}
                     onInsert={(placeholder) => handleInsertPlaceholder(type, placeholder)}
                     disabled={disabled}
-                    clinicInfoAvailability={clinicInfoAvailability}
+                    {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
                   />
                   <button
                     type="button"
@@ -317,8 +317,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
         <MessagePreviewModal
           isOpen={previewModal.isOpen}
           onClose={() => setPreviewModal({ ...previewModal, isOpen: false })}
-          appointmentTypeId={isNewItem ? undefined : appointmentType.id}
-          appointmentTypeName={isNewItem ? appointmentType.name : undefined}
+          {...(isNewItem ? { appointmentTypeName: appointmentType.name } : { appointmentTypeId: appointmentType.id })}
           messageType={previewModal.messageType}
           template={previewModal.template}
         />
