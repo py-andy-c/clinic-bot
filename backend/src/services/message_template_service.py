@@ -302,10 +302,10 @@ class MessageTemplateService:
         warnings: List[str] = []
         
         if "{診所地址}" in template and not clinic.address:
-            warnings.append("{診所地址} 但診所尚未設定地址")
+            warnings.append("使用了 {診所地址} 但診所尚未設定地址")
         
         if "{診所電話}" in template and not clinic.phone_number:
-            warnings.append("{診所電話} 但診所尚未設定電話")
+            warnings.append("使用了 {診所電話} 但診所尚未設定電話")
         
         return warnings
 
