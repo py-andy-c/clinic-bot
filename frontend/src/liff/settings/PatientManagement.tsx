@@ -301,23 +301,25 @@ const PatientManagement: React.FC = () => {
                         />
                       </div>
                     )}
-                    <div className="mb-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        生理性別
-                      </label>
-                      <select
-                        value={editPatientGender}
-                        onChange={(e) => setEditPatientGender(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      >
-                        <option value="">請選擇</option>
-                        {GENDER_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    {requireGender && (
+                      <div className="mb-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          生理性別
+                        </label>
+                        <select
+                          value={editPatientGender}
+                          onChange={(e) => setEditPatientGender(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        >
+                          <option value="">請選擇生理性別</option>
+                          {GENDER_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     {error && (
                       <div className="bg-red-50 border border-red-200 rounded-md p-2 mb-3">
                         <p className="text-sm text-red-600">{error}</p>
