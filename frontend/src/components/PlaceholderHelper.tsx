@@ -113,7 +113,7 @@ export const PlaceholderHelper: React.FC<PlaceholderHelperProps> = ({
         >
           <div className="p-2">
             <div className="text-xs font-medium text-gray-700 mb-2 px-2">
-              點擊插入變數 ({allPlaceholders.length} 個變數)
+              點擊插入變數
             </div>
             <div className="space-y-1 max-h-64 overflow-y-auto">
               {allPlaceholders.map((placeholder, index) => {
@@ -134,13 +134,13 @@ export const PlaceholderHelper: React.FC<PlaceholderHelperProps> = ({
                   <button
                     key={`${placeholder.key}-${index}`}
                     type="button"
-                    onClick={() => handleInsert(placeholder.key)}
+                    onClick={() => !isUnavailable && handleInsert(placeholder.key)}
+                    disabled={isUnavailable}
                     className={`w-full text-left px-2 py-1.5 text-xs rounded transition-colors ${
                       isUnavailable
-                        ? 'hover:bg-yellow-50 opacity-75'
-                        : 'hover:bg-blue-50'
+                        ? 'opacity-75 cursor-not-allowed'
+                        : 'hover:bg-blue-50 cursor-pointer'
                     }`}
-                    title={unavailableTooltip}
                     data-placeholder-key={placeholder.key}
                     data-placeholder-index={index}
                   >
@@ -148,14 +148,9 @@ export const PlaceholderHelper: React.FC<PlaceholderHelperProps> = ({
                       <span className={`font-mono ${isUnavailable ? 'text-gray-500' : 'text-blue-600'}`}>
                         {placeholder.key}
                       </span>
-                      {isUnavailable && (
-                        <span className="text-yellow-600" title={unavailableTooltip}>
-                          ⚠️
-                        </span>
-                      )}
                     </div>
                     <div className={`text-xs mt-0.5 ${isUnavailable ? 'text-gray-500' : 'text-gray-600'}`}>
-                      {placeholder.label}
+                      {isUnavailable ? unavailableTooltip : placeholder.description}
                     </div>
                   </button>
                 );
