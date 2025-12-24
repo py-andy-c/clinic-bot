@@ -34,6 +34,9 @@ const ServiceItemFormSchema = z.object({
   patient_confirmation_message: z.string().optional(),
   clinic_confirmation_message: z.string().optional(),
   reminder_message: z.string().optional(),
+  // Notes customization fields
+  require_notes: z.boolean().optional(),
+  notes_instructions: z.string().nullable().optional(),
 });
 
 type ServiceItemFormData = z.infer<typeof ServiceItemFormSchema>;
@@ -106,6 +109,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       scheduling_buffer_minutes: appointmentType.scheduling_buffer_minutes || 0,
       service_type_group_id: appointmentType.service_type_group_id || null,
       display_order: appointmentType.display_order || 0,
+      require_notes: appointmentType.require_notes ?? false,
+      notes_instructions: appointmentType.notes_instructions || null,
     },
     mode: 'onBlur',
   });
@@ -122,6 +127,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   const scheduling_buffer_minutes = watch('scheduling_buffer_minutes');
   const service_type_group_id = watch('service_type_group_id');
   const display_order = watch('display_order');
+  const require_notes = watch('require_notes');
+  const notes_instructions = watch('notes_instructions');
 
   // Reset form when appointmentType changes
   useEffect(() => {
@@ -138,6 +145,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         scheduling_buffer_minutes: appointmentType.scheduling_buffer_minutes || 0,
         service_type_group_id: appointmentType.service_type_group_id || null,
         display_order: appointmentType.display_order || 0,
+        require_notes: appointmentType.require_notes ?? false,
+        notes_instructions: appointmentType.notes_instructions || null,
       });
     }
   }, [isOpen, appointmentType, reset]);
@@ -288,6 +297,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         scheduling_buffer_minutes,
         service_type_group_id,
         display_order,
+        require_notes,
+        notes_instructions,
       });
       
       // Only update if values actually changed
@@ -306,6 +317,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
           scheduling_buffer_minutes,
           service_type_group_id,
           display_order,
+          require_notes,
+          notes_instructions,
         };
         
         // Use setTimeout to break the update cycle
@@ -317,7 +330,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     }
   }, [name, duration_minutes, receipt_name, allow_patient_booking, 
       allow_patient_practitioner_selection, description, scheduling_buffer_minutes,
-      service_type_group_id, display_order, isDirty, appointmentType, onUpdate]);
+      service_type_group_id, display_order, require_notes, notes_instructions, isDirty, appointmentType, onUpdate]);
 
   const handleCancel = () => {
     // Reset form to original values
@@ -333,6 +346,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       scheduling_buffer_minutes: appointmentType.scheduling_buffer_minutes || 0,
       service_type_group_id: appointmentType.service_type_group_id || null,
       display_order: appointmentType.display_order || 0,
+      require_notes: appointmentType.require_notes ?? false,
+      notes_instructions: appointmentType.notes_instructions || null,
     });
     onClose();
   };
@@ -454,6 +469,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       scheduling_buffer_minutes: currentValues.scheduling_buffer_minutes || 0,
       service_type_group_id: currentValues.service_type_group_id || null,
       display_order: currentValues.display_order || 0,
+      require_notes: currentValues.require_notes ?? false,
+      notes_instructions: currentValues.notes_instructions || null,
       // Include message fields from appointmentType (updated by MessageSettingsSection)
       send_patient_confirmation: appointmentType.send_patient_confirmation,
       send_clinic_confirmation: appointmentType.send_clinic_confirmation,
@@ -593,6 +610,42 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                       <FormField name="description" label="說明">
                         <FormTextarea name="description" placeholder="服務說明（顯示在 LINE 預約系統）" rows={4} disabled={!isClinicAdmin} className="resize-none" />
                       </FormField>
+
+                      {/* Notes customization fields - only show when allow_patient_booking is true */}
+                      {allow_patient_booking ? (
+                        <>
+                          <div className="pt-4 border-t border-gray-200">
+                            <FormField name="require_notes" label="">
+                              <label className="flex items-center cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  {...register('require_notes')}
+                                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3"
+                                  disabled={!isClinicAdmin}
+                                />
+                                <span className="text-sm font-medium text-gray-900">要求填寫備註</span>
+                              </label>
+                            </FormField>
+                          </div>
+                          <FormField name="notes_instructions" label="備註填寫指引">
+                            <FormTextarea
+                              name="notes_instructions"
+                              placeholder="病患在透過Line預約，填寫備註時，將會看到此指引（若未填寫，將使用診所設定的全域指引）"
+                              rows={4}
+                              disabled={!isClinicAdmin}
+                              className="resize-none"
+                            />
+                          </FormField>
+                        </>
+                      ) : (
+                        <div className="pt-4 border-t border-gray-200">
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                            <p className="text-sm text-yellow-800">
+                              此設定僅適用於開放病患自行預約的服務項目
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 

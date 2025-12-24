@@ -5,19 +5,29 @@ import { useAppointmentStore } from '../../stores/appointmentStore';
 const Step5AddNotes: React.FC = () => {
   const { t } = useTranslation();
   // Note: setStep is used in the next step button onClick handler below
-  const { notes, updateNotesOnly, setStep, appointmentNotesInstructions } = useAppointmentStore();
+  const { notes, updateNotesOnly, setStep, appointmentNotesInstructions, appointmentType } = useAppointmentStore();
 
   const handleNotesChange = (value: string) => {
     updateNotesOnly(value);
   };
+
+  // Determine which instructions to show: service-specific first, then global, then nothing
+  const instructionsToShow = appointmentType?.notes_instructions 
+    ? appointmentType.notes_instructions 
+    : appointmentNotesInstructions;
+
+  // Check if notes are required
+  const isNotesRequired = appointmentType?.require_notes === true;
+  const canProceed = !isNotesRequired || (notes && notes.trim().length > 0);
 
   return (
     <div className="px-4 py-6">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
           {t('notes.title')}
+          {isNotesRequired && <span className="text-red-500 ml-1">*</span>}
         </h2>
-        {appointmentNotesInstructions && (
+        {instructionsToShow && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
             <div className="flex">
               <div className="flex-shrink-0">
@@ -27,7 +37,7 @@ const Step5AddNotes: React.FC = () => {
               </div>
               <div className="ml-3">
                 <p className="text-sm text-blue-700 whitespace-pre-line">
-                  {appointmentNotesInstructions}
+                  {instructionsToShow}
                 </p>
               </div>
             </div>
@@ -40,18 +50,34 @@ const Step5AddNotes: React.FC = () => {
           value={notes}
           onChange={(e) => handleNotesChange(e.target.value)}
           placeholder={t('notes.placeholder')}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md h-32 resize-none"
+          className={`w-full px-3 py-2 border rounded-md h-32 resize-none ${
+            isNotesRequired && !notes.trim() ? 'border-red-300' : 'border-gray-300'
+          }`}
           maxLength={500}
         />
-        <p className="text-sm text-gray-500 mt-1">
-          {t('notes.charCount', { count: notes.length })}
-        </p>
+        <div className="flex items-center justify-between mt-1">
+          {isNotesRequired && !notes.trim() && (
+            <p className="text-sm text-red-600">此服務項目需要填寫備註</p>
+          )}
+          <p className={`text-sm ${isNotesRequired && !notes.trim() ? 'text-red-500' : 'text-gray-500'} ml-auto`}>
+            {t('notes.charCount', { count: notes.length })}
+          </p>
+        </div>
       </div>
 
       <div className="space-y-3">
         <button
-          onClick={() => setStep(6)}
-          className="w-full bg-primary-600 text-white py-3 px-4 rounded-md hover:bg-primary-700"
+          onClick={() => {
+            if (canProceed) {
+              setStep(6);
+            }
+          }}
+          disabled={!canProceed}
+          className={`w-full py-3 px-4 rounded-md ${
+            canProceed
+              ? 'bg-primary-600 text-white hover:bg-primary-700'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          }`}
         >
           {t('notes.next')}
         </button>

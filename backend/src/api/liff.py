@@ -752,7 +752,9 @@ async def list_appointment_types(
                     send_reminder=at.send_reminder,
                     patient_confirmation_message=at.patient_confirmation_message,
                     clinic_confirmation_message=at.clinic_confirmation_message,
-                    reminder_message=at.reminder_message
+                    reminder_message=at.reminder_message,
+                    require_notes=at.require_notes,
+                    notes_instructions=at.notes_instructions
                 ) for at in appointment_types
             ],
             appointment_type_instructions=clinic.appointment_type_instructions
@@ -986,6 +988,14 @@ async def create_appointment(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="此服務類型不允許指定治療師"
             )
+
+        # Validate notes requirement if appointment type requires it and allows patient booking
+        if appointment_type.allow_patient_booking and appointment_type.require_notes:
+            if not request.notes or not request.notes.strip():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="此服務項目需要填寫備註"
+                )
 
         # Force practitioner_id to None if setting is False (auto-assignment)
         practitioner_id = None if not appointment_type.allow_patient_practitioner_selection else request.practitioner_id

@@ -971,6 +971,16 @@ async def update_settings(
                 return raw_message
             return raw_message if raw_message else default_message
 
+        # Helper function to update notes customization fields
+        def update_notes_fields(appointment_type: AppointmentType, data: dict) -> None:
+            """Update notes customization fields from incoming data."""
+            if "require_notes" in data:
+                appointment_type.require_notes = data.get("require_notes", False)
+            if "notes_instructions" in data:
+                # Normalize empty string to null
+                notes_instructions = data.get("notes_instructions")
+                appointment_type.notes_instructions = notes_instructions if notes_instructions and notes_instructions.strip() else None
+
         # Update appointment types
         appointment_types_data = settings.get("appointment_types", [])
 
@@ -1117,6 +1127,8 @@ async def update_settings(
                     existing_type.service_type_group_id = incoming_data.get("service_type_group_id")
                 if "display_order" in incoming_data:
                     existing_type.display_order = incoming_data.get("display_order", 0)
+                # Update notes customization fields
+                update_notes_fields(existing_type, incoming_data)
                 # Update message customization fields if provided
                 update_message_fields(existing_type, incoming_data)
                 if existing_type.is_deleted:
@@ -1145,6 +1157,8 @@ async def update_settings(
                     existing_type.service_type_group_id = incoming_data.get("service_type_group_id")
                 if "display_order" in incoming_data:
                     existing_type.display_order = incoming_data.get("display_order", 0)
+                # Update notes customization fields
+                update_notes_fields(existing_type, incoming_data)
                 # Update message customization fields if provided
                 update_message_fields(existing_type, incoming_data)
                 if existing_type.is_deleted:
@@ -1159,6 +1173,8 @@ async def update_settings(
                     existing_type.service_type_group_id = incoming_data.get("service_type_group_id")
                 if "display_order" in incoming_data:
                     existing_type.display_order = incoming_data.get("display_order", 0)
+                # Update notes customization fields
+                update_notes_fields(existing_type, incoming_data)
                 # Update message customization fields if provided
                 update_message_fields(existing_type, incoming_data)
                 if existing_type.is_deleted:
@@ -1216,6 +1232,8 @@ async def update_settings(
                     existing.service_type_group_id = at_data.get("service_type_group_id")
                 if "display_order" in at_data:
                     existing.display_order = at_data.get("display_order", 0)
+                # Update notes customization fields
+                update_notes_fields(existing, at_data)
                 # Update message settings if provided
                 if "send_patient_confirmation" in at_data:
                     existing.send_patient_confirmation = at_data.get("send_patient_confirmation", True)
@@ -1282,6 +1300,8 @@ async def update_settings(
                     scheduling_buffer_minutes=at_data.get("scheduling_buffer_minutes", 0),
                     service_type_group_id=at_data.get("service_type_group_id"),
                     display_order=at_data.get("display_order", default_display_order),
+                    require_notes=at_data.get("require_notes", False),
+                    notes_instructions=at_data.get("notes_instructions") if at_data.get("notes_instructions") and at_data.get("notes_instructions").strip() else None,
                     send_patient_confirmation=send_patient_confirmation,
                     send_clinic_confirmation=send_clinic_confirmation,
                     send_reminder=send_reminder,

@@ -179,6 +179,9 @@ export interface AppointmentType {
   patient_confirmation_message?: string | undefined;
   clinic_confirmation_message?: string | undefined;
   reminder_message?: string | undefined;
+  // Notes customization fields
+  require_notes?: boolean | undefined;
+  notes_instructions?: string | null | undefined;
 }
 
 export interface ServiceTypeGroup {

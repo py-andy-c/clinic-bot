@@ -58,6 +58,9 @@ class AppointmentTypeResponse(BaseModel):
     patient_confirmation_message: str
     clinic_confirmation_message: str
     reminder_message: str
+    # Notes customization fields
+    require_notes: bool = False
+    notes_instructions: Optional[str] = None
 
 
 class AppointmentTypeListResponse(BaseModel):

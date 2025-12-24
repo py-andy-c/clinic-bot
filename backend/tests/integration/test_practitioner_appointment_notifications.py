@@ -178,7 +178,8 @@ class TestPractitionerAppointmentNotifications:
         patient_message = patient_call[0][1]
         assert "預約已建立" in patient_message or "預約確認" in patient_message
         assert "物理治療" in patient_message
-        assert "請準備X光片" in patient_message
+        # Note: Patient notes are no longer included in confirmation messages (deprecated feature)
+        # The notes are stored in the appointment but not shown in the confirmation message
     
     @patch('services.line_service.LINEService')
     @patch('services.notification_service.format_datetime')

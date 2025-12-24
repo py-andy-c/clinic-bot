@@ -101,6 +101,13 @@ class AppointmentType(Base):
     reminder_message: Mapped[str] = mapped_column(Text, nullable=False, default=_get_default_reminder_message)
     """Message template for reminder. Always populated with text."""
 
+    # Notes customization fields
+    require_notes: Mapped[bool] = mapped_column(default=False)
+    """Whether notes are required when patients book this service via LIFF. Only applies when allow_patient_booking = true."""
+    
+    notes_instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    """Custom instructions shown to patients when filling out notes. Replaces global appointment_notes_instructions if not null."""
+
     # Relationships
     clinic = relationship("Clinic", back_populates="appointment_types")
     """Relationship to the Clinic entity that owns this appointment type."""

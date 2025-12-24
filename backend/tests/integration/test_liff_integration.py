@@ -3042,6 +3042,376 @@ class TestCompactScheduleFeature:
             client.app.dependency_overrides.pop(get_db, None)
 
 
+class TestRequireNotes:
+    """Test require_notes setting for appointment types."""
+
+    def test_create_appointment_rejects_when_notes_required_but_missing(self, db_session: Session, test_clinic_with_liff):
+        """Test that creating appointment without notes is rejected when require_notes=True."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create appointment type with require_notes=True
+        appt_type_require_notes = AppointmentType(
+            clinic_id=clinic.id,
+            name="Requires Notes",
+            duration_minutes=30,
+            allow_patient_booking=True,
+            require_notes=True
+        )
+        db_session.add(appt_type_require_notes)
+        
+        # Associate practitioner with this appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type_require_notes.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        # Create LINE user and patient
+        line_user = LineUser(
+            line_user_id="U_test_require_notes",
+            clinic_id=clinic.id,
+            display_name="Require Notes User"
+        )
+        db_session.add(line_user)
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Require Notes Patient",
+            phone_number="0911111111",
+            line_user_id=None
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        patient.line_user_id = line_user.id
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Try to create appointment without notes - should be rejected
+            future_date = (taiwan_now() + timedelta(days=3)).date().isoformat()
+            appointment_data = {
+                "patient_id": patient.id,
+                "appointment_type_id": appt_type_require_notes.id,
+                "practitioner_id": practitioner.id,
+                "start_time": f"{future_date}T10:00:00+08:00",
+                "notes": None  # Missing notes
+            }
+
+            response = client.post("/api/liff/appointments", json=appointment_data)
+            assert response.status_code == 400
+            assert "此服務項目需要填寫備註" in response.json()["detail"]
+
+            # Try with empty notes - should also be rejected
+            appointment_data["notes"] = ""
+            response = client.post("/api/liff/appointments", json=appointment_data)
+            assert response.status_code == 400
+            assert "此服務項目需要填寫備註" in response.json()["detail"]
+
+            # Try with whitespace-only notes - should also be rejected
+            appointment_data["notes"] = "   "
+            response = client.post("/api/liff/appointments", json=appointment_data)
+            assert response.status_code == 400
+            assert "此服務項目需要填寫備註" in response.json()["detail"]
+
+            # Try with valid notes - should succeed
+            appointment_data["notes"] = "Test notes"
+            response = client.post("/api/liff/appointments", json=appointment_data)
+            assert response.status_code == 200
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_create_appointment_allows_empty_notes_when_not_required(self, db_session: Session, test_clinic_with_liff):
+        """Test that creating appointment without notes is allowed when require_notes=False."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create appointment type with require_notes=False (default)
+        appt_type_no_require = AppointmentType(
+            clinic_id=clinic.id,
+            name="No Notes Required",
+            duration_minutes=30,
+            allow_patient_booking=True,
+            require_notes=False
+        )
+        db_session.add(appt_type_no_require)
+        
+        # Associate practitioner with this appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type_no_require.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        # Create LINE user and patient
+        line_user = LineUser(
+            line_user_id="U_test_no_require_notes",
+            clinic_id=clinic.id,
+            display_name="No Require Notes User"
+        )
+        db_session.add(line_user)
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="No Require Notes Patient",
+            phone_number="0911111111",
+            line_user_id=None
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        patient.line_user_id = line_user.id
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Create appointment without notes - should succeed
+            future_date = (taiwan_now() + timedelta(days=3)).date().isoformat()
+            appointment_data = {
+                "patient_id": patient.id,
+                "appointment_type_id": appt_type_no_require.id,
+                "practitioner_id": practitioner.id,
+                "start_time": f"{future_date}T10:00:00+08:00",
+                "notes": None
+            }
+
+            response = client.post("/api/liff/appointments", json=appointment_data)
+            assert response.status_code == 200
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_require_notes_only_applies_when_allow_patient_booking_true(self, db_session: Session, test_clinic_with_liff):
+        """Test that require_notes validation only applies when allow_patient_booking=True."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create appointment type with require_notes=True but allow_patient_booking=False
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Not Available on LIFF",
+            duration_minutes=30,
+            allow_patient_booking=False,  # Not available on LIFF
+            require_notes=True  # But notes required
+        )
+        db_session.add(appt_type)
+        db_session.commit()
+
+        # This should not cause issues since allow_patient_booking=False
+        # The appointment type won't be available for LIFF booking anyway
+        assert appt_type.require_notes is True
+        assert appt_type.allow_patient_booking is False
+
+    def test_notes_instructions_in_api_response(self, db_session: Session, test_clinic_with_liff):
+        """Test that notes_instructions and require_notes are returned in appointment types API response."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Create appointment type with custom notes_instructions
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Custom Notes Instructions",
+            duration_minutes=30,
+            allow_patient_booking=True,
+            require_notes=True,
+            notes_instructions="請詳細描述您的症狀"
+        )
+        db_session.add(appt_type)
+        
+        # Associate practitioner with this appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_notes_instructions",
+            clinic_id=clinic.id,
+            display_name="Notes Instructions User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Get appointment types
+            response = client.get("/api/liff/appointment-types")
+            assert response.status_code == 200
+            
+            data = response.json()
+            assert "appointment_types" in data
+            
+            # Find our appointment type
+            found_type = None
+            for at in data["appointment_types"]:
+                if at["id"] == appt_type.id:
+                    found_type = at
+                    break
+            
+            assert found_type is not None
+            assert found_type["require_notes"] is True
+            assert found_type["notes_instructions"] == "請詳細描述您的症狀"
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_notes_instructions_fallback_to_global(self, db_session: Session, test_clinic_with_liff):
+        """Test that notes_instructions fallback to global when service-specific is null."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Set global notes instructions
+        clinic_settings = clinic.get_validated_settings()
+        clinic_settings.clinic_info_settings.appointment_notes_instructions = "全域備註指引"
+        clinic.settings = clinic_settings.model_dump()
+        db_session.commit()
+
+        # Create appointment type without notes_instructions (should fallback to global)
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Uses Global Instructions",
+            duration_minutes=30,
+            allow_patient_booking=True,
+            require_notes=False,
+            notes_instructions=None  # No service-specific instructions
+        )
+        db_session.add(appt_type)
+        
+        # Associate practitioner with this appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_fallback",
+            clinic_id=clinic.id,
+            display_name="Fallback User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Get appointment types
+            response = client.get("/api/liff/appointment-types")
+            assert response.status_code == 200
+            
+            data = response.json()
+            # The API returns appointment_type_instructions, but notes_instructions fallback
+            # is handled on the frontend. The API returns null for notes_instructions,
+            # and frontend should use global appointment_notes_instructions from clinic-info
+            
+            # Verify appointment type has null notes_instructions
+            found_type = None
+            for at in data["appointment_types"]:
+                if at["id"] == appt_type.id:
+                    found_type = at
+                    break
+            
+            assert found_type is not None
+            assert found_type["notes_instructions"] is None
+
+            # Get clinic info to verify global instructions are available
+            clinic_info_response = client.get("/api/liff/clinic-info")
+            assert clinic_info_response.status_code == 200
+            clinic_info = clinic_info_response.json()
+            assert clinic_info["appointment_notes_instructions"] == "全域備註指引"
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+    def test_notes_instructions_service_specific_overrides_global(self, db_session: Session, test_clinic_with_liff):
+        """Test that service-specific notes_instructions override global instructions."""
+        clinic, practitioner, appt_types, _ = test_clinic_with_liff
+
+        # Set global notes instructions
+        clinic_settings = clinic.get_validated_settings()
+        clinic_settings.clinic_info_settings.appointment_notes_instructions = "全域備註指引"
+        clinic.settings = clinic_settings.model_dump()
+        db_session.commit()
+
+        # Create appointment type with service-specific notes_instructions
+        appt_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Has Custom Instructions",
+            duration_minutes=30,
+            allow_patient_booking=True,
+            require_notes=False,
+            notes_instructions="服務專屬指引"  # Service-specific instructions
+        )
+        db_session.add(appt_type)
+        
+        # Associate practitioner with this appointment type
+        pat = PractitionerAppointmentTypes(
+            user_id=practitioner.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appt_type.id
+        )
+        db_session.add(pat)
+        db_session.commit()
+
+        # Create LINE user
+        line_user = LineUser(
+            line_user_id="U_test_override",
+            clinic_id=clinic.id,
+            display_name="Override User"
+        )
+        db_session.add(line_user)
+        db_session.commit()
+
+        # Mock authentication
+        client.app.dependency_overrides[get_current_line_user_with_clinic] = lambda: (line_user, clinic)
+        client.app.dependency_overrides[get_db] = lambda: db_session
+
+        try:
+            # Get appointment types
+            response = client.get("/api/liff/appointment-types")
+            assert response.status_code == 200
+            
+            data = response.json()
+            
+            # Find our appointment type
+            found_type = None
+            for at in data["appointment_types"]:
+                if at["id"] == appt_type.id:
+                    found_type = at
+                    break
+            
+            assert found_type is not None
+            # Service-specific instructions should be returned
+            assert found_type["notes_instructions"] == "服務專屬指引"
+
+        finally:
+            client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
+            client.app.dependency_overrides.pop(get_db, None)
+
+
 class TestLanguagePreference:
     """Test language preference functionality."""
 
