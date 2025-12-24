@@ -89,7 +89,7 @@ export const PlaceholderHelper: React.FC<PlaceholderHelperProps> = ({
 
   return (
     <>
-      <div className="relative">
+      <div className="relative flex items-center">
         <button
           ref={buttonRef}
           type="button"
