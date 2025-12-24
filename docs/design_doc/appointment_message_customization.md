@@ -64,16 +64,16 @@ reminder_message: text (not null)
 **Common to all messages:**
 - `{病患姓名}` - Patient's full name
 - `{服務項目}` - Service/item name
-- `{預約時間}` - Formatted datetime (e.g., "2024年11月15日 14:30")
-- `{預約日期}` - Formatted date (e.g., "2024年11月15日")
-- `{預約時段}` - Time only (e.g., "14:30")
+- `{預約時間}` - Formatted datetime (e.g., "12/25 (三) 1:30 PM")
 - `{治療師姓名}` - Practitioner name with title (or "不指定" for auto-assigned)
 - `{診所名稱}` - Clinic display name
-- `{診所地址}` - Clinic address (if available)
-- `{診所電話}` - Clinic phone (if available)
+- `{診所地址}` - Clinic address (if available, optional)
+- `{診所電話}` - Clinic phone (if available, optional)
+
+**Note:** `{預約日期}` and `{預約時段}` are supported in backend but not shown in UI placeholder helper.
 
 **Confirmation-specific:**
-- `{病患備註}` - Patient's notes (if provided, otherwise empty)
+- `{病患備註}` - Deprecated, always empty (kept for backward compatibility)
 
 **Reminder-specific:**
 - (Uses same placeholders as confirmation)
@@ -105,7 +105,7 @@ reminder_message: text (not null)
 **Layout per message type:**
 ```
 ┌─────────────────────────────────────┐
-│ ☑ 發送確認訊息 (當病患自行預約時)      │
+│ ☑ 預約確認訊息（病患自行預約）         │
 │                                     │
 │ ┌─────────────────────────────────┐ │
 │ │ 訊息範本 *                       │ │
@@ -118,9 +118,11 @@ reminder_message: text (not null)
 │ │ │ 期待為您服務！                 │ │ │
 │ │ └─────────────────────────────┘ │ │
 │ │                                   │ │
-│ │ 可用變數：                        │ │
-│ │ {病患姓名} {服務項目} {預約時間}  │ │
-│ │ {治療師姓名} {診所名稱} ...       │ │
+│ │ 可用變數 (點擊插入變數)            │ │
+│ │ {病患姓名} 病患的完整姓名          │ │
+│ │ {服務項目} 服務項目名稱            │ │
+│ │ {預約時間} 格式化的日期時間...     │ │
+│ │ (shows description for each)       │ │
 │ │                                   │ │
 │ │ [預覽訊息] [重設為預設值]          │ │
 │ └─────────────────────────────────┘ │
@@ -407,7 +409,7 @@ async def preview_appointment_message(
     return {
         "preview_message": preview_message,
         "used_placeholders": extract_used_placeholders(template, context),
-        "completeness_warnings": completeness_warnings  # e.g., ["{診所地址} 但診所尚未設定地址"]
+        "completeness_warnings": completeness_warnings  # e.g., ["使用了 {診所地址} 但診所尚未設定地址"]
     }
 ```
 
@@ -438,9 +440,12 @@ When creating new appointment types (frontend or backend):
   - Realistic sample data for patient/time
 
 **3. Placeholder Helper**
-- Clickable chips or dropdown
+- Clickable "可用變數" button opens dropdown
 - Inserts placeholder at cursor position
 - Shows available placeholders per message type
+- Displays description text directly (mobile-friendly, no tooltip)
+- Unavailable placeholders (e.g., {診所地址} when address not set) are disabled and non-clickable
+- Shows warning message in description when placeholder is unavailable
 
 **4. Validation**
 - Add to existing validation flow
@@ -456,7 +461,7 @@ When creating new appointment types (frontend or backend):
 ### 1. Missing Data
 **Scenario:** Placeholder references data that doesn't exist (e.g., no clinic address)
 **Solution:** 
-- Validation warning: "訊息使用了 {診所地址}，但診所尚未設定地址"
+- Validation warning: "使用了 {診所地址} 但診所尚未設定地址"
 - Message still sends (placeholder replaced with empty string)
 - Admin can choose to fix or proceed
 
@@ -543,7 +548,7 @@ When creating new appointment types (frontend or backend):
 **Scenario:** Message uses `{診所地址}` but clinic has no address set
 **Solution:**
 - **Inline (optional)**: Real-time warning as user types (non-blocking)
-- **On save**: Show warning "訊息使用了 {診所地址}，但診所尚未設定地址" (non-blocking)
+- **On save**: Show warning "使用了 {診所地址} 但診所尚未設定地址" (non-blocking)
 - **In preview**: Show warning in completeness_warnings response
 - Admin can choose to:
   - Remove the placeholder from message
@@ -587,7 +592,7 @@ When creating new appointment types (frontend or backend):
   - Response: `{ preview_message, used_placeholders, completeness_warnings? }`
     - `preview_message`: Rendered message with placeholders replaced
     - `used_placeholders`: List of placeholders used and their values
-    - `completeness_warnings`: Optional array of warnings for placeholders used but data unavailable (e.g., ["{診所地址} 但診所尚未設定地址"])
+    - `completeness_warnings`: Optional array of warnings for placeholders used but data unavailable (e.g., ["使用了 {診所地址} 但診所尚未設定地址"])
     - Uses actual context: current user as practitioner, actual service item name, real clinic data
 
 **Settings:**
