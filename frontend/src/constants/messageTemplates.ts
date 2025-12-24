@@ -42,8 +42,8 @@ export const PLACEHOLDERS = {
 export type MessageType = 'patient_confirmation' | 'clinic_confirmation' | 'reminder';
 
 export const MESSAGE_TYPE_LABELS: Record<MessageType, string> = {
-  patient_confirmation: '病患確認訊息',
-  clinic_confirmation: '診所確認訊息',
+  patient_confirmation: '預約確認訊息（病患自行預約）',
+  clinic_confirmation: '預約確認訊息（診所建立預約）',
   reminder: '提醒訊息',
 };
 
