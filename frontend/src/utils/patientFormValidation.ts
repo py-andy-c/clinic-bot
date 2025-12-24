@@ -19,13 +19,13 @@ export interface PatientFormValidationResult {
 
 /**
  * Validate patient form data for clinic-side creation (optional phone/birthday/gender).
+ * All fields except name are optional for clinic-created patients.
  */
 export const validateClinicPatientForm = (
   fullName: string,
   phoneNumber: string,
   birthday: string,
-  gender?: string,
-  requireGender?: boolean
+  gender?: string
 ): PatientFormValidationResult => {
   // Validate name
   const trimmedName = fullName.trim();
@@ -57,12 +57,7 @@ export const validateClinicPatientForm = (
     normalizedBirthday = dateValidation.normalized;
   }
   
-  // Validate required gender
-  if (requireGender && (!gender || !gender.trim())) {
-    return { isValid: false, error: '請選擇生理性別' };
-  }
-  
-  // Validate gender value if provided
+  // Validate gender value if provided (gender is optional for clinic-created patients)
   let normalizedGender: string | undefined;
   if (gender && gender.trim()) {
     if (!isValidGenderValue(gender)) {

@@ -467,17 +467,17 @@ class TestClinicPatientCreation:
         detail = str(response.json())
         assert "性別" in detail or "gender" in detail.lower()
 
-    def test_create_patient_required_gender(self, db_session, auth_headers_admin, clinic_admin):
-        """Test that gender is required when clinic setting requires it."""
+    def test_create_patient_gender_optional(self, db_session, auth_headers_admin, clinic_admin):
+        """Test that gender is optional for clinic-created patients, even when clinic setting requires it."""
         _, clinic = clinic_admin
         
-        # Set clinic to require gender
+        # Set clinic to require gender (this setting only applies to LIFF patient creation)
         clinic_settings = clinic.get_validated_settings()
         clinic_settings.clinic_info_settings.require_gender = True
         clinic.set_validated_settings(clinic_settings)
         db_session.commit()
         
-        # Try to create patient without gender
+        # Create patient without gender should succeed (gender is optional for clinic-created patients)
         response = client.post(
             "/api/clinic/patients",
             json={
@@ -486,11 +486,12 @@ class TestClinicPatientCreation:
             headers=auth_headers_admin
         )
         
-        assert response.status_code == 400
-        detail = response.json().get("detail", "")
-        assert "生理性別" in detail or "gender" in detail.lower()
+        assert response.status_code == 200
+        data = response.json()
+        assert data["full_name"] == "測試病患"
+        assert data.get("gender") is None or data.get("gender") == ""
         
-        # Create patient with gender should succeed
+        # Create patient with gender should also succeed
         response = client.post(
             "/api/clinic/patients",
             json={
@@ -501,6 +502,8 @@ class TestClinicPatientCreation:
         )
         
         assert response.status_code == 200
+        data = response.json()
+        assert data["gender"] == "male"
 
 
 class TestDuplicateDetection:

@@ -39,10 +39,11 @@ export const PatientInfoSection: React.FC<PatientInfoSectionProps> = ({
   const [birthday, setBirthday] = useState(patient.birthday || '');
   const [gender, setGender] = useState(patient.gender || '');
   const [requireBirthday, setRequireBirthday] = useState(false);
+  const [requireGender, setRequireGender] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch clinic settings to check if birthday is required
+  // Fetch clinic settings to check if birthday or gender is required
   const fetchClinicSettings = useCallback(() => apiService.getClinicSettings(), []);
   const { data: clinicSettings } = useApiData(
     fetchClinicSettings,
@@ -55,6 +56,7 @@ export const PatientInfoSection: React.FC<PatientInfoSectionProps> = ({
   useEffect(() => {
     if (clinicSettings) {
       setRequireBirthday(clinicSettings.clinic_info_settings?.require_birthday || false);
+      setRequireGender(clinicSettings.clinic_info_settings?.require_gender || false);
     }
   }, [clinicSettings]);
 
@@ -216,25 +218,23 @@ export const PatientInfoSection: React.FC<PatientInfoSectionProps> = ({
           </dd>
         </div>
 
-        {requireBirthday && (
-          <div>
-            <dt className="text-sm font-medium text-gray-500">生日</dt>
-            <dd className="mt-1 text-sm text-gray-900">
-              {patient.birthday
-                ? formatDateOnly(patient.birthday)
-                : '-'}
-            </dd>
-          </div>
-        )}
+        <div>
+          <dt className="text-sm font-medium text-gray-500">生日</dt>
+          <dd className="mt-1 text-sm text-gray-900">
+            {patient.birthday
+              ? formatDateOnly(patient.birthday)
+              : '-'}
+          </dd>
+        </div>
 
-        {patient.gender && (
-          <div>
-            <dt className="text-sm font-medium text-gray-500">生理性別</dt>
-            <dd className="mt-1 text-sm text-gray-900">
-              {getGenderLabel(patient.gender)}
-            </dd>
-          </div>
-        )}
+        <div>
+          <dt className="text-sm font-medium text-gray-500">生理性別</dt>
+          <dd className="mt-1 text-sm text-gray-900">
+            {patient.gender
+              ? getGenderLabel(patient.gender)
+              : '-'}
+          </dd>
+        </div>
 
         <div>
           <dt className="text-sm font-medium text-gray-500">LINE 使用者</dt>

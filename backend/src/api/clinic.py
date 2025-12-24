@@ -2117,30 +2117,9 @@ async def create_patient(
     try:
         clinic_id = ensure_clinic_access(current_user)
         
-        # Check if clinic requires birthday or gender
-        clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
-        if not clinic:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="診所不存在")
-        
-        clinic_settings = clinic.get_validated_settings()
-        require_birthday = clinic_settings.clinic_info_settings.require_birthday
-        require_gender = clinic_settings.clinic_info_settings.require_gender
-
-        # Validate birthday is provided if required
-        if require_birthday and not request.birthday:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="此診所要求填寫生日"
-            )
-
-        # Validate gender is provided if required
-        if require_gender and not request.gender:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="此診所要求填寫生理性別"
-            )
-        
         # Create patient with clinic_user as created_by_type
+        # Note: For clinic-created patients, all fields except name are optional
+        # (require_birthday and require_gender settings only apply to LIFF patient creation)
         patient = PatientService.create_patient(
             db=db,
             clinic_id=clinic_id,
