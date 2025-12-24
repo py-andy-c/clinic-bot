@@ -966,7 +966,7 @@ async def update_settings(
         def get_message_or_default(raw_message: str | None, default_message: str, toggle_on: bool) -> str:
             """Get message from request or use default if empty/whitespace."""
             if toggle_on:
-                if not raw_message or (isinstance(raw_message, str) and not raw_message.strip()):
+                if not raw_message or not raw_message.strip():
                     return default_message
                 return raw_message
             return raw_message if raw_message else default_message
@@ -1076,11 +1076,17 @@ async def update_settings(
             if "send_reminder" in incoming_data:
                 appointment_type.send_reminder = incoming_data.get("send_reminder", True)
             if "patient_confirmation_message" in incoming_data:
-                appointment_type.patient_confirmation_message = incoming_data.get("patient_confirmation_message")
+                message = incoming_data.get("patient_confirmation_message")
+                if message is not None:
+                    appointment_type.patient_confirmation_message = str(message)
             if "clinic_confirmation_message" in incoming_data:
-                appointment_type.clinic_confirmation_message = incoming_data.get("clinic_confirmation_message")
+                message = incoming_data.get("clinic_confirmation_message")
+                if message is not None:
+                    appointment_type.clinic_confirmation_message = str(message)
             if "reminder_message" in incoming_data:
-                appointment_type.reminder_message = incoming_data.get("reminder_message")
+                message = incoming_data.get("reminder_message")
+                if message is not None:
+                    appointment_type.reminder_message = str(message)
         
         # First, update existing types that are matched by ID
         for existing_type in existing_appointment_types:
