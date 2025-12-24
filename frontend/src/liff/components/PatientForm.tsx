@@ -167,7 +167,7 @@ export const PatientForm: React.FC<PatientFormProps> = ({
       {requireGender && (
         <div className="mb-3">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            生理性別 {requireGender && <span className="text-red-500">*</span>}
+            生理性別
           </label>
           <select
             value={gender}
