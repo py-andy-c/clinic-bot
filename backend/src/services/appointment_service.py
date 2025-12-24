@@ -21,6 +21,9 @@ from models import (
 from services.patient_service import PatientService
 from services.availability_service import AvailabilityService
 from services.appointment_type_service import AppointmentTypeService
+# Import follow_up_message_service here to avoid circular imports
+# (follow_up_message_service imports Appointment, but we need it here)
+from services.follow_up_message_service import FollowUpMessageService
 from utils.datetime_utils import taiwan_now, TAIWAN_TZ
 from utils.appointment_type_queries import get_appointment_type_by_id_with_soft_delete_check
 from utils.appointment_queries import filter_future_appointments
@@ -258,6 +261,16 @@ class AppointmentService:
 
             db.commit()
             db.refresh(appointment)
+
+            # Schedule follow-up messages for this appointment
+            # Note: This happens after appointment commit, so if scheduling fails,
+            # the appointment is still created (intentional - we don't want scheduling
+            # failures to prevent appointment creation)
+            try:
+                FollowUpMessageService.schedule_follow_up_messages(db, appointment)
+            except Exception as e:
+                logger.exception(f"Failed to schedule follow-up messages for appointment {appointment.calendar_event_id}: {e}")
+                # Don't fail appointment creation if scheduling fails
 
             # Get related objects for response
             practitioner = db.query(User).get(assigned_practitioner_id)
@@ -972,6 +985,16 @@ class AppointmentService:
         appointment.canceled_at = taiwan_now()
         db.commit()
 
+        # Cancel pending follow-up messages for this appointment
+        # Note: This happens after appointment cancellation commit, so if cancellation fails,
+        # the appointment is still canceled (intentional - we don't want message cancellation
+        # failures to prevent appointment cancellation)
+        try:
+            FollowUpMessageService.cancel_pending_follow_up_messages(db, appointment_id)
+        except Exception as e:
+            logger.exception(f"Failed to cancel follow-up messages for appointment {appointment_id}: {e}")
+            # Don't fail cancellation if follow-up message cancellation fails
+
         # Get clinic and practitioner for notifications
         calendar_event = appointment.calendar_event
         practitioner = calendar_event.user if calendar_event else None
@@ -1434,6 +1457,17 @@ class AppointmentService:
 
         db.commit()
         db.refresh(appointment)
+
+        # Reschedule follow-up messages if time or appointment type changed
+        # Note: This happens after appointment update commit, so if rescheduling fails,
+        # the appointment is still updated (intentional - we don't want message rescheduling
+        # failures to prevent appointment updates)
+        if time_actually_changed or (new_appointment_type_id is not None and new_appointment_type_id != appointment.appointment_type_id):
+            try:
+                FollowUpMessageService.reschedule_follow_up_messages(db, appointment)
+            except Exception as e:
+                logger.exception(f"Failed to reschedule follow-up messages for appointment {appointment.calendar_event_id}: {e}")
+                # Don't fail update if rescheduling fails
 
         # Send notifications
         try:

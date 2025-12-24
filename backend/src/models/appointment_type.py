@@ -127,3 +127,6 @@ class AppointmentType(Base):
 
     service_type_group = relationship("ServiceTypeGroup", back_populates="appointment_types")
     """Relationship to the ServiceTypeGroup entity this appointment type belongs to."""
+
+    follow_up_messages = relationship("FollowUpMessage", back_populates="appointment_type", cascade="all, delete-orphan")
+    """Relationship to follow-up messages configured for this appointment type."""

@@ -65,6 +65,7 @@ class MessageTemplateService:
         - {病患姓名}: Patient's full name
         - {服務項目}: Appointment type name
         - {預約時間}: Formatted datetime (e.g., "12/25 (三) 1:30 PM")
+        - {預約結束時間}: Formatted end datetime (e.g., "12/25 (三) 2:30 PM")
         - {預約日期}: Formatted date (e.g., "2024年11月15日")
         - {預約時段}: Time only (e.g., "14:30")
         - {治療師姓名}: Practitioner name with title (or "不指定" for auto-assigned)
@@ -88,6 +89,13 @@ class MessageTemplateService:
             appointment.calendar_event.start_time
         )
         formatted_datetime = format_datetime(start_datetime)
+        
+        # Calculate and format end datetime
+        from datetime import timedelta
+        appointment_type = appointment.appointment_type
+        duration_minutes = appointment_type.duration_minutes if appointment_type else 30
+        end_datetime = start_datetime + timedelta(minutes=duration_minutes)
+        formatted_end_datetime = format_datetime(end_datetime)
         
         # Format date (e.g., "2024年11月15日")
         date_obj = appointment.calendar_event.date
@@ -116,6 +124,7 @@ class MessageTemplateService:
             "病患姓名": patient.full_name,
             "服務項目": appointment_type_name,
             "預約時間": formatted_datetime,
+            "預約結束時間": formatted_end_datetime,
             "預約日期": formatted_date,
             "預約時段": formatted_time,
             "治療師姓名": practitioner_display,
@@ -225,6 +234,11 @@ class MessageTemplateService:
         # Format datetime
         formatted_datetime = format_datetime(sample_appointment_time)
         
+        # Calculate and format end datetime
+        duration_minutes = appointment_type.duration_minutes if appointment_type else 30
+        end_datetime = sample_appointment_time + timedelta(minutes=duration_minutes)
+        formatted_end_datetime = format_datetime(end_datetime)
+        
         # Format date
         date_obj = sample_appointment_time.date()
         formatted_date = f"{date_obj.year}年{date_obj.month}月{date_obj.day}日"
@@ -250,6 +264,7 @@ class MessageTemplateService:
             "病患姓名": sample_patient_name,
             "服務項目": appointment_type_name,
             "預約時間": formatted_datetime,
+            "預約結束時間": formatted_end_datetime,
             "預約日期": formatted_date,
             "預約時段": formatted_time,
             "治療師姓名": practitioner_name,

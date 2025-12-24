@@ -42,6 +42,10 @@ from services.admin_auto_assigned_notification_service import (
     start_admin_auto_assigned_notification_scheduler,
     stop_admin_auto_assigned_notification_scheduler
 )
+from services.scheduled_message_scheduler import (
+    start_scheduled_message_scheduler,
+    stop_scheduled_message_scheduler
+)
 
 # Configure logging
 logging.basicConfig(
@@ -81,6 +85,7 @@ async def lifespan(app: FastAPI):
         start_scheduler_safely("Auto-assignment scheduler", start_auto_assignment_scheduler),
         start_scheduler_safely("Practitioner daily notification scheduler", start_practitioner_daily_notification_scheduler),
         start_scheduler_safely("Admin auto-assigned notification scheduler", start_admin_auto_assigned_notification_scheduler),
+        start_scheduler_safely("Scheduled message scheduler", start_scheduled_message_scheduler),
         return_exceptions=True  # Don't fail if any scheduler fails
     )
     
@@ -135,6 +140,13 @@ async def lifespan(app: FastAPI):
         logger.info("🛑 Admin auto-assigned notification scheduler stopped")
     except Exception as e:
         logger.exception(f"❌ Error stopping admin auto-assigned notification scheduler: {e}")
+
+    # Stop scheduled message scheduler
+    try:
+        await stop_scheduled_message_scheduler()
+        logger.info("🛑 Scheduled message scheduler stopped")
+    except Exception as e:
+        logger.exception(f"❌ Error stopping scheduled message scheduler: {e}")
 
     logger.info("🛑 Shutting down Clinic Bot Backend API")
 

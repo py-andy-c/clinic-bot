@@ -46,6 +46,8 @@ from models.resource_type import ResourceType
 from models.resource import Resource
 from models.appointment_resource_requirement import AppointmentResourceRequirement
 from models.appointment_resource_allocation import AppointmentResourceAllocation
+from models.follow_up_message import FollowUpMessage
+from models.scheduled_line_message import ScheduledLineMessage
 
 
 # Test database URL

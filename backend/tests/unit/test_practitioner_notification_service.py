@@ -265,6 +265,7 @@ def test_send_appointment_confirmation_with_title(
     mock_appointment_type.send_clinic_confirmation = True
     mock_appointment_type.clinic_confirmation_message = "{病患姓名}，您的預約已建立：\n\n{預約時間} - 【{服務項目}】{治療師姓名}\n\n期待為您服務！"
     mock_appointment_type.name = "物理治療"
+    mock_appointment_type.duration_minutes = 30  # Required for end time calculation
     mock_appointment.appointment_type = mock_appointment_type
     
     # Mock clinic properties needed for context
