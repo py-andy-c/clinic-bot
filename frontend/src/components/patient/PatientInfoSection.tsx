@@ -152,23 +152,25 @@ export const PatientInfoSection: React.FC<PatientInfoSectionProps> = ({
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              生理性別
-            </label>
-            <select
-              value={gender}
-              onChange={(e) => setGender(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">請選擇</option>
-              {GENDER_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          {requireGender && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                生理性別
+              </label>
+              <select
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">請選擇</option>
+                {GENDER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex space-x-3 pt-4">
             <button
