@@ -22,8 +22,12 @@ Allow clinics to customize appointment notes (備註) requirements and instructi
 
 ### UI Behavior
 
-- Fields only apply when `allow_patient_booking = true`
-- Show inline warning when `allow_patient_booking = false`: "此設定僅適用於開放病患自行預約的服務項目"
+- All fields are always visible, regardless of `allow_patient_booking` setting
+- Show inline warning when `allow_patient_booking = false` for LIFF-only fields:
+  - "要求填寫備註" (require_notes)
+  - "備註填寫指引" (notes_instructions)
+  - "預約確認訊息（病患自行預約）" (patient_confirmation_message)
+- Warning message: "此服務項目未開放病患自行預約，此設定不會生效。"
 - Allow saving even when LIFF is disabled (preserves flexibility for future use)
 - Validation: Show asterisk (*) on notes field label when `require_notes = true`
 - Disable "Next" button if `require_notes = true` and notes are empty

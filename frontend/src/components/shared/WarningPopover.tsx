@@ -1,34 +1,28 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { ConflictDisplay } from './ConflictDisplay';
-import { SchedulingConflictResponse } from '../../types';
 import { usePopover } from '../../hooks/usePopover';
 
-interface ConflictPopoverProps {
-  conflictInfo: SchedulingConflictResponse | null;
+interface WarningPopoverProps {
+  message: string;
   children: React.ReactNode;
   className?: string;
 }
 
 /**
- * ConflictPopover Component
+ * WarningPopover Component
  * 
- * Displays a popover with conflict details when clicking the trigger element.
+ * Displays a popover with a warning message when clicking the trigger element.
  * Uses a portal to render outside modal boundaries and positions itself
  * to avoid screen borders.
  */
-export const ConflictPopover: React.FC<ConflictPopoverProps> = ({
-  conflictInfo,
+export const WarningPopover: React.FC<WarningPopoverProps> = ({
+  message,
   children,
   className = '',
 }) => {
   const { isOpen, setIsOpen, position, popoverRef, triggerRef } = usePopover({
-    popoverWidth: 320, // w-80 = 320px
+    popoverWidth: 280, // Fixed width for warning popover
   });
-
-  if (!conflictInfo || !conflictInfo.has_conflict) {
-    return <>{children}</>;
-  }
 
   return (
     <>
@@ -43,14 +37,17 @@ export const ConflictPopover: React.FC<ConflictPopoverProps> = ({
       {isOpen && createPortal(
         <div
           ref={popoverRef}
-          className="fixed w-80 bg-white rounded-lg shadow-lg border border-gray-200 p-4"
+          className="fixed bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-[10000]"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`,
-            zIndex: 10000, // Above all layers including modals
+            width: '280px',
           }}
         >
-          <ConflictDisplay conflictInfo={conflictInfo} />
+          <div className="flex items-start gap-2">
+            <span className="text-lg">⚠️</span>
+            <p className="text-sm text-gray-700">{message}</p>
+          </div>
         </div>,
         document.body
       )}

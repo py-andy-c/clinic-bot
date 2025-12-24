@@ -3,7 +3,7 @@ import { useFormContext, useFormState } from 'react-hook-form';
 
 interface FormFieldProps {
   name: string;
-  label?: string;
+  label?: string | React.ReactNode;
   children: React.ReactElement;
   description?: string;
   className?: string;

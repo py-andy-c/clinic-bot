@@ -13,6 +13,7 @@ import { useServiceItemsStore } from '../stores/serviceItemsStore';
 import { ResourceRequirementsSection } from './ResourceRequirementsSection';
 import { MessageSettingsSection } from './MessageSettingsSection';
 import { FormField, FormInput, FormTextarea } from './forms';
+import { WarningPopover } from './shared/WarningPopover';
 
 // Schema for single appointment type
 const ServiceItemFormSchema = z.object({
@@ -167,8 +168,6 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   // Info modals
   const [showDurationModal, setShowDurationModal] = useState(false);
   const [showBufferModal, setShowBufferModal] = useState(false);
-  const [showAllowBookingModal, setShowAllowBookingModal] = useState(false);
-  const [showAllowPractitionerSelectionModal, setShowAllowPractitionerSelectionModal] = useState(false);
   const [showReceiptNameModal, setShowReceiptNameModal] = useState(false);
   const [showBillingScenarioModal, setShowBillingScenarioModal] = useState(false);
 
@@ -607,72 +606,91 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                         </FormField>
                       </div>
 
-                      <FormField name="description" label="說明">
+                      <FormField 
+                        name="description" 
+                        label={
+                          <div className="flex items-center gap-2">
+                            <span>說明</span>
+                            {!allow_patient_booking && (
+                              <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                                <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
+                              </WarningPopover>
+                            )}
+                          </div>
+                        }
+                      >
                         <FormTextarea name="description" placeholder="服務說明（顯示在 LINE 預約系統）" rows={4} disabled={!isClinicAdmin} className="resize-none" />
                       </FormField>
 
-                      {/* Notes customization fields - only show when allow_patient_booking is true */}
-                      {allow_patient_booking ? (
-                        <>
-                          <div className="pt-4 border-t border-gray-200">
-                            <FormField name="require_notes" label="">
-                              <label className="flex items-center cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  {...register('require_notes')}
-                                  className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3"
-                                  disabled={!isClinicAdmin}
-                                />
+                      {/* LIFF booking options and notes customization */}
+                      <div className="pt-4">
+                        <div className="flex flex-col gap-3">
+                          <label className="flex items-center cursor-pointer">
+                            <input type="checkbox" {...register('allow_patient_booking')} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3" disabled={!isClinicAdmin} />
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-900">開放病患自行預約</span>
+                              <span className="text-xs text-gray-500">病患可透過 LINE 預約系統看到並選擇此服務</span>
+                            </div>
+                          </label>
+                          <label className="flex items-center cursor-pointer">
+                            <input type="checkbox" {...register('allow_patient_practitioner_selection')} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3" disabled={!isClinicAdmin} />
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-900">開放病患指定治療師</span>
+                              <span className="text-xs text-gray-500">病患預約時可自由選擇想看診的治療師</span>
+                            </div>
+                            {!allow_patient_booking && (
+                              <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                                <span className="ml-2 text-amber-600 hover:text-amber-700">⚠️</span>
+                              </WarningPopover>
+                            )}
+                          </label>
+                          <FormField name="require_notes" label="">
+                            <label className="flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                {...register('require_notes')}
+                                className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3"
+                                disabled={!isClinicAdmin}
+                              />
+                              <div className="flex flex-col">
                                 <span className="text-sm font-medium text-gray-900">要求填寫備註</span>
-                              </label>
-                            </FormField>
-                          </div>
-                          <FormField name="notes_instructions" label="備註填寫指引">
-                            <FormTextarea
-                              name="notes_instructions"
-                              placeholder="病患在透過Line預約，填寫備註時，將會看到此指引（若未填寫，將使用診所設定的全域指引）"
-                              rows={4}
-                              disabled={!isClinicAdmin}
-                              className="resize-none"
-                            />
+                                <span className="text-xs text-gray-500">病患透過Line自行預約此服務時必須填寫備註</span>
+                              </div>
+                              {!allow_patient_booking && (
+                                <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                                  <span className="ml-2 text-amber-600 hover:text-amber-700">⚠️</span>
+                                </WarningPopover>
+                              )}
+                            </label>
                           </FormField>
-                        </>
-                      ) : (
-                        <div className="pt-4 border-t border-gray-200">
-                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                            <p className="text-sm text-yellow-800">
-                              此設定僅適用於開放病患自行預約的服務項目
-                            </p>
-                          </div>
                         </div>
-                      )}
+                      </div>
+                      <FormField 
+                        name="notes_instructions" 
+                        label={
+                          <div className="flex items-center gap-2">
+                            <span>備註填寫指引</span>
+                            {!allow_patient_booking && (
+                              <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                                <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
+                              </WarningPopover>
+                            )}
+                          </div>
+                        }
+                      >
+                        <FormTextarea
+                          name="notes_instructions"
+                          placeholder="病患在透過Line預約，填寫備註時，將會看到此指引（若未填寫，將使用「預約設定」頁面中的「備註填寫指引」）"
+                          rows={4}
+                          disabled={!isClinicAdmin}
+                          className="resize-none"
+                        />
+                      </FormField>
                     </div>
                   </div>
 
                   <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
                     <div className="px-4 py-4 md:px-0 md:py-0 space-y-4 md:space-y-6">
-                      <div className="flex flex-col gap-3">
-                        <label className="flex items-center group cursor-pointer">
-                          <input type="checkbox" {...register('allow_patient_booking')} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3" disabled={!isClinicAdmin} />
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium text-gray-900">開放病患自行預約</span>
-                            <span className="text-xs text-gray-500">病患可透過 LINE 預約系統看到並選擇此服務</span>
-                          </div>
-                          <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                            <InfoButton onClick={() => setShowAllowBookingModal(true)} />
-                          </div>
-                        </label>
-                        <label className="flex items-center group cursor-pointer">
-                          <input type="checkbox" {...register('allow_patient_practitioner_selection')} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3" disabled={!isClinicAdmin} />
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium text-gray-900">開放病患指定治療師</span>
-                            <span className="text-xs text-gray-500">病患預約時可自由選擇想看診的治療師</span>
-                          </div>
-                          <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                            <InfoButton onClick={() => setShowAllowPractitionerSelectionModal(true)} />
-                          </div>
-                        </label>
-                      </div>
 
                       {isClinicAdmin && (
                         <ResourceRequirementsSection appointmentTypeId={appointmentType.id} isClinicAdmin={isClinicAdmin} />
@@ -920,12 +938,6 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       </InfoModal>
       <InfoModal isOpen={showBufferModal} onClose={() => setShowBufferModal(false)} title="排程緩衝時間 (分鐘)">
         <p>此為排程時額外保留的時間...</p>
-      </InfoModal>
-      <InfoModal isOpen={showAllowBookingModal} onClose={() => setShowAllowBookingModal(false)} title="開放病患自行預約">
-        <p>啟用後，病患可透過 LINE 預約系統選擇此服務項目...</p>
-      </InfoModal>
-      <InfoModal isOpen={showAllowPractitionerSelectionModal} onClose={() => setShowAllowPractitionerSelectionModal(false)} title="開放病患指定治療師">
-        <p>啟用後，病患在預約時可以選擇指定的治療師...</p>
       </InfoModal>
       <InfoModal isOpen={showReceiptNameModal} onClose={() => setShowReceiptNameModal(false)} title="收據項目名稱">
         <p>此名稱會顯示在收據上，取代服務項目名稱...</p>

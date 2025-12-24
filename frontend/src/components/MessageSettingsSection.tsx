@@ -11,6 +11,7 @@ import {
 } from '../constants/messageTemplates';
 import { AppointmentType } from '../types';
 import { isTemporaryServiceItemId } from '../utils/idUtils';
+import { WarningPopover } from './shared/WarningPopover';
 
 interface MessageSettingsSectionProps {
   appointmentType: AppointmentType;
@@ -213,8 +214,13 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
             <div className="text-left">
-              <div className="text-sm font-medium text-gray-900">
-                {MESSAGE_TYPE_LABELS[type]}
+              <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                <span>{MESSAGE_TYPE_LABELS[type]}</span>
+                {type === 'patient_confirmation' && !appointmentType.allow_patient_booking && (
+                  <WarningPopover message="此服務項目未開放病患自行預約，此設定不會生效。">
+                    <span className="text-amber-600 hover:text-amber-700 cursor-pointer">⚠️</span>
+                  </WarningPopover>
+                )}
               </div>
               <div className="text-xs text-gray-500">
                 {MESSAGE_TYPE_DESCRIPTIONS[type]}

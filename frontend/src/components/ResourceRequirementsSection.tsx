@@ -124,7 +124,7 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
   );
 
   return (
-    <div className="mt-4 pt-4 border-t border-gray-200">
+    <div>
       <div className="mb-3">
         <label className="block text-sm font-medium text-gray-700">
           資源需求
