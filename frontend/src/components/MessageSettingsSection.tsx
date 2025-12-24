@@ -251,7 +251,7 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-medium text-gray-700">
-                  訊息範本 {field.toggle && <span className="text-red-500">*</span>}
+                  訊息模板 {field.toggle && <span className="text-red-500">*</span>}
                 </label>
                 <div className="flex items-center gap-2">
                   <PlaceholderHelper
@@ -288,12 +288,12 @@ export const MessageSettingsSection: React.FC<MessageSettingsSectionProps> = ({
                 className={`w-full px-3 py-2 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                   isOverLimit ? 'border-red-500' : isWarning ? 'border-yellow-500' : 'border-gray-300'
                 } disabled:bg-gray-100 disabled:cursor-not-allowed`}
-                placeholder="輸入訊息範本..."
+                placeholder="輸入訊息模板..."
               />
               <div className="flex items-center justify-between mt-1">
                 <div className="text-xs text-gray-500">
                   {field.toggle && !field.message.trim() && (
-                    <span className="text-red-600">當開關開啟時，訊息範本為必填</span>
+                    <span className="text-red-600">當開關開啟時，訊息模板為必填</span>
                   )}
                 </div>
                 <div className={`text-xs ${isOverLimit ? 'text-red-600' : isWarning ? 'text-yellow-600' : 'text-gray-500'}`}>

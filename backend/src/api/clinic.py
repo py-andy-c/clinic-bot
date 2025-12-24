@@ -1349,34 +1349,34 @@ async def update_settings(
                 if not at.patient_confirmation_message or not at.patient_confirmation_message.strip():
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"服務項目「{at.name}」：啟用病患確認訊息時，訊息範本為必填"
+                        detail=f"服務項目「{at.name}」：啟用病患確認訊息時，訊息模板為必填"
                     )
                 if len(at.patient_confirmation_message) > 3500:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"服務項目「{at.name}」：病患確認訊息範本長度超過限制（3500字元）"
+                        detail=f"服務項目「{at.name}」：病患確認訊息模板長度超過限制（3500字元）"
                     )
             if at.send_clinic_confirmation:
                 if not at.clinic_confirmation_message or not at.clinic_confirmation_message.strip():
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"服務項目「{at.name}」：啟用診所確認訊息時，訊息範本為必填"
+                        detail=f"服務項目「{at.name}」：啟用診所確認訊息時，訊息模板為必填"
                     )
                 if len(at.clinic_confirmation_message) > 3500:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"服務項目「{at.name}」：診所確認訊息範本長度超過限制（3500字元）"
+                        detail=f"服務項目「{at.name}」：診所確認訊息模板長度超過限制（3500字元）"
                     )
             if at.send_reminder:
                 if not at.reminder_message or not at.reminder_message.strip():
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"服務項目「{at.name}」：啟用提醒訊息時，訊息範本為必填"
+                        detail=f"服務項目「{at.name}」：啟用提醒訊息時，訊息模板為必填"
                     )
                 if len(at.reminder_message) > 3500:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"服務項目「{at.name}」：提醒訊息範本長度超過限制（3500字元）"
+                        detail=f"服務項目「{at.name}」：提醒訊息模板長度超過限制（3500字元）"
                     )
 
         db.commit()
@@ -1635,7 +1635,7 @@ async def preview_appointment_message(
         if len(request.template) > 3500:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="訊息範本長度超過限制"
+                detail="訊息模板長度超過限制"
             )
         
         template = request.template

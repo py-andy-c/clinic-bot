@@ -108,7 +108,7 @@ reminder_message: text (not null)
 │ ☑ 預約確認訊息（病患自行預約）         │
 │                                     │
 │ ┌─────────────────────────────────┐ │
-│ │ 訊息範本 *                       │ │
+│ │ 訊息模板 *                       │ │
 │ │ ┌─────────────────────────────┐ │ │
 │ │ │ {病患姓名}，您的預約已建立：  │ │ │
 │ │ │                               │ │ │
@@ -381,7 +381,7 @@ async def preview_appointment_message(
     # Validate template parameter (if provided)
     if request.template:
         if len(request.template) > 3500:
-            raise HTTPException(status_code=400, detail="訊息範本長度超過限制")
+            raise HTTPException(status_code=400, detail="訊息模板長度超過限制")
         # Basic validation: ensure template is string and not maliciously long
     
     # Build context using actual data:

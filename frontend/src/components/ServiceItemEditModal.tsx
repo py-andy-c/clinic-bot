@@ -388,22 +388,22 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     // Validate message fields (managed outside form)
     const messageErrors: string[] = [];
     if (appointmentType.send_patient_confirmation && (!appointmentType.patient_confirmation_message || !appointmentType.patient_confirmation_message.trim())) {
-      messageErrors.push('病患確認訊息：當開關開啟時，訊息範本為必填');
+      messageErrors.push('病患確認訊息：當開關開啟時，訊息模板為必填');
     }
     if (appointmentType.send_patient_confirmation && appointmentType.patient_confirmation_message && appointmentType.patient_confirmation_message.length > 3500) {
-      messageErrors.push('病患確認訊息：訊息範本長度不能超過 3500 字元');
+      messageErrors.push('病患確認訊息：訊息模板長度不能超過 3500 字元');
     }
     if (appointmentType.send_clinic_confirmation && (!appointmentType.clinic_confirmation_message || !appointmentType.clinic_confirmation_message.trim())) {
-      messageErrors.push('診所確認訊息：當開關開啟時，訊息範本為必填');
+      messageErrors.push('診所確認訊息：當開關開啟時，訊息模板為必填');
     }
     if (appointmentType.send_clinic_confirmation && appointmentType.clinic_confirmation_message && appointmentType.clinic_confirmation_message.length > 3500) {
-      messageErrors.push('診所確認訊息：訊息範本長度不能超過 3500 字元');
+      messageErrors.push('診所確認訊息：訊息模板長度不能超過 3500 字元');
     }
     if (appointmentType.send_reminder && (!appointmentType.reminder_message || !appointmentType.reminder_message.trim())) {
-      messageErrors.push('提醒訊息：當開關開啟時，訊息範本為必填');
+      messageErrors.push('提醒訊息：當開關開啟時，訊息模板為必填');
     }
     if (appointmentType.send_reminder && appointmentType.reminder_message && appointmentType.reminder_message.length > 3500) {
-      messageErrors.push('提醒訊息：訊息範本長度不能超過 3500 字元');
+      messageErrors.push('提醒訊息：訊息模板長度不能超過 3500 字元');
     }
 
     if (messageErrors.length > 0) {
