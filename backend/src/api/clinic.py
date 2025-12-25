@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 from core.database import get_db
 from core.config import FRONTEND_URL
-from core.constants import MAX_EVENT_NAME_LENGTH
+from core.constants import MAX_EVENT_NAME_LENGTH, TEMPORARY_ID_THRESHOLD
 from auth.dependencies import require_admin_role, require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
 from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation, Appointment, AvailabilityException, Patient, LineUser, ResourceType, Resource, AppointmentResourceRequirement, AppointmentResourceAllocation, FollowUpMessage
 from models.clinic import ClinicSettings, ChatSettings as ChatSettingsModel
@@ -7451,13 +7451,21 @@ class FollowUpMessageListResponse(BaseModel):
 
 class FollowUpMessagePreviewRequest(BaseModel):
     """Request model for previewing a follow-up message."""
-    appointment_type_id: int
+    appointment_type_id: Optional[int] = Field(None, description="Appointment type ID (optional for new items with temporary IDs)")
+    appointment_type_name: Optional[str] = Field(None, description="Appointment type name (required if appointment_type_id is not provided or is a temporary ID)")
     timing_mode: Literal['hours_after', 'specific_time']
     hours_after: Optional[int] = Field(None, ge=0)
     days_after: Optional[int] = Field(None, ge=0)
     time_of_day: Optional[str] = None
     message_template: str
     sample_appointment_end_time: Optional[str] = None  # Optional: for preview calculation
+    
+    @model_validator(mode='after')
+    def validate_appointment_type(self):
+        """Ensure at least one of appointment_type_id or appointment_type_name is provided."""
+        if not self.appointment_type_id and not self.appointment_type_name:
+            raise ValueError("Either appointment_type_id or appointment_type_name must be provided")
+        return self
 
 
 class FollowUpMessagePreviewResponse(BaseModel):
@@ -7775,18 +7783,25 @@ async def preview_follow_up_message(
     try:
         clinic_id = ensure_clinic_access(current_user)
         
-        # Verify appointment type belongs to clinic
-        appointment_type = db.query(AppointmentType).filter(
-            AppointmentType.id == request.appointment_type_id,
-            AppointmentType.clinic_id == clinic_id,
-            AppointmentType.is_deleted == False
-        ).first()
+        # Check if appointment_type_id is a temporary ID (large timestamp > TEMPORARY_ID_THRESHOLD)
+        is_temporary_id = request.appointment_type_id and request.appointment_type_id > TEMPORARY_ID_THRESHOLD
         
+        appointment_type = None
+        appointment_type_name = None
+        
+        if request.appointment_type_id and not is_temporary_id:
+            # Try to load from database for real IDs
+            appointment_type = db.query(AppointmentType).filter(
+                AppointmentType.id == request.appointment_type_id,
+                AppointmentType.clinic_id == clinic_id,
+                AppointmentType.is_deleted == False
+            ).first()
+            if appointment_type:
+                appointment_type_name = appointment_type.name
+        
+        # For temporary IDs or if not found in DB, use provided name or default
         if not appointment_type:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND,
-                detail="預約類型不存在"
-            )
+            appointment_type_name = request.appointment_type_name or "服務項目"
         
         clinic = db.query(Clinic).filter(Clinic.id == clinic_id).first()
         if not clinic:
@@ -7841,12 +7856,23 @@ async def preview_follow_up_message(
         
         # Build preview context
         from services.message_template_service import MessageTemplateService
-        context = MessageTemplateService.build_preview_context(
-            appointment_type=appointment_type,
-            current_user=current_user,
-            clinic=clinic,
-            db=db
-        )
+        if appointment_type:
+            # Use existing appointment type
+            context = MessageTemplateService.build_preview_context(
+                appointment_type=appointment_type,
+                current_user=current_user,
+                clinic=clinic,
+                db=db
+            )
+        else:
+            # For new items (temporary IDs), build context with provided name
+            context = MessageTemplateService.build_preview_context(
+                appointment_type=None,
+                current_user=current_user,
+                clinic=clinic,
+                db=db,
+                sample_appointment_type_name=appointment_type_name
+            )
         
         # Render message
         preview_message = MessageTemplateService.render_message(

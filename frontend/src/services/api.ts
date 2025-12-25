@@ -1333,7 +1333,8 @@ export class ApiService {
   }
 
   async previewFollowUpMessage(data: {
-    appointment_type_id: number;
+    appointment_type_id?: number;
+    appointment_type_name?: string;
     timing_mode: 'hours_after' | 'specific_time';
     hours_after?: number;
     days_after?: number;

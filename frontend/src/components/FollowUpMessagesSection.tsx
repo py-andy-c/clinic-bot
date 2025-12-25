@@ -244,17 +244,25 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
     setPreviewData(null);
     try {
       const previewData: {
-        appointment_type_id: number;
+        appointment_type_id?: number;
+        appointment_type_name?: string;
         timing_mode: 'hours_after' | 'specific_time';
         hours_after?: number;
         days_after?: number;
         time_of_day?: string;
         message_template: string;
       } = {
-        appointment_type_id: appointmentType.id,
         timing_mode: message.timing_mode,
         message_template: message.message_template,
       };
+      
+      // Handle temporary IDs - send name instead of ID for new items
+      if (isTemporaryServiceItemId(appointmentType.id)) {
+        previewData.appointment_type_name = appointmentType.name || '服務項目';
+      } else {
+        previewData.appointment_type_id = appointmentType.id;
+      }
+      
       if (message.timing_mode === 'hours_after' && message.hours_after !== null && message.hours_after !== undefined) {
         previewData.hours_after = message.hours_after;
       }
