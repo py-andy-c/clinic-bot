@@ -59,7 +59,6 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
   }>({ isOpen: false, message: null });
   const [previewData, setPreviewData] = useState<{
     preview_message: string;
-    calculated_send_time: string;
     used_placeholders: Record<string, string>;
     completeness_warnings?: string[];
   } | null>(null);
@@ -733,15 +732,6 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                   </label>
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 whitespace-pre-wrap text-sm">
                     {previewData.preview_message}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    預計發送時間
-                  </label>
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm">
-                    {previewData.calculated_send_time}
                   </div>
                 </div>
 

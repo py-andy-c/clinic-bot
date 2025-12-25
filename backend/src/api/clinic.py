@@ -7458,7 +7458,6 @@ class FollowUpMessagePreviewRequest(BaseModel):
     days_after: Optional[int] = Field(None, ge=0)
     time_of_day: Optional[str] = None
     message_template: str
-    sample_appointment_end_time: Optional[str] = None  # Optional: for preview calculation
     
     @model_validator(mode='after')
     def validate_appointment_type(self):
@@ -7471,7 +7470,6 @@ class FollowUpMessagePreviewRequest(BaseModel):
 class FollowUpMessagePreviewResponse(BaseModel):
     """Response model for follow-up message preview."""
     preview_message: str
-    calculated_send_time: str
     used_placeholders: Dict[str, str]
     completeness_warnings: Optional[List[str]] = None
 
@@ -7810,50 +7808,6 @@ async def preview_follow_up_message(
                 detail="診所不存在"
             )
         
-        # Calculate scheduled send time
-        from services.follow_up_message_service import FollowUpMessageService
-        from datetime import timedelta
-        
-        # Use sample appointment end time or default to tomorrow at 14:00
-        if request.sample_appointment_end_time:
-            try:
-                sample_end_time = datetime.fromisoformat(request.sample_appointment_end_time)
-                sample_end_time = ensure_taiwan(sample_end_time)
-                if sample_end_time is None:
-                    raise ValueError("Failed to ensure timezone")
-            except (ValueError, AttributeError):
-                raise HTTPException(
-                    status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail="sample_appointment_end_time 格式錯誤，應為 ISO 格式 (例如: 2024-01-15T14:00:00+08:00)"
-                )
-        else:
-            from utils.datetime_utils import taiwan_now
-            tomorrow = taiwan_now().date() + timedelta(days=1)
-            sample_end_time = datetime.combine(tomorrow, time(14, 0))
-            sample_end_time = ensure_taiwan(sample_end_time)
-            if sample_end_time is None:
-                raise ValueError("Failed to ensure timezone")
-        
-        # Parse time_of_day if provided
-        time_of_day_obj = None
-        if request.time_of_day:
-            try:
-                time_of_day_obj = time.fromisoformat(request.time_of_day)
-            except ValueError:
-                raise HTTPException(
-                    status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail="time_of_day 格式錯誤，應為 HH:MM (例如: 21:00)"
-                )
-        
-        # Calculate scheduled send time
-        scheduled_time = FollowUpMessageService.calculate_scheduled_time(
-            sample_end_time,
-            request.timing_mode,
-            request.hours_after,
-            request.days_after,
-            time_of_day_obj
-        )
-        
         # Build preview context
         from services.message_template_service import MessageTemplateService
         if appointment_type:
@@ -7893,13 +7847,8 @@ async def preview_follow_up_message(
             clinic
         )
         
-        # Format scheduled send time
-        from utils.datetime_utils import format_datetime
-        formatted_send_time = format_datetime(scheduled_time)
-        
         return FollowUpMessagePreviewResponse(
             preview_message=preview_message,
-            calculated_send_time=formatted_send_time,
             used_placeholders=used_placeholders,
             completeness_warnings=completeness_warnings if completeness_warnings else None
         )

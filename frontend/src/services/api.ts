@@ -1340,10 +1340,8 @@ export class ApiService {
     days_after?: number;
     time_of_day?: string;
     message_template: string;
-    sample_appointment_end_time?: string;
   }): Promise<{
     preview_message: string;
-    calculated_send_time: string;
     used_placeholders: Record<string, string>;
     completeness_warnings?: string[];
   }> {
