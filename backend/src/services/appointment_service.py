@@ -2252,4 +2252,3 @@ class AppointmentService:
             'appointment_id': appointment_id,
             'message': success_message
         }
-

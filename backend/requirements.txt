@@ -11,6 +11,7 @@ pyright==1.1.406
 pytest==7.4.3
 pytest-asyncio==0.21.1
 pytest-cov==4.1.0
+pytest-testmon>=2.0.0  # Test dependency tracking for faster test runs
 hypothesis>=6.0.0  # Property-based testing for accounting invariants
 
 # OpenAI Agent SDK for multi-agent orchestration
