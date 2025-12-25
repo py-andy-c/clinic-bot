@@ -3,7 +3,7 @@ import { FollowUpMessage, AppointmentType } from '../types';
 import { apiService } from '../services/api';
 import { PlaceholderHelper } from './PlaceholderHelper';
 import { BaseModal } from './shared/BaseModal';
-import { LoadingSpinner } from './shared';
+import { LoadingSpinner, InfoButton, InfoModal } from './shared';
 import { isTemporaryServiceItemId } from '../utils/idUtils';
 import { logger } from '../utils/logger';
 import { useModal } from '../contexts/ModalContext';
@@ -63,6 +63,7 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
     completeness_warnings?: string[];
   } | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
   const { confirm, alert } = useModal();
 
@@ -417,7 +418,14 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
       <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
         <div className="px-4 py-4 md:px-0 md:py-0">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">追蹤訊息設定</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-900">追蹤訊息設定</h3>
+              <InfoButton
+                onClick={() => setShowInfoModal(true)}
+                ariaLabel="追蹤訊息設定說明"
+                size="small"
+              />
+            </div>
             <button
               type="button"
               onClick={handleAddMessage}
@@ -791,6 +799,35 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
           </div>
         </BaseModal>
       )}
+
+      {/* Info Modal for Follow-Up Messages Explanation */}
+      <InfoModal
+        isOpen={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        title="追蹤訊息設定說明"
+        ariaLabel="追蹤訊息設定說明"
+      >
+        <p>
+          <strong>什麼是追蹤訊息？</strong>
+        </p>
+        <p>
+          追蹤訊息是在病患完成預約後，系統自動發送的 LINE 訊息。您可以設定多個追蹤訊息，每個訊息可以有不同的發送時機和內容。
+        </p>
+        <p>
+          <strong>發送時機：</strong>
+        </p>
+        <ul className="list-disc list-inside space-y-1 ml-2">
+          <li><strong>預約結束後 X 小時：</strong>在預約結束時間後，延遲指定小時數發送（例如：2 小時後）。X=0 表示預約結束後立即發送。</li>
+          <li><strong>預約日期後 Y 天的特定時間：</strong>在預約日期後的第 Y 天，於指定時間發送（例如：1 天後的晚上 9 點）。Y=0 表示預約當天的指定時間。</li>
+        </ul>
+        <p>
+          <strong>注意事項：</strong>
+        </p>
+        <ul className="list-disc list-inside space-y-1 ml-2">
+          <li>如果預約被取消，已排程的追蹤訊息將不會發送</li>
+          <li>如果預約時間變更，系統會自動重新排程追蹤訊息</li>
+        </ul>
+      </InfoModal>
     </>
   );
 };
