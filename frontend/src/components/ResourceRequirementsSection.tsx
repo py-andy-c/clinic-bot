@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
 import { useModal } from '../contexts/ModalContext';
 import { useServiceItemsStore } from '../stores/serviceItemsStore';
+import { isTemporaryServiceItemId } from '../utils/idUtils';
 
 interface ResourceRequirementsSectionProps {
   appointmentTypeId: number;
@@ -44,6 +45,12 @@ export const ResourceRequirementsSection: React.FC<ResourceRequirementsSectionPr
       // Load resource types
       const resourceTypesResponse = await apiService.getResourceTypes();
       setResourceTypes(resourceTypesResponse.resource_types);
+      
+      // Skip loading resource requirements for temporary IDs (new items)
+      if (appointmentTypeId && isTemporaryServiceItemId(appointmentTypeId)) {
+        setLoading(false);
+        return;
+      }
       
       // Load resource requirements from store
       await loadResourceRequirements(appointmentTypeId);

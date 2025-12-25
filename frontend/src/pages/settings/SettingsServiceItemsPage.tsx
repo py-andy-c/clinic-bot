@@ -264,9 +264,9 @@ const SettingsServiceItemsPage: React.FC = () => {
     }
   };
 
-  const handleCloseEditModal = () => {
-    // If closing a temporary (new) item, delete it from staging store
-    if (editingItem && isTemporaryServiceItemId(editingItem.id)) {
+  const handleCloseEditModal = (wasConfirmed?: boolean) => {
+    // If closing a temporary (new) item and it was NOT confirmed (user canceled), delete it
+    if (editingItem && isTemporaryServiceItemId(editingItem.id) && !wasConfirmed) {
       deleteServiceItem(editingItem.id);
     }
     setEditingItem(null);

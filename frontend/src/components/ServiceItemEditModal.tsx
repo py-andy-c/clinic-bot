@@ -46,7 +46,7 @@ type ServiceItemFormData = z.infer<typeof ServiceItemFormSchema>;
 interface ServiceItemEditModalProps {
   appointmentType: AppointmentType;
   isOpen: boolean;
-  onClose: () => void;
+  onClose: (wasConfirmed?: boolean) => void; // wasConfirmed: true if closed after 確認編輯, false/undefined if canceled
   onUpdate: (updatedItem: AppointmentType) => void; // Synchronous update to staging store
   onDelete?: (appointmentType: AppointmentType) => void; // Delete handler
   members: Member[];
@@ -132,9 +132,19 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
   const require_notes = watch('require_notes');
   const notes_instructions = watch('notes_instructions');
 
-  // Reset form when appointmentType changes
+  // Track previous appointmentType ID to detect when switching items
+  const previousAppointmentTypeIdRef = useRef<number | undefined>(appointmentType?.id);
+  
+  // Reset form only when appointmentType ID changes (switching items), not when fields change
   useEffect(() => {
-    if (isOpen && appointmentType) {
+    const currentId = appointmentType?.id;
+    const previousId = previousAppointmentTypeIdRef.current;
+    
+    // Only reset if:
+    // 1. Modal is open
+    // 2. AppointmentType exists
+    // 3. ID actually changed (switching to different item)
+    if (isOpen && appointmentType && currentId !== previousId) {
       reset({
         id: appointmentType.id,
         clinic_id: appointmentType.clinic_id,
@@ -150,8 +160,10 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
         require_notes: appointmentType.require_notes ?? false,
         notes_instructions: appointmentType.notes_instructions || null,
       });
+      previousAppointmentTypeIdRef.current = currentId;
     }
-  }, [isOpen, appointmentType, reset]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, appointmentType?.id, reset]);
 
   // Load billing scenarios when modal opens and practitioners are assigned
   useEffect(() => {
@@ -485,8 +497,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
     // Update staging store with final values
     onUpdate(updatedItem);
     
-    // Close modal after successful validation
-    onClose();
+    // Close modal after successful validation (pass true to indicate it was confirmed)
+    onClose(true);
   };
 
   if (!isOpen) return null;
