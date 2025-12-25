@@ -98,9 +98,9 @@ if ! pg_isready -h localhost &> /dev/null; then
 fi
 print_success "PostgreSQL is running"
 
-# Ensure test database exists
+# Ensure test database exists (optimized: direct query instead of listing all databases)
 print_status "Checking test database..."
-if ! psql -lqt | cut -d \| -f 1 | grep -qw clinic_bot_test; then
+if ! psql -h localhost -t -c "SELECT 1 FROM pg_database WHERE datname='clinic_bot_test'" postgres 2>/dev/null | grep -q 1; then
     print_status "Creating test database..."
     createdb clinic_bot_test 2>/dev/null || {
         print_error "Failed to create test database"
@@ -134,9 +134,8 @@ if [ "$FULL_MODE" = true ]; then
     fi
 else
     # Default mode: Run tests with testmon (incremental, no coverage)
-    # Check if pytest-testmon is installed
-    # Try multiple methods to detect the plugin
-    if ! python -c "import pytest_testmon" 2>/dev/null && ! python -m pytest --help 2>/dev/null | grep -q "testmon"; then
+    # Check if pytest-testmon is installed (fast check - just import, no pytest --help)
+    if ! python -c "import testmon" 2>/dev/null; then
         print_error "pytest-testmon is not installed!"
         print_error ""
         print_error "To install:"

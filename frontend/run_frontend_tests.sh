@@ -71,9 +71,9 @@ if [ ! -f "package.json" ]; then
     exit 1
 fi
 
-# Run TypeScript type checking
+# Run TypeScript type checking (with incremental mode for faster subsequent runs)
 print_status "Running TypeScript type checking..."
-if ./node_modules/.bin/tsc --noEmit; then
+if ./node_modules/.bin/tsc --noEmit --incremental; then
     print_success "TypeScript type checking passed!"
 else
     print_error "TypeScript type checking failed!"
