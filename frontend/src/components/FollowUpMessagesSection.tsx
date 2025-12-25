@@ -356,15 +356,6 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                   訊息模板 <span className="text-red-500">*</span>
                 </label>
                 <div className="flex items-center gap-2">
-                  <PlaceholderHelper
-                    messageType="reminder" // Use reminder type for placeholders
-                    onInsert={() => {
-                      // For read-only view, placeholder helper is disabled
-                      // User must click "編輯" to edit the message
-                    }}
-                    disabled={true} // Disable in read-only view
-                    {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
-                  />
                   <button
                     type="button"
                     onClick={() => handlePreview(message)}
