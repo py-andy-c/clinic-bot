@@ -481,6 +481,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                           timing_mode: 'hours_after',
                           days_after: undefined,
                           time_of_day: undefined,
+                          // Ensure hours_after is set to 0 if it's undefined
+                          hours_after: prev.hours_after !== undefined ? prev.hours_after : 0,
                         }));
                         setFormErrors(prev => {
                           const { days_after, time_of_day, ...rest } = prev;
