@@ -1524,7 +1524,9 @@ async def generate_reminder_preview(
                 detail="診所不存在"
             )
 
-        # Generate preview using the same service that sends actual reminders
+        # Generate preview using ReminderService.format_reminder_message()
+        # Note: ReminderService is only used for preview functionality here.
+        # Actual reminders are sent via ReminderSchedulingService + ScheduledMessageScheduler.
         reminder_service = ReminderService()
         preview_message = reminder_service.format_reminder_message(
             appointment_type=request.appointment_type,

@@ -829,3 +829,256 @@ class TestScheduledMessageService:
         assert 'Test Patient' in context['built_message']
         assert 'Test Type' in context['built_message']
 
+    def test_validate_appointment_for_message_deleted_appointment_type_follow_up(self, db_session):
+        """Test validation when appointment type is deleted for follow-up messages."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            subscription_status="trial"
+        )
+        db_session.add(clinic)
+        db_session.flush()
+
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test Therapist",
+            email="therapist@test.com",
+            google_subject_id="therapist_subject_123",
+            roles=["practitioner"],
+            is_active=True
+        )
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=60,
+            is_deleted=True  # Deleted appointment type
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        follow_up = FollowUpMessage(
+            appointment_type_id=appointment_type.id,
+            clinic_id=clinic.id,
+            timing_mode='hours_after',
+            hours_after=2,
+            message_template="Test message",
+            is_enabled=True,
+            display_order=0
+        )
+        db_session.add(follow_up)
+        db_session.flush()
+
+        appointment_time = taiwan_now() + timedelta(days=1)
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
+            event_type="appointment",
+            event_date=appointment_time.date(),
+            start_time=appointment_time.time(),
+            end_time=(appointment_time + timedelta(minutes=60)).time()
+        )
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.flush()
+
+        scheduled = ScheduledLineMessage(
+            recipient_type='patient',
+            recipient_line_user_id='test_line_user_id',
+            clinic_id=clinic.id,
+            message_type='follow_up',
+            message_template="Test message",
+            message_context={
+                'appointment_id': appointment.calendar_event_id,
+                'follow_up_message_id': follow_up.id
+            },
+            scheduled_send_time=taiwan_now() + timedelta(hours=1),
+            status='pending'
+        )
+        db_session.add(scheduled)
+        db_session.flush()
+
+        # Validate (should return False for deleted appointment type)
+        is_valid = ScheduledMessageService.validate_appointment_for_message(
+            db_session, scheduled
+        )
+        
+        assert is_valid is False
+
+    def test_validate_appointment_for_message_deleted_appointment_type_reminder(self, db_session):
+        """Test validation when appointment type is deleted for reminder messages."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            subscription_status="trial"
+        )
+        db_session.add(clinic)
+        db_session.flush()
+
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test Therapist",
+            email="therapist@test.com",
+            google_subject_id="therapist_subject_123",
+            roles=["practitioner"],
+            is_active=True
+        )
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=60,
+            send_reminder=True,
+            is_deleted=True  # Deleted appointment type
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        appointment_time = taiwan_now() + timedelta(days=1)
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
+            event_type="appointment",
+            event_date=appointment_time.date(),
+            start_time=appointment_time.time(),
+            end_time=(appointment_time + timedelta(minutes=60)).time()
+        )
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed",
+            is_auto_assigned=False
+        )
+        db_session.add(appointment)
+        db_session.flush()
+
+        scheduled = ScheduledLineMessage(
+            recipient_type='patient',
+            recipient_line_user_id='test_line_user_id',
+            clinic_id=clinic.id,
+            message_type='appointment_reminder',
+            message_template="Test reminder",
+            message_context={'appointment_id': appointment.calendar_event_id},
+            scheduled_send_time=taiwan_now() + timedelta(hours=1),
+            status='pending'
+        )
+        db_session.add(scheduled)
+        db_session.flush()
+
+        # Validate (should return False for deleted appointment type)
+        is_valid = ScheduledMessageService.validate_appointment_for_message(
+            db_session, scheduled
+        )
+        
+        assert is_valid is False
+
+    def test_validate_appointment_for_message_deleted_appointment_type_practitioner_daily(self, db_session):
+        """Test validation when appointment type is deleted for practitioner daily notifications."""
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token",
+            subscription_status="trial"
+        )
+        db_session.add(clinic)
+        db_session.flush()
+
+        user, _ = create_user_with_clinic_association(
+            db_session, clinic,
+            full_name="Test Therapist",
+            email="therapist@test.com",
+            google_subject_id="therapist_subject_123",
+            roles=["practitioner"],
+            is_active=True
+        )
+
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient",
+            phone_number="1234567890"
+        )
+        db_session.add(patient)
+        db_session.flush()
+
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Test Type",
+            duration_minutes=60,
+            is_deleted=True  # Deleted appointment type
+        )
+        db_session.add(appointment_type)
+        db_session.flush()
+
+        appointment_date = (taiwan_now() + timedelta(days=1)).date()
+        appointment_time = datetime.combine(appointment_date, datetime.min.time())
+        calendar_event = create_calendar_event_with_clinic(
+            db_session, user, clinic,
+            event_type="appointment",
+            event_date=appointment_date,
+            start_time=appointment_time.time(),
+            end_time=(appointment_time + timedelta(minutes=60)).time()
+        )
+        db_session.flush()
+
+        appointment = Appointment(
+            calendar_event_id=calendar_event.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            status="confirmed"
+        )
+        db_session.add(appointment)
+        db_session.flush()
+
+        scheduled = ScheduledLineMessage(
+            recipient_type='practitioner',
+            recipient_line_user_id='practitioner_line_id',
+            clinic_id=clinic.id,
+            message_type='practitioner_daily',
+            message_template="",
+            message_context={
+                'practitioner_id': user.id,
+                'appointment_date': appointment_date.isoformat(),
+                'appointment_ids': [appointment.calendar_event_id]
+            },
+            scheduled_send_time=taiwan_now() + timedelta(hours=1),
+            status='pending'
+        )
+        db_session.add(scheduled)
+        db_session.flush()
+
+        # Validate (should return False for deleted appointment type)
+        is_valid = ScheduledMessageService.validate_appointment_for_message(
+            db_session, scheduled
+        )
+        
+        assert is_valid is False
+

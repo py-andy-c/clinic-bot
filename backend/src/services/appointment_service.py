@@ -1483,14 +1483,34 @@ class AppointmentService:
                 appointment.is_auto_assigned = False
                 # Notification will be sent below if practitioner changed or time changed
 
+        # Track old status before commit to detect re-activation
+        # This handles the design doc requirement: "If appointment is re-activated (canceled → confirmed), reschedule messages"
+        # TODO: Currently blocked by validation in _get_and_validate_appointment_for_update() which prevents
+        # editing cancelled appointments. To enable re-activation:
+        # 1. Update _get_and_validate_appointment_for_update() to allow status changes from cancelled → confirmed
+        # 2. Or add a separate re-activate_appointment() method that bypasses the validation
+        # Once enabled, this logic will automatically reschedule messages when appointments are re-activated
+        old_status = appointment.status
+        
         db.commit()
         db.refresh(appointment)
-
-        # Reschedule follow-up messages, reminders, and practitioner notifications if time or appointment type changed
-        # Note: This happens after appointment update commit, so if rescheduling fails,
-        # the appointment is still updated (intentional - we don't want message rescheduling
-        # failures to prevent appointment updates)
-        if time_actually_changed or (new_appointment_type_id is not None and new_appointment_type_id != appointment.appointment_type_id):
+        
+        # Detect re-activation: if appointment status changed from cancelled → confirmed
+        # This handles the design doc requirement: "If appointment is re-activated (canceled → confirmed), reschedule messages"
+        was_cancelled = old_status in ['canceled_by_patient', 'canceled_by_clinic']
+        is_now_confirmed = appointment.status == 'confirmed'
+        was_reactivated = was_cancelled and is_now_confirmed
+        
+        # Reschedule follow-up messages, reminders, and practitioner notifications if:
+        # 1. Time or appointment type changed, OR
+        # 2. Appointment was re-activated (status changed from cancelled → confirmed)
+        should_reschedule = (
+            time_actually_changed or 
+            (new_appointment_type_id is not None and new_appointment_type_id != appointment.appointment_type_id) or
+            was_reactivated
+        )
+        
+        if should_reschedule:
             try:
                 FollowUpMessageService.reschedule_follow_up_messages(db, appointment)
             except Exception as e:

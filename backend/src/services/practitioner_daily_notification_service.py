@@ -28,13 +28,21 @@ class PractitionerDailyNotificationService:
     """
     Service for managing daily appointment notifications for practitioners.
     
-    This service schedules and sends automated notifications to practitioners
-    about their appointments for the next day via LINE messaging.
+    **DEPRECATED**: The scheduler functionality in this service is deprecated.
+    Practitioner notifications are now handled by the unified `ScheduledMessageScheduler`
+    and `PractitionerNotificationSchedulingService` which use the `scheduled_line_messages` table.
+    
+    This class is kept for backward compatibility, but the scheduler methods
+    (`start_scheduler()`, `stop_scheduler()`, `_send_daily_notifications()`) are deprecated
+    and should not be used. The scheduler is not started in `main.py`.
     """
 
     def __init__(self):
         """
         Initialize the daily notification service.
+        
+        **DEPRECATED**: Scheduler functionality is deprecated. Use `PractitionerNotificationSchedulingService`
+        and `ScheduledMessageScheduler` instead.
         
         Note: Database sessions are created fresh for each scheduler run
         to avoid stale session issues. Do not pass a session here.
@@ -49,7 +57,13 @@ class PractitionerDailyNotificationService:
 
     async def start_scheduler(self) -> None:
         """
-        Start the background scheduler for sending daily notifications.
+        **DEPRECATED**: This scheduler is no longer used.
+        
+        Practitioner notifications are now scheduled via `PractitionerNotificationSchedulingService`
+        and sent by the unified `ScheduledMessageScheduler`.
+        
+        This method is kept for backward compatibility but should not be called.
+        The scheduler is not started in `main.py`.
         
         This should be called during application startup.
         """
@@ -86,6 +100,12 @@ class PractitionerDailyNotificationService:
 
     async def _send_daily_notifications(self) -> None:
         """
+        **DEPRECATED**: This method is no longer used.
+        
+        Practitioner notifications are now sent via the unified `ScheduledMessageScheduler`
+        which processes messages from the `scheduled_line_messages` table.
+        
+        Original functionality:
         Check for and send daily appointment notifications to practitioners.
         
         This method is called by the scheduler every hour to check for

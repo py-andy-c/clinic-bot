@@ -94,6 +94,15 @@ class ScheduledMessageService:
                 )
                 return False
             
+            # Check if appointment type is deleted
+            appointment_type = appointment.appointment_type
+            if not appointment_type or appointment_type.is_deleted:
+                logger.info(
+                    f"Appointment type {appointment_type.id if appointment_type else 'unknown'} is deleted, "
+                    f"skipping scheduled message {scheduled.id}"
+                )
+                return False
+            
             # Check if follow-up message is still enabled
             follow_up_message_id = scheduled.message_context.get('follow_up_message_id')
             if follow_up_message_id:
@@ -143,9 +152,16 @@ class ScheduledMessageService:
             
             # Check if reminder is still enabled for appointment type
             appointment_type = appointment.appointment_type
-            if not appointment_type or not appointment_type.send_reminder:
+            if not appointment_type or appointment_type.is_deleted:
                 logger.info(
-                    f"Reminder disabled for appointment type {appointment_type.id if appointment_type else 'unknown'}, "
+                    f"Appointment type {appointment_type.id if appointment_type else 'unknown'} is deleted, "
+                    f"skipping scheduled message {scheduled.id}"
+                )
+                return False
+            
+            if not appointment_type.send_reminder:
+                logger.info(
+                    f"Reminder disabled for appointment type {appointment_type.id}, "
                     f"skipping scheduled message {scheduled.id}"
                 )
                 return False
@@ -159,11 +175,17 @@ class ScheduledMessageService:
                 logger.warning(f"Scheduled message {scheduled.id} missing appointment_ids in context")
                 return False
             
-            # Check if at least one appointment is still valid
+            # Check if at least one appointment is still valid (not deleted appointment type)
             valid_appointments = db.query(Appointment).filter(
                 Appointment.calendar_event_id.in_(appointment_ids),
                 Appointment.status == 'confirmed'
             ).all()
+            
+            # Filter out appointments with deleted appointment types
+            valid_appointments = [
+                appt for appt in valid_appointments
+                if appt.appointment_type and not appt.appointment_type.is_deleted
+            ]
             
             if not valid_appointments:
                 logger.info(
@@ -341,6 +363,16 @@ class ScheduledMessageService:
         This is called by the cron job hourly. Processes messages in batches
         to avoid long-running transactions.
         
+        Rate Limiting:
+        - No artificial delays are added between message sends
+        - LINE API allows 2,000 requests/second per channel, which is far above
+          our typical usage (hourly batches of ~100 messages)
+        - If rate limits are exceeded (429 errors), the retry logic with exponential
+          backoff handles it gracefully
+        - This approach maximizes throughput while remaining safe
+        - Note: Monitor production logs for 429 errors. If frequent, consider adding
+          per-clinic rate limiting or increasing batch processing delays
+        
         Args:
             db: Database session
             batch_size: Number of messages to process per batch
@@ -400,6 +432,13 @@ class ScheduledMessageService:
                         scheduled.error_message = 'Clinic missing LINE credentials'
                         db.commit()
                         continue
+                    
+                    # No rate limiting delays: LINE API allows 2,000 requests/second per channel.
+                    # Our scheduled messages are sent hourly in batches of 100, so we're well below limits.
+                    # If we exceed limits and receive 429 errors, the retry logic with exponential backoff
+                    # (below) will handle it gracefully. Adding fixed delays would unnecessarily slow down
+                    # message sending, especially when scaling to many clinics and appointments.
+                    # Reference: https://developers.line.biz/en/reference/messaging-api/
                     
                     line_service = LINEService(
                         channel_secret=clinic.line_channel_secret,

@@ -33,13 +33,22 @@ class ReminderService:
     """
     Service for managing appointment reminders.
 
-    This service schedules and sends automated reminders to patients
-    before their appointments via LINE messaging.
+    **DEPRECATED**: The scheduler functionality in this service is deprecated.
+    Reminders are now handled by the unified `ScheduledMessageScheduler` and
+    `ReminderSchedulingService` which use the `scheduled_line_messages` table.
+    
+    This class is kept for backward compatibility:
+    - `format_reminder_message()` is still used for preview functionality in the API
+    - The scheduler methods (`start_scheduler()`, `stop_scheduler()`, `_send_pending_reminders()`)
+      are deprecated and should not be used
     """
 
     def __init__(self):
         """
         Initialize the reminder service.
+        
+        **DEPRECATED**: Scheduler functionality is deprecated. Use `ReminderSchedulingService`
+        and `ScheduledMessageScheduler` instead.
         
         Note: Database sessions are created fresh for each scheduler run
         to avoid stale session issues. Do not pass a session here.
@@ -52,7 +61,13 @@ class ReminderService:
 
     async def start_scheduler(self) -> None:
         """
-        Start the background scheduler for sending reminders.
+        **DEPRECATED**: This scheduler is no longer used.
+        
+        Reminders are now scheduled via `ReminderSchedulingService` and sent
+        by the unified `ScheduledMessageScheduler`.
+        
+        This method is kept for backward compatibility but should not be called.
+        The scheduler is not started in `main.py`.
 
         This should be called during application startup.
         """

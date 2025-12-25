@@ -513,6 +513,12 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                       {formErrors.hours_after && (
                         <p className="text-red-600 text-xs mt-1">{formErrors.hours_after}</p>
                       )}
+                      {/* Warning for delays > 90 days (2160 hours) - per design doc recommendation */}
+                      {(formData.hours_after ?? 0) > 2160 && (
+                        <p className="text-yellow-600 text-xs mt-1">
+                          ⚠️ 警告：延遲時間超過 90 天，請確認是否正確
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -563,6 +569,12 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                         <span className="ml-2 text-sm text-gray-600">天後的</span>
                         {formErrors.days_after && (
                           <p className="text-red-600 text-xs mt-1">{formErrors.days_after}</p>
+                        )}
+                        {/* Warning for delays > 90 days - per design doc recommendation */}
+                        {(formData.days_after ?? 0) > 90 && (
+                          <p className="text-yellow-600 text-xs mt-1">
+                            ⚠️ 警告：延遲時間超過 90 天，請確認是否正確
+                          </p>
                         )}
                       </div>
                       <div>
