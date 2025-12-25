@@ -131,7 +131,14 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
                       type="radio"
                       value="minimum_hours_required"
                       checked={bookingRestrictionType === 'minimum_hours_required'}
-                      onChange={(e) => setValue('booking_restriction_settings.booking_restriction_type', e.target.value, { shouldDirty: true })}
+                      onChange={(e) => {
+                        setValue('booking_restriction_settings.booking_restriction_type', e.target.value, { shouldDirty: true });
+                        // Ensure minimum_booking_hours_ahead has a default value if undefined
+                        const currentValue = watch('booking_restriction_settings.minimum_booking_hours_ahead');
+                        if (currentValue === undefined || currentValue === null || currentValue === 0) {
+                          setValue('booking_restriction_settings.minimum_booking_hours_ahead', 24, { shouldDirty: true });
+                        }
+                      }}
                       disabled={!isClinicAdmin}
                       className="mr-2"
                     />
@@ -160,7 +167,18 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
                       type="radio"
                       value="deadline_time_day_before"
                       checked={bookingRestrictionType === 'deadline_time_day_before'}
-                      onChange={(e) => setValue('booking_restriction_settings.booking_restriction_type', e.target.value, { shouldDirty: true })}
+                      onChange={(e) => {
+                        setValue('booking_restriction_settings.booking_restriction_type', e.target.value, { shouldDirty: true });
+                        // Ensure deadline fields have default values if undefined
+                        const currentDeadlineTime = watch('booking_restriction_settings.deadline_time_day_before');
+                        const currentDeadlineOnSameDay = watch('booking_restriction_settings.deadline_on_same_day');
+                        if (!currentDeadlineTime) {
+                          setValue('booking_restriction_settings.deadline_time_day_before', '08:00', { shouldDirty: true });
+                        }
+                        if (currentDeadlineOnSameDay === undefined || currentDeadlineOnSameDay === null) {
+                          setValue('booking_restriction_settings.deadline_on_same_day', false, { shouldDirty: true });
+                        }
+                      }}
                       disabled={!isClinicAdmin}
                       className="mr-2"
                     />
