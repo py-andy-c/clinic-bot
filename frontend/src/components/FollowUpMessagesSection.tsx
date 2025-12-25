@@ -10,6 +10,7 @@ import { useModal } from '../contexts/ModalContext';
 
 interface FollowUpMessagesSectionProps {
   appointmentType: AppointmentType;
+  onUpdate: (updated: AppointmentType) => void;
   disabled?: boolean;
   clinicInfoAvailability?: {
     has_address?: boolean;
@@ -29,10 +30,17 @@ interface FollowUpMessageFormData {
 
 export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = ({
   appointmentType,
+  onUpdate,
   disabled = false,
   clinicInfoAvailability,
 }) => {
-  const [followUpMessages, setFollowUpMessages] = useState<FollowUpMessage[]>([]);
+  const isNewItem = isTemporaryServiceItemId(appointmentType.id);
+  
+  // Initialize from appointmentType.follow_up_messages if available (staged changes)
+  // Otherwise load from API for existing items
+  const [followUpMessages, setFollowUpMessages] = useState<FollowUpMessage[]>(
+    appointmentType.follow_up_messages || []
+  );
   const [loading, setLoading] = useState(false);
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
   const [editingMessage, setEditingMessage] = useState<FollowUpMessage | null>(null);
@@ -56,41 +64,54 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
     completeness_warnings?: string[];
   } | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   const { confirm, alert } = useModal();
 
-  const isNewItem = isTemporaryServiceItemId(appointmentType.id);
-
-  // Load follow-up messages when modal opens (only for existing items)
+  // Load follow-up messages when modal opens (only for existing items without staged changes)
   const loadFollowUpMessages = useCallback(async () => {
     if (isNewItem || !appointmentType.id) return;
+    // If we already have staged changes, don't reload from API
+    if (appointmentType.follow_up_messages !== undefined) return;
     
     setLoading(true);
     try {
       const response = await apiService.getFollowUpMessages(appointmentType.id);
-      setFollowUpMessages(response.follow_up_messages.sort((a, b) => a.display_order - b.display_order));
+      const messages = response.follow_up_messages.sort((a, b) => a.display_order - b.display_order);
+      setFollowUpMessages(messages);
       // Expand all messages by default
-      setExpandedMessages(new Set(response.follow_up_messages.map(m => m.id)));
+      setExpandedMessages(new Set(messages.map(m => m.id)));
+      // Update parent with loaded messages
+      onUpdate({ ...appointmentType, follow_up_messages: messages });
     } catch (error: any) {
       logger.error('Failed to load follow-up messages:', error);
       const errorMessage = error?.response?.data?.detail || '無法載入追蹤訊息';
       await alert(errorMessage, '載入失敗');
       // Set empty list on error so UI shows empty state
       setFollowUpMessages([]);
+      onUpdate({ ...appointmentType, follow_up_messages: [] });
     } finally {
       setLoading(false);
     }
-  }, [isNewItem, appointmentType.id, alert]);
+  }, [isNewItem, appointmentType, onUpdate, alert]);
 
   useEffect(() => {
-    if (!isNewItem && appointmentType.id) {
+    if (!isNewItem && appointmentType.id && appointmentType.follow_up_messages === undefined) {
       loadFollowUpMessages();
+    } else if (appointmentType.follow_up_messages !== undefined) {
+      // Use staged messages
+      setFollowUpMessages(appointmentType.follow_up_messages);
+      setExpandedMessages(new Set(appointmentType.follow_up_messages.map(m => m.id)));
     } else {
       // For new items, start with empty list
       setFollowUpMessages([]);
     }
-  }, [appointmentType.id, isNewItem, loadFollowUpMessages]);
+  }, [appointmentType.id, appointmentType.follow_up_messages, isNewItem, loadFollowUpMessages]);
+
+  // Helper function to update parent with staged changes
+  const updateStagedMessages = (messages: FollowUpMessage[]) => {
+    setFollowUpMessages(messages);
+    onUpdate({ ...appointmentType, follow_up_messages: messages });
+  };
 
   const toggleMessage = (messageId: number) => {
     const newExpanded = new Set(expandedMessages);
@@ -131,20 +152,9 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
   };
 
   const handleDeleteMessage = async (messageId: number) => {
-    if (isNewItem) {
-      // For new items, just remove from local state
-      setFollowUpMessages(prev => prev.filter(m => m.id !== messageId));
-      return;
-    }
-
-    try {
-      await apiService.deleteFollowUpMessage(appointmentType.id, messageId);
-      await loadFollowUpMessages();
-    } catch (error: any) {
-      logger.error('Failed to delete follow-up message:', error);
-      const errorMessage = error?.response?.data?.detail || '無法刪除追蹤訊息';
-      await alert(errorMessage, '錯誤');
-    }
+    // Stage deletion - remove from local state
+    const updated = followUpMessages.filter(m => m.id !== messageId);
+    updateStagedMessages(updated);
   };
 
   const validateForm = (): boolean => {
@@ -173,107 +183,59 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
     return Object.keys(errors).length === 0;
   };
 
-  const handleSaveMessage = async () => {
-    if (!validateForm() || saving) {
+  const handleSaveMessage = () => {
+    if (!validateForm()) {
       return;
     }
 
-    setSaving(true);
-    try {
-      if (isNewMessage) {
-        // Create new message
-        const createData: {
-          timing_mode: 'hours_after' | 'specific_time';
-          hours_after?: number;
-          days_after?: number;
-          time_of_day?: string;
-          message_template: string;
-          is_enabled?: boolean;
-          display_order?: number;
-        } = {
-          timing_mode: formData.timing_mode,
-          message_template: formData.message_template,
-          is_enabled: formData.is_enabled,
-          display_order: formData.display_order,
-        };
-        if (formData.timing_mode === 'hours_after' && formData.hours_after !== undefined) {
-          createData.hours_after = formData.hours_after;
-        }
-        if (formData.timing_mode === 'specific_time') {
-          if (formData.days_after !== undefined) {
-            createData.days_after = formData.days_after;
-          }
-          if (formData.time_of_day !== undefined) {
-            createData.time_of_day = formData.time_of_day;
-          }
-        }
-        await apiService.createFollowUpMessage(appointmentType.id, createData);
-        await loadFollowUpMessages();
-        setEditingMessage(null);
-        setIsNewMessage(false);
-      } else if (editingMessage) {
-        // Update existing message
-        const updateData: {
-          timing_mode?: 'hours_after' | 'specific_time';
-          hours_after?: number;
-          days_after?: number;
-          time_of_day?: string;
-          message_template?: string;
-          is_enabled?: boolean;
-          display_order?: number;
-        } = {
-          timing_mode: formData.timing_mode,
-          message_template: formData.message_template,
-          is_enabled: formData.is_enabled,
-          display_order: formData.display_order,
-        };
-        if (formData.timing_mode === 'hours_after' && formData.hours_after !== undefined) {
-          updateData.hours_after = formData.hours_after;
-        }
-        if (formData.timing_mode === 'specific_time') {
-          if (formData.days_after !== undefined) {
-            updateData.days_after = formData.days_after;
-          }
-          if (formData.time_of_day !== undefined) {
-            updateData.time_of_day = formData.time_of_day;
-          }
-        }
-        await apiService.updateFollowUpMessage(appointmentType.id, editingMessage.id, updateData);
-        await loadFollowUpMessages();
-        setEditingMessage(null);
-      }
-    } catch (error: any) {
-      logger.error('Failed to save follow-up message:', error);
-      const errorMessage = error?.response?.data?.detail || '無法儲存追蹤訊息';
-      await alert(errorMessage, '錯誤');
-    } finally {
-      setSaving(false);
+    if (isNewMessage) {
+      // Create new message in staging with temporary ID (negative timestamp)
+      const newMessage: FollowUpMessage = {
+        id: -Date.now(),
+        appointment_type_id: appointmentType.id,
+        clinic_id: appointmentType.clinic_id,
+        timing_mode: formData.timing_mode,
+        hours_after: formData.timing_mode === 'hours_after' ? formData.hours_after : null,
+        days_after: formData.timing_mode === 'specific_time' ? formData.days_after : null,
+        time_of_day: formData.timing_mode === 'specific_time' ? formData.time_of_day : null,
+        message_template: formData.message_template,
+        is_enabled: formData.is_enabled,
+        display_order: formData.display_order,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      const updated = [...followUpMessages, newMessage].sort((a, b) => a.display_order - b.display_order);
+      updateStagedMessages(updated);
+      setEditingMessage(null);
+      setIsNewMessage(false);
+    } else if (editingMessage) {
+      // Update existing message in staging
+      const updated = followUpMessages.map(m =>
+        m.id === editingMessage.id
+          ? {
+              ...m,
+              timing_mode: formData.timing_mode,
+              hours_after: formData.timing_mode === 'hours_after' ? formData.hours_after : null,
+              days_after: formData.timing_mode === 'specific_time' ? formData.days_after : null,
+              time_of_day: formData.timing_mode === 'specific_time' ? formData.time_of_day : null,
+              message_template: formData.message_template,
+              is_enabled: formData.is_enabled,
+              display_order: formData.display_order,
+              updated_at: new Date().toISOString(),
+            }
+          : m
+      ).sort((a, b) => a.display_order - b.display_order);
+      updateStagedMessages(updated);
+      setEditingMessage(null);
     }
   };
 
-  const handleToggleEnabled = async (message: FollowUpMessage) => {
-    if (isNewItem) {
-      // For new items, just update local state
-      setFollowUpMessages(prev =>
-        prev.map(m =>
-          m.id === message.id ? { ...m, is_enabled: !m.is_enabled } : m
-        )
-      );
-      return;
-    }
-
-    try {
-      await apiService.updateFollowUpMessage(appointmentType.id, message.id, {
-        is_enabled: !message.is_enabled,
-      });
-      await loadFollowUpMessages();
-    } catch (error: any) {
-      logger.error('Failed to toggle follow-up message:', error);
-      const errorMessage = error?.response?.data?.detail || '無法更新追蹤訊息狀態';
-      await alert(errorMessage, '錯誤');
-      // Reload to sync state
-      await loadFollowUpMessages();
-    }
+  const handleToggleEnabled = (message: FollowUpMessage) => {
+    // Stage toggle change
+    const updated = followUpMessages.map(m =>
+      m.id === message.id ? { ...m, is_enabled: !m.is_enabled, updated_at: new Date().toISOString() } : m
+    );
+    updateStagedMessages(updated);
   };
 
   const handlePreview = async (message: FollowUpMessage) => {
@@ -461,20 +423,12 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
             <button
               type="button"
               onClick={handleAddMessage}
-              disabled={disabled || isNewItem}
+              disabled={disabled}
               className="text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400 disabled:cursor-not-allowed"
             >
-              {isNewItem ? '請先儲存服務項目' : '+ 新增追蹤訊息'}
+              + 新增追蹤訊息
             </button>
           </div>
-
-          {isNewItem && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-              <p className="text-sm text-yellow-800">
-                請先儲存服務項目後，才能設定追蹤訊息。
-              </p>
-            </div>
-          )}
 
           {loading ? (
             <div className="flex justify-center py-8">
@@ -723,10 +677,9 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
               <button
                 type="button"
                 onClick={handleSaveMessage}
-                disabled={saving}
-                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary"
               >
-                {saving ? '儲存中...' : '儲存'}
+                儲存
               </button>
             </div>
           </div>

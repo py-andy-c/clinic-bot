@@ -183,6 +183,8 @@ export interface AppointmentType {
   // Notes customization fields
   require_notes?: boolean | undefined;
   notes_instructions?: string | null | undefined;
+  // Follow-up messages (staged changes)
+  follow_up_messages?: FollowUpMessage[];
 }
 
 export interface FollowUpMessage {

@@ -4,7 +4,7 @@ import { useModal } from '../../contexts/ModalContext';
 import { apiService } from '../../services/api';
 import { logger } from '../../utils/logger';
 import { getErrorMessage } from '../../types/api';
-import { AppointmentType, Member, ResourceRequirement } from '../../types';
+import { AppointmentType, Member, ResourceRequirement, FollowUpMessage } from '../../types';
 import { ClinicSettings } from '../../schemas/api';
 import { LoadingSpinner } from '../../components/shared';
 import { SearchInput } from '../../components/shared/SearchInput';
@@ -702,6 +702,95 @@ const SettingsServiceItemsPage: React.FC = () => {
       }
     } catch (err: any) {
       errors.push(`儲存資源需求失敗：${err?.message || '未知錯誤'}`);
+    }
+    
+    // Save follow-up messages
+    try {
+      // Get follow-up messages from staged service items
+      const followUpMessagesByServiceItem: Record<number, FollowUpMessage[]> = {};
+      serviceItems.forEach(item => {
+        if (item.follow_up_messages && item.follow_up_messages.length > 0) {
+          const tempId = item.id;
+          followUpMessagesByServiceItem[tempId] = item.follow_up_messages;
+        }
+      });
+
+      // Process follow-up messages for each service item
+      for (const [tempServiceItemId, messages] of Object.entries(followUpMessagesByServiceItem)) {
+        const tempIdNum = parseInt(tempServiceItemId, 10);
+        const realServiceItemId = allMappings[tempIdNum] ?? tempIdNum;
+        
+        if (!isRealId(realServiceItemId)) {
+          continue; // Skip if service item doesn't have a real ID yet
+        }
+
+        // Get original messages from API to determine what to create/update/delete
+        let originalMessages: FollowUpMessage[] = [];
+        try {
+          const response = await apiService.getFollowUpMessages(realServiceItemId);
+          originalMessages = response.follow_up_messages;
+        } catch (err: any) {
+          // If service item is new, there are no original messages
+          if (err?.response?.status !== 404) {
+            logger.error(`Error loading original follow-up messages for ${realServiceItemId}:`, err);
+          }
+        }
+
+        const originalMessageIds = new Set(originalMessages.map(m => m.id));
+        const stagedMessageIds = new Set(messages.map(m => isRealId(m.id) ? m.id : null).filter((id): id is number => id !== null));
+
+        // Delete messages that were removed
+        const messagesToDelete = originalMessages.filter(m => !stagedMessageIds.has(m.id));
+        for (const message of messagesToDelete) {
+          try {
+            await apiService.deleteFollowUpMessage(realServiceItemId, message.id);
+          } catch (err: any) {
+            const errorMsg = `刪除追蹤訊息失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
+            logger.error(`Error deleting follow-up message ${message.id}:`, err);
+            errors.push(errorMsg);
+          }
+        }
+
+        // Create or update messages
+        for (const message of messages) {
+          try {
+            // Build common data structure
+            const baseData = {
+              timing_mode: message.timing_mode,
+              message_template: message.message_template,
+              is_enabled: message.is_enabled,
+              display_order: message.display_order,
+            };
+
+            // Add timing-specific fields
+            if (message.timing_mode === 'hours_after' && message.hours_after !== null) {
+              (baseData as any).hours_after = message.hours_after;
+            } else if (message.timing_mode === 'specific_time') {
+              if (message.days_after !== null) {
+                (baseData as any).days_after = message.days_after;
+              }
+              if (message.time_of_day !== null) {
+                (baseData as any).time_of_day = message.time_of_day;
+              }
+            }
+
+            if (isRealId(message.id)) {
+              // Update existing message
+              await apiService.updateFollowUpMessage(realServiceItemId, message.id, baseData);
+            } else {
+              // Create new message
+              await apiService.createFollowUpMessage(realServiceItemId, baseData as any);
+            }
+          } catch (err: any) {
+            const action = isRealId(message.id) ? '更新' : '建立';
+            const errorMsg = `${action}追蹤訊息失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
+            logger.error(`Error ${action === '更新' ? 'updating' : 'creating'} follow-up message:`, err);
+            errors.push(errorMsg);
+          }
+        }
+      }
+    } catch (err: any) {
+      errors.push(`儲存追蹤訊息失敗：${err?.message || '未知錯誤'}`);
     }
     
     return { errors };

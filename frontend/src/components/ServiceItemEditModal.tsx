@@ -478,6 +478,8 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
       patient_confirmation_message: appointmentType.patient_confirmation_message,
       clinic_confirmation_message: appointmentType.clinic_confirmation_message,
       reminder_message: appointmentType.reminder_message,
+      // Include follow-up messages from appointmentType (updated by FollowUpMessagesSection)
+      follow_up_messages: appointmentType.follow_up_messages,
     };
     
     // Update staging store with final values
@@ -724,6 +726,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                   {isClinicAdmin && (
                     <FollowUpMessagesSection
                       appointmentType={appointmentType}
+                      onUpdate={onUpdate}
                       disabled={!isClinicAdmin}
                       {...(clinicInfoAvailability !== undefined && { clinicInfoAvailability })}
                     />
