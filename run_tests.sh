@@ -110,15 +110,6 @@ if ! psql -h localhost -t -c "SELECT 1 FROM pg_database WHERE datname='clinic_bo
     print_success "Test database created"
 fi
 
-# Run pyright type checking
-print_status "Running Pyright type checking..."
-if pyright; then
-    print_success "Type checking passed!"
-else
-    print_error "Type checking failed!"
-    exit 1
-fi
-
 source load_test_env.sh
 
 # Run backend tests based on mode
@@ -172,19 +163,79 @@ else
     fi
 fi
 
-# Run frontend tests using test driver script
-print_status "Running frontend tests..."
-cd "$PROJECT_ROOT/frontend"
-if [ -f "run_frontend_tests.sh" ]; then
-    if bash run_frontend_tests.sh; then
-        print_success "Frontend tests passed!"
+# Run Pyright and frontend tests in parallel
+print_status "Running Pyright type checking and frontend tests in parallel..."
+
+# Create temporary files for capturing output and exit codes
+PYRIGHT_OUTPUT=$(mktemp)
+FRONTEND_OUTPUT=$(mktemp)
+PYRIGHT_PID_FILE=$(mktemp)
+FRONTEND_PID_FILE=$(mktemp)
+
+# Function to cleanup temp files
+cleanup_temp_files() {
+    rm -f "$PYRIGHT_OUTPUT" "$FRONTEND_OUTPUT" "$PYRIGHT_PID_FILE" "$FRONTEND_PID_FILE"
+}
+trap cleanup_temp_files EXIT
+
+# Start Pyright in background (from backend directory)
+(
+    cd "$PROJECT_ROOT/backend"
+    source venv/bin/activate
+    pyright > "$PYRIGHT_OUTPUT" 2>&1
+    echo $? > "$PYRIGHT_PID_FILE"
+) &
+PYRIGHT_PID=$!
+
+# Start frontend tests in background
+(
+    cd "$PROJECT_ROOT/frontend"
+    if [ -f "run_frontend_tests.sh" ]; then
+        bash run_frontend_tests.sh > "$FRONTEND_OUTPUT" 2>&1
+        echo $? > "$FRONTEND_PID_FILE"
     else
-        print_error "Frontend tests failed!"
-        exit 1
+        echo "Frontend test driver script not found!" > "$FRONTEND_OUTPUT"
+        echo 1 > "$FRONTEND_PID_FILE"
     fi
+) &
+FRONTEND_PID=$!
+
+# Wait for both processes to complete
+wait $PYRIGHT_PID
+wait $FRONTEND_PID
+
+# Read exit codes from files (file-based approach is more reliable)
+PYRIGHT_EXIT=1
+FRONTEND_EXIT=1
+if [ -f "$PYRIGHT_PID_FILE" ]; then
+    PYRIGHT_EXIT=$(cat "$PYRIGHT_PID_FILE")
+fi
+if [ -f "$FRONTEND_PID_FILE" ]; then
+    FRONTEND_EXIT=$(cat "$FRONTEND_PID_FILE")
+fi
+
+# Display Pyright results
+echo ""
+print_status "=== Pyright Type Checking Results ==="
+cat "$PYRIGHT_OUTPUT"
+if [ "$PYRIGHT_EXIT" -eq 0 ]; then
+    print_success "Type checking passed!"
 else
-    print_error "Frontend test driver script not found!"
-    print_error "Expected: frontend/run_frontend_tests.sh"
+    print_error "Type checking failed!"
+fi
+
+# Display frontend test results
+echo ""
+print_status "=== Frontend Test Results ==="
+cat "$FRONTEND_OUTPUT"
+if [ "$FRONTEND_EXIT" -eq 0 ]; then
+    print_success "Frontend tests passed!"
+else
+    print_error "Frontend tests failed!"
+fi
+
+# Exit with error if either failed
+if [ "$PYRIGHT_EXIT" -ne 0 ] || [ "$FRONTEND_EXIT" -ne 0 ]; then
     exit 1
 fi
 
