@@ -180,8 +180,18 @@ class TestLifespan:
         from main import lifespan
 
         with patch('main.logger') as mock_logger, \
-             patch('main.start_reminder_scheduler'), \
-             patch('main.stop_reminder_scheduler'):
+             patch('main.start_scheduled_message_scheduler'), \
+             patch('main.stop_scheduled_message_scheduler'), \
+             patch('main.start_test_session_cleanup'), \
+             patch('main.stop_test_session_cleanup'), \
+             patch('main.start_line_message_cleanup'), \
+             patch('main.stop_line_message_cleanup'), \
+             patch('main.start_availability_notification_scheduler'), \
+             patch('main.stop_availability_notification_scheduler'), \
+             patch('main.start_auto_assignment_scheduler'), \
+             patch('main.stop_auto_assignment_scheduler'), \
+             patch('main.start_admin_auto_assigned_notification_scheduler'), \
+             patch('main.stop_admin_auto_assigned_notification_scheduler'):
             # Test startup
             async with lifespan(app):
                 pass

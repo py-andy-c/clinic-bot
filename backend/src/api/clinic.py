@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field, model_validator, field_validator
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, cast, String
 from sqlalchemy.sql import sqltypes
-from utils.datetime_utils import datetime_validator, parse_date_string, taiwan_now, ensure_taiwan
+from utils.datetime_utils import datetime_validator, parse_date_string, taiwan_now
 from utils.practitioner_helpers import verify_practitioner_in_clinic, get_practitioner_display_name_for_appointment
 from utils.phone_validator import validate_taiwanese_phone_optional
 

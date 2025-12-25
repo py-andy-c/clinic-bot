@@ -71,46 +71,115 @@ class ScheduledMessageService:
         Returns:
             True if appointment is valid, False otherwise
         """
-        if scheduled.message_type != 'follow_up':
-            # For other message types, validation logic can be added here
-            return True
-        
-        # For follow-up messages, check appointment
-        appointment_id = scheduled.message_context.get('appointment_id')
-        if not appointment_id:
-            logger.warning(f"Scheduled message {scheduled.id} missing appointment_id in context")
-            return False
-        
-        appointment = db.query(Appointment).filter(
-            Appointment.calendar_event_id == appointment_id
-        ).first()
-        
-        if not appointment:
-            logger.warning(f"Appointment {appointment_id} not found for scheduled message {scheduled.id}")
-            return False
-        
-        # Check appointment status
-        if appointment.status != 'confirmed':
-            logger.info(
-                f"Appointment {appointment_id} status is {appointment.status}, "
-                f"skipping scheduled message {scheduled.id}"
-            )
-            return False
-        
-        # Check if follow-up message is still enabled
-        follow_up_message_id = scheduled.message_context.get('follow_up_message_id')
-        if follow_up_message_id:
-            follow_up = db.query(FollowUpMessage).filter(
-                FollowUpMessage.id == follow_up_message_id
+        if scheduled.message_type == 'follow_up':
+            # For follow-up messages, check appointment
+            appointment_id = scheduled.message_context.get('appointment_id')
+            if not appointment_id:
+                logger.warning(f"Scheduled message {scheduled.id} missing appointment_id in context")
+                return False
+            
+            appointment = db.query(Appointment).filter(
+                Appointment.calendar_event_id == appointment_id
             ).first()
             
-            if not follow_up or not follow_up.is_enabled:
+            if not appointment:
+                logger.warning(f"Appointment {appointment_id} not found for scheduled message {scheduled.id}")
+                return False
+            
+            # Check appointment status
+            if appointment.status != 'confirmed':
                 logger.info(
-                    f"Follow-up message {follow_up_message_id} is disabled or deleted, "
+                    f"Appointment {appointment_id} status is {appointment.status}, "
                     f"skipping scheduled message {scheduled.id}"
                 )
                 return False
+            
+            # Check if follow-up message is still enabled
+            follow_up_message_id = scheduled.message_context.get('follow_up_message_id')
+            if follow_up_message_id:
+                follow_up = db.query(FollowUpMessage).filter(
+                    FollowUpMessage.id == follow_up_message_id
+                ).first()
+                
+                if not follow_up or not follow_up.is_enabled:
+                    logger.info(
+                        f"Follow-up message {follow_up_message_id} is disabled or deleted, "
+                        f"skipping scheduled message {scheduled.id}"
+                    )
+                    return False
+            
+            return True
         
+        elif scheduled.message_type == 'appointment_reminder':
+            # For reminder messages, check appointment
+            appointment_id = scheduled.message_context.get('appointment_id')
+            if not appointment_id:
+                logger.warning(f"Scheduled message {scheduled.id} missing appointment_id in context")
+                return False
+            
+            appointment = db.query(Appointment).filter(
+                Appointment.calendar_event_id == appointment_id
+            ).first()
+            
+            if not appointment:
+                logger.warning(f"Appointment {appointment_id} not found for scheduled message {scheduled.id}")
+                return False
+            
+            # Check appointment status
+            if appointment.status != 'confirmed':
+                logger.info(
+                    f"Appointment {appointment_id} status is {appointment.status}, "
+                    f"skipping scheduled message {scheduled.id}"
+                )
+                return False
+            
+            # Check if appointment is still not auto-assigned
+            if appointment.is_auto_assigned:
+                logger.info(
+                    f"Appointment {appointment_id} is auto-assigned, "
+                    f"skipping scheduled message {scheduled.id}"
+                )
+                return False
+            
+            # Check if reminder is still enabled for appointment type
+            appointment_type = appointment.appointment_type
+            if not appointment_type or not appointment_type.send_reminder:
+                logger.info(
+                    f"Reminder disabled for appointment type {appointment_type.id if appointment_type else 'unknown'}, "
+                    f"skipping scheduled message {scheduled.id}"
+                )
+                return False
+            
+            return True
+        
+        elif scheduled.message_type == 'practitioner_daily':
+            # For practitioner daily notifications, check that at least one appointment is still valid
+            appointment_ids = scheduled.message_context.get('appointment_ids', [])
+            if not appointment_ids:
+                logger.warning(f"Scheduled message {scheduled.id} missing appointment_ids in context")
+                return False
+            
+            # Check if at least one appointment is still valid
+            valid_appointments = db.query(Appointment).filter(
+                Appointment.calendar_event_id.in_(appointment_ids),
+                Appointment.status == 'confirmed'
+            ).all()
+            
+            if not valid_appointments:
+                logger.info(
+                    f"No valid appointments found for scheduled message {scheduled.id}, "
+                    f"skipping"
+                )
+                return False
+            
+            # Update context with only valid appointment IDs
+            scheduled.message_context['appointment_ids'] = [
+                appt.calendar_event_id for appt in valid_appointments
+            ]
+            
+            return True
+        
+        # For other message types, assume valid
         return True
 
     @staticmethod
@@ -160,6 +229,107 @@ class ScheduledMessageService:
             
             return context
         
+        elif scheduled.message_type == 'appointment_reminder':
+            appointment_id = scheduled.message_context.get('appointment_id')
+            if not appointment_id:
+                raise ValueError(f"Scheduled message {scheduled.id} missing appointment_id")
+            
+            appointment = db.query(Appointment).filter(
+                Appointment.calendar_event_id == appointment_id
+            ).first()
+            
+            if not appointment:
+                raise ValueError(f"Appointment {appointment_id} not found")
+            
+            patient = appointment.patient
+            clinic = patient.clinic
+            
+            # Get practitioner name
+            if appointment.is_auto_assigned:
+                therapist_name = "不指定"
+            else:
+                user = appointment.calendar_event.user
+                therapist_name = get_practitioner_display_name_with_title(
+                    db, user.id, clinic.id
+                )
+            
+            # Build context using MessageTemplateService
+            context = MessageTemplateService.build_reminder_context(
+                appointment, patient, therapist_name, clinic
+            )
+            context['recipient_type'] = 'patient'
+            
+            return context
+        
+        elif scheduled.message_type == 'practitioner_daily':
+            # Build context for practitioner daily notification
+            appointment_ids = scheduled.message_context.get('appointment_ids', [])
+            if not appointment_ids:
+                raise ValueError(f"Scheduled message {scheduled.id} missing appointment_ids")
+            
+            appointment_date_str = scheduled.message_context.get('appointment_date')
+            if not appointment_date_str:
+                raise ValueError(f"Scheduled message {scheduled.id} missing appointment_date")
+            
+            from datetime import date
+            appointment_date = date.fromisoformat(appointment_date_str)
+            
+            # Get all appointments for this date
+            appointments = db.query(Appointment).filter(
+                Appointment.calendar_event_id.in_(appointment_ids),
+                Appointment.status == 'confirmed'
+            ).all()
+            
+            if not appointments:
+                raise ValueError(f"No valid appointments found for scheduled message {scheduled.id}")
+            
+            # Build notification message
+            from utils.datetime_utils import format_datetime
+            from datetime import datetime
+            
+            date_str = appointment_date.strftime("%Y年%m月%d日")
+            message = f"📅 明日預約提醒 ({date_str})\n\n"
+            
+            if len(appointments) == 1:
+                message += "您有 1 個預約：\n\n"
+            else:
+                message += f"您有 {len(appointments)} 個預約：\n\n"
+            
+            for i, appointment in enumerate(appointments, 1):
+                # Get patient name
+                patient_name = appointment.patient.full_name if appointment.patient else "未知病患"
+                
+                # Format appointment time
+                start_datetime = datetime.combine(
+                    appointment.calendar_event.date,
+                    appointment.calendar_event.start_time
+                )
+                formatted_time = format_datetime(start_datetime)
+                
+                # Get appointment type name
+                appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
+                
+                message += f"{i}. {formatted_time}\n"
+                message += f"   病患：{patient_name}\n"
+                message += f"   類型：{appointment_type_name}"
+                
+                if appointment.notes:
+                    message += f"\n   備註：{appointment.notes}"
+                
+                message += "\n\n"
+            
+            message += "請準時為病患服務！"
+            
+            # Return context with the built message
+            # Note: We override the template with the built message since practitioner notifications
+            # don't use the standard template system
+            context = {
+                'recipient_type': 'practitioner',
+                'built_message': message
+            }
+            
+            return context
+        
         # Add other message types as needed
         raise ValueError(f"Unsupported message_type: {scheduled.message_type}")
 
@@ -200,10 +370,15 @@ class ScheduledMessageService:
                     
                     # Build context and render message
                     context = ScheduledMessageService.build_message_context(db, scheduled)
-                    resolved_text = MessageTemplateService.render_message(
-                        scheduled.message_template,
-                        context
-                    )
+                    
+                    # For practitioner_daily, use the built message directly
+                    if scheduled.message_type == 'practitioner_daily':
+                        resolved_text = context.get('built_message', scheduled.message_template)
+                    else:
+                        resolved_text = MessageTemplateService.render_message(
+                            scheduled.message_template,
+                            context
+                        )
                     
                     # Build analytics labels
                     labels = ScheduledMessageService.build_labels_for_message_type(

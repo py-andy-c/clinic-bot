@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timedelta, time as time_type
 from typing import Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import Integer, cast, String
+from sqlalchemy import cast, String
 
 from models import Appointment, FollowUpMessage, ScheduledLineMessage
 from utils.datetime_utils import taiwan_now, ensure_taiwan

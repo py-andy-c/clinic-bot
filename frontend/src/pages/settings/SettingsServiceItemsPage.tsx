@@ -736,7 +736,6 @@ const SettingsServiceItemsPage: React.FC = () => {
           }
         }
 
-        const originalMessageIds = new Set(originalMessages.map(m => m.id));
         const stagedMessageIds = new Set(messages.map(m => isRealId(m.id) ? m.id : null).filter((id): id is number => id !== null));
 
         // Delete messages that were removed

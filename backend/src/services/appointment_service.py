@@ -262,7 +262,7 @@ class AppointmentService:
             db.commit()
             db.refresh(appointment)
 
-            # Schedule follow-up messages for this appointment
+            # Schedule follow-up messages, reminders, and practitioner notifications for this appointment
             # Note: This happens after appointment commit, so if scheduling fails,
             # the appointment is still created (intentional - we don't want scheduling
             # failures to prevent appointment creation)
@@ -270,6 +270,20 @@ class AppointmentService:
                 FollowUpMessageService.schedule_follow_up_messages(db, appointment)
             except Exception as e:
                 logger.exception(f"Failed to schedule follow-up messages for appointment {appointment.calendar_event_id}: {e}")
+                # Don't fail appointment creation if scheduling fails
+            
+            try:
+                from services.reminder_scheduling_service import ReminderSchedulingService
+                ReminderSchedulingService.schedule_reminder(db, appointment)
+            except Exception as e:
+                logger.exception(f"Failed to schedule reminder for appointment {appointment.calendar_event_id}: {e}")
+                # Don't fail appointment creation if scheduling fails
+            
+            try:
+                from services.practitioner_notification_scheduling_service import PractitionerNotificationSchedulingService
+                PractitionerNotificationSchedulingService.schedule_notification_for_appointment(db, appointment)
+            except Exception as e:
+                logger.exception(f"Failed to schedule practitioner notification for appointment {appointment.calendar_event_id}: {e}")
                 # Don't fail appointment creation if scheduling fails
 
             # Get related objects for response
@@ -985,7 +999,7 @@ class AppointmentService:
         appointment.canceled_at = taiwan_now()
         db.commit()
 
-        # Cancel pending follow-up messages for this appointment
+        # Cancel pending follow-up messages, reminders, and practitioner notifications for this appointment
         # Note: This happens after appointment cancellation commit, so if cancellation fails,
         # the appointment is still canceled (intentional - we don't want message cancellation
         # failures to prevent appointment cancellation)
@@ -994,6 +1008,20 @@ class AppointmentService:
         except Exception as e:
             logger.exception(f"Failed to cancel follow-up messages for appointment {appointment_id}: {e}")
             # Don't fail cancellation if follow-up message cancellation fails
+        
+        try:
+            from services.reminder_scheduling_service import ReminderSchedulingService
+            ReminderSchedulingService.cancel_pending_reminder(db, appointment_id)
+        except Exception as e:
+            logger.exception(f"Failed to cancel reminder for appointment {appointment_id}: {e}")
+            # Don't fail cancellation if reminder cancellation fails
+        
+        try:
+            from services.practitioner_notification_scheduling_service import PractitionerNotificationSchedulingService
+            PractitionerNotificationSchedulingService.cancel_pending_notifications(db, appointment_id)
+        except Exception as e:
+            logger.exception(f"Failed to cancel practitioner notifications for appointment {appointment_id}: {e}")
+            # Don't fail cancellation if notification cancellation fails
 
         # Get clinic and practitioner for notifications
         calendar_event = appointment.calendar_event
@@ -1458,7 +1486,7 @@ class AppointmentService:
         db.commit()
         db.refresh(appointment)
 
-        # Reschedule follow-up messages if time or appointment type changed
+        # Reschedule follow-up messages, reminders, and practitioner notifications if time or appointment type changed
         # Note: This happens after appointment update commit, so if rescheduling fails,
         # the appointment is still updated (intentional - we don't want message rescheduling
         # failures to prevent appointment updates)
@@ -1467,6 +1495,20 @@ class AppointmentService:
                 FollowUpMessageService.reschedule_follow_up_messages(db, appointment)
             except Exception as e:
                 logger.exception(f"Failed to reschedule follow-up messages for appointment {appointment.calendar_event_id}: {e}")
+                # Don't fail update if rescheduling fails
+            
+            try:
+                from services.reminder_scheduling_service import ReminderSchedulingService
+                ReminderSchedulingService.reschedule_reminder(db, appointment)
+            except Exception as e:
+                logger.exception(f"Failed to reschedule reminder for appointment {appointment.calendar_event_id}: {e}")
+                # Don't fail update if rescheduling fails
+            
+            try:
+                from services.practitioner_notification_scheduling_service import PractitionerNotificationSchedulingService
+                PractitionerNotificationSchedulingService.reschedule_notification(db, appointment)
+            except Exception as e:
+                logger.exception(f"Failed to reschedule practitioner notification for appointment {appointment.calendar_event_id}: {e}")
                 # Don't fail update if rescheduling fails
 
         # Send notifications
