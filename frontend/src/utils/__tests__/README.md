@@ -34,6 +34,7 @@ export default defineConfig({
 
 ## Running Tests
 
+### Using npm (for this directory)
 ```bash
 # Run tests once
 npm test
@@ -43,6 +44,18 @@ npm test -- --watch
 
 # Run tests with UI
 npm run test:ui
+```
+
+### Using Test Runner Scripts (recommended for full test suite)
+```bash
+# From project root: Run all tests (backend + frontend)
+./run_tests.sh
+
+# From project root: Run all tests with full coverage
+./run_tests.sh --no-cache
+
+# From frontend directory: Run only frontend tests
+./run_frontend_tests.sh
 ```
 
 ## Test Files
