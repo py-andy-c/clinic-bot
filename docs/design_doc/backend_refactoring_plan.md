@@ -225,7 +225,7 @@ api/
 
 ---
 
-### Phase 6: Extract Practitioner Management (Week 4)
+### Phase 6: Extract Practitioner Management (Week 4) ✅ COMPLETE
 
 **Goal**: Extract practitioner-related endpoints
 
@@ -245,7 +245,7 @@ api/
 
 ---
 
-### Phase 7: Extract Appointment Management (Week 5)
+### Phase 7: Extract Appointment Management (Week 5) ✅ COMPLETE
 
 **Goal**: Extract appointment CRUD and related operations
 
