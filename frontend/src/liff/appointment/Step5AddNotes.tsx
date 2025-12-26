@@ -24,7 +24,7 @@ const Step5AddNotes: React.FC = () => {
     <div className="px-4 py-6">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          {t('notes.title')}
+          {isNotesRequired ? '備註' : t('notes.title')}
           {isNotesRequired && <span className="text-red-500 ml-1">*</span>}
         </h2>
         {instructionsToShow && (
