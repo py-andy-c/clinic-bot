@@ -1,18 +1,17 @@
 #!/bin/bash
 
 # Clinic Bot Test Runner
-# Simplified test runner that uses the existing backend venv
+# Orchestrates backend and frontend test runners
 #
 # Usage:
-#   ./run_tests.sh        - Run tests with testmon (fast, incremental, no coverage)
-#   ./run_tests.sh --full - Run all tests with coverage check
+#   ./run_tests.sh           - Run tests with testmon (fast, incremental, no coverage)
+#   ./run_tests.sh --no-cache - Run all backend tests with coverage check
 
 set -e  # Exit on any error
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
@@ -25,34 +24,24 @@ print_success() {
     echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
-print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
 print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
 # Parse command line arguments
-FULL_MODE=false
-REBUILD_CACHE=false
+NO_CACHE=false
 for arg in "$@"; do
     case $arg in
-        --full|--all)
-            FULL_MODE=true
-            ;;
-        --rebuild-cache)
-            REBUILD_CACHE=true
+        --no-cache)
+            NO_CACHE=true
             ;;
         --help|-h)
-            echo "Usage: $0 [--full|--all] [--rebuild-cache]"
+            echo "Usage: $0 [--no-cache]"
             echo ""
             echo "Options:"
-            echo "  (no flags)      Run tests with testmon (fast, incremental, no coverage)"
-            echo "  --full          Run all tests with coverage check"
-            echo "  --all           Alias for --full"
-            echo "  --rebuild-cache Delete testmon cache and rebuild (useful if cache seems stale)"
-            echo "  --help          Show this help message"
+            echo "  (no flags)   Run tests with testmon (fast, incremental, no coverage)"
+            echo "  --no-cache   Run all backend tests with coverage check"
+            echo "  --help       Show this help message"
             exit 0
             ;;
         *)
@@ -69,187 +58,138 @@ PROJECT_ROOT="$SCRIPT_DIR"
 
 print_status "Clinic Bot Test Runner"
 print_status "Project root: $PROJECT_ROOT"
-if [ "$FULL_MODE" = true ]; then
-    print_status "Mode: Full test run with coverage"
-else
-    print_status "Mode: Incremental test run with testmon"
+
+# Build backend test command
+BACKEND_SCRIPT="$PROJECT_ROOT/backend/run_backend_tests.sh"
+BACKEND_CMD="$BACKEND_SCRIPT"
+if [ "$NO_CACHE" = true ]; then
+    BACKEND_CMD="$BACKEND_CMD --no-cache"
 fi
 
-# Navigate to backend directory
-cd "$PROJECT_ROOT/backend"
+# Frontend test command
+FRONTEND_CMD="$PROJECT_ROOT/frontend/run_frontend_tests.sh"
 
-# Check if venv exists
-if [ ! -d "venv" ]; then
-    print_error "Virtual environment not found at backend/venv"
-    print_error "Please run the backend setup first or create the venv manually"
+# Verify test scripts exist
+if [ ! -f "$BACKEND_SCRIPT" ]; then
+    print_error "Backend test script not found: $BACKEND_SCRIPT"
     exit 1
 fi
-
-# Activate existing virtual environment
-print_status "Activating virtual environment..."
-source venv/bin/activate
-
-# Check PostgreSQL is running
-print_status "Checking PostgreSQL availability..."
-if ! pg_isready -h localhost &> /dev/null; then
-    print_error "PostgreSQL is not running!"
-    print_error "Start it with: brew services start postgresql@14"
+if [ ! -f "$FRONTEND_CMD" ]; then
+    print_error "Frontend test script not found: $FRONTEND_CMD"
     exit 1
 fi
-print_success "PostgreSQL is running"
-
-# Ensure test database exists (optimized: direct query instead of listing all databases)
-print_status "Checking test database..."
-if ! psql -h localhost -t -c "SELECT 1 FROM pg_database WHERE datname='clinic_bot_test'" postgres 2>/dev/null | grep -q 1; then
-    print_status "Creating test database..."
-    createdb clinic_bot_test 2>/dev/null || {
-        print_error "Failed to create test database"
-        print_error "Try: createdb clinic_bot_test"
-        exit 1
-    }
-    print_success "Test database created"
-fi
-
-source load_test_env.sh
-
-# Run backend tests based on mode
-if [ "$FULL_MODE" = true ]; then
-    # Full mode: Run all tests with coverage
-    print_status "Running all tests with coverage..."
-    if PYTHONPATH=src python -m pytest tests/unit/ tests/integration/ -v --tb=short --cov=src --cov-report=html:htmlcov --cov-report=term-missing --cov-fail-under=70; then
-        print_success "All tests passed!"
-        print_success "Coverage report generated!"
-    else
-        print_error "Tests failed!"
-        exit 1
-    fi
-else
-    # Default mode: Run tests with testmon (incremental, no coverage)
-    # Check if pytest-testmon is installed (fast check - just import, no pytest --help)
-    if ! python -c "import testmon" 2>/dev/null; then
-        print_error "pytest-testmon is not installed!"
-        print_error ""
-        print_error "To install:"
-        print_error "  cd backend"
-        print_error "  source venv/bin/activate"
-        print_error "  pip install pytest-testmon"
-        print_error ""
-        print_error "Or update all requirements:"
-        print_error "  cd backend && source venv/bin/activate && pip install -r requirements.txt"
-        exit 1
-    fi
-    
-    # Handle cache rebuild if requested
-    if [ "$REBUILD_CACHE" = true ]; then
-        if [ -f ".testmondata" ]; then
-            print_status "Rebuilding testmon cache (deleting existing cache)..."
-            rm .testmondata
-        fi
-    fi
-    
-    # Check if testmon cache exists (first run)
-    # Note: We're already in backend/ directory at this point
-    if [ ! -f ".testmondata" ]; then
-        print_status "First run detected - building testmon cache (this may take a while)..."
-    fi
-    
-    print_status "Running tests with testmon (incremental mode)..."
-    if PYTHONPATH=src python -m pytest tests/unit/ tests/integration/ -v --tb=short --testmon; then
-        print_success "Tests passed!"
-        print_status "Note: Running in incremental mode. Use --full for coverage check."
-    else
-        print_error "Tests failed!"
-        exit 1
-    fi
-fi
-
-# Run Pyright and frontend tests in parallel
-print_status "Running Pyright type checking and frontend tests in parallel..."
 
 # Create temporary files for capturing output and exit codes
-PYRIGHT_OUTPUT=$(mktemp)
+BACKEND_OUTPUT=$(mktemp)
 FRONTEND_OUTPUT=$(mktemp)
-PYRIGHT_PID_FILE=$(mktemp)
-FRONTEND_PID_FILE=$(mktemp)
+BACKEND_EXIT_FILE=$(mktemp)
+FRONTEND_EXIT_FILE=$(mktemp)
 
 # Function to cleanup temp files
 cleanup_temp_files() {
-    rm -f "$PYRIGHT_OUTPUT" "$FRONTEND_OUTPUT" "$PYRIGHT_PID_FILE" "$FRONTEND_PID_FILE"
+    rm -f "$BACKEND_OUTPUT" "$FRONTEND_OUTPUT" "$BACKEND_EXIT_FILE" "$FRONTEND_EXIT_FILE"
 }
 trap cleanup_temp_files EXIT
 
-# Start Pyright in background (from backend directory)
+# Start backend tests in background
+print_status "Running backend and frontend tests in parallel..."
 (
-    cd "$PROJECT_ROOT/backend"
-    source venv/bin/activate
-    pyright > "$PYRIGHT_OUTPUT" 2>&1
-    echo $? > "$PYRIGHT_PID_FILE"
+    bash "$BACKEND_CMD" > "$BACKEND_OUTPUT" 2>&1
+    echo $? > "$BACKEND_EXIT_FILE"
 ) &
-PYRIGHT_PID=$!
+BACKEND_PID=$!
 
 # Start frontend tests in background
 (
-    cd "$PROJECT_ROOT/frontend"
-    if [ -f "run_frontend_tests.sh" ]; then
-        bash run_frontend_tests.sh > "$FRONTEND_OUTPUT" 2>&1
-        echo $? > "$FRONTEND_PID_FILE"
-    else
-        echo "Frontend test driver script not found!" > "$FRONTEND_OUTPUT"
-        echo 1 > "$FRONTEND_PID_FILE"
-    fi
+    bash "$FRONTEND_CMD" > "$FRONTEND_OUTPUT" 2>&1
+    echo $? > "$FRONTEND_EXIT_FILE"
 ) &
 FRONTEND_PID=$!
 
 # Wait for both processes to complete
-wait $PYRIGHT_PID
+# Temporarily disable set -e to allow wait to return non-zero exit codes
+# (which is expected when background processes fail)
+set +e
+wait $BACKEND_PID
+BACKEND_WAIT_EXIT=$?
 wait $FRONTEND_PID
+FRONTEND_WAIT_EXIT=$?
+set -e
 
-# Read exit codes from files (file-based approach is more reliable)
-PYRIGHT_EXIT=1
+# Give processes a moment to write exit codes to files
+# Note: This is a small delay to ensure file I/O completes. In practice,
+# the wait above should be sufficient, but this provides a safety margin.
+sleep 0.1
+
+# Read exit codes from files
+BACKEND_EXIT=1
 FRONTEND_EXIT=1
-if [ -f "$PYRIGHT_PID_FILE" ]; then
-    PYRIGHT_EXIT=$(cat "$PYRIGHT_PID_FILE")
+if [ -f "$BACKEND_EXIT_FILE" ] && [ -s "$BACKEND_EXIT_FILE" ]; then
+    BACKEND_EXIT=$(cat "$BACKEND_EXIT_FILE" 2>/dev/null)
+    # Ensure it's a valid integer, default to 1 if not
+    case "$BACKEND_EXIT" in
+        ''|*[!0-9]*) BACKEND_EXIT=1 ;;
+    esac
 fi
-if [ -f "$FRONTEND_PID_FILE" ]; then
-    FRONTEND_EXIT=$(cat "$FRONTEND_PID_FILE")
-fi
-
-# Display Pyright results
-echo ""
-print_status "=== Pyright Type Checking Results ==="
-cat "$PYRIGHT_OUTPUT"
-if [ "$PYRIGHT_EXIT" -eq 0 ]; then
-    print_success "Type checking passed!"
-else
-    print_error "Type checking failed!"
+if [ -f "$FRONTEND_EXIT_FILE" ] && [ -s "$FRONTEND_EXIT_FILE" ]; then
+    FRONTEND_EXIT=$(cat "$FRONTEND_EXIT_FILE" 2>/dev/null)
+    # Ensure it's a valid integer, default to 1 if not
+    case "$FRONTEND_EXIT" in
+        ''|*[!0-9]*) FRONTEND_EXIT=1 ;;
+    esac
 fi
 
-# Display frontend test results
-echo ""
-print_status "=== Frontend Test Results ==="
-cat "$FRONTEND_OUTPUT"
-if [ "$FRONTEND_EXIT" -eq 0 ]; then
-    print_success "Frontend tests passed!"
-else
+# Display results only if they failed
+if [ "$BACKEND_EXIT" -ne 0 ]; then
+    echo ""
+    print_error "Backend tests failed!"
+    echo ""
+    print_status "=== Backend Test Output ==="
+    if [ -f "$BACKEND_OUTPUT" ]; then
+        cat "$BACKEND_OUTPUT"
+    else
+        print_error "Backend output file not found!"
+    fi
+    echo ""
+fi
+
+if [ "$FRONTEND_EXIT" -ne 0 ]; then
+    echo ""
     print_error "Frontend tests failed!"
+    echo ""
+    print_status "=== Frontend Test Output ==="
+    if [ -f "$FRONTEND_OUTPUT" ]; then
+        cat "$FRONTEND_OUTPUT"
+    else
+        print_error "Frontend output file not found!"
+    fi
+    echo ""
 fi
+
+# Display summary
+echo ""
+print_status "=== Test Summary ==="
+if [ "$BACKEND_EXIT" -eq 0 ]; then
+    print_success "Backend:  ✅ PASSED"
+else
+    print_error "Backend:  ❌ FAILED"
+fi
+
+if [ "$FRONTEND_EXIT" -eq 0 ]; then
+    print_success "Frontend: ✅ PASSED"
+else
+    print_error "Frontend: ❌ FAILED"
+fi
+echo ""
 
 # Exit with error if either failed
-if [ "$PYRIGHT_EXIT" -ne 0 ] || [ "$FRONTEND_EXIT" -ne 0 ]; then
+if [ "$BACKEND_EXIT" -ne 0 ] || [ "$FRONTEND_EXIT" -ne 0 ]; then
     exit 1
 fi
 
 # Final success message
-echo ""
 print_success "🎉 All Tests Passed Successfully!"
-echo ""
-if [ "$FULL_MODE" = true ]; then
+if [ "$NO_CACHE" = true ]; then
     print_success "📁 Coverage report: backend/htmlcov/index.html"
-fi
-print_success "🔍 TypeScript: All type checks passed"
-print_success "✅ Frontend unit tests: All passed"
-if [ "$FULL_MODE" = false ]; then
-    echo ""
-    print_status "💡 Tip: Use './run_tests.sh --full' to run all tests with coverage check"
 fi
 exit 0
