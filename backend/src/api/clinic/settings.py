@@ -199,7 +199,9 @@ async def get_settings(
                 send_reminder=at.send_reminder,
                 patient_confirmation_message=at.patient_confirmation_message,
                 clinic_confirmation_message=at.clinic_confirmation_message,
-                reminder_message=at.reminder_message
+                reminder_message=at.reminder_message,
+                require_notes=at.require_notes,
+                notes_instructions=at.notes_instructions
             )
             for at in appointment_types
         ]

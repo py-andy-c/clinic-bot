@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { logger } from '../utils/logger';
 
 // Base API response schema
 export const ApiResponseSchema = z.object({
@@ -151,7 +152,15 @@ export const AppointmentTypeSchema = z.object({
   patient_confirmation_message: z.string().optional(),
   clinic_confirmation_message: z.string().optional(),
   reminder_message: z.string().optional(),
-});
+  // Notes customization fields
+  require_notes: z.boolean().optional(),
+  notes_instructions: z.string().nullable().optional(),
+  // Note: follow_up_messages and resource_requirements are intentionally excluded
+  // as they are loaded separately via dedicated API endpoints
+}).passthrough(); // Preserve unknown fields to prevent silent data loss.
+// WARNING: .passthrough() allows unknown fields through without validation.
+// This prevents data loss but is less strict - unknown fields won't be type-checked.
+// All known fields should be explicitly defined in the schema above.
 
 export const ClinicSettingsSchema = z.object({
   clinic_id: z.number(),
@@ -256,7 +265,33 @@ export type ApiResponse<T> = z.infer<typeof ApiResponseSchema> & { data?: T };
 
 // Validation helper functions
 export function validateClinicSettings(data: unknown): ClinicSettings {
-  return ClinicSettingsSchema.parse(data);
+  const result = ClinicSettingsSchema.safeParse(data);
+  
+  if (!result.success) {
+    // Log validation errors in development
+    if (import.meta.env.DEV) {
+      logger.error('ClinicSettings validation failed:', result.error);
+      logger.error('Invalid data:', data);
+    }
+    throw new Error(`Invalid clinic settings: ${result.error.message}`);
+  }
+  
+  // In development, check for unknown fields that might be silently dropped
+  if (import.meta.env.DEV && typeof data === 'object' && data !== null) {
+    const validatedKeys = new Set(Object.keys(result.data));
+    const inputKeys = new Set(Object.keys(data as Record<string, unknown>));
+    const unknownKeys = Array.from(inputKeys).filter(key => !validatedKeys.has(key));
+    
+    if (unknownKeys.length > 0) {
+      logger.warn(
+        'ClinicSettings: Unknown fields detected (may be dropped):',
+        unknownKeys,
+        '\nThis might indicate a schema mismatch. Check if these fields should be added to the schema.'
+      );
+    }
+  }
+  
+  return result.data;
 }
 
 

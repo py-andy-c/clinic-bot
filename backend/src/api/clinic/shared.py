@@ -97,15 +97,13 @@ def validate_gender(v: Union[str, None]) -> Optional[str]:
 class PatientNameValidator:
     """Reusable field validator for patient names."""
     
-    @staticmethod
-    @field_validator('full_name')
     @classmethod
+    @field_validator('full_name')
     def validate_name(cls, v: str) -> str:
         return validate_patient_name(v)
     
-    @staticmethod
-    @field_validator('full_name')
     @classmethod
+    @field_validator('full_name')
     def validate_name_optional(cls, v: Optional[str]) -> Optional[str]:
         return validate_patient_name_optional(v)
 
@@ -113,9 +111,8 @@ class PatientNameValidator:
 class PatientBirthdayValidator:
     """Reusable field validator for patient birthdays."""
     
-    @staticmethod
-    @field_validator('birthday', mode='before')
     @classmethod
+    @field_validator('birthday', mode='before')
     def validate_birthday(cls, v: Union[str, date_type, None]) -> Optional[date_type]:
         return validate_birthday(v)
 
@@ -123,9 +120,8 @@ class PatientBirthdayValidator:
 class PatientPhoneValidator:
     """Reusable field validator for patient phone numbers."""
     
-    @staticmethod
-    @field_validator('phone_number')
     @classmethod
+    @field_validator('phone_number')
     def validate_phone(cls, v: Optional[str]) -> Optional[str]:
         return validate_phone_optional(v)
 
@@ -133,9 +129,8 @@ class PatientPhoneValidator:
 class PatientGenderValidator:
     """Reusable field validator for patient gender."""
     
-    @staticmethod
-    @field_validator('gender', mode='before')
     @classmethod
+    @field_validator('gender', mode='before')
     def validate_gender(cls, v: Union[str, None]) -> Optional[str]:
         return validate_gender(v)
 

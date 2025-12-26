@@ -551,6 +551,9 @@ const SettingsServiceItemsPage: React.FC = () => {
         patient_confirmation_message: patientConfirmationMessage,
         clinic_confirmation_message: clinicConfirmationMessage,
         reminder_message: reminderMessage,
+        // Notes customization fields
+        require_notes: item.require_notes ?? false,
+        notes_instructions: item.notes_instructions || null,
       };
       
       // Only include id for existing items

@@ -106,6 +106,15 @@ else
     exit 1
 fi
 
+# Run schema contract validation
+print_status "Running schema contract validation..."
+if python scripts/validate_schema_contract.py; then
+    print_success "Schema contract validation passed!"
+else
+    print_error "Schema contract validation failed!"
+    exit 1
+fi
+
 # Run pytest tests
 if [ "$NO_CACHE" = true ]; then
     # Full mode: Run all tests with coverage
