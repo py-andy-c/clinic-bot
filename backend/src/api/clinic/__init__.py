@@ -15,6 +15,9 @@ from api.clinic.follow_ups import router as follow_ups_router
 from api.clinic.line_users import router as line_users_router
 from api.clinic.dashboard import router as dashboard_router
 from api.clinic.patients import router as patients_router
+from api.clinic.members import router as members_router
+from api.clinic.settings import router as settings_router
+from api.clinic.availability import router as availability_router
 
 __all__ = [
     'router',
@@ -24,5 +27,8 @@ __all__ = [
     'line_users_router',
     'dashboard_router',
     'patients_router',
+    'members_router',
+    'settings_router',
+    'availability_router',
 ]
 
