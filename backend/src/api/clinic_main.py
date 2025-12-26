@@ -2,63 +2,25 @@
 """
 Clinic management API endpoints.
 
-Provides clinic-specific operations for admins and practitioners,
-including member management, settings, patients, and appointments.
+Main router aggregator for clinic-specific operations.
+All domain-specific endpoints have been extracted to sub-modules in api/clinic/.
 """
 
 import logging
-import math
-import re
-import secrets
-from datetime import datetime, timedelta, date as date_type, time
-from typing import Dict, List, Optional, Any, Union, Literal
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import status as http_status
-from pydantic import BaseModel, Field, model_validator, field_validator
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, cast, String
-from sqlalchemy.sql import sqltypes
-from utils.datetime_utils import datetime_validator, parse_date_string, taiwan_now, parse_datetime_to_taiwan
-from utils.practitioner_helpers import verify_practitioner_in_clinic, get_practitioner_display_name_for_appointment
-from utils.phone_validator import validate_taiwanese_phone_optional
-
-logger = logging.getLogger(__name__)
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from core.database import get_db
-from core.config import FRONTEND_URL
-from core.constants import MAX_EVENT_NAME_LENGTH, TEMPORARY_ID_THRESHOLD
-from auth.dependencies import require_admin_role, require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
-from models import User, SignupToken, Clinic, AppointmentType, PractitionerAvailability, CalendarEvent, UserClinicAssociation, Appointment, AvailabilityException, Patient, LineUser, FollowUpMessage
-from models.clinic import ClinicSettings, ChatSettings as ChatSettingsModel
-from services import PatientService, AppointmentService, PractitionerService, AppointmentTypeService
-from services.availability_service import AvailabilityService
-from services.notification_service import NotificationService
-from services.receipt_service import ReceiptService
-from services.resource_service import ResourceService
+from auth.dependencies import require_authenticated, UserContext, ensure_clinic_access
+from models import Clinic
+from models.clinic import ChatSettings as ChatSettingsModel
 from services.clinic_agent import ClinicAgentService
-from services.business_insights_service import BusinessInsightsService, RevenueDistributionService
-from services.service_type_group_service import ServiceTypeGroupService
-from services.line_user_ai_disabled_service import (
-    disable_ai_for_line_user,
-    enable_ai_for_line_user,
-    get_line_users_for_clinic
-)
-from utils.appointment_type_queries import count_active_appointment_types_for_practitioner
-from utils.datetime_utils import taiwan_now, TAIWAN_TZ
-from utils.patient_validators import validate_gender_field
-from api.responses import (
-    ClinicPatientResponse, ClinicPatientListResponse,
-    AppointmentTypeResponse, PractitionerAppointmentTypesResponse, PractitionerStatusResponse,
-    AppointmentTypeDeletionErrorResponse, AppointmentTypeReference,
-    MemberResponse, MemberListResponse,
-    AvailableSlotsResponse, AvailableSlotResponse, ConflictWarningResponse, ConflictDetail,
-    PatientCreateResponse, AppointmentListResponse, AppointmentListItem,
-    ClinicDashboardMetricsResponse,
-    BusinessInsightsResponse, RevenueDistributionResponse,
-    SchedulingConflictResponse, AppointmentConflictDetail, ExceptionConflictDetail, ResourceConflictDetail, DefaultAvailabilityInfo,
-    ServiceTypeGroupResponse, ServiceTypeGroupListResponse
-)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -90,101 +52,7 @@ router.include_router(resources_router, tags=["resources"])
 router.include_router(previews_router, tags=["previews"])
 
 
-# MemberResponse moved to api.responses - use that instead
-
-
-def _parse_service_item_id(service_item_id: Optional[str]) -> Optional[Union[int, str]]:
-    """
-    Parse service_item_id parameter.
-
-    Can be:
-    - None: No filter
-    - Integer: Standard service item ID
-    - String starting with 'custom:': Custom service item name
-
-    Returns:
-        Parsed service item ID (int, str, or None)
-
-    Raises:
-        HTTPException: If format is invalid
-    """
-    if not service_item_id:
-        return None
-    if service_item_id.startswith('custom:'):
-        return service_item_id
-    try:
-        return int(service_item_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail="無效的服務項目ID格式"
-        )
-
-
-def _parse_practitioner_id(practitioner_id: Optional[Union[int, str]]) -> Optional[Union[int, str]]:
-    """
-    Parse practitioner_id parameter from query param.
-
-    FastAPI Query parameters come as strings by default, so we need to convert
-    numeric strings to int. Can be:
-    - None: No filter
-    - Integer: Practitioner ID
-    - String 'null': Filter for items without practitioners
-    - String numeric: Practitioner ID as string (will be converted to int)
-
-    Returns:
-        Parsed practitioner ID (int, str 'null', or None)
-
-    Raises:
-        HTTPException: If format is invalid
-    """
-    if practitioner_id is None:
-        return None
-    if isinstance(practitioner_id, str):
-        if practitioner_id == 'null':
-            return 'null'
-        else:
-            # Try to convert string to int (FastAPI Query params are strings by default)
-            try:
-                return int(practitioner_id)
-            except ValueError:
-                raise HTTPException(
-                    status_code=http_status.HTTP_400_BAD_REQUEST,
-                    detail=f"無效的治療師ID: {practitioner_id}"
-                )
-    else:
-        # Must be int at this point (type is Optional[Union[int, str]])
-        return practitioner_id
-
-
-# Member request/response models moved to api.clinic.members
-
-
-
-
-class AppointmentTypeRequest(BaseModel):
-    """Request model for appointment type."""
-    name: str
-    duration_minutes: int
-
-# Settings-related models moved to api.clinic.settings
-
-
-# Practitioner management models moved to api.clinic.practitioners
-
-
-
-
-# Member management endpoints moved to api.clinic.members
-
-
-# Member management endpoints moved to api.clinic.members
-# Settings endpoints moved to api.clinic.settings
-# Practitioner management endpoints moved to api.clinic.practitioners
-
-
-# Message preview endpoints moved to api.clinic.previews
-
+# ===== Chat Test Endpoint =====
 
 class ChatTestRequest(BaseModel):
     """Request model for testing chatbot with current settings."""
@@ -269,9 +137,3 @@ async def test_chatbot(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="無法處理測試訊息"
         )
-# Patient management endpoints moved to api.clinic.patients
-# Appointment management endpoints moved to api.clinic.appointments
-# Resource management endpoints moved to api.clinic.resources
-
-# Follow-Up Message Management moved to api.clinic.follow_ups
-# Service Type Group Management moved to api.clinic.service_groups
