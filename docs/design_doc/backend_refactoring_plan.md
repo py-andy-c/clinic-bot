@@ -271,7 +271,7 @@ api/
 
 ---
 
-### Phase 8: Extract Resource Management (Week 5)
+### Phase 8: Extract Resource Management (Week 5) ✅ COMPLETE
 
 **Goal**: Extract resource-related endpoints
 
@@ -289,7 +289,7 @@ api/
 
 ---
 
-### Phase 9: Extract Message Previews (Week 6)
+### Phase 9: Extract Message Previews (Week 6) ✅ COMPLETE
 
 **Goal**: Extract message preview functionality
 

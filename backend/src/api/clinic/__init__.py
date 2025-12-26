@@ -20,6 +20,8 @@ from api.clinic.settings import router as settings_router
 from api.clinic.availability import router as availability_router
 from api.clinic.practitioners import router as practitioners_router
 from api.clinic.appointments import router as appointments_router
+from api.clinic.resources import router as resources_router
+from api.clinic.previews import router as previews_router
 
 __all__ = [
     'router',
@@ -34,5 +36,7 @@ __all__ = [
     'availability_router',
     'practitioners_router',
     'appointments_router',
+    'resources_router',
+    'previews_router',
 ]
 
