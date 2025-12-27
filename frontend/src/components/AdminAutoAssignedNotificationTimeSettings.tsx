@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BaseModal } from './shared/BaseModal';
+import { TimeInput } from './shared/TimeInput';
 
 interface AdminAutoAssignedNotificationTimeSettingsProps {
   notificationTime: string; // HH:MM format
@@ -31,11 +32,10 @@ const AdminAutoAssignedNotificationTimeSettings: React.FC<AdminAutoAssignedNotif
             </svg>
           </button>
         </div>
-        <input
-          type="time"
+        <TimeInput
           value={notificationTime}
-          onChange={(e) => onNotificationTimeChange(e.target.value)}
-          className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          onChange={onNotificationTimeChange}
+          className="w-full max-w-xs"
         />
       </div>
 

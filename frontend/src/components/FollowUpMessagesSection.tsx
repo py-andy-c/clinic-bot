@@ -3,7 +3,7 @@ import { FollowUpMessage, AppointmentType } from '../types';
 import { apiService } from '../services/api';
 import { PlaceholderHelper } from './PlaceholderHelper';
 import { BaseModal } from './shared/BaseModal';
-import { LoadingSpinner, InfoButton, InfoModal } from './shared';
+import { LoadingSpinner, InfoButton, InfoModal, TimeInput } from './shared';
 import { isTemporaryServiceItemId } from '../utils/idUtils';
 import { logger } from '../utils/logger';
 import { useModal } from '../contexts/ModalContext';
@@ -586,11 +586,10 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                         )}
                       </div>
                       <div>
-                        <input
-                          type="time"
+                        <TimeInput
                           value={formData.time_of_day ?? '21:00'}
-                          onChange={(e) => {
-                            setFormData(prev => ({ ...prev, time_of_day: e.target.value }));
+                          onChange={(value) => {
+                            setFormData(prev => ({ ...prev, time_of_day: value }));
                             if (formErrors.time_of_day) {
                               setFormErrors(prev => {
                                 const { time_of_day, ...rest } = prev;
@@ -598,7 +597,8 @@ export const FollowUpMessagesSection: React.FC<FollowUpMessagesSectionProps> = (
                               });
                             }
                           }}
-                          className={`input w-32 ${formErrors.time_of_day ? 'border-red-500' : ''}`}
+                          className="w-32"
+                          error={formErrors.time_of_day || null}
                         />
                         {formErrors.time_of_day && (
                           <p className="text-red-600 text-xs mt-1">{formErrors.time_of_day}</p>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { DefaultScheduleResponse, TimeInterval } from '../types';
+import { TimeInput } from './shared/TimeInput';
 
 const DAYS_OF_WEEK = [
   { value: 0, label: '星期一', labelEn: 'Monday' },
@@ -79,20 +80,18 @@ const AvailabilitySettings: React.FC<AvailabilitySettingsProps> = ({
                           <div className="grid grid-cols-2 gap-2 max-w-xs">
                             <div>
                               <label className="block text-xs text-gray-600 mb-1">開始時間</label>
-                              <input
-                                type="time"
+                              <TimeInput
                                 value={interval.start_time}
-                                onChange={(e) => onUpdateInterval(dayKey, index, 'start_time', e.target.value)}
-                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                onChange={(value) => onUpdateInterval(dayKey, index, 'start_time', value)}
+                                className="w-full"
                               />
                             </div>
                             <div>
                               <label className="block text-xs text-gray-600 mb-1">結束時間</label>
-                              <input
-                                type="time"
+                              <TimeInput
                                 value={interval.end_time}
-                                onChange={(e) => onUpdateInterval(dayKey, index, 'end_time', e.target.value)}
-                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                onChange={(value) => onUpdateInterval(dayKey, index, 'end_time', value)}
+                                className="w-full"
                               />
                             </div>
                           </div>

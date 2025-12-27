@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { BaseModal } from './BaseModal';
+import { TimeInput } from '../shared/TimeInput';
 
 export interface ExceptionData {
   date: string;
@@ -72,34 +73,32 @@ export const ExceptionModal: React.FC<ExceptionModalProps> = React.memo(({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               開始時間
             </label>
-            <input
-              type="time"
-              className="input"
+            <TimeInput
               value={exceptionData.startTime}
-              onChange={(e) => {
-                onExceptionDataChange({ ...exceptionData, startTime: e.target.value });
+              onChange={(value) => {
+                onExceptionDataChange({ ...exceptionData, startTime: value });
                 if (isFullDay) {
                   onFullDayChange(false);
                 }
               }}
               disabled={isFullDay}
+              className="w-full"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               結束時間
             </label>
-            <input
-              type="time"
-              className="input"
+            <TimeInput
               value={exceptionData.endTime}
-              onChange={(e) => {
-                onExceptionDataChange({ ...exceptionData, endTime: e.target.value });
+              onChange={(value) => {
+                onExceptionDataChange({ ...exceptionData, endTime: value });
                 if (isFullDay) {
                   onFullDayChange(false);
                 }
               }}
               disabled={isFullDay}
+              className="w-full"
             />
           </div>
         </div>
