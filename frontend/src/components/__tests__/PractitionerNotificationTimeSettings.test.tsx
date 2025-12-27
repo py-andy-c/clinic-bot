@@ -12,22 +12,36 @@ describe('PractitionerNotificationTimeSettings', () => {
       />
     );
 
-    const timeInput = screen.getByDisplayValue('21:00');
-    expect(timeInput).toBeInTheDocument();
-    expect(timeInput).toHaveValue('21:00');
+    const hourInput = screen.getByDisplayValue('21');
+    const minuteInput = screen.getByDisplayValue('00');
+    expect(hourInput).toBeInTheDocument();
+    expect(minuteInput).toBeInTheDocument();
   });
 
   it('calls onNotificationTimeChange when time is changed', () => {
     const mockOnChange = vi.fn();
-    render(
+    const { rerender } = render(
       <PractitionerNotificationTimeSettings
         notificationTime="21:00"
         onNotificationTimeChange={mockOnChange}
       />
     );
 
-    const timeInput = screen.getByDisplayValue('21:00');
-    fireEvent.change(timeInput, { target: { value: '20:30' } });
+    const hourInput = screen.getByDisplayValue('21');
+    fireEvent.change(hourInput, { target: { value: '20' } });
+
+    expect(mockOnChange).toHaveBeenCalledWith('20:00');
+    
+    // Update the component with the new time value
+    rerender(
+      <PractitionerNotificationTimeSettings
+        notificationTime="20:00"
+        onNotificationTimeChange={mockOnChange}
+      />
+    );
+    
+    const minuteInput = screen.getByDisplayValue('00');
+    fireEvent.change(minuteInput, { target: { value: '30' } });
 
     expect(mockOnChange).toHaveBeenCalledWith('20:30');
   });
@@ -44,8 +58,10 @@ describe('PractitionerNotificationTimeSettings', () => {
     const label = screen.getByText(/明日預約提醒時間/i);
     expect(label).toBeInTheDocument();
     
-    const timeInput = screen.getByDisplayValue('21:00');
-    expect(timeInput).toBeInTheDocument();
+    const hourInput = screen.getByDisplayValue('21');
+    const minuteInput = screen.getByDisplayValue('00');
+    expect(hourInput).toBeInTheDocument();
+    expect(minuteInput).toBeInTheDocument();
   });
 });
 

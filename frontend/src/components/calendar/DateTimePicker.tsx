@@ -884,8 +884,6 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               <TimeInput
                 value={freeFormTime}
                 onChange={handleFreeFormTimeChange}
-                placeholder="HH:MM"
-                className="w-full"
               />
             </div>
           ) : error && allTimeSlots.length === 0 ? (
