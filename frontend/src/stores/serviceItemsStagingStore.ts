@@ -16,6 +16,15 @@ import { AppointmentType, ServiceTypeGroup, ResourceRequirement } from '../types
 import { BillingScenario } from './serviceItemsStore';
 import { isTemporaryServiceItemId, isTemporaryGroupId } from '../utils/idUtils';
 
+/**
+ * Associations that can be passed to initialize() to preserve them during initialization
+ */
+export type ServiceItemAssociations = {
+  practitionerAssignments?: Record<number, number[]>;
+  billingScenarios?: Record<string, BillingScenario[]>;
+  resourceRequirements?: Record<number, ResourceRequirement[]>;
+};
+
 interface ServiceItemsStagingState {
   // Service items (existing + new with temporary IDs)
   serviceItems: AppointmentType[];
@@ -36,8 +45,7 @@ interface ServiceItemsStagingState {
   originalResourceRequirements: Record<number, ResourceRequirement[]>;
   
   // Actions
-  initialize: (serviceItems: AppointmentType[], groups: ServiceTypeGroup[]) => void;
-  initializePractitionerAssignments: (assignments: Record<number, number[]>) => void;
+  initialize: (serviceItems: AppointmentType[], groups: ServiceTypeGroup[], associations?: ServiceItemAssociations) => void;
   
   // Service items
   addServiceItem: (item: AppointmentType) => void;
@@ -66,6 +74,9 @@ interface ServiceItemsStagingState {
   // Reset
   reset: () => void;
   discardChanges: () => void;
+  
+  // Sync originals with current state (after successful save)
+  syncOriginals: () => void;
 }
 
 export const useServiceItemsStagingStore = create<ServiceItemsStagingState>((set, get) => ({
@@ -83,29 +94,45 @@ export const useServiceItemsStagingStore = create<ServiceItemsStagingState>((set
 
   /**
    * Initialize the store with data from the server
+   * 
+   * @param serviceItems - Service items to initialize
+   * @param groups - Groups to initialize
+   * @param associations - Optional associations to preserve. If not provided, existing associations are preserved.
+   *                      If provided, only the specified association types are updated.
+   * 
+   * @example
+   * // Full initialization (clears associations)
+   * initialize(serviceItems, groups);
+   * 
+   * @example
+   * // Preserve existing associations
+   * initialize(serviceItems, groups); // associations omitted = preserves existing
+   * 
+   * @example
+   * // Update with new associations
+   * initialize(serviceItems, groups, { practitionerAssignments: {...} });
    */
-  initialize: (serviceItems, groups) => {
+  initialize: (serviceItems, groups, associations) => {
+    const state = get();
     set({
       serviceItems: JSON.parse(JSON.stringify(serviceItems)), // Deep clone
       originalServiceItems: JSON.parse(JSON.stringify(serviceItems)),
       groups: JSON.parse(JSON.stringify(groups)), // Deep clone
       originalGroups: JSON.parse(JSON.stringify(groups)),
-      practitionerAssignments: {},
-      billingScenarios: {},
-      resourceRequirements: {},
-      originalPractitionerAssignments: {},
-      originalBillingScenarios: {},
-      originalResourceRequirements: {},
-    });
-  },
-
-  /**
-   * Initialize practitioner assignments (both current and original)
-   */
-  initializePractitionerAssignments: (assignments) => {
-    set({
-      practitionerAssignments: JSON.parse(JSON.stringify(assignments)), // Deep clone
-      originalPractitionerAssignments: JSON.parse(JSON.stringify(assignments)), // Deep clone
+      // Explicit preservation: use provided or keep existing (use ?? not || to handle null vs undefined)
+      practitionerAssignments: associations?.practitionerAssignments ?? state.practitionerAssignments,
+      billingScenarios: associations?.billingScenarios ?? state.billingScenarios,
+      resourceRequirements: associations?.resourceRequirements ?? state.resourceRequirements,
+      // Same for originals - deep clone if provided, otherwise preserve existing
+      originalPractitionerAssignments: associations?.practitionerAssignments 
+        ? JSON.parse(JSON.stringify(associations.practitionerAssignments))
+        : state.originalPractitionerAssignments,
+      originalBillingScenarios: associations?.billingScenarios
+        ? JSON.parse(JSON.stringify(associations.billingScenarios))
+        : state.originalBillingScenarios,
+      originalResourceRequirements: associations?.resourceRequirements
+        ? JSON.parse(JSON.stringify(associations.resourceRequirements))
+        : state.originalResourceRequirements,
     });
   },
 
@@ -391,6 +418,21 @@ export const useServiceItemsStagingStore = create<ServiceItemsStagingState>((set
       originalPractitionerAssignments: {},
       originalBillingScenarios: {},
       originalResourceRequirements: {},
+    });
+  },
+
+  /**
+   * Sync originals with current state (call after successful save)
+   * This marks all current changes as saved, so hasUnsavedChanges() will return false
+   */
+  syncOriginals: () => {
+    const state = get();
+    set({
+      originalServiceItems: JSON.parse(JSON.stringify(state.serviceItems)),
+      originalGroups: JSON.parse(JSON.stringify(state.groups)),
+      originalPractitionerAssignments: JSON.parse(JSON.stringify(state.practitionerAssignments)),
+      originalBillingScenarios: JSON.parse(JSON.stringify(state.billingScenarios)),
+      originalResourceRequirements: JSON.parse(JSON.stringify(state.resourceRequirements)),
     });
   },
 }));

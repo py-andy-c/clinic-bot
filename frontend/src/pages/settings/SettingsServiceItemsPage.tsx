@@ -21,6 +21,7 @@ import { sharedFetchFunctions } from '../../services/api';
 import { isTemporaryServiceItemId, isTemporaryGroupId, isRealId } from '../../utils/idUtils';
 import { mapTemporaryIds } from '../../utils/idMappingUtils';
 import { useDebouncedSearch } from '../../utils/searchUtils';
+import { initializeServiceItemsWithAssociations } from '../../utils/initializeServiceItemsWithAssociations';
 import {
   DEFAULT_PATIENT_CONFIRMATION_MESSAGE,
   DEFAULT_CLINIC_CONFIRMATION_MESSAGE,
@@ -61,8 +62,6 @@ const SettingsServiceItemsPage: React.FC = () => {
     practitionerAssignments,
     billingScenarios,
     resourceRequirements,
-    initialize,
-    initializePractitionerAssignments,
     addServiceItem,
     updateServiceItem,
     deleteServiceItem,
@@ -78,10 +77,10 @@ const SettingsServiceItemsPage: React.FC = () => {
     getGroupCount,
     hasUnsavedChanges,
     discardChanges,
+    syncOriginals,
   } = useServiceItemsStagingStore();
 
   const {
-    loadPractitionerAssignments: loadOriginalAssignments,
     savePractitionerAssignments,
     saveBillingScenarios,
     saveResourceRequirements,
@@ -155,20 +154,13 @@ const SettingsServiceItemsPage: React.FC = () => {
         const groupsResponse = await apiService.getServiceTypeGroups();
         const sortedGroups = groupsResponse.groups.sort((a, b) => a.display_order - b.display_order);
         
-        // Initialize staging store
-        initialize(
+        // Initialize staging store with all associations (atomic update)
+        // This helper function loads practitioner assignments, billing scenarios, and resource requirements
+        // before initializing, preventing timing gaps where UI renders with empty data
+        await initializeServiceItemsWithAssociations(
           settingsData?.appointment_types || [],
           sortedGroups
         );
-        
-        // Load original practitioner assignments
-        if (settingsData?.appointment_types && settingsData.appointment_types.length > 0) {
-          await loadOriginalAssignments(settingsData.appointment_types);
-          
-          // Copy practitioner assignments from serviceItemsStore to staging store
-          const { practitionerAssignments: loadedAssignments } = useServiceItemsStore.getState();
-          initializePractitionerAssignments(loadedAssignments);
-        }
       } catch (err) {
         logger.error('Error loading settings:', err);
       } finally {
@@ -177,7 +169,9 @@ const SettingsServiceItemsPage: React.FC = () => {
     };
     
     loadData();
-  }, [initialize, loadOriginalAssignments]);
+    // Empty dependency array is intentional: this effect should only run once on mount
+    // All data loading is handled inside loadData() function
+  }, []);
 
   // Load members (practitioners)
   useEffect(() => {
@@ -687,22 +681,26 @@ const SettingsServiceItemsPage: React.FC = () => {
       errors.push(`儲存治療師指派失敗：${err?.message || '未知錯誤'}`);
     }
     
-    // Save billing scenarios
+    // Save billing scenarios (pass idMapping to handle temporary service item IDs)
     try {
-      const scenarioResult = await saveBillingScenarios();
+      const scenarioResult = await saveBillingScenarios(serviceItemMapping);
       if (!scenarioResult.success) {
         scenarioResult.errors.forEach(err => errors.push(`計費方案：${err}`));
       }
+      // Note: We don't update staging store here because we reload from server below (line 854)
+      // This ensures consistency with server state and eliminates redundant state updates
     } catch (err: any) {
       errors.push(`儲存計費方案失敗：${err?.message || '未知錯誤'}`);
     }
     
-    // Save resource requirements
+    // Save resource requirements (pass idMapping to handle temporary service item IDs)
     try {
-      const requirementResult = await saveResourceRequirements();
+      const requirementResult = await saveResourceRequirements(serviceItemMapping);
       if (!requirementResult.success) {
         requirementResult.errors.forEach(err => errors.push(`資源需求：${err}`));
       }
+      // Note: We don't update staging store here because we reload from server below (line 854)
+      // This ensures consistency with server state and eliminates redundant state updates
     } catch (err: any) {
       errors.push(`儲存資源需求失敗：${err?.message || '未知錯誤'}`);
     }
@@ -842,8 +840,9 @@ const SettingsServiceItemsPage: React.FC = () => {
       const { errors: associationErrors } = await saveAssociations(serviceItemMapping);
       allErrors.push(...associationErrors);
       
-      // Update staging store with real IDs
-      initialize(savedServiceItems, freshGroups);
+      // Note: We skip intermediate initialize() here and go straight to full server reload below.
+      // This ensures consistency with server state and eliminates an unnecessary state update.
+      // The reload (lines 852-868) properly initializes with associations atomically.
       
       // Show results
       if (allErrors.length > 0) {
@@ -858,12 +857,36 @@ const SettingsServiceItemsPage: React.FC = () => {
       const finalGroups = finalGroupsResponse.groups.sort((a, b) => a.display_order - b.display_order);
       
       setSettings(finalSettings);
-      initialize(finalSettings?.appointment_types || [], finalGroups);
       
-      // Load original associations
-      if (finalSettings?.appointment_types && finalSettings.appointment_types.length > 0) {
-        await loadOriginalAssignments(finalSettings.appointment_types);
+      // Get billing scenarios and resource requirements from serviceItemsStore
+      // These have been updated with real IDs after save, so use them instead of loading from API
+      const { billingScenarios: savedBillingScenarios, resourceRequirements: savedResourceRequirements } = 
+        useServiceItemsStore.getState();
+      
+      // Initialize staging store with all associations (atomic update)
+      // Use saved associations from store (has real IDs) instead of loading from API
+      const useSavedAssociations: {
+        billingScenarios?: Record<string, BillingScenario[]>;
+        resourceRequirements?: Record<number, ResourceRequirement[]>;
+      } = {};
+      
+      if (Object.keys(savedBillingScenarios).length > 0) {
+        useSavedAssociations.billingScenarios = savedBillingScenarios;
       }
+      
+      if (Object.keys(savedResourceRequirements).length > 0) {
+        useSavedAssociations.resourceRequirements = savedResourceRequirements;
+      }
+      
+      await initializeServiceItemsWithAssociations(
+        finalSettings?.appointment_types || [],
+        finalGroups,
+        Object.keys(useSavedAssociations).length > 0 ? { useSavedAssociations } : undefined
+      );
+      
+      // Sync originals with current state after successful save
+      // This ensures hasUnsavedChanges() returns false since everything was just saved
+      syncOriginals();
       
     } catch (err: any) {
       logger.error('Error saving all changes:', err);
@@ -887,7 +910,14 @@ const SettingsServiceItemsPage: React.FC = () => {
       const groupsResponse = await apiService.getServiceTypeGroups();
       const sortedGroups = groupsResponse.groups.sort((a, b) => a.display_order - b.display_order);
       setSettings(settingsData);
-      initialize(settingsData?.appointment_types || [], sortedGroups);
+      
+      // Initialize staging store with all associations (atomic update)
+      // This helper function loads practitioner assignments, billing scenarios, and resource requirements
+      // before initializing, ensuring all data is restored after discard
+      await initializeServiceItemsWithAssociations(
+        settingsData?.appointment_types || [],
+        sortedGroups
+      );
     }
   };
 

@@ -409,10 +409,15 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
         if (!currentIds.has(originalScenario.id)) {
           try {
             await apiService.deleteBillingScenario(realServiceItemId, practitionerId, originalScenario.id);
-          } catch (err) {
-            const errorMsg = `刪除計費方案「${originalScenario.name}」失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
-            logger.error(`Error deleting billing scenario ${originalScenario.id}:`, err);
-            errors.push(errorMsg);
+          } catch (err: any) {
+            // Handle 404 gracefully - scenario might already be deleted
+            if (err?.response?.status === 404) {
+              // Don't add to errors - it's already deleted, which is what we want
+            } else {
+              const errorMsg = `刪除計費方案「${originalScenario.name}」失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
+              logger.error(`Error deleting billing scenario ${originalScenario.id}:`, err);
+              errors.push(errorMsg);
+            }
           }
         }
       }
@@ -654,10 +659,15 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
         if (!currentIds.has(originalReq.id)) {
           try {
             await apiService.deleteResourceRequirement(realServiceItemId, originalReq.id);
-          } catch (err) {
-            const errorMsg = `刪除資源需求失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
-            logger.error(`Error deleting resource requirement ${originalReq.id}:`, err);
-            errors.push(errorMsg);
+          } catch (err: any) {
+            // Handle 404 gracefully - requirement might already be deleted
+            if (err?.response?.status === 404) {
+              // Don't add to errors - it's already deleted, which is what we want
+            } else {
+              const errorMsg = `刪除資源需求失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
+              logger.error(`Error deleting resource requirement ${originalReq.id}:`, err);
+              errors.push(errorMsg);
+            }
           }
         }
       }
