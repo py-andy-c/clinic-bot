@@ -104,7 +104,7 @@ export const transformToCalendarEvents = (apiEvents: (ApiCalendarEvent | any)[])
 };
 
 /**
- * Format event time range for display (e.g., "10:30 AM - 11:00 AM")
+ * Format event time range for display (e.g., "10:30 - 11:00")
  * Uses Taiwan timezone for consistent formatting.
  * 
  * @param start - Start date/time of the event
@@ -115,7 +115,7 @@ export const formatEventTimeRange = (start: Date, end: Date): string => {
   const taiwanTimezone = 'Asia/Taipei';
   const startMoment = moment(start).tz(taiwanTimezone);
   const endMoment = moment(end).tz(taiwanTimezone);
-  const startStr = startMoment.format('h:mm A');
-  const endStr = endMoment.format('h:mm A');
+  const startStr = startMoment.format('HH:mm');
+  const endStr = endMoment.format('HH:mm');
   return `${startStr} - ${endStr}`;
 };

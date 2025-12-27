@@ -1619,18 +1619,11 @@ const CalendarView: React.FC<CalendarViewProps> = ({
             // Note: weekday column headers in month view are handled by CustomWeekdayHeader component
             // dayRangeHeaderFormat is used for week view to show the date range in the header
             timeGutterFormat: (date: Date) => {
-              // Format for time slots in day view: "12 AM" instead of "12:00 AM"
+              // Format for time slots in day view: "00:00", "13:00", etc. (24-hour format)
               const taiwanDate = moment(date).tz('Asia/Taipei');
               const hours = taiwanDate.hour();
               const minutes = taiwanDate.minute();
-              const period = hours >= 12 ? 'PM' : 'AM';
-              const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-              // Only show minutes if they're not zero
-              if (minutes === 0) {
-                return `${hours12} ${period}`;
-              } else {
-                return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
-              }
+              return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
             },
           }}
           eventPropGetter={eventStyleGetter}

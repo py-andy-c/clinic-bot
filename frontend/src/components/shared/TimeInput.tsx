@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { parseTime12hTo24h, formatTo12Hour } from '../../utils/calendarUtils';
 
 interface TimeInputProps {
   value: string; // HH:MM format (24-hour)
@@ -14,17 +13,16 @@ interface TimeInputProps {
 /**
  * TimeInput Component
  *
- * A time input component that accepts 12-hour format (H:MM AM/PM) and converts to 24-hour format (HH:MM).
+ * A time input component that accepts only 24-hour format (HH:MM).
  * Features:
- * - Auto-advances between hour/minute/period fields
- * - Validates time format
+ * - Validates 24-hour time format
  * - Shows error state
  * - Keyboard navigation support
  */
 export const TimeInput: React.FC<TimeInputProps> = ({
   value,
   onChange,
-    placeholder = 'H:MM AM/PM 或 HH:MM',
+  placeholder = 'HH:MM',
   required = false,
   disabled = false,
   className = '',
@@ -36,15 +34,25 @@ export const TimeInput: React.FC<TimeInputProps> = ({
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Parse 24-hour time to 12-hour display
+  // Display 24-hour format directly
   useEffect(() => {
     if (value) {
-      try {
-        const formatted = formatTo12Hour(value);
-        setInputValue(formatted.display);
-        setIsValid(true);
-      } catch (error) {
-        // If parsing fails, keep the current input value
+      // Validate and format the value
+      const time24Regex = /^(\d{1,2}):(\d{2})$/;
+      const match = value.trim().match(time24Regex);
+      if (match && match[1] && match[2]) {
+        const hour = parseInt(match[1], 10);
+        const minute = parseInt(match[2], 10);
+        if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+          const formatted = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+          setInputValue(formatted);
+          setIsValid(true);
+        } else {
+          setInputValue(value);
+          setIsValid(false);
+        }
+      } else {
+        setInputValue(value);
         setIsValid(false);
       }
     } else {
@@ -57,17 +65,7 @@ export const TimeInput: React.FC<TimeInputProps> = ({
     const newValue = e.target.value;
     setInputValue(newValue);
 
-    // Try to parse as 12-hour format first
-    try {
-      const parsed24Hour = parseTime12hTo24h(newValue);
-      onChange(parsed24Hour);
-      setIsValid(true);
-      return;
-    } catch (error) {
-      // Not 12-hour format, try 24-hour format
-    }
-
-    // Try to parse as 24-hour format (HH:MM)
+    // Parse as 24-hour format (HH:MM)
     const time24Regex = /^(\d{1,2}):(\d{2})$/;
     const match = newValue.trim().match(time24Regex);
     if (match && match[1] && match[2]) {
@@ -90,31 +88,22 @@ export const TimeInput: React.FC<TimeInputProps> = ({
     setIsFocused(false);
     // On blur, if the input is invalid and not empty, try to format it properly
     if (!isValid && inputValue.trim()) {
-      // Try 12-hour format first
-      try {
-        const parsed24Hour = parseTime12hTo24h(inputValue);
-        const formatted = formatTo12Hour(parsed24Hour);
-        setInputValue(formatted.display);
-        setIsValid(true);
-        return;
-      } catch (error) {
-        // Try 24-hour format
-        const time24Regex = /^(\d{1,2}):(\d{2})$/;
-        const match = inputValue.trim().match(time24Regex);
-        if (match && match[1] && match[2]) {
-          const hour = parseInt(match[1], 10);
-          const minute = parseInt(match[2], 10);
-          if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-            const formatted24Hour = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-            const formatted = formatTo12Hour(formatted24Hour);
-            setInputValue(formatted.display);
-            setIsValid(true);
-            return;
-          }
+      // Try 24-hour format
+      const time24Regex = /^(\d{1,2}):(\d{2})$/;
+      const match = inputValue.trim().match(time24Regex);
+      if (match && match[1] && match[2]) {
+        const hour = parseInt(match[1], 10);
+        const minute = parseInt(match[2], 10);
+        if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+          const formatted24Hour = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+          setInputValue(formatted24Hour);
+          onChange(formatted24Hour);
+          setIsValid(true);
+          return;
         }
-        // Keep the invalid input but mark as error
-        setIsValid(false);
       }
+      // Keep the invalid input but mark as error
+      setIsValid(false);
     }
   };
 
@@ -140,11 +129,11 @@ export const TimeInput: React.FC<TimeInputProps> = ({
         required={required}
         disabled={disabled}
         className={`${baseInputClass} ${errorClass} ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'hover:border-gray-400'}`}
-        maxLength={8} // Max length for "12:59 PM"
+        maxLength={5} // Max length for "23:59"
       />
       {hasError && (
         <p className="mt-1 text-sm text-red-600">
-          {error || '請輸入有效的時間格式 (H:MM AM/PM 或 HH:MM)'}
+          {error || '請輸入有效的時間格式 (HH:MM)'}
         </p>
       )}
     </div>

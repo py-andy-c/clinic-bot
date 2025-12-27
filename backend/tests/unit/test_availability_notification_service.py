@@ -100,7 +100,7 @@ class TestMessageFormatting:
         slots = ["09:00", "10:30", "14:00", "18:30"]
         formatted = service._format_slots(slots)
 
-        assert formatted == "9:00 AM, 10:30 AM, 2:00 PM, 6:30 PM"
+        assert formatted == "09:00, 10:30, 14:00, 18:30"
 
     def test_format_notification_message(self, monkeypatch):
         """Test full notification message formatting."""
@@ -141,7 +141,7 @@ class TestMessageFormatting:
         assert "治療師：不指定" in message
         assert "01/15 (一)" in message
         assert "01/16 (二)" in message
-        assert "9:00 AM" in message
+        assert "09:00" in message
         # URL is no longer in message text (it's in a button)
         assert "https://liff.line.me" not in message
         assert "立即預約" not in message

@@ -52,10 +52,10 @@ def format_datetime(dt: datetime) -> str:
     """
     Format datetime for user-facing display in Taiwan timezone.
     
-    Formats datetime as: "12/25 (三) 1:30 PM"
+    Formats datetime as: "12/25 (三) 13:30"
     - Month/day in MM/DD format
     - Traditional Chinese weekday in parentheses
-    - 12-hour time format with AM/PM
+    - 24-hour time format (HH:MM)
     
     Used for all user-facing messages (appointments, notifications, reminders, etc.)
     to ensure consistent date/time formatting across the platform.
@@ -67,7 +67,7 @@ def format_datetime(dt: datetime) -> str:
         dt: Datetime to format (naive or timezone-aware)
         
     Returns:
-        Formatted datetime string in format "MM/DD (weekday) H:MM AM/PM"
+        Formatted datetime string in format "MM/DD (weekday) HH:MM"
     """
     # Ensure datetime is in Taiwan timezone
     local_datetime = ensure_taiwan(dt)
@@ -81,23 +81,10 @@ def format_datetime(dt: datetime) -> str:
     }
     weekday_cn = weekday_map[local_datetime.weekday()]
     
-    # Format time in 12-hour AM/PM format
+    # Format time in 24-hour format (HH:MM)
     hour = local_datetime.hour
     minute = local_datetime.minute
-    if hour == 0:
-        hour_12 = 12
-        period = 'AM'
-    elif hour < 12:
-        hour_12 = hour
-        period = 'AM'
-    elif hour == 12:
-        hour_12 = 12
-        period = 'PM'
-    else:
-        hour_12 = hour - 12
-        period = 'PM'
-    
-    time_str = f"{hour_12}:{minute:02d} {period}"
+    time_str = f"{hour:02d}:{minute:02d}"
     
     return f"{local_datetime.strftime('%m/%d')} ({weekday_cn}) {time_str}"
 
@@ -301,7 +288,11 @@ def format_time_24h_to_12h(time_24h: str) -> str:
     - "09:00" -> "9:00 AM"
     - "00:00" -> "12:00 AM"
     - "12:00" -> "12:00 PM"
-    
+
+    .. deprecated::
+        This function is deprecated. Use 24-hour format directly instead.
+        Kept for backward compatibility during migration period.
+
     Args:
         time_24h: Time string in 24-hour format (e.g., "21:00")
         

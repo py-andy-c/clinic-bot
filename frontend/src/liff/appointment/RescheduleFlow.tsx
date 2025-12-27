@@ -9,8 +9,6 @@ import { useModal } from '../../contexts/ModalContext';
 import { useLiffBackButton } from '../../hooks/useLiffBackButton';
 import { useAppointmentStore } from '../../stores/appointmentStore';
 import {
-  formatTo12Hour,
-  groupTimeSlots,
   generateCalendarDays,
   formatMonthYear,
   formatDateString,
@@ -497,7 +495,7 @@ const RescheduleFlow: React.FC = () => {
   }
 
   const calendarDays = generateCalendarDays(currentMonth);
-  const { amSlots, pmSlots } = selectedDate ? groupTimeSlots(allTimeSlots) : { amSlots: [], pmSlots: [] };
+  const sortedTimeSlots = selectedDate ? [...allTimeSlots].sort() : [];
   
   // Day names - use translation
   const dayNames = t('datetime.dayNames', { returnObjects: true }) as string[];
@@ -513,9 +511,9 @@ const RescheduleFlow: React.FC = () => {
     if (!appointmentDetails || !selectedDate || !selectedTime) return null;
 
     const newDateStr = selectedDate;
-    const newTimeStr = formatTo12Hour(selectedTime).display;
+    const newTimeStr = selectedTime;
     const originalDateStr = originalDate || '';
-    const originalTimeStr = originalTime ? formatTo12Hour(originalTime).display : '';
+    const originalTimeStr = originalTime || '';
 
     return (
       <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -698,7 +696,7 @@ const RescheduleFlow: React.FC = () => {
               <div className="mb-4 bg-blue-50 border border-blue-200 rounded-md p-3">
                 <p className="text-sm font-medium text-blue-900">
                   <span className="font-semibold">{t('appointment.reschedule.original')}：</span>
-                  {originalDate} {formatTo12Hour(originalTime).display}
+                  {originalDate} {originalTime}
                 </p>
               </div>
             )}
@@ -800,73 +798,26 @@ const RescheduleFlow: React.FC = () => {
                   {t('appointment.reschedule.selectTime')}
                 </label>
                 {availableSlots.length > 0 ? (
-                  <div className="space-y-3">
-                    {amSlots.length > 0 && (
-                      <div>
-                        <div className="text-xs font-medium text-gray-500 mb-2">{t('datetime.morning')}</div>
-                        <div className="grid grid-cols-3 gap-2">
-                          {amSlots.map((slot) => {
-                            const isSelected = selectedTime === slot;
-                            const isRecommended = slotDetails.get(slot)?.is_recommended === true;
+                  <div className="grid grid-cols-3 gap-2">
+                    {sortedTimeSlots.map((slot) => {
+                      const isSelected = selectedTime === slot;
+                      const isRecommended = slotDetails.get(slot)?.is_recommended === true;
 
-                            return (
-                              <button
-                                key={slot}
-                                onClick={() => setSelectedTime(slot)}
-                                className={`
-                                  py-2 px-3 rounded-md text-sm font-medium relative
-                                  ${isSelected ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:border-blue-500'}
-                                  ${isRecommended ? 'border-teal-400 border-2' : ''}
-                                `}
-                              >
-                                {renderRecommendedBadge(isRecommended)}
-                                {(() => {
-                                  const formatted = formatTo12Hour(slot);
-                                  // Remove leading zero from hour for display (e.g., "09:00" -> "9:00")
-                                  const timeParts = formatted.time12.split(':');
-                                  const hour = parseInt(timeParts[0] || '0', 10);
-                                  const minutes = timeParts[1] || '00';
-                                  return `${hour}:${minutes}`;
-                                })()}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                    {pmSlots.length > 0 && (
-                      <div>
-                        <div className="text-xs font-medium text-gray-500 mb-2">{t('datetime.afternoon')}</div>
-                        <div className="grid grid-cols-3 gap-2">
-                          {pmSlots.map((slot) => {
-                            const isSelected = selectedTime === slot;
-                            const isRecommended = slotDetails.get(slot)?.is_recommended === true;
-
-                            return (
-                              <button
-                                key={slot}
-                                onClick={() => setSelectedTime(slot)}
-                                className={`
-                                  py-2 px-3 rounded-md text-sm font-medium relative
-                                  ${isSelected ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:border-blue-500'}
-                                  ${isRecommended ? 'border-teal-400 border-2' : ''}
-                                `}
-                              >
-                                {renderRecommendedBadge(isRecommended)}
-                                {(() => {
-                                  const formatted = formatTo12Hour(slot);
-                                  // Remove leading zero from hour for display (e.g., "09:00" -> "9:00")
-                                  const timeParts = formatted.time12.split(':');
-                                  const hour = parseInt(timeParts[0] || '0', 10);
-                                  const minutes = timeParts[1] || '00';
-                                  return `${hour}:${minutes}`;
-                                })()}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                      return (
+                        <button
+                          key={slot}
+                          onClick={() => setSelectedTime(slot)}
+                          className={`
+                            py-2 px-3 rounded-md text-sm font-medium relative
+                            ${isSelected ? 'bg-blue-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:border-blue-500'}
+                            ${isRecommended ? 'border-teal-400 border-2' : ''}
+                          `}
+                        >
+                          {renderRecommendedBadge(isRecommended)}
+                          {slot}
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-sm text-gray-500">{t('appointment.reschedule.noSlotsAvailable')}</p>

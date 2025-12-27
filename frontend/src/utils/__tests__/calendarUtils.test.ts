@@ -47,9 +47,8 @@ describe('calendarUtils', () => {
       const result = formatAppointmentTimeRange(start, end);
       
       expect(result).toContain('2024/1/15');
-      expect(result).toContain('9:00');
+      expect(result).toContain('09:00');
       expect(result).toContain('10:00');
-      expect(result).toMatch(/AM|PM/);
     });
 
     it('should include weekday in Chinese', () => {
@@ -66,7 +65,7 @@ describe('calendarUtils', () => {
       const end = new Date('2024-01-15T15:00:00+08:00');
       const result = formatAppointmentTimeRange(start, end);
       
-      expect(result).toContain('PM');
+      expect(result).toContain('14:00');
     });
 
     it('should use standardized format YYYY/M/D(weekday) H:MM AM/PM - H:MM AM/PM', () => {
@@ -74,8 +73,8 @@ describe('calendarUtils', () => {
       const end = new Date('2024-01-15T10:00:00+08:00');
       const result = formatAppointmentTimeRange(start, end);
       
-      // Should match format: 2024/1/15(一) 9:00 AM - 10:00 AM
-      expect(result).toMatch(/^\d{4}\/\d{1,2}\/\d{1,2}\([一二三四五六日]\)\s+\d{1,2}:\d{2}\s+(AM|PM)\s+-\s+\d{1,2}:\d{2}\s+(AM|PM)$/);
+      // Should match format: 2024/1/15(一) 09:00 - 10:00
+      expect(result).toMatch(/^\d{4}\/\d{1,2}\/\d{1,2}\([一二三四五六日]\)\s+\d{2}:\d{2}\s+-\s+\d{2}:\d{2}$/);
     });
   });
 
@@ -155,12 +154,12 @@ describe('calendarUtils', () => {
   });
 
   describe('formatTimeString', () => {
-    it('should format 24-hour time to 12-hour format', () => {
-      expect(formatTimeString('09:00')).toBe('9:00 AM');
-      expect(formatTimeString('14:30')).toBe('2:30 PM');
-      expect(formatTimeString('00:00')).toBe('12:00 AM');
-      expect(formatTimeString('12:00')).toBe('12:00 PM');
-      expect(formatTimeString('23:59')).toBe('11:59 PM');
+    it('should format time in 24-hour format', () => {
+      expect(formatTimeString('09:00')).toBe('09:00');
+      expect(formatTimeString('14:30')).toBe('14:30');
+      expect(formatTimeString('00:00')).toBe('00:00');
+      expect(formatTimeString('12:00')).toBe('12:00');
+      expect(formatTimeString('23:59')).toBe('23:59');
     });
 
     it('should handle invalid time strings', () => {
@@ -170,9 +169,9 @@ describe('calendarUtils', () => {
     });
 
     it('should handle edge cases', () => {
-      expect(formatTimeString('00:00')).toBe('12:00 AM');
-      expect(formatTimeString('12:00')).toBe('12:00 PM');
-      expect(formatTimeString('13:00')).toBe('1:00 PM');
+      expect(formatTimeString('00:00')).toBe('00:00');
+      expect(formatTimeString('12:00')).toBe('12:00');
+      expect(formatTimeString('13:00')).toBe('13:00');
     });
   });
 

@@ -238,17 +238,10 @@ def _get_day_name_chinese(day_name: str) -> str:
     return days[day_name]
 
 
-def _format_time_12h(time_str: str) -> str:
-    """Format 24-hour time string to 12-hour format with AM/PM."""
+def _format_time_string(time_str: str) -> str:
+    """Format 24-hour time string to 24-hour format (HH:MM)."""
     hour, minute = map(int, time_str.split(':'))
-    if hour == 0:
-        return f"12:{minute:02d} AM"
-    elif hour < 12:
-        return f"{hour}:{minute:02d} AM"
-    elif hour == 12:
-        return f"12:{minute:02d} PM"
-    else:
-        return f"{hour-12}:{minute:02d} PM"
+    return f"{hour:02d}:{minute:02d}"
 
 
 def _check_time_overlap(start1: time, end1: time, start2: time, end2: time) -> bool:
@@ -427,8 +420,8 @@ async def update_default_schedule(
                 
                 if start1 >= end1:
                     day_chinese = _get_day_name_chinese(day_name)
-                    start_formatted = _format_time_12h(interval1.start_time)
-                    end_formatted = _format_time_12h(interval1.end_time)
+                    start_formatted = _format_time_string(interval1.start_time)
+                    end_formatted = _format_time_string(interval1.end_time)
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"無效的時間範圍 {day_chinese}: {start_formatted}-{end_formatted}"
@@ -441,10 +434,10 @@ async def update_default_schedule(
                         
                         if _check_time_overlap(start1, end1, start2, end2):
                             day_chinese = _get_day_name_chinese(day_name)
-                            start1_formatted = _format_time_12h(interval1.start_time)
-                            end1_formatted = _format_time_12h(interval1.end_time)
-                            start2_formatted = _format_time_12h(interval2.start_time)
-                            end2_formatted = _format_time_12h(interval2.end_time)
+                            start1_formatted = _format_time_string(interval1.start_time)
+                            end1_formatted = _format_time_string(interval1.end_time)
+                            start2_formatted = _format_time_string(interval2.start_time)
+                            end2_formatted = _format_time_string(interval2.end_time)
                             raise HTTPException(
                                 status_code=status.HTTP_400_BAD_REQUEST,
                                 detail=f"{day_chinese} 的時段重疊: {start1_formatted}-{end1_formatted} 和 {start2_formatted}-{end2_formatted}"
@@ -1572,8 +1565,8 @@ async def create_availability_exception(
             end_time = _parse_time(exception_data.end_time)
             
             if start_time >= end_time:
-                start_formatted = _format_time_12h(exception_data.start_time)
-                end_formatted = _format_time_12h(exception_data.end_time)
+                start_formatted = _format_time_string(exception_data.start_time)
+                end_formatted = _format_time_string(exception_data.end_time)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"開始時間必須早於結束時間: {start_formatted} - {end_formatted}"

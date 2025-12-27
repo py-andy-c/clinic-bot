@@ -33,13 +33,6 @@ vi.mock('../../../hooks/useDateSlotSelection', () => ({
 
 // Mock calendarUtils
 vi.mock('../../../utils/calendarUtils', () => ({
-  formatTo12Hour: (time: string) => ({
-    time12: time === '09:00' ? '9:00 AM' : time === '15:00' ? '3:00 PM' : time === '10:00' ? '10:00 AM' : time === '16:00' ? '4:00 PM' : time,
-  }),
-  groupTimeSlots: (slots: string[]) => ({
-    amSlots: slots.filter((s) => s < '12:00'),
-    pmSlots: slots.filter((s) => s >= '12:00'),
-  }),
   generateCalendarDays: () => {
     const days: (Date | null)[] = [];
     const today = new Date();
@@ -191,11 +184,11 @@ describe('DateTimePicker', () => {
     
     // Wait for time slots to be available
     await waitFor(() => {
-      expect(screen.getByText('9:00 AM')).toBeInTheDocument();
+      expect(screen.getByText('09:00')).toBeInTheDocument();
     });
     
     // Time should be selected in expanded view
-    const timeButton = screen.getByText('9:00 AM');
+    const timeButton = screen.getByText('09:00');
     expect(timeButton).toHaveClass('bg-blue-500');
   });
 
@@ -215,11 +208,11 @@ describe('DateTimePicker', () => {
     
     // Wait for time slots to be available
     await waitFor(() => {
-      expect(screen.getByText('3:00 PM')).toBeInTheDocument();
+      expect(screen.getByText('15:00')).toBeInTheDocument();
     });
     
     // Select a time
-    const timeButton = screen.getByText('3:00 PM');
+    const timeButton = screen.getByText('15:00');
     fireEvent.click(timeButton);
     
     // Time should be selected
@@ -245,11 +238,11 @@ describe('DateTimePicker', () => {
     
     // Wait for time slots to be available
     await waitFor(() => {
-      expect(screen.getByText('3:00 PM')).toBeInTheDocument();
+      expect(screen.getByText('15:00')).toBeInTheDocument();
     });
     
-    // Select a time (3:00 PM)
-    const timeButton = screen.getByText('3:00 PM');
+    // Select a time (15:00)
+    const timeButton = screen.getByText('15:00');
     fireEvent.click(timeButton);
     
     // Verify time is selected
@@ -286,11 +279,11 @@ describe('DateTimePicker', () => {
     
     // Wait for time slots to be available
     await waitFor(() => {
-      expect(screen.getByText('3:00 PM')).toBeInTheDocument();
+      expect(screen.getByText('15:00')).toBeInTheDocument();
     });
     
     // Select a different time
-    const timeButton = screen.getByText('3:00 PM');
+    const timeButton = screen.getByText('15:00');
     fireEvent.click(timeButton);
     
     // Verify time is selected
@@ -360,11 +353,11 @@ describe('DateTimePicker', () => {
     
     // Wait for time slots to be available
     await waitFor(() => {
-      expect(screen.getByText('3:00 PM')).toBeInTheDocument();
+      expect(screen.getByText('15:00')).toBeInTheDocument();
     });
     
     // Select a time
-    const timeButton = screen.getByText('3:00 PM');
+    const timeButton = screen.getByText('15:00');
     fireEvent.click(timeButton);
     
     // Verify time is selected
@@ -399,11 +392,11 @@ describe('DateTimePicker', () => {
     
     // Wait for time slots to be available
     await waitFor(() => {
-      expect(screen.getByText('3:00 PM')).toBeInTheDocument();
+      expect(screen.getByText('15:00')).toBeInTheDocument();
     });
     
     // Select a time
-    const timeButton = screen.getByText('3:00 PM');
+    const timeButton = screen.getByText('15:00');
     fireEvent.click(timeButton);
     
     // Verify time is selected
@@ -440,11 +433,11 @@ describe('DateTimePicker', () => {
     
     // Wait for time slots to be available
     await waitFor(() => {
-      expect(screen.getByText('9:00 AM')).toBeInTheDocument();
+      expect(screen.getByText('09:00')).toBeInTheDocument();
     });
     
     // Time slots should be displayed (backend handles including original time when excludeCalendarEventId is provided)
-    expect(screen.getByText('9:00 AM')).toBeInTheDocument();
+    expect(screen.getByText('09:00')).toBeInTheDocument();
   });
 
   it('should clear time and expand when selectedTime is not in available slots', async () => {
@@ -491,11 +484,11 @@ describe('DateTimePicker', () => {
     
     // Wait for time slots to be available
     await waitFor(() => {
-      expect(screen.getByText('10:00 AM')).toBeInTheDocument();
+      expect(screen.getByText('10:00')).toBeInTheDocument();
     });
     
     // Select a different time
-    const timeButton = screen.getByText('10:00 AM');
+    const timeButton = screen.getByText('10:00');
     fireEvent.click(timeButton);
     
     // onTimeSelect should be called immediately (not waiting for collapse)

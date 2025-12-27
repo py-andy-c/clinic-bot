@@ -132,7 +132,7 @@ describe('EditAppointmentModal', () => {
 
     const originalTimeContainer = screen.getByText(/原預約時間：/).closest('div');
     expect(originalTimeContainer).toBeInTheDocument();
-    expect(originalTimeContainer?.textContent).toMatch(/原預約時間：\d{4}\/\d{1,2}\/\d{1,2}\([日一二三四五六]\)\s+\d{1,2}:\d{2}\s+(AM|PM)/i);
+    expect(originalTimeContainer?.textContent).toMatch(/原預約時間：\d{4}\/\d{1,2}\/\d{1,2}\([日一二三四五六]\)\s+\d{2}:\d{2}/i);
   });
 
   describe('Review Step', () => {

@@ -13,8 +13,6 @@ import { SchedulingConflictResponse } from '../../types';
 import { useDateSlotSelection } from '../../hooks/useDateSlotSelection';
 import { useDebounce } from '../../hooks/useDebounce';
 import {
-  formatTo12Hour,
-  groupTimeSlots,
   generateCalendarDays,
   isToday,
   formatMonthYear,
@@ -549,9 +547,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
-  // Group time slots
-  const { amSlots, pmSlots } = useMemo(() => {
-    return groupTimeSlots(allTimeSlots);
+  // Sort time slots chronologically (no AM/PM grouping)
+  const sortedTimeSlots = useMemo(() => {
+    return [...allTimeSlots].sort();
   }, [allTimeSlots]);
 
   // Notify parent about availability of time slots for the currently selected date
@@ -886,7 +884,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
               <TimeInput
                 value={freeFormTime}
                 onChange={handleFreeFormTimeChange}
-                placeholder="H:MM AM/PM"
+                placeholder="HH:MM"
                 className="w-full"
               />
             </div>
@@ -904,56 +902,25 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = React.memo(({
                   <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
                 )}
               </div>
-              {amSlots.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">上午</h4>
-                  <div className="grid grid-cols-4 gap-2">
-                    {amSlots.map((time) => {
-                      const formatted = formatTo12Hour(time);
-                      const isSelected = displayTime === time;
+              <div className="grid grid-cols-4 gap-2">
+                {sortedTimeSlots.map((time) => {
+                  const isSelected = displayTime === time;
 
-                      return (
-                        <button
-                          key={time}
-                          onClick={() => handleTimeSelect(time)}
-                          className={`border rounded-md py-1.5 px-2 transition-colors text-sm font-medium ${
-                            isSelected
-                              ? 'bg-blue-500 text-white border-transparent'
-                              : 'bg-white border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
-                          }`}
-                        >
-                          {formatted.time12}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {pmSlots.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">下午</h4>
-                  <div className="grid grid-cols-4 gap-2">
-                    {pmSlots.map((time) => {
-                      const formatted = formatTo12Hour(time);
-                      const isSelected = displayTime === time;
-
-                      return (
-                        <button
-                          key={time}
-                          onClick={() => handleTimeSelect(time)}
-                          className={`border rounded-md py-1.5 px-2 transition-colors text-sm font-medium ${
-                            isSelected
-                              ? 'bg-blue-500 text-white border-transparent'
-                              : 'bg-white border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
-                          }`}
-                        >
-                          {formatted.time12}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+                  return (
+                    <button
+                      key={time}
+                      onClick={() => handleTimeSelect(time)}
+                      className={`border rounded-md py-1.5 px-2 transition-colors text-sm font-medium ${
+                        isSelected
+                          ? 'bg-blue-500 text-white border-transparent'
+                          : 'bg-white border-gray-200 hover:border-primary-300 hover:bg-primary-50 text-gray-900'
+                      }`}
+                    >
+                      {time}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : (
             <div className="text-center py-4">

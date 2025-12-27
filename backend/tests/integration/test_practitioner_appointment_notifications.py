@@ -142,7 +142,7 @@ class TestPractitionerAppointmentNotifications:
         clinic, practitioner, appointment_type, patient = clinic_with_practitioner
         
         # Setup mocks
-        mock_format_datetime.return_value = "01/20 (一) 2:30 PM"
+        mock_format_datetime.return_value = "01/20 (一) 14:30"
         mock_line_service = Mock()
         mock_line_service_class.return_value = mock_line_service
         
@@ -205,7 +205,7 @@ class TestPractitionerAppointmentNotifications:
         db_session.commit()
         
         # Setup mocks
-        mock_format_datetime.return_value = "01/20 (一) 2:30 PM"
+        mock_format_datetime.return_value = "01/20 (一) 14:30"
         mock_line_service = Mock()
         mock_line_service_class.return_value = mock_line_service
         
@@ -246,7 +246,7 @@ class TestPractitionerAppointmentNotifications:
         clinic, practitioner, appointment_type, patient = clinic_with_practitioner
         
         # Setup mocks - LINE service will fail
-        mock_format_datetime.return_value = "01/20 (一) 2:30 PM"
+        mock_format_datetime.return_value = "01/20 (一) 14:30"
         mock_line_service = Mock()
         mock_line_service.send_text_message.side_effect = Exception("LINE API error")
         mock_line_service_class.return_value = mock_line_service

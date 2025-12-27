@@ -650,27 +650,14 @@ class AvailabilityNotificationService:
         return f"{date_obj.strftime('%m/%d')} ({weekday_cn})"
     
     def _format_slots(self, slots: List[str]) -> str:
-        """Format slot times as '09:00 AM, 10:00 AM, 02:00 PM'."""
+        """Format slot times as '09:00, 10:00, 14:00' (24-hour format)."""
         formatted: List[str] = []
         for slot_time in slots:
             # Parse "09:00" or "09:00:00"
             hour, minute = map(int, slot_time.split(':')[:2])
             
-            # Convert to 12-hour format
-            if hour == 0:
-                hour_12 = 12
-                period = 'AM'
-            elif hour < 12:
-                hour_12 = hour
-                period = 'AM'
-            elif hour == 12:
-                hour_12 = 12
-                period = 'PM'
-            else:
-                hour_12 = hour - 12
-                period = 'PM'
-            
-            formatted.append(f"{hour_12}:{minute:02d} {period}")
+            # Format in 24-hour format (HH:MM)
+            formatted.append(f"{hour:02d}:{minute:02d}")
         
         return ", ".join(formatted)
     

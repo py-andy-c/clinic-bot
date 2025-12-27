@@ -6,8 +6,6 @@ import { useAppointmentStore } from '../../stores/appointmentStore';
 import { liffApiService } from '../../services/liffApi';
 import AvailabilityNotificationButton from '../components/AvailabilityNotificationButton';
 import {
-  formatTo12Hour,
-  groupTimeSlots,
   generateCalendarDays,
   isToday,
   formatMonthYear,
@@ -278,67 +276,27 @@ const Step3SelectDateTime: React.FC = () => {
               <p className="text-sm text-red-600">{error}</p>
             </div>
           ) : availableSlots.length > 0 ? (
-            (() => {
-              const { amSlots, pmSlots } = groupTimeSlots(availableSlots);
-              return (
-                <div className="space-y-4">
-                  {amSlots.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">{t('datetime.morning')}</h4>
-                      <div className="grid grid-cols-3 gap-2">
-                        {amSlots.map((time) => {
-                          const formatted = formatTo12Hour(time);
-                          const isRecommended = slotDetails.get(time)?.is_recommended === true;
-                          return (
-                            <button
-                              key={time}
-                              onClick={() => handleTimeSelect(time)}
-                              className={`relative bg-white border rounded-md py-2 px-2 hover:border-primary-300 hover:bg-primary-50 transition-colors text-sm font-medium text-gray-900 ${
-                                isRecommended ? 'border-teal-400 border-2' : 'border-gray-200'
-                              }`}
-                            >
-                              {formatted.time12}
-                              {isRecommended && (
-                                <span className="absolute -top-2 -right-2 bg-teal-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
-                                  {t('datetime.recommended')}
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {pmSlots.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">{t('datetime.afternoon')}</h4>
-                      <div className="grid grid-cols-3 gap-2">
-                        {pmSlots.map((time) => {
-                          const formatted = formatTo12Hour(time);
-                          const isRecommended = slotDetails.get(time)?.is_recommended === true;
-                          return (
-                            <button
-                              key={time}
-                              onClick={() => handleTimeSelect(time)}
-                              className={`relative bg-white border rounded-md py-2 px-2 hover:border-primary-300 hover:bg-primary-50 transition-colors text-sm font-medium text-gray-900 ${
-                                isRecommended ? 'border-teal-400 border-2' : 'border-gray-200'
-                              }`}
-                            >
-                              {formatted.time12}
-                              {isRecommended && (
-                                <span className="absolute -top-2 -right-2 bg-teal-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
-                                  {t('datetime.recommended')}
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()
+            <div className="grid grid-cols-3 gap-2">
+              {[...availableSlots].sort().map((time) => {
+                const isRecommended = slotDetails.get(time)?.is_recommended === true;
+                return (
+                  <button
+                    key={time}
+                    onClick={() => handleTimeSelect(time)}
+                    className={`relative bg-white border rounded-md py-2 px-2 hover:border-primary-300 hover:bg-primary-50 transition-colors text-sm font-medium text-gray-900 ${
+                      isRecommended ? 'border-teal-400 border-2' : 'border-gray-200'
+                    }`}
+                  >
+                    {time}
+                    {isRecommended && (
+                      <span className="absolute -top-2 -right-2 bg-teal-500 text-white text-xs font-medium px-1.5 py-0.5 rounded shadow-sm">
+                        {t('datetime.recommended')}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           ) : (
             <div className="text-center py-8">
               <p className="text-gray-500">{t('datetime.noSlots')}</p>

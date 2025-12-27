@@ -90,7 +90,7 @@ export const getDateString = (date: Date): string => {
 
 /**
  * Format datetime for user-facing display
- * Format: "12/25 (三) 1:30 PM"
+ * Format: "12/25 (三) 13:30"
  * 
  * Used for all user-facing messages (appointments, notifications, reminders, etc.)
  * to ensure consistent date/time formatting across the platform.
@@ -106,21 +106,21 @@ export const formatDateTime = (dateTime: Date | string): string => {
     logger.warn('Invalid weekday abbreviations, using fallback');
     const weekday = WEEKDAY_NAMES_ZH_TW[taiwanMoment.day()] || '';
     const dateStr = taiwanMoment.format('MM/DD');
-    const timeStr = taiwanMoment.format('h:mm A');
+    const timeStr = taiwanMoment.format('HH:mm');
     return `${dateStr} (${weekday}) ${timeStr}`;
   }
   const weekday = weekdayAbbr[taiwanMoment.day()] || '';
   const dateStr = taiwanMoment.format('MM/DD');
-  const timeStr = taiwanMoment.format('h:mm A');
+  const timeStr = taiwanMoment.format('HH:mm');
   return `${dateStr} (${weekday}) ${timeStr}`;
 };
 
 /**
  * Format appointment date/time for display
- * Format: "2025/12/8(一) 9:00 AM"
+ * Format: "2025/12/8(一) 09:00"
  * 
  * Standardized format for clinic admin platform appointment displays.
- * Uses full year, no leading zeros, weekday in parentheses, 12-hour time.
+ * Uses full year, no leading zeros, weekday in parentheses, 24-hour time.
  * 
  * @param dateTime - Date object or ISO string
  * @returns Formatted datetime string
@@ -130,13 +130,13 @@ export const formatAppointmentDateTime = (dateTime: Date | string): string => {
   const weekdayNames = getWeekdayNames();
   const weekday = weekdayNames[taiwanMoment.day()] || '';
   const dateStr = taiwanMoment.format('YYYY/M/D');
-  const timeStr = formatTo12Hour(taiwanMoment.format('HH:mm')).display;
+  const timeStr = taiwanMoment.format('HH:mm');
   return `${dateStr}(${weekday}) ${timeStr}`;
 };
 
 /**
  * Format appointment time range with date and weekday
- * Format: "2025/12/8(一) 9:00 AM - 10:00 AM"
+ * Format: "2025/12/8(一) 09:00 - 10:00"
  * 
  * Standardized format for appointment time ranges in clinic admin platform.
  * 
@@ -150,8 +150,8 @@ export const formatAppointmentTimeRange = (start: Date, end: Date): string => {
   const weekdayNames = getWeekdayNames();
   const weekday = weekdayNames[startMoment.day()] || '';
   const dateStr = startMoment.format('YYYY/M/D');
-  const startTimeStr = formatTo12Hour(startMoment.format('HH:mm')).display;
-  const endTimeStr = formatTo12Hour(endMoment.format('HH:mm')).display;
+  const startTimeStr = startMoment.format('HH:mm');
+  const endTimeStr = endMoment.format('HH:mm');
   return `${dateStr}(${weekday}) ${startTimeStr} - ${endTimeStr}`;
 };
 
@@ -209,7 +209,8 @@ export const getDateRange = (date: Date, view: 'month' | 'day' | 'week' | 'agend
 };
 
 /**
- * Format time from time string (e.g., "09:00" -> "9:00 AM")
+ * Format time from time string (e.g., "09:00" -> "09:00")
+ * Returns 24-hour format (HH:MM)
  */
 export const formatTimeString = (timeStr: string): string => {
   if (!timeStr) return '';
@@ -217,10 +218,9 @@ export const formatTimeString = (timeStr: string): string => {
   if (parts.length < 2 || !parts[0] || !parts[1]) return timeStr; // Invalid format, return as-is
   const hour = parseInt(parts[0], 10);
   const minutes = parts[1];
-  if (isNaN(hour)) return timeStr; // Invalid hour, return as-is
-  const period = hour >= 12 ? 'PM' : 'AM';
-  const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-  return `${hour12}:${minutes} ${period}`;
+  if (isNaN(hour) || hour < 0 || hour > 23) return timeStr; // Invalid hour, return as-is
+  // Return in 24-hour format with zero-padded hours
+  return `${String(hour).padStart(2, '0')}:${minutes}`;
 };
 
 /**
@@ -228,6 +228,9 @@ export const formatTimeString = (timeStr: string): string => {
  * Returns object with time12 and period for flexible display
  * Example: "09:00" -> { time12: "09:00", period: "AM" }
  * Example: "14:30" -> { time12: "02:30", period: "PM" }
+ *
+ * @deprecated This function is deprecated. Use 24-hour format directly instead.
+ * Kept for backward compatibility during migration period.
  */
 export const formatTo12Hour = (time24: string): { time12: string; period: 'AM' | 'PM'; display: string } => {
   const parts = time24.split(':').map(Number);
@@ -296,6 +299,9 @@ export const parseTime12hTo24h = (time12h: string): string => {
 /**
  * Format 24-hour format time string (HH:MM) to 12-hour format (H:MM AM/PM).
  * Converts time strings like "21:00" -> "9:00 PM".
+ *
+ * @deprecated This function is deprecated. Use 24-hour format directly instead.
+ * Kept for backward compatibility during migration period.
  */
 export const formatTime24hTo12h = (time24h: string): string => {
   if (!time24h || !time24h.trim()) {
@@ -344,14 +350,19 @@ export const formatTime24hTo12h = (time24h: string): string => {
 
 /**
  * Group time slots into AM and PM arrays
+ *
+ * @deprecated This function is deprecated. Time slots should be displayed in a single chronological list.
+ * Kept for backward compatibility during migration period.
+ *
+ * For new code, simply sort the slots array: slots.sort()
  */
 export const groupTimeSlots = (slots: string[]): { amSlots: string[]; pmSlots: string[] } => {
   const amSlots: string[] = [];
   const pmSlots: string[] = [];
 
   slots.forEach(slot => {
-    const formatted = formatTo12Hour(slot);
-    if (formatted.period === 'AM') {
+    const hour = parseInt(slot.split(':')[0] || '0', 10);
+    if (hour < 12) {
       amSlots.push(slot);
     } else {
       pmSlots.push(slot);

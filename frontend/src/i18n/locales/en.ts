@@ -179,7 +179,7 @@ export default {
     weekdayAbbr: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
     monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
     monthDayFormat: 'MMMM D',
-    fullDateFormat: 'MMMM D, YYYY h:mm A',
+    fullDateFormat: 'MMMM D, YYYY HH:mm',
     colon: ':',
     listSeparator: ', ',
   },

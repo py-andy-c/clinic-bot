@@ -819,7 +819,7 @@ class TestScheduledMessageService:
         db_session.add(scheduled)
         db_session.flush()
 
-        mock_format_datetime.return_value = "2024年1月15日 10:00"
+        mock_format_datetime.return_value = "01/15 (一) 10:00"
 
         # Build context
         context = ScheduledMessageService.build_message_context(db_session, scheduled)

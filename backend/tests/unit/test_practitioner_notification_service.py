@@ -73,7 +73,7 @@ def test_send_practitioner_notification_success(
 ):
     """Test successful notification sending."""
     # Setup
-    mock_format_datetime.return_value = "01/20 (一) 2:30 PM"
+    mock_format_datetime.return_value = "01/20 (一) 14:30"
     mock_line_service = Mock()
     mock_line_service_class.return_value = mock_line_service
     
@@ -93,7 +93,7 @@ def test_send_practitioner_notification_success(
     assert call_args[0][0] == "U1234567890abcdef"
     assert "新預約通知" in call_args[0][1]
     assert "王小明" in call_args[0][1]
-    assert "01/20 (一) 2:30 PM" in call_args[0][1]
+    assert "01/20 (一) 14:30" in call_args[0][1]
     assert "物理治療" in call_args[0][1]
 
 
@@ -158,7 +158,7 @@ def test_send_practitioner_notification_with_notes(
 ):
     """Test notification includes notes when present."""
     # Setup
-    mock_format_datetime.return_value = "01/20 (一) 2:30 PM"
+    mock_format_datetime.return_value = "01/20 (一) 14:30"
     mock_appointment.notes = "請準備X光片"
     mock_line_service = Mock()
     mock_line_service_class.return_value = mock_line_service
@@ -186,7 +186,7 @@ def test_send_practitioner_notification_no_patient(
 ):
     """Test notification handles missing patient gracefully."""
     # Setup
-    mock_format_datetime.return_value = "01/20 (一) 2:30 PM"
+    mock_format_datetime.return_value = "01/20 (一) 14:30"
     mock_appointment.patient = None
     mock_line_service = Mock()
     mock_line_service_class.return_value = mock_line_service
@@ -214,7 +214,7 @@ def test_send_practitioner_notification_line_service_error(
 ):
     """Test notification handles LINE service errors gracefully."""
     # Setup
-    mock_format_datetime.return_value = "01/20 (一) 2:30 PM"
+    mock_format_datetime.return_value = "01/20 (一) 14:30"
     mock_line_service = Mock()
     mock_line_service.send_text_message.side_effect = Exception("LINE API error")
     mock_line_service_class.return_value = mock_line_service
@@ -241,7 +241,7 @@ def test_send_appointment_confirmation_with_title(
 ):
     """Test that appointment confirmation includes practitioner title in message."""
     # Setup
-    mock_format_datetime.return_value = "01/20 (一) 2:30 PM"
+    mock_format_datetime.return_value = "01/20 (一) 14:30"
     mock_get_practitioner_display_name_with_title.return_value = "王小明治療師"
     
     # Mock patient with LINE user
@@ -293,5 +293,5 @@ def test_send_appointment_confirmation_with_title(
     assert "病患" in message
     assert "王小明治療師" in message  # Should include title
     assert "物理治療" in message
-    assert "01/20 (一) 2:30 PM" in message
+    assert "01/20 (一) 14:30" in message
 
