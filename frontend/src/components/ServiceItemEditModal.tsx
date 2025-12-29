@@ -767,7 +767,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                   <div className="bg-white md:rounded-xl md:border md:border-gray-100 md:shadow-sm p-0 md:p-6">
                       <div className="px-4 py-4 md:px-0 md:py-0">
                         <p className="text-sm text-gray-600 mb-4">
-                          選擇提供此服務的治療師，並為每位治療師設定計費方案。計費方案可獨立管理，不受治療師指派狀態影響。
+                          選擇提供此服務的治療師，並為每位治療師設定計費方案。
                         </p>
                         
                         <div className="space-y-4 md:space-y-6">

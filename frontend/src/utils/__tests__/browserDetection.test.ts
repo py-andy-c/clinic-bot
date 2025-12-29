@@ -1,4 +1,5 @@
 /**
+ * Testing --changed flag with multiple files
  * Unit tests for browser detection utility functions.
  * 
  * Tests the isInAppBrowser, canOpenInBrowser, and openInBrowser functions

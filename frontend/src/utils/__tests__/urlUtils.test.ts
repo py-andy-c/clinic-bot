@@ -3,6 +3,8 @@
  * 
  * Tests the preserveQueryParams function to ensure it correctly
  * preserves important query parameters (like clinic_token) when updating URLs.
+ * 
+ * Updated: Testing --changed flag behavior
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
