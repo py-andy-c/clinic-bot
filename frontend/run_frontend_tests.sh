@@ -2,6 +2,10 @@
 
 # Frontend Test Driver Script
 # Runs TypeScript type checking and unit tests for the frontend
+#
+# Usage:
+#   ./run_frontend_tests.sh           - Run tests for changed files only (fast)
+#   ./run_frontend_tests.sh --no-cache - Run full test suite
 
 set -e  # Exit on any error
 
@@ -28,6 +32,30 @@ print_warning() {
 print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
+
+# Parse command line arguments
+NO_CACHE=false
+for arg in "$@"; do
+    case $arg in
+        --no-cache)
+            NO_CACHE=true
+            ;;
+        --help|-h)
+            echo "Usage: $0 [--no-cache]"
+            echo ""
+            echo "Options:"
+            echo "  (no flags)   Run tests for changed files only (fast)"
+            echo "  --no-cache   Run full test suite"
+            echo "  --help       Show this help message"
+            exit 0
+            ;;
+        *)
+            print_error "Unknown option: $arg"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
 
 # Determine script location and frontend directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -85,12 +113,22 @@ fi
 export VITE_API_BASE_URL="${VITE_API_BASE_URL:-/api}"
 export VITE_LIFF_ID="${VITE_LIFF_ID:-test-liff-id}"
 
-print_status "Running frontend unit tests..."
-if npm test -- --run; then
-    print_success "Frontend unit tests passed!"
+if [ "$NO_CACHE" = true ]; then
+    print_status "Running full frontend unit test suite..."
+    if npm test -- --run; then
+        print_success "Frontend unit tests passed!"
+    else
+        print_error "Frontend unit tests failed!"
+        exit 1
+    fi
 else
-    print_error "Frontend unit tests failed!"
-    exit 1
+    print_status "Running frontend unit tests for changed files only..."
+    if npm test -- --run --changed; then
+        print_success "Frontend unit tests passed!"
+    else
+        print_error "Frontend unit tests failed!"
+        exit 1
+    fi
 fi
 
 # Final success message
