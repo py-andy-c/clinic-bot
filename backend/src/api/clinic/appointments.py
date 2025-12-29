@@ -40,6 +40,7 @@ class ResourceResponse(BaseModel):
     """Response model for resource."""
     id: int
     resource_type_id: int
+    resource_type_name: str  # Name of the resource type
     clinic_id: int
     name: str
     description: Optional[str]
@@ -1357,7 +1358,10 @@ async def get_appointment_resources(
         ).all()
         
         resource_ids = [alloc.resource_id for alloc in allocations]
-        resources = db.query(Resource).filter(
+        # Join with ResourceType to get resource_type_name
+        # Use inner join - if ResourceType is missing, the resource shouldn't be returned
+        # This is safe because ResourceType is required when creating a Resource
+        resources = db.query(Resource).join(ResourceType).filter(
             Resource.id.in_(resource_ids),
             Resource.clinic_id == clinic_id
         ).all()
@@ -1367,6 +1371,7 @@ async def get_appointment_resources(
                 ResourceResponse(
                     id=r.id,
                     resource_type_id=r.resource_type_id,
+                    resource_type_name=r.resource_type.name,  # Safe: join ensures ResourceType exists
                     clinic_id=r.clinic_id,
                     name=r.name,
                     description=r.description,

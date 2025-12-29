@@ -103,7 +103,6 @@ export const PatientAppointmentsList: React.FC<
     preSelectedPractitionerId?: number;
     preSelectedTime?: string;
     preSelectedClinicNotes?: string;
-    preSelectedResourceIds?: number[];
     initialDate?: string;
     event?: CalendarEvent;
   } | null>(null);
@@ -311,17 +310,9 @@ export const PatientAppointmentsList: React.FC<
     const startMoment = moment(event.start).tz(TAIWAN_TIMEZONE);
     const initialDate = startMoment.format('YYYY-MM-DD');
     const initialTime = startMoment.format('HH:mm');
-
-    // Fetch resources for the original appointment
-    let preSelectedResourceIds: number[] = [];
-    try {
-      const response = await apiService.getAppointmentResources(event.resource.calendar_event_id);
-      preSelectedResourceIds = response.resources.map(r => r.id);
-    } catch (err) {
-      logger.error('Failed to fetch resources for duplicate:', err);
-    }
     
     // Set up duplicate appointment data - only include fields that have values
+    // Resources will be fetched by useAppointmentForm in duplicate mode
     setDuplicateData({
       initialDate,
       // Only include these if they have values (avoid passing undefined)
@@ -329,7 +320,6 @@ export const PatientAppointmentsList: React.FC<
       ...(practitionerId !== undefined && { preSelectedPractitionerId: practitionerId }),
       ...(initialTime && { preSelectedTime: initialTime }),
       ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
-      preSelectedResourceIds,
       event,
     });
     setCreateModalKey(prev => prev + 1); // Force remount to reset state
@@ -780,7 +770,6 @@ export const PatientAppointmentsList: React.FC<
           {...(duplicateData.preSelectedPractitionerId !== undefined && { preSelectedPractitionerId: duplicateData.preSelectedPractitionerId })}
           {...(duplicateData.preSelectedTime !== undefined && { preSelectedTime: duplicateData.preSelectedTime })}
           {...(duplicateData.preSelectedClinicNotes !== undefined && { preSelectedClinicNotes: duplicateData.preSelectedClinicNotes })}
-          preSelectedResourceIds={duplicateData.preSelectedResourceIds}
           event={duplicateData.event}
           practitioners={practitioners}
           appointmentTypes={appointmentTypes}

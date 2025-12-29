@@ -488,3 +488,146 @@ class TestResourceAllocationIntegration:
         slot_times = [slot['start_time'] for slot in slots]
         assert '10:00' not in slot_times
 
+    def test_allocate_additional_resources_not_in_requirements(self, db_session: Session):
+        """Test that resources that don't match AppointmentResourceRequirement are still allocated."""
+        # Create clinic
+        clinic = Clinic(
+            name="Test Clinic",
+            line_channel_id="test_channel",
+            line_channel_secret="test_secret",
+            line_channel_access_token="test_token"
+        )
+        db_session.add(clinic)
+        db_session.commit()
+
+        # Create patient
+        patient = Patient(
+            clinic_id=clinic.id,
+            full_name="Test Patient"
+        )
+        db_session.add(patient)
+        db_session.commit()
+
+        # Create practitioner
+        user = User(
+            email="practitioner@example.com",
+            google_subject_id="practitioner_subject"
+        )
+        db_session.add(user)
+        db_session.commit()
+
+        association = UserClinicAssociation(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            roles=['practitioner'],
+            full_name="Test Practitioner",
+            is_active=True
+        )
+        db_session.add(association)
+        db_session.commit()
+
+        # Create appointment type
+        appointment_type = AppointmentType(
+            clinic_id=clinic.id,
+            name="Pilates",
+            duration_minutes=30
+        )
+        db_session.add(appointment_type)
+        db_session.commit()
+
+        # Link practitioner to appointment type
+        practitioner_appointment_type = PractitionerAppointmentTypes(
+            user_id=user.id,
+            clinic_id=clinic.id,
+            appointment_type_id=appointment_type.id
+        )
+        db_session.add(practitioner_appointment_type)
+        db_session.commit()
+
+        # Create required resource type (治療室) and resource
+        required_resource_type = ResourceType(
+            clinic_id=clinic.id,
+            name="治療室"
+        )
+        db_session.add(required_resource_type)
+        db_session.commit()
+
+        required_resource = Resource(
+            resource_type_id=required_resource_type.id,
+            clinic_id=clinic.id,
+            name="治療室1"
+        )
+        db_session.add(required_resource)
+        db_session.commit()
+
+        # Create requirement (needs 1 治療室)
+        requirement = AppointmentResourceRequirement(
+            appointment_type_id=appointment_type.id,
+            resource_type_id=required_resource_type.id,
+            quantity=1
+        )
+        db_session.add(requirement)
+        db_session.commit()
+
+        # Create additional resource type (床) that is NOT in requirements
+        additional_resource_type = ResourceType(
+            clinic_id=clinic.id,
+            name="床"
+        )
+        db_session.add(additional_resource_type)
+        db_session.commit()
+
+        additional_resource1 = Resource(
+            resource_type_id=additional_resource_type.id,
+            clinic_id=clinic.id,
+            name="床A"
+        )
+        additional_resource2 = Resource(
+            resource_type_id=additional_resource_type.id,
+            clinic_id=clinic.id,
+            name="床B"
+        )
+        db_session.add_all([additional_resource1, additional_resource2])
+        db_session.commit()
+
+        # Create appointment with both required and additional resources
+        start_time = datetime(2025, 1, 28, 10, 0)
+        result = AppointmentService.create_appointment(
+            db=db_session,
+            clinic_id=clinic.id,
+            patient_id=patient.id,
+            appointment_type_id=appointment_type.id,
+            start_time=start_time,
+            practitioner_id=user.id,
+            selected_resource_ids=[
+                required_resource.id,      # Required resource (matches requirement)
+                additional_resource1.id,  # Additional resource (doesn't match requirement)
+                additional_resource2.id   # Another additional resource
+            ]
+        )
+
+        # Verify appointment was created
+        assert result['appointment_id'] is not None
+
+        # Verify all resources were allocated (required + additional)
+        calendar_event = db_session.query(CalendarEvent).filter(
+            CalendarEvent.id == result['calendar_event_id']
+        ).first()
+        assert calendar_event is not None
+
+        allocations = db_session.query(AppointmentResourceAllocation).filter(
+            AppointmentResourceAllocation.appointment_id == calendar_event.id
+        ).all()
+
+        # Should have 3 allocations: 1 required + 2 additional
+        assert len(allocations) == 3
+        
+        allocated_resource_ids = {alloc.resource_id for alloc in allocations}
+        
+        # Verify required resource is allocated
+        assert required_resource.id in allocated_resource_ids
+        
+        # Verify additional resources are allocated (this is the key test - they don't match requirements)
+        assert additional_resource1.id in allocated_resource_ids
+        assert additional_resource2.id in allocated_resource_ids
+

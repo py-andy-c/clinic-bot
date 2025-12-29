@@ -160,68 +160,95 @@ class ResourceService:
             AppointmentResourceRequirement.appointment_type_id == appointment_type_id
         ).all()
 
-        if not requirements:
-            return []
-
         allocated_resource_ids: List[int] = []
 
-        for req in requirements:
-            if selected_resource_ids:
-                # Validate and filter selected resources for this resource type
-                validated_resources = ResourceService._validate_and_filter_resources(
-                    db,
-                    selected_resource_ids,
-                    req.resource_type_id,
-                    clinic_id,
-                    start_time,
-                    end_time,
-                    exclude_calendar_event_id
-                )
-
-                # Use validated resources up to required quantity
-                to_allocate = min(req.quantity, len(validated_resources))
-                for i in range(to_allocate):
-                    allocation = AppointmentResourceAllocation(
-                        appointment_id=appointment_id,
-                        resource_id=validated_resources[i].id
+        # Phase 1: Process required resources (those matching AppointmentResourceRequirement)
+        # These resources are validated for availability and allocated according to requirements
+        if requirements:
+            for req in requirements:
+                if selected_resource_ids:
+                    # Validate and filter selected resources for this resource type
+                    validated_resources = ResourceService._validate_and_filter_resources(
+                        db,
+                        selected_resource_ids,
+                        req.resource_type_id,
+                        clinic_id,
+                        start_time,
+                        end_time,
+                        exclude_calendar_event_id
                     )
-                    db.add(allocation)
-                    allocated_resource_ids.append(validated_resources[i].id)
 
-                # If we need more resources, auto-allocate additional ones
-                if to_allocate < req.quantity:
-                    remaining_needed = req.quantity - to_allocate
+                    # Use validated resources up to required quantity
+                    to_allocate = min(req.quantity, len(validated_resources))
+                    for i in range(to_allocate):
+                        allocation = AppointmentResourceAllocation(
+                            appointment_id=appointment_id,
+                            resource_id=validated_resources[i].id
+                        )
+                        db.add(allocation)
+                        allocated_resource_ids.append(validated_resources[i].id)
+
+                    # If we need more resources, auto-allocate additional ones
+                    if to_allocate < req.quantity:
+                        remaining_needed = req.quantity - to_allocate
+                        available_resources = ResourceService._find_available_resources(
+                            db, req.resource_type_id, clinic_id, start_time, end_time, exclude_calendar_event_id
+                        )
+                        # Exclude already allocated resources
+                        allocated_ids_set = {r.id for r in validated_resources[:to_allocate]}
+                        available_resources = [r for r in available_resources if r.id not in allocated_ids_set]
+
+                        additional_to_allocate = min(remaining_needed, len(available_resources))
+                        for i in range(additional_to_allocate):
+                            allocation = AppointmentResourceAllocation(
+                                appointment_id=appointment_id,
+                                resource_id=available_resources[i].id
+                            )
+                            db.add(allocation)
+                            allocated_resource_ids.append(available_resources[i].id)
+                else:
+                    # Auto-allocate if no selection provided
                     available_resources = ResourceService._find_available_resources(
                         db, req.resource_type_id, clinic_id, start_time, end_time, exclude_calendar_event_id
                     )
-                    # Exclude already allocated resources
-                    allocated_ids_set = {r.id for r in validated_resources[:to_allocate]}
-                    available_resources = [r for r in available_resources if r.id not in allocated_ids_set]
 
-                    additional_to_allocate = min(remaining_needed, len(available_resources))
-                    for i in range(additional_to_allocate):
+                    # Allocate required quantity (simple: first available)
+                    to_allocate = min(req.quantity, len(available_resources))
+                    for i in range(to_allocate):
                         allocation = AppointmentResourceAllocation(
                             appointment_id=appointment_id,
                             resource_id=available_resources[i].id
                         )
                         db.add(allocation)
                         allocated_resource_ids.append(available_resources[i].id)
-            else:
-                # Auto-allocate if no selection provided
-                available_resources = ResourceService._find_available_resources(
-                    db, req.resource_type_id, clinic_id, start_time, end_time, exclude_calendar_event_id
-                )
 
-                # Allocate required quantity (simple: first available)
-                to_allocate = min(req.quantity, len(available_resources))
-                for i in range(to_allocate):
+        # Phase 2: Allocate additional resources (resources that don't match any requirement)
+        # This allows users to add "additional resource types" that aren't explicitly required
+        # by the appointment type. For example, a Pilates appointment might require a "治療室"
+        # but the user can also manually add "床" resources.
+        if selected_resource_ids:
+            allocated_set = set(allocated_resource_ids)
+            remaining_selected = [rid for rid in selected_resource_ids if rid not in allocated_set]
+            
+            if remaining_selected:
+                # Validate remaining resources exist, belong to the clinic, and aren't deleted
+                # Note: We don't check availability here - this is intentional to allow manual overrides
+                # Users can explicitly select resources even if they're marked as unavailable
+                additional_resources = db.query(Resource).filter(
+                    Resource.id.in_(remaining_selected),
+                    Resource.clinic_id == clinic_id,
+                    Resource.is_deleted == False
+                ).all()
+                
+                # Allocate all valid additional resources
+                # Availability is not checked - this is a manual override feature
+                for resource in additional_resources:
                     allocation = AppointmentResourceAllocation(
                         appointment_id=appointment_id,
-                        resource_id=available_resources[i].id
+                        resource_id=resource.id
                     )
                     db.add(allocation)
-                    allocated_resource_ids.append(available_resources[i].id)
-
+                    allocated_resource_ids.append(resource.id)
         return allocated_resource_ids
 
     @staticmethod

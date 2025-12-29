@@ -4,6 +4,7 @@ import { CalendarEvent } from '../utils/calendarDataAdapter';
 import moment from 'moment-timezone';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../types/api';
+import { ResourceAvailabilityResponse } from '../types';
 
 export type AppointmentFormMode = 'create' | 'edit' | 'duplicate';
 
@@ -18,7 +19,6 @@ export interface UseAppointmentFormProps {
   preSelectedPractitionerId?: number | null | undefined;
   preSelectedTime?: string | null | undefined;
   preSelectedClinicNotes?: string | null | undefined;
-  preSelectedResourceIds?: number[] | null | undefined;
 }
 
 export const useAppointmentForm = ({
@@ -32,7 +32,6 @@ export const useAppointmentForm = ({
   preSelectedPractitionerId,
   preSelectedTime,
   preSelectedClinicNotes,
-  preSelectedResourceIds,
 }: UseAppointmentFormProps) => {
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(preSelectedPatientId || event?.resource.patient_id || null);
   const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<number | null>(null);
@@ -42,6 +41,8 @@ export const useAppointmentForm = ({
   const [clinicNotes, setClinicNotes] = useState<string>('');
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
   const [initialResourceIds, setInitialResourceIds] = useState<number[]>([]);
+  const [initialResources, setInitialResources] = useState<Array<{ id: number; resource_type_id: number; resource_type_name?: string; name: string }>>([]);
+  const [initialAvailability, setInitialAvailability] = useState<ResourceAvailabilityResponse | null>(null);
   
   const [availablePractitioners, setAvailablePractitioners] = useState<{ id: number; full_name: string }[]>(allPractitioners);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -78,7 +79,7 @@ export const useAppointmentForm = ({
       const hasEventData = mode === 'edit' && event && (
         event.resource.appointment_type_id &&
         event.resource.practitioner_id &&
-        ((event.resource.resource_ids && event.resource.resource_ids.length > 0) || (preSelectedResourceIds && preSelectedResourceIds.length > 0))
+        (event.resource.resource_ids && event.resource.resource_ids.length > 0)
       );
 
       try {
@@ -87,9 +88,8 @@ export const useAppointmentForm = ({
         let date = initialDate || (event ? moment(event.start).tz('Asia/Taipei').format('YYYY-MM-DD') : null);
         let time = preSelectedTime || (event ? moment(event.start).tz('Asia/Taipei').format('HH:mm') : '');
         let notes = preSelectedClinicNotes || event?.resource.clinic_notes || '';
-        // Hybrid approach: use preSelectedResourceIds if provided, otherwise use event.resource.resource_ids for instant UI
-        // API fetch will update this if data is fresher
-        let resourceIds = preSelectedResourceIds || event?.resource.resource_ids || [];
+        // Use event.resource.resource_ids for instant UI (will be updated by API fetch if data is fresher)
+        let resourceIds = event?.resource.resource_ids || [];
 
         // Special handling for duplication mode: clear time to avoid immediate conflict
         if (mode === 'duplicate') {
@@ -128,10 +128,37 @@ export const useAppointmentForm = ({
           fetchTasks.push(apiService.getAppointmentResources(event.resource.calendar_event_id, signal));
         }
 
-        // If we have event data with resources, show form immediately (no flicker)
-        // Continue fetching in background for freshness
-        if (hasEventData) {
-          setIsInitialLoading(false);
+        // 3. Fetch resource availability for edit mode (when we have all required data)
+        const shouldFetchAvailability = mode === 'edit' && typeId && pracId && date && time;
+        if (shouldFetchAvailability) {
+          // Get duration from appointment type
+          const appointmentType = _appointmentTypes.find(t => t.id === typeId);
+          const durationMinutes = appointmentType?.duration_minutes || 30;
+          
+          // Calculate end time
+          const startMoment = moment.tz(`${date}T${time}`, 'Asia/Taipei');
+          const endMoment = startMoment.clone().add(durationMinutes, 'minutes');
+          
+          const availabilityParams: {
+            appointment_type_id: number;
+            practitioner_id: number;
+            date: string;
+            start_time: string;
+            end_time: string;
+            exclude_calendar_event_id?: number;
+          } = {
+            appointment_type_id: typeId,
+            practitioner_id: pracId,
+            date,
+            start_time: startMoment.format('HH:mm'),
+            end_time: endMoment.format('HH:mm'),
+          };
+          
+          if (event?.resource.calendar_event_id) {
+            availabilityParams.exclude_calendar_event_id = event.resource.calendar_event_id;
+          }
+          
+          fetchTasks.push(apiService.getResourceAvailability(availabilityParams, signal));
         }
 
         const results = await Promise.allSettled(fetchTasks);
@@ -157,14 +184,25 @@ export const useAppointmentForm = ({
         }
 
         // Handle resources result
-        if (shouldFetchResources && results[1]) {
-          const resourcesResult = results[1];
-          if (resourcesResult && resourcesResult.status === 'fulfilled') {
+        const resourcesResult = shouldFetchResources ? results[1] : null;
+        const availabilityResult = shouldFetchAvailability ? results[shouldFetchResources ? 2 : 1] : null;
+        
+        // Wait for both initialResources and initialAvailability (for edit mode) before showing the form
+        if (shouldFetchResources && resourcesResult) {
+          if (resourcesResult.status === 'fulfilled') {
             // Use fetched resources (more fresh) - this updates the initial state if it changed
-            const ids = resourcesResult.value.resources.map((r: any) => r.id);
+            const fetchedResources = resourcesResult.value.resources;
+            const ids = fetchedResources.map((r: any) => r.id);
+            const resourceData = fetchedResources.map((r: any) => ({
+              id: r.id,
+              resource_type_id: r.resource_type_id,
+              resource_type_name: r.resource_type_name,
+              name: r.name,
+            }));
             setSelectedResourceIds(ids);
             setInitialResourceIds(ids);
-          } else if (resourcesResult && resourcesResult.status === 'rejected') {
+            setInitialResources(resourceData);
+          } else if (resourcesResult.status === 'rejected') {
             const reason = resourcesResult.reason;
             if (reason?.name !== 'CanceledError' && reason?.name !== 'AbortError') {
               logger.error('Failed to load appointment resources, falling back to event data:', reason);
@@ -175,10 +213,32 @@ export const useAppointmentForm = ({
               }
             }
           }
-        } else if (shouldFetchResources && resourceIds.length > 0 && !hasEventData) {
-          // If we have resourceIds from event but fetch didn't happen (shouldn't occur, but defensive),
-          // set them as initial state (only if we didn't already set it above)
-          setInitialResourceIds(resourceIds);
+        }
+
+        // Handle availability result (edit mode only)
+        if (shouldFetchAvailability && availabilityResult) {
+          if (availabilityResult.status === 'fulfilled') {
+            setInitialAvailability(availabilityResult.value);
+          } else if (availabilityResult.status === 'rejected') {
+            const reason = availabilityResult.reason;
+            if (reason?.name !== 'CanceledError' && reason?.name !== 'AbortError') {
+              logger.error('Failed to load resource availability:', reason);
+              // Don't block the form if availability fails to load (graceful degradation)
+            }
+          }
+        }
+
+        // Set loading to false only after all required data is loaded
+        const practitionersReady = practitionersResult?.status === 'fulfilled';
+        const resourcesReady = !shouldFetchResources || resourcesResult?.status === 'fulfilled';
+        const availabilityReady = !shouldFetchAvailability || availabilityResult?.status === 'fulfilled';
+        
+        // Wait for practitioners (always required) and resources/availability if needed
+        if (practitionersReady && resourcesReady && availabilityReady) {
+          setIsInitialLoading(false);
+        } else if (practitionersReady && !shouldFetchResources && !shouldFetchAvailability) {
+          // Create/duplicate mode: only practitioners needed
+          setIsInitialLoading(false);
         }
 
       } catch (err: any) {
@@ -186,12 +246,9 @@ export const useAppointmentForm = ({
           logger.error('Error initializing appointment form:', err);
           setError(getErrorMessage(err));
         }
+        // Set loading to false on error to prevent blocking the UI
+        setIsInitialLoading(false);
       } finally {
-        // Only set to false here if we didn't already set it earlier (for hasEventData case)
-        // This ensures we don't show skeleton when we have event data
-        if (!hasEventData) {
-          setIsInitialLoading(false);
-        }
         isInitialMountRef.current = false;
       }
     };
@@ -203,7 +260,7 @@ export const useAppointmentForm = ({
         abortControllerRef.current.abort();
       }
     };
-  }, [mode, event, preSelectedAppointmentTypeId, preSelectedPractitionerId, preSelectedTime, preSelectedClinicNotes, preSelectedResourceIds, initialDate, allPractitioners]);
+  }, [mode, event, preSelectedAppointmentTypeId, preSelectedPractitionerId, preSelectedTime, preSelectedClinicNotes, initialDate, allPractitioners]);
 
   // Fetch practitioners when appointment type changes (after initial mount)
   useEffect(() => {
@@ -330,6 +387,7 @@ export const useAppointmentForm = ({
     setClinicNotes,
     selectedResourceIds,
     setSelectedResourceIds,
+    initialResources,
     availablePractitioners,
     isInitialLoading,
     isLoadingPractitioners,
@@ -339,5 +397,6 @@ export const useAppointmentForm = ({
     referenceDateTime,
     hasChanges,
     changeDetails,
+    initialAvailability,
   };
 };

@@ -1375,17 +1375,9 @@ const CalendarView: React.FC<CalendarViewProps> = ({
     const startMoment = moment(event.start).tz('Asia/Taipei');
     const initialDate = startMoment.format('YYYY-MM-DD');
     const initialTime = startMoment.format('HH:mm');
-
-    // Fetch resources for the original appointment
-    let preSelectedResourceIds: number[] = [];
-    try {
-      const response = await apiService.getAppointmentResources(event.resource.calendar_event_id);
-      preSelectedResourceIds = response.resources.map(r => r.id);
-    } catch (err) {
-      logger.error('Failed to fetch resources for duplicate:', err);
-    }
     
     // Close event modal and open create appointment modal with pre-filled data
+    // Resources will be fetched by useAppointmentForm in duplicate mode
     setCreateModalKey(prev => prev + 1); // Force remount to reset state
     setModalState({ 
       type: 'create_appointment', 
@@ -1397,7 +1389,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({
         ...(practitionerId !== undefined && { preSelectedPractitionerId: practitionerId }),
         ...(initialTime && { preSelectedTime: initialTime }),
         ...(clinicNotes !== undefined && clinicNotes !== null && { preSelectedClinicNotes: clinicNotes }),
-        preSelectedResourceIds,
         event,
       } 
     });

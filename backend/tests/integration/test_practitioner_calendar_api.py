@@ -1355,10 +1355,15 @@ class TestPractitionerCalendarAPI:
         db_session.commit()
 
         # Calculate dates (next Monday and Tuesday)
+        # Ensure dates are at least 2 days in the future to avoid time-of-day issues
         today = taiwan_now().date()
         days_until_monday = (0 - today.weekday()) % 7
-        if days_until_monday == 0 and today.weekday() != 0:
+        if days_until_monday == 0:
+            # If today is Monday, use next Monday (7 days away)
             days_until_monday = 7
+        elif days_until_monday < 2:
+            # Ensure at least 2 days in the future
+            days_until_monday += 7
         monday = today + timedelta(days=days_until_monday)
         tuesday = monday + timedelta(days=1)
 
@@ -1425,11 +1430,15 @@ class TestPractitionerCalendarAPI:
             end_time=time(12, 0)
         )
 
-        # Calculate next Monday
+        # Calculate next Monday (ensure at least 2 days in the future)
         today = taiwan_now().date()
         days_until_monday = (0 - today.weekday()) % 7
-        if days_until_monday == 0 and today.weekday() != 0:
+        if days_until_monday == 0:
+            # If today is Monday, use next Monday (7 days away)
             days_until_monday = 7
+        elif days_until_monday < 2:
+            # Ensure at least 2 days in the future
+            days_until_monday += 7
         monday = today + timedelta(days=days_until_monday)
 
         # Create an existing appointment on Monday at 10:00

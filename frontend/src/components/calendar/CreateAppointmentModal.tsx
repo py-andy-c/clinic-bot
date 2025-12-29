@@ -139,7 +139,6 @@ export interface CreateAppointmentModalProps {
   preSelectedPractitionerId?: number;
   preSelectedTime?: string | null | undefined; // Initial time in HH:mm format
   preSelectedClinicNotes?: string | null | undefined; // Initial clinic notes
-  preSelectedResourceIds?: number[] | null | undefined; // Initial selected resource IDs
   practitioners: { id: number; full_name: string }[];
   appointmentTypes: { id: number; name: string; duration_minutes: number }[];
   onClose: () => void;
@@ -163,7 +162,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   preSelectedPractitionerId,
   preSelectedTime,
   preSelectedClinicNotes,
-  preSelectedResourceIds,
   practitioners: initialPractitioners,
   appointmentTypes,
   onClose,
@@ -210,7 +208,6 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     preSelectedPractitionerId,
     preSelectedTime,
     preSelectedClinicNotes,
-    preSelectedResourceIds,
   });
 
   // Try to get patient data from sessionStorage if preSelectedPatientId is set

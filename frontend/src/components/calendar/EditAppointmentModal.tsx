@@ -71,6 +71,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     setClinicNotes,
     selectedResourceIds,
     setSelectedResourceIds,
+    initialResources,
+    initialAvailability,
     availablePractitioners,
     isInitialLoading,
     isLoadingPractitioners,
@@ -171,6 +173,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       }
       if (selectedResourceIds.length > 0) {
         formData.selected_resource_ids = selectedResourceIds;
+      } else if (changeDetails.resourcesChanged) {
+        formData.selected_resource_ids = [];
       }
       await onConfirm(formData);
       return;
@@ -208,6 +212,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         }
         if (selectedResourceIds.length > 0) {
           formData.selected_resource_ids = selectedResourceIds;
+        } else if (changeDetails.resourcesChanged) {
+          formData.selected_resource_ids = [];
         }
         await onConfirm(formData);
         return;
@@ -232,6 +238,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       }
       if (selectedResourceIds.length > 0) {
         formData.selected_resource_ids = selectedResourceIds;
+      } else if (changeDetails.resourcesChanged) {
+        formData.selected_resource_ids = [];
       }
       await onConfirm(formData);
     }
@@ -305,6 +313,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       }
       if (selectedResourceIds.length > 0) {
         formData.selected_resource_ids = selectedResourceIds;
+      } else if (changeDetails.resourcesChanged) {
+        formData.selected_resource_ids = [];
       }
       await onConfirm(formData);
     } catch (err) {
@@ -400,6 +410,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
             onSelectionChange={setSelectedResourceIds}
             onResourcesFound={handleResourcesFound}
             skipInitialDebounce={true}
+            initialResources={initialResources}
+            initialAvailability={initialAvailability}
           />
         )}
 
