@@ -58,6 +58,8 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
   const [manuallyAddedResourceTypes, setManuallyAddedResourceTypes] = useState<number[]>(() => additionalResourceTypesRef.current);
   const additionalResourcesRef = useRef<Record<number, Resource[]>>({});
   const [additionalResources, setAdditionalResources] = useState<Record<number, Resource[]>>({});
+  // Track newly added resource types for auto-selection
+  const newlyAddedResourceTypesRef = useRef<Set<number>>(new Set());
   
   // Sync refs with state to preserve across remounts (when time/date clears)
   useEffect(() => {
@@ -554,6 +556,24 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
           });
           return updated;
         });
+        
+        // Auto-select first resource for newly added types
+        const resourcesToAutoSelect: number[] = [];
+        results.forEach(({ typeId, resources }) => {
+          if (resources.length > 0 && newlyAddedResourceTypesRef.current.has(typeId)) {
+            const firstResource = resources[0];
+            if (firstResource && !selectedResourceIds.includes(firstResource.id)) {
+              resourcesToAutoSelect.push(firstResource.id);
+            }
+            // Remove from newly added set after processing
+            newlyAddedResourceTypesRef.current.delete(typeId);
+          }
+        });
+        
+        if (resourcesToAutoSelect.length > 0) {
+          const newSelection = [...selectedResourceIds, ...resourcesToAutoSelect];
+          onSelectionChange(newSelection);
+        }
       }
     };
     
@@ -660,12 +680,12 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
       const selectedNames = getSelectedResourceNames(typeId);
       const selectedCount = selectedNames.length;
       if (selectedCount > 0) {
-        // For additional types, show count/count format with checkmark
+        // For additional types, show count format with checkmark
         // Note: Additional resources don't have conflict info from availability API
-        parts.push(`${getResourceTypeName(typeId)}: ${selectedCount}/${selectedCount} ✓ (${selectedNames.join(', ')})`);
+        parts.push(`${getResourceTypeName(typeId)}: 已選 ${selectedCount} 個 ✓ (${selectedNames.join(', ')})`);
       } else {
         // Show empty additional type to indicate it was added
-        parts.push(`${getResourceTypeName(typeId)}: 0/0`);
+        parts.push(`${getResourceTypeName(typeId)}: 已選 0 個`);
       }
     });
     
@@ -689,6 +709,8 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
       setManuallyAddedResourceTypes(prev => [...prev, typeId]);
       setIsExpanded(true);
       setExpandedSections(prev => new Set([...prev, typeId]));
+      // Mark as newly added for auto-selection
+      newlyAddedResourceTypesRef.current.add(typeId);
     }
     setShowAddResourceTypeMenu(false);
   };
@@ -867,6 +889,7 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
               const typeName = getResourceTypeName(typeId);
               const resources = additionalResources[typeId] || [];
               const selectedNames = getSelectedResourceNames(typeId);
+              const selectedCount = selectedNames.length;
               const isSectionExpanded = expandedSections.has(typeId);
 
               return (
@@ -875,6 +898,9 @@ export const ResourceSelection: React.FC<ResourceSelectionProps> = ({
                     <div className="flex items-center gap-2 flex-1">
                       <label className="text-sm font-medium text-gray-700">
                         {typeName}
+                        <span className="text-gray-500 ml-1">
+                          (已選 {selectedCount} 個)
+                        </span>
                         {selectedNames.length > 0 && (
                           <span className="text-gray-600 ml-1">
                             ({selectedNames.join(', ')})

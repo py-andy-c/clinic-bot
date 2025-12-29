@@ -290,7 +290,7 @@ export const EventModal: React.FC<EventModalProps> = React.memo(({
                 <p><strong>病患備註:</strong> {event.resource.notes}</p>
               )}
               {event.resource.resource_names && event.resource.resource_names.length > 0 && (
-                <p>{event.resource.resource_names.join(' ')}</p>
+                <p><strong>資源:</strong> {event.resource.resource_names.join(' ')}</p>
               )}
               {/* Conflict Warning - shows all conflicts */}
               {resourceConflictInfo && resourceConflictInfo.has_conflict && (
