@@ -103,14 +103,16 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
     }
   };
 
-  // Load scenarios when expanded and practitioners are assigned
+  // Load scenarios for ALL practitioners when expanded
+  // Scenarios are independent of PAT assignment, so we show them regardless
   useEffect(() => {
-    if (isExpanded && assignedPractitionerIds.length > 0) {
-      assignedPractitionerIds.forEach(practitionerId => {
-        onLoadBillingScenarios(appointmentType.id, practitionerId);
+    if (isExpanded) {
+      // Load scenarios for all practitioners, not just assigned ones
+      members.forEach(practitioner => {
+        onLoadBillingScenarios(appointmentType.id, practitioner.id);
       });
     }
-  }, [isExpanded, assignedPractitionerIds, appointmentType.id, onLoadBillingScenarios]);
+  }, [isExpanded, appointmentType.id, onLoadBillingScenarios, members]);
 
   const handleAddScenario = (practitionerId: number) => {
     setEditingScenario({ practitionerId });
@@ -333,7 +335,10 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
 
             {isClinicAdmin && (
               <div className="mt-4 pt-4 border-t border-gray-200">
-                <label className="block text-sm font-medium text-gray-700 mb-2">提供此服務的治療師</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  提供此服務的治療師
+                  <span className="text-xs text-gray-500 ml-2">（計費方案可獨立管理，不受治療師指派狀態影響）</span>
+                </label>
                 <div className="space-y-4">
                   {members.map(practitioner => {
                     const isAssigned = assignedPractitionerIds.includes(practitioner.id);
@@ -353,45 +358,49 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
                                 updatePractitionerAssignments(appointmentType.id, [...assignedPractitionerIds, practitioner.id]);
                               } else {
                                 updatePractitionerAssignments(appointmentType.id, assignedPractitionerIds.filter(id => id !== practitioner.id));
-                                updateBillingScenarios(key, []);
+                                // Don't clear billing scenarios - they're independent of PAT assignment
                               }
                             }}
                             className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                           />
                           <span className="text-sm font-medium text-gray-900">{practitioner.full_name}</span>
                         </div>
-                        {isAssigned && (
-                          <div className="mt-2 pl-7 pt-2 border-t border-gray-100">
-                            <div className="flex justify-between items-center mb-2">
-                              <div className="flex items-center gap-2">
-                                <label className="text-xs font-medium text-gray-700">計費方案</label>
-                                <InfoButton onClick={() => setShowBillingScenarioModal(true)} />
-                              </div>
-                              <button type="button" onClick={() => handleAddScenario(practitioner.id)} className="text-xs text-blue-600 hover:text-blue-800">+ 新增方案</button>
+                        {/* Always show billing scenarios section, regardless of assignment */}
+                        <div className="mt-2 pl-7 pt-2 border-t border-gray-100">
+                          <div className="flex justify-between items-center mb-2">
+                            <div className="flex items-center gap-2">
+                              <label className="text-xs font-medium text-gray-700">計費方案</label>
+                              {!isAssigned && (
+                                <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
+                                  治療師尚未指派到此服務項目
+                                </span>
+                              )}
+                              <InfoButton onClick={() => setShowBillingScenarioModal(true)} />
                             </div>
-                            {isLoading ? <p className="text-xs text-gray-500">載入中...</p> : scenarios.length === 0 ? <p className="text-xs text-gray-500">尚無計費方案</p> : (
-                              <div className="space-y-2">
-                                {scenarios.map(scenario => (
-                                  <div key={scenario.id} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
-                                    <div className="flex-1">
-                                      <div className="flex items-center space-x-2">
-                                        <span className="text-sm font-medium text-gray-900">{scenario.name}</span>
-                                        {scenario.is_default && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">預設</span>}
-                                      </div>
-                                      <div className="text-xs text-gray-600 mt-1">
-                                        金額: {formatCurrency(scenario.amount)} | 診所分潤: {formatCurrency(scenario.revenue_share)}
-                                      </div>
-                                    </div>
+                            <button type="button" onClick={() => handleAddScenario(practitioner.id)} className="text-xs text-blue-600 hover:text-blue-800">+ 新增方案</button>
+                          </div>
+                          {isLoading ? <p className="text-xs text-gray-500">載入中...</p> : scenarios.length === 0 ? <p className="text-xs text-gray-500">尚無計費方案</p> : (
+                            <div className="space-y-2">
+                              {scenarios.map(scenario => (
+                                <div key={scenario.id} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
+                                  <div className="flex-1">
                                     <div className="flex items-center space-x-2">
-                                      <button type="button" onClick={() => handleEditScenario(practitioner.id, scenario)} className="text-xs text-blue-600 hover:text-blue-800">編輯</button>
-                                      <button type="button" onClick={() => updateBillingScenarios(key, scenarios.filter(s => s.id !== scenario.id))} className="text-xs text-red-600 hover:text-red-800">刪除</button>
+                                      <span className="text-sm font-medium text-gray-900">{scenario.name}</span>
+                                      {scenario.is_default && <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">預設</span>}
+                                    </div>
+                                    <div className="text-xs text-gray-600 mt-1">
+                                      金額: {formatCurrency(scenario.amount)} | 診所分潤: {formatCurrency(scenario.revenue_share)}
                                     </div>
                                   </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                                  <div className="flex items-center space-x-2">
+                                    <button type="button" onClick={() => handleEditScenario(practitioner.id, scenario)} className="text-xs text-blue-600 hover:text-blue-800">編輯</button>
+                                    <button type="button" onClick={() => updateBillingScenarios(key, scenarios.filter(s => s.id !== scenario.id))} className="text-xs text-red-600 hover:text-red-800">刪除</button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}

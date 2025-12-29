@@ -175,14 +175,14 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
    * This is called lazily when a service item is expanded.
    */
   loadBillingScenarios: async (serviceItemId: number, practitionerId: number) => {
+    const key = `${serviceItemId}-${practitionerId}`;
+    
     // Skip if service item ID is temporary (not yet saved)
     if (serviceItemId > TEMPORARY_ID_THRESHOLD) {
       // Temporary IDs will be loaded after appointment type is saved
       return;
     }
 
-    const key = `${serviceItemId}-${practitionerId}`;
-    
     // Prevent duplicate loads
     const state = get();
     if (state.loadingScenarios.has(key) || state.billingScenarios[key]) {
@@ -196,6 +196,7 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
       }));
 
       const response = await apiService.getBillingScenarios(serviceItemId, practitionerId);
+      
       const scenarios: BillingScenario[] = (response.billing_scenarios || []).map((s: any) => ({
         id: s.id,
         practitioner_id: s.practitioner_id,
@@ -408,23 +409,32 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
       const originalIds = new Set(originalScenarios.map(s => s.id));
       const currentIds = new Set(scenarios.map(s => s.id));
 
-      // Delete scenarios that are no longer present
-      for (const originalScenario of originalScenarios) {
-        if (!currentIds.has(originalScenario.id)) {
-          try {
-            await apiService.deleteBillingScenario(realServiceItemId, practitionerId, originalScenario.id);
-          } catch (err: any) {
-            // Handle 404 gracefully - scenario might already be deleted
-            if (err?.response?.status === 404) {
-              // Don't add to errors - it's already deleted, which is what we want
-            } else {
-              const errorMsg = `刪除計費方案「${originalScenario.name}」失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
-              logger.error(`Error deleting billing scenario ${originalScenario.id}:`, err);
-              errors.push(errorMsg);
+      // Delete scenarios that are explicitly removed from current state
+      // IMPORTANT: Billing scenarios are independent of PAT assignment - they should persist even when PAT is unchecked
+      // Only delete if the key exists in scenariosToUse (scenarios were loaded/managed)
+      // If key doesn't exist, scenarios weren't loaded (e.g., PAT unchecked) - don't delete them
+      if (key in scenariosToUse) {
+        // Key exists in current state - scenarios were explicitly managed
+        // Delete scenarios that are no longer present (explicitly removed by user)
+        for (const originalScenario of originalScenarios) {
+          if (!currentIds.has(originalScenario.id)) {
+            try {
+              await apiService.deleteBillingScenario(realServiceItemId, practitionerId, originalScenario.id);
+            } catch (err: any) {
+              // Handle 404 gracefully - scenario might already be deleted
+              if (err?.response?.status === 404) {
+                // Don't add to errors - it's already deleted, which is what we want
+              } else {
+                const errorMsg = `刪除計費方案「${originalScenario.name}」失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
+                logger.error(`Error deleting billing scenario ${originalScenario.id}:`, err);
+                errors.push(errorMsg);
+              }
             }
           }
         }
       }
+      // If key doesn't exist in current state, scenarios weren't loaded/managed
+      // This typically happens when PAT is unchecked. Don't delete - scenarios should persist independently.
 
       // Create or update scenarios
       for (const scenario of scenarios) {
