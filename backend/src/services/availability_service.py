@@ -321,7 +321,10 @@ class AvailabilityService:
                         ]
                         
                         recommended_slots = AvailabilityService._calculate_compact_schedule_recommendations(
-                            confirmed_appointments, slots
+                            confirmed_appointments, 
+                            slots,
+                            practitioner_data.get('default_intervals', []),
+                            events
                         )
                         # Mark recommended slots
                         for slot in slots:
@@ -1139,110 +1142,145 @@ class AvailabilityService:
     @staticmethod
     def _calculate_compact_schedule_recommendations(
         confirmed_appointments: List[CalendarEvent],
-        available_slots: List[Dict[str, Any]]
+        available_slots: List[Dict[str, Any]],
+        default_intervals: List[PractitionerAvailability],
+        events: List[CalendarEvent]
     ) -> set[str]:
         """
         Calculate which available slots are recommended for compact scheduling.
         
-        Logic (regardless of number of appointments):
-        1. Recommend slots that don't expand the total time (fully within span)
-        2. If no slots exist that don't expand total time, recommend:
-           - The latest slot before the first appointment (if exists)
-           - The earliest slot after the last appointment (if exists)
+        Logic:
+        1. Identify "Working Blocks" (contiguous availability without exceptions).
+        2. For each confirmed appointment, find its working block.
+        3. Recommend the closest available slots before and after the appointment
+           ONLY if they are within the same working block.
         
         Args:
-            confirmed_appointments: List of confirmed appointment CalendarEvents (already fetched).
-                                   Must have non-None start_time and end_time.
-            available_slots: List of available slot dicts with 'start_time' and 'end_time' keys.
+            confirmed_appointments: List of confirmed appointment CalendarEvents.
+            available_slots: List of available slot dicts with 'start_time' and 'end_time'.
+            default_intervals: List of default availability intervals for the day.
+            events: All calendar events (including exceptions) for the day.
             
         Returns:
-            Set of recommended slot start times (as HH:MM strings). Empty set if no recommendations
-            should be shown (e.g., all slots extend or none extend).
+            Set of recommended slot start times.
         """
-        if not confirmed_appointments:
-            # No appointments → no recommendations
+        if not confirmed_appointments or not available_slots:
             return set()
-        
-        # Filter out appointments with None start_time or end_time
-        valid_appointments = [
-            a for a in confirmed_appointments 
-            if a.start_time is not None and a.end_time is not None
-        ]
-        
-        if not valid_appointments:
-            return set()
-        
-        # Sort appointments by start_time to find earliest and latest
-        # Use cast to help type checker understand that start_time is not None after filtering
-        sorted_appointments = sorted(
-            valid_appointments, 
-            key=lambda a: cast(time, a.start_time)
-        )
-        
-        # Find earliest start and latest end
-        # We know these are not None because we filtered them
-        earliest_start = cast(time, sorted_appointments[0].start_time)
-        latest_end = cast(time, sorted_appointments[0].end_time)
-        
-        for appointment in sorted_appointments[1:]:  # Start from second element
-            appt_start = cast(time, appointment.start_time)
-            appt_end = cast(time, appointment.end_time)
-            if appt_start < earliest_start:
-                earliest_start = appt_start
-            if appt_end > latest_end:
-                latest_end = appt_end
-        
-        earliest_start_minutes = earliest_start.hour * 60 + earliest_start.minute
-        latest_end_minutes = latest_end.hour * 60 + latest_end.minute
-        
-        recommended_slots: set[str] = set()
-        latest_before_first: tuple[str, int] | None = None  # (slot_start_str, slot_end_minutes)
-        earliest_after_last: tuple[str, int] | None = None  # (slot_start_str, slot_start_minutes)
-        
-        # Process all available slots
-        for slot in available_slots:
-            slot_start_str = slot['start_time']
-            slot_end_str = slot['end_time']
             
+        # 1. Identify "Working Blocks"
+        # Filter for availability exceptions
+        exceptions = [e for e in events if e.event_type == 'availability_exception']
+        working_blocks = AvailabilityService._get_working_blocks(default_intervals, exceptions)
+        
+        if not working_blocks:
+            return set()
+            
+        recommended_slots: set[str] = set()
+        
+        # Pre-calculate slot minutes for efficiency
+        slot_data: List[Dict[str, Any]] = []
+        for slot in available_slots:
             try:
-                slot_start_hour, slot_start_min = map(int, slot_start_str.split(':'))
-                slot_end_hour, slot_end_min = map(int, slot_end_str.split(':'))
-                slot_start_minutes = slot_start_hour * 60 + slot_start_min
-                slot_end_minutes = slot_end_hour * 60 + slot_end_min
-                
-                # 1. Slots that don't expand total time (fully within span)
-                if (slot_start_minutes >= earliest_start_minutes and 
-                    slot_end_minutes <= latest_end_minutes):
-                    recommended_slots.add(slot_start_str)
-                
-                # 2. Find latest slot before first appointment (ends before earliest_start)
-                # Only track this if we don't have slots that don't extend total time
-                if slot_end_minutes <= earliest_start_minutes:
-                    if latest_before_first is None or slot_end_minutes > latest_before_first[1]:
-                        latest_before_first = (slot_start_str, slot_end_minutes)
-                
-                # 3. Find earliest slot after last appointment (starts after latest_end)
-                # Only track this if we don't have slots that don't extend total time
-                if slot_start_minutes >= latest_end_minutes:
-                    if earliest_after_last is None or slot_start_minutes < earliest_after_last[1]:
-                        earliest_after_last = (slot_start_str, slot_start_minutes)
-                        
-            except (ValueError, AttributeError):
+                s_hour, s_min = map(int, slot['start_time'].split(':'))
+                e_hour, e_min = map(int, slot['end_time'].split(':'))
+                slot_data.append({
+                    'start_str': slot['start_time'],
+                    'start_min': s_hour * 60 + s_min,
+                    'end_min': e_hour * 60 + e_min
+                })
+            except (ValueError, KeyError):
                 continue
-        
-        # Only add latest_before_first and earliest_after_last if there are NO slots that don't extend total time
-        if not recommended_slots:
-            if latest_before_first:
-                recommended_slots.add(latest_before_first[0])
-            if earliest_after_last:
-                recommended_slots.add(earliest_after_last[0])
-        
-        # Only return recommendations if some slots extend and some don't
-        # If all slots extend or none extend, return empty set (display all normally)
+
+        for appt in confirmed_appointments:
+            if not appt.start_time or not appt.end_time:
+                continue
+                
+            appt_start_min = appt.start_time.hour * 60 + appt.start_time.minute
+            appt_end_min = appt.end_time.hour * 60 + appt.end_time.minute
+            
+            # Find the block containing this appointment
+            current_block = None
+            for b_start, b_end in working_blocks:
+                if b_start <= appt_start_min and appt_end_min <= b_end:
+                    current_block = (b_start, b_end)
+                    break
+            
+            if not current_block:
+                continue
+                
+            block_start, block_end = current_block
+            
+            # Find closest slot BEFORE appointment in the same block
+            best_before: Dict[str, Any] | None = None
+            for s in slot_data:
+                # Slot must end before or at appointment start, and be within the block
+                if s['end_min'] <= appt_start_min and s['start_min'] >= block_start:
+                    if best_before is None or s['start_min'] > best_before['start_min']:
+                        best_before = s
+                        
+            # Find closest slot AFTER appointment in the same block
+            best_after: Dict[str, Any] | None = None
+            for s in slot_data:
+                # Slot must start after or at appointment end, and be within the block
+                if s['start_min'] >= appt_end_min and s['end_min'] <= block_end:
+                    if best_after is None or s['start_min'] < best_after['start_min']:
+                        best_after = s
+            
+            if best_before:
+                recommended_slots.add(cast(str, best_before['start_str']))
+            if best_after:
+                recommended_slots.add(cast(str, best_after['start_str']))
+                
+        # Only return recommendations if some slots are recommended and some aren't
         if recommended_slots and len(recommended_slots) < len(available_slots):
             return recommended_slots
-        else:
-            return set()
+        return set()
+
+    @staticmethod
+    def _get_working_blocks(
+        default_intervals: List[PractitionerAvailability],
+        exceptions: List[CalendarEvent]
+    ) -> List[tuple[int, int]]:
+        """
+        Calculate working blocks by subtracting exceptions from default intervals.
+        Returns a list of (start_minutes, end_minutes) tuples.
+        """
+        # Convert default intervals to (start_min, end_min)
+        working_periods: List[tuple[int, int]] = []
+        for interval in default_intervals:
+            start_min = interval.start_time.hour * 60 + interval.start_time.minute
+            end_min = interval.end_time.hour * 60 + interval.end_time.minute
+            working_periods.append((start_min, end_min))
+            
+        # Sort exceptions by start time
+        valid_exceptions = [e for e in exceptions if e.start_time is not None and e.end_time is not None]
+        sorted_exceptions = sorted(
+            valid_exceptions,
+            key=lambda e: cast(time, e.start_time)
+        )
+        
+        for exc in sorted_exceptions:
+            exc_start_time = cast(time, exc.start_time)
+            exc_end_time = cast(time, exc.end_time)
+            exc_start = exc_start_time.hour * 60 + exc_start_time.minute
+            exc_end = exc_end_time.hour * 60 + exc_end_time.minute
+            
+            new_periods: List[tuple[int, int]] = []
+            for p_start, p_end in working_periods:
+                # No overlap
+                if exc_end <= p_start or exc_start >= p_end:
+                    new_periods.append((p_start, p_end))
+                else:
+                    # Partial or full overlap
+                    if exc_start > p_start:
+                        new_periods.append((p_start, exc_start))
+                    if exc_end < p_end:
+                        new_periods.append((exc_end, p_end))
+            working_periods = new_periods
+            
+        # Return merged or just sorted periods
+        return sorted(working_periods)
+
 
     @staticmethod
     def _format_time(time_obj: time) -> str:

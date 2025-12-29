@@ -56,67 +56,56 @@ const CompactScheduleSettings: React.FC<CompactScheduleSettingsProps> = ({
                           <h3 className="text-lg font-semibold text-gray-900 mb-3">緊湊排程</h3>
                           <div className="text-sm text-gray-700 space-y-2">
                             <p className="mb-3 text-xs">
-                              盡可能把預約「排在一起」，減少您當日的總工作時間。
+                              建議現有預約「前後相鄰」的時段，幫助您整合看診時間，減少中間瑣碎的空檔。
                             </p>
-                            
+
                             <div className="space-y-3 mb-3">
                               {/* Example 1 */}
                               <div className="bg-gray-50 p-3 rounded">
-                                <p className="font-medium text-xs mb-2">範例 1</p>
+                                <p className="font-medium text-xs mb-2">範例：多個預約</p>
                                 <div className="space-y-2 text-xs">
                                   <div>
-                                    <div className="text-gray-600 mb-1">目前預約：10:00、12:00</div>
+                                    <div className="text-gray-600 mb-1">目前預約：09:00、13:00</div>
                                     <div className="flex items-center gap-1 mb-1">
-                                      <div className="w-12 h-6 bg-blue-400 rounded text-white text-[10px] flex items-center justify-center">10:00</div>
-                                      <div className="w-12 h-6 bg-gray-300 rounded text-gray-600 text-[10px] flex items-center justify-center">空</div>
-                                      <div className="w-12 h-6 bg-blue-400 rounded text-white text-[10px] flex items-center justify-center">12:00</div>
+                                      <div className="w-12 h-6 bg-blue-400 rounded text-white text-[10px] flex items-center justify-center">09:00</div>
+                                      <div className="flex-1 border-b border-dashed border-gray-300 mx-1"></div>
+                                      <div className="w-12 h-6 bg-blue-400 rounded text-white text-[10px] flex items-center justify-center">13:00</div>
                                     </div>
                                   </div>
                                   <div>
-                                    <div className="text-gray-600 mb-1">病患可選擇時段：</div>
+                                    <div className="text-gray-600 mb-1">系統建議：</div>
                                     <div className="flex items-center gap-1">
-                                      <div className="w-12 h-6 bg-gray-200 border border-gray-300 rounded text-gray-600 text-[10px] flex items-center justify-center">09:00</div>
                                       <div className="w-12 h-6 bg-gray-200 border-2 border-teal-400 rounded text-gray-600 text-[10px] flex items-center justify-center relative">
-                                        11:00
+                                        10:00
                                         <span className="absolute -top-1 -right-1 bg-teal-500 text-white text-[8px] px-0.5 rounded">建議</span>
                                       </div>
-                                      <div className="w-12 h-6 bg-gray-200 border border-gray-300 rounded text-gray-600 text-[10px] flex items-center justify-center">13:00</div>
+                                      <div className="w-12 h-6 bg-gray-200 border-2 border-teal-400 rounded text-gray-600 text-[10px] flex items-center justify-center relative">
+                                        12:00
+                                        <span className="absolute -top-1 -right-1 bg-teal-500 text-white text-[8px] px-0.5 rounded">建議</span>
+                                      </div>
+                                      <div className="w-12 h-6 bg-gray-200 border-2 border-teal-400 rounded text-gray-600 text-[10px] flex items-center justify-center relative">
+                                        14:00
+                                        <span className="absolute -top-1 -right-1 bg-teal-500 text-white text-[8px] px-0.5 rounded">建議</span>
+                                      </div>
                                     </div>
+                                    <p className="text-[10px] text-gray-500 mt-1">※ 優先建議現有預約相連的最接近時段。</p>
                                   </div>
                                 </div>
                               </div>
 
-                              {/* Example 2 */}
+                              {/* Exception note */}
                               <div className="bg-gray-50 p-3 rounded">
-                                <p className="font-medium text-xs mb-2">範例 2</p>
-                                <div className="space-y-2 text-xs">
-                                  <div>
-                                    <div className="text-gray-600 mb-1">目前預約：10:00</div>
-                                    <div className="flex items-center gap-1 mb-1">
-                                      <div className="w-12 h-6 bg-blue-400 rounded text-white text-[10px] flex items-center justify-center">10:00</div>
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <div className="text-gray-600 mb-1">病患可選擇時段：</div>
-                                    <div className="flex items-center gap-1">
-                                      <div className="w-12 h-6 bg-gray-200 border-2 border-teal-400 rounded text-gray-600 text-[10px] flex items-center justify-center relative">
-                                        09:00
-                                        <span className="absolute -top-1 -right-1 bg-teal-500 text-white text-[8px] px-0.5 rounded">建議</span>
-                                      </div>
-                                      <div className="w-12 h-6 bg-gray-200 border-2 border-teal-400 rounded text-gray-600 text-[10px] flex items-center justify-center relative">
-                                        11:00
-                                        <span className="absolute -top-1 -right-1 bg-teal-500 text-white text-[8px] px-0.5 rounded">建議</span>
-                                      </div>
-                                      <div className="w-12 h-6 bg-gray-200 border border-gray-300 rounded text-gray-600 text-[10px] flex items-center justify-center">12:00</div>
-                                    </div>
-                                  </div>
+                                <p className="font-medium text-xs mb-2">排班限制</p>
+                                <div className="space-y-1 text-xs text-gray-600">
+                                  <p>• 若中間有「休假」或「私人行程」，則不會建議跨越該時段。</p>
+                                  <p>• 若所有可選時段都是建議時段，則不會特別標註。</p>
                                 </div>
                               </div>
                             </div>
-                            
+
                             <div className="bg-blue-50 border-l-4 border-blue-400 p-2">
                               <p className="text-xs text-blue-800">
-                                <strong>重要：</strong>不會減少可用時段，僅作為視覺建議。
+                                <strong>提示：</strong>緊湊排程不會減少可供病人選擇的總時段，僅提供視覺引導。
                               </p>
                             </div>
                           </div>
@@ -130,16 +119,14 @@ const CompactScheduleSettings: React.FC<CompactScheduleSettingsProps> = ({
                 <button
                   type="button"
                   onClick={() => onToggle(!compactScheduleEnabled)}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
-                    compactScheduleEnabled ? 'bg-primary-600' : 'bg-gray-200'
-                  }`}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${compactScheduleEnabled ? 'bg-primary-600' : 'bg-gray-200'
+                    }`}
                   role="switch"
                   aria-checked={compactScheduleEnabled}
                 >
                   <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      compactScheduleEnabled ? 'translate-x-5' : 'translate-x-0'
-                    }`}
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${compactScheduleEnabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
                   />
                 </button>
               </div>

@@ -2902,21 +2902,19 @@ class TestCompactScheduleFeature:
                 slot_start_minutes = slot_start_hour * 60 + slot_start_min
                 slot_end_minutes = slot_end_hour * 60 + slot_end_min
 
-                # Should be: within span OR latest before OR earliest after
-                within_span = (slot_start_minutes >= appt_start_minutes and
-                              slot_end_minutes <= appt_end_minutes)
+                # Should be: right before OR right after
                 before_first = slot_end_minutes <= appt_start_minutes
                 after_last = slot_start_minutes >= appt_end_minutes
 
-                assert within_span or before_first or after_last, \
-                    f"Slot {slot_start}-{slot_end} should be within span, before first, or after last"
+                assert before_first or after_last, \
+                    f"Slot {slot_start}-{slot_end} should be right before or after the appointment"
 
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
             client.app.dependency_overrides.pop(get_db, None)
 
-    def test_compact_schedule_multiple_appointments_recommends_within_span(self, db_session: Session, test_clinic_with_liff):
-        """Test that compact schedule recommends slots within total time span for multiple appointments."""
+    def test_compact_schedule_multiple_appointments_recommends_neighbors(self, db_session: Session, test_clinic_with_liff):
+        """Test that compact schedule recommends immediate neighbor slots for multiple appointments."""
         clinic, practitioner, appt_types, _ = test_clinic_with_liff
         appt_type = appt_types[0]  # 30-minute appointment
 
@@ -2993,31 +2991,16 @@ class TestCompactScheduleFeature:
             # Find recommended and non-recommended slots
             recommended_slots = [s for s in slots if s.get('is_recommended') == True]
 
-            # Should have some recommended slots (those within 10:00-14:30 OR extending the least)
-            assert len(recommended_slots) > 0
-
-            # Verify recommended slots are either:
-            # 1. Within the span [10:00, 14:30]
-            # 2. Extend the total time the least (right before first or right after last)
-            earliest_start_minutes = 10 * 60 + 0  # 10:00
-            latest_end_minutes = 14 * 60 + 30  # 14:30
-
-            for slot in recommended_slots:
-                slot_start_str = slot['start_time']
-                slot_end_str = slot['end_time']
-                slot_start_hour, slot_start_min = map(int, slot_start_str.split(':'))
-                slot_end_hour, slot_end_min = map(int, slot_end_str.split(':'))
-                slot_start_minutes = slot_start_hour * 60 + slot_start_min
-                slot_end_minutes = slot_end_hour * 60 + slot_end_min
-
-                # Check if slot is within span OR extends the least
-                within_span = (slot_start_minutes >= earliest_start_minutes and
-                              slot_end_minutes <= latest_end_minutes)
-                extends_least_before = slot_end_minutes == earliest_start_minutes  # Right before first
-                extends_least_after = slot_start_minutes == latest_end_minutes  # Right after last
-
-                assert within_span or extends_least_before or extends_least_after, \
-                    f"Slot {slot_start_str}-{slot_end_str} should be within 10:00-14:30 or extend the least (right before 10:00 or right after 14:30)"
+            # Verify recommended slots are only the closest ones
+            # 1. 09:30 (ends at 10:00)
+            # 2. 10:30 (starts at 10:30)
+            # 3. 13:30 (ends at 14:00)
+            # 4. 14:30 (starts at 14:30)
+            expected_recommended = {'09:30', '10:30', '13:30', '14:30'}
+            recommended_start_times = {s['start_time'] for s in recommended_slots}
+            
+            assert recommended_start_times == expected_recommended, \
+                f"Expected {expected_recommended}, but got {recommended_start_times}"
 
         finally:
             client.app.dependency_overrides.pop(get_current_line_user_with_clinic, None)
