@@ -67,15 +67,19 @@ if [ "$NO_CACHE" = true ]; then
 fi
 
 # Frontend test command
-FRONTEND_CMD="$PROJECT_ROOT/frontend/run_frontend_tests.sh"
+FRONTEND_SCRIPT="$PROJECT_ROOT/frontend/run_frontend_tests.sh"
+FRONTEND_CMD="$FRONTEND_SCRIPT"
+if [ "$NO_CACHE" = true ]; then
+    FRONTEND_CMD="$FRONTEND_CMD --no-cache"
+fi
 
 # Verify test scripts exist
 if [ ! -f "$BACKEND_SCRIPT" ]; then
     print_error "Backend test script not found: $BACKEND_SCRIPT"
     exit 1
 fi
-if [ ! -f "$FRONTEND_CMD" ]; then
-    print_error "Frontend test script not found: $FRONTEND_CMD"
+if [ ! -f "$FRONTEND_SCRIPT" ]; then
+    print_error "Frontend test script not found: $FRONTEND_SCRIPT"
     exit 1
 fi
 
@@ -94,14 +98,14 @@ trap cleanup_temp_files EXIT
 # Start backend tests in background
 print_status "Running backend and frontend tests in parallel..."
 (
-    bash "$BACKEND_CMD" > "$BACKEND_OUTPUT" 2>&1
+    bash $BACKEND_CMD > "$BACKEND_OUTPUT" 2>&1
     echo $? > "$BACKEND_EXIT_FILE"
 ) &
 BACKEND_PID=$!
 
 # Start frontend tests in background
 (
-    bash "$FRONTEND_CMD" > "$FRONTEND_OUTPUT" 2>&1
+    bash $FRONTEND_CMD > "$FRONTEND_OUTPUT" 2>&1
     echo $? > "$FRONTEND_EXIT_FILE"
 ) &
 FRONTEND_PID=$!
