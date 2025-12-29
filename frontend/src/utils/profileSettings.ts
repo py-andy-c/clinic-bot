@@ -4,6 +4,7 @@ interface PractitionerSettings {
   compact_schedule_enabled: boolean;
   next_day_notification_time?: string;
   auto_assigned_notification_time?: string;
+  step_size_minutes?: number | null;
 }
 
 interface ProfileSettingsData {
@@ -11,6 +12,7 @@ interface ProfileSettingsData {
   title: string;
   schedule: DefaultScheduleResponse;
   settings?: PractitionerSettings;
+  clinicDefaultStep?: number;
 }
 
 const DAYS_OF_WEEK = [
@@ -28,6 +30,23 @@ interface TimeInterval {
   end_time: string;
 }
 
+// Validate time intervals for overlaps
+const validateIntervals = (intervals: TimeInterval[]): string | null => {
+  for (let i = 0; i < intervals.length; i++) {
+    for (let j = i + 1; j < intervals.length; j++) {
+      const interval1 = intervals[i];
+      const interval2 = intervals[j];
+
+      if (interval1 && interval2 &&
+        ((interval1.start_time <= interval2.start_time && interval1.end_time > interval2.start_time) ||
+          (interval2.start_time <= interval1.start_time && interval2.end_time > interval1.start_time))) {
+        return '時間區間不能重疊';
+      }
+    }
+  }
+  return null;
+};
+
 // Validate profile settings data
 export const validateProfileSettings = (data: ProfileSettingsData): string | null => {
   // Validate schedule intervals
@@ -40,24 +59,20 @@ export const validateProfileSettings = (data: ProfileSettingsData): string | nul
     }
   }
 
-  return null; // Valid
-};
+  // Validate step_size_minutes if set
+  if (data.settings?.step_size_minutes !== undefined && data.settings?.step_size_minutes !== null) {
+    if (data.settings.step_size_minutes < 5 || data.settings.step_size_minutes > 60) {
+      return '預約起始時間間隔必須介於 5 到 60 分鐘之間';
+    }
 
-// Validate time intervals for overlaps
-const validateIntervals = (intervals: TimeInterval[]): string | null => {
-  for (let i = 0; i < intervals.length; i++) {
-    for (let j = i + 1; j < intervals.length; j++) {
-      const interval1 = intervals[i];
-      const interval2 = intervals[j];
-
-      if (interval1 && interval2 &&
-        ((interval1.start_time <= interval2.start_time && interval1.end_time > interval2.start_time) ||
-         (interval2.start_time <= interval1.start_time && interval2.end_time > interval1.start_time))) {
-        return '時間區間不能重疊';
-      }
+    // Disallow setting smaller than clinic default
+    const clinicDefault = data.clinicDefaultStep || 15; // Fallback to 15 if unknown
+    if (data.settings.step_size_minutes < clinicDefault) {
+      return `個人預約起始時間間隔不能小於診所預設值 (${clinicDefault} 分鐘)`;
     }
   }
-  return null;
+
+  return null; // Valid
 };
 
 // Get section-specific changes for profile settings
@@ -68,7 +83,8 @@ export const getProfileSectionChanges = (current: ProfileSettingsData, original:
   const settingsChanged =
     currentSettings.compact_schedule_enabled !== originalSettings.compact_schedule_enabled ||
     (currentSettings.next_day_notification_time || '21:00') !== (originalSettings.next_day_notification_time || '21:00') ||
-    (currentSettings.auto_assigned_notification_time || '21:00') !== (originalSettings.auto_assigned_notification_time || '21:00');
+    (currentSettings.auto_assigned_notification_time || '21:00') !== (originalSettings.auto_assigned_notification_time || '21:00') ||
+    currentSettings.step_size_minutes !== originalSettings.step_size_minutes;
 
   return {
     profile: current.fullName !== original.fullName || current.title !== original.title,

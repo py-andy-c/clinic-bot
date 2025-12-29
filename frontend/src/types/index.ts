@@ -81,6 +81,7 @@ export interface User {
   updated_at: string;
   last_login_at?: string;
   patient_booking_allowed?: boolean;  // Only set for practitioners, available to all users for read-only access
+  step_size_minutes?: number | null; // Only set for practitioners if they have an override
 }
 
 // Member type (alias for User in clinic context)

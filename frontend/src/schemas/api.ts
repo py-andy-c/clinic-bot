@@ -266,7 +266,7 @@ export type ApiResponse<T> = z.infer<typeof ApiResponseSchema> & { data?: T };
 // Validation helper functions
 export function validateClinicSettings(data: unknown): ClinicSettings {
   const result = ClinicSettingsSchema.safeParse(data);
-  
+
   if (!result.success) {
     // Log validation errors in development
     if (import.meta.env.DEV) {
@@ -275,13 +275,13 @@ export function validateClinicSettings(data: unknown): ClinicSettings {
     }
     throw new Error(`Invalid clinic settings: ${result.error.message}`);
   }
-  
+
   // In development, check for unknown fields that might be silently dropped
   if (import.meta.env.DEV && typeof data === 'object' && data !== null) {
     const validatedKeys = new Set(Object.keys(result.data));
     const inputKeys = new Set(Object.keys(data as Record<string, unknown>));
     const unknownKeys = Array.from(inputKeys).filter(key => !validatedKeys.has(key));
-    
+
     if (unknownKeys.length > 0) {
       logger.warn(
         'ClinicSettings: Unknown fields detected (may be dropped):',
@@ -290,7 +290,7 @@ export function validateClinicSettings(data: unknown): ClinicSettings {
       );
     }
   }
-  
+
   return result.data;
 }
 

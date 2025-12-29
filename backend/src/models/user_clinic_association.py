@@ -33,6 +33,12 @@ class PractitionerSettings(BaseModel):
         default=True,
         description="Whether patients are allowed to schedule appointments with this practitioner. Only clinic users can book if False."
     )
+    step_size_minutes: Optional[int] = Field(
+        default=None,
+        ge=5,
+        le=60,
+        description="Time interval in minutes for appointment slot granularity for this specific practitioner. If null, falls back to clinic default."
+    )
 
 
 class UserClinicAssociation(Base):

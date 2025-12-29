@@ -14,6 +14,7 @@ import AvailabilitySettings from '../components/AvailabilitySettings';
 import CompactScheduleSettings from '../components/CompactScheduleSettings';
 import PractitionerNotificationTimeSettings from '../components/PractitionerNotificationTimeSettings';
 import AdminAutoAssignedNotificationTimeSettings from '../components/AdminAutoAssignedNotificationTimeSettings';
+import PractitionerStepSizeSettings from '../components/PractitionerStepSizeSettings';
 import PageHeader from '../components/PageHeader';
 
 interface LineLinkingSectionProps {
@@ -73,80 +74,80 @@ const LineLinkingSection: React.FC<LineLinkingSectionProps> = ({ lineLinked, onR
 
   return (
     <div className="space-y-4">
-        {/* Status */}
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-700">
-              {lineLinked ? (
-                <span className="flex items-center">
-                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                  LINE 帳號已連結
-                </span>
-              ) : (
-                <span className="flex items-center">
-                  <span className="w-2 h-2 bg-gray-400 rounded-full mr-2"></span>
-                  LINE 帳號尚未連結
-                </span>
-              )}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              {lineLinked
-                ? `您將從${clinicName ? `「${clinicName}」` : '診所'}的 LINE 官方帳號收到新預約通知`
-                : `連結 LINE 帳號以從${clinicName ? `「${clinicName}」` : '診所'}的 LINE 官方帳號接收預約通知`}
-            </p>
-          </div>
-        </div>
-
-        {/* Link Code Display */}
-        {linkCode && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm font-medium text-blue-900 mb-2">
-              請使用您的「個人 LINE 帳號」，傳送以下訊息給{clinicName ? `「${clinicName}」` : '「診所」'}官方帳號：
-            </p>
-            <div className="flex items-center space-x-2 mb-2">
-              <code className="flex-1 bg-white border border-blue-300 rounded px-3 py-2 text-lg font-mono text-blue-900">
-                {linkCode}
-              </code>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(linkCode)}
-                className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-              >
-                複製
-              </button>
-            </div>
-            {expiresAt && (
-              <p className="text-xs text-blue-700">
-                此代碼將於 {expiresAt.toLocaleString('zh-TW')} 過期
-              </p>
+      {/* Status */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-700">
+            {lineLinked ? (
+              <span className="flex items-center">
+                <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                LINE 帳號已連結
+              </span>
+            ) : (
+              <span className="flex items-center">
+                <span className="w-2 h-2 bg-gray-400 rounded-full mr-2"></span>
+                LINE 帳號尚未連結
+              </span>
             )}
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex space-x-3">
-          {!lineLinked && (
-            <button
-              type="button"
-              onClick={handleGenerateCode}
-              disabled={isGenerating}
-              className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-            >
-              {isGenerating ? '產生中...' : '產生連結代碼'}
-            </button>
-          )}
-          {lineLinked && (
-            <button
-              type="button"
-              onClick={handleUnlink}
-              disabled={isUnlinking}
-              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-            >
-              {isUnlinking ? '取消連結中...' : '取消連結'}
-            </button>
-          )}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            {lineLinked
+              ? `您將從${clinicName ? `「${clinicName}」` : '診所'}的 LINE 官方帳號收到新預約通知`
+              : `連結 LINE 帳號以從${clinicName ? `「${clinicName}」` : '診所'}的 LINE 官方帳號接收預約通知`}
+          </p>
         </div>
       </div>
+
+      {/* Link Code Display */}
+      {linkCode && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-sm font-medium text-blue-900 mb-2">
+            請使用您的「個人 LINE 帳號」，傳送以下訊息給{clinicName ? `「${clinicName}」` : '「診所」'}官方帳號：
+          </p>
+          <div className="flex items-center space-x-2 mb-2">
+            <code className="flex-1 bg-white border border-blue-300 rounded px-3 py-2 text-lg font-mono text-blue-900">
+              {linkCode}
+            </code>
+            <button
+              type="button"
+              onClick={() => copyToClipboard(linkCode)}
+              className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+            >
+              複製
+            </button>
+          </div>
+          {expiresAt && (
+            <p className="text-xs text-blue-700">
+              此代碼將於 {expiresAt.toLocaleString('zh-TW')} 過期
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex space-x-3">
+        {!lineLinked && (
+          <button
+            type="button"
+            onClick={handleGenerateCode}
+            disabled={isGenerating}
+            className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          >
+            {isGenerating ? '產生中...' : '產生連結代碼'}
+          </button>
+        )}
+        {lineLinked && (
+          <button
+            type="button"
+            onClick={handleUnlink}
+            disabled={isUnlinking}
+            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          >
+            {isUnlinking ? '取消連結中...' : '取消連結'}
+          </button>
+        )}
+      </div>
+    </div>
   );
 };
 
@@ -154,6 +155,7 @@ interface PractitionerSettings {
   compact_schedule_enabled: boolean;
   next_day_notification_time?: string;
   auto_assigned_notification_time?: string;
+  step_size_minutes?: number | null;
 }
 
 interface ProfileData {
@@ -161,6 +163,7 @@ interface ProfileData {
   title: string;
   schedule: any;
   settings?: PractitionerSettings;
+  clinicDefaultStep?: number;
 }
 
 const ProfilePage: React.FC = () => {
@@ -183,15 +186,17 @@ const ProfilePage: React.FC = () => {
     saveData,
     updateData,
     fetchData,
-  } = useSettingsPage<ProfileData>({
+  } = useSettingsPage<ProfileData & { clinicDefaultStep?: number }>({
     fetchData: async () => {
-      const result: ProfileData = {
+      const result: ProfileData & { clinicDefaultStep?: number } = {
         fullName: '',
         title: '',
         schedule: {},
         settings: {
           compact_schedule_enabled: false,
+          step_size_minutes: null,
         },
+        clinicDefaultStep: 30,
       };
 
       // Fetch profile
@@ -214,6 +219,7 @@ const ProfilePage: React.FC = () => {
             compact_schedule_enabled: Boolean(settings?.compact_schedule_enabled),
             next_day_notification_time: settings?.next_day_notification_time || '21:00',
             auto_assigned_notification_time: settings?.auto_assigned_notification_time || '21:00',
+            step_size_minutes: settings?.step_size_minutes ?? null,
           };
         } else {
           // Initialize with defaults if no settings exist
@@ -221,7 +227,18 @@ const ProfilePage: React.FC = () => {
             compact_schedule_enabled: false,
             next_day_notification_time: '21:00',
             auto_assigned_notification_time: '21:00',
+            step_size_minutes: null,
           };
+        }
+      }
+
+      // Fetch clinic default step size
+      if (activeClinicId) {
+        try {
+          const clinicSettings = await apiService.getClinicSettings();
+          result.clinicDefaultStep = Number(clinicSettings.booking_restriction_settings.step_size_minutes);
+        } catch (err) {
+          logger.warn('Could not fetch clinic settings for default step size:', err);
         }
       }
 
@@ -233,7 +250,6 @@ const ProfilePage: React.FC = () => {
         } catch (err) {
           logger.warn('Could not fetch availability schedule:', err);
         }
-
       }
 
       return result;
@@ -257,7 +273,8 @@ const ProfilePage: React.FC = () => {
         const currentSettings = (profile?.settings as PractitionerSettings | undefined) || {
           compact_schedule_enabled: false,
           next_day_notification_time: '21:00',
-          auto_assigned_notification_time: '21:00'
+          auto_assigned_notification_time: '21:00',
+          step_size_minutes: null
         };
         const newSettings = data.settings;
 
@@ -265,7 +282,8 @@ const ProfilePage: React.FC = () => {
         const settingsChanged =
           currentSettings.compact_schedule_enabled !== newSettings.compact_schedule_enabled ||
           (currentSettings.next_day_notification_time || '21:00') !== (newSettings.next_day_notification_time || '21:00') ||
-          (currentSettings.auto_assigned_notification_time || '21:00') !== (newSettings.auto_assigned_notification_time || '21:00');
+          (currentSettings.auto_assigned_notification_time || '21:00') !== (newSettings.auto_assigned_notification_time || '21:00') ||
+          currentSettings.step_size_minutes !== newSettings.step_size_minutes;
 
         if (settingsChanged) {
           profileUpdate.settings = newSettings;
@@ -296,7 +314,7 @@ const ProfilePage: React.FC = () => {
       // Invalidate practitioner status cache so warnings update after profile changes
       invalidateCacheByPattern('api_getPractitionerStatus_');
       invalidateCacheByPattern('api_getBatchPractitionerStatus_');
-      
+
       // Show success message using modal
       await alert('設定已更新', '成功');
     },
@@ -389,110 +407,125 @@ const ProfilePage: React.FC = () => {
         {/* Single Form */}
         <div className="bg-white md:rounded-lg md:shadow-md p-0 md:p-6">
           <form onSubmit={(e) => { e.preventDefault(); saveData(); }}>
-              {/* Profile Form */}
-              <ProfileForm
-                profile={profile}
-                fullName={profileData?.fullName || ''}
-                title={profileData?.title || ''}
-                onFullNameChange={(name) => updateData({ fullName: name })}
-                onTitleChange={(title) => updateData({ title })}
-                showSaveButton={sectionChanges.profile || false}
-                onSave={saveData}
-                saving={uiState.saving}
-              />
+            {/* Profile Form */}
+            <ProfileForm
+              profile={profile}
+              fullName={profileData?.fullName || ''}
+              title={profileData?.title || ''}
+              onFullNameChange={(name) => updateData({ fullName: name })}
+              onTitleChange={(title) => updateData({ title })}
+              showSaveButton={sectionChanges.profile || false}
+              onSave={saveData}
+              saving={uiState.saving}
+            />
 
-              {/* Availability Settings (Only for practitioners) */}
-              {profile?.roles?.includes('practitioner') && (
-                <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
-                  <AvailabilitySettings
-                    schedule={profileData?.schedule || {}}
-                    onAddInterval={handleAddInterval}
-                    onUpdateInterval={handleUpdateInterval}
-                    onRemoveInterval={handleRemoveInterval}
-                    showSaveButton={sectionChanges.schedule || false}
-                    onSave={saveData}
-                    saving={uiState.saving}
-                  />
-                </div>
-              )}
-
-              {/* Compact Schedule Settings (Only for practitioners) */}
-              {profile?.roles?.includes('practitioner') && (
-                <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
-                  <CompactScheduleSettings
-                    compactScheduleEnabled={profileData?.settings?.compact_schedule_enabled || false}
-                    onToggle={(enabled) => updateData({
-                      settings: {
-                        ...profileData?.settings,
-                        compact_schedule_enabled: enabled
-                      }
-                    })}
-                    showSaveButton={sectionChanges.settings || false}
-                    onSave={saveData}
-                    saving={uiState.saving}
-                  />
-                </div>
-              )}
-
-              {/* LINE Notification Settings */}
+            {/* Availability Settings (Only for practitioners) */}
+            {profile?.roles?.includes('practitioner') && (
               <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">LINE 通知設定</h3>
-                  {sectionChanges.settings && (
-                    <button
-                      type="button"
-                      onClick={saveData}
-                      disabled={uiState.saving}
-                      className="btn-primary"
-                    >
-                      {uiState.saving ? '儲存中...' : '儲存更變'}
-                    </button>
-                  )}
-                </div>
+                <AvailabilitySettings
+                  schedule={profileData?.schedule || {}}
+                  onAddInterval={handleAddInterval}
+                  onUpdateInterval={handleUpdateInterval}
+                  onRemoveInterval={handleRemoveInterval}
+                  showSaveButton={sectionChanges.schedule || false}
+                  onSave={saveData}
+                  saving={uiState.saving}
+                />
+              </div>
+            )}
 
-                <LineLinkingSection
-                  lineLinked={profile?.line_linked || false}
-                  onRefresh={() => {
-                    apiService.getProfile().then(setProfile).catch(err => logger.error('Error refreshing profile:', err));
-                  }}
-                  clinicName={(() => {
-                    // Get clinic name from available clinics
-                    if (user?.available_clinics && activeClinicId) {
-                      const activeClinic = user.available_clinics.find(c => c.id === activeClinicId);
-                      return activeClinic?.display_name || activeClinic?.name || undefined;
+            {/* Compact Schedule Settings (Only for practitioners) */}
+            {profile?.roles?.includes('practitioner') && (
+              <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
+                <CompactScheduleSettings
+                  compactScheduleEnabled={profileData?.settings?.compact_schedule_enabled || false}
+                  onToggle={(enabled) => updateData({
+                    settings: {
+                      ...profileData?.settings,
+                      compact_schedule_enabled: enabled
                     }
-                    return undefined;
-                  })()}
+                  })}
+                  showSaveButton={sectionChanges.settings || false}
+                  onSave={saveData}
+                  saving={uiState.saving}
                 />
 
-                {/* Practitioner Next Day Notification Time (Only for practitioners) */}
-                {profile?.roles?.includes('practitioner') && (
-                  <PractitionerNotificationTimeSettings
-                    notificationTime={profileData?.settings?.next_day_notification_time || '21:00'}
-                    onNotificationTimeChange={(time) => updateData({
-                      settings: {
-                        compact_schedule_enabled: profileData?.settings?.compact_schedule_enabled || false,
-                        next_day_notification_time: time,
-                        auto_assigned_notification_time: profileData?.settings?.auto_assigned_notification_time || '21:00'
-                      }
-                    })}
-                  />
-                )}
+                <PractitionerStepSizeSettings
+                  stepSizeMinutes={profileData?.settings?.step_size_minutes ?? null}
+                  clinicDefaultStep={profileData?.clinicDefaultStep ?? 30}
+                  onStepSizeChange={(value: number | null) => updateData({
+                    settings: {
+                      compact_schedule_enabled: profileData?.settings?.compact_schedule_enabled ?? false,
+                      ...profileData?.settings,
+                      step_size_minutes: value
+                    }
+                  })}
+                  showSaveButton={sectionChanges.settings || false}
+                  onSave={saveData}
+                  saving={uiState.saving}
+                />
+              </div>
+            )}
 
-                {/* Admin Auto-Assigned Notification Time (Only for admins) */}
-                {profile?.roles?.includes('admin') && (
-                  <AdminAutoAssignedNotificationTimeSettings
-                    notificationTime={profileData?.settings?.auto_assigned_notification_time || '21:00'}
-                    onNotificationTimeChange={(time) => updateData({
-                      settings: {
-                        compact_schedule_enabled: profileData?.settings?.compact_schedule_enabled || false,
-                        next_day_notification_time: profileData?.settings?.next_day_notification_time || '21:00',
-                        auto_assigned_notification_time: time
-                      }
-                    })}
-                  />
+            {/* LINE Notification Settings */}
+            <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-lg font-medium text-gray-900">LINE 通知設定</h3>
+                {sectionChanges.settings && (
+                  <button
+                    type="button"
+                    onClick={saveData}
+                    disabled={uiState.saving}
+                    className="btn-primary"
+                  >
+                    {uiState.saving ? '儲存中...' : '儲存更變'}
+                  </button>
                 )}
               </div>
+
+              <LineLinkingSection
+                lineLinked={profile?.line_linked || false}
+                onRefresh={() => {
+                  apiService.getProfile().then(setProfile).catch(err => logger.error('Error refreshing profile:', err));
+                }}
+                clinicName={(() => {
+                  // Get clinic name from available clinics
+                  if (user?.available_clinics && activeClinicId) {
+                    const activeClinic = user.available_clinics.find(c => c.id === activeClinicId);
+                    return activeClinic?.display_name || activeClinic?.name || undefined;
+                  }
+                  return undefined;
+                })()}
+              />
+
+              {/* Practitioner Next Day Notification Time (Only for practitioners) */}
+              {profile?.roles?.includes('practitioner') && (
+                <PractitionerNotificationTimeSettings
+                  notificationTime={profileData?.settings?.next_day_notification_time || '21:00'}
+                  onNotificationTimeChange={(time) => updateData({
+                    settings: {
+                      compact_schedule_enabled: profileData?.settings?.compact_schedule_enabled || false,
+                      next_day_notification_time: time,
+                      auto_assigned_notification_time: profileData?.settings?.auto_assigned_notification_time || '21:00'
+                    }
+                  })}
+                />
+              )}
+
+              {/* Admin Auto-Assigned Notification Time (Only for admins) */}
+              {profile?.roles?.includes('admin') && (
+                <AdminAutoAssignedNotificationTimeSettings
+                  notificationTime={profileData?.settings?.auto_assigned_notification_time || '21:00'}
+                  onNotificationTimeChange={(time) => updateData({
+                    settings: {
+                      compact_schedule_enabled: profileData?.settings?.compact_schedule_enabled || false,
+                      next_day_notification_time: profileData?.settings?.next_day_notification_time || '21:00',
+                      auto_assigned_notification_time: time
+                    }
+                  })}
+                />
+              )}
+            </div>
           </form>
         </div>
 

@@ -506,6 +506,12 @@ class AvailabilityService:
                 excluded_event_start_time = excluded_event.start_time
                 excluded_event_user_id = excluded_event.user_id
 
+        # Generate all candidate slots from default intervals
+        # and filter out slots that overlap with exceptions or appointments
+        # Use practitioner-specific step_size_minutes if set, otherwise fall back to clinic settings
+        validated_settings = clinic.get_validated_settings()
+        clinic_step = validated_settings.booking_restriction_settings.step_size_minutes
+
         for practitioner_id, data in schedule_data.items():
             practitioner = practitioner_lookup.get(practitioner_id)
             if not practitioner:
@@ -529,11 +535,18 @@ class AvailabilityService:
 
             events = data['events']
             
-            # Generate all candidate slots from default intervals
-            # and filter out slots that overlap with exceptions or appointments
-            # Get step_size_minutes from clinic settings (default: 30)
-            validated_settings = clinic.get_validated_settings()
-            step_size_minutes = validated_settings.booking_restriction_settings.step_size_minutes
+            # Get practitioner-specific step if available
+            practitioner_step = None
+            if association:
+                try:
+                    p_settings = association.get_validated_settings()
+                    if hasattr(p_settings, 'step_size_minutes'):
+                        practitioner_step = p_settings.step_size_minutes
+                except Exception:
+                    pass
+            
+            step_size_minutes = practitioner_step if practitioner_step is not None else clinic_step
+            
             candidate_slots = AvailabilityService._generate_candidate_slots(
                 default_intervals, duration_minutes, step_size_minutes=step_size_minutes
             )

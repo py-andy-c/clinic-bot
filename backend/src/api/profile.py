@@ -214,12 +214,27 @@ async def update_profile(
                 try:
                     # Validate settings schema
                     validated_settings = PractitionerSettings.model_validate(profile_data.settings)
+                    
+                    # Ensure practitioner step size is not smaller than clinic default
+                    if validated_settings.step_size_minutes is not None:
+                        # Fetch clinic settings
+                        clinic = db.query(Clinic).filter(Clinic.id == current_user.active_clinic_id).first()
+                        if clinic:
+                            clinic_step = clinic.get_validated_settings().booking_restriction_settings.step_size_minutes
+                            if validated_settings.step_size_minutes < clinic_step:
+                                raise ValueError(f"個人預約起始時間間隔不能小於診所預設值 ({clinic_step} 分鐘)")
+
                     association.set_validated_settings(validated_settings)
                     association.updated_at = taiwan_now()
                 except Exception as e:
+                    detail = str(e)
+                    if "Validator" in detail or "value_error" in detail:
+                        # Clean up Pydantic error messages if possible or use generic one
+                        detail = "無效的設定格式" if not str(e).startswith("個人") else str(e)
+                        
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"無效的設定格式: {str(e)}"
+                        detail=detail
                     )
         elif current_user.is_system_admin():
             # System admins don't have associations - name is not used

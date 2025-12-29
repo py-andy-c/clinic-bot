@@ -79,14 +79,16 @@ async def list_members(
                 None
             )
             
-            # Get patient_booking_allowed for practitioners (available to all users for read-only access)
+            # Get settings for practitioners (available to all users for read-only access)
             patient_booking_allowed = None
+            step_size_minutes = None
             if association and 'practitioner' in (association.roles or []):
                 try:
                     settings = association.get_validated_settings()
                     patient_booking_allowed = settings.patient_booking_allowed
+                    step_size_minutes = settings.step_size_minutes
                 except Exception:
-                    # If settings validation fails, default to None (will show as true in frontend)
+                    # If settings validation fails, default to None
                     pass
             
             member_list.append(MemberResponse(
@@ -96,7 +98,8 @@ async def list_members(
                 roles=association.roles if association else [],
                 is_active=association.is_active if association else False,
                 created_at=member.created_at,
-                patient_booking_allowed=patient_booking_allowed
+                patient_booking_allowed=patient_booking_allowed,
+                step_size_minutes=step_size_minutes
             ))
 
         return MemberListResponse(members=member_list)

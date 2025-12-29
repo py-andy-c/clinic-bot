@@ -76,6 +76,7 @@ const SettingsAppointmentsPage: React.FC = () => {
           id: p.id,
           full_name: p.full_name,
           patient_booking_allowed: p.patient_booking_allowed ?? true,
+          step_size_minutes: p.step_size_minutes ?? null,
         }));
 
       reset({
@@ -102,10 +103,10 @@ const SettingsAppointmentsPage: React.FC = () => {
         require_birthday: settings.clinic_info_settings.require_birthday || false,
         require_gender: settings.clinic_info_settings.require_gender || false,
       });
-      
+
       const pendingBookingStr = JSON.stringify(pendingFormDataRef.current.booking_restriction_settings);
       const currentBookingStr = JSON.stringify(settings.booking_restriction_settings);
-      
+
       if (pendingClinicInfoStr === currentClinicInfoStr && pendingBookingStr === currentBookingStr) {
         // Settings have been updated, now save
         const performSave = async () => {
@@ -149,8 +150,9 @@ const SettingsAppointmentsPage: React.FC = () => {
       // 2. Save practitioner settings
       const changedPractitioners = data.practitioners.filter(current => {
         const member = membersData?.find(m => m.id === current.id);
-        const originalValue = member?.patient_booking_allowed ?? true;
-        return current.patient_booking_allowed !== originalValue;
+        const originalBookingAllowed = member?.patient_booking_allowed ?? true;
+
+        return current.patient_booking_allowed !== originalBookingAllowed;
       });
 
       if (changedPractitioners.length > 0) {
@@ -316,7 +318,7 @@ const SettingsAppointmentsPage: React.FC = () => {
                       <li>儲存並發布選單</li>
                     </ol>
                   </div>
-                  
+
                   {/* LINE Official Account UI Mockup */}
                   {settings.liff_urls && Object.keys(settings.liff_urls).length > 0 && (
                     <div className="mt-6">
@@ -335,9 +337,9 @@ const SettingsAppointmentsPage: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                        
+
                         {/* Chat Interface */}
-                        <div 
+                        <div
                           className="p-4 min-h-[250px] flex flex-col justify-start gap-3 pt-6"
                           style={{ backgroundColor: LINE_THEME.chatBackground }}
                         >
@@ -355,7 +357,7 @@ const SettingsAppointmentsPage: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                        
+
                         {/* Rich Menu */}
                         <div className="bg-white border-t-2 border-gray-200 p-2">
                           <div className="grid grid-cols-4 gap-1.5">
@@ -385,7 +387,7 @@ const SettingsAppointmentsPage: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  
+
                   <div className="mt-4 flex justify-end">
                     <button
                       type="button"

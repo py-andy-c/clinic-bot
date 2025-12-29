@@ -248,6 +248,7 @@ class MemberResponse(BaseModel):
     is_active: bool
     created_at: datetime
     patient_booking_allowed: Optional[bool] = None  # Only set for practitioners, available to all users for read-only access
+    step_size_minutes: Optional[int] = None  # Only set for practitioners if they have an override
 
 
 class MemberListResponse(BaseModel):
