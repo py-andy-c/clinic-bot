@@ -18,7 +18,9 @@ class BillingScenarioService:
     @staticmethod
     def get_billing_scenarios_for_practitioner_service(
         db: Session,
-        practitioner_appointment_type_id: int,
+        practitioner_id: int,
+        appointment_type_id: int,
+        clinic_id: int,
         include_deleted: bool = False
     ) -> List[BillingScenario]:
         """
@@ -26,14 +28,18 @@ class BillingScenarioService:
         
         Args:
             db: Database session
-            practitioner_appointment_type_id: ID of the practitioner-service combination
+            practitioner_id: ID of the practitioner (user)
+            appointment_type_id: ID of the appointment type (service item)
+            clinic_id: ID of the clinic
             include_deleted: Whether to include soft-deleted scenarios
             
         Returns:
             List of billing scenarios
         """
         query = db.query(BillingScenario).filter(
-            BillingScenario.practitioner_appointment_type_id == practitioner_appointment_type_id
+            BillingScenario.practitioner_id == practitioner_id,
+            BillingScenario.appointment_type_id == appointment_type_id,
+            BillingScenario.clinic_id == clinic_id
         )
         
         if not include_deleted:
@@ -64,7 +70,9 @@ class BillingScenarioService:
     @staticmethod
     def create_billing_scenario(
         db: Session,
-        practitioner_appointment_type_id: int,
+        practitioner_id: int,
+        appointment_type_id: int,
+        clinic_id: int,
         name: str,
         amount: Decimal,
         revenue_share: Decimal,
@@ -75,7 +83,9 @@ class BillingScenarioService:
         
         Args:
             db: Database session
-            practitioner_appointment_type_id: ID of the practitioner-service combination
+            practitioner_id: ID of the practitioner (user)
+            appointment_type_id: ID of the appointment type (service item)
+            clinic_id: ID of the clinic
             name: Scenario name (e.g., "原價", "九折")
             amount: Amount charged to patient
             revenue_share: Revenue share to clinic (must be <= amount)
@@ -94,13 +104,17 @@ class BillingScenarioService:
         # If this is set as default, unset other defaults for this practitioner-service
         if is_default:
             db.query(BillingScenario).filter(
-                BillingScenario.practitioner_appointment_type_id == practitioner_appointment_type_id,
+                BillingScenario.practitioner_id == practitioner_id,
+                BillingScenario.appointment_type_id == appointment_type_id,
+                BillingScenario.clinic_id == clinic_id,
                 BillingScenario.is_deleted == False,
                 BillingScenario.is_default == True
             ).update({"is_default": False})
         
         scenario = BillingScenario(
-            practitioner_appointment_type_id=practitioner_appointment_type_id,
+            practitioner_id=practitioner_id,
+            appointment_type_id=appointment_type_id,
+            clinic_id=clinic_id,
             name=name,
             amount=amount,
             revenue_share=revenue_share,
@@ -155,7 +169,9 @@ class BillingScenarioService:
         # If setting as default, unset other defaults
         if is_default is True:
             db.query(BillingScenario).filter(
-                BillingScenario.practitioner_appointment_type_id == scenario.practitioner_appointment_type_id,
+                BillingScenario.practitioner_id == scenario.practitioner_id,
+                BillingScenario.appointment_type_id == scenario.appointment_type_id,
+                BillingScenario.clinic_id == scenario.clinic_id,
                 BillingScenario.is_deleted == False,
                 BillingScenario.id != scenario_id,
                 BillingScenario.is_default == True

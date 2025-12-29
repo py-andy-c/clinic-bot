@@ -58,7 +58,8 @@ class PractitionerService:
         if appointment_type_id:
             # Filter by practitioners who offer this appointment type
             query = query.join(PractitionerAppointmentTypes).filter(
-                PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
+                PractitionerAppointmentTypes.appointment_type_id == appointment_type_id,
+                PractitionerAppointmentTypes.is_deleted == False
             )
 
         # Eagerly load practitioner_appointment_types to avoid N+1 queries when accessing offered_types
@@ -95,6 +96,7 @@ class PractitionerService:
             offered_types = [
                 pat.appointment_type_id
                 for pat in practitioner.practitioner_appointment_types
+                if not pat.is_deleted
             ]
 
             # Get practitioner display name
@@ -142,7 +144,8 @@ class PractitionerService:
         query = filter_by_role(query, 'practitioner')
         query = query.join(PractitionerAppointmentTypes).filter(
             PractitionerAppointmentTypes.appointment_type_id == appointment_type_id,
-            PractitionerAppointmentTypes.clinic_id == clinic_id  # Filter by clinic_id in PractitionerAppointmentTypes
+            PractitionerAppointmentTypes.clinic_id == clinic_id,  # Filter by clinic_id in PractitionerAppointmentTypes
+            PractitionerAppointmentTypes.is_deleted == False
         )
         # Also verify practitioner is in the clinic via UserClinicAssociation
         query = query.join(UserClinicAssociation).filter(
@@ -209,7 +212,8 @@ class PractitionerService:
         # Filter by practitioner role using JSON array check
         query = filter_by_role(query, 'practitioner')
         practitioner = query.join(PractitionerAppointmentTypes).filter(
-            PractitionerAppointmentTypes.appointment_type_id == appointment_type_id
+            PractitionerAppointmentTypes.appointment_type_id == appointment_type_id,
+            PractitionerAppointmentTypes.is_deleted == False
         ).first()
 
         if not practitioner:
@@ -295,6 +299,11 @@ class PractitionerService:
     ) -> bool:
         """
         Update the appointment types offered by a practitioner.
+        
+        IMPORTANT: This method uses soft-delete to preserve billing scenarios.
+        When a practitioner is unassigned from a service item, the PAT is soft-deleted
+        instead of hard-deleted. This ensures billing scenarios persist and can be
+        restored when the practitioner is re-assigned.
 
         Args:
             db: Database session
@@ -305,21 +314,52 @@ class PractitionerService:
         Returns:
             True if successful, False otherwise
         """
+        from datetime import datetime, timezone
+        
         try:
-            # Remove existing associations
-            db.query(PractitionerAppointmentTypes).filter(
+            # Get all existing associations (including soft-deleted)
+            # Order by deleted_at DESC so we reactivate the most recent soft-deleted PAT if multiple exist
+            existing_associations: List[PractitionerAppointmentTypes] = db.query(PractitionerAppointmentTypes).filter(
                 PractitionerAppointmentTypes.user_id == practitioner_id,
                 PractitionerAppointmentTypes.clinic_id == clinic_id
-            ).delete()
-
-            # Add new associations
-            for type_id in appointment_type_ids:
-                association = PractitionerAppointmentTypes(
-                    user_id=practitioner_id,
-                    clinic_id=clinic_id,
-                    appointment_type_id=type_id
-                )
-                db.add(association)
+            ).order_by(PractitionerAppointmentTypes.deleted_at.desc().nulls_last()).all()
+            
+            existing_type_ids = {assoc.appointment_type_id for assoc in existing_associations}
+            new_type_ids = set(appointment_type_ids)
+            
+            # Create lookup maps for efficient access
+            # If multiple associations exist for same type_id, use the first one (most recent deleted_at)
+            association_by_type_id: Dict[int, PractitionerAppointmentTypes] = {}
+            for assoc in existing_associations:
+                if assoc.appointment_type_id not in association_by_type_id:
+                    association_by_type_id[assoc.appointment_type_id] = assoc
+            
+            # Process each type_id that should be active
+            for type_id in new_type_ids:
+                if type_id in association_by_type_id:
+                    # Association exists - reactivate if soft-deleted
+                    association: PractitionerAppointmentTypes = association_by_type_id[type_id]
+                    if association.is_deleted:
+                        association.is_deleted = False
+                        association.deleted_at = None
+                    # If already active, no change needed
+                else:
+                    # Association doesn't exist - create new one
+                    association = PractitionerAppointmentTypes(
+                        user_id=practitioner_id,
+                        clinic_id=clinic_id,
+                        appointment_type_id=type_id
+                    )
+                    db.add(association)
+            
+            # Soft-delete associations that are not in the new list
+            type_ids_to_remove = existing_type_ids - new_type_ids
+            for type_id in type_ids_to_remove:
+                association: PractitionerAppointmentTypes = association_by_type_id[type_id]
+                if not association.is_deleted:
+                    # Soft-delete the association
+                    association.is_deleted = True
+                    association.deleted_at = datetime.now(timezone.utc)
 
             db.commit()
             return True

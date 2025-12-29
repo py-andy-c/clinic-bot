@@ -133,7 +133,8 @@ def get_active_appointment_types_for_practitioner(
         AppointmentType.id == PractitionerAppointmentTypes.appointment_type_id
     ).filter(
         PractitionerAppointmentTypes.user_id == practitioner_id,
-        PractitionerAppointmentTypes.clinic_id == clinic_id
+        PractitionerAppointmentTypes.clinic_id == clinic_id,
+        PractitionerAppointmentTypes.is_deleted == False
     )
 
     query = filter_active_appointment_types(query)
@@ -165,6 +166,7 @@ def count_active_appointment_types_for_practitioner(
     ).filter(
         PractitionerAppointmentTypes.user_id == practitioner_id,
         PractitionerAppointmentTypes.clinic_id == clinic_id,
+        PractitionerAppointmentTypes.is_deleted == False,
         AppointmentType.is_deleted == False
     )
     
@@ -200,6 +202,7 @@ def get_active_appointment_types_for_clinic_with_active_practitioners(
         UserClinicAssociation.user_id == User.id
     ).filter(
         PractitionerAppointmentTypes.clinic_id == clinic_id,
+        PractitionerAppointmentTypes.is_deleted == False,
         UserClinicAssociation.clinic_id == clinic_id,
         UserClinicAssociation.is_active == True
     )

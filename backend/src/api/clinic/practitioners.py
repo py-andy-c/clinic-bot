@@ -429,6 +429,7 @@ async def get_batch_practitioner_status(
         ).filter(
             PractitionerAppointmentTypes.user_id.in_(practitioner_ids),
             PractitionerAppointmentTypes.clinic_id == clinic_id,
+            PractitionerAppointmentTypes.is_deleted == False,
             AppointmentType.is_deleted == False
         ).group_by(PractitionerAppointmentTypes.user_id).all()
         

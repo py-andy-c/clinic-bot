@@ -42,7 +42,8 @@ class User(Base):
     refresh_tokens = relationship("RefreshToken", back_populates="user")
     availability = relationship("PractitionerAvailability", back_populates="user", cascade="all, delete-orphan")
     calendar_events = relationship("CalendarEvent", back_populates="user", cascade="all, delete-orphan")
-    practitioner_appointment_types = relationship("PractitionerAppointmentTypes", back_populates="user", cascade="all, delete-orphan")
+    practitioner_appointment_types = relationship("PractitionerAppointmentTypes", back_populates="user")
+    # Note: No cascade - PATs use soft-delete, so they should not be hard-deleted when User is deleted
 
     __table_args__ = (
         # Note: uq_clinic_user_email constraint is removed by migration

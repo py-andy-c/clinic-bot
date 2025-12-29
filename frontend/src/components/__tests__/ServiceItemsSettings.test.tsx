@@ -144,7 +144,9 @@ describe('ServiceItemsSettings', () => {
       '1-1': [
         {
           id: 1,
-          practitioner_appointment_type_id: 1,
+          practitioner_id: 1,
+          appointment_type_id: 1,
+          clinic_id: 1,
           name: '原價',
           amount: '100.00', // String from API - this was causing the crash
           revenue_share: '80.00', // String from API

@@ -32,10 +32,14 @@ class BillingScenario(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     """Unique identifier for the billing scenario."""
 
-    practitioner_appointment_type_id: Mapped[int] = mapped_column(
-        ForeignKey("practitioner_appointment_types.id", ondelete="CASCADE")
-    )
-    """Reference to the practitioner-service combination this scenario applies to."""
+    practitioner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    """Reference to the practitioner (user) this scenario applies to."""
+
+    appointment_type_id: Mapped[int] = mapped_column(ForeignKey("appointment_types.id"))
+    """Reference to the appointment type (service item) this scenario applies to."""
+
+    clinic_id: Mapped[int] = mapped_column(ForeignKey("clinics.id"))
+    """Reference to the clinic this scenario belongs to."""
 
     name: Mapped[str] = mapped_column(String(255))
     """Scenario name (e.g., "原價", "九折", "會員價")."""
@@ -62,17 +66,20 @@ class BillingScenario(Base):
     """Timestamp when the billing scenario was last updated."""
 
     # Relationships
-    practitioner_appointment_type = relationship(
-        "PractitionerAppointmentTypes",
-        back_populates="billing_scenarios"
-    )
-    """Relationship to the PractitionerAppointmentTypes entity."""
+    practitioner = relationship("User")
+    """Relationship to the User entity (practitioner)."""
+
+    appointment_type = relationship("AppointmentType")
+    """Relationship to the AppointmentType entity."""
+
+    clinic = relationship("Clinic")
+    """Relationship to the Clinic entity."""
 
     __table_args__ = (
         # Unique constraint: name must be unique per practitioner-service combination (excluding deleted)
         # Note: Partial unique index is created in migration, not here
         # Indexes for performance
-        Index('idx_billing_scenarios_practitioner_type', 'practitioner_appointment_type_id'),
+        Index('idx_billing_scenarios_practitioner_appointment_clinic', 'practitioner_id', 'appointment_type_id', 'clinic_id'),
         Index('idx_billing_scenarios_deleted', 'is_deleted'),
         # Check constraints (enforced at database level)
         CheckConstraint('revenue_share <= amount', name='chk_revenue_share_le_amount'),

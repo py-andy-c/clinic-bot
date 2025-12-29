@@ -892,7 +892,9 @@ class TestBillingScenarioEndpoints:
         # Create billing scenario
         scenario = BillingScenarioService.create_billing_scenario(
             db=db_session,
-            practitioner_appointment_type_id=pat.id,
+            practitioner_id=user.id,
+            appointment_type_id=apt_type.id,
+            clinic_id=clinic.id,
             name="原價",
             amount=Decimal("1000.00"),
             revenue_share=Decimal("300.00"),
@@ -956,7 +958,9 @@ class TestBillingScenarioEndpoints:
         with pytest.raises(ValueError, match="revenue_share must be <= amount"):
             BillingScenarioService.create_billing_scenario(
                 db=db_session,
-                practitioner_appointment_type_id=pat.id,
+                practitioner_id=user.id,
+                appointment_type_id=apt_type.id,
+                clinic_id=clinic.id,
                 name="無效方案",
                 amount=Decimal("1000.00"),
                 revenue_share=Decimal("1500.00"),  # Invalid

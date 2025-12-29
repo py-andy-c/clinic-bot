@@ -120,18 +120,22 @@ class TestBusinessInsightsService:
         # Create billing scenarios
         scenario1 = BillingScenarioService.create_billing_scenario(
             db_session,
-            pat1.id,
-            "原價",
-            Decimal("1000.00"),
-            Decimal("300.00"),
+            practitioner_id=practitioner_user.id,
+            appointment_type_id=apt_type1.id,
+            clinic_id=clinic.id,
+            name="原價",
+            amount=Decimal("1000.00"),
+            revenue_share=Decimal("300.00"),
             is_default=True
         )
         scenario2 = BillingScenarioService.create_billing_scenario(
             db_session,
-            pat2.id,
-            "原價",
-            Decimal("500.00"),
-            Decimal("150.00"),
+            practitioner_id=practitioner_user.id,
+            appointment_type_id=apt_type2.id,
+            clinic_id=clinic.id,
+            name="原價",
+            amount=Decimal("500.00"),
+            revenue_share=Decimal("150.00"),
             is_default=True
         )
         db_session.commit()
@@ -939,18 +943,22 @@ class TestRevenueDistributionService:
 
         scenario1 = BillingScenarioService.create_billing_scenario(
             db_session,
-            pat1.id,
-            "原價",
-            Decimal("1000.00"),
-            Decimal("300.00"),
+            practitioner_id=practitioner_user.id,
+            appointment_type_id=apt_type1.id,
+            clinic_id=clinic.id,
+            name="原價",
+            amount=Decimal("1000.00"),
+            revenue_share=Decimal("300.00"),
             is_default=True
         )
         scenario_other = BillingScenarioService.create_billing_scenario(
             db_session,
-            pat1.id,
-            "其他",
-            Decimal("800.00"),
-            Decimal("240.00"),
+            practitioner_id=practitioner_user.id,
+            appointment_type_id=apt_type1.id,
+            clinic_id=clinic.id,
+            name="其他",
+            amount=Decimal("800.00"),
+            revenue_share=Decimal("240.00"),
             is_default=False
         )
         db_session.commit()

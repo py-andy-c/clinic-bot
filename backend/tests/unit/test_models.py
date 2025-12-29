@@ -690,7 +690,9 @@ class TestBillingScenarioModel:
         db_session.commit()
 
         scenario = BillingScenario(
-            practitioner_appointment_type_id=pat.id,
+            practitioner_id=user.id,
+            appointment_type_id=apt_type.id,
+            clinic_id=clinic.id,
             name="原價",
             amount=Decimal("1000.00"),
             revenue_share=Decimal("300.00"),
@@ -754,7 +756,9 @@ class TestBillingScenarioModel:
 
         # This should work: revenue_share <= amount
         scenario = BillingScenario(
-            practitioner_appointment_type_id=pat.id,
+            practitioner_id=user.id,
+            appointment_type_id=apt_type.id,
+            clinic_id=clinic.id,
             name="原價",
             amount=Decimal("1000.00"),
             revenue_share=Decimal("1000.00"),  # Equal to amount
@@ -766,7 +770,9 @@ class TestBillingScenarioModel:
 
         # This should fail: revenue_share > amount (database constraint)
         invalid_scenario = BillingScenario(
-            practitioner_appointment_type_id=pat.id,
+            practitioner_id=user.id,
+            appointment_type_id=apt_type.id,
+            clinic_id=clinic.id,
             name="無效方案",
             amount=Decimal("1000.00"),
             revenue_share=Decimal("1500.00"),  # Greater than amount - should fail

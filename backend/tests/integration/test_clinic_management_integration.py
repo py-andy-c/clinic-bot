@@ -910,9 +910,12 @@ class TestPractitionerAppointmentTypes:
             assert data["success"] is True
             assert "治療師預約類型已更新" in data["message"]
 
-            # Verify the associations were created
+            # Verify the associations were created (only active ones)
             from models.practitioner_appointment_types import PractitionerAppointmentTypes
-            associations = db_session.query(PractitionerAppointmentTypes).filter_by(user_id=therapist.id).all()
+            associations = db_session.query(PractitionerAppointmentTypes).filter_by(
+                user_id=therapist.id,
+                is_deleted=False
+            ).all()
             assert len(associations) == 2
             assert {a.appointment_type_id for a in associations} == set(appointment_type_ids)
         finally:
@@ -961,9 +964,16 @@ class TestPractitionerAppointmentTypes:
 
             assert response.status_code == 200
 
-            # Verify associations were cleared
-            associations = db_session.query(PractitionerAppointmentTypes).filter_by(user_id=therapist.id).all()
+            # Verify associations were soft-deleted (not hard-deleted)
+            associations = db_session.query(PractitionerAppointmentTypes).filter_by(
+                user_id=therapist.id,
+                is_deleted=False
+            ).all()
             assert len(associations) == 0
+            # Verify the association still exists but is soft-deleted
+            all_associations = db_session.query(PractitionerAppointmentTypes).filter_by(user_id=therapist.id).all()
+            assert len(all_associations) == 1
+            assert all_associations[0].is_deleted is True
         finally:
             # Clean up overrides
             client.app.dependency_overrides.pop(get_current_user, None)

@@ -22,7 +22,9 @@ const TEMPORARY_ID_THRESHOLD = 1000000000000;
 
 export interface BillingScenario {
   id: number;
-  practitioner_appointment_type_id: number;
+  practitioner_id: number;
+  appointment_type_id: number;
+  clinic_id: number;
   name: string;
   amount: number;
   revenue_share: number;
@@ -196,7 +198,9 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
       const response = await apiService.getBillingScenarios(serviceItemId, practitionerId);
       const scenarios: BillingScenario[] = (response.billing_scenarios || []).map((s: any) => ({
         id: s.id,
-        practitioner_appointment_type_id: s.practitioner_appointment_type_id,
+        practitioner_id: s.practitioner_id,
+        appointment_type_id: s.appointment_type_id,
+        clinic_id: s.clinic_id,
         name: s.name,
         amount: typeof s.amount === 'string' ? parseFloat(s.amount) : s.amount,
         revenue_share: typeof s.revenue_share === 'string' ? parseFloat(s.revenue_share) : s.revenue_share,
@@ -378,7 +382,7 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
     }
 
     const errors: string[] = [];
-    const createdScenarios: Array<{ key: string; tempId: number; realId: number; practitioner_appointment_type_id: number }> = [];
+    const createdScenarios: Array<{ key: string; tempId: number; realId: number }> = [];
 
     for (const [key, scenarios] of Object.entries(scenarioChanges)) {
       const parts = key.split('-');
@@ -458,7 +462,6 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
               key,
               tempId: scenario.id,
               realId: response.id,
-              practitioner_appointment_type_id: response.practitioner_appointment_type_id,
             });
           } catch (err) {
             const errorMsg = `建立計費方案「${scenario.name}」失敗：${err instanceof Error ? err.message : '未知錯誤'}`;
@@ -473,11 +476,11 @@ export const useServiceItemsStore = create<ServiceItemsState>((set, get) => ({
     let finalBillingScenarios = scenariosToUse;
     if (createdScenarios.length > 0) {
       finalBillingScenarios = { ...scenariosToUse };
-      for (const { key, tempId, realId, practitioner_appointment_type_id } of createdScenarios) {
+      for (const { key, tempId, realId } of createdScenarios) {
         const currentScenarios = finalBillingScenarios[key] || [];
         finalBillingScenarios[key] = currentScenarios.map(s =>
           s.id === tempId
-            ? { ...s, id: realId, practitioner_appointment_type_id }
+            ? { ...s, id: realId }
             : s
         );
       }

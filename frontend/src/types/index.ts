@@ -541,7 +541,9 @@ export interface AvailabilityFormData {
 
 export interface BillingScenario {
   id: number;
-  practitioner_appointment_type_id: number;
+  practitioner_id: number;
+  appointment_type_id: number;
+  clinic_id: number;
   name: string;
   amount: number;
   revenue_share: number;

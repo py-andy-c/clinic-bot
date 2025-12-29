@@ -123,15 +123,18 @@ def upgrade() -> None:
         )
     else:
         # Table exists, but check if indexes and constraints exist
-        indexes = [idx['name'] for idx in inspector.get_indexes('billing_scenarios')]
-        if 'uq_billing_scenarios_practitioner_type_name' not in indexes:
-            op.create_index(
-                'uq_billing_scenarios_practitioner_type_name',
-                'billing_scenarios',
-                ['practitioner_appointment_type_id', 'name'],
-                unique=True,
-                postgresql_where=sa.text('is_deleted = FALSE')
-            )
+        # First check if the column exists (it might have been removed by a later migration)
+        columns = [col['name'] for col in inspector.get_columns('billing_scenarios')]
+        if 'practitioner_appointment_type_id' in columns:
+            indexes = [idx['name'] for idx in inspector.get_indexes('billing_scenarios')]
+            if 'uq_billing_scenarios_practitioner_type_name' not in indexes:
+                op.create_index(
+                    'uq_billing_scenarios_practitioner_type_name',
+                    'billing_scenarios',
+                    ['practitioner_appointment_type_id', 'name'],
+                    unique=True,
+                    postgresql_where=sa.text('is_deleted = FALSE')
+                )
         
         # Check if constraints exist
         result = conn.execute(sa.text("""

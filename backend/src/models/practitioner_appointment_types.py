@@ -6,7 +6,10 @@ and appointment types they are qualified to provide. This enables clinics to
 configure which services each practitioner offers.
 """
 
-from sqlalchemy import ForeignKey, TIMESTAMP, Index
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import ForeignKey, TIMESTAMP, Index, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from core.database import Base
@@ -39,6 +42,12 @@ class PractitionerAppointmentTypes(Base):
     created_at: Mapped[TIMESTAMP] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     """Timestamp when the mapping was created."""
 
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    """Soft delete flag. True if this practitioner-appointment type association has been deleted."""
+
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    """Timestamp when the practitioner-appointment type association was soft deleted (if applicable)."""
+
     # Relationships
     user = relationship("User", back_populates="practitioner_appointment_types")
     """Relationship to the User entity (practitioner)."""
@@ -46,18 +55,15 @@ class PractitionerAppointmentTypes(Base):
     appointment_type = relationship("AppointmentType", back_populates="practitioner_appointment_types")
     """Relationship to the AppointmentType entity."""
 
-    billing_scenarios = relationship("BillingScenario", back_populates="practitioner_appointment_type", cascade="all, delete-orphan")
-    """Relationship to billing scenarios for this practitioner-service combination."""
-
     __table_args__ = (
-        # Composite unique constraint prevents duplicate mappings per clinic
-        # Note: clinic_id is included to allow same practitioner to have same appointment type in different clinics
-        # The unique constraint automatically creates an index on (user_id, clinic_id, appointment_type_id)
-        Index('uq_practitioner_type_clinic', 'user_id', 'clinic_id', 'appointment_type_id', unique=True),
+        # Partial unique index prevents duplicate active mappings per clinic
+        # Note: Partial unique index is created in migration, not here
+        # The partial unique index on (user_id, clinic_id, appointment_type_id) where is_deleted = false
+        # allows multiple soft-deleted PATs but prevents duplicate active ones
 
         # Indexes for performance
         Index('idx_practitioner_types_user', 'user_id'),
         Index('idx_practitioner_types_type', 'appointment_type_id'),
         Index('idx_practitioner_types_clinic', 'clinic_id'),
-        # Removed idx_practitioner_types_user_clinic_type as it's redundant with the unique constraint index
+        Index('idx_practitioner_appointment_types_deleted', 'is_deleted'),
     )

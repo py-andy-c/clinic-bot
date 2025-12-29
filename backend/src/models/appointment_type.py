@@ -115,8 +115,9 @@ class AppointmentType(Base):
     appointments = relationship("Appointment", back_populates="appointment_type")
     """Relationship to all Appointment instances that use this appointment type."""
 
-    practitioner_appointment_types = relationship("PractitionerAppointmentTypes", back_populates="appointment_type", cascade="all, delete-orphan")
+    practitioner_appointment_types = relationship("PractitionerAppointmentTypes", back_populates="appointment_type")
     """Relationship to practitioners who can offer this appointment type."""
+    # Note: No cascade - PATs use soft-delete, so they should not be hard-deleted when AppointmentType is deleted
 
     resource_requirements = relationship(
         "AppointmentResourceRequirement",

@@ -157,7 +157,9 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
     } else {
       const newScenario: BillingScenario = {
         id: -Date.now(),
-        practitioner_appointment_type_id: 0,
+        practitioner_id: practitionerId,
+        appointment_type_id: appointmentType.id,
+        clinic_id: appointmentType.clinic_id,
         name: scenarioForm.name,
         amount,
         revenue_share,

@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from auth.dependencies import require_clinic_user, require_admin_role, UserContext, ensure_clinic_access
-from models import Appointment, PractitionerAppointmentTypes, User
+from models import Appointment, User
 from models.receipt import Receipt
 from models.user_clinic_association import UserClinicAssociation
 from services import ReceiptService, BillingScenarioService
@@ -482,7 +482,9 @@ async def void_receipt(
 class BillingScenarioResponse(BaseModel):
     """Response model for billing scenario."""
     id: int
-    practitioner_appointment_type_id: int
+    practitioner_id: int
+    appointment_type_id: int
+    clinic_id: int
     name: str
     amount: Decimal
     revenue_share: Decimal
@@ -525,30 +527,22 @@ async def list_billing_scenarios(
     try:
         clinic_id = ensure_clinic_access(current_user)
         
-        # Verify practitioner-service combination exists
-        pat = db.query(PractitionerAppointmentTypes).filter(
-            PractitionerAppointmentTypes.user_id == practitioner_id,
-            PractitionerAppointmentTypes.appointment_type_id == service_item_id,
-            PractitionerAppointmentTypes.clinic_id == clinic_id
-        ).first()
-        
-        if not pat:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Practitioner-service combination not found"
-            )
-        
-        # Get billing scenarios
+        # Query scenarios directly by practitioner_id and appointment_type_id
+        # Scenarios are independent - no PAT required
         scenarios = BillingScenarioService.get_billing_scenarios_for_practitioner_service(
             db=db,
-            practitioner_appointment_type_id=pat.id
+            practitioner_id=practitioner_id,
+            appointment_type_id=service_item_id,
+            clinic_id=clinic_id
         )
         
         return BillingScenarioListResponse(
             billing_scenarios=[
                 BillingScenarioResponse(
                     id=s.id,
-                    practitioner_appointment_type_id=s.practitioner_appointment_type_id,
+                    practitioner_id=s.practitioner_id,
+                    appointment_type_id=s.appointment_type_id,
+                    clinic_id=s.clinic_id,
                     name=s.name,
                     amount=s.amount,
                     revenue_share=s.revenue_share,
@@ -584,19 +578,6 @@ async def create_billing_scenario(
     try:
         clinic_id = ensure_clinic_access(current_user)
         
-        # Verify practitioner-service combination exists
-        pat = db.query(PractitionerAppointmentTypes).filter(
-            PractitionerAppointmentTypes.user_id == practitioner_id,
-            PractitionerAppointmentTypes.appointment_type_id == service_item_id,
-            PractitionerAppointmentTypes.clinic_id == clinic_id
-        ).first()
-        
-        if not pat:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Practitioner-service combination not found"
-            )
-        
         # Validate revenue_share <= amount
         if request.revenue_share > request.amount:
             raise HTTPException(
@@ -604,10 +585,12 @@ async def create_billing_scenario(
                 detail="revenue_share must be <= amount"
             )
         
-        # Create billing scenario
+        # Create billing scenario - no PAT required, scenarios are independent
         scenario = BillingScenarioService.create_billing_scenario(
             db=db,
-            practitioner_appointment_type_id=pat.id,
+            practitioner_id=practitioner_id,
+            appointment_type_id=service_item_id,
+            clinic_id=clinic_id,
             name=request.name,
             amount=request.amount,
             revenue_share=request.revenue_share,
@@ -618,7 +601,9 @@ async def create_billing_scenario(
         
         return BillingScenarioResponse(
             id=scenario.id,
-            practitioner_appointment_type_id=scenario.practitioner_appointment_type_id,
+            practitioner_id=scenario.practitioner_id,
+            appointment_type_id=scenario.appointment_type_id,
+            clinic_id=scenario.clinic_id,
             name=scenario.name,
             amount=scenario.amount,
             revenue_share=scenario.revenue_share,
@@ -668,15 +653,10 @@ async def update_billing_scenario(
                 detail="Billing scenario not found"
             )
         
-        # Verify practitioner-service combination
-        pat = db.query(PractitionerAppointmentTypes).filter(
-            PractitionerAppointmentTypes.id == scenario.practitioner_appointment_type_id,
-            PractitionerAppointmentTypes.user_id == practitioner_id,
-            PractitionerAppointmentTypes.appointment_type_id == service_item_id,
-            PractitionerAppointmentTypes.clinic_id == clinic_id
-        ).first()
-        
-        if not pat:
+        # Verify scenario belongs to the specified practitioner-service combination
+        if (scenario.practitioner_id != practitioner_id or 
+            scenario.appointment_type_id != service_item_id or 
+            scenario.clinic_id != clinic_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Billing scenario does not belong to this practitioner-service combination"
@@ -696,7 +676,9 @@ async def update_billing_scenario(
         
         return BillingScenarioResponse(
             id=scenario.id,
-            practitioner_appointment_type_id=scenario.practitioner_appointment_type_id,
+            practitioner_id=scenario.practitioner_id,
+            appointment_type_id=scenario.appointment_type_id,
+            clinic_id=scenario.clinic_id,
             name=scenario.name,
             amount=scenario.amount,
             revenue_share=scenario.revenue_share,
@@ -745,21 +727,16 @@ async def delete_billing_scenario(
                 detail="Billing scenario not found"
             )
         
-        # Verify practitioner-service combination
-        pat = db.query(PractitionerAppointmentTypes).filter(
-            PractitionerAppointmentTypes.id == scenario.practitioner_appointment_type_id,
-            PractitionerAppointmentTypes.user_id == practitioner_id,
-            PractitionerAppointmentTypes.appointment_type_id == service_item_id,
-            PractitionerAppointmentTypes.clinic_id == clinic_id
-        ).first()
-        
-        if not pat:
+        # Verify scenario belongs to the specified practitioner-service combination
+        if (scenario.practitioner_id != practitioner_id or 
+            scenario.appointment_type_id != service_item_id or 
+            scenario.clinic_id != clinic_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Billing scenario does not belong to this practitioner-service combination"
             )
         
-        # Delete billing scenario
+        # Delete billing scenario (soft delete)
         BillingScenarioService.delete_billing_scenario(db, scenario_id)
         
         db.commit()

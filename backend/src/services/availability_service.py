@@ -168,7 +168,8 @@ class AvailabilityService:
         practitioner_appointment_type = db.query(PractitionerAppointmentTypes).filter(
             PractitionerAppointmentTypes.user_id == practitioner_id,
             PractitionerAppointmentTypes.appointment_type_id == appointment_type_id,
-            PractitionerAppointmentTypes.clinic_id == clinic_id
+            PractitionerAppointmentTypes.clinic_id == clinic_id,
+            PractitionerAppointmentTypes.is_deleted == False
         ).first()
 
         return practitioner_appointment_type is not None
@@ -790,6 +791,7 @@ class AvailabilityService:
         ).filter(
             PractitionerAppointmentTypes.appointment_type_id == appointment_type_id,
             PractitionerAppointmentTypes.clinic_id == clinic_id,
+            PractitionerAppointmentTypes.is_deleted == False,
             UserClinicAssociation.clinic_id == clinic_id,
             UserClinicAssociation.is_active == True
         )
