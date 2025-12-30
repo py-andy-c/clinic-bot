@@ -14,6 +14,7 @@ from .reminder_service import ReminderService
 from .billing_scenario_service import BillingScenarioService
 from .receipt_service import ReceiptService
 from .pdf_service import PDFService
+from .patient_practitioner_assignment_service import PatientPractitionerAssignmentService
 
 __all__ = [
     "PatientService",
@@ -25,4 +26,5 @@ __all__ = [
     "BillingScenarioService",
     "ReceiptService",
     "PDFService",
+    "PatientPractitionerAssignmentService",
 ]

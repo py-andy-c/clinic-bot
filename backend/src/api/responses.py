@@ -169,6 +169,7 @@ class ClinicPatientResponse(PatientResponse):
     line_user_display_name: Optional[str]
     line_user_picture_url: Optional[str] = None
     is_deleted: Optional[bool] = False  # Indicates if patient was soft-deleted by LINE user
+    assigned_practitioner_ids: Optional[List[int]] = None  # List of assigned practitioner (user) IDs
     # birthday is inherited from PatientResponse
 
 

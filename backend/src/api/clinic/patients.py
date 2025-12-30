@@ -14,10 +14,9 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from auth.dependencies import require_admin_role, require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
-from models import Patient
-from services import PatientService, AppointmentService
-from utils.datetime_utils import parse_date_string, taiwan_now
+from auth.dependencies import require_authenticated, require_practitioner_or_admin, UserContext, ensure_clinic_access
+from models import PatientPractitionerAssignment
+from services import PatientService, AppointmentService, PatientPractitionerAssignmentService
 from api.clinic.shared import (
     validate_patient_name,
     validate_patient_name_optional,
@@ -82,6 +81,7 @@ class ClinicPatientUpdateRequest(BaseModel):
     birthday: Optional[date_type] = None
     gender: Optional[str] = None
     notes: Optional[str] = None
+    assigned_practitioner_ids: Optional[List[int]] = None
 
     @field_validator('full_name')
     @classmethod
@@ -129,6 +129,10 @@ class ClinicPatientUpdateRequest(BaseModel):
         if 'notes' in provided_fields:
             return self
         
+        # If assigned_practitioner_ids is in the provided fields, allow the update
+        if 'assigned_practitioner_ids' in provided_fields:
+            return self
+        
         # Otherwise, require at least one non-None field
         if self.full_name is None and self.phone_number is None and self.birthday is None and self.gender is None:
             raise ValueError('至少需提供一個欄位進行更新')
@@ -141,7 +145,8 @@ async def list_patients(
     db: Session = Depends(get_db),
     page: Optional[int] = Query(None, ge=1, description="Page number (1-indexed). Must be provided with page_size."),
     page_size: Optional[int] = Query(None, ge=1, le=100, description="Items per page. Must be provided with page."),
-    search: Optional[str] = Query(None, max_length=200, description="Search query to filter patients by name, phone, or LINE user display name. Maximum length: 200 characters.")
+    search: Optional[str] = Query(None, max_length=200, description="Search query to filter patients by name, phone, or LINE user display name. Maximum length: 200 characters."),
+    practitioner_id: Optional[int] = Query(None, description="Filter patients by assigned practitioner (user ID)")
 ) -> ClinicPatientListResponse:
     """
     Get all patients for the current user's clinic.
@@ -149,6 +154,7 @@ async def list_patients(
     Available to all clinic members (including read-only users).
     Supports pagination via page and page_size parameters.
     Supports search via search parameter to filter by patient name, phone number, or LINE user display name.
+    Supports filtering by practitioner via practitioner_id parameter.
     If pagination parameters are not provided, returns all patients (backward compatible).
     Note: page and page_size must both be provided together or both omitted.
     """
@@ -167,7 +173,8 @@ async def list_patients(
             clinic_id=clinic_id,
             page=page,
             page_size=page_size,
-            search=search
+            search=search,
+            practitioner_id=practitioner_id
         )
 
         # Validate page number doesn't exceed total pages
@@ -179,6 +186,20 @@ async def list_patients(
                     detail=f"Page {page} exceeds maximum page {max_page}"
                 )
 
+        # Get assigned practitioners for all patients in one query
+        patient_ids = [patient.id for patient in patients]
+        assignments = db.query(PatientPractitionerAssignment).filter(
+            PatientPractitionerAssignment.patient_id.in_(patient_ids),
+            PatientPractitionerAssignment.clinic_id == clinic_id
+        ).all()
+        
+        # Build lookup map: patient_id -> list of practitioner_ids
+        assignments_by_patient: Dict[int, List[int]] = {}
+        for assignment in assignments:
+            if assignment.patient_id not in assignments_by_patient:
+                assignments_by_patient[assignment.patient_id] = []
+            assignments_by_patient[assignment.patient_id].append(assignment.user_id)
+        
         # Format for clinic response (includes line_user_id and display_name)
         patient_list = [
             ClinicPatientResponse(
@@ -192,7 +213,8 @@ async def list_patients(
                 line_user_display_name=patient.line_user.effective_display_name if patient.line_user else None,
                 line_user_picture_url=patient.line_user.picture_url if patient.line_user else None,
                 created_at=patient.created_at,
-                is_deleted=patient.is_deleted
+                is_deleted=patient.is_deleted,
+                assigned_practitioner_ids=assignments_by_patient.get(patient.id, [])
             )
             for patient in patients
         ]
@@ -336,6 +358,13 @@ async def get_patient(
             patient_id=patient_id,
             clinic_id=clinic_id
         )
+        
+        # Get assigned practitioners
+        assigned_practitioner_ids = PatientPractitionerAssignmentService.get_assigned_practitioner_ids(
+            db=db,
+            patient_id=patient_id,
+            clinic_id=clinic_id
+        )
 
         return ClinicPatientResponse(
             id=patient.id,
@@ -347,7 +376,8 @@ async def get_patient(
             line_user_id=patient.line_user.line_user_id if patient.line_user else None,
             line_user_display_name=patient.line_user.effective_display_name if patient.line_user else None,
             created_at=patient.created_at,
-            is_deleted=patient.is_deleted
+            is_deleted=patient.is_deleted,
+            assigned_practitioner_ids=assigned_practitioner_ids
         )
 
     except HTTPException:
@@ -387,6 +417,23 @@ async def update_patient(
             gender=request.gender,
             notes=request.notes
         )
+        
+        # Update assigned practitioners if provided
+        if request.assigned_practitioner_ids is not None:
+            PatientPractitionerAssignmentService.update_assignments(
+                db=db,
+                patient_id=patient_id,
+                clinic_id=clinic_id,
+                practitioner_ids=request.assigned_practitioner_ids,
+                created_by_user_id=current_user.user_id
+            )
+        
+        # Get assigned practitioners
+        assigned_practitioner_ids = PatientPractitionerAssignmentService.get_assigned_practitioner_ids(
+            db=db,
+            patient_id=patient_id,
+            clinic_id=clinic_id
+        )
 
         return ClinicPatientResponse(
             id=patient.id,
@@ -398,7 +445,8 @@ async def update_patient(
             line_user_id=patient.line_user.line_user_id if patient.line_user else None,
             line_user_display_name=patient.line_user.effective_display_name if patient.line_user else None,
             created_at=patient.created_at,
-            is_deleted=patient.is_deleted
+            is_deleted=patient.is_deleted,
+            assigned_practitioner_ids=assigned_practitioner_ids
         )
 
     except HTTPException:
@@ -409,6 +457,134 @@ async def update_patient(
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="更新病患資料失敗"
+        )
+
+
+class AssignPractitionerRequest(BaseModel):
+    """Request model for assigning practitioner to patient."""
+    user_id: int = Field(..., description="Practitioner (user) ID to assign")
+
+
+@router.post("/patients/{patient_id}/assign-practitioner", summary="Assign practitioner to patient", response_model=ClinicPatientResponse)
+async def assign_practitioner(
+    patient_id: int,
+    request: AssignPractitionerRequest,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+) -> ClinicPatientResponse:
+    """
+    Assign a practitioner to a patient.
+    
+    Available to clinic admins and practitioners only.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Assign practitioner
+        PatientPractitionerAssignmentService.assign_practitioner(
+            db=db,
+            patient_id=patient_id,
+            practitioner_id=request.user_id,
+            clinic_id=clinic_id,
+            created_by_user_id=current_user.user_id
+        )
+        
+        # Get updated patient with assignments
+        patient = PatientService.get_patient_by_id(
+            db=db,
+            patient_id=patient_id,
+            clinic_id=clinic_id
+        )
+        
+        assigned_practitioner_ids = PatientPractitionerAssignmentService.get_assigned_practitioner_ids(
+            db=db,
+            patient_id=patient_id,
+            clinic_id=clinic_id
+        )
+        
+        return ClinicPatientResponse(
+            id=patient.id,
+            full_name=patient.full_name,
+            phone_number=patient.phone_number,
+            birthday=patient.birthday,
+            gender=patient.gender,
+            notes=patient.notes,
+            line_user_id=patient.line_user.line_user_id if patient.line_user else None,
+            line_user_display_name=patient.line_user.effective_display_name if patient.line_user else None,
+            created_at=patient.created_at,
+            is_deleted=patient.is_deleted,
+            assigned_practitioner_ids=assigned_practitioner_ids
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error assigning practitioner to patient {patient_id}: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="指派治療師失敗"
+        )
+
+
+@router.delete("/patients/{patient_id}/assign-practitioner/{practitioner_id}", summary="Remove practitioner assignment from patient", response_model=ClinicPatientResponse)
+async def remove_practitioner_assignment(
+    patient_id: int,
+    practitioner_id: int,
+    current_user: UserContext = Depends(require_practitioner_or_admin),
+    db: Session = Depends(get_db)
+) -> ClinicPatientResponse:
+    """
+    Remove a practitioner assignment from a patient.
+    
+    Available to clinic admins and practitioners only.
+    """
+    try:
+        clinic_id = ensure_clinic_access(current_user)
+        
+        # Remove assignment
+        PatientPractitionerAssignmentService.remove_assignment(
+            db=db,
+            patient_id=patient_id,
+            practitioner_id=practitioner_id,
+            clinic_id=clinic_id
+        )
+        
+        # Get updated patient with assignments
+        patient = PatientService.get_patient_by_id(
+            db=db,
+            patient_id=patient_id,
+            clinic_id=clinic_id
+        )
+        
+        assigned_practitioner_ids = PatientPractitionerAssignmentService.get_assigned_practitioner_ids(
+            db=db,
+            patient_id=patient_id,
+            clinic_id=clinic_id
+        )
+        
+        return ClinicPatientResponse(
+            id=patient.id,
+            full_name=patient.full_name,
+            phone_number=patient.phone_number,
+            birthday=patient.birthday,
+            gender=patient.gender,
+            notes=patient.notes,
+            line_user_id=patient.line_user.line_user_id if patient.line_user else None,
+            line_user_display_name=patient.line_user.effective_display_name if patient.line_user else None,
+            created_at=patient.created_at,
+            is_deleted=patient.is_deleted,
+            assigned_practitioner_ids=assigned_practitioner_ids
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error removing practitioner assignment from patient {patient_id}: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="移除指定治療師失敗"
         )
 
 

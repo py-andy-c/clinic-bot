@@ -55,7 +55,8 @@ def get_active_patients_for_clinic(
     page: Optional[int] = None,
     page_size: Optional[int] = None,
     search: Optional[str] = None,
-    include_deleted: bool = False
+    include_deleted: bool = False,
+    practitioner_id: Optional[int] = None
 ) -> tuple[List[Patient], int]:
     """
     Get patients for a clinic, optionally including deleted patients.
@@ -70,6 +71,7 @@ def get_active_patients_for_clinic(
         page_size: Optional items per page. If None, returns all patients.
         search: Optional search query to filter patients by name, phone, or LINE user display name.
         include_deleted: If True, include soft-deleted patients. Defaults to False.
+        practitioner_id: Optional practitioner (user) ID to filter by assigned practitioners.
 
     Returns:
         Tuple of (List of Patient objects with line_user relationship eagerly loaded, total count)
@@ -124,6 +126,17 @@ def get_active_patients_for_clinic(
         # Use outerjoin to include LINE user in search
         query = query.outerjoin(LineUser, Patient.line_user_id == LineUser.id).filter(
             or_(*search_conditions)
+        ).distinct()
+    
+    # Filter by practitioner if provided
+    if practitioner_id is not None:
+        from models import PatientPractitionerAssignment
+        query = query.join(
+            PatientPractitionerAssignment,
+            Patient.id == PatientPractitionerAssignment.patient_id
+        ).filter(
+            PatientPractitionerAssignment.user_id == practitioner_id,
+            PatientPractitionerAssignment.clinic_id == clinic_id
         ).distinct()
     
     # Get total count before pagination

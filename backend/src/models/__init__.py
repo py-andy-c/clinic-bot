@@ -27,6 +27,7 @@ from .appointment_resource_allocation import AppointmentResourceAllocation
 from .service_type_group import ServiceTypeGroup
 from .follow_up_message import FollowUpMessage
 from .scheduled_line_message import ScheduledLineMessage
+from .patient_practitioner_assignment import PatientPractitionerAssignment
 
 __all__ = [
     "Clinic",
@@ -56,4 +57,5 @@ __all__ = [
     "ServiceTypeGroup",
     "FollowUpMessage",
     "ScheduledLineMessage",
+    "PatientPractitionerAssignment",
 ]

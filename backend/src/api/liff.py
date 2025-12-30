@@ -800,6 +800,7 @@ async def list_appointment_types(
 @router.get("/practitioners", response_model=PractitionerListResponse)
 async def list_practitioners(
     appointment_type_id: Optional[int] = Query(None),
+    patient_id: Optional[int] = Query(None, description="Optional patient ID for filtering by assigned practitioners"),
     line_user_clinic: tuple[LineUser, Clinic] = Depends(get_current_line_user_with_clinic),
     db: Session = Depends(get_db)
 ):
@@ -808,18 +809,39 @@ async def list_practitioners(
 
     If no appointment_type_id provided, returns all practitioners.
     Clinic isolation is enforced through LIFF token context.
+    
+    When restrict_to_assigned_practitioners is True and patient_id is provided:
+    - Filters to show only assigned practitioners
+    - If no assigned practitioners or appointment type not offered by assigned practitioners, shows all practitioners
     """
     _, clinic = line_user_clinic
 
     try:
-        # Get practitioners using service
-        # Filter for patient booking: only show practitioners who allow patient bookings
-        practitioners_data = PractitionerService.list_practitioners_for_clinic(
+        # Get clinic settings
+        clinic_settings = clinic.get_validated_settings()
+        restrict_to_assigned = clinic_settings.clinic_info_settings.restrict_to_assigned_practitioners
+        
+        # Get all practitioners first
+        all_practitioners_data = PractitionerService.list_practitioners_for_clinic(
             db=db,
             clinic_id=clinic.id,
             appointment_type_id=appointment_type_id,
             for_patient_booking=True
         )
+        
+        # Filter by assigned practitioners if needed
+        if restrict_to_assigned and patient_id:
+            practitioners_data = PractitionerService.filter_practitioners_by_assigned(
+                db=db,
+                all_practitioners_data=all_practitioners_data,
+                patient_id=patient_id,
+                clinic_id=clinic.id,
+                appointment_type_id=appointment_type_id,
+                restrict_to_assigned=restrict_to_assigned
+            )
+        else:
+            # Not restricting or no patient_id, show all practitioners
+            practitioners_data = all_practitioners_data
 
         # Convert dicts to response objects
         practitioners = [
@@ -1495,6 +1517,7 @@ async def get_clinic_info(
             "phone_number": clinic.phone_number,
             "require_birthday": clinic_settings.clinic_info_settings.require_birthday,
             "require_gender": clinic_settings.clinic_info_settings.require_gender,
+            "restrict_to_assigned_practitioners": clinic_settings.clinic_info_settings.restrict_to_assigned_practitioners,
             "minimum_cancellation_hours_before": clinic_settings.booking_restriction_settings.minimum_cancellation_hours_before,
             "appointment_notes_instructions": clinic_settings.clinic_info_settings.appointment_notes_instructions,
             "allow_patient_deletion": clinic_settings.booking_restriction_settings.allow_patient_deletion,

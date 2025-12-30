@@ -93,6 +93,7 @@ class ClinicInfoSettings(BaseModel):
     appointment_notes_instructions: Optional[str] = Field(default=None, description="Instructions to guide patients when adding notes to appointments")
     require_birthday: bool = Field(default=False, description="Whether to require birthday during patient registration")
     require_gender: bool = Field(default=False, description="Whether to require gender (生理性別) during patient registration")
+    restrict_to_assigned_practitioners: bool = Field(default=False, description="Whether to restrict appointment booking to assigned practitioners only")
 
 
 class ChatSettings(BaseModel):
@@ -341,6 +342,9 @@ class Clinic(Base):
 
     line_ai_replies = relationship("LineAiReply", back_populates="clinic", cascade="all, delete-orphan")
     """LINE AI reply messages (free messages) tracked for dashboard metrics."""
+    
+    patient_practitioner_assignments = relationship("PatientPractitionerAssignment", back_populates="clinic", cascade="all, delete-orphan")
+    """Patient-practitioner assignments for this clinic."""
 
 
     # Settings convenience properties (match API keys)

@@ -44,6 +44,8 @@ class User(Base):
     calendar_events = relationship("CalendarEvent", back_populates="user", cascade="all, delete-orphan")
     practitioner_appointment_types = relationship("PractitionerAppointmentTypes", back_populates="user")
     # Note: No cascade - PATs use soft-delete, so they should not be hard-deleted when User is deleted
+    patient_assignments = relationship("PatientPractitionerAssignment", foreign_keys="[PatientPractitionerAssignment.user_id]", back_populates="practitioner", cascade="all, delete-orphan")
+    """Patient assignments for this practitioner."""
 
     __table_args__ = (
         # Note: uq_clinic_user_email constraint is removed by migration

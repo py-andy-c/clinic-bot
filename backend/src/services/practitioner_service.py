@@ -8,6 +8,7 @@ between different API endpoints (LIFF, clinic admin, practitioner calendar).
 import logging
 from typing import List, Dict, Any, Optional
 
+from fastapi import HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -118,6 +119,118 @@ class PractitionerService:
             })
 
         return result
+
+    @staticmethod
+    def filter_practitioners_by_assigned(
+        db: Session,
+        all_practitioners_data: List[Dict[str, Any]],
+        patient_id: int,
+        clinic_id: int,
+        appointment_type_id: Optional[int] = None,
+        restrict_to_assigned: bool = True
+    ) -> List[Dict[str, Any]]:
+        """
+        Filter practitioners by assigned practitioners for a patient.
+        
+        Implements the filtering logic per design doc:
+        - When restrict_to_assigned is True and patient has assigned practitioners:
+          - Filter to show only assigned practitioners
+          - If appointment type is not offered by any assigned practitioner, show all practitioners
+          - If all assigned practitioners are inactive, treat as "no assigned practitioners" and show all
+        - If no assigned practitioners, show all practitioners
+        
+        Args:
+            db: Database session
+            all_practitioners_data: List of all practitioner dictionaries (from list_practitioners_for_clinic)
+            patient_id: Patient ID to check assignments for
+            clinic_id: Clinic ID
+            appointment_type_id: Optional appointment type ID to check if assigned practitioners offer it
+            restrict_to_assigned: Whether to apply assignment filtering (from clinic setting)
+            
+        Returns:
+            Filtered list of practitioner dictionaries
+        """
+        if not restrict_to_assigned:
+            return all_practitioners_data
+        
+        from services import PatientPractitionerAssignmentService
+        from models import AppointmentType, Patient, UserClinicAssociation, PractitionerAppointmentTypes
+        from utils.query_helpers import filter_by_role
+        
+        # Validate patient belongs to clinic
+        patient = db.query(Patient).filter(
+            Patient.id == patient_id,
+            Patient.clinic_id == clinic_id
+        ).first()
+        
+        if not patient:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="病患不存在"
+            )
+        
+        # Get assigned practitioner IDs
+        assigned_practitioner_ids = PatientPractitionerAssignmentService.get_assigned_practitioner_ids(
+            db=db,
+            patient_id=patient_id,
+            clinic_id=clinic_id
+        )
+        
+        # Filter out inactive practitioners from assigned list
+        # Per design doc: "All assigned practitioners inactive: Treat as 'no assigned practitioners' - show all practitioners"
+        if assigned_practitioner_ids:
+            query = db.query(User).join(UserClinicAssociation).filter(
+                User.id.in_(assigned_practitioner_ids),
+                UserClinicAssociation.clinic_id == clinic_id,
+                UserClinicAssociation.is_active == True
+            )
+            query = filter_by_role(query, 'practitioner')
+            active_practitioners = query.all()
+            active_assigned_ids = [p.id for p in active_practitioners]
+            
+            # If all assigned practitioners are inactive, treat as no assigned practitioners
+            if not active_assigned_ids:
+                assigned_practitioner_ids = []
+            else:
+                assigned_practitioner_ids = active_assigned_ids
+        
+        # If there are assigned practitioners, filter to them
+        if assigned_practitioner_ids:
+            # Check if appointment type is offered by any assigned practitioner
+            if appointment_type_id:
+                # Get appointment type to verify it exists
+                appointment_type = db.query(AppointmentType).filter(
+                    AppointmentType.id == appointment_type_id,
+                    AppointmentType.clinic_id == clinic_id
+                ).first()
+                
+                if appointment_type:
+                    # Check if any assigned practitioner offers this appointment type
+                    assigned_offering_type = db.query(PractitionerAppointmentTypes).filter(
+                        PractitionerAppointmentTypes.user_id.in_(assigned_practitioner_ids),
+                        PractitionerAppointmentTypes.appointment_type_id == appointment_type_id,
+                        PractitionerAppointmentTypes.clinic_id == clinic_id,
+                        PractitionerAppointmentTypes.is_deleted == False
+                    ).first()
+                    
+                    # If no assigned practitioner offers this type, show all practitioners
+                    if not assigned_offering_type:
+                        return all_practitioners_data
+                
+                # Filter to assigned practitioners
+                return [
+                    p for p in all_practitioners_data
+                    if p['id'] in assigned_practitioner_ids
+                ]
+            else:
+                # No appointment type filter, filter to assigned practitioners
+                return [
+                    p for p in all_practitioners_data
+                    if p['id'] in assigned_practitioner_ids
+                ]
+        else:
+            # No assigned practitioners, show all practitioners
+            return all_practitioners_data
 
     @staticmethod
     def list_practitioners_for_appointment_type(

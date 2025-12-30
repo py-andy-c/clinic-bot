@@ -73,6 +73,9 @@ class Patient(Base):
 
     line_user = relationship("LineUser", back_populates="patients")
     """Optional relationship to the LINE user account managing this patient."""
+    
+    practitioner_assignments = relationship("PatientPractitionerAssignment", back_populates="patient", cascade="all, delete-orphan")
+    """Assignments of practitioners to this patient."""
 
     __table_args__ = (
         # Regular index for performance (no uniqueness constraint to allow phone number corrections)

@@ -138,7 +138,8 @@ class PatientService:
         clinic_id: int,
         page: Optional[int] = None,
         page_size: Optional[int] = None,
-        search: Optional[str] = None
+        search: Optional[str] = None,
+        practitioner_id: Optional[int] = None
     ) -> tuple[List[Patient], int]:
         """
         List all patients for a clinic (admin view, including deleted patients).
@@ -149,12 +150,13 @@ class PatientService:
             page: Optional page number (1-indexed). If None, returns all patients.
             page_size: Optional items per page. If None, returns all patients.
             search: Optional search query to filter patients by name, phone, or LINE user display name.
+            practitioner_id: Optional practitioner (user) ID to filter by assigned practitioners.
 
         Returns:
             Tuple of (List of Patient objects for the clinic including deleted, total count)
         """
         from utils.patient_queries import get_active_patients_for_clinic
-        return get_active_patients_for_clinic(db, clinic_id, page=page, page_size=page_size, search=search, include_deleted=True)
+        return get_active_patients_for_clinic(db, clinic_id, page=page, page_size=page_size, search=search, include_deleted=True, practitioner_id=practitioner_id)
 
     @staticmethod
     def validate_patient_ownership(
