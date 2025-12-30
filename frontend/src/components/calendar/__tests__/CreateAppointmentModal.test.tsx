@@ -8,6 +8,7 @@ import React from 'react';
 import { CreateAppointmentModal } from '../CreateAppointmentModal';
 import { apiService } from '../../../services/api';
 import { useApiData } from '../../../hooks/useApiData';
+import { ModalProvider } from '../../../contexts/ModalContext';
 
 // Mock createPortal to render directly
 vi.mock('react-dom', async () => {
@@ -77,6 +78,11 @@ vi.mock('../../PatientCreationSuccessModal', () => ({
 const mockOnConfirm = vi.fn();
 const mockOnClose = vi.fn();
 
+// Helper to wrap component with ModalProvider
+const renderWithModal = (component: React.ReactElement) => {
+  return render(<ModalProvider>{component}</ModalProvider>);
+};
+
 describe('CreateAppointmentModal', () => {
   const mockPatients = [
     { id: 1, full_name: 'Test Patient', phone_number: '1234567890' },
@@ -107,7 +113,7 @@ describe('CreateAppointmentModal', () => {
   ];
 
   it('should render form step by default', async () => {
-    render(
+    renderWithModal(
       <CreateAppointmentModal
         practitioners={mockPractitioners}
         appointmentTypes={mockAppointmentTypes}
@@ -124,7 +130,7 @@ describe('CreateAppointmentModal', () => {
   });
 
   it('should show appointment type dropdown', async () => {
-    render(
+    renderWithModal(
       <CreateAppointmentModal
         practitioners={mockPractitioners}
         appointmentTypes={mockAppointmentTypes}
@@ -149,7 +155,7 @@ describe('CreateAppointmentModal', () => {
   it('should accept duplicate props without crashing', async () => {
     // Test that component accepts all pre-fill props for duplication feature
     // The actual pre-filling behavior is tested through integration tests
-    render(
+    renderWithModal(
       <CreateAppointmentModal
         preSelectedPatientId={1}
         preSelectedAppointmentTypeId={1}
@@ -175,7 +181,7 @@ describe('CreateAppointmentModal', () => {
       { id: 1, full_name: 'Dr. Test' },
     ]);
 
-    render(
+    renderWithModal(
       <CreateAppointmentModal
         practitioners={mockPractitioners}
         appointmentTypes={mockAppointmentTypes}
@@ -212,7 +218,7 @@ describe('CreateAppointmentModal', () => {
       .mockResolvedValueOnce([{ id: 1, full_name: 'Dr. Test' }]) // Type 1 - has practitioner 1
       .mockResolvedValueOnce([{ id: 2, full_name: 'Dr. Another' }]); // Type 2 - only has practitioner 2
 
-    render(
+    renderWithModal(
       <CreateAppointmentModal
         practitioners={mockPractitioners}
         appointmentTypes={mockAppointmentTypes}
@@ -264,7 +270,7 @@ describe('CreateAppointmentModal', () => {
       () => new Promise(resolve => setTimeout(() => resolve([{ id: 1, full_name: 'Dr. Test' }]), 100))
     );
 
-    render(
+    renderWithModal(
       <CreateAppointmentModal
         practitioners={mockPractitioners}
         appointmentTypes={mockAppointmentTypes}
@@ -294,7 +300,7 @@ describe('CreateAppointmentModal', () => {
   it('should show error when practitioner fetch fails', async () => {
     vi.mocked(apiService.getPractitioners).mockRejectedValue(new Error('Network error'));
 
-    render(
+    renderWithModal(
       <CreateAppointmentModal
         practitioners={mockPractitioners}
         appointmentTypes={mockAppointmentTypes}
@@ -319,7 +325,7 @@ describe('CreateAppointmentModal', () => {
   });
 
   it('should disable submit button when required fields are missing', async () => {
-    render(
+    renderWithModal(
       <CreateAppointmentModal
         practitioners={mockPractitioners}
         appointmentTypes={mockAppointmentTypes}
@@ -338,7 +344,7 @@ describe('CreateAppointmentModal', () => {
   });
 
   it('should enable submit button when all required fields are filled', async () => {
-    render(
+    renderWithModal(
       <CreateAppointmentModal
         practitioners={mockPractitioners}
         appointmentTypes={mockAppointmentTypes}
@@ -391,7 +397,7 @@ describe('CreateAppointmentModal', () => {
   });
 
   it('should show confirmation step when form is submitted', async () => {
-    render(
+    renderWithModal(
       <CreateAppointmentModal
         practitioners={mockPractitioners}
         appointmentTypes={mockAppointmentTypes}
@@ -454,7 +460,7 @@ describe('CreateAppointmentModal', () => {
   it('should show message when no practitioners available for appointment type', async () => {
     vi.mocked(apiService.getPractitioners).mockResolvedValue([]);
 
-    render(
+    renderWithModal(
       <CreateAppointmentModal
         practitioners={mockPractitioners}
         appointmentTypes={mockAppointmentTypes}
@@ -479,7 +485,7 @@ describe('CreateAppointmentModal', () => {
   });
 
   it('should clear practitioner when appointment type is cleared', async () => {
-    render(
+    renderWithModal(
       <CreateAppointmentModal
         practitioners={mockPractitioners}
         appointmentTypes={mockAppointmentTypes}
@@ -520,7 +526,7 @@ describe('CreateAppointmentModal', () => {
 
   describe('Recurrence Toggle', () => {
     it('should toggle recurrence when button is clicked', async () => {
-      render(
+      renderWithModal(
         <CreateAppointmentModal
           practitioners={mockPractitioners}
           appointmentTypes={mockAppointmentTypes}
@@ -557,7 +563,7 @@ describe('CreateAppointmentModal', () => {
     });
 
     it('should show recurrence inputs when enabled', async () => {
-      render(
+      renderWithModal(
         <CreateAppointmentModal
           practitioners={mockPractitioners}
           appointmentTypes={mockAppointmentTypes}
@@ -591,7 +597,7 @@ describe('CreateAppointmentModal', () => {
     });
 
     it('should hide recurrence inputs when disabled', async () => {
-      render(
+      renderWithModal(
         <CreateAppointmentModal
           practitioners={mockPractitioners}
           appointmentTypes={mockAppointmentTypes}
@@ -625,7 +631,7 @@ describe('CreateAppointmentModal', () => {
     });
 
     it('should reset recurrence state when disabled', async () => {
-      render(
+      renderWithModal(
         <CreateAppointmentModal
           practitioners={mockPractitioners}
           appointmentTypes={mockAppointmentTypes}

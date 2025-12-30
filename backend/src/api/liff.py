@@ -31,6 +31,8 @@ from models import (
 )
 from models.receipt import Receipt
 from services import PatientService, AppointmentService, AvailabilityService, PractitionerService, AppointmentTypeService
+from services import PatientPractitionerAssignmentService
+from models import UserClinicAssociation
 from utils.phone_validator import validate_taiwanese_phone, validate_taiwanese_phone_optional
 from utils.datetime_utils import TAIWAN_TZ, taiwan_now, parse_datetime_to_taiwan, parse_date_string
 from utils.patient_validators import validate_gender_field
@@ -1186,6 +1188,39 @@ async def get_appointment_details(
                 "allow_patient_practitioner_selection": appointment_type.allow_patient_practitioner_selection
             }
 
+        # Get assigned practitioners for the patient
+        assigned_practitioners = []
+        try:
+            assignments = PatientPractitionerAssignmentService.get_assignments_for_patient(
+                db=db,
+                patient_id=appointment.patient_id,
+                clinic_id=clinic.id
+            )
+            
+            # Get user details for each assigned practitioner
+            practitioner_ids = [assignment.user_id for assignment in assignments]
+            if practitioner_ids:
+                # Query UserClinicAssociation to get practitioner names and active status
+                associations = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id.in_(practitioner_ids),
+                    UserClinicAssociation.clinic_id == clinic.id
+                ).all()
+                
+                # Format assigned practitioners
+                assigned_practitioners = [
+                    {
+                        "id": association.user_id,
+                        "full_name": association.full_name if association.full_name else (
+                            association.user.email if association.user else "未知治療師"
+                        ),
+                        "is_active": association.is_active
+                    }
+                    for association in associations
+                ]
+        except Exception as e:
+            logger.warning(f"Failed to load assigned practitioners for appointment {appointment_id}: {e}")
+            # Continue without assigned practitioners rather than failing the request
+
         return {
             "id": appointment.calendar_event_id,
             "calendar_event_id": appointment.calendar_event_id,
@@ -1200,7 +1235,8 @@ async def get_appointment_details(
             "end_time": end_datetime.isoformat() if end_datetime else "",
             "status": appointment.status,
             "notes": appointment.notes,
-            "is_auto_assigned": appointment.is_auto_assigned
+            "is_auto_assigned": appointment.is_auto_assigned,
+            "assigned_practitioners": assigned_practitioners
         }
 
     except HTTPException:

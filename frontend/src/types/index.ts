@@ -119,7 +119,7 @@ export interface PractitionerWithDetails {
 // Patient types
 export interface Patient {
   id: number;
-  clinic_id: number;
+  clinic_id?: number; // Optional - not available in LIFF context
   full_name: string;
   phone_number: string | null; // Can be null for clinic-created patients
   birthday?: string; // YYYY-MM-DD format
@@ -130,6 +130,11 @@ export interface Patient {
   line_user_display_name?: string;
   line_user_picture_url?: string | null;
   is_deleted?: boolean; // Indicates if patient was soft-deleted by LINE user
+  assigned_practitioners?: Array<{
+    id: number;
+    full_name: string;
+    is_active?: boolean;
+  }>; // Assigned practitioners for this patient
 }
 
 // LINE User types

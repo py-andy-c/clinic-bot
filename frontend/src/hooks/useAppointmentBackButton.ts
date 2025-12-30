@@ -126,12 +126,20 @@ export const useAppointmentBackButton = (isInAppointmentFlow: boolean) => {
           if (currentStep > FIRST_STEP && currentStep < SUCCESS_STEP) {
             // Go to previous step (steps 2-6)
             let previousStep = currentStep - 1;
+            const state = useAppointmentStore.getState();
+            const flowType = state.flowType;
+            const appointmentType = state.appointmentType;
             
-            // If going back from step 3 and practitioner selection is disabled, skip step 2
-            if (previousStep === 2) {
-              const appointmentType = useAppointmentStore.getState().appointmentType;
-              if (appointmentType?.allow_patient_practitioner_selection === false) {
+            // Handle skipping practitioner step based on flow type
+            if (flowType === 'flow1') {
+              // Flow 1: Step 2 is practitioner
+              if (previousStep === 2 && appointmentType?.allow_patient_practitioner_selection === false) {
                 previousStep = 1; // Skip step 2, go directly to step 1
+              }
+            } else if (flowType === 'flow2') {
+              // Flow 2: Step 3 is practitioner
+              if (previousStep === 3 && appointmentType?.allow_patient_practitioner_selection === false) {
+                previousStep = 2; // Skip step 3, go directly to step 2
               }
             }
             

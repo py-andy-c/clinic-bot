@@ -13,6 +13,7 @@ interface PractitionerSelectorProps {
   originalPractitionerId?: number | null | undefined;
   disabled?: boolean;
   appointmentTypeSelected: boolean;
+  assignedPractitionerIds?: Set<number> | number[] | undefined; // IDs of assigned practitioners for the selected patient
 }
 
 export const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
@@ -23,7 +24,15 @@ export const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
   originalPractitionerId,
   disabled = false,
   appointmentTypeSelected,
+  assignedPractitionerIds,
 }) => {
+  // Convert assignedPractitionerIds to Set for easy lookup
+  const assignedIdsSet = React.useMemo(() => {
+    if (!assignedPractitionerIds) return new Set<number>();
+    if (assignedPractitionerIds instanceof Set) return assignedPractitionerIds;
+    return new Set(assignedPractitionerIds);
+  }, [assignedPractitionerIds]);
+
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -40,11 +49,17 @@ export const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
         {isLoading ? (
           <option value="" disabled>載入中...</option>
         ) : (
-          options.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.full_name}{p.id === originalPractitionerId ? ' (原)' : ''}
-            </option>
-          ))
+          options.map((p) => {
+            const isAssigned = assignedIdsSet.has(p.id);
+            const isOriginal = p.id === originalPractitionerId;
+            return (
+              <option key={p.id} value={p.id}>
+                {p.full_name}
+                {isAssigned ? ' (指定治療師)' : ''}
+                {isOriginal ? ' (原)' : ''}
+              </option>
+            );
+          })
         )}
       </select>
       {appointmentTypeSelected && !isLoading && options.length === 0 && (

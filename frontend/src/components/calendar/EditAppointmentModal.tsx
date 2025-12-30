@@ -10,7 +10,7 @@ import { BaseModal } from './BaseModal';
 import { DateTimePicker } from './DateTimePicker';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
 import { apiService } from '../../services/api';
-import { Resource } from '../../types';
+import { Resource, Patient } from '../../types';
 import { getErrorMessage } from '../../types/api';
 import { logger } from '../../utils/logger';
 import { getPractitionerDisplayName, formatAppointmentDateTime } from '../../utils/calendarUtils';
@@ -25,6 +25,9 @@ import {
   PractitionerSelector, 
   AppointmentFormSkeleton 
 } from './form';
+import { usePractitionerAssignmentPrompt } from '../../hooks/usePractitionerAssignmentPrompt';
+import { PractitionerAssignmentPromptModal } from '../PractitionerAssignmentPromptModal';
+import { PractitionerAssignmentConfirmationModal } from '../PractitionerAssignmentConfirmationModal';
 
 type EditStep = 'form' | 'review' | 'note' | 'preview';
 
@@ -93,6 +96,31 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const [previewMessage, setPreviewMessage] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Assignment prompt state
+  const [currentPatient, setCurrentPatient] = useState<Patient | null>(null);
+  const assignmentPrompt = usePractitionerAssignmentPrompt({
+    patient: currentPatient,
+    practitionerId: selectedPractitionerId,
+    onAssignmentAdded: (updatedPatient) => {
+      setCurrentPatient(updatedPatient);
+    },
+  });
+
+  // Fetch patient data on mount to get assigned practitioners
+  useEffect(() => {
+    const loadPatient = async () => {
+      if (event.resource.patient_id) {
+        try {
+          const patient = await apiService.getPatient(event.resource.patient_id);
+          setCurrentPatient(patient);
+        } catch (err) {
+          logger.error('Failed to fetch patient for assignment check:', err);
+        }
+      }
+    };
+    loadPatient();
+  }, [event.resource.patient_id]);
 
   // Store original notes (from patient) - cannot be edited by clinic
   const originalNotes = event.resource.notes || '';
@@ -317,6 +345,26 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         formData.selected_resource_ids = [];
       }
       await onConfirm(formData);
+      
+      // After successful appointment update, check for assignment prompt
+      // Only check if practitioner changed AND new practitioner is not null (not "不指定")
+      if (changeDetails.practitionerChanged && selectedPractitionerId !== null && event.resource.patient_id) {
+        try {
+          const patient = await apiService.getPatient(event.resource.patient_id);
+          setCurrentPatient(patient);
+          // Check if we need to prompt for assignment
+          if (assignmentPrompt.checkAndPrompt()) {
+            // Prompt will be shown, don't close modal yet
+            return;
+          }
+        } catch (err) {
+          logger.error('Failed to fetch patient for assignment check:', err);
+          // Continue to close modal even if we can't check
+        }
+      }
+      
+      // Close modal if no prompt needed
+      onClose();
     } catch (err) {
       logger.error('Error saving appointment:', err);
       setError(getErrorMessage(err));
@@ -375,6 +423,15 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           isLoading={isLoadingPractitioners}
           originalPractitionerId={event.resource.practitioner_id}
           appointmentTypeSelected={!!selectedAppointmentTypeId}
+          assignedPractitionerIds={
+            currentPatient?.assigned_practitioners
+              ? new Set(
+                  currentPatient.assigned_practitioners
+                    .filter((p) => p.is_active !== false)
+                    .map((p) => p.id)
+                )
+              : undefined
+          }
         />
 
         <AppointmentReferenceHeader referenceDateTime={referenceDateTime} />
@@ -651,6 +708,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   const modalTitle = step === 'form' ? '調整預約' : step === 'review' ? '確認變更' : step === 'note' ? '調整預約備註(選填)' : 'LINE訊息預覽';
 
   return (
+    <>
     <BaseModal
       onClose={onClose}
       aria-label={modalTitle}
@@ -699,6 +757,32 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
         </div>
       </div>
     </BaseModal>
+
+    {/* Assignment prompt modals */}
+    {changeDetails.practitionerChanged && selectedPractitionerId !== null && (
+      <>
+        <PractitionerAssignmentPromptModal
+          isOpen={assignmentPrompt.showPrompt}
+          onConfirm={async () => {
+            await assignmentPrompt.handleConfirm();
+          }}
+          onCancel={() => {
+            assignmentPrompt.handleCancel();
+            onClose();
+          }}
+          practitionerName={availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || ''}
+        />
+        <PractitionerAssignmentConfirmationModal
+          isOpen={assignmentPrompt.showConfirmation}
+          onClose={() => {
+            assignmentPrompt.handleConfirmationClose();
+            onClose();
+          }}
+          assignedPractitioners={assignmentPrompt.assignedPractitioners}
+        />
+      </>
+    )}
+  </>
   );
 });
 

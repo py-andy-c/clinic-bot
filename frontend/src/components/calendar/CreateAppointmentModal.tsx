@@ -36,6 +36,9 @@ import {
   PractitionerSelector, 
   AppointmentFormSkeleton 
 } from './form';
+import { usePractitionerAssignmentPrompt } from '../../hooks/usePractitionerAssignmentPrompt';
+import { PractitionerAssignmentPromptModal } from '../PractitionerAssignmentPromptModal';
+import { PractitionerAssignmentConfirmationModal } from '../PractitionerAssignmentConfirmationModal';
 
 /**
  * Helper function to convert recurring conflict status to SchedulingConflictResponse format
@@ -247,6 +250,34 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
   const [addingOccurrence, setAddingOccurrence] = useState<boolean>(false);
   const [hasVisitedConflictResolution, setHasVisitedConflictResolution] = useState<boolean>(false);
   const [singleAppointmentConflict, setSingleAppointmentConflict] = useState<any>(null);
+
+  // Assignment prompt state
+  const [currentPatient, setCurrentPatient] = useState<Patient | null>(null);
+  const assignmentPrompt = usePractitionerAssignmentPrompt({
+    patient: currentPatient,
+    practitionerId: selectedPractitionerId,
+    onAssignmentAdded: (updatedPatient) => {
+      setCurrentPatient(updatedPatient);
+    },
+  });
+
+  // Fetch patient data when patient is selected to get assigned practitioners
+  useEffect(() => {
+    const loadPatient = async () => {
+      if (selectedPatientId) {
+        try {
+          const patient = await apiService.getPatient(selectedPatientId);
+          setCurrentPatient(patient);
+        } catch (err) {
+          logger.error('Failed to fetch patient for assignment check:', err);
+          setCurrentPatient(null);
+        }
+      } else {
+        setCurrentPatient(null);
+      }
+    };
+    loadPatient();
+  }, [selectedPatientId]);
 
   const [searchInput, setSearchInput] = useState<string>(
     preSelectedPatientName || ((isDuplication && event?.resource.patient_name) ? event.resource.patient_name : '')
@@ -548,6 +579,32 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
         if (selectedResourceIds.length > 0) formData.selected_resource_ids = selectedResourceIds;
         
         await onConfirm(formData);
+        
+        // After successful appointment creation, check for assignment prompt
+        // Only check if practitioner is not null (not "不指定")
+        // Use already-fetched patient data if available, otherwise fetch
+        if (selectedPractitionerId !== null && selectedPatientId) {
+          try {
+            // Use currentPatient if available and matches, otherwise fetch
+            let patient = currentPatient;
+            if (!patient || patient.id !== selectedPatientId) {
+              patient = await apiService.getPatient(selectedPatientId);
+              setCurrentPatient(patient);
+            }
+            
+            // Check if we need to prompt for assignment
+            if (assignmentPrompt.checkAndPrompt()) {
+              // Prompt will be shown, don't close modal yet
+              return;
+            }
+          } catch (err) {
+            logger.error('Failed to fetch patient for assignment check:', err);
+            // Continue to close modal even if we can't check
+          }
+        }
+        
+        // Close modal if no prompt needed
+        onClose();
       }
     } catch (err) {
       logger.error('Error creating appointment:', err);
@@ -650,6 +707,15 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           onChange={setSelectedPractitionerId}
           isLoading={isLoadingPractitioners}
           appointmentTypeSelected={!!selectedAppointmentTypeId}
+          assignedPractitionerIds={
+            selectedPatientId && currentPatient?.assigned_practitioners
+              ? new Set(
+                  currentPatient.assigned_practitioners
+                    .filter((p) => p.is_active !== false)
+                    .map((p) => p.id)
+                )
+              : undefined
+          }
         />
 
         <AppointmentReferenceHeader referenceDateTime={referenceDateTime} />
@@ -1189,6 +1255,33 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
       <PatientCreationModal isOpen={isCreatePatientModalOpen} onClose={() => setIsCreatePatientModalOpen(false)} onSuccess={handlePatientCreated} />
     
       {createdPatientId && <PatientCreationSuccessModal isOpen={isSuccessModalOpen} onClose={handleSuccessModalClose} patientId={createdPatientId} patientName={createdPatientName} phoneNumber={createdPatientPhone} birthday={createdPatientBirthday} onCreateAppointment={handleCreateAppointmentFromSuccess} />}
+
+      {/* Assignment prompt modals */}
+      {selectedPractitionerId !== null && (
+        <>
+          <PractitionerAssignmentPromptModal
+            isOpen={assignmentPrompt.showPrompt}
+            onConfirm={async () => {
+              await assignmentPrompt.handleConfirm();
+            }}
+            onCancel={() => {
+              assignmentPrompt.handleCancel();
+              // Close modal after cancel
+              onClose();
+            }}
+            practitionerName={availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || ''}
+          />
+          <PractitionerAssignmentConfirmationModal
+            isOpen={assignmentPrompt.showConfirmation}
+            onClose={() => {
+              assignmentPrompt.handleConfirmationClose();
+              // Close modal after confirmation
+              onClose();
+            }}
+            assignedPractitioners={assignmentPrompt.assignedPractitioners}
+          />
+        </>
+      )}
     </>
   );
 });

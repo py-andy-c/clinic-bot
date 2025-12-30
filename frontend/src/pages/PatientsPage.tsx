@@ -91,17 +91,24 @@ const PatientsPage: React.FC = () => {
   const [searchInput, setSearchInput] = useState<string>('');
   const [isComposing, setIsComposing] = useState(false);
   const debouncedSearchQuery = useDebouncedSearch(searchInput, 400, isComposing);
+  
+  // Practitioner filter
+  const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | undefined>(() => {
+    const practitionerIdParam = searchParams.get('practitioner_id');
+    return practitionerIdParam ? parseInt(practitionerIdParam, 10) : undefined;
+  });
 
   // Memoize fetch functions to ensure stable cache keys
-  // Only search if debouncedSearchQuery has a value (empty string means no search)
+  // Only search if debouncedSearchQuery has a value (empty string becomes undefined)
   const fetchPatients = useCallback(
     () => apiService.getPatients(
       currentPage,
       pageSize,
       undefined, // no signal
-      debouncedSearchQuery || undefined // search parameter (empty string becomes undefined)
+      debouncedSearchQuery || undefined, // search parameter (empty string becomes undefined)
+      selectedPractitionerId // practitioner filter
     ),
-    [currentPage, pageSize, debouncedSearchQuery]
+    [currentPage, pageSize, debouncedSearchQuery, selectedPractitionerId]
   );
   const fetchClinicSettings = useCallback(() => apiService.getClinicSettings(), []);
 
@@ -114,7 +121,7 @@ const PatientsPage: React.FC = () => {
     fetchPatients,
     {
       enabled: !isLoading && isAuthenticated,
-      dependencies: [isLoading, isAuthenticated, activeClinicId, currentPage, pageSize, debouncedSearchQuery],
+      dependencies: [isLoading, isAuthenticated, activeClinicId, currentPage, pageSize, debouncedSearchQuery, selectedPractitionerId],
       defaultErrorMessage: '無法載入病患列表',
       initialData: { patients: [], total: 0, page: 1, page_size: 25 },
     }
@@ -172,14 +179,13 @@ const PatientsPage: React.FC = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { alert } = useModal();
 
-  // Fetch practitioners and appointment types for appointment modal
-  // Only fetch when modal is opened to reduce initial load
+  // Fetch practitioners for appointment modal and filter dropdown
   const fetchPractitioners = useCallback(() => sharedFetchFunctions.getPractitioners(), []);
   const { data: practitionersData } = useApiData(
     fetchPractitioners,
     {
-      enabled: !isLoading && isAuthenticated && isAppointmentModalOpen,
-      dependencies: [isLoading, isAuthenticated, isAppointmentModalOpen],
+      enabled: !isLoading && isAuthenticated,
+      dependencies: [isLoading, isAuthenticated],
       cacheTTL: 5 * 60 * 1000, // 5 minutes cache
     }
   );
@@ -211,17 +217,27 @@ const PatientsPage: React.FC = () => {
   // Focus preservation is now handled inside SearchInput component
   // No need for additional focus logic here
 
-  // Reset to page 1 when search query changes (including when cleared)
+  // Reset to page 1 when search query or practitioner filter changes
   const prevSearchQueryRef = useRef<string>('');
+  const prevPractitionerIdRef = useRef<number | undefined>(undefined);
   useEffect(() => {
-    // Only reset if search query actually changed and we're not on page 1
-    if (prevSearchQueryRef.current !== debouncedSearchQuery && currentPage !== 1) {
+    const searchChanged = prevSearchQueryRef.current !== debouncedSearchQuery;
+    const practitionerChanged = prevPractitionerIdRef.current !== selectedPractitionerId;
+    
+    if ((searchChanged || practitionerChanged) && currentPage !== 1) {
       const newSearchParams = new URLSearchParams(searchParams);
       newSearchParams.set('page', '1');
+      if (selectedPractitionerId !== undefined) {
+        newSearchParams.set('practitioner_id', selectedPractitionerId.toString());
+      } else {
+        newSearchParams.delete('practitioner_id');
+      }
       setSearchParams(newSearchParams, { replace: true });
     }
+    
     prevSearchQueryRef.current = debouncedSearchQuery;
-  }, [debouncedSearchQuery, currentPage, searchParams, setSearchParams]);
+    prevPractitionerIdRef.current = selectedPractitionerId;
+  }, [debouncedSearchQuery, selectedPractitionerId, currentPage, searchParams, setSearchParams]);
 
   // Handle page change
   const handlePageChange = useCallback((page: number) => {
@@ -327,15 +343,39 @@ const PatientsPage: React.FC = () => {
         {/* Patients List */}
         <div className="bg-white md:rounded-lg md:shadow-md p-0 md:p-6">
         <div className="space-y-4">
-          {/* Search Bar */}
-          <SearchInput
-            ref={searchInputRef}
-            value={searchInput}
-            onChange={setSearchInput}
-            onCompositionStart={() => { setIsComposing(true); }}
-            onCompositionEnd={() => { setIsComposing(false); }}
-            placeholder="搜尋病患姓名、電話或LINE使用者名稱..."
-          />
+          {/* Search Bar and Filters */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <SearchInput
+                ref={searchInputRef}
+                value={searchInput}
+                onChange={setSearchInput}
+                onCompositionStart={() => { setIsComposing(true); }}
+                onCompositionEnd={() => { setIsComposing(false); }}
+                placeholder="搜尋病患姓名、電話或LINE使用者名稱..."
+              />
+            </div>
+            <div className="sm:w-48">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                指定治療師
+              </label>
+              <select
+                value={selectedPractitionerId || ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedPractitionerId(value ? parseInt(value, 10) : undefined);
+                }}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">全部</option>
+                {practitioners.map((practitioner) => (
+                  <option key={practitioner.id} value={practitioner.id}>
+                    {practitioner.full_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           
           {!loading && totalPatients === 0 ? (
             <div className="text-center py-8">

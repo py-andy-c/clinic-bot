@@ -14,6 +14,7 @@ import { useModal } from '../contexts/ModalContext';
 import PageHeader from '../components/PageHeader';
 import { PatientInfoSection } from '../components/patient/PatientInfoSection';
 import { PatientNotesSection } from '../components/patient/PatientNotesSection';
+import { PatientAssignedPractitionersSection } from '../components/patient/PatientAssignedPractitionersSection';
 import { PatientAppointmentsList } from '../components/patient/PatientAppointmentsList';
 import { CreateAppointmentModal } from '../components/calendar/CreateAppointmentModal';
 
@@ -24,6 +25,7 @@ const PatientDetailPage: React.FC = () => {
   const { alert } = useModal();
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [isEditingPractitioners, setIsEditingPractitioners] = useState(false);
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const appointmentsListRefetchRef = useRef<(() => Promise<void>) | null>(null);
 
@@ -89,6 +91,7 @@ const PatientDetailPage: React.FC = () => {
     birthday?: string;
     gender?: string;
     notes?: string | null;
+    assigned_practitioner_ids?: number[];
   }) => {
     if (!patientId) return;
 
@@ -104,6 +107,7 @@ const PatientDetailPage: React.FC = () => {
 
       setIsEditing(false);
       setIsEditingNotes(false);
+      setIsEditingPractitioners(false);
       await alert('病患資料已更新');
     } catch (err: any) {
       logger.error('Update patient error:', err);
@@ -187,6 +191,16 @@ const PatientDetailPage: React.FC = () => {
           onCancel={() => setIsEditingNotes(false)}
           onUpdate={handleUpdate}
           canEdit={canEdit}
+        />
+
+        <PatientAssignedPractitionersSection
+          patient={patient}
+          isEditing={isEditingPractitioners}
+          onEdit={() => setIsEditingPractitioners(true)}
+          onCancel={() => setIsEditingPractitioners(false)}
+          onUpdate={handleUpdate}
+          canEdit={canEdit}
+          practitioners={practitioners}
         />
 
         <PatientAppointmentsList 

@@ -254,13 +254,15 @@ export class ApiService {
     page?: number,
     pageSize?: number,
     signal?: AbortSignal,
-    search?: string
+    search?: string,
+    practitionerId?: number
   ): Promise<{ patients: Patient[]; total: number; page: number; page_size: number }> {
     const config = signal ? { signal } : {};
     const params: Record<string, string> = {};
     if (page !== undefined) params.page = page.toString();
     if (pageSize !== undefined) params.page_size = pageSize.toString();
     if (search !== undefined && search.trim()) params.search = search.trim();
+    if (practitionerId !== undefined) params.practitioner_id = practitionerId.toString();
     const response = await this.client.get('/clinic/patients', { ...config, params });
     return response.data;
   }
@@ -276,8 +278,21 @@ export class ApiService {
     birthday?: string;
     gender?: string;
     notes?: string | null;
+    assigned_practitioner_ids?: number[];
   }): Promise<Patient> {
     const response = await this.client.put(`/clinic/patients/${patientId}`, data);
+    return response.data;
+  }
+
+  async assignPractitionerToPatient(patientId: number, practitionerId: number): Promise<Patient> {
+    const response = await this.client.post(`/clinic/patients/${patientId}/assign-practitioner`, {
+      user_id: practitionerId,
+    });
+    return response.data;
+  }
+
+  async removePractitionerAssignment(patientId: number, practitionerId: number): Promise<Patient> {
+    const response = await this.client.delete(`/clinic/patients/${patientId}/assign-practitioner/${practitionerId}`);
     return response.data;
   }
 

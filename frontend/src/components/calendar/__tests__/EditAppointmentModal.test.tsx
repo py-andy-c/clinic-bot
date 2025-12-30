@@ -8,6 +8,7 @@ import React from 'react';
 import { EditAppointmentModal } from '../EditAppointmentModal';
 import { CalendarEvent } from '../../../utils/calendarDataAdapter';
 import { apiService } from '../../../services/api';
+import { ModalProvider } from '../../../contexts/ModalContext';
 
 // Mock createPortal to render directly
 vi.mock('react-dom', async () => {
@@ -59,6 +60,11 @@ const mockFormatAppointmentTime = vi.fn((start: Date, end: Date) =>
 const mockOnConfirm = vi.fn();
 const mockOnClose = vi.fn();
 
+// Helper to wrap component with ModalProvider
+const renderWithModal = (component: React.ReactElement) => {
+  return render(<ModalProvider>{component}</ModalProvider>);
+};
+
 describe('EditAppointmentModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -100,14 +106,16 @@ describe('EditAppointmentModal', () => {
 
   it('should accept edit props without crashing', () => {
     render(
-      <EditAppointmentModal
-        event={mockAppointmentEvent}
-        practitioners={mockPractitioners}
-        appointmentTypes={mockAppointmentTypes}
-        onClose={mockOnClose}
-        onConfirm={mockOnConfirm}
-        formatAppointmentTime={mockFormatAppointmentTime}
-      />
+      <ModalProvider>
+        <EditAppointmentModal
+          event={mockAppointmentEvent}
+          practitioners={mockPractitioners}
+          appointmentTypes={mockAppointmentTypes}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+          formatAppointmentTime={mockFormatAppointmentTime}
+        />
+      </ModalProvider>
     );
 
     expect(screen.getByText('調整預約')).toBeInTheDocument();
@@ -115,14 +123,16 @@ describe('EditAppointmentModal', () => {
 
   it('should display original appointment time', async () => {
     render(
-      <EditAppointmentModal
-        event={mockAppointmentEvent}
-        practitioners={mockPractitioners}
-        appointmentTypes={mockAppointmentTypes}
-        onClose={mockOnClose}
-        onConfirm={mockOnConfirm}
-        formatAppointmentTime={mockFormatAppointmentTime}
-      />
+      <ModalProvider>
+        <EditAppointmentModal
+          event={mockAppointmentEvent}
+          practitioners={mockPractitioners}
+          appointmentTypes={mockAppointmentTypes}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+          formatAppointmentTime={mockFormatAppointmentTime}
+        />
+      </ModalProvider>
     );
 
     // Wait for the component to render
@@ -137,7 +147,7 @@ describe('EditAppointmentModal', () => {
 
   describe('Review Step', () => {
     it('should show review step when form is submitted with changes', async () => {
-      render(
+      renderWithModal(
         <EditAppointmentModal
           event={mockAppointmentEvent}
           practitioners={mockPractitioners}
@@ -148,7 +158,7 @@ describe('EditAppointmentModal', () => {
         />
       );
 
-    // Change practitioner - wait for loading to complete, then find select
+      // Change practitioner - wait for loading to complete, then find select
     await waitFor(() => {
       const selects = screen.getAllByRole('combobox');
       expect(selects.length).toBeGreaterThanOrEqual(2);
@@ -173,7 +183,7 @@ describe('EditAppointmentModal', () => {
     });
 
     it('should display original and new appointment values in review step', async () => {
-      render(
+      renderWithModal(
         <EditAppointmentModal
           event={mockAppointmentEvent}
           practitioners={mockPractitioners}
@@ -210,7 +220,7 @@ describe('EditAppointmentModal', () => {
     });
 
     it('should allow going back to form from review step', async () => {
-      render(
+      renderWithModal(
         <EditAppointmentModal
           event={mockAppointmentEvent}
           practitioners={mockPractitioners}
@@ -260,7 +270,7 @@ describe('EditAppointmentModal', () => {
         },
       };
 
-      render(
+      renderWithModal(
         <EditAppointmentModal
           event={autoAssignedEvent}
           practitioners={mockPractitioners}
@@ -306,7 +316,7 @@ describe('EditAppointmentModal', () => {
         { id: 2, full_name: 'Dr. Another' },
       ]);
 
-      render(
+      renderWithModal(
         <EditAppointmentModal
           event={mockAppointmentEvent}
           practitioners={mockPractitioners}
@@ -341,7 +351,7 @@ describe('EditAppointmentModal', () => {
       // Mock practitioners for type 2
       vi.mocked(apiService.getPractitioners).mockResolvedValue([{ id: 2, full_name: 'Dr. Another' }]);
 
-      render(
+      renderWithModal(
         <EditAppointmentModal
           event={mockAppointmentEvent}
           practitioners={mockPractitioners}
@@ -377,7 +387,7 @@ describe('EditAppointmentModal', () => {
         { id: 1, full_name: 'Dr. Test' },
       ]);
 
-      render(
+      renderWithModal(
         <EditAppointmentModal
           event={mockAppointmentEvent}
           practitioners={mockPractitioners}
@@ -407,7 +417,7 @@ describe('EditAppointmentModal', () => {
       // Clear mock and set up failure for type 2
       vi.mocked(apiService.getPractitioners).mockResolvedValueOnce(mockPractitioners); // For initial load
       
-      render(
+      renderWithModal(
         <EditAppointmentModal
           event={mockAppointmentEvent}
           practitioners={mockPractitioners}

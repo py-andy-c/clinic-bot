@@ -64,6 +64,7 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
   const [showRequireBirthdayModal, setShowRequireBirthdayModal] = useState(false);
   const [showRequireGenderModal, setShowRequireGenderModal] = useState(false);
   const [showPatientBookingModal, setShowPatientBookingModal] = useState(false);
+  const [showRestrictToAssignedModal, setShowRestrictToAssignedModal] = useState(false);
 
   // Get current deadline value for dropdown (format: "前一天_08:00" or "當天_08:00")
   const getDeadlineValue = (): string => {
@@ -424,6 +425,32 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
         </div>
       </div>
 
+      {/* 限制預約至指定治療師 */}
+      <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
+        <div className="flex items-center gap-2 mb-2">
+          <label className="block text-sm font-medium text-gray-700">
+            限制預約至指定治療師
+          </label>
+          <InfoButton onClick={() => setShowRestrictToAssignedModal(true)} />
+        </div>
+        <div className="flex items-center justify-between max-w-2xl">
+          <div>
+            <p className="text-sm text-gray-500">
+              啟用後，病患只能預約其指定治療師的時段（若未指定治療師，則可預約所有治療師）
+            </p>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              {...control.register('clinic_info_settings.restrict_to_assigned_practitioners')}
+              className="sr-only peer"
+              disabled={!isClinicAdmin}
+            />
+            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed"></div>
+          </label>
+        </div>
+      </div>
+
       {/* Info Modals */}
       <InfoModal
         isOpen={showStepSizePopup}
@@ -515,6 +542,15 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
         ariaLabel="開放病患預約說明"
       >
         <p>此設定影響病患是否能透過 LINE 自行預約該治療師的時段。停用後，病患無法透過 LINE 預約此治療師，但診所人員仍可為病患建立預約。</p>
+      </InfoModal>
+
+      <InfoModal
+        isOpen={showRestrictToAssignedModal}
+        onClose={() => setShowRestrictToAssignedModal(false)}
+        title="限制預約至指定治療師"
+        ariaLabel="限制預約至指定治療師說明"
+      >
+        <p>啟用後，病患在透過 LINE 預約時，只能選擇其指定治療師的時段。若病患尚未指定治療師，則可預約所有治療師的時段。診所人員建立預約時不受此限制影響。</p>
       </InfoModal>
     </div>
   );

@@ -72,6 +72,11 @@ const RescheduleFlow: React.FC = () => {
     status: string;
     notes?: string;
     is_auto_assigned?: boolean;
+    assigned_practitioners?: Array<{
+      id: number;
+      full_name: string;
+      is_active?: boolean;
+    }>;
   } | null>(null);
 
   // Form state
@@ -88,16 +93,22 @@ const RescheduleFlow: React.FC = () => {
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [cachedAvailabilityData, setCachedAvailabilityData] = useState<Map<string, { slots: AvailabilitySlot[] }>>(new Map());
 
-  // Load clinic info for minimum cancellation hours
+  // State for assigned practitioners and restriction setting
+  const [assignedPractitionerIds, setAssignedPractitionerIds] = useState<Set<number>>(new Set());
+  const [restrictToAssigned, setRestrictToAssigned] = useState(false);
+
+  // Load clinic info for minimum cancellation hours and restrict_to_assigned_practitioners
   useEffect(() => {
     const loadClinicInfo = async () => {
       try {
         const clinicInfo = await liffApiService.getClinicInfo();
         setMinimumCancellationHours(clinicInfo.minimum_cancellation_hours_before || 24);
+        setRestrictToAssigned(clinicInfo.restrict_to_assigned_practitioners || false);
       } catch (err) {
         logger.error('Failed to load clinic info:', err);
         // Use default if failed to load
         setMinimumCancellationHours(24);
+        setRestrictToAssigned(false);
       }
     };
 
@@ -139,21 +150,73 @@ const RescheduleFlow: React.FC = () => {
     loadAppointmentDetails();
   }, [appointmentId]);
 
+  // Load assigned practitioners for the patient from appointment details
+  useEffect(() => {
+    if (!appointmentDetails?.assigned_practitioners) {
+      setAssignedPractitionerIds(new Set());
+      return;
+    }
+
+    try {
+      // Get active assigned practitioners from appointment details
+      const activeAssigned = appointmentDetails.assigned_practitioners
+        .filter((p) => p.is_active !== false)
+        .map((p) => p.id);
+      setAssignedPractitionerIds(new Set(activeAssigned));
+    } catch (err) {
+      logger.error('Failed to process assigned practitioners:', err);
+      setAssignedPractitionerIds(new Set());
+    }
+  }, [appointmentDetails?.assigned_practitioners]);
+
   // Load practitioners
   useEffect(() => {
     const loadPractitioners = async () => {
       if (!clinicId || !appointmentDetails?.appointment_type_id) return;
 
       try {
-        const response = await liffApiService.getPractitioners(clinicId, appointmentDetails.appointment_type_id);
-        setPractitioners(response.practitioners);
+        // Get practitioners with patient_id filter if patient is known
+        const response = await liffApiService.getPractitioners(
+          clinicId,
+          appointmentDetails.appointment_type_id,
+          appointmentDetails.patient_id
+        );
+        
+        let allPractitioners = response.practitioners;
+        
+        // Filter practitioners based on restrict_to_assigned_practitioners setting
+        // When true, backend already filtered to assigned practitioners only
+        // When false, show all practitioners (assigned ones will be highlighted using assignedPractitionerIds)
+        if (restrictToAssigned && appointmentDetails.patient_id && assignedPractitionerIds.size > 0) {
+          // Check if any assigned practitioners offer the selected appointment type
+          const assignedPractitioners = allPractitioners.filter(p => 
+            assignedPractitionerIds.has(p.id)
+          );
+          
+          // Check if assigned practitioners offer this appointment type
+          const assignedOfferingType = assignedPractitioners.filter(p =>
+            p.offered_types.includes(appointmentDetails.appointment_type_id)
+          );
+
+          if (assignedOfferingType.length > 0) {
+            // Show only assigned practitioners that offer this type
+            allPractitioners = assignedOfferingType;
+          } else {
+            // Edge case: No assigned practitioners offer this type - show all
+            // (including "不指定")
+          }
+        } else if (restrictToAssigned && appointmentDetails.patient_id && assignedPractitionerIds.size === 0) {
+          // Edge case: No assigned practitioners - show all (including "不指定")
+        }
+
+        setPractitioners(allPractitioners);
       } catch (err) {
         logger.error('Failed to load practitioners:', err);
       }
     };
 
     loadPractitioners();
-  }, [clinicId, appointmentDetails?.appointment_type_id]);
+  }, [clinicId, appointmentDetails?.appointment_type_id, appointmentDetails?.patient_id, restrictToAssigned, assignedPractitionerIds]);
 
   // Load availability for month
   useEffect(() => {
@@ -674,9 +737,16 @@ const RescheduleFlow: React.FC = () => {
               >
                 {practitioners.map((p) => {
                   const isOriginalPractitioner = !appointmentDetails?.is_auto_assigned && p.id === appointmentDetails?.practitioner_id;
+                  const isAssigned = assignedPractitionerIds.has(p.id);
                   return (
-                    <option key={p.id} value={p.id}>
-                      {p.full_name}{isOriginalPractitioner ? ` (${t('appointment.reschedule.originalPractitioner')})` : ''}
+                    <option 
+                      key={p.id} 
+                      value={p.id}
+                      className={isAssigned ? 'bg-primary-50 text-primary-900' : ''}
+                    >
+                      {p.full_name}
+                      {isAssigned ? ' (指定治療師)' : ''}
+                      {isOriginalPractitioner ? ` (${t('appointment.reschedule.originalPractitioner')})` : ''}
                     </option>
                   );
                 })}

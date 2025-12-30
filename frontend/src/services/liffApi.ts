@@ -117,6 +117,7 @@ export interface ClinicInfoResponse {
   minimum_cancellation_hours_before?: number;
   appointment_notes_instructions?: string | null;
   allow_patient_deletion?: boolean;
+  restrict_to_assigned_practitioners?: boolean;
 }
 
 class LiffApiService {
@@ -200,9 +201,11 @@ class LiffApiService {
   }
 
   // Practitioners
-  async getPractitioners(_clinicId: number, appointmentTypeId?: number): Promise<PractitionersResponse> {
+  async getPractitioners(_clinicId: number, appointmentTypeId?: number, patientId?: number): Promise<PractitionersResponse> {
     // Clinic ID is already in the JWT token, don't need it in URL
-    const params = appointmentTypeId ? { appointment_type_id: appointmentTypeId } : {};
+    const params: Record<string, string | number> = {};
+    if (appointmentTypeId) params.appointment_type_id = appointmentTypeId;
+    if (patientId) params.patient_id = patientId;
     const response = await this.client.get('/liff/practitioners', { params });
     return response.data;
   }
@@ -284,6 +287,11 @@ class LiffApiService {
     status: string;
     notes?: string;
     is_auto_assigned?: boolean;
+    assigned_practitioners?: Array<{
+      id: number;
+      full_name: string;
+      is_active?: boolean;
+    }>;
   }> {
     const response = await this.client.get(`/liff/appointments/${appointmentId}/details`);
     return response.data;
