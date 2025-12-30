@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy import String, TIMESTAMP, Boolean, ForeignKey, UniqueConstraint, Index, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from core.database import Base
 
@@ -39,6 +39,49 @@ class PractitionerSettings(BaseModel):
         le=60,
         description="Time interval in minutes for appointment slot granularity for this specific practitioner. If null, falls back to clinic default."
     )
+    # Admin-only fields
+    subscribe_to_appointment_changes: bool = Field(
+        default=False,
+        description="Admin-only: Subscribe to appointment change notifications for all practitioners"
+    )
+    admin_daily_reminder_enabled: bool = Field(
+        default=False,
+        description="Admin-only: Receive daily appointment reminders for all practitioners"
+    )
+    admin_daily_reminder_time: str = Field(
+        default="21:00",
+        description="Admin-only: Time to send daily appointment reminder (HH:MM format, 24-hour)"
+    )
+    auto_assigned_notification_mode: str = Field(
+        default="scheduled",
+        description="Admin-only: Auto-assigned notification mode - 'immediate' or 'scheduled'"
+    )
+    
+    @field_validator('auto_assigned_notification_mode')
+    @classmethod
+    def validate_notification_mode(cls, v: str) -> str:
+        """Validate that notification mode is one of the allowed values."""
+        if v not in ['immediate', 'scheduled']:
+            raise ValueError("auto_assigned_notification_mode 必須是 'immediate' 或 'scheduled'")
+        return v
+    
+    @field_validator('admin_daily_reminder_time')
+    @classmethod
+    def validate_time_format(cls, v: str) -> str:
+        """Validate that time is in HH:MM format."""
+        try:
+            parts = v.split(':')
+            if len(parts) != 2:
+                raise ValueError("Time must be in HH:MM format")
+            hour = int(parts[0])
+            minute = int(parts[1])
+            if hour < 0 or hour > 23:
+                raise ValueError("Hour must be between 0 and 23")
+            if minute < 0 or minute > 59:
+                raise ValueError("Minute must be between 0 and 59")
+        except (ValueError, AttributeError) as e:
+            raise ValueError(f"Invalid time format: {v}. Must be HH:MM (24-hour format)") from e
+        return v
 
 
 class UserClinicAssociation(Base):

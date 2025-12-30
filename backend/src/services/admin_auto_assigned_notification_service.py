@@ -138,16 +138,28 @@ class AdminAutoAssignedNotificationService:
 
                     # Send notification to each admin based on their individual setting
                     for admin_association in admins:
-                        # Get admin's notification time setting
+                        # Get admin's notification settings
                         try:
                             admin_settings = admin_association.get_validated_settings()
                             notification_time_str = admin_settings.auto_assigned_notification_time
+                            notification_mode = admin_settings.auto_assigned_notification_mode
                         except Exception as e:
                             logger.warning(
                                 f"Error getting notification settings for admin {admin_association.user_id} "
-                                f"in clinic {clinic.id}: {e}, using default 21:00"
+                                f"in clinic {clinic.id}: {e}, using defaults"
                             )
                             notification_time_str = "21:00"
+                            notification_mode = "scheduled"
+                        
+                        # Only send if mode is "scheduled" (immediate mode sends notifications when appointments are created)
+                        # This prevents duplicate notifications - immediate mode admins already received notification
+                        # when the auto-assigned appointment was created in AppointmentService.create_appointment()
+                        if notification_mode != "scheduled":
+                            logger.debug(
+                                f"Admin {admin_association.user_id} has notification mode '{notification_mode}', "
+                                f"skipping scheduled notification (already notified on creation)"
+                            )
+                            continue
 
                         # Parse notification time (interpreted as Taiwan time, e.g., "21:00" = 9 PM)
                         try:

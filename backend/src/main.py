@@ -37,6 +37,10 @@ from services.admin_auto_assigned_notification_service import (
     start_admin_auto_assigned_notification_scheduler,
     stop_admin_auto_assigned_notification_scheduler
 )
+from services.admin_daily_reminder_service import (
+    start_admin_daily_reminder_scheduler,
+    stop_admin_daily_reminder_scheduler
+)
 from services.scheduled_message_scheduler import (
     start_scheduled_message_scheduler,
     stop_scheduled_message_scheduler
@@ -80,6 +84,7 @@ async def lifespan(app: FastAPI):
         start_scheduler_safely("Availability notification scheduler", start_availability_notification_scheduler),
         start_scheduler_safely("Auto-assignment scheduler", start_auto_assignment_scheduler),
         start_scheduler_safely("Admin auto-assigned notification scheduler", start_admin_auto_assigned_notification_scheduler),
+        start_scheduler_safely("Admin daily reminder scheduler", start_admin_daily_reminder_scheduler),
         start_scheduler_safely("Scheduled message scheduler (handles reminders, follow-ups, practitioner notifications)", start_scheduled_message_scheduler),
         return_exceptions=True  # Don't fail if any scheduler fails
     )
@@ -121,6 +126,13 @@ async def lifespan(app: FastAPI):
         logger.info("🛑 Admin auto-assigned notification scheduler stopped")
     except Exception as e:
         logger.exception(f"❌ Error stopping admin auto-assigned notification scheduler: {e}")
+
+    # Stop admin daily reminder scheduler
+    try:
+        await stop_admin_daily_reminder_scheduler()
+        logger.info("🛑 Admin daily reminder scheduler stopped")
+    except Exception as e:
+        logger.exception(f"❌ Error stopping admin daily reminder scheduler: {e}")
 
     # Stop scheduled message scheduler
     try:

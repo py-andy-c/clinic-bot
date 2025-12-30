@@ -308,6 +308,15 @@ class AppointmentService:
                         NotificationService.send_practitioner_appointment_notification(
                             db, association, appointment, clinic
                         )
+                        
+                        # Send admin appointment change notification (exclude auto-assigned)
+                        try:
+                            NotificationService.send_admin_appointment_change_notification(
+                                db, appointment, clinic, change_type='new', practitioner=practitioner
+                            )
+                        except Exception as e:
+                            logger.exception(f"Failed to send admin appointment change notification: {e}")
+                            # Don't fail appointment creation if notification fails
 
                 # Send patient confirmation notification
                 # For clinic-triggered: send if not auto-assigned (will get reminder anyway)
@@ -351,6 +360,16 @@ class AppointmentService:
                         NotificationService.send_appointment_confirmation(
                             db, appointment, practitioner_name_for_notification, clinic, trigger_source='patient_triggered'
                         )
+                
+                # Send immediate auto-assigned notification if appointment is auto-assigned
+                if was_auto_assigned:
+                    try:
+                        NotificationService.send_immediate_auto_assigned_notification(
+                            db, appointment, clinic
+                        )
+                    except Exception as e:
+                        logger.exception(f"Failed to send immediate auto-assigned notification: {e}")
+                        # Don't fail appointment creation if notification fails
 
             logger.info(f"Created appointment {appointment.calendar_event_id} for patient {patient_id}")
 
@@ -1049,6 +1068,15 @@ class AppointmentService:
                     NotificationService.send_practitioner_cancellation_notification(
                         db, association, appointment, clinic, cancelled_by
                     )
+                    
+                    # Send admin appointment change notification (after practitioner notification)
+                    try:
+                        NotificationService.send_admin_appointment_change_notification(
+                            db, appointment, clinic, change_type='cancel', practitioner=practitioner
+                        )
+                    except Exception as e:
+                        logger.exception(f"Failed to send admin appointment change notification: {e}")
+                        # Don't fail cancellation if notification fails
                 
                 # Send patient cancellation notification
                 # Skip if patient cancelled themselves (they already know they cancelled)
@@ -1600,6 +1628,15 @@ class AppointmentService:
                         NotificationService.send_practitioner_edit_notification(
                             db, old_practitioner, new_practitioner, appointment, clinic
                         )
+                        
+                        # Send admin appointment change notification (after practitioner edit notification)
+                        try:
+                            NotificationService.send_admin_appointment_change_notification(
+                                db, appointment, clinic, change_type='edit', practitioner=new_practitioner
+                            )
+                        except Exception as e:
+                            logger.exception(f"Failed to send admin appointment change notification: {e}")
+                            # Don't fail update if notification fails
                 else:
                     # Patient edit: old receives cancellation, new receives appointment
                     from models.user_clinic_association import UserClinicAssociation
@@ -1648,6 +1685,15 @@ class AppointmentService:
                 NotificationService.send_practitioner_edit_notification(
                     db, old_practitioner, old_practitioner, appointment, clinic
                 )
+                
+                # Send admin appointment change notification (after practitioner edit notification)
+                try:
+                    NotificationService.send_admin_appointment_change_notification(
+                        db, appointment, clinic, change_type='edit', practitioner=old_practitioner
+                    )
+                except Exception as e:
+                    logger.exception(f"Failed to send admin appointment change notification: {e}")
+                    # Don't fail update if notification fails
         except Exception as e:
             # Log but don't fail - notification failure shouldn't block update
             logger.warning(f"Failed to send appointment update notification: {e}")

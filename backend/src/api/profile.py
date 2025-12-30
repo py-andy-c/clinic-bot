@@ -36,7 +36,7 @@ class ProfileResponse(BaseModel):
     active_clinic_id: Optional[int]  # Currently active clinic ID (None for system admins)
     created_at: datetime
     last_login_at: Optional[datetime]
-    settings: Optional[Dict[str, Any]] = None  # Practitioner settings (only for practitioners)
+    settings: Optional[Dict[str, Any]] = None  # Practitioner/admin settings (for practitioners and admins)
     line_linked: bool = False  # Whether LINE account is linked for notifications
 
 
@@ -44,7 +44,7 @@ class ProfileUpdateRequest(BaseModel):
     """Request model for updating user profile."""
     full_name: Optional[str] = None
     title: Optional[str] = None  # Title/honorific (e.g., "治療師") - max 50 characters
-    settings: Optional[Dict[str, Any]] = None  # Practitioner settings (only for practitioners)
+    settings: Optional[Dict[str, Any]] = None  # Practitioner/admin settings (for practitioners and admins)
     # Note: email is intentionally excluded - cannot be changed
     
     @field_validator('title')
@@ -104,8 +104,8 @@ async def get_profile(
             if association:
                 roles = association.roles or []
                 active_clinic_id = association.clinic_id
-                # Include settings if user is a practitioner
-                if 'practitioner' in roles:
+                # Include settings if user is a practitioner or admin (admins need settings for admin-only fields)
+                if 'practitioner' in roles or 'admin' in roles:
                     settings = association.get_validated_settings().model_dump()
                 # Check if LINE account is linked for this clinic
                 line_linked = bool(association.line_user_id)
@@ -215,6 +215,25 @@ async def update_profile(
                     # Validate settings schema
                     validated_settings = PractitionerSettings.model_validate(profile_data.settings)
                     
+                    # Backend validation: Check if user has admin role before allowing admin-only fields
+                    is_admin = 'admin' in (association.roles or [])
+                    admin_only_fields = [
+                        'subscribe_to_appointment_changes',
+                        'admin_daily_reminder_enabled',
+                        'admin_daily_reminder_time',
+                        'auto_assigned_notification_mode'
+                    ]
+                    
+                    # Check if non-admin is trying to set admin-only fields
+                    settings_dict = profile_data.settings
+                    for field in admin_only_fields:
+                        if field in settings_dict and settings_dict[field] is not None:
+                            # Check if value is different from default (indicates user is trying to set it)
+                            default_value = PractitionerSettings.model_fields[field].default
+                            if settings_dict[field] != default_value:
+                                if not is_admin:
+                                    raise ValueError(f"只有管理員可以設定 {field}")
+                    
                     # Ensure practitioner step size is not smaller than clinic default
                     if validated_settings.step_size_minutes is not None:
                         # Fetch clinic settings
@@ -230,7 +249,7 @@ async def update_profile(
                     detail = str(e)
                     if "Validator" in detail or "value_error" in detail:
                         # Clean up Pydantic error messages if possible or use generic one
-                        detail = "無效的設定格式" if not str(e).startswith("個人") else str(e)
+                        detail = "無效的設定格式" if not str(e).startswith("個人") and not str(e).startswith("只有管理員") else str(e)
                         
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
@@ -270,8 +289,8 @@ async def update_profile(
                 active_clinic_id = association.clinic_id
                 clinic_full_name = association.full_name  # Clinic users always have association.full_name
                 clinic_title = association.title or ""  # Get title from association
-                # Include settings if user is a practitioner
-                if 'practitioner' in roles:
+                # Include settings if user is a practitioner or admin (admins need settings for admin-only fields)
+                if 'practitioner' in roles or 'admin' in roles:
                     settings = association.get_validated_settings().model_dump()
                 # Check if LINE account is linked for this clinic
                 line_linked = bool(association.line_user_id)

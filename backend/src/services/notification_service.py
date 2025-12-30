@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum
 from sqlalchemy.orm import Session
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from models import Appointment, User, Clinic
 from utils.datetime_utils import format_datetime
 
@@ -776,6 +776,263 @@ class NotificationService:
             logger.exception(f"Failed to send reassignment notification to new practitioner: {e}")
 
         return success
+
+    @staticmethod
+    def send_admin_appointment_change_notification(
+        db: Session,
+        appointment: Appointment,
+        clinic: Clinic,
+        change_type: str,
+        practitioner: Optional[User] = None
+    ) -> bool:
+        """
+        Send appointment change notification to admins who have subscribed.
+        
+        Args:
+            db: Database session
+            appointment: Changed appointment
+            clinic: Clinic object
+            change_type: Type of change - 'new', 'cancel', or 'edit'
+            practitioner: Practitioner associated with the appointment (optional, will be fetched if not provided)
+        
+        Returns:
+            True if at least one notification sent successfully, False otherwise
+        """
+        try:
+            # Check if clinic has LINE credentials
+            if not clinic.line_channel_secret or not clinic.line_channel_access_token:
+                logger.debug(f"Clinic {clinic.id} has no LINE credentials, skipping admin change notification")
+                return False
+            
+            # Query all admins with subscribe_to_appointment_changes enabled
+            from models.user_clinic_association import UserClinicAssociation
+            
+            admins = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.clinic_id == clinic.id,
+                UserClinicAssociation.is_active == True,
+                UserClinicAssociation.roles.contains(['admin']),
+                UserClinicAssociation.settings['subscribe_to_appointment_changes'].astext == 'true',
+                UserClinicAssociation.line_user_id.isnot(None)
+            ).all()
+            
+            if not admins:
+                logger.debug(f"No admins subscribed to appointment changes for clinic {clinic.id}")
+                return False
+            
+            # Get practitioner name
+            practitioner_name = "不指定"
+            if practitioner:
+                from utils.practitioner_helpers import get_practitioner_display_name_with_title
+                practitioner_name = get_practitioner_display_name_with_title(
+                    db, practitioner.id, clinic.id
+                )
+            elif appointment.calendar_event and appointment.calendar_event.user_id:
+                from utils.practitioner_helpers import get_practitioner_display_name_with_title
+                practitioner_name = get_practitioner_display_name_with_title(
+                    db, appointment.calendar_event.user_id, clinic.id
+                )
+            
+            # Get patient name
+            patient_name = appointment.patient.full_name if appointment.patient else "未知病患"
+            
+            # Format appointment time
+            start_datetime = datetime.combine(
+                appointment.calendar_event.date,
+                appointment.calendar_event.start_time
+            )
+            formatted_datetime = format_datetime(start_datetime)
+            
+            # Get appointment type name
+            appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
+            
+            # Map change type to Chinese text
+            change_type_text = {
+                'new': '新預約',
+                'cancel': '取消',
+                'edit': '調整'
+            }.get(change_type, '變更')
+            
+            # Build message
+            message = f"📅 預約變更通知\n\n"
+            message += f"治療師：{practitioner_name}\n"
+            message += f"病患：{patient_name}\n"
+            message += f"時間：{formatted_datetime}\n"
+            message += f"類型：{appointment_type_name}\n"
+            message += f"變更：{change_type_text}"
+            
+            # Send notification to each admin
+            line_service = NotificationService._get_line_service(clinic)
+            success_count = 0
+            
+            for admin_association in admins:
+                try:
+                    # Type safety check: line_user_id is filtered to be non-null in query,
+                    # but type system doesn't know this, so we check here
+                    if not admin_association.line_user_id:
+                        continue
+                        
+                    labels = {
+                        'recipient_type': 'admin',
+                        'event_type': 'appointment_change_notification',
+                        'trigger_source': 'system_triggered',
+                        'appointment_context': change_type,
+                        'change_type': change_type
+                    }
+                    line_service.send_text_message(
+                        admin_association.line_user_id,
+                        message,
+                        db=db,
+                        clinic_id=clinic.id,
+                        labels=labels
+                    )
+                    success_count += 1
+                    logger.debug(
+                        f"Sent appointment change notification to admin {admin_association.user_id} "
+                        f"for appointment {appointment.calendar_event_id}"
+                    )
+                except Exception as e:
+                    logger.exception(
+                        f"Failed to send appointment change notification to admin {admin_association.user_id}: {e}"
+                    )
+            
+            if success_count > 0:
+                logger.info(
+                    f"Sent appointment change notifications to {success_count} admin(s) "
+                    f"for appointment {appointment.calendar_event_id} (change_type: {change_type})"
+                )
+                return True
+            return False
+            
+        except Exception as e:
+            logger.exception(f"Failed to send admin appointment change notification: {e}")
+            return False
+    
+    @staticmethod
+    def send_immediate_auto_assigned_notification(
+        db: Session,
+        appointment: Appointment,
+        clinic: Clinic
+    ) -> bool:
+        """
+        Send immediate notification to admins about a newly auto-assigned appointment.
+        
+        Only sends to admins with auto_assigned_notification_mode = "immediate".
+        
+        Args:
+            db: Database session
+            appointment: Auto-assigned appointment
+            clinic: Clinic object
+        
+        Returns:
+            True if at least one notification sent successfully, False otherwise
+        """
+        try:
+            # Check if clinic has LINE credentials
+            if not clinic.line_channel_secret or not clinic.line_channel_access_token:
+                logger.debug(f"Clinic {clinic.id} has no LINE credentials, skipping immediate auto-assigned notification")
+                return False
+            
+            # Query all admins with immediate mode enabled
+            from models.user_clinic_association import UserClinicAssociation
+            
+            admins = db.query(UserClinicAssociation).filter(
+                UserClinicAssociation.clinic_id == clinic.id,
+                UserClinicAssociation.is_active == True,
+                UserClinicAssociation.roles.contains(['admin']),
+                UserClinicAssociation.settings['auto_assigned_notification_mode'].astext == 'immediate',
+                UserClinicAssociation.line_user_id.isnot(None)
+            ).all()
+            
+            if not admins:
+                logger.debug(f"No admins with immediate mode enabled for clinic {clinic.id}")
+                return False
+            
+            # Get patient name
+            patient_name = appointment.patient.full_name if appointment.patient else "未知病患"
+            
+            # Format appointment time
+            start_datetime = datetime.combine(
+                appointment.calendar_event.date,
+                appointment.calendar_event.start_time
+            )
+            formatted_time = format_datetime(start_datetime)
+            
+            # Get appointment type name
+            appointment_type_name = appointment.appointment_type.name if appointment.appointment_type else "預約"
+            
+            # Get practitioner name (from association if available)
+            practitioner = appointment.calendar_event.user if appointment.calendar_event else None
+            practitioner_name = "不指定"
+            if practitioner:
+                practitioner_association = db.query(UserClinicAssociation).filter(
+                    UserClinicAssociation.user_id == practitioner.id,
+                    UserClinicAssociation.clinic_id == clinic.id,
+                    UserClinicAssociation.is_active == True
+                ).first()
+                if practitioner_association:
+                    practitioner_name = practitioner_association.full_name
+                else:
+                    practitioner_name = practitioner.email
+            
+            # Build message (similar to scheduled auto-assigned notification format)
+            message = "📋 待審核預約提醒\n\n"
+            message += "您有 1 個待審核的預約：\n\n"
+            message += f"1. {formatted_time}\n"
+            message += f"   病患：{patient_name}\n"
+            message += f"   類型：{appointment_type_name}\n"
+            message += f"   治療師：{practitioner_name}"
+            
+            if appointment.notes:
+                message += f"\n   備註：{appointment.notes}"
+            
+            message += "\n\n請前往「待審核預約」頁面進行確認或重新指派。"
+            
+            # Send notification to each admin
+            line_service = NotificationService._get_line_service(clinic)
+            success_count = 0
+            
+            for admin_association in admins:
+                try:
+                    # Type safety check: line_user_id is filtered to be non-null in query,
+                    # but type system doesn't know this, so we check here
+                    if not admin_association.line_user_id:
+                        continue
+                        
+                    labels = {
+                        'recipient_type': 'admin',
+                        'event_type': 'auto_assigned_notification',
+                        'trigger_source': 'system_triggered',
+                        'notification_context': 'auto_assignment',
+                        'notification_mode': 'immediate'
+                    }
+                    line_service.send_text_message(
+                        admin_association.line_user_id,
+                        message,
+                        db=db,
+                        clinic_id=clinic.id,
+                        labels=labels
+                    )
+                    success_count += 1
+                    logger.debug(
+                        f"Sent immediate auto-assigned notification to admin {admin_association.user_id} "
+                        f"for appointment {appointment.calendar_event_id}"
+                    )
+                except Exception as e:
+                    logger.exception(
+                        f"Failed to send immediate auto-assigned notification to admin {admin_association.user_id}: {e}"
+                    )
+            
+            if success_count > 0:
+                logger.info(
+                    f"Sent immediate auto-assigned notifications to {success_count} admin(s) "
+                    f"for appointment {appointment.calendar_event_id}"
+                )
+                return True
+            return False
+            
+        except Exception as e:
+            logger.exception(f"Failed to send immediate auto-assigned notification: {e}")
+            return False
 
     @staticmethod
     def _get_line_service(clinic: Clinic):
