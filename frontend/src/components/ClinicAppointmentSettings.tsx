@@ -550,7 +550,15 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
         title="限制預約至負責人員"
         ariaLabel="限制預約至負責人員說明"
       >
-        <p>啟用後，病患在透過 LINE 預約時，只能選擇其負責人員的時段。若病患尚未指定負責人員，則可預約所有治療師的時段。診所人員建立預約時不受此限制影響。</p>
+        <div className="space-y-2">
+          <p>啟用後，病患在透過 LINE 預約時，只能選擇其負責人員的時段。</p>
+          <p>以下情況例外，病患可選擇任何治療師：</p>
+          <ul className="list-disc list-inside space-y-1 ml-2 text-sm">
+            <li>若病患尚未指定負責人員</li>
+            <li>若選擇的服務項目沒有任何負責人員提供</li>
+          </ul>
+          <p className="text-sm text-gray-600 mt-2">診所人員建立預約時不受此限制影響。</p>
+        </div>
       </InfoModal>
     </div>
   );
