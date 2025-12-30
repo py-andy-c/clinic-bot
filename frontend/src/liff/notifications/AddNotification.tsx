@@ -41,15 +41,17 @@ const AddNotification: React.FC = () => {
     afternoon: t('notifications.add.timeWindow.afternoonDesc'),
     evening: t('notifications.add.timeWindow.eveningDesc'),
   };
-  const { clinicId, appointmentTypeId } = useAppointmentStore();
+  const { clinicId } = useAppointmentStore();
   
   // Pre-fill from URL params (when redirected from appointment flow)
+  // Only use URL params, not store values, to avoid pre-selecting when navigating directly
   const urlAppointmentTypeId = searchParams.get('appointment_type_id');
+  const initialAppointmentTypeId = urlAppointmentTypeId ? parseInt(urlAppointmentTypeId, 10) : null;
 
   const [appointmentTypes, setAppointmentTypes] = useState<AppointmentType[]>([]);
   const [practitioners, setPractitioners] = useState<Practitioner[]>([]);
   const [selectedAppointmentTypeId, setSelectedAppointmentTypeId] = useState<number | null>(
-    appointmentTypeId || (urlAppointmentTypeId ? parseInt(urlAppointmentTypeId, 10) : null)
+    initialAppointmentTypeId
   );
   // Don't auto-select practitioner from URL/store - let user choose
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<number | null>(null);
@@ -58,7 +60,6 @@ const AddNotification: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const initialAppointmentTypeId = appointmentTypeId || (urlAppointmentTypeId ? parseInt(urlAppointmentTypeId, 10) : null);
   const [error, setError] = useState<string | null>(null);
   const [isAppointmentTypeCollapsed, setIsAppointmentTypeCollapsed] = useState(!!initialAppointmentTypeId);
   const [previousAppointmentTypeId, setPreviousAppointmentTypeId] = useState<number | null>(initialAppointmentTypeId);
