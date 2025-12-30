@@ -165,9 +165,12 @@ export const useAppointmentForm = ({
 
         // Handle practitioners result
         const practitionersResult = results[0];
+        let practitionersReadyFromResult = false;
+        
         if (practitionersResult && practitionersResult.status === 'fulfilled') {
           const sorted = [...practitionersResult.value].sort((a, b) => a.full_name.localeCompare(b.full_name, 'zh-TW'));
           setAvailablePractitioners(sorted);
+          practitionersReadyFromResult = true;
           
           // Auto-deselect practitioner if current selection is not in the filtered list
           if (pracId && !sorted.find(p => p.id === pracId)) {
@@ -180,7 +183,19 @@ export const useAppointmentForm = ({
             logger.error('Failed to fetch practitioners:', reason);
             setAvailablePractitioners([]);
             setError('無法載入治療師列表，請稍後再試');
+            practitionersReadyFromResult = false;
+          } else {
+            // Request was aborted (likely due to React strict mode or component unmount)
+            // Use allPractitioners as fallback since we have that data available
+            const sorted = [...allPractitioners].sort((a, b) => a.full_name.localeCompare(b.full_name, 'zh-TW'));
+            setAvailablePractitioners(sorted);
+            practitionersReadyFromResult = true;
           }
+        } else {
+          // Missing result - use allPractitioners as fallback
+          const sorted = [...allPractitioners].sort((a, b) => a.full_name.localeCompare(b.full_name, 'zh-TW'));
+          setAvailablePractitioners(sorted);
+          practitionersReadyFromResult = true;
         }
 
         // Handle resources result
@@ -229,9 +244,21 @@ export const useAppointmentForm = ({
         }
 
         // Set loading to false only after all required data is loaded
-        const practitionersReady = practitionersResult?.status === 'fulfilled';
-        const resourcesReady = !shouldFetchResources || resourcesResult?.status === 'fulfilled';
-        const availabilityReady = !shouldFetchAvailability || availabilityResult?.status === 'fulfilled';
+        // Use practitionersReadyFromResult which handles aborted requests with fallback data
+        const practitionersReady = practitionersReadyFromResult;
+        
+        // Resources are ready if not needed, fetched successfully, or aborted/failed (we have fallback data)
+        const resourcesReady = !shouldFetchResources || 
+          resourcesResult?.status === 'fulfilled' ||
+          (resourcesResult?.status === 'rejected' && 
+           (resourcesResult.reason?.name === 'CanceledError' || 
+            resourcesResult.reason?.name === 'AbortError' ||
+            resourceIds.length > 0)); // Have fallback data
+        
+        // Availability is ready if not needed, fetched successfully, or aborted/failed (not critical)
+        const availabilityReady = !shouldFetchAvailability || 
+          availabilityResult?.status === 'fulfilled' ||
+          availabilityResult?.status === 'rejected'; // Always ready if attempted (graceful degradation)
         
         // Wait for practitioners (always required) and resources/availability if needed
         if (practitionersReady && resourcesReady && availabilityReady) {
