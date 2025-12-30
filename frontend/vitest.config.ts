@@ -9,7 +9,8 @@ export default defineConfig({
   plugins: [react()],
   // Prevent Vite from automatically loading .env files during tests
   // This avoids permission issues and ensures consistent test behavior
-  envDir: undefined, // Don't load .env files automatically
+  // Setting envDir to false prevents Vite from loading any .env files
+  envDir: false, // Don't load .env files automatically
   test: {
     environment: 'jsdom',
     globals: true,

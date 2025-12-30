@@ -29,6 +29,10 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
 print_sandbox_hint() {
     echo ""
     print_warning "This error may be due to sandbox restrictions."
@@ -80,7 +84,11 @@ fi
 
 # Activate existing virtual environment
 print_status "Activating virtual environment..."
-if ! source venv/bin/activate 2>/dev/null; then
+set +e
+source venv/bin/activate 2>&1
+ACTIVATION_STATUS=$?
+set -e
+if [ $ACTIVATION_STATUS -ne 0 ]; then
     print_error "Failed to activate virtual environment"
     print_sandbox_hint
     exit 1
