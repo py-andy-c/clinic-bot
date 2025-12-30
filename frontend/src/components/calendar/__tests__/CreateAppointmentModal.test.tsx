@@ -31,6 +31,8 @@ vi.mock('../../../services/api', () => ({
     getPatients: vi.fn(),
     getPractitioners: vi.fn(),
     createPatient: vi.fn(),
+    getPatient: vi.fn(),
+    checkSchedulingConflicts: vi.fn(),
   },
 }));
 
@@ -699,6 +701,254 @@ describe('CreateAppointmentModal', () => {
         // When occurrenceCount is null, the input value is empty string (HTML number inputs use '' for empty)
         // Check that the input is empty by verifying it has no numeric value
         expect(newCountInput.value).toBe('');
+      });
+    });
+  });
+
+  describe('Auto-select assigned practitioner', () => {
+    beforeEach(() => {
+      vi.mocked(apiService.getPatient).mockResolvedValue({
+        id: 1,
+        full_name: 'Test Patient',
+        phone_number: '1234567890',
+        created_at: '2024-01-01T00:00:00Z',
+        assigned_practitioner_ids: [1], // Patient has practitioner 1 assigned
+      });
+    });
+
+    it('should auto-select first assigned practitioner when patient and appointment type are selected', async () => {
+      vi.mocked(apiService.getPractitioners).mockResolvedValue([
+        { id: 1, full_name: 'Dr. Assigned' },
+        { id: 2, full_name: 'Dr. Another' },
+      ]);
+
+      renderWithModal(
+        <CreateAppointmentModal
+          preSelectedPatientId={1}
+          practitioners={mockPractitioners}
+          appointmentTypes={mockAppointmentTypes}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />
+      );
+
+      // Wait for patient to be loaded
+      await waitFor(() => {
+        expect(apiService.getPatient).toHaveBeenCalledWith(1);
+      });
+
+      // Wait for form to load
+      await waitFor(() => {
+        expect(screen.queryByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+      });
+
+      // Select appointment type
+      const selects = screen.getAllByRole('combobox');
+      const appointmentTypeSelect = selects[0];
+      fireEvent.change(appointmentTypeSelect, { target: { value: '1' } });
+
+      // Wait for practitioners to load and auto-selection to happen
+      await waitFor(() => {
+        expect(apiService.getPractitioners).toHaveBeenCalled();
+      });
+
+      // Verify practitioner 1 (assigned) is auto-selected
+      await waitFor(() => {
+        const practitionerSelect = screen.getAllByRole('combobox')[1];
+        expect(practitionerSelect).toHaveValue('1');
+      });
+    });
+
+    it('should not auto-select if user has already selected a practitioner', async () => {
+      vi.mocked(apiService.getPractitioners).mockResolvedValue([
+        { id: 1, full_name: 'Dr. Assigned' },
+        { id: 2, full_name: 'Dr. Another' },
+      ]);
+
+      renderWithModal(
+        <CreateAppointmentModal
+          preSelectedPatientId={1}
+          practitioners={mockPractitioners}
+          appointmentTypes={mockAppointmentTypes}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />
+      );
+
+      // Wait for patient to be loaded
+      await waitFor(() => {
+        expect(apiService.getPatient).toHaveBeenCalledWith(1);
+      });
+
+      // Wait for form to load
+      await waitFor(() => {
+        expect(screen.queryByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+      });
+
+      // Select appointment type first
+      const selects = screen.getAllByRole('combobox');
+      const appointmentTypeSelect = selects[0];
+      fireEvent.change(appointmentTypeSelect, { target: { value: '1' } });
+
+      await waitFor(() => {
+        expect(apiService.getPractitioners).toHaveBeenCalled();
+      });
+
+      // User manually selects practitioner 2
+      await waitFor(() => {
+        const practitionerSelect = screen.getAllByRole('combobox')[1];
+        fireEvent.change(practitionerSelect, { target: { value: '2' } });
+      });
+
+      // Verify practitioner 2 (user's selection) is still selected, not auto-selected practitioner 1
+      await waitFor(() => {
+        const practitionerSelect = screen.getAllByRole('combobox')[1];
+        expect(practitionerSelect).toHaveValue('2');
+      });
+    });
+
+    it('should not auto-select if assigned practitioner is not available for appointment type', async () => {
+      // Patient has practitioner 1 assigned, but appointment type only offers practitioner 2
+      vi.mocked(apiService.getPractitioners).mockResolvedValue([
+        { id: 2, full_name: 'Dr. Another' },
+      ]);
+
+      renderWithModal(
+        <CreateAppointmentModal
+          preSelectedPatientId={1}
+          practitioners={mockPractitioners}
+          appointmentTypes={mockAppointmentTypes}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />
+      );
+
+      // Wait for patient to be loaded
+      await waitFor(() => {
+        expect(apiService.getPatient).toHaveBeenCalledWith(1);
+      });
+
+      // Wait for form to load
+      await waitFor(() => {
+        expect(screen.queryByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+      });
+
+      // Select appointment type
+      const selects = screen.getAllByRole('combobox');
+      const appointmentTypeSelect = selects[0];
+      fireEvent.change(appointmentTypeSelect, { target: { value: '1' } });
+
+      // Wait for practitioners to load
+      await waitFor(() => {
+        expect(apiService.getPractitioners).toHaveBeenCalled();
+      });
+
+      // Verify no practitioner is auto-selected (assigned practitioner not available)
+      await waitFor(() => {
+        const practitionerSelect = screen.getAllByRole('combobox')[1];
+        expect(practitionerSelect).toHaveValue('');
+      });
+    });
+
+    it('should auto-select when appointment type changes if patient has assigned practitioner', async () => {
+      vi.mocked(apiService.getPractitioners)
+        .mockResolvedValueOnce([{ id: 2, full_name: 'Dr. Another' }]) // Type 1 - no assigned practitioner
+        .mockResolvedValueOnce([{ id: 1, full_name: 'Dr. Assigned' }, { id: 2, full_name: 'Dr. Another' }]); // Type 2 - has assigned practitioner
+
+      renderWithModal(
+        <CreateAppointmentModal
+          preSelectedPatientId={1}
+          practitioners={mockPractitioners}
+          appointmentTypes={mockAppointmentTypes}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />
+      );
+
+      // Wait for patient to be loaded
+      await waitFor(() => {
+        expect(apiService.getPatient).toHaveBeenCalledWith(1);
+      });
+
+      // Wait for form to load
+      await waitFor(() => {
+        expect(screen.queryByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+      });
+
+      // Select appointment type 1 (no assigned practitioner available)
+      const selects = screen.getAllByRole('combobox');
+      const appointmentTypeSelect = selects[0];
+      fireEvent.change(appointmentTypeSelect, { target: { value: '1' } });
+
+      await waitFor(() => {
+        expect(apiService.getPractitioners).toHaveBeenCalledWith(1, expect.any(AbortSignal));
+      });
+
+      // Change to appointment type 2 (has assigned practitioner available)
+      fireEvent.change(appointmentTypeSelect, { target: { value: '2' } });
+
+      await waitFor(() => {
+        expect(apiService.getPractitioners).toHaveBeenCalledWith(2, expect.any(AbortSignal));
+      });
+
+      // Verify practitioner 1 (assigned) is auto-selected
+      await waitFor(() => {
+        const practitionerSelect = screen.getAllByRole('combobox')[1];
+        expect(practitionerSelect).toHaveValue('1');
+      });
+    });
+
+    it('should use assigned_practitioners fallback if assigned_practitioner_ids is not available', async () => {
+      vi.mocked(apiService.getPatient).mockResolvedValue({
+        id: 1,
+        full_name: 'Test Patient',
+        phone_number: '1234567890',
+        created_at: '2024-01-01T00:00:00Z',
+        assigned_practitioner_ids: undefined, // Not available
+        assigned_practitioners: [
+          { id: 1, full_name: 'Dr. Assigned', is_active: true },
+        ],
+      });
+
+      vi.mocked(apiService.getPractitioners).mockResolvedValue([
+        { id: 1, full_name: 'Dr. Assigned' },
+        { id: 2, full_name: 'Dr. Another' },
+      ]);
+
+      renderWithModal(
+        <CreateAppointmentModal
+          preSelectedPatientId={1}
+          practitioners={mockPractitioners}
+          appointmentTypes={mockAppointmentTypes}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />
+      );
+
+      // Wait for patient to be loaded
+      await waitFor(() => {
+        expect(apiService.getPatient).toHaveBeenCalledWith(1);
+      });
+
+      // Wait for form to load
+      await waitFor(() => {
+        expect(screen.queryByPlaceholderText(/搜尋病患/)).toBeInTheDocument();
+      });
+
+      // Select appointment type
+      const selects = screen.getAllByRole('combobox');
+      const appointmentTypeSelect = selects[0];
+      fireEvent.change(appointmentTypeSelect, { target: { value: '1' } });
+
+      // Wait for practitioners to load and auto-selection to happen
+      await waitFor(() => {
+        expect(apiService.getPractitioners).toHaveBeenCalled();
+      });
+
+      // Verify practitioner 1 (from assigned_practitioners) is auto-selected
+      await waitFor(() => {
+        const practitionerSelect = screen.getAllByRole('combobox')[1];
+        expect(practitionerSelect).toHaveValue('1');
       });
     });
   });

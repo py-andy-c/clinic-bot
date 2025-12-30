@@ -5,7 +5,7 @@
  * Handles all steps (form, note input, preview) within a single modal.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { BaseModal } from './BaseModal';
 import { DateTimePicker } from './DateTimePicker';
 import { CalendarEvent } from '../../utils/calendarDataAdapter';
@@ -28,6 +28,7 @@ import {
 import { usePractitionerAssignmentPrompt } from '../../hooks/usePractitionerAssignmentPrompt';
 import { PractitionerAssignmentPromptModal } from '../PractitionerAssignmentPromptModal';
 import { PractitionerAssignmentConfirmationModal } from '../PractitionerAssignmentConfirmationModal';
+import { getAssignedPractitionerIds } from '../../utils/patientUtils';
 
 type EditStep = 'form' | 'review' | 'note' | 'preview';
 
@@ -121,6 +122,55 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
     };
     loadPatient();
   }, [event.resource.patient_id]);
+
+  // Track original appointment type ID to detect user changes
+  const originalAppointmentTypeId = event.resource.appointment_type_id;
+  const originalPractitionerId = event.resource.practitioner_id;
+
+  // Memoize assigned practitioner IDs for PractitionerSelector
+  const assignedPractitionerIdsSet = useMemo(() => {
+    if (!currentPatient) return undefined;
+    const ids = getAssignedPractitionerIds(currentPatient);
+    return ids.length > 0 ? new Set(ids) : undefined;
+  }, [currentPatient]);
+
+  // Auto-select first assigned practitioner when user changes appointment type
+  useEffect(() => {
+    // Only auto-select if:
+    // 1. Patient is loaded
+    // 2. Appointment type is selected
+    // 3. Available practitioners are loaded
+    // 4. User has changed appointment type (not initial load)
+    // 5. Current practitioner selection is null or was the original (user hasn't manually selected a different one)
+    const appointmentTypeChanged = selectedAppointmentTypeId !== originalAppointmentTypeId;
+    const shouldAutoSelect = appointmentTypeChanged && 
+      currentPatient &&
+      selectedAppointmentTypeId &&
+      availablePractitioners.length > 0 &&
+      !isLoadingPractitioners &&
+      (!selectedPractitionerId || selectedPractitionerId === originalPractitionerId);
+
+    if (shouldAutoSelect) {
+      const assignedIds = getAssignedPractitionerIds(currentPatient);
+
+      if (assignedIds.length > 0) {
+        // Find the first assigned practitioner that is available for the selected appointment type
+        const firstAssignedAvailable = availablePractitioners.find((p) => assignedIds.includes(p.id));
+        
+        if (firstAssignedAvailable) {
+          setSelectedPractitionerId(firstAssignedAvailable.id);
+        }
+      }
+    }
+  }, [
+    currentPatient,
+    selectedAppointmentTypeId,
+    availablePractitioners.length,
+    selectedPractitionerId,
+    isLoadingPractitioners,
+    originalAppointmentTypeId,
+    originalPractitionerId,
+  ]);
 
   // Store original notes (from patient) - cannot be edited by clinic
   const originalNotes = event.resource.notes || '';
@@ -423,15 +473,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
           isLoading={isLoadingPractitioners}
           originalPractitionerId={event.resource.practitioner_id}
           appointmentTypeSelected={!!selectedAppointmentTypeId}
-          assignedPractitionerIds={
-            currentPatient?.assigned_practitioners
-              ? new Set(
-                  currentPatient.assigned_practitioners
-                    .filter((p) => p.is_active !== false)
-                    .map((p) => p.id)
-                )
-              : undefined
-          }
+          assignedPractitionerIds={assignedPractitionerIdsSet}
         />
 
         <AppointmentReferenceHeader referenceDateTime={referenceDateTime} />

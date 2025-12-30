@@ -40,6 +40,7 @@ import { shouldPromptForAssignment } from '../../hooks/usePractitionerAssignment
 import { PractitionerAssignmentPromptModal } from '../PractitionerAssignmentPromptModal';
 import { PractitionerAssignmentConfirmationModal } from '../PractitionerAssignmentConfirmationModal';
 import { useModalQueue } from '../../contexts/ModalQueueContext';
+import { getAssignedPractitionerIds } from '../../utils/patientUtils';
 import { useModal } from '../../contexts/ModalContext';
 
 /**
@@ -275,6 +276,40 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
     };
     loadPatient();
   }, [selectedPatientId]);
+
+  // Memoize assigned practitioner IDs for PractitionerSelector
+  const assignedPractitionerIdsSet = useMemo(() => {
+    if (!currentPatient) return undefined;
+    const ids = getAssignedPractitionerIds(currentPatient);
+    return ids.length > 0 ? new Set(ids) : undefined;
+  }, [currentPatient]);
+
+  // Auto-select first assigned practitioner when dependencies change
+  useEffect(() => {
+    // Only auto-select if:
+    // 1. Patient is selected and loaded
+    // 2. Appointment type is selected
+    // 3. Available practitioners are loaded
+    // 4. No practitioner is currently selected (don't override user selection)
+    if (
+      currentPatient &&
+      selectedAppointmentTypeId &&
+      availablePractitioners.length > 0 &&
+      !selectedPractitionerId &&
+      !isLoadingPractitioners
+    ) {
+      const assignedIds = getAssignedPractitionerIds(currentPatient);
+
+      if (assignedIds.length > 0) {
+        // Find the first assigned practitioner that is available for the selected appointment type
+        const firstAssignedAvailable = availablePractitioners.find((p) => assignedIds.includes(p.id));
+        
+        if (firstAssignedAvailable) {
+          setSelectedPractitionerId(firstAssignedAvailable.id);
+        }
+      }
+    }
+  }, [currentPatient, selectedAppointmentTypeId, availablePractitioners.length, selectedPractitionerId, isLoadingPractitioners]);
 
   const [searchInput, setSearchInput] = useState<string>(
     preSelectedPatientName || ((isDuplication && event?.resource.patient_name) ? event.resource.patient_name : '')
@@ -758,15 +793,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = Rea
           onChange={setSelectedPractitionerId}
           isLoading={isLoadingPractitioners}
           appointmentTypeSelected={!!selectedAppointmentTypeId}
-          assignedPractitionerIds={
-            selectedPatientId && currentPatient?.assigned_practitioners
-              ? new Set(
-                  currentPatient.assigned_practitioners
-                    .filter((p) => p.is_active !== false)
-                    .map((p) => p.id)
-                )
-              : undefined
-          }
+          assignedPractitionerIds={assignedPractitionerIdsSet}
         />
 
         <AppointmentReferenceHeader referenceDateTime={referenceDateTime} />

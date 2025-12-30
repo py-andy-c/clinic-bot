@@ -9,6 +9,7 @@ import { EditAppointmentModal } from '../EditAppointmentModal';
 import { CalendarEvent } from '../../../utils/calendarDataAdapter';
 import { apiService } from '../../../services/api';
 import { ModalProvider } from '../../../contexts/ModalContext';
+import { ModalQueueProvider } from '../../../contexts/ModalQueueContext';
 
 // Mock createPortal to render directly
 vi.mock('react-dom', async () => {
@@ -19,6 +20,11 @@ vi.mock('react-dom', async () => {
   };
 });
 
+// Mock react-router-dom's useLocation
+vi.mock('react-router-dom', () => ({
+  useLocation: () => ({ pathname: '/test' }),
+}));
+
 // Mock apiService
 vi.mock('../../../services/api', () => ({
   apiService: {
@@ -26,6 +32,11 @@ vi.mock('../../../services/api', () => ({
     previewEditNotification: vi.fn(),
     getPractitioners: vi.fn(),
     getAppointmentResources: vi.fn().mockResolvedValue({ resources: [] }),
+    getPatient: vi.fn(),
+    getResourceAvailability: vi.fn().mockResolvedValue({
+      suggested_allocation: [],
+      available_resources: [],
+    }),
   },
 }));
 
@@ -60,9 +71,15 @@ const mockFormatAppointmentTime = vi.fn((start: Date, end: Date) =>
 const mockOnConfirm = vi.fn();
 const mockOnClose = vi.fn();
 
-// Helper to wrap component with ModalProvider
+// Helper to wrap component with ModalProvider and ModalQueueProvider
 const renderWithModal = (component: React.ReactElement) => {
-  return render(<ModalProvider>{component}</ModalProvider>);
+  return render(
+    <ModalProvider>
+      <ModalQueueProvider>
+        {component}
+      </ModalQueueProvider>
+    </ModalProvider>
+  );
 };
 
 describe('EditAppointmentModal', () => {
@@ -74,6 +91,19 @@ describe('EditAppointmentModal', () => {
       { id: 2, full_name: 'Dr. No Availability' },
       { id: 3, full_name: 'Dr. No Appointment Type' },
     ]);
+    // Mock getPatient to return a patient by default
+    vi.mocked(apiService.getPatient).mockResolvedValue({
+      id: 1,
+      full_name: 'Test Patient',
+      phone_number: '1234567890',
+      created_at: '2024-01-01T00:00:00Z',
+    });
+    // Mock getResourceAvailability to return proper structure
+    vi.mocked(apiService.getResourceAvailability).mockResolvedValue({
+      suggested_allocation: [],
+      available_resources: [],
+      requirements: [],
+    });
   });
 
   const mockAppointmentEvent: CalendarEvent = {
@@ -88,6 +118,7 @@ describe('EditAppointmentModal', () => {
       appointment_type_name: 'Test Type',
       practitioner_id: 1,
       practitioner_name: 'Dr. Test',
+      patient_id: 1,
       patient_name: 'Patient Test',
       line_display_name: 'LINE User',
       notes: 'Test notes',
@@ -327,9 +358,11 @@ describe('EditAppointmentModal', () => {
         />
       );
 
-      // Wait for loading to finish
+      // Wait for form to load (comboboxes should be present and enabled)
       await waitFor(() => {
-        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        const selects = screen.getAllByRole('combobox');
+        expect(selects.length).toBeGreaterThanOrEqual(2);
+        expect(selects[0]).not.toBeDisabled();
       });
 
       // Change appointment type
@@ -362,9 +395,11 @@ describe('EditAppointmentModal', () => {
         />
       );
 
-      // Wait for loading to finish
+      // Wait for form to load (comboboxes should be present and enabled)
       await waitFor(() => {
-        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        const selects = screen.getAllByRole('combobox');
+        expect(selects.length).toBeGreaterThanOrEqual(2);
+        expect(selects[0]).not.toBeDisabled();
       });
 
       // Change appointment type
@@ -398,9 +433,11 @@ describe('EditAppointmentModal', () => {
         />
       );
 
-      // Wait for loading to finish
+      // Wait for form to load (comboboxes should be present and enabled)
       await waitFor(() => {
-        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        const selects = screen.getAllByRole('combobox');
+        expect(selects.length).toBeGreaterThanOrEqual(2);
+        expect(selects[0]).not.toBeDisabled();
       });
 
       // Change appointment type to 2
@@ -428,9 +465,11 @@ describe('EditAppointmentModal', () => {
         />
       );
 
-      // Wait for loading to finish
+      // Wait for form to load (comboboxes should be present and enabled)
       await waitFor(() => {
-        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        const selects = screen.getAllByRole('combobox');
+        expect(selects.length).toBeGreaterThanOrEqual(2);
+        expect(selects[0]).not.toBeDisabled();
       });
 
       // Set failure for next call
@@ -443,6 +482,235 @@ describe('EditAppointmentModal', () => {
       // Wait for error to appear
       await waitFor(() => {
         expect(screen.getByText('無法載入治療師列表，請稍後再試')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Auto-select assigned practitioner', () => {
+    beforeEach(() => {
+      vi.mocked(apiService.getPatient).mockResolvedValue({
+        id: 1,
+        full_name: 'Test Patient',
+        phone_number: '1234567890',
+        created_at: '2024-01-01T00:00:00Z',
+        assigned_practitioner_ids: [2], // Patient has practitioner 2 assigned (different from original practitioner 1)
+      });
+    });
+
+    it('should auto-select assigned practitioner when appointment type changes', async () => {
+      const mockEvent: CalendarEvent = {
+        ...mockAppointmentEvent,
+        resource: {
+          ...mockAppointmentEvent.resource,
+          appointment_type_id: 1, // Original appointment type
+          practitioner_id: 1, // Original practitioner (not assigned)
+        },
+      };
+
+      vi.mocked(apiService.getPractitioners)
+        .mockResolvedValueOnce([{ id: 1, full_name: 'Dr. Test' }]) // Type 1 - original practitioner
+        .mockResolvedValueOnce([{ id: 2, full_name: 'Dr. Assigned' }, { id: 1, full_name: 'Dr. Test' }]); // Type 2 - has assigned practitioner
+
+      renderWithModal(
+        <EditAppointmentModal
+          event={mockEvent}
+          practitioners={mockPractitioners}
+          appointmentTypes={[
+            { id: 1, name: 'Type 1', duration_minutes: 30 },
+            { id: 2, name: 'Type 2', duration_minutes: 60 },
+          ]}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />
+      );
+
+      // Wait for form to load and patient to be fetched
+      await waitFor(() => {
+        expect(apiService.getPatient).toHaveBeenCalledWith(1);
+      });
+
+      // Wait for form to load (comboboxes should be present and enabled)
+      await waitFor(() => {
+        const selects = screen.getAllByRole('combobox');
+        expect(selects.length).toBeGreaterThanOrEqual(2);
+        expect(selects[0]).not.toBeDisabled();
+      });
+
+      // Change appointment type to type 2
+      const selects = screen.getAllByRole('combobox');
+      const appointmentTypeSelect = selects[0];
+      fireEvent.change(appointmentTypeSelect, { target: { value: '2' } });
+
+      await waitFor(() => {
+        expect(apiService.getPractitioners).toHaveBeenCalledWith(2, expect.any(AbortSignal));
+      });
+
+      // Verify practitioner 2 (assigned) is auto-selected
+      await waitFor(() => {
+        const practitionerSelect = screen.getAllByRole('combobox')[1];
+        expect(practitionerSelect).toHaveValue('2');
+      });
+    });
+
+    it('should not auto-select if user has manually selected a different practitioner', async () => {
+      const mockEvent: CalendarEvent = {
+        ...mockAppointmentEvent,
+        resource: {
+          ...mockAppointmentEvent.resource,
+          appointment_type_id: 1,
+          practitioner_id: 1,
+        },
+      };
+
+      vi.mocked(apiService.getPractitioners).mockResolvedValue([
+        { id: 1, full_name: 'Dr. Test' },
+        { id: 2, full_name: 'Dr. Assigned' },
+        { id: 3, full_name: 'Dr. Another' },
+      ]);
+
+      renderWithModal(
+        <EditAppointmentModal
+          event={mockEvent}
+          practitioners={mockPractitioners}
+          appointmentTypes={[
+            { id: 1, name: 'Type 1', duration_minutes: 30 },
+            { id: 2, name: 'Type 2', duration_minutes: 60 },
+          ]}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />
+      );
+
+      // Wait for form to load
+      await waitFor(() => {
+        expect(apiService.getPatient).toHaveBeenCalledWith(1);
+      });
+
+      // Wait for form to load (comboboxes should be present and enabled)
+      await waitFor(() => {
+        const selects = screen.getAllByRole('combobox');
+        expect(selects.length).toBeGreaterThanOrEqual(2);
+        expect(selects[0]).not.toBeDisabled();
+      });
+
+      // User manually selects practitioner 3
+      const selects = screen.getAllByRole('combobox');
+      const practitionerSelect = selects[1];
+      fireEvent.change(practitionerSelect, { target: { value: '3' } });
+
+      // Change appointment type (should not override user's selection)
+      const appointmentTypeSelect = selects[0];
+      fireEvent.change(appointmentTypeSelect, { target: { value: '2' } });
+
+      await waitFor(() => {
+        expect(apiService.getPractitioners).toHaveBeenCalledWith(2, expect.any(AbortSignal));
+      });
+
+      // Verify practitioner 3 (user's selection) is still selected, not auto-selected practitioner 2
+      await waitFor(() => {
+        expect(practitionerSelect).toHaveValue('3');
+      });
+    });
+
+    it('should not auto-select on initial load (when original practitioner is set)', async () => {
+      const mockEvent: CalendarEvent = {
+        ...mockAppointmentEvent,
+        resource: {
+          ...mockAppointmentEvent.resource,
+          appointment_type_id: 1,
+          practitioner_id: 1, // Original practitioner (not assigned)
+        },
+      };
+
+      vi.mocked(apiService.getPractitioners).mockResolvedValue([
+        { id: 1, full_name: 'Dr. Test' },
+        { id: 2, full_name: 'Dr. Assigned' },
+      ]);
+
+      renderWithModal(
+        <EditAppointmentModal
+          event={mockEvent}
+          practitioners={mockPractitioners}
+          appointmentTypes={[
+            { id: 1, name: 'Type 1', duration_minutes: 30 },
+          ]}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />
+      );
+
+      // Wait for form to load
+      await waitFor(() => {
+        expect(apiService.getPatient).toHaveBeenCalledWith(1);
+      });
+
+      // Wait for form to load (comboboxes should be present and enabled)
+      await waitFor(() => {
+        const selects = screen.getAllByRole('combobox');
+        expect(selects.length).toBeGreaterThanOrEqual(2);
+        expect(selects[0]).not.toBeDisabled();
+      });
+
+      // Verify original practitioner 1 is still selected (not auto-selected to practitioner 2)
+      const selects = screen.getAllByRole('combobox');
+      const practitionerSelect = selects[1];
+      expect(practitionerSelect).toHaveValue('1');
+    });
+
+    it('should not auto-select if assigned practitioner is not available for appointment type', async () => {
+      const mockEvent: CalendarEvent = {
+        ...mockAppointmentEvent,
+        resource: {
+          ...mockAppointmentEvent.resource,
+          appointment_type_id: 1,
+          practitioner_id: 1,
+        },
+      };
+
+      // Appointment type 2 only offers practitioner 3, not the assigned practitioner 2
+      vi.mocked(apiService.getPractitioners)
+        .mockResolvedValueOnce([{ id: 1, full_name: 'Dr. Test' }]) // Type 1
+        .mockResolvedValueOnce([{ id: 3, full_name: 'Dr. Another' }]); // Type 2 - no assigned practitioner
+
+      renderWithModal(
+        <EditAppointmentModal
+          event={mockEvent}
+          practitioners={mockPractitioners}
+          appointmentTypes={[
+            { id: 1, name: 'Type 1', duration_minutes: 30 },
+            { id: 2, name: 'Type 2', duration_minutes: 60 },
+          ]}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />
+      );
+
+      // Wait for form to load
+      await waitFor(() => {
+        expect(apiService.getPatient).toHaveBeenCalledWith(1);
+      });
+
+      // Wait for form to load (comboboxes should be present and enabled)
+      await waitFor(() => {
+        const selects = screen.getAllByRole('combobox');
+        expect(selects.length).toBeGreaterThanOrEqual(2);
+        expect(selects[0]).not.toBeDisabled();
+      });
+
+      // Change appointment type to type 2
+      const selects = screen.getAllByRole('combobox');
+      const appointmentTypeSelect = selects[0];
+      fireEvent.change(appointmentTypeSelect, { target: { value: '2' } });
+
+      await waitFor(() => {
+        expect(apiService.getPractitioners).toHaveBeenCalledWith(2, expect.any(AbortSignal));
+      });
+
+      // Verify no practitioner is auto-selected (assigned practitioner not available)
+      // Note: Original practitioner 1 is also cleared because it's not available for type 2
+      await waitFor(() => {
+        const practitionerSelect = screen.getAllByRole('combobox')[1];
+        expect(practitionerSelect).toHaveValue(''); // Cleared because original practitioner not available for new type
       });
     });
   });
