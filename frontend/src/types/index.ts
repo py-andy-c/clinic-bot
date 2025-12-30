@@ -49,6 +49,9 @@ export interface Clinic {
       appointment_type_instructions?: string | null;
       appointment_notes_instructions?: string | null;
       require_birthday?: boolean;
+      query_page_instructions?: string | null;
+      settings_page_instructions?: string | null;
+      notifications_page_instructions?: string | null;
     };
     chat_settings?: {
       chat_enabled?: boolean;

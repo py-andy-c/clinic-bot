@@ -108,40 +108,87 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
         <div className="pt-6 border-t border-gray-200"></div>
       )}
 
-      {/* 預約類型選擇指引 */}
-      <FormField
-        name="clinic_info_settings.appointment_type_instructions"
-        label="預約類型選擇指引"
-        description="病患在透過Line預約，選擇預約類別時，將會看到此指引"
-      >
-        <FormTextarea
-          name="clinic_info_settings.appointment_type_instructions"
-          placeholder={`例如：初診請一律選擇「初診評估」。
-例如：服務項目細節請參考診所官網。`}
-          disabled={!isClinicAdmin}
-          rows={4}
-          className="min-h-[120px]"
-        />
-      </FormField>
-
-      {/* 備註填寫指引 */}
+      {/* 預約系統頁面自訂說明 */}
       <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
-        <FormField
-          name="clinic_info_settings.appointment_notes_instructions"
-          label="備註填寫指引"
-          description="病患在透過Line預約，填寫備註時，將會看到此指引"
-        >
-          <FormTextarea
+        <h3 className="text-sm font-medium text-gray-700 mb-4">預約系統頁面自訂說明</h3>
+        <div className="space-y-6">
+          <FormField
+            name="clinic_info_settings.appointment_type_instructions"
+            label="預約類型選擇指引"
+            description="病患在透過Line預約，選擇預約類別時，將會看到此指引"
+          >
+            <FormTextarea
+              name="clinic_info_settings.appointment_type_instructions"
+              placeholder={`例如：初診請一律選擇「初診評估」。
+例如：服務項目細節請參考診所官網。`}
+              disabled={!isClinicAdmin}
+              rows={4}
+              className="min-h-[120px]"
+            />
+          </FormField>
+
+          <FormField
             name="clinic_info_settings.appointment_notes_instructions"
-            placeholder={`例如：若您是第一次來診所，請在備註中回答以下問題：
+            label="備註填寫指引"
+            description="病患在透過Line預約，填寫備註時，將會看到此指引"
+          >
+            <FormTextarea
+              name="clinic_info_settings.appointment_notes_instructions"
+              placeholder={`例如：若您是第一次來診所，請在備註中回答以下問題：
 1. 主要症狀或問題
 2. 症狀持續時間
 3. 是否有相關病史`}
-            disabled={!isClinicAdmin}
-            rows={4}
-            className="min-h-[120px]"
-          />
-        </FormField>
+              disabled={!isClinicAdmin}
+              rows={4}
+              className="min-h-[120px]"
+            />
+          </FormField>
+
+          <FormField
+            name="clinic_info_settings.query_page_instructions"
+            label="預約管理頁面說明"
+            description="顯示在「預約管理」頁面頂部的自訂說明"
+          >
+            <FormTextarea
+              name="clinic_info_settings.query_page_instructions"
+              placeholder="例如：如需協助，請直接透過LINE訊息聯繫診所。"
+              disabled={!isClinicAdmin}
+              rows={3}
+              className="min-h-[90px]"
+              maxLength={2000}
+            />
+          </FormField>
+
+          <FormField
+            name="clinic_info_settings.settings_page_instructions"
+            label="就診人管理頁面說明"
+            description="顯示在「就診人管理」頁面頂部的自訂說明"
+          >
+            <FormTextarea
+              name="clinic_info_settings.settings_page_instructions"
+              placeholder="例如：如需協助，請直接透過LINE訊息聯繫診所。"
+              disabled={!isClinicAdmin}
+              rows={3}
+              className="min-h-[90px]"
+              maxLength={2000}
+            />
+          </FormField>
+
+          <FormField
+            name="clinic_info_settings.notifications_page_instructions"
+            label="空位提醒頁面說明"
+            description="顯示在「空位提醒」頁面頂部的自訂說明"
+          >
+            <FormTextarea
+              name="clinic_info_settings.notifications_page_instructions"
+              placeholder="例如：如需協助，請直接透過LINE訊息聯繫診所。"
+              disabled={!isClinicAdmin}
+              rows={3}
+              className="min-h-[90px]"
+              maxLength={2000}
+            />
+          </FormField>
+        </div>
       </div>
 
       {/* 預約限制 */}

@@ -123,6 +123,9 @@ export interface ClinicInfoResponse {
   appointment_notes_instructions?: string | null;
   allow_patient_deletion?: boolean;
   restrict_to_assigned_practitioners?: boolean;
+  query_page_instructions?: string | null;
+  settings_page_instructions?: string | null;
+  notifications_page_instructions?: string | null;
 }
 
 class LiffApiService {

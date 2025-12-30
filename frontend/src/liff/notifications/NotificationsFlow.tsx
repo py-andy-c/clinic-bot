@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { useLiffBackButton } from '../../hooks/useLiffBackButton';
 import { LanguageSelector } from '../components/LanguageSelector';
+import { PageInstructions } from '../components/PageInstructions';
+import { useAppointmentStore } from '../../stores/appointmentStore';
 import AddNotification from './AddNotification';
 import ManageNotifications from './ManageNotifications';
 
@@ -12,6 +14,7 @@ const DEFAULT_SUB_MODE: NotificationSubMode = 'manage';
 const NotificationsFlow: React.FC = () => {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
+  const notificationsPageInstructions = useAppointmentStore(state => state.notificationsPageInstructions);
 
   const subMode = (searchParams.get('sub_mode') as NotificationSubMode) || DEFAULT_SUB_MODE;
 
@@ -30,6 +33,9 @@ const NotificationsFlow: React.FC = () => {
               <LanguageSelector />
             </div>
             <p className="text-sm text-gray-500">{t('home.notificationsDesc')}</p>
+            <div className="mt-3">
+              <PageInstructions instructions={notificationsPageInstructions} />
+            </div>
           </div>
         </div>
         {subMode === 'add' ? <AddNotification /> : <ManageNotifications />}

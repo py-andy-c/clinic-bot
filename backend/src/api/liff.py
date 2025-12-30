@@ -1592,6 +1592,9 @@ async def get_clinic_info(
             "minimum_cancellation_hours_before": clinic_settings.booking_restriction_settings.minimum_cancellation_hours_before,
             "appointment_notes_instructions": clinic_settings.clinic_info_settings.appointment_notes_instructions,
             "allow_patient_deletion": clinic_settings.booking_restriction_settings.allow_patient_deletion,
+            "query_page_instructions": clinic_settings.clinic_info_settings.query_page_instructions,
+            "settings_page_instructions": clinic_settings.clinic_info_settings.settings_page_instructions,
+            "notifications_page_instructions": clinic_settings.clinic_info_settings.notifications_page_instructions,
         }
 
     except Exception as e:

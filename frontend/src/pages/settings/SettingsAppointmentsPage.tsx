@@ -48,6 +48,9 @@ const SettingsAppointmentsPage: React.FC = () => {
         require_birthday: settings?.clinic_info_settings.require_birthday || false,
         require_gender: settings?.clinic_info_settings.require_gender || false,
         restrict_to_assigned_practitioners: settings?.clinic_info_settings.restrict_to_assigned_practitioners || false,
+        query_page_instructions: settings?.clinic_info_settings.query_page_instructions || '',
+        settings_page_instructions: settings?.clinic_info_settings.settings_page_instructions || '',
+        notifications_page_instructions: settings?.clinic_info_settings.notifications_page_instructions || '',
       },
       booking_restriction_settings: settings?.booking_restriction_settings as any || {},
       practitioners: [],
@@ -87,6 +90,9 @@ const SettingsAppointmentsPage: React.FC = () => {
           require_birthday: settings.clinic_info_settings.require_birthday || false,
           require_gender: settings.clinic_info_settings.require_gender || false,
           restrict_to_assigned_practitioners: settings.clinic_info_settings.restrict_to_assigned_practitioners || false,
+          query_page_instructions: settings.clinic_info_settings.query_page_instructions || '',
+          settings_page_instructions: settings.clinic_info_settings.settings_page_instructions || '',
+          notifications_page_instructions: settings.clinic_info_settings.notifications_page_instructions || '',
         },
         booking_restriction_settings: settings.booking_restriction_settings as any,
         practitioners,
@@ -98,13 +104,33 @@ const SettingsAppointmentsPage: React.FC = () => {
   useEffect(() => {
     if (pendingFormDataRef.current && isSavingRef.current && settings) {
       // Check if both settings sections match what we're trying to save
-      const pendingClinicInfoStr = JSON.stringify(pendingFormDataRef.current.clinic_info_settings);
+      // Normalize null/empty strings for consistent comparison (both sides use same normalization)
+      const normalizeForComparison = (value: string | null | undefined): string => {
+        if (!value) return '';
+        return value.trim() || '';
+      };
+      
+      const pendingClinicInfo = pendingFormDataRef.current.clinic_info_settings;
+      const pendingClinicInfoStr = JSON.stringify({
+        appointment_type_instructions: normalizeForComparison(pendingClinicInfo.appointment_type_instructions),
+        appointment_notes_instructions: normalizeForComparison(pendingClinicInfo.appointment_notes_instructions),
+        require_birthday: pendingClinicInfo.require_birthday || false,
+        require_gender: pendingClinicInfo.require_gender || false,
+        restrict_to_assigned_practitioners: pendingClinicInfo.restrict_to_assigned_practitioners || false,
+        query_page_instructions: normalizeForComparison(pendingClinicInfo.query_page_instructions),
+        settings_page_instructions: normalizeForComparison(pendingClinicInfo.settings_page_instructions),
+        notifications_page_instructions: normalizeForComparison(pendingClinicInfo.notifications_page_instructions),
+      });
+      
       const currentClinicInfoStr = JSON.stringify({
-        appointment_type_instructions: settings.clinic_info_settings.appointment_type_instructions || '',
-        appointment_notes_instructions: settings.clinic_info_settings.appointment_notes_instructions || '',
+        appointment_type_instructions: normalizeForComparison(settings.clinic_info_settings.appointment_type_instructions),
+        appointment_notes_instructions: normalizeForComparison(settings.clinic_info_settings.appointment_notes_instructions),
         require_birthday: settings.clinic_info_settings.require_birthday || false,
         require_gender: settings.clinic_info_settings.require_gender || false,
         restrict_to_assigned_practitioners: settings.clinic_info_settings.restrict_to_assigned_practitioners || false,
+        query_page_instructions: normalizeForComparison(settings.clinic_info_settings.query_page_instructions),
+        settings_page_instructions: normalizeForComparison(settings.clinic_info_settings.settings_page_instructions),
+        notifications_page_instructions: normalizeForComparison(settings.clinic_info_settings.notifications_page_instructions),
       });
 
       const pendingBookingStr = JSON.stringify(pendingFormDataRef.current.booking_restriction_settings);
@@ -116,7 +142,19 @@ const SettingsAppointmentsPage: React.FC = () => {
           try {
             await saveData();
             // Reset form with saved data to clear isDirty flag
-            reset(pendingFormDataRef.current!);
+            // Convert null back to empty string for form display (form expects strings, not null)
+            const formDataForReset = {
+              ...pendingFormDataRef.current!,
+              clinic_info_settings: {
+                ...pendingFormDataRef.current!.clinic_info_settings,
+                appointment_type_instructions: pendingFormDataRef.current!.clinic_info_settings.appointment_type_instructions || '',
+                appointment_notes_instructions: pendingFormDataRef.current!.clinic_info_settings.appointment_notes_instructions || '',
+                query_page_instructions: pendingFormDataRef.current!.clinic_info_settings.query_page_instructions || '',
+                settings_page_instructions: pendingFormDataRef.current!.clinic_info_settings.settings_page_instructions || '',
+                notifications_page_instructions: pendingFormDataRef.current!.clinic_info_settings.notifications_page_instructions || '',
+              },
+            };
+            reset(formDataForReset);
             pendingFormDataRef.current = null;
             isSavingRef.current = false;
             setSavingPractitionerSettings(false);
@@ -139,13 +177,30 @@ const SettingsAppointmentsPage: React.FC = () => {
 
     setSavingPractitionerSettings(true);
     isSavingRef.current = true;
-    pendingFormDataRef.current = data;
+    
+    // Normalize empty strings to null for optional string fields
+    // Store normalized data in pendingFormDataRef so comparison works correctly
+    const normalizedClinicInfo = {
+      ...data.clinic_info_settings,
+      appointment_type_instructions: data.clinic_info_settings.appointment_type_instructions?.trim() || null,
+      appointment_notes_instructions: data.clinic_info_settings.appointment_notes_instructions?.trim() || null,
+      query_page_instructions: data.clinic_info_settings.query_page_instructions?.trim() || null,
+      settings_page_instructions: data.clinic_info_settings.settings_page_instructions?.trim() || null,
+      notifications_page_instructions: data.clinic_info_settings.notifications_page_instructions?.trim() || null,
+    };
+    
+    // Store normalized data for comparison
+    pendingFormDataRef.current = {
+      ...data,
+      clinic_info_settings: normalizedClinicInfo,
+    };
+    
     try {
       // 1. Update clinic settings in context
       updateData({
         clinic_info_settings: {
           ...settings?.clinic_info_settings,
-          ...data.clinic_info_settings,
+          ...normalizedClinicInfo,
         } as any,
         booking_restriction_settings: data.booking_restriction_settings as any,
       });

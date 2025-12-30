@@ -113,6 +113,9 @@ class ClinicInfoSettings(BaseModel):
     require_birthday: bool = False
     require_gender: bool = False
     restrict_to_assigned_practitioners: bool = False
+    query_page_instructions: Optional[str] = None
+    settings_page_instructions: Optional[str] = None
+    notifications_page_instructions: Optional[str] = None
 
 
 class ChatSettings(BaseModel):

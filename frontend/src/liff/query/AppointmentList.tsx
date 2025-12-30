@@ -9,6 +9,8 @@ import AppointmentCard from './AppointmentCard';
 import { useModal } from '../../contexts/ModalContext';
 import { useLiffBackButton } from '../../hooks/useLiffBackButton';
 import { LanguageSelector } from '../components/LanguageSelector';
+import { PageInstructions } from '../components/PageInstructions';
+import { useAppointmentStore } from '../../stores/appointmentStore';
 import moment from 'moment-timezone';
 
 const TAIWAN_TIMEZONE = "Asia/Taipei";
@@ -34,6 +36,7 @@ type TabType = "future" | "past" | "cancelled";
 const AppointmentList: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const queryPageInstructions = useAppointmentStore(state => state.queryPageInstructions);
   const { alert: showAlert, confirm: showConfirm } = useModal();
   const [activeTab, setActiveTab] = useState<TabType>("future");
   const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
@@ -308,6 +311,8 @@ const AppointmentList: React.FC = () => {
         <p className="text-sm text-gray-500 mb-6">
           {t('home.manageAppointmentsDesc')}
         </p>
+
+        <PageInstructions instructions={queryPageInstructions} />
 
         {/* Tabs */}
         <div className="flex space-x-1 mb-6 bg-gray-100 p-1 rounded-lg">

@@ -44,6 +44,9 @@ interface AppointmentState {
   clinicDisplayName: string | null;
   clinicAddress: string | null;
   clinicPhoneNumber: string | null;
+  queryPageInstructions: string | null;
+  settingsPageInstructions: string | null;
+  notificationsPageInstructions: string | null;
 
   // Actions
   setStep: (step: number) => void;
@@ -60,6 +63,7 @@ interface AppointmentState {
   setCreatedAppointment: (appointment: { appointment_id: number; calendar_event_id: number; start_time: string; end_time: string }) => void;
   setClinicId: (clinicId: number) => void;
   setClinicInfo: (clinicName: string, clinicDisplayName: string, clinicAddress: string | null, clinicPhoneNumber: string | null) => void;
+  setPageInstructions: (queryPage: string | null, settingsPage: string | null, notificationsPage: string | null) => void;
   reset: () => void;
 
   // Computed properties
@@ -87,6 +91,9 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
   clinicDisplayName: null,
   clinicAddress: null,
   clinicPhoneNumber: null,
+  queryPageInstructions: null,
+  settingsPageInstructions: null,
+  notificationsPageInstructions: null,
 
   setStep: (step) => set({ step }),
 
@@ -207,6 +214,12 @@ export const useAppointmentStore = create<AppointmentState>((set, get) => ({
     clinicDisplayName,
     clinicAddress,
     clinicPhoneNumber,
+  }),
+
+  setPageInstructions: (queryPage, settingsPage, notificationsPage) => set({
+    queryPageInstructions: queryPage,
+    settingsPageInstructions: settingsPage,
+    notificationsPageInstructions: notificationsPage,
   }),
 
   reset: () => set({

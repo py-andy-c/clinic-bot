@@ -94,6 +94,9 @@ class ClinicInfoSettings(BaseModel):
     require_birthday: bool = Field(default=False, description="Whether to require birthday during patient registration")
     require_gender: bool = Field(default=False, description="Whether to require gender (生理性別) during patient registration")
     restrict_to_assigned_practitioners: bool = Field(default=False, description="Whether to restrict appointment booking to assigned practitioners only")
+    query_page_instructions: Optional[str] = Field(default=None, max_length=2000, description="Custom instructions displayed on the appointment management (預約管理) page in LIFF")
+    settings_page_instructions: Optional[str] = Field(default=None, max_length=2000, description="Custom instructions displayed on the patient management (就診人管理) page in LIFF")
+    notifications_page_instructions: Optional[str] = Field(default=None, max_length=2000, description="Custom instructions displayed on the availability notifications (空位提醒) page in LIFF")
 
 
 class ChatSettings(BaseModel):

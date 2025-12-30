@@ -12,12 +12,13 @@ import { useModal } from '../../contexts/ModalContext';
 import { PatientForm, PatientFormData } from '../components/PatientForm';
 import { useLiffBackButton } from '../../hooks/useLiffBackButton';
 import { LanguageSelector } from '../components/LanguageSelector';
+import { PageInstructions } from '../components/PageInstructions';
 import { GENDER_OPTIONS, getGenderLabel } from '../../utils/genderUtils';
 import { PatientSummary } from '../../services/liffApi';
 
 const PatientManagement: React.FC = () => {
   const { t } = useTranslation();
-  const { clinicId } = useAppointmentStore();
+  const { clinicId, settingsPageInstructions } = useAppointmentStore();
   const { alert: showAlert, confirm: showConfirm } = useModal();
   const [patients, setPatients] = useState<PatientSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -212,6 +213,8 @@ const PatientManagement: React.FC = () => {
             {t('home.managePatientsDesc')}
           </p>
           
+          <PageInstructions instructions={settingsPageInstructions} />
+          
           <div className="flex items-center justify-center py-12">
             <LoadingSpinner />
           </div>
@@ -235,6 +238,8 @@ const PatientManagement: React.FC = () => {
             {t('home.managePatientsDesc')}
           </p>
           
+          <PageInstructions instructions={settingsPageInstructions} />
+          
           <div className="my-8">
             <ErrorMessage message={error} onRetry={loadPatients} />
           </div>
@@ -256,6 +261,8 @@ const PatientManagement: React.FC = () => {
         <p className="text-sm text-gray-500 mb-6">
           {t('home.managePatientsDesc')}
         </p>
+
+        <PageInstructions instructions={settingsPageInstructions} />
 
         <div className="bg-white rounded-lg shadow-md p-6">
 

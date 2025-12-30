@@ -34,6 +34,7 @@ const LiffApp: FC = () => {
   const setClinicId = useAppointmentStore(state => state.setClinicId);
   const setClinicInfo = useAppointmentStore(state => state.setClinicInfo);
   const setAppointmentNotesInstructions = useAppointmentStore(state => state.setAppointmentNotesInstructions);
+  const setPageInstructions = useAppointmentStore(state => state.setPageInstructions);
 
   const rawMode = searchParams.get('mode');
   const mode: AppMode = rawMode && VALID_MODES.includes(rawMode as AppMode)
@@ -60,6 +61,11 @@ const LiffApp: FC = () => {
             clinicInfo.phone_number
           );
           setAppointmentNotesInstructions(clinicInfo.appointment_notes_instructions || null);
+          setPageInstructions(
+            clinicInfo.query_page_instructions || null,
+            clinicInfo.settings_page_instructions || null,
+            clinicInfo.notifications_page_instructions || null
+          );
         } catch (error) {
           // Silently fail - this is not critical for app functionality
           // The error is logged but not shown to user to avoid noise
@@ -69,7 +75,7 @@ const LiffApp: FC = () => {
     };
 
     fetchClinicInfo();
-  }, [clinicId, isReady, authLoading, setClinicInfo, setAppointmentNotesInstructions]);
+  }, [clinicId, isReady, authLoading, setClinicInfo, setAppointmentNotesInstructions, setPageInstructions]);
 
   // Clear history when user exits LIFF app
   useEffect(() => {
