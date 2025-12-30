@@ -29,6 +29,14 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+print_sandbox_hint() {
+    echo ""
+    print_warning "This error may be due to sandbox restrictions."
+    print_warning "If running in Cursor AI IDE, try requesting full permissions:"
+    print_warning "  required_permissions: ['all']"
+    echo ""
+}
+
 # Parse command line arguments
 NO_CACHE=false
 for arg in "$@"; do
@@ -72,13 +80,18 @@ fi
 
 # Activate existing virtual environment
 print_status "Activating virtual environment..."
-source venv/bin/activate
+if ! source venv/bin/activate 2>/dev/null; then
+    print_error "Failed to activate virtual environment"
+    print_sandbox_hint
+    exit 1
+fi
 
 # Check PostgreSQL is running
 print_status "Checking PostgreSQL availability..."
 if ! pg_isready -h localhost &> /dev/null; then
-    print_error "PostgreSQL is not running!"
+    print_error "PostgreSQL is not running or not accessible!"
     print_error "Start it with: brew services start postgresql@14"
+    print_sandbox_hint
     exit 1
 fi
 print_success "PostgreSQL is running"
@@ -90,12 +103,17 @@ if ! psql -h localhost -t -c "SELECT 1 FROM pg_database WHERE datname='clinic_bo
     createdb clinic_bot_test 2>/dev/null || {
         print_error "Failed to create test database"
         print_error "Try: createdb clinic_bot_test"
+        print_sandbox_hint
         exit 1
     }
     print_success "Test database created"
 fi
 
-source load_test_env.sh
+# Load test environment variables
+if ! source load_test_env.sh 2>/dev/null; then
+    print_warning "Could not load test environment (load_test_env.sh)"
+    print_warning "Continuing with default environment..."
+fi
 
 # Run Pyright type checking first (fail-fast)
 print_status "Running Pyright type checking..."
