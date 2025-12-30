@@ -75,26 +75,10 @@ if [ ! -d "node_modules" ]; then
     exit 1
 fi
 
-# Create minimal .env file for tests if it doesn't exist or isn't readable (to avoid permission errors)
-# Vite will try to load .env during config initialization, so we need it to exist and be readable
-# If the file exists but isn't readable, we recreate it to ensure vitest can access it
-if [ ! -f ".env" ] || [ ! -r ".env" ]; then
-    if [ ! -f ".env" ]; then
-        print_status "Creating minimal .env file for tests..."
-    else
-        print_warning ".env file exists but may not be readable, recreating..."
-    fi
-    # Always recreate with minimal content to ensure it's readable
-    if (cat > .env << 'EOF'
-VITE_API_BASE_URL=/api
-VITE_LIFF_ID=test-liff-id
-EOF
-    chmod 644 .env) 2>/dev/null; then
-        print_success ".env file ready for tests"
-    else
-        print_warning "Could not create/update .env file - tests may fail if file cannot be read"
-    fi
-fi
+# Note: We no longer need to create/fix .env file for tests
+# vitest.config.ts is configured with envDir: undefined to prevent Vite from loading .env files
+# Environment variables are provided via the define block in vitest.config.ts
+# This eliminates permission issues with .env files during test runs
 
 # Check if package.json exists
 if [ ! -f "package.json" ]; then
