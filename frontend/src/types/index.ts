@@ -130,11 +130,12 @@ export interface Patient {
   line_user_display_name?: string;
   line_user_picture_url?: string | null;
   is_deleted?: boolean; // Indicates if patient was soft-deleted by LINE user
+  assigned_practitioner_ids?: number[]; // List of assigned practitioner (user) IDs
   assigned_practitioners?: Array<{
     id: number;
     full_name: string;
     is_active?: boolean;
-  }>; // Assigned practitioners for this patient
+  }>; // Assigned practitioners for this patient (deprecated, use assigned_practitioner_ids)
 }
 
 // LINE User types

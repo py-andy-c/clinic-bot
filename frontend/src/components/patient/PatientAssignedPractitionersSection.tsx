@@ -26,16 +26,22 @@ export const PatientAssignedPractitionersSection: React.FC<PatientAssignedPracti
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Initialize selected practitioners from patient data
-  useEffect(() => {
+  // Helper function to extract practitioner IDs from patient data
+  const getAssignedPractitionerIds = (): number[] => {
+    if (patient.assigned_practitioner_ids !== undefined) {
+      return patient.assigned_practitioner_ids;
+    }
     if (patient.assigned_practitioners) {
-      const activeAssigned = patient.assigned_practitioners
+      return patient.assigned_practitioners
         .filter((p) => p.is_active !== false)
         .map((p) => p.id);
-      setSelectedPractitionerIds(activeAssigned);
-    } else {
-      setSelectedPractitionerIds([]);
     }
+    return [];
+  };
+
+  // Initialize selected practitioners from patient data
+  useEffect(() => {
+    setSelectedPractitionerIds(getAssignedPractitionerIds());
   }, [patient]);
 
   const handleSave = async () => {
@@ -118,8 +124,11 @@ export const PatientAssignedPractitionersSection: React.FC<PatientAssignedPracti
     );
   }
 
-  const assignedPractitioners = patient.assigned_practitioners || [];
-  const activeAssigned = assignedPractitioners.filter((p) => p.is_active !== false);
+  // Get assigned practitioners by mapping IDs to practitioner objects
+  const assignedPractitionerIds = getAssignedPractitionerIds();
+  const assignedPractitioners = assignedPractitionerIds
+    .map((id) => practitioners.find((p) => p.id === id))
+    .filter((p): p is { id: number; full_name: string } => p !== undefined);
 
   return (
     <div className="bg-white rounded-lg shadow-md p-4">
@@ -135,9 +144,9 @@ export const PatientAssignedPractitionersSection: React.FC<PatientAssignedPracti
         )}
       </div>
 
-      {activeAssigned.length > 0 ? (
+      {assignedPractitioners.length > 0 ? (
         <ul className="space-y-2">
-          {activeAssigned.map((practitioner) => (
+          {assignedPractitioners.map((practitioner) => (
             <li key={practitioner.id} className="text-sm text-gray-900">
               {practitioner.full_name}
             </li>
