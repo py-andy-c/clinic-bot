@@ -356,17 +356,16 @@ const PatientsPage: React.FC = () => {
               />
             </div>
             <div className="sm:w-48">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                指定治療師
-              </label>
               <select
                 value={selectedPractitionerId || ''}
                 onChange={(e) => {
                   const value = e.target.value;
                   setSelectedPractitionerId(value ? parseInt(value, 10) : undefined);
                 }}
+                aria-label="指定治療師"
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
+                <option value="" disabled hidden>指定治療師</option>
                 <option value="">全部</option>
                 {practitioners.map((practitioner) => (
                   <option key={practitioner.id} value={practitioner.id}>
