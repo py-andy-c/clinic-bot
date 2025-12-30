@@ -73,7 +73,10 @@ export const PatientAssignedPractitionersSection: React.FC<PatientAssignedPracti
   if (isEditing) {
     return (
       <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">指定治療師</h2>
+        <div className="mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">指定治療師</h2>
+          <p className="text-sm text-gray-500 mt-1">可複選</p>
+        </div>
         
         {error && (
           <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3">
