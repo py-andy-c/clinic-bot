@@ -147,7 +147,7 @@ class PatientPractitionerAssignmentService:
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="此治療師已經是指定治療師"
+                detail="此治療師已經是負責人員"
             )
         
         # Create assignment
@@ -194,7 +194,7 @@ class PatientPractitionerAssignmentService:
         if not assignment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="指定治療師關係不存在"
+                detail="負責人員關係不存在"
             )
         
         db.delete(assignment)

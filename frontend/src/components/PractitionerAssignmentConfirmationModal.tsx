@@ -17,15 +17,15 @@ export const PractitionerAssignmentConfirmationModal: React.FC<PractitionerAssig
   return (
     <BaseModal
       onClose={onClose}
-      aria-label="指定治療師確認"
+      aria-label="負責人員確認"
       closeOnOverlayClick={true}
     >
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-gray-900">
-          指定治療師已更新
+          負責人員已更新
         </h2>
         <div>
-          <p className="text-sm text-gray-700 mb-2">此病患的指定治療師：</p>
+          <p className="text-sm text-gray-700 mb-2">此病患的負責人員：</p>
           <ul className="list-disc list-inside space-y-1">
             {assignedPractitioners.map((p) => (
               <li key={p.id} className="text-sm text-gray-900">

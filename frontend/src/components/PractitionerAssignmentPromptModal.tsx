@@ -33,19 +33,19 @@ export const PractitionerAssignmentPromptModal: React.FC<PractitionerAssignmentP
   return (
     <BaseModal
       onClose={onCancel}
-      aria-label="指定治療師確認"
+      aria-label="負責人員確認"
       closeOnOverlayClick={false}
       showCloseButton={false}
     >
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-gray-900">
-          指定治療師確認
+          負責人員確認
         </h2>
         <p className="text-sm text-gray-700">
           {practitionerName ? (
-            <>此治療師（{practitionerName}）並非此病患的指定治療師。是否要將此治療師設為指定治療師？</>
+            <>此治療師（{practitionerName}）並非此病患的負責人員。是否要將此治療師設為負責人員？</>
           ) : (
-            <>此治療師並非此病患的指定治療師。是否要將此治療師設為指定治療師？</>
+            <>此治療師並非此病患的負責人員。是否要將此治療師設為負責人員？</>
           )}
         </p>
         <div className="flex gap-3 justify-end pt-4">

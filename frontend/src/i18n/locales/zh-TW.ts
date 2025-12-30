@@ -155,7 +155,7 @@ export default {
   },
   practitioner: {
     selectTitle: '選擇治療師',
-    notSpecified: '不指定治療師',
+    notSpecified: '不指定負責人員',
     notSpecifiedDesc: '系統將自動安排最適合的治療師',
     noPractitioners: '目前沒有治療師提供此服務',
     noPractitionersDesc: '請返回重新選擇預約類型',

@@ -523,7 +523,7 @@ async def assign_practitioner(
         db.rollback()
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="指派治療師失敗"
+            detail="指派負責人員失敗"
         )
 
 
@@ -584,7 +584,7 @@ async def remove_practitioner_assignment(
         db.rollback()
         raise HTTPException(
             status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="移除指定治療師失敗"
+            detail="移除負責人員失敗"
         )
 
 

@@ -362,10 +362,10 @@ const PatientsPage: React.FC = () => {
                   const value = e.target.value;
                   setSelectedPractitionerId(value ? parseInt(value, 10) : undefined);
                 }}
-                aria-label="指定治療師"
+                aria-label="負責人員"
                 className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="" disabled hidden>指定治療師</option>
+                <option value="" disabled hidden>負責人員</option>
                 <option value="">全部</option>
                 {practitioners.map((practitioner) => (
                   <option key={practitioner.id} value={practitioner.id}>

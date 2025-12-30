@@ -55,7 +55,7 @@ export const PractitionerSelector: React.FC<PractitionerSelectorProps> = ({
             return (
               <option key={p.id} value={p.id}>
                 {p.full_name}
-                {isAssigned ? ' (指定治療師)' : ''}
+                {isAssigned ? ' (負責人員)' : ''}
                 {isOriginal ? ' (原)' : ''}
               </option>
             );

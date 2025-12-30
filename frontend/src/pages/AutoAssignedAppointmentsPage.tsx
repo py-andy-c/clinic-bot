@@ -547,7 +547,7 @@ const AutoAssignedAppointmentsPage: React.FC = () => {
             <div className="ml-3 flex-1">
               <h3 className="text-lg font-semibold text-gray-900 mb-3">說明</h3>
               <div className="text-sm text-gray-700 space-y-2">
-                <p>如果病患在預約時沒有指定治療師，系統會根據病患的時間選擇，暫時指派一名治療師以保留時段。</p>
+                <p>如果病患在預約時沒有指定負責人員，系統會根據病患的時間選擇，暫時指派一名治療師以保留時段。</p>
                 <p>暫時指派的預約不會出現在治療師的行事曆或通知中，但仍會佔用該時段，無法接受其他預約。</p>
                 <p>診所管理員可以確認或更改治療師的選擇。若在預約時間前
                   {isLoadingSettings ? (

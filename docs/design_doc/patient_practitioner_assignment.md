@@ -40,11 +40,11 @@ This feature allows clinics to assign one or more practitioners as the main resp
 **Practitioner Selection**:
 - Show all practitioners (no filtering - clinic users can bypass restrictions)
 - **Required**: Highlight assigned practitioners visually (informational only, does not restrict selection)
-- Label assigned practitioners (e.g., "王醫師 (指定治療師)")
+- Label assigned practitioners (e.g., "王醫師 (負責人員)")
 
 **After Appointment Save/Update**:
 - Check if selected practitioner is assigned to patient
-- If not assigned → Show prompt: "此治療師並非此病患的指定治療師。是否要將此治療師設為指定治療師？(Y/N)"
+- If not assigned → Show prompt: "此治療師並非此病患的負責人員。是否要將此治療師設為負責人員？(Y/N)"
 - If Yes → Add practitioner to patient's assigned practitioners
 - Show confirmation modal with all assigned practitioners (may be multiple)
 
@@ -241,7 +241,7 @@ This feature allows clinics to assign one or more practitioners as the main resp
 - `PractitionerSelector.tsx` (used in CreateAppointmentModal, EditAppointmentModal):
   - Show all practitioners (no filtering - clinic users can bypass restrictions)
   - **Required**: Highlight assigned practitioners visually
-  - Label assigned practitioners (e.g., "王醫師 (指定治療師)")
+  - Label assigned practitioners (e.g., "王醫師 (負責人員)")
   - Query assigned practitioners for selected patient
   - Display assigned status in dropdown/selector
 

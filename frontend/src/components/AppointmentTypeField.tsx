@@ -320,7 +320,7 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
               </label>
               <label className="flex items-center">
                 <input type="checkbox" {...register(`appointment_types.${index}.allow_patient_practitioner_selection`)} className="mr-2" disabled={!isClinicAdmin} />
-                <span className="text-sm font-medium text-gray-700">開放病患指定治療師</span>
+                <span className="text-sm font-medium text-gray-700">開放病患指定負責人員</span>
                 <InfoButton onClick={() => setShowAllowPractitionerSelectionModal(true)} />
               </label>
             </div>
@@ -448,7 +448,7 @@ export const AppointmentTypeField: React.FC<AppointmentTypeFieldProps> = ({
       <InfoModal isOpen={showDurationModal} onClose={() => setShowDurationModal(false)} title="服務時長 (分鐘)"><p>此為實際服務時間長度...</p></InfoModal>
       <InfoModal isOpen={showBufferModal} onClose={() => setShowBufferModal(false)} title="排程緩衝時間 (分鐘)"><p>此為排程時額外保留的時間...</p></InfoModal>
       <InfoModal isOpen={showAllowBookingModal} onClose={() => setShowAllowBookingModal(false)} title="開放病患自行預約"><p>啟用後，病患可透過 LINE 預約系統選擇此服務項目...</p></InfoModal>
-      <InfoModal isOpen={showAllowPractitionerSelectionModal} onClose={() => setShowAllowPractitionerSelectionModal(false)} title="開放病患指定治療師"><p>啟用後，病患在預約時可以選擇指定的治療師...</p></InfoModal>
+      <InfoModal isOpen={showAllowPractitionerSelectionModal} onClose={() => setShowAllowPractitionerSelectionModal(false)} title="開放病患指定負責人員"><p>啟用後，病患在預約時可以選擇指定的負責人員...</p></InfoModal>
       <InfoModal isOpen={showReceiptNameModal} onClose={() => setShowReceiptNameModal(false)} title="收據項目名稱"><p>此名稱會顯示在收據上，取代服務項目名稱...</p></InfoModal>
       <InfoModal isOpen={showBillingScenarioModal} onClose={() => setShowBillingScenarioModal(false)} title="計費方案說明"><p>計費方案讓您為每位治療師的每項服務設定多種定價選項...</p></InfoModal>
     </div>

@@ -84,7 +84,7 @@ export const usePractitionerAssignmentPrompt = ({
     } catch (err) {
       logger.error('Failed to add practitioner assignment:', err);
       // Show error to user but still close prompt (assignment is optional)
-      const errorMessage = getErrorMessage(err) || '無法將治療師設為指定治療師';
+      const errorMessage = getErrorMessage(err) || '無法將治療師設為負責人員';
       await alert(errorMessage, '錯誤');
       setShowPrompt(false);
     } finally {

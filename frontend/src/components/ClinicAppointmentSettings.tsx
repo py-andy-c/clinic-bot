@@ -425,18 +425,18 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
         </div>
       </div>
 
-      {/* 限制預約至指定治療師 */}
+      {/* 限制預約至負責人員 */}
       <div className="pt-6 border-t border-gray-200 md:pt-0 md:border-t-0">
         <div className="flex items-center gap-2 mb-2">
           <label className="block text-sm font-medium text-gray-700">
-            限制預約至指定治療師
+            限制預約至負責人員
           </label>
           <InfoButton onClick={() => setShowRestrictToAssignedModal(true)} />
         </div>
         <div className="flex items-center justify-between max-w-2xl">
           <div>
             <p className="text-sm text-gray-500">
-              啟用後，病患只能預約其指定治療師的時段（若未指定治療師，則可預約所有治療師）
+              啟用後，病患只能預約其負責人員的時段（若未指定負責人員，則可預約所有治療師）
             </p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
@@ -547,10 +547,10 @@ const ClinicAppointmentSettings: React.FC<ClinicAppointmentSettingsProps> = ({
       <InfoModal
         isOpen={showRestrictToAssignedModal}
         onClose={() => setShowRestrictToAssignedModal(false)}
-        title="限制預約至指定治療師"
-        ariaLabel="限制預約至指定治療師說明"
+        title="限制預約至負責人員"
+        ariaLabel="限制預約至負責人員說明"
       >
-        <p>啟用後，病患在透過 LINE 預約時，只能選擇其指定治療師的時段。若病患尚未指定治療師，則可預約所有治療師的時段。診所人員建立預約時不受此限制影響。</p>
+        <p>啟用後，病患在透過 LINE 預約時，只能選擇其負責人員的時段。若病患尚未指定負責人員，則可預約所有治療師的時段。診所人員建立預約時不受此限制影響。</p>
       </InfoModal>
     </div>
   );

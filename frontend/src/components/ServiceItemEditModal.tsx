@@ -670,7 +670,7 @@ export const ServiceItemEditModal: React.FC<ServiceItemEditModalProps> = ({
                           <label className="flex items-center cursor-pointer">
                             <input type="checkbox" {...register('allow_patient_practitioner_selection')} className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mr-3" disabled={!isClinicAdmin} />
                             <div className="flex flex-col">
-                              <span className="text-sm font-medium text-gray-900">開放病患指定治療師</span>
+                              <span className="text-sm font-medium text-gray-900">開放病患指定負責人員</span>
                               <span className="text-xs text-gray-500">病患預約時可自由選擇想看診的治療師</span>
                             </div>
                             {!allow_patient_booking && (

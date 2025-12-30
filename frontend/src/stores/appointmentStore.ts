@@ -15,7 +15,7 @@ interface AppointmentState {
   appointmentNotesInstructions: string | null;
 
   // Step 2: Practitioner (Flow 1) or Appointment Type (Flow 2)
-  practitionerId: number | null; // null means "不指定治療師"
+  practitionerId: number | null; // null means "不指定負責人員"
   practitioner: Practitioner | null;
   isAutoAssigned: boolean; // true if practitioner was auto-assigned by system
 
