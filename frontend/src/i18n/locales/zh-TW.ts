@@ -36,7 +36,7 @@ export default {
     notificationsDesc: '設定提醒，當有符合條件的空位時會通知您',
   },
   patient: {
-    label: '病患',
+    label: '就診人',
     form: {
       name: {
         label: '姓名',
@@ -101,7 +101,7 @@ export default {
     rescheduleFailedTitle: '無法修改',
     errors: {
       clinicInfoNotLoaded: '診所資訊未載入',
-      patientDataLoadFailed: '無法載入病患資料，將使用預設流程',
+      patientDataLoadFailed: '無法載入就診人資料，將使用預設流程',
       loadError: '載入錯誤',
       loadTypes: '無法載入預約類型，請稍後再試',
       loadPractitioners: '無法載入治療師列表，請稍後再試',
@@ -130,7 +130,7 @@ export default {
     },
     reschedule: {
       title: '修改預約',
-      patientName: '病患姓名',
+      patientName: '就診人姓名',
       appointmentType: '預約類型',
       practitioner: '治療師',
       selectDateTime: '選擇日期和時間',
