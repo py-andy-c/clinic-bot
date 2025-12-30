@@ -253,6 +253,7 @@ else:
 )
 async def root() -> dict[str, str]:
     """Get API information."""
+    # Test comment for pre-commit hook verification
     return {
         "message": "Clinic Bot Backend API",
         "version": "1.0.0",
