@@ -136,34 +136,30 @@ describe('EditAppointmentModal', () => {
   ];
 
   it('should accept edit props without crashing', () => {
-    render(
-      <ModalProvider>
-        <EditAppointmentModal
-          event={mockAppointmentEvent}
-          practitioners={mockPractitioners}
-          appointmentTypes={mockAppointmentTypes}
-          onClose={mockOnClose}
-          onConfirm={mockOnConfirm}
-          formatAppointmentTime={mockFormatAppointmentTime}
-        />
-      </ModalProvider>
+    renderWithModal(
+      <EditAppointmentModal
+        event={mockAppointmentEvent}
+        practitioners={mockPractitioners}
+        appointmentTypes={mockAppointmentTypes}
+        onClose={mockOnClose}
+        onConfirm={mockOnConfirm}
+        formatAppointmentTime={mockFormatAppointmentTime}
+      />
     );
 
     expect(screen.getByText('調整預約')).toBeInTheDocument();
   });
 
   it('should display original appointment time', async () => {
-    render(
-      <ModalProvider>
-        <EditAppointmentModal
-          event={mockAppointmentEvent}
-          practitioners={mockPractitioners}
-          appointmentTypes={mockAppointmentTypes}
-          onClose={mockOnClose}
-          onConfirm={mockOnConfirm}
-          formatAppointmentTime={mockFormatAppointmentTime}
-        />
-      </ModalProvider>
+    renderWithModal(
+      <EditAppointmentModal
+        event={mockAppointmentEvent}
+        practitioners={mockPractitioners}
+        appointmentTypes={mockAppointmentTypes}
+        onClose={mockOnClose}
+        onConfirm={mockOnConfirm}
+        formatAppointmentTime={mockFormatAppointmentTime}
+      />
     );
 
     // Wait for the component to render

@@ -25,10 +25,12 @@ import {
   PractitionerSelector, 
   AppointmentFormSkeleton 
 } from './form';
-import { usePractitionerAssignmentPrompt } from '../../hooks/usePractitionerAssignmentPrompt';
+import { shouldPromptForAssignment } from '../../hooks/usePractitionerAssignmentPrompt';
 import { PractitionerAssignmentPromptModal } from '../PractitionerAssignmentPromptModal';
 import { PractitionerAssignmentConfirmationModal } from '../PractitionerAssignmentConfirmationModal';
 import { getAssignedPractitionerIds } from '../../utils/patientUtils';
+import { useModalQueue } from '../../contexts/ModalQueueContext';
+import { useModal } from '../../contexts/ModalContext';
 
 type EditStep = 'form' | 'review' | 'note' | 'preview';
 
@@ -37,6 +39,7 @@ export interface EditAppointmentModalProps {
   practitioners: { id: number; full_name: string }[];
   appointmentTypes: { id: number; name: string; duration_minutes: number }[];
   onClose: () => void;
+  onCloseComplete?: () => void; // Called when modal should close completely (not return to EventModal)
   onConfirm: (formData: { appointment_type_id?: number | null; practitioner_id: number | null; start_time: string; clinic_notes?: string; notification_note?: string; selected_resource_ids?: number[] }) => Promise<void>;
   formatAppointmentTime: (start: Date, end: Date) => string;
   errorMessage?: string | null; // Error message to display (e.g., from failed save)
@@ -51,6 +54,7 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
   practitioners,
   appointmentTypes,
   onClose,
+  onCloseComplete,
   onConfirm,
   errorMessage: externalErrorMessage,
   showReadOnlyFields = true,
@@ -100,13 +104,8 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
 
   // Assignment prompt state
   const [currentPatient, setCurrentPatient] = useState<Patient | null>(null);
-  const assignmentPrompt = usePractitionerAssignmentPrompt({
-    patient: currentPatient,
-    practitionerId: selectedPractitionerId,
-    onAssignmentAdded: (updatedPatient) => {
-      setCurrentPatient(updatedPatient);
-    },
-  });
+  const { enqueueModal, showNext } = useModalQueue();
+  const { alert } = useModal();
 
   // Fetch patient data on mount to get assigned practitioners
   useEffect(() => {
@@ -396,25 +395,124 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       }
       await onConfirm(formData);
       
+      // Note: onConfirm (handleConfirmEditAppointment) already sets modalState to null
+      // So we don't need to call onClose() after successful save unless we're showing assignment prompt
+      
       // After successful appointment update, check for assignment prompt
       // Only check if practitioner changed AND new practitioner is not null (not "不指定")
       if (changeDetails.practitionerChanged && selectedPractitionerId !== null && event.resource.patient_id) {
         try {
           const patient = await apiService.getPatient(event.resource.patient_id);
           setCurrentPatient(patient);
+          
           // Check if we need to prompt for assignment
-          if (assignmentPrompt.checkAndPrompt()) {
-            // Prompt will be shown, don't close modal yet
+          const shouldPrompt = shouldPromptForAssignment(patient, selectedPractitionerId);
+          
+          if (shouldPrompt) {
+            const practitionerName = availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || '';
+            
+            // Get current assigned practitioners to display
+            let currentAssigned: Array<{ id: number; full_name: string }> = [];
+            if (patient.assigned_practitioners && patient.assigned_practitioners.length > 0) {
+              currentAssigned = patient.assigned_practitioners
+                .filter((p) => p.is_active !== false)
+                .map((p) => ({ id: p.id, full_name: p.full_name }));
+            } else if (patient.assigned_practitioner_ids && patient.assigned_practitioner_ids.length > 0) {
+              currentAssigned = patient.assigned_practitioner_ids
+                .map((id) => {
+                  const practitioner = practitioners.find(p => p.id === id);
+                  return practitioner ? { id: practitioner.id, full_name: practitioner.full_name } : null;
+                })
+                .filter((p): p is { id: number; full_name: string } => p !== null);
+            }
+            
+            // Enqueue the assignment prompt modal (defer until this modal closes)
+            enqueueModal<React.ComponentProps<typeof PractitionerAssignmentPromptModal>>({
+              id: 'assignment-prompt',
+              component: PractitionerAssignmentPromptModal,
+              defer: true,
+              props: {
+                practitionerName,
+                currentAssignedPractitioners: currentAssigned,
+                onConfirm: async () => {
+                  if (!patient || !selectedPractitionerId) return;
+                  
+                  try {
+                    const updatedPatient = await apiService.assignPractitionerToPatient(
+                      patient.id,
+                      selectedPractitionerId
+                    );
+                    
+                    const allAssigned = updatedPatient.assigned_practitioners || [];
+                    const activeAssigned = allAssigned
+                      .filter((p) => p.is_active !== false)
+                      .map((p) => ({ id: p.id, full_name: p.full_name }));
+                    
+                    setCurrentPatient(updatedPatient);
+                    
+                    // Enqueue confirmation modal
+                    enqueueModal<React.ComponentProps<typeof PractitionerAssignmentConfirmationModal>>({
+                      id: 'assignment-confirmation',
+                      component: PractitionerAssignmentConfirmationModal,
+                      defer: true,
+                      props: {
+                        assignedPractitioners: activeAssigned,
+                        excludePractitionerId: selectedPractitionerId,
+                        onClose: () => {
+                          // After confirmation modal closes, close everything completely
+                          // This includes closing the EditAppointmentModal
+                          if (onCloseComplete) {
+                            onCloseComplete();
+                          } else {
+                            // Fallback: close normally if onCloseComplete not provided
+                            onClose();
+                          }
+                        },
+                      },
+                    });
+                    
+                    setTimeout(() => {
+                      showNext();
+                    }, 250);
+                  } catch (err) {
+                    logger.error('Failed to add practitioner assignment:', err);
+                    const errorMessage = getErrorMessage(err) || '無法將治療師設為負責人員';
+                    await alert(errorMessage, '錯誤');
+                    if (onCloseComplete) {
+                      onCloseComplete();
+                    }
+                  }
+                },
+                onCancel: () => {
+                  // User declined assignment, close everything completely
+                  // This includes closing the EditAppointmentModal
+                  if (onCloseComplete) {
+                    onCloseComplete();
+                  } else {
+                    // Fallback: close normally if onCloseComplete not provided
+                    onClose();
+                  }
+                },
+              },
+            });
+            
+            // Don't call onClose() here - it would reopen EventModal
+            // Instead, show the queued prompt modal immediately
+            // The EditAppointmentModal will remain open but hidden behind the assignment modals
+            // We'll close it via onCloseComplete() after the assignment flow completes
+            setTimeout(() => {
+              showNext();
+            }, 0);
             return;
           }
         } catch (err) {
           logger.error('Failed to fetch patient for assignment check:', err);
-          // Continue to close modal even if we can't check
+          // Continue - onConfirm already closed the modal
         }
       }
       
-      // Close modal if no prompt needed
-      onClose();
+      // Don't call onClose() here - onConfirm (handleConfirmEditAppointment) already sets modalState to null
+      // Only call onClose() if we're showing assignment prompt (handled above)
     } catch (err) {
       logger.error('Error saving appointment:', err);
       setError(getErrorMessage(err));
@@ -800,50 +898,6 @@ export const EditAppointmentModal: React.FC<EditAppointmentModalProps> = React.m
       </div>
     </BaseModal>
 
-    {/* Assignment prompt modals */}
-    {changeDetails.practitionerChanged && selectedPractitionerId !== null && (
-      <>
-        <PractitionerAssignmentPromptModal
-          isOpen={assignmentPrompt.showPrompt}
-          onConfirm={async () => {
-            await assignmentPrompt.handleConfirm();
-          }}
-          onCancel={() => {
-            assignmentPrompt.handleCancel();
-            onClose();
-          }}
-          practitionerName={availablePractitioners.find(p => p.id === selectedPractitionerId)?.full_name || ''}
-          currentAssignedPractitioners={(() => {
-            if (!currentPatient) return [];
-            // Prefer assigned_practitioners array if available, otherwise use assigned_practitioner_ids
-            if (currentPatient.assigned_practitioners && currentPatient.assigned_practitioners.length > 0) {
-              return currentPatient.assigned_practitioners
-                .filter((p) => p.is_active !== false)
-                .map((p) => ({ id: p.id, full_name: p.full_name }));
-            } else if (currentPatient.assigned_practitioner_ids && currentPatient.assigned_practitioner_ids.length > 0) {
-              // Use assigned_practitioner_ids and look up names from all practitioners (not just available ones)
-              // Use practitioners prop which contains all practitioners, not filtered by appointment type
-              return currentPatient.assigned_practitioner_ids
-                .map((id) => {
-                  const practitioner = practitioners.find(p => p.id === id);
-                  return practitioner ? { id: practitioner.id, full_name: practitioner.full_name } : null;
-                })
-                .filter((p): p is { id: number; full_name: string } => p !== null);
-            }
-            return [];
-          })()}
-        />
-        <PractitionerAssignmentConfirmationModal
-          isOpen={assignmentPrompt.showConfirmation}
-          onClose={() => {
-            assignmentPrompt.handleConfirmationClose();
-            onClose();
-          }}
-          assignedPractitioners={assignmentPrompt.assignedPractitioners}
-          excludePractitionerId={selectedPractitionerId}
-        />
-      </>
-    )}
   </>
   );
 });
