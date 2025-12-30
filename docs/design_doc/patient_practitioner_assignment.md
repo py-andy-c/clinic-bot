@@ -266,7 +266,8 @@ This feature allows clinics to assign one or more practitioners as the main resp
 - **Utility Function**: `shouldPromptForAssignment(patient, practitionerId)`
   - Returns true if practitioner is not assigned to patient
   - Filters out inactive/deleted practitioners
-  - Returns false if all assigned practitioners are inactive (treat as no assigned)
+  - If patient has no active assigned practitioners → returns true (prompt for first assignment)
+  - If all assigned practitioners are inactive → returns true (treat as no assigned, prompt for first assignment)
 - **Shared Component**: `PractitionerAssignmentPromptModal`
   - Reusable blocking modal for "Add as assigned practitioner?" prompt
   - Y/N buttons, cancel/close defaults to No

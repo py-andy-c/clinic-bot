@@ -12,8 +12,17 @@ interface UsePractitionerAssignmentPromptOptions {
 }
 
 /**
- * Utility function to check if practitioner is assigned to patient
- * Filters out inactive/deleted practitioners from assigned list
+ * Utility function to check if we should prompt to assign a practitioner to a patient.
+ * 
+ * Returns true if we should prompt, false otherwise.
+ * 
+ * Logic:
+ * 1. If patient has no active assigned practitioners → prompt (first assignment)
+ * 2. If patient has active assigned practitioners:
+ *    - Selected practitioner is NOT in the list → prompt (new assignment)
+ *    - Selected practitioner IS in the list → don't prompt (already assigned)
+ * 
+ * Filters out inactive/deleted practitioners from the assigned list.
  */
 export const shouldPromptForAssignment = (
   patient: Patient | null,
@@ -27,10 +36,12 @@ export const shouldPromptForAssignment = (
     (p) => p.is_active !== false
   );
 
-  // If all assigned practitioners are inactive, treat as no assigned
-  if (activeAssigned.length === 0) return false;
+  // If patient has no active assigned practitioners, prompt to assign
+  // This is the first assignment for this patient
+  if (activeAssigned.length === 0) return true;
 
-  // Check if practitioner is in the active assigned list
+  // Check if practitioner is already in the active assigned list
+  // If not assigned, we should prompt
   return !activeAssigned.some((p) => p.id === practitionerId);
 };
 
