@@ -17,12 +17,14 @@ interface UsePractitionerAssignmentPromptOptions {
  * Returns true if we should prompt, false otherwise.
  * 
  * Logic:
- * 1. If patient has no active assigned practitioners → prompt (first assignment)
- * 2. If patient has active assigned practitioners:
+ * 1. If patient has no assigned practitioners → prompt (first assignment)
+ * 2. If patient has assigned practitioners:
  *    - Selected practitioner is NOT in the list → prompt (new assignment)
  *    - Selected practitioner IS in the list → don't prompt (already assigned)
  * 
- * Filters out inactive/deleted practitioners from the assigned list.
+ * Note: The API returns assigned_practitioner_ids (array of IDs), not assigned_practitioners
+ * (array of objects). We check assigned_practitioner_ids first, with fallback to
+ * assigned_practitioners for backward compatibility.
  */
 export const shouldPromptForAssignment = (
   patient: Patient | null,
@@ -30,19 +32,28 @@ export const shouldPromptForAssignment = (
 ): boolean => {
   if (!patient || !practitionerId) return false;
 
-  const assignedPractitioners = patient.assigned_practitioners || [];
-  // Filter out inactive/deleted practitioners
-  const activeAssigned = assignedPractitioners.filter(
-    (p) => p.is_active !== false
-  );
+  // Check assigned_practitioner_ids first (primary source from API)
+  // The backend API returns assigned_practitioner_ids, not assigned_practitioners
+  let assignedPractitionerIds: number[] = [];
+  
+  if (patient.assigned_practitioner_ids && patient.assigned_practitioner_ids.length > 0) {
+    // Use assigned_practitioner_ids from API (primary source)
+    assignedPractitionerIds = patient.assigned_practitioner_ids;
+  } else if (patient.assigned_practitioners && patient.assigned_practitioners.length > 0) {
+    // Fall back to assigned_practitioners array (filter out inactive for backward compatibility)
+    const activeAssigned = patient.assigned_practitioners.filter(
+      (p) => p.is_active !== false
+    );
+    assignedPractitionerIds = activeAssigned.map(p => p.id);
+  }
 
-  // If patient has no active assigned practitioners, prompt to assign
+  // If patient has no assigned practitioners, prompt to assign
   // This is the first assignment for this patient
-  if (activeAssigned.length === 0) return true;
+  if (assignedPractitionerIds.length === 0) return true;
 
-  // Check if practitioner is already in the active assigned list
+  // Check if practitioner is already in the assigned list
   // If not assigned, we should prompt
-  return !activeAssigned.some((p) => p.id === practitionerId);
+  return !assignedPractitionerIds.includes(practitionerId);
 };
 
 /**

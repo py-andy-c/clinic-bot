@@ -47,7 +47,7 @@ describe('shouldPromptForAssignment', () => {
   });
 
   describe('Patient with no assigned practitioners', () => {
-    it('should return true when patient has no assigned_practitioners array', () => {
+    it('should return true when patient has no assigned_practitioner_ids or assigned_practitioners', () => {
       const patient: Patient = {
         id: 1,
         clinic_id: 1,
@@ -58,19 +58,32 @@ describe('shouldPromptForAssignment', () => {
       expect(shouldPromptForAssignment(patient, 1)).toBe(true);
     });
 
-    it('should return true when assigned_practitioners is undefined', () => {
+    it('should return true when assigned_practitioner_ids is undefined and assigned_practitioners is undefined', () => {
       const patient: Patient = {
         id: 1,
         clinic_id: 1,
         full_name: 'Test Patient',
         phone_number: '1234567890',
         created_at: '2024-01-01T00:00:00Z',
+        assigned_practitioner_ids: undefined,
         assigned_practitioners: undefined,
       };
       expect(shouldPromptForAssignment(patient, 1)).toBe(true);
     });
 
-    it('should return true when assigned_practitioners is empty array', () => {
+    it('should return true when assigned_practitioner_ids is empty array', () => {
+      const patient: Patient = {
+        id: 1,
+        clinic_id: 1,
+        full_name: 'Test Patient',
+        phone_number: '1234567890',
+        created_at: '2024-01-01T00:00:00Z',
+        assigned_practitioner_ids: [],
+      };
+      expect(shouldPromptForAssignment(patient, 1)).toBe(true);
+    });
+
+    it('should return true when assigned_practitioners is empty array (fallback)', () => {
       const patient: Patient = {
         id: 1,
         clinic_id: 1,
@@ -115,7 +128,19 @@ describe('shouldPromptForAssignment', () => {
   });
 
   describe('Patient with active assigned practitioners - practitioner not in list', () => {
-    it('should return true when practitioner is not in active assigned list', () => {
+    it('should return true when practitioner is not in assigned_practitioner_ids', () => {
+      const patient: Patient = {
+        id: 1,
+        clinic_id: 1,
+        full_name: 'Test Patient',
+        phone_number: '1234567890',
+        created_at: '2024-01-01T00:00:00Z',
+        assigned_practitioner_ids: [2, 3],
+      };
+      expect(shouldPromptForAssignment(patient, 1)).toBe(true);
+    });
+
+    it('should return true when practitioner is not in active assigned list (fallback to assigned_practitioners)', () => {
       const patient: Patient = {
         id: 1,
         clinic_id: 1,
@@ -161,7 +186,19 @@ describe('shouldPromptForAssignment', () => {
   });
 
   describe('Patient with active assigned practitioners - practitioner already in list', () => {
-    it('should return false when practitioner is in active assigned list', () => {
+    it('should return false when practitioner is in assigned_practitioner_ids', () => {
+      const patient: Patient = {
+        id: 1,
+        clinic_id: 1,
+        full_name: 'Test Patient',
+        phone_number: '1234567890',
+        created_at: '2024-01-01T00:00:00Z',
+        assigned_practitioner_ids: [1, 2],
+      };
+      expect(shouldPromptForAssignment(patient, 1)).toBe(false);
+    });
+
+    it('should return false when practitioner is in active assigned list (fallback to assigned_practitioners)', () => {
       const patient: Patient = {
         id: 1,
         clinic_id: 1,
@@ -276,7 +313,22 @@ describe('shouldPromptForAssignment', () => {
       expect(shouldPromptForAssignment(newPatient, 1)).toBe(true);
     });
 
-    it('should handle adding second practitioner scenario correctly', () => {
+    it('should handle adding second practitioner scenario correctly (using assigned_practitioner_ids)', () => {
+      const patient: Patient = {
+        id: 1,
+        clinic_id: 1,
+        full_name: 'Existing Patient',
+        phone_number: '1234567890',
+        created_at: '2024-01-01T00:00:00Z',
+        assigned_practitioner_ids: [1],
+      };
+      // Patient already has practitioner 1, adding practitioner 2 should prompt
+      expect(shouldPromptForAssignment(patient, 2)).toBe(true);
+      // But practitioner 1 is already assigned, so should not prompt
+      expect(shouldPromptForAssignment(patient, 1)).toBe(false);
+    });
+
+    it('should handle adding second practitioner scenario correctly (fallback to assigned_practitioners)', () => {
       const patient: Patient = {
         id: 1,
         clinic_id: 1,
@@ -293,7 +345,21 @@ describe('shouldPromptForAssignment', () => {
       expect(shouldPromptForAssignment(patient, 1)).toBe(false);
     });
 
-    it('should handle practitioner reassignment after deletion scenario', () => {
+    it('should handle practitioner reassignment after deletion scenario (using assigned_practitioner_ids)', () => {
+      const patient: Patient = {
+        id: 1,
+        clinic_id: 1,
+        full_name: 'Patient',
+        phone_number: '1234567890',
+        created_at: '2024-01-01T00:00:00Z',
+        assigned_practitioner_ids: [], // All were removed/deleted
+      };
+      // No assigned practitioners, should prompt to assign new one
+      expect(shouldPromptForAssignment(patient, 2)).toBe(true);
+      expect(shouldPromptForAssignment(patient, 1)).toBe(true);
+    });
+
+    it('should handle practitioner reassignment after deletion scenario (fallback to assigned_practitioners)', () => {
       const patient: Patient = {
         id: 1,
         clinic_id: 1,
@@ -308,6 +374,24 @@ describe('shouldPromptForAssignment', () => {
       expect(shouldPromptForAssignment(patient, 2)).toBe(true);
       // Even the deleted practitioner should prompt (since it's inactive)
       expect(shouldPromptForAssignment(patient, 1)).toBe(true);
+    });
+
+    it('should prefer assigned_practitioner_ids over assigned_practitioners when both are present', () => {
+      const patient: Patient = {
+        id: 1,
+        clinic_id: 1,
+        full_name: 'Test Patient',
+        phone_number: '1234567890',
+        created_at: '2024-01-01T00:00:00Z',
+        assigned_practitioner_ids: [1],
+        assigned_practitioners: [
+          { id: 2, full_name: 'Dr. Other', is_active: true },
+        ],
+      };
+      // Should use assigned_practitioner_ids (primary source), so practitioner 1 is assigned, don't prompt
+      expect(shouldPromptForAssignment(patient, 1)).toBe(false);
+      // Practitioner 2 is in assigned_practitioners but not in assigned_practitioner_ids, should prompt
+      expect(shouldPromptForAssignment(patient, 2)).toBe(true);
     });
   });
 });
